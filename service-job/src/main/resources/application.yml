@@ -1,8 +1,11 @@
 server:
   port: 8301
+  shutdown: graceful
 
 spring:
   application:
     name: service-job
   profiles:
     active: @profiles.active@
+  main:
+    allow-bean-definition-overriding: true

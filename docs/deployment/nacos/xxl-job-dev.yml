@@ -1,0 +1,9 @@
+xxl:
+  job:
+    admin:
+      addresses: ${XXL_JOB_ADMIN:http://127.0.0.1:8088/xxl-job-admin}
+    executor:
+      appname: ${spring.application.name}
+      logpath: logs/xxl-job
+      logretentiondays: 30
+

@@ -34,6 +34,7 @@ service-gateway
 service-admin
 service-merchant
 service-checkout
+service-openapi
 service-payment
 service-payout
 service-channel
@@ -81,6 +82,18 @@ banner.txt
 seata.conf
 log-config/logback-spring.xml
 ```
+
+Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等基础设施配置统一放到 Nacos Config，DataId 规范见 [Nacos 配置拆分规范](docs/deployment/nacos/README.md)。
+
+## 开放 API 边界
+
+商户侧收单、代付、查询、退款等开放接口统一进入 `service-openapi`：
+
+```text
+merchant/client -> service-gateway -> service-openapi -> service-payment/service-payout
+```
+
+`service-openapi` 负责请求头验签、报文解密、商户基础参数校验、产品权限校验、幂等与商户通知。渠道侧回调仍由 `service-channel` 承接。
 
 ## 基本原则
 

@@ -1,0 +1,15 @@
+spring:
+  jackson:
+    time-zone: UTC
+    date-format: yyyy-MM-dd HH:mm:ss
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+global-payment:
+  trace:
+    header-name: X-Trace-Id
+

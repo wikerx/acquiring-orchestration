@@ -1,15 +1,14 @@
-package com.global.payment.payment.api.external;
+package com.global.payment.payout.api.internal;
 
 import com.global.payment.component.core.model.ApiResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class PaymentHealthController {
+public class PayoutHealthController {
 
-    @GetMapping("/payment/health")
+    @GetMapping("/payout/health")
     public ApiResult<String> health() {
-        return ApiResult.success("service-payment");
+        return ApiResult.success("service-payout");
     }
 }
-

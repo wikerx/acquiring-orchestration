@@ -37,6 +37,7 @@ global-payment-architecture
 ├── service-admin
 ├── service-merchant
 ├── service-checkout
+├── service-openapi
 ├── service-payment
 ├── service-payout
 ├── service-channel
@@ -508,7 +509,53 @@ service-checkout
     └── vo
 ```
 
-### 5.5 service-payment
+### 5.5 service-openapi
+
+定位：商户开放 API 与商户通知服务。
+
+职责：
+
+1. 商户侧收单、代付、查询、退款等开放 API 入口；
+2. 请求头验签；
+3. 报文数据解密；
+4. 商户号、AppId、API Key 等基础参数校验；
+5. 商户产品权限、接口权限和限额前置校验；
+6. timestamp + nonce 防重放；
+7. 幂等键校验；
+8. 外部请求模型转换为内部交易命令；
+9. 平台向商户发送支付、退款、代付结果通知；
+10. 开放 API 请求日志、响应日志和通知日志记录。
+
+建议包结构：
+
+```text
+service-openapi
+└── src/main/java/com/global/payment/openapi
+    ├── OpenApiApplication.java
+    ├── api
+    ├── application
+    ├── client
+    ├── dto
+    ├── converter
+    ├── notify
+    └── log
+```
+
+说明：
+
+商户侧外部请求统一链路：
+
+```text
+merchant/client -> service-gateway -> service-openapi -> service-payment/service-payout
+```
+
+渠道侧回调仍由 `service-channel` 承接：
+
+```text
+channel callback -> service-gateway -> service-channel -> service-payment/service-payout
+```
+
+### 5.6 service-payment
 
 定位：收单交易核心。
 
@@ -531,8 +578,7 @@ service-payment
 └── src/main/java/com/global/payment/payment
     ├── PaymentApplication.java
     ├── api
-    │   ├── internal
-    │   └── external
+    │   └── internal
     ├── application
     │   ├── command
     │   ├── query
@@ -551,7 +597,7 @@ service-payment
     └── converter
 ```
 
-### 5.6 service-payout
+### 5.7 service-payout
 
 定位：代付交易核心。
 
@@ -573,8 +619,7 @@ service-payout
 └── src/main/java/com/global/payment/payout
     ├── PayoutApplication.java
     ├── api
-    │   ├── internal
-    │   └── external
+    │   └── internal
     ├── application
     ├── domain
     │   ├── order
@@ -589,7 +634,7 @@ service-payout
     └── converter
 ```
 
-### 5.7 service-channel
+### 5.8 service-channel
 
 定位：渠道网关与渠道适配服务。
 
@@ -630,7 +675,7 @@ service-channel
     └── converter
 ```
 
-### 5.8 service-job
+### 5.9 service-job
 
 定位：定时任务执行服务。
 
@@ -691,6 +736,7 @@ service-gateway  -> component-core + component-security + component-redis
 service-admin    -> component-core + component-web + component-security
 service-merchant -> component-core + component-web + component-db + component-redis
 service-checkout -> component-core + component-web + component-security + component-redis
+service-openapi  -> component-core + component-web + component-security + component-redis + component-mq + component-db
 service-payment  -> component-core + component-web + component-db + component-redis + component-mq + component-security
 service-payout   -> component-core + component-web + component-db + component-redis + component-mq + component-security
 service-channel  -> component-core + component-web + component-db + component-redis + component-mq + component-security
@@ -708,6 +754,13 @@ service-merchant
   - merchant_info
   - merchant_store
   - merchant_api_key
+
+service-openapi
+  - openapi_request_log_xxxx
+  - openapi_idempotent_record
+  - merchant_notify_task
+  - merchant_notify_log
+  - openapi_error_mapping
 
 service-payment
   - payment_order_xxxx
@@ -757,7 +810,8 @@ service-ledger
 11. Spring Boot 3.x；
 12. Spring Cloud；
 13. Nacos、RocketMQ、Redis、MySQL、XXL-JOB 依赖先预留；
-14. 支付交易表、代付交易表预留分表能力。
+14. 支付交易表、代付交易表预留分表能力；
+15. 商户开放 API 由 `service-openapi` 统一承接。
 
 ## 9. 当前落地说明
 
@@ -812,4 +866,17 @@ spring:
     active: @profiles.active@
 ```
 
-环境差异放到 `application-{env}.yml`，例如 Nacos、Redis、RocketMQ、XXL-JOB、Seata 等外部依赖地址。
+`application-{env}.yml` 只放 Nacos 连接信息和 `spring.config.import`。Redis Cluster、RocketMQ、数据库、分表、XXL-JOB、Seata 等外部依赖配置统一放到 Nacos Config 独立 DataId。
+
+推荐 DataId：
+
+```text
+{service-name}-{env}.yml
+common-{env}.yml
+dataSource-{env}.yml
+sharding-{env}.yml
+redis-{env}.yml
+rocketmq-{env}.yml
+seata-{env}.yml
+xxl-job-{env}.yml
+```

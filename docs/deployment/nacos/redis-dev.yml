@@ -1,0 +1,17 @@
+spring:
+  redis:
+    database: 0
+    timeout: 2s
+    cluster:
+      nodes:
+        - ${REDIS_NODE_1:127.0.0.1:6379}
+        - ${REDIS_NODE_2:127.0.0.1:6380}
+        - ${REDIS_NODE_3:127.0.0.1:6381}
+      max-redirects: 3
+    lettuce:
+      pool:
+        max-active: 32
+        max-idle: 16
+        min-idle: 4
+        max-wait: 2s
+

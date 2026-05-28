@@ -1,0 +1,8 @@
+openapi:
+  merchant:
+    timestamp-tolerance-seconds: 300
+    replay-cache-ttl-seconds: 600
+  notify:
+    max-retry-times: 8
+    retry-topic: merchant-notify-retry
+

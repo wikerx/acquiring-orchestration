@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    dynamic:
+      primary: master
+      strict: true
+      datasource:
+        master:
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: ${MYSQL_MASTER_URL:jdbc:mysql://127.0.0.1:3306/global_payment?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+          username: ${MYSQL_MASTER_USERNAME:root}
+          password: ${MYSQL_MASTER_PASSWORD:root}
+        slave:
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: ${MYSQL_SLAVE_URL:jdbc:mysql://127.0.0.1:3306/global_payment?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+          username: ${MYSQL_SLAVE_USERNAME:root}
+          password: ${MYSQL_SLAVE_PASSWORD:root}
+

@@ -17,6 +17,7 @@
         <module>service-admin</module>
         <module>service-merchant</module>
         <module>service-checkout</module>
+        <module>service-openapi</module>
         <module>service-payment</module>
         <module>service-payout</module>
         <module>service-channel</module>

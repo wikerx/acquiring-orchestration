@@ -1,27 +1,34 @@
 spring:
+  config:
+    import:
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:dataSource-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:sharding-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:rocketmq-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:seata-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:xxl-job-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
   cloud:
+    bootstrap:
+      enabled: true
     nacos:
       discovery:
         server-addr: ${NACOS_SERVER:nacos-test:8848}
+        namespace: ${NACOS_NAMESPACE:global-payment-test}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        register-enabled: true
       config:
         server-addr: ${NACOS_SERVER:nacos-test:8848}
+        namespace: ${spring.cloud.nacos.discovery.namespace}
+        username: ${spring.cloud.nacos.discovery.username}
+        password: ${spring.cloud.nacos.discovery.password}
+        group: DEFAULT_GROUP
         file-extension: yml
-  redis:
-    host: ${REDIS_HOST:redis-test}
-    port: ${REDIS_PORT:6379}
-
-rocketmq:
-  name-server: ${ROCKETMQ_NAME_SERVER:rocketmq-test:9876}
-
-xxl:
-  job:
-    admin:
-      addresses: ${XXL_JOB_ADMIN:http://xxl-job-test:8088/xxl-job-admin}
-
-seata:
-  enabled: false
-  tx-service-group: ${SEATA_TX_GROUP:global-payment-test}
+        encode: UTF-8
+        refresh-enabled: true
+        config-retry-time: 3
 
 logging:
   config: classpath:log-config/logback-spring.xml
-

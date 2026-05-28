@@ -11,6 +11,14 @@
     <artifactId>service-merchant</artifactId>
     <dependencies>
         <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.global.payment</groupId>
             <artifactId>component-core</artifactId>
             <version>${project.version}</version>

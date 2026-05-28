@@ -1,0 +1,12 @@
+server:
+  port: 8104
+  shutdown: graceful
+
+spring:
+  application:
+    name: service-openapi
+  profiles:
+    active: @profiles.active@
+  main:
+    allow-bean-definition-overriding: true
+

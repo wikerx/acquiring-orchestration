@@ -11,10 +11,10 @@ public class GatewayRouteConfig {
     @Bean
     public RouteLocator paymentRoutes(RouteLocatorBuilder builder) {
         return builder.routes()
-                .route("service-payment", route -> route.path("/payment/**").uri("lb://service-payment"))
-                .route("service-payout", route -> route.path("/payout/**").uri("lb://service-payout"))
+                .route("service-openapi", route -> route.path("/openapi/**").uri("lb://service-openapi"))
+                .route("merchant-payment-api", route -> route.path("/payment/**").uri("lb://service-openapi"))
+                .route("merchant-payout-api", route -> route.path("/payout/**").uri("lb://service-openapi"))
                 .route("service-channel", route -> route.path("/channel/**").uri("lb://service-channel"))
                 .build();
     }
 }
-
