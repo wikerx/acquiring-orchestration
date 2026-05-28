@@ -86,7 +86,7 @@ component-mq       ---> service-channel
 
 ```text
 component-core
-└── src/main/java/com/global/payment/component/core
+└── src/main/java/com/sinopay/payment/component/core
     ├── constant
     ├── enums
     ├── exception
@@ -123,7 +123,7 @@ component-core 不依赖任何内部 component 模块。
 
 ```text
 component-web
-└── src/main/java/com/global/payment/component/web
+└── src/main/java/com/sinopay/payment/component/web
     ├── config
     ├── filter
     │   └── TraceIdFilter.java
@@ -163,7 +163,7 @@ component-web -> service-*
 
 ```text
 component-security
-└── src/main/java/com/global/payment/component/security
+└── src/main/java/com/sinopay/payment/component/security
     ├── config
     ├── crypto
     │   ├── AesEncryptor.java
@@ -211,7 +211,7 @@ component-security -> component-redis
 
 ```text
 component-db
-└── src/main/java/com/global/payment/component/db
+└── src/main/java/com/sinopay/payment/component/db
     ├── config
     │   ├── MybatisPlusConfig.java
     │   ├── DataSourceConfig.java
@@ -260,7 +260,7 @@ component-db -> service-*
 
 ```text
 component-redis
-└── src/main/java/com/global/payment/component/redis
+└── src/main/java/com/sinopay/payment/component/redis
     ├── config
     │   └── RedisConfig.java
     ├── cache
@@ -302,7 +302,7 @@ component-redis -> service-*
 
 ```text
 component-mq
-└── src/main/java/com/global/payment/component/mq
+└── src/main/java/com/sinopay/payment/component/mq
     ├── config
     │   └── RocketMqConfig.java
     ├── constant
@@ -352,7 +352,7 @@ component-mq -> service-*
 
 ```text
 component-job
-└── src/main/java/com/global/payment/component/job
+└── src/main/java/com/sinopay/payment/component/job
     ├── config
     │   └── XxlJobConfig.java
     ├── model
@@ -399,7 +399,7 @@ component-job -> component-core
 
 ```text
 service-gateway
-└── src/main/java/com/global/payment/gateway
+└── src/main/java/com/sinopay/payment/gateway
     ├── GatewayApplication.java
     ├── config
     ├── filter
@@ -440,7 +440,7 @@ service-gateway
 
 ```text
 service-admin
-└── src/main/java/com/global/payment/admin
+└── src/main/java/com/sinopay/payment/admin
     ├── AdminApplication.java
     ├── controller
     ├── application
@@ -472,7 +472,7 @@ service-admin
 
 ```text
 service-merchant
-└── src/main/java/com/global/payment/merchant
+└── src/main/java/com/sinopay/payment/merchant
     ├── MerchantApplication.java
     ├── controller
     ├── application
@@ -500,7 +500,7 @@ service-merchant
 
 ```text
 service-checkout
-└── src/main/java/com/global/payment/checkout
+└── src/main/java/com/sinopay/payment/checkout
     ├── CheckoutApplication.java
     ├── controller
     ├── application
@@ -530,16 +530,32 @@ service-checkout
 
 ```text
 service-openapi
-└── src/main/java/com/global/payment/openapi
+└── src/main/java/com/sinopay/payment/openapi
     ├── OpenApiApplication.java
+    ├── annotation
+    │   └── v1
+    ├── aspect
+    │   └── v1
     ├── api
+    │   └── rest
+    │       └── v1
+    │           ├── dto
+    │           │   ├── body
+    │           │   ├── converter
+    │           │   └── header
+    │           ├── heartbeat
+    │           ├── notify
+    │           ├── payment
+    │           └── payout
     ├── application
     ├── client
-    ├── dto
-    ├── converter
     ├── notify
-    └── log
+    ├── service
+    │   └── impl
+    └── vo
 ```
+
+包名约束：Java 包名全小写；实现类放在 `service.impl`，不使用 `serviceImpl`；请求/响应对象统一使用 `DTO`、`VO` 后缀。
 
 说明：
 
@@ -575,7 +591,7 @@ channel callback -> service-gateway -> service-channel -> service-payment/servic
 
 ```text
 service-payment
-└── src/main/java/com/global/payment/payment
+└── src/main/java/com/sinopay/payment/payment
     ├── PaymentApplication.java
     ├── api
     │   └── internal
@@ -616,7 +632,7 @@ service-payment
 
 ```text
 service-payout
-└── src/main/java/com/global/payment/payout
+└── src/main/java/com/sinopay/payment/payout
     ├── PayoutApplication.java
     ├── api
     │   └── internal
@@ -653,7 +669,7 @@ service-payout
 
 ```text
 service-channel
-└── src/main/java/com/global/payment/channel
+└── src/main/java/com/sinopay/payment/channel
     ├── ChannelApplication.java
     ├── api
     │   ├── internal
@@ -692,7 +708,7 @@ service-channel
 
 ```text
 service-job
-└── src/main/java/com/global/payment/job
+└── src/main/java/com/sinopay/payment/job
     ├── JobApplication.java
     ├── handler
     │   ├── PaymentTimeoutCloseJob.java
