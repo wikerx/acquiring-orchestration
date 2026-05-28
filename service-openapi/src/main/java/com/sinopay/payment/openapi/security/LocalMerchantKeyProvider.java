@@ -1,7 +1,7 @@
 package com.sinopay.payment.openapi.security;
 
-import com.sinopay.payment.component.core.constant.ErrorCode;
-import com.sinopay.payment.component.core.exception.BizException;
+import com.sinopay.payment.component.core.enums.ApiCoResultEnum;
+import com.sinopay.payment.component.core.exception.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -24,10 +24,16 @@ public class LocalMerchantKeyProvider implements MerchantKeyProvider {
         this.defaultMerchantKey = defaultMerchantKey;
     }
 
+    /**
+     * 获取商户 JWT HS256 签名密钥。
+     *
+     * @param merchantId OPGS 商户号
+     * @return 商户签名密钥
+     */
     @Override
     public String getMerchantKey(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
-            throw new BizException(ErrorCode.SIGN_INVALID, "merchantId is required");
+            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_MER_INVALID);
         }
         // TODO 后续替换为商户服务/数据库/Nacos 密钥查询，并支持密钥轮换。
         return defaultMerchantKey;

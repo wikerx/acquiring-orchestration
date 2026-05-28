@@ -564,17 +564,19 @@ service-openapi
     │   └── v1
     ├── api
     │   └── rest
-    │       └── v1
-    │           ├── dto
-    │           │   ├── body
-    │           │   ├── converter
-    │           │   └── header
-    │           ├── heartbeat
-    │           ├── notify
-    │           ├── payment
-    │           └── payout
+    │       ├── co
+    │       │   └── v2
+    │       ├── heartbeat
+    │       ├── notify
+    │       │   └── v1
+    │       └── payout
+    │           └── v2
     ├── application
     ├── client
+    ├── converter
+    ├── dto
+    │   ├── body
+    │   └── header
     ├── notify
     ├── service
     │   └── impl
@@ -582,6 +584,13 @@ service-openapi
 ```
 
 包名约束：Java 包名全小写；实现类放在 `service.impl`，不使用 `serviceImpl`；请求/响应对象统一使用 `DTO`、`VO` 后缀。
+
+工具包放置约束：
+
+1. 通用常量、JSON、脱敏、金额、日期、国家、卡号等无外部中间件依赖的工具放在 `component-core`；
+2. JWT、签名、加解密、防重放等安全工具放在 `component-security`；
+3. HTTP 客户端、响应模型和外部请求封装放在 `component-http`；
+4. Redis、MQ、数据库、任务调度相关工具分别放在对应组件，业务微服务只依赖组件，不反向沉淀工具类。
 
 说明：
 

@@ -2,6 +2,8 @@ package com.sinopay.payment.component.security.sign;
 
 import com.sinopay.payment.component.security.crypto.HmacSha256Signer;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Map;
 
 /**
@@ -19,7 +21,13 @@ public class MerchantSignatureVerifier implements SignatureVerifier {
 
     @Override
     public boolean verify(Map<String, String> parameters, String signature, String secret) {
-        return signer.sign(parameters, secret).equals(signature);
+        if (signature == null || secret == null) {
+            return false;
+        }
+        String expectedSignature = signer.sign(parameters, secret);
+        return MessageDigest.isEqual(
+                expectedSignature.getBytes(StandardCharsets.UTF_8),
+                signature.getBytes(StandardCharsets.UTF_8)
+        );
     }
 }
-

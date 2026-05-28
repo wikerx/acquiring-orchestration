@@ -16,6 +16,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OpenApiSecurityConfig {
 
+    /**
+     * 注册商户 JWT 验签器。
+     *
+     * @return 商户 JWT 验签器
+     */
     @Bean
     public MerchantJwtVerifier merchantJwtVerifier() {
         return new MerchantJwtVerifier();

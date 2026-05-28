@@ -30,11 +30,21 @@ public class OpenApiWebMvcConfig implements WebMvcConfigurer {
         this.requestArgumentResolver = requestArgumentResolver;
     }
 
+    /**
+     * 注册开放 API 请求头拦截器。
+     *
+     * @param registry 拦截器注册表
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(headerInterceptor).addPathPatterns("/openapi/**", "/channel/**");
+        registry.addInterceptor(headerInterceptor).addPathPatterns("/openapi/**", "/channel/**", "/api/rest/**");
     }
 
+    /**
+     * 注册开放 API 解密 DTO 参数解析器。
+     *
+     * @param resolvers 参数解析器列表
+     */
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
         resolvers.add(requestArgumentResolver);

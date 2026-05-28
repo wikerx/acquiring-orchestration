@@ -1,10 +1,10 @@
 package com.sinopay.payment.openapi.support;
 
-import com.sinopay.payment.component.core.constant.ErrorCode;
-import com.sinopay.payment.component.core.exception.BizException;
+import com.sinopay.payment.component.core.enums.ApiCoResultEnum;
+import com.sinopay.payment.component.core.exception.ApiException;
 import com.sinopay.payment.component.core.json.JsonUtils;
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.OpenApiEncryptedRequestDTO;
-import com.sinopay.payment.openapi.api.rest.v1.dto.header.OpenApiRequestHeaderDTO;
+import com.sinopay.payment.openapi.dto.body.OpenApiEncryptedRequestDTO;
+import com.sinopay.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -23,15 +23,23 @@ import java.util.Base64;
 @Component
 public class OpenApiPayloadDecoder {
 
+    /**
+     * 解密并转换商户密文请求体。
+     *
+     * @param requestBody  商户原始请求体
+     * @param dataReceiver 解密后接收 DTO 类型
+     * @param headerDTO    已通过验证的请求头信息
+     * @return 解密后的 DTO 对象
+     */
     public Object decode(String requestBody, Class<?> dataReceiver, OpenApiRequestHeaderDTO headerDTO) {
         if (!StringUtils.hasText(requestBody)) {
-            throw new BizException(ErrorCode.PARAM_INVALID, "request body can not be blank");
+            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "data");
         }
         String cipherText = extractCipherText(requestBody);
         String plainText = decrypt(cipherText, headerDTO);
         Object data = parsePlainText(plainText, dataReceiver);
         if (data == null) {
-            throw new BizException(ErrorCode.PARAM_INVALID, "request body can not be parsed");
+            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL);
         }
         return data;
     }
@@ -52,7 +60,7 @@ public class OpenApiPayloadDecoder {
         try {
             return JsonUtils.parseObject(plainText, dataReceiver);
         } catch (Exception exception) {
-            throw new BizException(ErrorCode.PARAM_INVALID, "request body json format invalid");
+            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL);
         }
     }
 

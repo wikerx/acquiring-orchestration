@@ -1,5 +1,7 @@
 package com.sinopay.payment.channel.payout.model;
 
+import lombok.Data;
+
 import java.io.Serializable;
 import java.util.Map;
 
@@ -12,6 +14,7 @@ import java.util.Map;
  * @description : 代付渠道请求模型
  * @status : create
  */
+@Data
 public class PayoutChannelRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -20,36 +23,4 @@ public class PayoutChannelRequest implements Serializable {
     private String merchantOrderNo;
     private String payoutOrderNo;
     private Map<String, String> parameters;
-
-    public String getChannelCode() {
-        return channelCode;
-    }
-
-    public void setChannelCode(String channelCode) {
-        this.channelCode = channelCode;
-    }
-
-    public String getMerchantOrderNo() {
-        return merchantOrderNo;
-    }
-
-    public void setMerchantOrderNo(String merchantOrderNo) {
-        this.merchantOrderNo = merchantOrderNo;
-    }
-
-    public String getPayoutOrderNo() {
-        return payoutOrderNo;
-    }
-
-    public void setPayoutOrderNo(String payoutOrderNo) {
-        this.payoutOrderNo = payoutOrderNo;
-    }
-
-    public Map<String, String> getParameters() {
-        return parameters;
-    }
-
-    public void setParameters(Map<String, String> parameters) {
-        this.parameters = parameters;
-    }
 }

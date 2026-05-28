@@ -1,4 +1,4 @@
-package com.sinopay.payment.openapi.api.rest.v1.notify;
+package com.sinopay.payment.openapi.api.rest.notify.v1;
 
 import com.sinopay.payment.component.core.model.ApiResult;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/channel/v1/callbacks")
 public class ChannelCallbackController {
 
+    /**
+     * 接收渠道侧回调通知。
+     *
+     * @param channelCode 渠道编码
+     * @return 回调受理结果
+     */
     @PostMapping("/{channelCode}")
     public ApiResult<String> receive(@PathVariable String channelCode) {
         return ApiResult.success(channelCode + " accepted");

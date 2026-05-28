@@ -1,4 +1,4 @@
-package com.sinopay.payment.openapi.api.rest.v1.dto.body;
+package com.sinopay.payment.openapi.dto.body;
 
 import lombok.Data;
 

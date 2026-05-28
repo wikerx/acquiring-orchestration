@@ -1,7 +1,10 @@
 package com.sinopay.payment.component.core.model;
 
 import com.sinopay.payment.component.core.constant.ErrorCode;
+import com.sinopay.payment.component.core.enums.ApiCoResultEnum;
 import com.sinopay.payment.component.core.exception.BizException;
+import com.sinopay.payment.component.core.exception.ServiceException;
+import com.sinopay.payment.component.core.result.IResult;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -26,7 +29,11 @@ public class CommonResult<T> implements Serializable {
     private T data;
 
     public static <T> CommonResult<T> success(T data) {
-        return success(ErrorCode.SUCCESS, "success", data);
+        return success(ApiCoResultEnum.SUCCESS, data);
+    }
+
+    public static <T> CommonResult<T> success(IResult result, T data) {
+        return success(result.getCode(), result.getMessage(), data);
     }
 
     public static <T> CommonResult<T> success(String code, String message, T data) {
@@ -39,8 +46,15 @@ public class CommonResult<T> implements Serializable {
 
     public static <T> CommonResult<T> success() {
         CommonResult<T> result = new CommonResult<>();
-        result.setCode(ErrorCode.SUCCESS);
-        result.setMessage("success");
+        result.setCode(ApiCoResultEnum.SUCCESS.getCode());
+        result.setMessage(ApiCoResultEnum.SUCCESS.getMessage());
+        return result;
+    }
+
+    public static <T> CommonResult<T> success(IResult resultEnum) {
+        CommonResult<T> result = new CommonResult<>();
+        result.setCode(resultEnum.getCode());
+        result.setMessage(resultEnum.getMessage());
         return result;
     }
 
@@ -48,8 +62,12 @@ public class CommonResult<T> implements Serializable {
         return error(result.getCode(), result.getMessage());
     }
 
+    public static <T> CommonResult<T> error(IResult resultEnum) {
+        return error(resultEnum.getCode(), resultEnum.getMessage());
+    }
+
     public static <T> CommonResult<T> error(String code, String message) {
-        if (ErrorCode.SUCCESS.equals(code)) {
+        if (ErrorCode.SUCCESS.equals(code) || ApiCoResultEnum.SUCCESS.getCode().equals(code)) {
             throw new IllegalArgumentException("code must be an error code");
         }
         CommonResult<T> result = new CommonResult<>();
@@ -62,11 +80,17 @@ public class CommonResult<T> implements Serializable {
         return error(exception.getCode(), exception.getMessage());
     }
 
+    public static <T> CommonResult<T> error(ServiceException exception) {
+        return error(exception.getCode(), exception.getMessage());
+    }
+
     public static boolean resultNonNull(CommonResult<?> result) {
         return isSuccess(result) && Objects.nonNull(result.getData());
     }
 
     public static boolean isSuccess(CommonResult<?> result) {
-        return Objects.nonNull(result) && Objects.equals(ErrorCode.SUCCESS, result.getCode());
+        return Objects.nonNull(result)
+                && (Objects.equals(ErrorCode.SUCCESS, result.getCode())
+                || Objects.equals(ApiCoResultEnum.SUCCESS.getCode(), result.getCode()));
     }
 }

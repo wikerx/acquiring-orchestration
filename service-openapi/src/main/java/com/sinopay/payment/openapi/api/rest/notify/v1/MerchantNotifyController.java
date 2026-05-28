@@ -1,4 +1,4 @@
-package com.sinopay.payment.openapi.api.rest.v1.notify;
+package com.sinopay.payment.openapi.api.rest.notify.v1;
 
 import com.sinopay.payment.component.core.model.ApiResult;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,9 +18,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/openapi/v1/merchant-notifies")
 public class MerchantNotifyController {
 
+    /**
+     * 重试商户通知。
+     *
+     * @return 重试受理结果
+     */
     @PostMapping("/retry")
     public ApiResult<String> retry() {
         return ApiResult.success("accepted");
     }
 }
-

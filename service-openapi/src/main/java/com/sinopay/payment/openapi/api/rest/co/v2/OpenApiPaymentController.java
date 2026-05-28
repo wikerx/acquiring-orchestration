@@ -1,8 +1,9 @@
-package com.sinopay.payment.openapi.api.rest.v1.payment;
+package com.sinopay.payment.openapi.api.rest.co.v2;
 
 import com.sinopay.payment.component.core.model.CommonResult;
+import com.sinopay.payment.component.web.version.ApiVersion;
 import com.sinopay.payment.openapi.annotation.v1.VerificationAndProcessing;
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.ApiMerchantCardOrganizationRequestDTO;
+import com.sinopay.payment.openapi.dto.body.ApiMerchantCardOrganizationRequestDTO;
 import com.sinopay.payment.openapi.service.OpenApiPaymentService;
 import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,8 +22,9 @@ import javax.servlet.http.HttpServletRequest;
  * @description : 开放接口收单支付控制器
  * @status : create
  */
+@ApiVersion(apiVersion = 2)
 @RestController
-@RequestMapping("/openapi/v1/payments")
+@RequestMapping("/api/rest/co/{version}")
 public class OpenApiPaymentController {
 
     private final OpenApiPaymentService openApiPaymentService;
@@ -31,6 +33,14 @@ public class OpenApiPaymentController {
         this.openApiPaymentService = openApiPaymentService;
     }
 
+    /**
+     * 创建收单授权交易。
+     *
+     * @param request    Servlet 请求上下文
+     * @param encydata   商户密文请求体
+     * @param requestDTO 解密后的统一请求参数
+     * @return 收单授权交易响应
+     */
     @VerificationAndProcessing(
             dataReceiver = ApiMerchantCardOrganizationRequestDTO.class,
             validationGroups = {
@@ -38,7 +48,7 @@ public class OpenApiPaymentController {
                     ApiMerchantCardOrganizationRequestDTO.Format.class
             }
     )
-    @PostMapping
+    @PostMapping("/authorization")
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
                                                        @RequestBody String encydata,
                                                        ApiMerchantCardOrganizationRequestDTO requestDTO) {

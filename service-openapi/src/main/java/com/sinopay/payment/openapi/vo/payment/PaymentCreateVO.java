@@ -1,5 +1,7 @@
 package com.sinopay.payment.openapi.vo.payment;
 
+import lombok.Data;
+
 import java.io.Serializable;
 
 /**
@@ -11,6 +13,7 @@ import java.io.Serializable;
  * @description : 收单支付创建响应视图对象
  * @status : create
  */
+@Data
 public class PaymentCreateVO implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -18,29 +21,4 @@ public class PaymentCreateVO implements Serializable {
     private String merchantOrderNo;
     private String currency;
     private Long amount;
-
-    public String getMerchantOrderNo() {
-        return merchantOrderNo;
-    }
-
-    public void setMerchantOrderNo(String merchantOrderNo) {
-        this.merchantOrderNo = merchantOrderNo;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
-    public Long getAmount() {
-        return amount;
-    }
-
-    public void setAmount(Long amount) {
-        this.amount = amount;
-    }
 }
-

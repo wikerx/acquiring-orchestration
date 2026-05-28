@@ -1,7 +1,7 @@
-package com.sinopay.payment.openapi.api.rest.v1.dto.converter;
+package com.sinopay.payment.openapi.converter;
 
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.ApiMerchantCardOrganizationRequestDTO;
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.PaymentCreateRequestDTO;
+import com.sinopay.payment.openapi.dto.body.ApiMerchantCardOrganizationRequestDTO;
+import com.sinopay.payment.openapi.dto.body.PaymentCreateRequestDTO;
 import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
 import org.mapstruct.Mapper;
 
@@ -19,8 +19,20 @@ import java.math.BigDecimal;
 @Mapper(componentModel = "spring")
 public interface OpenApiRequestConverter {
 
+    /**
+     * 将普通收单创建 DTO 转换为创建响应。
+     *
+     * @param requestDTO 普通收单创建 DTO
+     * @return 创建响应
+     */
     PaymentCreateVO toPaymentCreateVO(PaymentCreateRequestDTO requestDTO);
 
+    /**
+     * 将卡组统一请求 DTO 转换为创建响应。
+     *
+     * @param requestDTO 卡组统一请求 DTO
+     * @return 创建响应
+     */
     default PaymentCreateVO toPaymentCreateVO(ApiMerchantCardOrganizationRequestDTO requestDTO) {
         PaymentCreateVO vo = new PaymentCreateVO();
         if (requestDTO == null || requestDTO.getOrderInfo() == null) {
@@ -33,6 +45,12 @@ public interface OpenApiRequestConverter {
         return vo;
     }
 
+    /**
+     * 将主单位金额转换为分单位金额。
+     *
+     * @param amount 主单位金额
+     * @return 分单位金额
+     */
     default Long toMinorAmount(BigDecimal amount) {
         if (amount == null) {
             return null;

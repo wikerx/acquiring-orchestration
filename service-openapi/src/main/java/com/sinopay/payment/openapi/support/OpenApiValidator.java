@@ -1,7 +1,7 @@
 package com.sinopay.payment.openapi.support;
 
-import com.sinopay.payment.component.core.constant.ErrorCode;
-import com.sinopay.payment.component.core.exception.BizException;
+import com.sinopay.payment.component.core.enums.ApiCoResultEnum;
+import com.sinopay.payment.component.core.exception.ApiException;
 import org.springframework.stereotype.Component;
 
 import javax.validation.ConstraintViolation;
@@ -26,12 +26,18 @@ public class OpenApiValidator {
         this.validator = validator;
     }
 
+    /**
+     * 按指定分组校验开放 API DTO。
+     *
+     * @param target           待校验对象
+     * @param validationGroups 校验分组
+     */
     public void validate(Object target, Class<?>... validationGroups) {
         Set<ConstraintViolation<Object>> violations = validator.validate(target, validationGroups);
         if (violations.isEmpty()) {
             return;
         }
         ConstraintViolation<Object> violation = violations.iterator().next();
-        throw new BizException(ErrorCode.PARAM_INVALID, violation.getPropertyPath() + " " + violation.getMessage());
+        throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID, violation.getPropertyPath() + " " + violation.getMessage());
     }
 }

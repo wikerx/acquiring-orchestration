@@ -1,6 +1,6 @@
 package com.sinopay.payment.openapi.service;
 
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.ApiMerchantCardOrganizationRequestDTO;
+import com.sinopay.payment.openapi.dto.body.ApiMerchantCardOrganizationRequestDTO;
 import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
 
 /**
@@ -14,5 +14,12 @@ import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
  */
 public interface OpenApiPaymentService {
 
+    /**
+     * 创建收单支付交易。
+     *
+     * @param encryptedData 商户原始密文
+     * @param requestDTO    解密后的统一请求参数
+     * @return 创建交易响应
+     */
     PaymentCreateVO createPayment(String encryptedData, ApiMerchantCardOrganizationRequestDTO requestDTO);
 }

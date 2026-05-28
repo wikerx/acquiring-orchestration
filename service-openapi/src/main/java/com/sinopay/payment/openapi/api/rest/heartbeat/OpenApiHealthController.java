@@ -1,4 +1,4 @@
-package com.sinopay.payment.openapi.api.rest.v1.heartbeat;
+package com.sinopay.payment.openapi.api.rest.heartbeat;
 
 import com.sinopay.payment.component.core.model.ApiResult;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,6 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class OpenApiHealthController {
 
+    /**
+     * 查询 OpenAPI 服务健康状态。
+     *
+     * @return 服务健康标识
+     */
     @GetMapping("/openapi/health")
     public ApiResult<String> health() {
         return ApiResult.success("service-openapi");

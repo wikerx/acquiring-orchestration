@@ -1,7 +1,7 @@
 package com.sinopay.payment.openapi.support;
 
 import com.sinopay.payment.openapi.annotation.v1.VerificationAndProcessing;
-import com.sinopay.payment.openapi.api.rest.v1.dto.header.OpenApiRequestHeaderDTO;
+import com.sinopay.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
@@ -28,6 +28,14 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         this.headerExtractor = headerExtractor;
     }
 
+    /**
+     * 在进入控制器前完成开放 API 请求头校验。
+     *
+     * @param request  HTTP 请求
+     * @param response HTTP 响应
+     * @param handler  MVC 处理器
+     * @return 是否继续执行请求
+     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         if (!(handler instanceof HandlerMethod)) {

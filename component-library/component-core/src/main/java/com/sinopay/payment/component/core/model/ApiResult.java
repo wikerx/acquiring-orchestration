@@ -1,6 +1,7 @@
 package com.sinopay.payment.component.core.model;
 
 import com.sinopay.payment.component.core.constant.ErrorCode;
+import lombok.Data;
 
 import java.io.Serializable;
 
@@ -13,6 +14,7 @@ import java.io.Serializable;
  * @description : 统一接口响应结果模型
  * @status : create
  */
+@Data
 public class ApiResult<T> implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -34,29 +36,5 @@ public class ApiResult<T> implements Serializable {
         result.setCode(code);
         result.setMessage(message);
         return result;
-    }
-
-    public String getCode() {
-        return code;
-    }
-
-    public void setCode(String code) {
-        this.code = code;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public T getData() {
-        return data;
-    }
-
-    public void setData(T data) {
-        this.data = data;
     }
 }

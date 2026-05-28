@@ -1,8 +1,9 @@
-package com.sinopay.payment.openapi.api.rest.v1.payout;
+package com.sinopay.payment.openapi.api.rest.payout.v2;
 
 import com.sinopay.payment.component.core.model.CommonResult;
+import com.sinopay.payment.component.web.version.ApiVersion;
 import com.sinopay.payment.openapi.annotation.v1.VerificationAndProcessing;
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.PayoutCreateRequestDTO;
+import com.sinopay.payment.openapi.dto.body.PayoutCreateRequestDTO;
 import com.sinopay.payment.openapi.service.OpenApiPayoutService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,8 +21,9 @@ import javax.servlet.http.HttpServletRequest;
  * @description : 开放接口代付控制器
  * @status : create
  */
+@ApiVersion(apiVersion = 2)
 @RestController
-@RequestMapping("/openapi/v1/payouts")
+@RequestMapping("/api/rest/payout/{version}")
 public class OpenApiPayoutController {
 
     private final OpenApiPayoutService openApiPayoutService;
@@ -30,8 +32,16 @@ public class OpenApiPayoutController {
         this.openApiPayoutService = openApiPayoutService;
     }
 
+    /**
+     * 创建代付交易。
+     *
+     * @param request    Servlet 请求上下文
+     * @param encydata   商户密文请求体
+     * @param requestDTO 解密后的代付请求参数
+     * @return 代付交易受理结果
+     */
     @VerificationAndProcessing(dataReceiver = PayoutCreateRequestDTO.class)
-    @PostMapping
+    @PostMapping("/create")
     public CommonResult<String> createPayout(HttpServletRequest request,
                                              @RequestBody String encydata,
                                              PayoutCreateRequestDTO requestDTO) {

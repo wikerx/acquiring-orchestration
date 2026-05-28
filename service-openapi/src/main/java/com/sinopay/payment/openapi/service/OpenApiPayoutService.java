@@ -1,6 +1,6 @@
 package com.sinopay.payment.openapi.service;
 
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.PayoutCreateRequestDTO;
+import com.sinopay.payment.openapi.dto.body.PayoutCreateRequestDTO;
 
 /**
  * @author : scott
@@ -13,5 +13,12 @@ import com.sinopay.payment.openapi.api.rest.v1.dto.body.PayoutCreateRequestDTO;
  */
 public interface OpenApiPayoutService {
 
+    /**
+     * 创建代付交易。
+     *
+     * @param encryptedData 商户原始密文
+     * @param requestDTO    解密后的代付请求参数
+     * @return 代付受理标识
+     */
     String createPayout(String encryptedData, PayoutCreateRequestDTO requestDTO);
 }

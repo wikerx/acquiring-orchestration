@@ -1,6 +1,6 @@
 package com.sinopay.payment.openapi.service.impl;
 
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.PayoutCreateRequestDTO;
+import com.sinopay.payment.openapi.dto.body.PayoutCreateRequestDTO;
 import com.sinopay.payment.openapi.service.OpenApiPayoutService;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +16,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class OpenApiPayoutServiceImpl implements OpenApiPayoutService {
 
+    /**
+     * 创建代付交易。
+     *
+     * @param encryptedData 商户原始密文
+     * @param requestDTO    解密后的代付请求参数
+     * @return 代付受理标识
+     */
     @Override
     public String createPayout(String encryptedData, PayoutCreateRequestDTO requestDTO) {
         return requestDTO.getMerchantOrderNo();

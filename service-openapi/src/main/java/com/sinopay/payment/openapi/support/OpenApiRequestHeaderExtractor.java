@@ -1,10 +1,10 @@
 package com.sinopay.payment.openapi.support;
 
-import com.sinopay.payment.component.core.constant.ErrorCode;
-import com.sinopay.payment.component.core.exception.BizException;
+import com.sinopay.payment.component.core.enums.ApiCoResultEnum;
+import com.sinopay.payment.component.core.exception.ApiException;
 import com.sinopay.payment.component.security.jwt.JwtMerchantClaims;
 import com.sinopay.payment.component.security.jwt.MerchantJwtVerifier;
-import com.sinopay.payment.openapi.api.rest.v1.dto.header.OpenApiRequestHeaderDTO;
+import com.sinopay.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.sinopay.payment.openapi.security.MerchantKeyProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -35,6 +35,13 @@ public class OpenApiRequestHeaderExtractor {
         this.merchantKeyProvider = merchantKeyProvider;
     }
 
+    /**
+     * 提取请求头并完成商户 JWT 验签。
+     *
+     * @param request         HTTP 请求
+     * @param requiredHeaders 接口要求存在的请求头
+     * @return 标准化请求头信息
+     */
     public OpenApiRequestHeaderDTO extract(HttpServletRequest request, String[] requiredHeaders) {
         validateRequiredHeaders(request, requiredHeaders);
         String authorization = request.getHeader(HEADER_AUTHORIZATION);
@@ -58,14 +65,17 @@ public class OpenApiRequestHeaderExtractor {
         }
         for (String header : requiredHeaders) {
             if (!StringUtils.hasText(request.getHeader(header))) {
-                throw new BizException(ErrorCode.PARAM_INVALID, "missing required header: " + header);
+                if (HEADER_AUTHORIZATION.equalsIgnoreCase(header)) {
+                    throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_NULL);
+                }
+                throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "header." + header);
             }
         }
     }
 
     private String resolveToken(String authorization) {
         if (!StringUtils.hasText(authorization)) {
-            throw new BizException(ErrorCode.SIGN_INVALID, "authorization jwt is required");
+            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_NULL);
         }
         if (authorization.startsWith(BEARER_PREFIX)) {
             return authorization.substring(BEARER_PREFIX.length()).trim();

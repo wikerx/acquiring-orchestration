@@ -1,5 +1,7 @@
 package com.sinopay.payment.channel.payment.model;
 
+import lombok.Data;
+
 import java.io.Serializable;
 import java.util.Map;
 
@@ -12,6 +14,7 @@ import java.util.Map;
  * @description : 收单支付渠道响应模型
  * @status : create
  */
+@Data
 public class PaymentChannelResult implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -22,52 +25,4 @@ public class PaymentChannelResult implements Serializable {
     private String channelResponseCode;
     private String channelResponseMessage;
     private Map<String, String> rawResponse;
-
-    public String getChannelCode() {
-        return channelCode;
-    }
-
-    public void setChannelCode(String channelCode) {
-        this.channelCode = channelCode;
-    }
-
-    public String getChannelOrderNo() {
-        return channelOrderNo;
-    }
-
-    public void setChannelOrderNo(String channelOrderNo) {
-        this.channelOrderNo = channelOrderNo;
-    }
-
-    public String getChannelStatus() {
-        return channelStatus;
-    }
-
-    public void setChannelStatus(String channelStatus) {
-        this.channelStatus = channelStatus;
-    }
-
-    public String getChannelResponseCode() {
-        return channelResponseCode;
-    }
-
-    public void setChannelResponseCode(String channelResponseCode) {
-        this.channelResponseCode = channelResponseCode;
-    }
-
-    public String getChannelResponseMessage() {
-        return channelResponseMessage;
-    }
-
-    public void setChannelResponseMessage(String channelResponseMessage) {
-        this.channelResponseMessage = channelResponseMessage;
-    }
-
-    public Map<String, String> getRawResponse() {
-        return rawResponse;
-    }
-
-    public void setRawResponse(Map<String, String> rawResponse) {
-        this.rawResponse = rawResponse;
-    }
 }

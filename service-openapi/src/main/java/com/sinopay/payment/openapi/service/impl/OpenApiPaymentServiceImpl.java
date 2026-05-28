@@ -1,7 +1,7 @@
 package com.sinopay.payment.openapi.service.impl;
 
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.ApiMerchantCardOrganizationRequestDTO;
-import com.sinopay.payment.openapi.api.rest.v1.dto.converter.OpenApiRequestConverter;
+import com.sinopay.payment.openapi.converter.OpenApiRequestConverter;
+import com.sinopay.payment.openapi.dto.body.ApiMerchantCardOrganizationRequestDTO;
 import com.sinopay.payment.openapi.service.OpenApiPaymentService;
 import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.stereotype.Service;
@@ -24,6 +24,13 @@ public class OpenApiPaymentServiceImpl implements OpenApiPaymentService {
         this.converter = converter;
     }
 
+    /**
+     * 创建收单支付交易。
+     *
+     * @param encryptedData 商户原始密文
+     * @param requestDTO    解密后的统一请求参数
+     * @return 创建交易响应
+     */
     @Override
     public PaymentCreateVO createPayment(String encryptedData, ApiMerchantCardOrganizationRequestDTO requestDTO) {
         return converter.toPaymentCreateVO(requestDTO);

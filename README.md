@@ -99,6 +99,8 @@ merchant/client -> service-gateway -> service-openapi -> service-payment/service
 
 `service-openapi` 负责 JWT 授权验签、报文解密、商户基础参数校验、产品权限校验、幂等、商户通知和渠道侧回调入口。
 
+对外收单接口使用版本路径控制，例如 `POST /api/rest/co/v2/authorization`；控制器通过 `@ApiVersion(apiVersion = 2)` 与 `{version}` 路径变量匹配。
+
 渠道适配不作为独立微服务部署：
 
 ```text

@@ -3,7 +3,7 @@ package com.sinopay.payment.openapi.support;
 import com.sinopay.payment.component.core.json.JsonUtils;
 import com.sinopay.payment.component.core.util.SensitiveDataMaskUtils;
 import com.sinopay.payment.openapi.annotation.v1.VerificationAndProcessing;
-import com.sinopay.payment.openapi.api.rest.v1.dto.header.OpenApiRequestHeaderDTO;
+import com.sinopay.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -39,6 +39,14 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         this.openApiValidator = openApiValidator;
     }
 
+    /**
+     * 判断是否需要对当前请求体做开放 API 解密处理。
+     *
+     * @param methodParameter 控制器方法参数
+     * @param targetType      目标类型
+     * @param converterType   消息转换器类型
+     * @return 是否支持处理
+     */
     @Override
     public boolean supports(MethodParameter methodParameter, Type targetType,
                             Class<? extends HttpMessageConverter<?>> converterType) {
@@ -47,6 +55,16 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
                 && findAnnotation(methodParameter) != null;
     }
 
+    /**
+     * 在 String 请求体读取后完成密文解密、DTO 转换和属性校验。
+     *
+     * @param body          原始请求体
+     * @param inputMessage  HTTP 输入消息
+     * @param parameter     控制器参数
+     * @param targetType    目标类型
+     * @param converterType 消息转换器类型
+     * @return 保持原始请求体传递给控制器的 String 参数
+     */
     @Override
     public Object afterBodyRead(Object body, HttpInputMessage inputMessage, MethodParameter parameter,
                                 Type targetType, Class<? extends HttpMessageConverter<?>> converterType) {
@@ -68,6 +86,9 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
     }
 
     private VerificationAndProcessing findAnnotation(MethodParameter parameter) {
+        if (parameter.getMethod() == null) {
+            return null;
+        }
         return AnnotationUtils.findAnnotation(parameter.getMethod(), VerificationAndProcessing.class);
     }
 

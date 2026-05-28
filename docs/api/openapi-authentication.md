@@ -55,6 +55,12 @@ hGa8xl/kde6=C=O+
 
 ## 5. 请求体
 
+收单授权接口版本路由示例：
+
+```http
+POST /api/rest/co/v2/authorization
+```
+
 JWT 负责授权认证；请求体按统一密文信封传递业务数据：
 
 ```json
@@ -122,12 +128,18 @@ JWT 负责授权认证；请求体按统一密文信封传递业务数据：
 示例：
 
 ```java
-@VerificationAndProcessing(dataReceiver = PaymentCreateRequestDTO.class)
-@PostMapping
-public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
-                                                   @RequestBody String encydata,
-                                                   ApiMerchantCardOrganizationRequestDTO requestDTO) {
-    return CommonResult.success(openApiPaymentService.createPayment(encydata, requestDTO));
+@ApiVersion(apiVersion = 2)
+@RestController
+@RequestMapping("/api/rest/co/{version}")
+public class OpenApiPaymentController {
+
+    @VerificationAndProcessing(dataReceiver = ApiMerchantCardOrganizationRequestDTO.class)
+    @PostMapping("/authorization")
+    public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
+                                                       @RequestBody String encydata,
+                                                       ApiMerchantCardOrganizationRequestDTO requestDTO) {
+        return CommonResult.success(openApiPaymentService.createPayment(encydata, requestDTO));
+    }
 }
 ```
 
