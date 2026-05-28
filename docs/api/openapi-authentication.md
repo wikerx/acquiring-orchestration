@@ -58,8 +58,12 @@ hGa8xl/kde6=C=O+
 收单授权接口版本路由示例：
 
 ```http
-POST /api/rest/co/v2/authorization
+POST /api/rest/payment/v1/authorization
 ```
+
+版本匹配规则：当前默认实现版本为 `v1`。如果商户请求 `v2` 但系统没有 `v2` 控制器，路由会自动降级到不超过请求版本的最高版本，例如 `v1`。
+
+非法路径、未知接口、请求方法不支持、参数不合法、请求体解析失败等异常，统一返回 `CommonResult` JSON，不返回 HTML 错误页。
 
 JWT 负责授权认证；请求体按统一密文信封传递业务数据：
 
@@ -128,9 +132,9 @@ JWT 负责授权认证；请求体按统一密文信封传递业务数据：
 示例：
 
 ```java
-@ApiVersion(apiVersion = 2)
+@ApiVersion(apiVersion = 1)
 @RestController
-@RequestMapping("/api/rest/co/{version}")
+@RequestMapping("/api/rest/payment/{version}")
 public class OpenApiPaymentController {
 
     @VerificationAndProcessing(dataReceiver = ApiMerchantCardOrganizationRequestDTO.class)

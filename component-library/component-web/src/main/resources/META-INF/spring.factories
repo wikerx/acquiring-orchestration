@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-com.sinopay.payment.component.web.config.ComponentWebAutoConfiguration
+com.scott.payment.component.web.config.ComponentWebAutoConfiguration

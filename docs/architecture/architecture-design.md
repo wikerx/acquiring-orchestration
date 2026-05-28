@@ -111,7 +111,7 @@ payout-channel-library  -> service-payout
 
 ```text
 component-core
-└── src/main/java/com/sinopay/payment/component/core
+└── src/main/java/com/scott/payment/component/core
     ├── constant
     ├── enums
     ├── exception
@@ -148,7 +148,7 @@ component-core 不依赖任何内部 component 模块。
 
 ```text
 component-web
-└── src/main/java/com/sinopay/payment/component/web
+└── src/main/java/com/scott/payment/component/web
     ├── config
     ├── filter
     │   └── TraceIdFilter.java
@@ -188,7 +188,7 @@ component-web -> service-*
 
 ```text
 component-security
-└── src/main/java/com/sinopay/payment/component/security
+└── src/main/java/com/scott/payment/component/security
     ├── config
     ├── crypto
     │   ├── AesEncryptor.java
@@ -236,7 +236,7 @@ component-security -> component-redis
 
 ```text
 component-db
-└── src/main/java/com/sinopay/payment/component/db
+└── src/main/java/com/scott/payment/component/db
     ├── config
     │   ├── MybatisPlusConfig.java
     │   ├── DataSourceConfig.java
@@ -285,7 +285,7 @@ component-db -> service-*
 
 ```text
 component-redis
-└── src/main/java/com/sinopay/payment/component/redis
+└── src/main/java/com/scott/payment/component/redis
     ├── config
     │   └── RedisConfig.java
     ├── cache
@@ -327,7 +327,7 @@ component-redis -> service-*
 
 ```text
 component-mq
-└── src/main/java/com/sinopay/payment/component/mq
+└── src/main/java/com/scott/payment/component/mq
     ├── config
     │   └── RocketMqConfig.java
     ├── constant
@@ -377,7 +377,7 @@ component-mq -> service-*
 
 ```text
 component-job
-└── src/main/java/com/sinopay/payment/component/job
+└── src/main/java/com/scott/payment/component/job
     ├── config
     │   └── XxlJobConfig.java
     ├── model
@@ -424,7 +424,7 @@ component-job -> component-core
 
 ```text
 service-gateway
-└── src/main/java/com/sinopay/payment/gateway
+└── src/main/java/com/scott/payment/gateway
     ├── GatewayApplication.java
     ├── config
     ├── filter
@@ -465,7 +465,7 @@ service-gateway
 
 ```text
 service-admin
-└── src/main/java/com/sinopay/payment/admin
+└── src/main/java/com/scott/payment/admin
     ├── AdminApplication.java
     ├── controller
     ├── application
@@ -497,7 +497,7 @@ service-admin
 
 ```text
 service-merchant
-└── src/main/java/com/sinopay/payment/merchant
+└── src/main/java/com/scott/payment/merchant
     ├── MerchantApplication.java
     ├── controller
     ├── application
@@ -525,7 +525,7 @@ service-merchant
 
 ```text
 service-checkout
-└── src/main/java/com/sinopay/payment/checkout
+└── src/main/java/com/scott/payment/checkout
     ├── CheckoutApplication.java
     ├── controller
     ├── application
@@ -556,7 +556,7 @@ service-checkout
 
 ```text
 service-openapi
-└── src/main/java/com/sinopay/payment/openapi
+└── src/main/java/com/scott/payment/openapi
     ├── OpenApiApplication.java
     ├── annotation
     │   └── v1
@@ -564,13 +564,13 @@ service-openapi
     │   └── v1
     ├── api
     │   └── rest
-    │       ├── co
-    │       │   └── v2
     │       ├── heartbeat
     │       ├── notify
     │       │   └── v1
+    │       ├── payment
+    │       │   └── v1
     │       └── payout
-    │           └── v2
+    │           └── v1
     ├── application
     ├── client
     ├── converter
@@ -627,7 +627,7 @@ channel callback -> service-gateway -> service-openapi -> service-payment/servic
 
 ```text
 service-payment
-└── src/main/java/com/sinopay/payment/payment
+└── src/main/java/com/scott/payment/payment
     ├── PaymentApplication.java
     ├── api
     │   └── internal
@@ -670,7 +670,7 @@ service-payment
 
 ```text
 service-payout
-└── src/main/java/com/sinopay/payment/payout
+└── src/main/java/com/scott/payment/payout
     ├── PayoutApplication.java
     ├── api
     │   └── internal
@@ -709,13 +709,13 @@ service-payout
 ```text
 channel-library
 ├── payment-channel-library
-│   └── src/main/java/com/sinopay/payment/channel/payment
+│   └── src/main/java/com/scott/payment/channel/payment
 │       ├── adapter
 │       ├── model
 │       ├── route
 │       └── converter
 └── payout-channel-library
-    └── src/main/java/com/sinopay/payment/channel/payout
+    └── src/main/java/com/scott/payment/channel/payout
         ├── adapter
         ├── model
         ├── route
@@ -746,7 +746,7 @@ channel-library
 
 ```text
 service-job
-└── src/main/java/com/sinopay/payment/job
+└── src/main/java/com/scott/payment/job
     ├── JobApplication.java
     ├── handler
     │   ├── PaymentTimeoutCloseJob.java

@@ -1,0 +1,24 @@
+package com.scott.payment.admin.controller;
+
+import com.scott.payment.component.core.model.ApiResult;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminHealthController
+ * @date : 2026-05-28 10:28
+ * @email : scott_x@163.com
+ * @description : 后台管理服务健康检查控制器
+ * @status : create
+ */
+@RestController
+public class AdminHealthController {
+
+    @GetMapping("/admin/health")
+    public ApiResult<String> health() {
+        return ApiResult.success("service-admin");
+    }
+}
+

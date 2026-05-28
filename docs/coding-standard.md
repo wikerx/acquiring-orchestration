@@ -9,7 +9,7 @@
 3. 抽象类使用 `Abstract` 或 `Base` 开头；异常类使用 `Exception` 结尾；测试类使用 `Test` 结尾。
 4. 包名统一小写，避免复数和缩写堆叠。
 5. 不使用拼音与英文混合命名，行业固定缩写除外，例如 `FX`、`KYC`、`AML`、`MCC`。
-6. 基础包名统一使用 `com.sinopay.payment`。
+6. 基础包名统一使用 `com.scott.payment`。
 7. 模块目录使用小写中划线，例如 `service-openapi`；Java 包名不使用大写或中划线。
 8. 实现类包名使用 `service.impl`，不使用 `serviceImpl`。
 9. 数据传输对象使用 `DTO`、`VO`、`BO`、`DO`、`PO` 作为规范后缀，例如 `PaymentCreateRequestDTO`。
