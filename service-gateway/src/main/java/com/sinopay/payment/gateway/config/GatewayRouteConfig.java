@@ -23,7 +23,7 @@ public class GatewayRouteConfig {
                 .route("service-openapi", route -> route.path("/openapi/**").uri("lb://service-openapi"))
                 .route("merchant-payment-api", route -> route.path("/payment/**").uri("lb://service-openapi"))
                 .route("merchant-payout-api", route -> route.path("/payout/**").uri("lb://service-openapi"))
-                .route("service-channel", route -> route.path("/channel/**").uri("lb://service-channel"))
+                .route("channel-callback-api", route -> route.path("/channel/**").uri("lb://service-openapi"))
                 .build();
     }
 }

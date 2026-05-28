@@ -30,6 +30,10 @@ component-library
 ├── component-mq
 └── component-job
 
+channel-library
+├── payment-channel-library
+└── payout-channel-library
+
 service-gateway
 service-admin
 service-merchant
@@ -37,7 +41,6 @@ service-checkout
 service-openapi
 service-payment
 service-payout
-service-channel
 service-job
 ```
 
@@ -93,7 +96,16 @@ Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等基础设施配置统
 merchant/client -> service-gateway -> service-openapi -> service-payment/service-payout
 ```
 
-`service-openapi` 负责请求头验签、报文解密、商户基础参数校验、产品权限校验、幂等与商户通知。渠道侧回调仍由 `service-channel` 承接。
+`service-openapi` 负责请求头验签、报文解密、商户基础参数校验、产品权限校验、幂等、商户通知和渠道侧回调入口。
+
+渠道适配不作为独立微服务部署：
+
+```text
+service-payment -> payment-channel-library
+service-payout  -> payout-channel-library
+```
+
+`payment-channel-library` 聚合收单支付渠道适配器，`payout-channel-library` 聚合代付渠道适配器。渠道侧回调统一进入 `service-openapi` 后，再分发到 `service-payment` 或 `service-payout` 做交易状态处理。
 
 ## 基本原则
 

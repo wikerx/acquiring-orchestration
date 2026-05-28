@@ -2,19 +2,20 @@
 
 ## 1. 架构目标
 
-本项目用于构建一套基于 Spring Cloud 的全球支付系统架构，覆盖管理后台、商户系统、收银台、收单交易、代付交易、渠道网关、定时任务、Redis、RocketMQ、MySQL 主从数据源以及交易核心表分表能力。
+本项目用于构建一套基于 Spring Cloud 的全球支付系统架构，覆盖管理后台、商户系统、收银台、收单交易、代付交易、渠道适配库、定时任务、Redis、RocketMQ、MySQL 主从数据源以及交易核心表分表能力。
 
 核心设计原则：
 
 1. 前端与外部请求统一进入 `service-gateway`。
-2. 业务服务以 `service-*` 命名，只承载业务能力。
+2. 业务服务以 `service-*` 命名，且表示可独立部署的微服务。
 3. 公共能力统一收敛到 `component-library` 下的 `component-*` 模块。
-4. `component-*` 模块只能作为基础组件被引用，不能依赖任何业务服务，避免循环依赖。
-5. 业务服务之间不共享数据库表的直接写入能力，谁拥有业务域，谁负责该业务域的数据。
-6. 跨服务同步调用使用 OpenFeign，异步解耦使用 RocketMQ。
-7. Redis 主要用于缓存、分布式锁、幂等、Nonce 防重放。
-8. MySQL 支持主从读写分离，交易核心表预留分表能力。
-9. 短期任务调度使用 XXL-JOB，后续可替换或扩展为更完整的调度平台。
+4. 渠道适配以 `channel-library` 聚合为 jar 模块，由 `service-payment`、`service-payout` 引入。
+5. `component-*` 模块只能作为基础组件被引用，不能依赖任何业务服务，避免循环依赖。
+6. 业务服务之间不共享数据库表的直接写入能力，谁拥有业务域，谁负责该业务域的数据。
+7. 跨服务同步调用使用 OpenFeign，异步解耦使用 RocketMQ。
+8. Redis 主要用于缓存、分布式锁、幂等、Nonce 防重放。
+9. MySQL 支持主从读写分离，交易核心表预留分表能力。
+10. 短期任务调度使用 XXL-JOB，后续可替换或扩展为更完整的调度平台。
 
 ## 2. 推荐项目结构
 
@@ -33,6 +34,11 @@ global-payment-architecture
 │   ├── component-mq
 │   └── component-job
 │
+├── channel-library
+│   ├── pom.xml
+│   ├── payment-channel-library
+│   └── payout-channel-library
+│
 ├── service-gateway
 ├── service-admin
 ├── service-merchant
@@ -40,7 +46,6 @@ global-payment-architecture
 ├── service-openapi
 ├── service-payment
 ├── service-payout
-├── service-channel
 ├── service-job
 └── docs
     ├── architecture
@@ -69,10 +74,30 @@ component-* 不能依赖 service-*
 ```text
 component-security ---> service-merchant
 component-db       ---> service-payment
-component-mq       ---> service-channel
+component-mq       ---> service-payment
 ```
 
 否则后面一定会出现循环依赖。
+
+### 3.2 channel-library
+
+`channel-library` 是渠道适配库父模块，只做渠道 SDK、渠道报文转换、渠道签名、渠道错误码映射和渠道调用适配聚合，不作为微服务部署。
+
+建议依赖方向：
+
+```text
+service-payment -> payment-channel-library -> component-*
+service-payout  -> payout-channel-library  -> component-*
+```
+
+禁止出现：
+
+```text
+payment-channel-library -> service-payment
+payout-channel-library  -> service-payout
+```
+
+否则渠道库会反向依赖交易核心，后续会产生循环依赖和发布耦合。
 
 ## 4. component-* 模块设计
 
@@ -511,7 +536,7 @@ service-checkout
 
 ### 5.5 service-openapi
 
-定位：商户开放 API 与商户通知服务。
+定位：商户开放 API、商户通知与渠道回调入口服务。
 
 职责：
 
@@ -523,8 +548,9 @@ service-checkout
 6. timestamp + nonce 防重放；
 7. 幂等键校验；
 8. 外部请求模型转换为内部交易命令；
-9. 平台向商户发送支付、退款、代付结果通知；
-10. 开放 API 请求日志、响应日志和通知日志记录。
+9. 渠道侧回调入口、基础验签和报文验真；
+10. 平台向商户发送支付、退款、代付结果通知；
+11. 开放 API 请求日志、响应日志、渠道回调入口日志和通知日志记录。
 
 建议包结构：
 
@@ -565,10 +591,10 @@ service-openapi
 merchant/client -> service-gateway -> service-openapi -> service-payment/service-payout
 ```
 
-渠道侧回调仍由 `service-channel` 承接：
+渠道侧回调也统一进入 `service-openapi`，再分发给交易域服务处理状态：
 
 ```text
-channel callback -> service-gateway -> service-channel -> service-payment/service-payout
+channel callback -> service-gateway -> service-openapi -> service-payment/service-payout
 ```
 
 ### 5.6 service-payment
@@ -584,8 +610,9 @@ channel callback -> service-gateway -> service-channel -> service-payment/servic
 5. 退款申请；
 6. 退款状态处理；
 7. 支付订单查询；
-8. 支付 MQ 事件发送；
-9. 交易核心表分表预留。
+8. 支付渠道适配库调用；
+9. 支付 MQ 事件发送；
+10. 交易核心表分表预留。
 
 建议包结构：
 
@@ -604,6 +631,7 @@ service-payment
     │   ├── refund
     │   └── state
     ├── infrastructure
+    │   ├── channel
     │   ├── client
     │   ├── mapper
     │   ├── repository
@@ -625,8 +653,9 @@ service-payment
 4. 代付提交渠道；
 5. 代付结果处理；
 6. 代付订单查询；
-7. 代付 MQ 事件发送；
-8. 代付核心表分表预留。
+7. 代付渠道适配库调用；
+8. 代付 MQ 事件发送；
+9. 代付核心表分表预留。
 
 建议包结构：
 
@@ -641,6 +670,7 @@ service-payout
     │   ├── order
     │   └── state
     ├── infrastructure
+    │   ├── channel
     │   ├── client
     │   ├── mapper
     │   ├── repository
@@ -650,46 +680,45 @@ service-payout
     └── converter
 ```
 
-### 5.8 service-channel
+### 5.8 channel-library
 
-定位：渠道网关与渠道适配服务。
+定位：渠道适配聚合库，不作为独立微服务部署。
 
 职责：
 
-1. 渠道路由；
-2. 渠道支付请求适配；
-3. 渠道代付请求适配；
-4. 渠道退款请求适配；
-5. 渠道回调处理；
-6. 渠道报文转换；
-7. 渠道错误码映射；
-8. 渠道请求日志记录。
+1. 收单支付渠道请求适配；
+2. 收单退款渠道请求适配；
+3. 代付渠道请求适配；
+4. 渠道报文转换；
+5. 渠道签名、加密和验签支持；
+6. 渠道错误码映射；
+7. 渠道 SDK 调用封装；
+8. 供 `service-payment`、`service-payout` 以 jar 方式引入。
 
 建议包结构：
 
 ```text
-service-channel
-└── src/main/java/com/sinopay/payment/channel
-    ├── ChannelApplication.java
-    ├── api
-    │   ├── internal
-    │   └── callback
-    ├── application
-    │   ├── route
-    │   └── adapter
-    ├── domain
-    │   ├── channel
-    │   ├── route
-    │   └── callback
-    ├── infrastructure
-    │   ├── http
-    │   ├── mapper
-    │   ├── repository
-    │   └── mq
-    ├── entity
-    ├── dto
-    └── converter
+channel-library
+├── payment-channel-library
+│   └── src/main/java/com/sinopay/payment/channel/payment
+│       ├── adapter
+│       ├── model
+│       ├── route
+│       └── converter
+└── payout-channel-library
+    └── src/main/java/com/sinopay/payment/channel/payout
+        ├── adapter
+        ├── model
+        ├── route
+        └── converter
 ```
+
+说明：
+
+1. `payment-channel-library` 只服务收单支付域，由 `service-payment` 引入。
+2. `payout-channel-library` 只服务代付域，由 `service-payout` 引入。
+3. 渠道回调入口仍属于对外接入面，统一进入 `service-openapi`。
+4. 渠道回调进入后，交易状态处理归属 `service-payment` 或 `service-payout`。
 
 ### 5.9 service-job
 
@@ -753,10 +782,16 @@ service-admin    -> component-core + component-web + component-security
 service-merchant -> component-core + component-web + component-db + component-redis
 service-checkout -> component-core + component-web + component-security + component-redis
 service-openapi  -> component-core + component-web + component-security + component-redis + component-mq + component-db
-service-payment  -> component-core + component-web + component-db + component-redis + component-mq + component-security
-service-payout   -> component-core + component-web + component-db + component-redis + component-mq + component-security
-service-channel  -> component-core + component-web + component-db + component-redis + component-mq + component-security
+service-payment  -> component-core + component-web + component-db + component-redis + component-mq + component-security + payment-channel-library
+service-payout   -> component-core + component-web + component-db + component-redis + component-mq + component-security + payout-channel-library
 service-job      -> component-core + component-job
+```
+
+### 6.3 channel-library 依赖关系
+
+```text
+payment-channel-library -> component-core + component-security
+payout-channel-library  -> component-core + component-security
 ```
 
 ## 7. 数据归属建议
@@ -782,16 +817,18 @@ service-payment
   - payment_order_xxxx
   - payment_refund_order_xxxx
   - payment_order_event_xxxx
+  - payment_channel_config
+  - payment_channel_route_rule
+  - payment_channel_request_log_xxxx
+  - payment_channel_callback_log_xxxx
 
 service-payout
   - payout_order_xxxx
   - payout_order_event_xxxx
-
-service-channel
-  - channel_config
-  - channel_route_rule
-  - channel_request_log_xxxx
-  - channel_callback_log_xxxx
+  - payout_channel_config
+  - payout_channel_route_rule
+  - payout_channel_request_log_xxxx
+  - payout_channel_callback_log_xxxx
 
 后续扩展：
 service-reconciliation
@@ -816,18 +853,19 @@ service-ledger
 1. 父工程 `global-payment-architecture` 管理所有版本；
 2. `component-library` 是组件父模块；
 3. 所有 `component-*` 是 jar 模块，不需要启动类；
-4. 所有 `service-*` 是 Spring Boot 应用，需要启动类；
-5. 每个模块生成标准包结构；
-6. 先生成 `pom.xml`、启动类、基础配置类、示例 Controller；
-7. 不需要完整业务逻辑；
-8. 避免循环依赖；
-9. 代码风格统一；
-10. Java 8；
-11. Spring Boot 3.x；
-12. Spring Cloud；
-13. Nacos、RocketMQ、Redis、MySQL、XXL-JOB 依赖先预留；
-14. 支付交易表、代付交易表预留分表能力；
-15. 商户开放 API 由 `service-openapi` 统一承接。
+4. 所有 `channel-*` 或 `*-channel-library` 是 jar 模块，不需要启动类；
+5. 所有 `service-*` 是 Spring Boot 应用，需要启动类；
+6. 每个模块生成标准包结构；
+7. 先生成 `pom.xml`、启动类、基础配置类、示例 Controller；
+8. 不需要完整业务逻辑；
+9. 避免循环依赖；
+10. 代码风格统一；
+11. Java 8；
+12. Spring Boot 3.x；
+13. Spring Cloud；
+14. Nacos、RocketMQ、Redis、MySQL、XXL-JOB 依赖先预留；
+15. 支付交易表、代付交易表预留分表能力；
+16. 商户开放 API 与渠道回调入口由 `service-openapi` 统一承接。
 
 ## 9. 当前落地说明
 

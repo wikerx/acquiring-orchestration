@@ -48,6 +48,11 @@
             <artifactId>component-security</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.sinopay.payment</groupId>
+            <artifactId>payment-channel-library</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

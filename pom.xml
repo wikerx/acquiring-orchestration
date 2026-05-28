@@ -13,6 +13,7 @@
 
     <modules>
         <module>component-library</module>
+        <module>channel-library</module>
         <module>service-gateway</module>
         <module>service-admin</module>
         <module>service-merchant</module>
@@ -20,7 +21,6 @@
         <module>service-openapi</module>
         <module>service-payment</module>
         <module>service-payout</module>
-        <module>service-channel</module>
         <module>service-job</module>
     </modules>
 
