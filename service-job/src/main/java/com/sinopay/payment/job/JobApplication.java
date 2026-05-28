@@ -3,6 +3,15 @@ package com.sinopay.payment.job;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobApplication
+ * @date : 2026-05-28 10:28
+ * @email : scott_x@163.com
+ * @description : Job 服务启动类
+ * @status : create
+ */
 @SpringBootApplication(scanBasePackages = "com.sinopay.payment")
 public class JobApplication {
 

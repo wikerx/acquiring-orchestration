@@ -4,6 +4,15 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PageResult
+ * @date : 2026-05-28 10:28
+ * @email : scott_x@163.com
+ * @description : 分页响应结果模型
+ * @status : create
+ */
 public class PageResult<T> implements Serializable {
 
     private static final long serialVersionUID = 1L;

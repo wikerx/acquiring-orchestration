@@ -1,5 +1,14 @@
 package com.sinopay.payment.component.job.model;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobExecuteResult
+ * @date : 2026-05-28 10:28
+ * @email : scott_x@163.com
+ * @description : 任务执行结果模型
+ * @status : create
+ */
 public class JobExecuteResult {
 
     private boolean success;

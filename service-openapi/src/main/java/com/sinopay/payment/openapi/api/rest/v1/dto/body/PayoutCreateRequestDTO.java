@@ -2,6 +2,15 @@ package com.sinopay.payment.openapi.api.rest.v1.dto.body;
 
 import java.io.Serializable;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PayoutCreateRequestDTO
+ * @date : 2026-05-28 10:28
+ * @email : scott_x@163.com
+ * @description : 代付创建请求数据传输对象
+ * @status : create
+ */
 public class PayoutCreateRequestDTO implements Serializable {
 
     private static final long serialVersionUID = 1L;

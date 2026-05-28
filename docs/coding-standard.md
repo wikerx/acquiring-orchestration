@@ -25,6 +25,24 @@
 - `client`：外部服务调用封装。
 - `common`：通用常量、工具、异常、结果模型。
 
+## 类注释
+
+1. 所有顶层 Java 类型必须保留类级 Javadoc，说明作者、版本、类名、创建时间、邮箱、用途和状态。
+2. `@description` 必须写清楚类职责，避免只写“工具类”“业务类”等空泛描述。
+3. 新建类统一使用以下模板：
+
+```java
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AuthorizeSample
+ * @date : 2026-05-28 10:28
+ * @email : scott_x@163.com
+ * @description : 授权示例
+ * @status : create
+ */
+```
+
 ## 异常
 
 1. 不捕获 `Throwable`、`Error`。
@@ -34,10 +52,18 @@
 
 ## 日志
 
-1. 使用参数化日志，禁止字符串拼接。
-2. 日志必须包含交易号、商户号、渠道号、请求号等可追踪字段。
-3. 禁止打印完整卡号、CVV、证件号、密钥、token、签名原文等敏感信息。
-4. 失败日志要包含错误码、错误来源、渠道响应码和处理建议。
+1. 日志统一使用 Lombok `@Slf4j`，禁止手写 `LoggerFactory.getLogger(...)`。
+2. 使用参数化日志，禁止字符串拼接。
+3. 日志必须包含交易号、商户号、渠道号、请求号等可追踪字段。
+4. 禁止打印完整卡号、CVV、证件号、密钥、token、签名原文等敏感信息。
+5. 失败日志要包含错误码、错误来源、渠道响应码和处理建议。
+
+## JSON
+
+1. JSON 序列化与反序列化统一使用 `fastjson2`。
+2. 业务代码优先调用 `component-core` 中的 `JsonUtils`，避免直接散落调用底层 JSON API。
+3. Web 层统一由 `component-web` 的 fastjson2 HTTP message converter 处理接口入参与响应。
+4. 不引入 `fastjson 1.x`、`Gson` 或业务侧自建 `ObjectMapper`，避免同一系统出现多套 JSON 行为。
 
 ## 集合与并发
 

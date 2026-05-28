@@ -3,6 +3,15 @@ package com.sinopay.payment.component.mq.message;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : BaseMqMessage
+ * @date : 2026-05-28 10:28
+ * @email : scott_x@163.com
+ * @description : 基础消息体模型
+ * @status : create
+ */
 public class BaseMqMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
