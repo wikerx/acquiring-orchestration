@@ -55,10 +55,66 @@ hGa8xl/kde6=C=O+
 
 ## 5. 请求体
 
-JWT 负责授权认证；请求体仍按接口协议传递密文数据。`service-openapi` 的 `@VerificationAndProcessing(dataReceiver = XxxDTO.class)` 会完成：
+JWT 负责授权认证；请求体按统一密文信封传递业务数据：
+
+```json
+{
+  "data": "ciphertext"
+}
+```
+
+`data` 解密后的明文示例：
+
+```json
+{
+  "merchantInfo": {
+    "merchantId": "200045",
+    "subMerchantInfo": {
+      "subName": "John",
+      "subCompanyName": "JohnCompany",
+      "subId": "123456789111111",
+      "subStreet": "Regent Street",
+      "subCity": "London",
+      "subState": "AL",
+      "subCountryCode": "USA",
+      "merchantCategory": "5311"
+    }
+  },
+  "orderInfo": {
+    "amount": 12389.45,
+    "currency": "USD",
+    "tradeNo": "20250116140182865587"
+  },
+  "billingCardHolderInfo": {
+    "firstName": "John",
+    "lastName": "tom",
+    "phone": "+55-5085149876",
+    "email": "username@example.com",
+    "country": "USA",
+    "state": "AL",
+    "city": "city name",
+    "street": "street name",
+    "postal": "03400"
+  },
+  "cardInfo": {
+    "cardNo": "5387380678556554",
+    "expirationMonth": "03",
+    "expirationYear": "2025",
+    "securityCode": "123"
+  },
+  "threeDsInfo": {
+    "eci": "212",
+    "cavv": "KANiJlHEqL/yaEfVxr/BUoQBicnh",
+    "dsTransactionId": "b96c957d-daa1-4b7f-b8b4-373fb9dec47b",
+    "threeDsVersion": "2.2.0"
+  }
+}
+```
+
+`service-openapi` 的 `@VerificationAndProcessing(dataReceiver = XxxDTO.class)` 会完成：
 
 1. JWT 请求头校验；
-2. 密文请求体解密；
+2. `data` 密文请求体解密；
 3. DTO 转换；
 4. DTO 属性校验；
 5. 控制器参数注入。
@@ -70,9 +126,23 @@ JWT 负责授权认证；请求体仍按接口协议传递密文数据。`servic
 @PostMapping
 public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
                                                    @RequestBody String encydata,
-                                                   PaymentCreateRequestDTO requestDTO) {
+                                                   ApiMerchantCardOrganizationRequestDTO requestDTO) {
     return CommonResult.success(openApiPaymentService.createPayment(encydata, requestDTO));
 }
 ```
 
-说明：如果后续要求更强的应用层报文防篡改，可以在 JWT payload 中增加 `bodyHash`，或将请求体改为认证加密格式。
+## 6. cardInfo 加密策略
+
+默认不要求商户对 `cardInfo` 做二次加密。推荐默认方案是：
+
+1. HTTPS 保护传输层；
+2. `authorization` JWT HS256 证明商户身份、请求唯一性和时效；
+3. 请求体 `data` 做统一应用层加密；
+4. `service-openapi` 解密后只在内存中短暂持有卡数据；
+5. 日志、MQ、异常、响应禁止输出完整 PAN 和 CVV；
+6. 交易核心侧对 PAN 做令牌化或强加密存储；
+7. CVV/CVC 只允许用于本次授权，授权后禁止存储。
+
+这样比强制 `cardInfo` 再套一层加密更容易接入，也更容易统一治理密钥和错误处理。
+
+可以预留高级模式：对安全等级更高、直连卡组织或有特殊合规要求的商户，支持 `cardInfo` 字段级二次加密或独立 JWE 子信封。

@@ -2,7 +2,7 @@ package com.sinopay.payment.openapi.api.rest.v1.payment;
 
 import com.sinopay.payment.component.core.model.CommonResult;
 import com.sinopay.payment.openapi.annotation.v1.VerificationAndProcessing;
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.PaymentCreateRequestDTO;
+import com.sinopay.payment.openapi.api.rest.v1.dto.body.ApiMerchantCardOrganizationRequestDTO;
 import com.sinopay.payment.openapi.service.OpenApiPaymentService;
 import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,11 +31,17 @@ public class OpenApiPaymentController {
         this.openApiPaymentService = openApiPaymentService;
     }
 
-    @VerificationAndProcessing(dataReceiver = PaymentCreateRequestDTO.class)
+    @VerificationAndProcessing(
+            dataReceiver = ApiMerchantCardOrganizationRequestDTO.class,
+            validationGroups = {
+                    ApiMerchantCardOrganizationRequestDTO.Authorization.class,
+                    ApiMerchantCardOrganizationRequestDTO.Format.class
+            }
+    )
     @PostMapping
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
                                                        @RequestBody String encydata,
-                                                       PaymentCreateRequestDTO requestDTO) {
+                                                       ApiMerchantCardOrganizationRequestDTO requestDTO) {
         return CommonResult.success(openApiPaymentService.createPayment(encydata, requestDTO));
     }
 }

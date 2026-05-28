@@ -1,6 +1,6 @@
 package com.sinopay.payment.openapi.service.impl;
 
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.PaymentCreateRequestDTO;
+import com.sinopay.payment.openapi.api.rest.v1.dto.body.ApiMerchantCardOrganizationRequestDTO;
 import com.sinopay.payment.openapi.api.rest.v1.dto.converter.OpenApiRequestConverter;
 import com.sinopay.payment.openapi.service.OpenApiPaymentService;
 import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
@@ -25,7 +25,7 @@ public class OpenApiPaymentServiceImpl implements OpenApiPaymentService {
     }
 
     @Override
-    public PaymentCreateVO createPayment(String encryptedData, PaymentCreateRequestDTO requestDTO) {
+    public PaymentCreateVO createPayment(String encryptedData, ApiMerchantCardOrganizationRequestDTO requestDTO) {
         return converter.toPaymentCreateVO(requestDTO);
     }
 }

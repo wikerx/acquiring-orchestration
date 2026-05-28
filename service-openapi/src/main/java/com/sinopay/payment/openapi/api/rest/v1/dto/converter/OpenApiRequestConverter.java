@@ -1,8 +1,11 @@
 package com.sinopay.payment.openapi.api.rest.v1.dto.converter;
 
+import com.sinopay.payment.openapi.api.rest.v1.dto.body.ApiMerchantCardOrganizationRequestDTO;
 import com.sinopay.payment.openapi.api.rest.v1.dto.body.PaymentCreateRequestDTO;
 import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
 import org.mapstruct.Mapper;
+
+import java.math.BigDecimal;
 
 /**
  * @author : scott
@@ -17,4 +20,23 @@ import org.mapstruct.Mapper;
 public interface OpenApiRequestConverter {
 
     PaymentCreateVO toPaymentCreateVO(PaymentCreateRequestDTO requestDTO);
+
+    default PaymentCreateVO toPaymentCreateVO(ApiMerchantCardOrganizationRequestDTO requestDTO) {
+        PaymentCreateVO vo = new PaymentCreateVO();
+        if (requestDTO == null || requestDTO.getOrderInfo() == null) {
+            return vo;
+        }
+        ApiMerchantCardOrganizationRequestDTO.OrderInfoDTO orderInfo = requestDTO.getOrderInfo();
+        vo.setMerchantOrderNo(orderInfo.getTradeNo());
+        vo.setCurrency(orderInfo.getCurrency());
+        vo.setAmount(toMinorAmount(orderInfo.getAmount()));
+        return vo;
+    }
+
+    default Long toMinorAmount(BigDecimal amount) {
+        if (amount == null) {
+            return null;
+        }
+        return amount.movePointRight(2).longValue();
+    }
 }

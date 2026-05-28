@@ -1,6 +1,6 @@
 package com.sinopay.payment.openapi.service;
 
-import com.sinopay.payment.openapi.api.rest.v1.dto.body.PaymentCreateRequestDTO;
+import com.sinopay.payment.openapi.api.rest.v1.dto.body.ApiMerchantCardOrganizationRequestDTO;
 import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
 
 /**
@@ -14,5 +14,5 @@ import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
  */
 public interface OpenApiPaymentService {
 
-    PaymentCreateVO createPayment(String encryptedData, PaymentCreateRequestDTO requestDTO);
+    PaymentCreateVO createPayment(String encryptedData, ApiMerchantCardOrganizationRequestDTO requestDTO);
 }

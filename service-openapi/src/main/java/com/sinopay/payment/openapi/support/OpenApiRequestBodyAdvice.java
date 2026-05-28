@@ -1,7 +1,10 @@
 package com.sinopay.payment.openapi.support;
 
+import com.sinopay.payment.component.core.json.JsonUtils;
+import com.sinopay.payment.component.core.util.SensitiveDataMaskUtils;
 import com.sinopay.payment.openapi.annotation.v1.VerificationAndProcessing;
 import com.sinopay.payment.openapi.api.rest.v1.dto.header.OpenApiRequestHeaderDTO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.http.HttpInputMessage;
@@ -24,6 +27,7 @@ import java.lang.reflect.Type;
  * @description : 开放接口请求体解密转换处理器
  * @status : create
  */
+@Slf4j
 @Component
 public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
 
@@ -54,8 +58,11 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         OpenApiRequestHeaderDTO headerDTO = (OpenApiRequestHeaderDTO) request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         Object data = payloadDecoder.decode(String.valueOf(body), annotation.dataReceiver(), headerDTO);
         if (annotation.validator()) {
-            openApiValidator.validate(data);
+            openApiValidator.validate(data, annotation.validationGroups());
         }
+        log.info("OpenAPI decrypted request, merchantId: {}, request: {}",
+                headerDTO == null ? null : headerDTO.getMerchantId(),
+                SensitiveDataMaskUtils.maskJson(JsonUtils.toJsonString(data)));
         request.setAttribute(OpenApiRequestAttributes.DECRYPTED_DATA, data);
         return body;
     }

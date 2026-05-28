@@ -22,6 +22,8 @@ public @interface VerificationAndProcessing {
 
     boolean validator() default true;
 
+    Class<?>[] validationGroups() default {};
+
     boolean requiredHeader() default true;
 
     String[] requiredHeaders() default {

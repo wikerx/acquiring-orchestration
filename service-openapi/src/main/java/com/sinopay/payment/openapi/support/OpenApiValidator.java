@@ -26,8 +26,8 @@ public class OpenApiValidator {
         this.validator = validator;
     }
 
-    public void validate(Object target) {
-        Set<ConstraintViolation<Object>> violations = validator.validate(target);
+    public void validate(Object target, Class<?>... validationGroups) {
+        Set<ConstraintViolation<Object>> violations = validator.validate(target, validationGroups);
         if (violations.isEmpty()) {
             return;
         }
