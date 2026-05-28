@@ -1,33 +1,24 @@
-package com.sinopay.payment.openapi.api.rest.v1.dto.header;
+package com.sinopay.payment.component.security.jwt;
 
 import java.io.Serializable;
 
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiRequestHeaderDTO
- * @date : 2026-05-28 10:28
+ * @classname : JwtMerchantClaims
+ * @date : 2026-05-28 11:42
  * @email : scott_x@163.com
- * @description : 开放接口请求头数据传输对象
+ * @description : 商户 JWT 授权声明
  * @status : create
  */
-public class OpenApiRequestHeaderDTO implements Serializable {
+public class JwtMerchantClaims implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private String authorization;
     private String merchantId;
     private String jwtId;
-    private Long issuedAt;
-    private Long expiresAt;
-
-    public String getAuthorization() {
-        return authorization;
-    }
-
-    public void setAuthorization(String authorization) {
-        this.authorization = authorization;
-    }
+    private long issuedAt;
+    private long expiresAt;
 
     public String getMerchantId() {
         return merchantId;
@@ -45,19 +36,19 @@ public class OpenApiRequestHeaderDTO implements Serializable {
         this.jwtId = jwtId;
     }
 
-    public Long getIssuedAt() {
+    public long getIssuedAt() {
         return issuedAt;
     }
 
-    public void setIssuedAt(Long issuedAt) {
+    public void setIssuedAt(long issuedAt) {
         this.issuedAt = issuedAt;
     }
 
-    public Long getExpiresAt() {
+    public long getExpiresAt() {
         return expiresAt;
     }
 
-    public void setExpiresAt(Long expiresAt) {
+    public void setExpiresAt(long expiresAt) {
         this.expiresAt = expiresAt;
     }
 }

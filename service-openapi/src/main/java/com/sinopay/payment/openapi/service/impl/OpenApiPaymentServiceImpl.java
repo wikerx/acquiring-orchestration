@@ -18,11 +18,14 @@ import org.springframework.stereotype.Service;
 @Service
 public class OpenApiPaymentServiceImpl implements OpenApiPaymentService {
 
-    private final OpenApiRequestConverter converter = new OpenApiRequestConverter();
+    private final OpenApiRequestConverter converter;
+
+    public OpenApiPaymentServiceImpl(OpenApiRequestConverter converter) {
+        this.converter = converter;
+    }
 
     @Override
-    public PaymentCreateVO createPayment(PaymentCreateRequestDTO requestDTO) {
+    public PaymentCreateVO createPayment(String encryptedData, PaymentCreateRequestDTO requestDTO) {
         return converter.toPaymentCreateVO(requestDTO);
     }
 }
-

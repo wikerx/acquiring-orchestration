@@ -14,6 +14,5 @@ import com.sinopay.payment.openapi.vo.payment.PaymentCreateVO;
  */
 public interface OpenApiPaymentService {
 
-    PaymentCreateVO createPayment(PaymentCreateRequestDTO requestDTO);
+    PaymentCreateVO createPayment(String encryptedData, PaymentCreateRequestDTO requestDTO);
 }
-

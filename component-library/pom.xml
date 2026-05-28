@@ -17,10 +17,10 @@
         <module>component-core</module>
         <module>component-web</module>
         <module>component-security</module>
+        <module>component-http</module>
         <module>component-db</module>
         <module>component-redis</module>
         <module>component-mq</module>
         <module>component-job</module>
     </modules>
 </project>
-

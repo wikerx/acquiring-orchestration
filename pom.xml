@@ -35,6 +35,8 @@
         <mysql.version>8.0.33</mysql.version>
         <lombok.version>1.18.32</lombok.version>
         <fastjson2.version>2.0.61</fastjson2.version>
+        <hutool.version>5.8.38</hutool.version>
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
         <maven-resources-plugin.version>3.3.1</maven-resources-plugin.version>
         <profiles.active>dev</profiles.active>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -99,6 +101,21 @@
                 <artifactId>fastjson2-extension-spring5</artifactId>
                 <version>${fastjson2.version}</version>
             </dependency>
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-http</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mapstruct</groupId>
+                <artifactId>mapstruct-processor</artifactId>
+                <version>${mapstruct.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -127,6 +144,18 @@
                         <source>${java.version}</source>
                         <target>${java.version}</target>
                         <encoding>${project.build.sourceEncoding}</encoding>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                            <path>
+                                <groupId>org.mapstruct</groupId>
+                                <artifactId>mapstruct-processor</artifactId>
+                                <version>${mapstruct.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
                     </configuration>
                 </plugin>
                 <plugin>

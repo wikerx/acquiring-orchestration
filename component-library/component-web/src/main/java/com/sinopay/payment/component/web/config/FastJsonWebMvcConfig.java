@@ -7,6 +7,7 @@ import com.alibaba.fastjson2.support.spring.http.converter.FastJsonHttpMessageCo
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -28,7 +29,16 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
         converters.removeIf(converter -> converter instanceof MappingJackson2HttpMessageConverter);
-        converters.add(0, fastJsonHttpMessageConverter());
+        converters.add(resolveFastJsonConverterIndex(converters), fastJsonHttpMessageConverter());
+    }
+
+    private int resolveFastJsonConverterIndex(List<HttpMessageConverter<?>> converters) {
+        for (int index = 0; index < converters.size(); index++) {
+            if (converters.get(index) instanceof StringHttpMessageConverter) {
+                return index + 1;
+            }
+        }
+        return 0;
     }
 
     private FastJsonHttpMessageConverter fastJsonHttpMessageConverter() {

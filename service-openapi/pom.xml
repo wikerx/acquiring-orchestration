@@ -48,6 +48,15 @@
             <artifactId>component-db</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.sinopay.payment</groupId>
+            <artifactId>component-http</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
@@ -66,4 +75,3 @@
         </plugins>
     </build>
 </project>
-

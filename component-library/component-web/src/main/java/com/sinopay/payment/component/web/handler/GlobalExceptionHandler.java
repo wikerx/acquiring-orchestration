@@ -2,7 +2,7 @@ package com.sinopay.payment.component.web.handler;
 
 import com.sinopay.payment.component.core.constant.ErrorCode;
 import com.sinopay.payment.component.core.exception.BizException;
-import com.sinopay.payment.component.core.model.ApiResult;
+import com.sinopay.payment.component.core.model.CommonResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -22,20 +22,20 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BizException.class)
-    public ApiResult<Void> handleBizException(BizException exception) {
+    public CommonResult<Void> handleBizException(BizException exception) {
         log.warn("Business exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
-        return ApiResult.fail(exception.getCode(), exception.getMessage());
+        return CommonResult.error(exception);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ApiResult<Void> handleValidException(MethodArgumentNotValidException exception) {
+    public CommonResult<Void> handleValidException(MethodArgumentNotValidException exception) {
         log.warn("Request parameter validation failed: {}", exception.getMessage());
-        return ApiResult.fail(ErrorCode.PARAM_INVALID, exception.getMessage());
+        return CommonResult.error(ErrorCode.PARAM_INVALID, exception.getMessage());
     }
 
     @ExceptionHandler(Exception.class)
-    public ApiResult<Void> handleException(Exception exception) {
+    public CommonResult<Void> handleException(Exception exception) {
         log.error("System exception", exception);
-        return ApiResult.fail(ErrorCode.SYSTEM_ERROR, "system error");
+        return CommonResult.error(ErrorCode.SYSTEM_ERROR, "system error");
     }
 }

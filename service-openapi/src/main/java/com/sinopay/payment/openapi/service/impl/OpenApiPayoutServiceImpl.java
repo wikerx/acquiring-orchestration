@@ -17,8 +17,7 @@ import org.springframework.stereotype.Service;
 public class OpenApiPayoutServiceImpl implements OpenApiPayoutService {
 
     @Override
-    public String createPayout(PayoutCreateRequestDTO requestDTO) {
+    public String createPayout(String encryptedData, PayoutCreateRequestDTO requestDTO) {
         return requestDTO.getMerchantOrderNo();
     }
 }
-

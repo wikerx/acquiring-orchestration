@@ -11,6 +11,7 @@ package com.sinopay.payment.component.core.constant;
  */
 public final class ErrorCode {
 
+    public static final String SUCCESS = "SUCCESS";
     public static final String SYSTEM_ERROR = "SYSTEM_ERROR";
     public static final String PARAM_INVALID = "PARAM_INVALID";
     public static final String SIGN_INVALID = "SIGN_INVALID";
@@ -19,4 +20,3 @@ public final class ErrorCode {
     private ErrorCode() {
     }
 }
-

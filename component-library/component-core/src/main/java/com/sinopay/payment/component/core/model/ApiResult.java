@@ -1,5 +1,7 @@
 package com.sinopay.payment.component.core.model;
 
+import com.sinopay.payment.component.core.constant.ErrorCode;
+
 import java.io.Serializable;
 
 /**
@@ -21,7 +23,7 @@ public class ApiResult<T> implements Serializable {
 
     public static <T> ApiResult<T> success(T data) {
         ApiResult<T> result = new ApiResult<>();
-        result.setCode("SUCCESS");
+        result.setCode(ErrorCode.SUCCESS);
         result.setMessage("success");
         result.setData(data);
         return result;
@@ -58,4 +60,3 @@ public class ApiResult<T> implements Serializable {
         this.data = data;
     }
 }
-

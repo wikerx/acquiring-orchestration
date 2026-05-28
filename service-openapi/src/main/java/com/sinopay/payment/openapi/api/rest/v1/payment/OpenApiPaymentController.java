@@ -1,6 +1,6 @@
 package com.sinopay.payment.openapi.api.rest.v1.payment;
 
-import com.sinopay.payment.component.core.model.ApiResult;
+import com.sinopay.payment.component.core.model.CommonResult;
 import com.sinopay.payment.openapi.annotation.v1.VerificationAndProcessing;
 import com.sinopay.payment.openapi.api.rest.v1.dto.body.PaymentCreateRequestDTO;
 import com.sinopay.payment.openapi.service.OpenApiPaymentService;
@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.servlet.http.HttpServletRequest;
 
 /**
  * @author : scott
@@ -29,10 +31,11 @@ public class OpenApiPaymentController {
         this.openApiPaymentService = openApiPaymentService;
     }
 
-    @VerificationAndProcessing
+    @VerificationAndProcessing(dataReceiver = PaymentCreateRequestDTO.class)
     @PostMapping
-    public ApiResult<PaymentCreateVO> createPayment(@RequestBody PaymentCreateRequestDTO requestDTO) {
-        return ApiResult.success(openApiPaymentService.createPayment(requestDTO));
+    public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
+                                                       @RequestBody String encydata,
+                                                       PaymentCreateRequestDTO requestDTO) {
+        return CommonResult.success(openApiPaymentService.createPayment(encydata, requestDTO));
     }
 }
-

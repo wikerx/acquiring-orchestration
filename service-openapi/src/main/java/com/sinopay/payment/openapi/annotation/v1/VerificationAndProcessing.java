@@ -17,5 +17,14 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface VerificationAndProcessing {
-}
 
+    Class<?> dataReceiver() default Void.class;
+
+    boolean validator() default true;
+
+    boolean requiredHeader() default true;
+
+    String[] requiredHeaders() default {
+            "authorization"
+    };
+}

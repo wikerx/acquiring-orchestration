@@ -541,7 +541,7 @@ service-checkout
 职责：
 
 1. 商户侧收单、代付、查询、退款等开放 API 入口；
-2. 请求头验签；
+2. JWT 授权验签；
 3. 报文数据解密；
 4. 商户号、AppId、API Key 等基础参数校验；
 5. 商户产品权限、接口权限和限额前置校验；
@@ -781,7 +781,7 @@ service-gateway  -> component-core + component-security + component-redis
 service-admin    -> component-core + component-web + component-security
 service-merchant -> component-core + component-web + component-db + component-redis
 service-checkout -> component-core + component-web + component-security + component-redis
-service-openapi  -> component-core + component-web + component-security + component-redis + component-mq + component-db
+service-openapi  -> component-core + component-web + component-security + component-redis + component-mq + component-db + component-http
 service-payment  -> component-core + component-web + component-db + component-redis + component-mq + component-security + payment-channel-library
 service-payout   -> component-core + component-web + component-db + component-redis + component-mq + component-security + payout-channel-library
 service-job      -> component-core + component-job

@@ -17,6 +17,7 @@
 - [代码评审规范](docs/code-review.md)
 - [跨境支付系统工程约束](docs/payment-engineering.md)
 - [Spring Cloud 支付系统架构设计](docs/architecture/architecture-design.md)
+- [OpenAPI 授权认证规范](docs/api/openapi-authentication.md)
 
 ## 工程结构
 
@@ -96,7 +97,7 @@ Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等基础设施配置统
 merchant/client -> service-gateway -> service-openapi -> service-payment/service-payout
 ```
 
-`service-openapi` 负责请求头验签、报文解密、商户基础参数校验、产品权限校验、幂等、商户通知和渠道侧回调入口。
+`service-openapi` 负责 JWT 授权验签、报文解密、商户基础参数校验、产品权限校验、幂等、商户通知和渠道侧回调入口。
 
 渠道适配不作为独立微服务部署：
 
