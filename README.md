@@ -16,6 +16,71 @@
 - [代码编写规范](docs/coding-standard.md)
 - [代码评审规范](docs/code-review.md)
 - [跨境支付系统工程约束](docs/payment-engineering.md)
+- [Spring Cloud 支付系统架构设计](docs/architecture/architecture-design.md)
+
+## 工程结构
+
+```text
+component-library
+├── component-core
+├── component-web
+├── component-security
+├── component-db
+├── component-redis
+├── component-mq
+└── component-job
+
+service-gateway
+service-admin
+service-merchant
+service-checkout
+service-payment
+service-payout
+service-channel
+service-job
+```
+
+## 技术基线
+
+- Java：8
+- Spring Boot：2.7.x
+- Spring Cloud：2021.x
+- Spring Cloud Alibaba：2021.x
+
+说明：Spring Boot 3.x 要求 Java 17 及以上；当前骨架优先满足 Java 8，因此采用 Spring Boot 2.7.x 兼容组合。
+
+## 环境与打包
+
+根 `pom.xml` 统一维护 `dev`、`test`、`uat`、`prod` 四套 Maven profile。默认环境为 `dev`。
+
+```bash
+mvn -Pdev clean package
+mvn -Ptest clean package
+mvn -Puat clean package
+mvn -Pprod clean package
+```
+
+打包时会通过资源过滤把 `@profiles.active@` 写入各服务的 `application.yml`：
+
+```yaml
+spring:
+  profiles:
+    active: @profiles.active@
+```
+
+各服务的环境配置文件保持一致：
+
+```text
+application.yml
+application-dev.yml
+application-test.yml
+application-uat.yml
+application-prod.yml
+application-sample.yml
+banner.txt
+seata.conf
+log-config/logback-spring.xml
+```
 
 ## 基本原则
 

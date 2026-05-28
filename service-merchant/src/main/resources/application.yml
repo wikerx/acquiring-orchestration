@@ -1,0 +1,8 @@
+server:
+  port: 8102
+
+spring:
+  application:
+    name: service-merchant
+  profiles:
+    active: @profiles.active@

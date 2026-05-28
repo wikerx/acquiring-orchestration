@@ -1,0 +1,8 @@
+server:
+  port: 8201
+
+spring:
+  application:
+    name: service-payment
+  profiles:
+    active: @profiles.active@

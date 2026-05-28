@@ -1,0 +1,8 @@
+server:
+  port: 8202
+
+spring:
+  application:
+    name: service-payout
+  profiles:
+    active: @profiles.active@

@@ -1,0 +1,3 @@
+Global Payment Architecture
+${spring.application.name}
+

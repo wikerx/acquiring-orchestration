@@ -1,0 +1,27 @@
+spring:
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:nacos-prod:8848}
+      config:
+        server-addr: ${NACOS_SERVER:nacos-prod:8848}
+        file-extension: yml
+  redis:
+    host: ${REDIS_HOST:redis-prod}
+    port: ${REDIS_PORT:6379}
+
+rocketmq:
+  name-server: ${ROCKETMQ_NAME_SERVER:rocketmq-prod:9876}
+
+xxl:
+  job:
+    admin:
+      addresses: ${XXL_JOB_ADMIN:http://xxl-job-prod:8088/xxl-job-admin}
+
+seata:
+  enabled: false
+  tx-service-group: ${SEATA_TX_GROUP:global-payment-prod}
+
+logging:
+  config: classpath:log-config/logback-spring.xml
+

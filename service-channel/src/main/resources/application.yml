@@ -1,0 +1,8 @@
+server:
+  port: 8203
+
+spring:
+  application:
+    name: service-channel
+  profiles:
+    active: @profiles.active@

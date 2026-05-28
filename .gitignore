@@ -1,0 +1,39 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Java / Maven / Gradle
+target/
+build/
+.gradle/
+out/
+*.class
+
+# Node / frontend
+node_modules/
+dist/
+.next/
+.vite/
+
+# Logs
+logs/
+*.log
+
+# Runtime / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# Generated
+coverage/
+reports/
+

@@ -1,0 +1,8 @@
+server:
+  port: 8301
+
+spring:
+  application:
+    name: service-job
+  profiles:
+    active: @profiles.active@
