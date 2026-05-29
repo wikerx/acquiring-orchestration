@@ -4,8 +4,8 @@ import com.scott.payment.component.core.enums.ApiCoResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import org.springframework.stereotype.Component;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.Validator;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import java.util.Set;
 
 /**

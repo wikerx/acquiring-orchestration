@@ -5,7 +5,7 @@ import lombok.Data;
 
 import java.io.Serializable;
 
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * @author : scott

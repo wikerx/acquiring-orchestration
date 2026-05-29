@@ -3,7 +3,7 @@ package com.scott.payment.component.web.version;
 import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.mvc.condition.RequestCondition;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.Map;
 
 /**

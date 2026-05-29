@@ -47,12 +47,13 @@ service-job
 
 ## 技术基线
 
-- Java：8
-- Spring Boot：2.7.x
-- Spring Cloud：2021.x
-- Spring Cloud Alibaba：2021.x
+- Java：17
+- Spring Boot：3.5.14
+- Spring Cloud：2025.0.2
+- Spring Cloud Alibaba：2025.0.0.0
+- Servlet / Validation：Jakarta EE 命名空间
 
-说明：Spring Boot 3.x 要求 Java 17 及以上；当前骨架优先满足 Java 8，因此采用 Spring Boot 2.7.x 兼容组合。
+说明：当前工程已升级到 JDK 17 兼容线，所有 Web、Validation、Nacos、Redis、RocketMQ、MyBatis-Plus、动态数据源、Fastjson2、Hutool、MapStruct 等依赖统一按 Spring Boot 3 / Spring Framework 6 生态版本管理。
 
 ## 环境与打包
 

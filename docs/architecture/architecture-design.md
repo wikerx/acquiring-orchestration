@@ -870,8 +870,8 @@ service-ledger
 8. 不需要完整业务逻辑；
 9. 避免循环依赖；
 10. 代码风格统一；
-11. Java 8；
-12. Spring Boot 3.x；
+11. Java 17；
+12. Spring Boot 3.5.x；
 13. Spring Cloud；
 14. Nacos、RocketMQ、Redis、MySQL、XXL-JOB 依赖先预留；
 15. 支付交易表、代付交易表预留分表能力；
@@ -879,14 +879,18 @@ service-ledger
 
 ## 9. 当前落地说明
 
-当前仓库骨架优先满足 Java 8 要求，因此实际采用：
+当前仓库骨架已升级到 JDK 17 兼容线，因此实际采用：
 
-1. Java 8；
-2. Spring Boot 2.7.x；
-3. Spring Cloud 2021.x；
-4. Spring Cloud Alibaba 2021.x。
+1. Java 17；
+2. Spring Boot 3.5.14；
+3. Spring Cloud 2025.0.2；
+4. Spring Cloud Alibaba 2025.0.0.0；
+5. Jakarta Servlet / Jakarta Validation 命名空间；
+6. MyBatis-Plus Spring Boot 3 Starter；
+7. Dynamic Datasource Spring Boot 3 Starter；
+8. Fastjson2 Spring 6 Extension。
 
-说明：Spring Boot 3.x 要求 Java 17 及以上；如果后续决定升级到 Java 17，再统一切换到 Spring Boot 3.x 与对应 Spring Cloud 版本。
+说明：这里暂不切 Spring Boot 4.x。当前 Spring Cloud Alibaba `2025.0.0.0` 对应 Spring Boot 3.5.x / Spring Cloud 2025.0.x / JDK 17+，更适合支付系统先完成稳定升级；后续如要进入 Spring Boot 4.x，应作为独立大版本迁移评审。
 
 ## 10. 多环境配置与打包
 

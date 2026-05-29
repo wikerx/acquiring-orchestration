@@ -9,7 +9,7 @@ import com.scott.payment.openapi.security.MerchantKeyProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * @author : scott
