@@ -65,7 +65,7 @@ class OpenApiSecurityFlowTests {
     /**
      * 测试 RSA 密钥编号，模拟后续生产密钥轮换场景。
      */
-    private static final String KEY_ID = "opgs-test-rsa-001";
+    private static final String KEY_ID = "payment-test-rsa-001";
 
     /**
      * 固定测试时间，避免 JWT iat/exp 因真实时钟变化导致测试不稳定。
@@ -73,7 +73,7 @@ class OpenApiSecurityFlowTests {
     private static final long NOW_EPOCH_SECONDS = 1_704_960_018L;
 
     /**
-     * 密钥材料生成入口，测试中使用它展示 merchantKey、平台 RSA 和商户响应 RSA 的生成效果。
+     * 密钥材料生成入口，测试中展示商户可见材料和平台内部 RSA 材料的生成效果。
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory = new OpenApiKeyMaterialFactory();
 
@@ -84,33 +84,29 @@ class OpenApiSecurityFlowTests {
     void shouldGenerateMerchantSecurityMaterial() {
         OpenApiMerchantOnboardingMaterial material = keyMaterialFactory.generateDemoOnboardingMaterial(
                 MERCHANT_ID,
-                KEY_ID,
-                "merchant-" + MERCHANT_ID + "-response-rsa-001"
+                KEY_ID
         );
 
-        log.info("OpenAPI key material generated, merchantId: {}, jwtAlgorithm: {}, jwtExpiresSeconds: {}, jwtKeyLength: {}, jwtKeyFingerprint: {}",
-                material.merchantJwtKey().merchantId(),
-                material.merchantJwtKey().algorithm(),
-                material.merchantJwtKey().expiresSeconds(),
-                material.merchantJwtKey().merchantKey().length(),
-                keyMaterialFactory.fingerprint(material.merchantJwtKey().merchantKey()));
-        log.info("OpenAPI platform payload public key generated, keyId: {}, keySize: {}, publicKeyLength: {}, publicKeyFingerprint: {}, serverOnlyMaterialLength: {}",
+        log.info("商户对接材料已生成，商户号：{}，JWT算法：{}，JWT有效期秒数：{}，商户签名密钥长度：{}，商户签名密钥指纹：{}",
+                material.merchantCredential().merchantId(),
+                material.merchantCredential().jwtAlgorithm(),
+                material.merchantCredential().jwtExpiresSeconds(),
+                material.merchantCredential().merchantKey().length(),
+                keyMaterialFactory.fingerprint(material.merchantCredential().merchantKey()));
+        log.info("下发给商户的平台公钥摘要，keyId：{}，公钥长度：{}，公钥指纹：{}",
+                material.merchantCredential().platformPayloadKeyId(),
+                material.merchantCredential().platformPublicKeyX509Base64().length(),
+                keyMaterialFactory.fingerprint(material.merchantCredential().platformPublicKeyX509Base64()));
+        log.info("平台服务端内部私钥材料摘要，keyId：{}，密钥位数：{}，公钥指纹：{}，服务端私钥长度：{}",
                 material.platformPayloadKey().keyId(),
                 material.platformPayloadKey().keySize(),
-                material.platformPayloadKey().publicKeyX509Base64().length(),
                 keyMaterialFactory.fingerprint(material.platformPayloadKey().publicKeyX509Base64()),
                 material.platformPayloadKey().privateKeyPkcs8Base64().length());
-        log.info("OpenAPI merchant response public key generated, keyId: {}, keySize: {}, publicKeyLength: {}, publicKeyFingerprint: {}, merchantOnlyMaterialLength: {}",
-                material.merchantResponseKey().keyId(),
-                material.merchantResponseKey().keySize(),
-                material.merchantResponseKey().publicKeyX509Base64().length(),
-                keyMaterialFactory.fingerprint(material.merchantResponseKey().publicKeyX509Base64()),
-                material.merchantResponseKey().privateKeyPkcs8Base64().length());
 
-        assertThat(material.merchantJwtKey().merchantKey()).isNotBlank();
+        assertThat(material.merchantCredential().merchantKey()).isNotBlank();
+        assertThat(material.merchantCredential().platformPublicKeyPem()).startsWith("-----BEGIN PUBLIC KEY-----");
         assertThat(material.platformPayloadKey().publicKeyPem()).startsWith("-----BEGIN PUBLIC KEY-----");
         assertThat(material.platformPayloadKey().privateKeyPem()).startsWith("-----BEGIN PRIVATE KEY-----");
-        assertThat(material.merchantResponseKey().publicKeyPem()).startsWith("-----BEGIN PUBLIC KEY-----");
     }
 
     /**
@@ -123,7 +119,7 @@ class OpenApiSecurityFlowTests {
 
         JwtMerchantClaims claims = new MerchantJwtVerifier().verify(token, merchantKey, NOW_EPOCH_SECONDS + 10L);
 
-        log.info("OpenAPI merchant JWT verified, merchantId: {}, jwtId: {}, issuedAt: {}, expiresAt: {}, tokenParts: {}",
+        log.info("商户JWT验签通过，商户号：{}，请求唯一号：{}，签发时间：{}，过期时间：{}，JWT段数：{}",
                 claims.getMerchantId(),
                 claims.getJwtId(),
                 claims.getIssuedAt(),
@@ -148,12 +144,12 @@ class OpenApiSecurityFlowTests {
         String encryptedData = payloadCrypto.encrypt(plainText, platformKeyPair.getPublic(), KEY_ID);
         String decryptedText = payloadCrypto.decrypt(encryptedData, keyId -> platformKeyPair.getPrivate());
 
-        log.info("OpenAPI payload encrypted, protectedHeader: {}, compactParts: {}, encryptedLength: {}, encryptedFingerprint: {}",
+        log.info("请求密文已生成，受保护头：{}，密文段数：{}，密文长度：{}，密文指纹：{}",
                 decodeProtectedHeader(encryptedData),
                 encryptedData.split("\\.").length,
                 encryptedData.length(),
                 keyMaterialFactory.fingerprint(encryptedData));
-        log.info("OpenAPI payload decrypted, maskedPayload: {}", SensitiveDataMaskUtils.maskJson(decryptedText));
+        log.info("请求密文已解密，脱敏后的明文参数：{}", SensitiveDataMaskUtils.maskJson(decryptedText));
 
         assertThat(encryptedData.split("\\.")).hasSize(5);
         assertThat(encryptedData).doesNotContain("5387380678556554");
@@ -177,7 +173,7 @@ class OpenApiSecurityFlowTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("authorization", authorization)
                         .content(JsonUtils.toJsonString(Map.of("data", encryptedData))))
-                .andDo(result -> log.info("OpenAPI authorization api response, status: {}, body: {}",
+                .andDo(result -> log.info("授权接口调用完成，HTTP状态：{}，响应体：{}",
                         result.getResponse().getStatus(),
                         result.getResponse().getContentAsString()))
                 .andExpect(status().isOk())
@@ -186,10 +182,10 @@ class OpenApiSecurityFlowTests {
                 .andExpect(jsonPath("$.data.currency").value("USD"))
                 .andExpect(jsonPath("$.data.amount").value(1238945));
 
-        log.info("OpenAPI controller received DTO, merchantId: {}, tradeNo: {}, maskedPan: {}, amount: {}, currency: {}",
+        log.info("控制器已收到解密DTO，商户号：{}，商户订单号：{}，脱敏卡号：{}，订单金额：{}，币种：{}",
                 capturedRequest.get().getMerchantInfo().getMerchantId(),
                 capturedRequest.get().getOrderInfo().getTradeNo(),
-                maskPan(capturedRequest.get().getCardInfo().getCardNo()),
+                SensitiveDataMaskUtils.maskPan(capturedRequest.get().getCardInfo().getCardNo()),
                 capturedRequest.get().getOrderInfo().getAmount(),
                 capturedRequest.get().getOrderInfo().getCurrency());
 
@@ -328,19 +324,6 @@ class OpenApiSecurityFlowTests {
     private String decodeProtectedHeader(String encryptedData) {
         String protectedHeader = encryptedData.split("\\.", -1)[0];
         return new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
-    }
-
-    /**
-     * 脱敏 PAN 卡号，保留前 6 后 4 用于确认链路效果。
-     *
-     * @param cardNo 原始 PAN
-     * @return 脱敏 PAN
-     */
-    private String maskPan(String cardNo) {
-        if (cardNo == null || cardNo.length() < 10) {
-            return "******";
-        }
-        return cardNo.substring(0, 6) + "******" + cardNo.substring(cardNo.length() - 4);
     }
 
     /**

@@ -27,7 +27,7 @@ public class OpenApiRequestHeaderDTO implements Serializable {
     private String authorization;
 
     /**
-     * JWT Payload 中的 merchantId，代表 OPGS 为商户分配的唯一商户号。
+     * JWT Payload 中的 merchantId，代表支付平台为商户分配的唯一商户号。
      */
     private String merchantId;
 

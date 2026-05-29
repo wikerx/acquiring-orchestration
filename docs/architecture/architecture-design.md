@@ -447,9 +447,9 @@ service-gateway
 ```text
 service-gateway
   -> component-core
-  -> component-security
-  -> component-redis
 ```
+
+当前网关只做接入层路由、跨域、响应头和超时规则，不直接连接 Redis、数据库、MQ、Seata、分表配置。后续如果要在 gateway 做 RedisRateLimiter 或网关级防重放，再单独引入 `component-redis`。
 
 ### 5.2 service-admin
 
@@ -792,7 +792,7 @@ component-mq       -> component-core + component-redis
 ### 6.2 service 依赖关系
 
 ```text
-service-gateway  -> component-core + component-security + component-redis
+service-gateway  -> component-core
 service-admin    -> component-core + component-web + component-security
 service-merchant -> component-core + component-web + component-db + component-redis
 service-checkout -> component-core + component-web + component-security + component-redis
@@ -916,7 +916,7 @@ mvn -Puat clean package
 mvn -Pprod clean package
 ```
 
-各 `service-*` 模块资源目录统一包含：
+普通业务 `service-*` 模块资源目录统一包含：
 
 ```text
 src/main/resources
@@ -932,17 +932,21 @@ src/main/resources
     └── logback-spring.xml
 ```
 
+`service-gateway` 是接入层例外：它不参与分布式事务，不连接数据库、Redis、MQ、分表配置，因此资源目录不放 `seata.conf`，也不导入这些 Nacos DataId。
+
 `application.yml` 只保留服务名、端口和 profile 入口：
 
 ```yaml
 # 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
-# Redis、MQ、数据库、分表、Seata、XXL-JOB 等配置统一从 Nacos yaml DataId 读取。
+# 普通业务服务的 Redis、MQ、数据库、分表、Seata、XXL-JOB 等配置统一从 Nacos yaml DataId 读取。
 spring:
   profiles:
     active: @profiles.active@
 ```
 
 `application-{env}.yml` 只放 Nacos 连接信息和 `spring.config.import`。Redis Cluster、RocketMQ、数据库、分表、XXL-JOB、Seata 等外部依赖配置统一放到 Nacos Config 独立 DataId。每个本地 yml 文件顶部保留注释，说明它只负责“连接配置中心”，不承载业务环境参数。
+
+`service-gateway` 只拉取 `service-gateway-{env}.yaml` 和 `common-{env}.yaml`。网关不加载 `dataSource`、`sharding`、`redis`、`rocketmq`、`seata`、`xxl-job`，避免接入层和业务基础设施耦合。
 
 Nacos DataId 统一使用 `.yaml` 后缀；dev、test、uat、prod 使用各自命名空间，禁止使用 `public` 承载业务配置。
 

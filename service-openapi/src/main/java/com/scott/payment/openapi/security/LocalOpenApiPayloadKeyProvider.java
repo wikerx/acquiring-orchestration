@@ -24,17 +24,17 @@ import java.security.PublicKey;
 public class LocalOpenApiPayloadKeyProvider implements OpenApiPayloadKeyProvider {
 
     /**
-     * 本地默认密钥编号，生产环境应按平台密钥轮换策略配置，例如 opgs-rsa-2026-q2。
+     * 本地默认密钥编号，生产环境应按平台密钥轮换策略配置，例如 payment-rsa-2026-q2。
      */
     private final String defaultKeyId;
 
     /**
-     * 配置的 OPGS 平台私钥，优先从 Nacos 或环境变量注入。
+     * 配置的支付平台私钥，优先从 Nacos 或环境变量注入。
      */
     private final PrivateKey configuredPrivateKey;
 
     /**
-     * 配置的 OPGS 平台公钥，主要用于本地生成测试密文或对外提供给商户。
+     * 配置的支付平台公钥，主要用于本地生成测试密文或对外提供给商户。
      */
     private final PublicKey configuredPublicKey;
 
@@ -44,9 +44,9 @@ public class LocalOpenApiPayloadKeyProvider implements OpenApiPayloadKeyProvider
     private final KeyPair volatileKeyPair;
 
     public LocalOpenApiPayloadKeyProvider(OpenApiPayloadCrypto payloadCrypto,
-                                          @Value("${opgs.openapi.crypto.default-key-id:opgs-dev-rsa-001}") String defaultKeyId,
-                                          @Value("${opgs.openapi.crypto.private-key-pkcs8-base64:}") String privateKeyBase64,
-                                          @Value("${opgs.openapi.crypto.public-key-x509-base64:}") String publicKeyBase64) {
+                                          @Value("${payment.openapi.crypto.default-key-id:payment-dev-rsa-001}") String defaultKeyId,
+                                          @Value("${payment.openapi.crypto.private-key-pkcs8-base64:}") String privateKeyBase64,
+                                          @Value("${payment.openapi.crypto.public-key-x509-base64:}") String publicKeyBase64) {
         this.defaultKeyId = defaultKeyId;
         this.configuredPrivateKey = StringUtils.hasText(privateKeyBase64) ? payloadCrypto.readPrivateKey(privateKeyBase64) : null;
         this.configuredPublicKey = StringUtils.hasText(publicKeyBase64) ? payloadCrypto.readPublicKey(publicKeyBase64) : null;

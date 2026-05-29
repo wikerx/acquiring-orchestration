@@ -2,7 +2,7 @@
 
 完整的 JWT 鉴权、RSA-OAEP-256/AES-256-GCM 混合加密、响应加密和防重放流程见 [OpenAPI 鉴权与加密流程](openapi-security-flow.md)。
 
-merchantKey、平台 RSA 密钥、商户响应 RSA 密钥的生成、交付和使用规则也在完整流程文档的“密钥类型与生成入口”章节中维护。
+商户侧只需要关注 `merchantKey` 和平台 RSA 公钥；平台 RSA 私钥只由支付平台服务端保存。完整的生成、交付和使用规则在完整流程文档的“密钥类型与生成入口”章节中维护。
 
 ## 1. 授权方式
 
@@ -19,10 +19,10 @@ authorization: <jwt-token>
 
 `merchantKey` 由平台开户时生成并提供给商户。服务端使用商户号 `merchantId` 查询对应密钥，再校验 JWT 签名。
 
-开发环境默认示例：
+商户侧只需要保存平台下发的 `merchantKey`，不要把该值写入前端代码、App 包、日志或公开文档。下面只表示格式，不是可使用的密钥：
 
 ```text
-hGa8xl/kde6=C=O+
+<merchantKey>
 ```
 
 ## 3. JWT Header

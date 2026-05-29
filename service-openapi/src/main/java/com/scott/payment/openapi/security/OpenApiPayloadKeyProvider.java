@@ -15,7 +15,7 @@ import java.security.PublicKey;
 public interface OpenApiPayloadKeyProvider {
 
     /**
-     * 根据密钥编号获取 OPGS 平台私钥，用于解密商户请求中的 AES 会话密钥。
+     * 根据密钥编号获取支付平台私钥，用于解密商户请求中的 AES 会话密钥。
      *
      * @param keyId 密文报文 header 中的密钥编号
      * @return 平台 RSA 私钥
@@ -23,7 +23,7 @@ public interface OpenApiPayloadKeyProvider {
     PrivateKey getPlatformPrivateKey(String keyId);
 
     /**
-     * 根据密钥编号获取 OPGS 平台公钥，主要用于本地联调生成商户请求密文。
+     * 根据密钥编号获取支付平台公钥，主要用于本地联调生成商户请求密文。
      *
      * @param keyId 密钥编号
      * @return 平台 RSA 公钥

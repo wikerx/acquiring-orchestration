@@ -41,6 +41,12 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
      */
     private final OpenApiValidator openApiValidator;
 
+    /**
+     * 创建开放接口请求体处理器。
+     *
+     * @param payloadDecoder  OpenAPI 请求体密文解码器
+     * @param openApiValidator OpenAPI 请求 DTO 参数校验器
+     */
     public OpenApiRequestBodyAdvice(OpenApiPayloadDecoder payloadDecoder, OpenApiValidator openApiValidator) {
         this.payloadDecoder = payloadDecoder;
         this.openApiValidator = openApiValidator;
@@ -85,13 +91,19 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         if (annotation.validator()) {
             openApiValidator.validate(data, annotation.validationGroups());
         }
-        log.info("OpenAPI decrypted request, merchantId: {}, request: {}",
+        log.info("开放接口请求体解密完成，商户号：{}，脱敏后的请求参数：{}",
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 SensitiveDataMaskUtils.maskJson(JsonUtils.toJsonString(data)));
         request.setAttribute(OpenApiRequestAttributes.DECRYPTED_DATA, data);
         return body;
     }
 
+    /**
+     * 查找控制器方法上的开放接口验签与处理注解。
+     *
+     * @param parameter 控制器方法参数
+     * @return 注解配置；不存在时返回 null
+     */
     private VerificationAndProcessing findAnnotation(MethodParameter parameter) {
         if (parameter.getMethod() == null) {
             return null;
@@ -99,6 +111,11 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         return AnnotationUtils.findAnnotation(parameter.getMethod(), VerificationAndProcessing.class);
     }
 
+    /**
+     * 获取当前线程绑定的 Servlet 请求对象。
+     *
+     * @return 当前 HTTP 请求
+     */
     private HttpServletRequest currentRequest() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         return attributes.getRequest();

@@ -28,6 +28,7 @@ Nacos DataId 统一使用标准 YAML 后缀 `.yaml`。dev 环境使用命名空�
 - `application.yml`：只保留 `server.port`、`spring.application.name`、`spring.profiles.active`、`spring.main` 等启动入口配置。
 - `application-dev.yml`、`application-test.yml`、`application-uat.yml`、`application-prod.yml`：只保留当前环境的 Nacos 地址、命名空间、账号密码、`file-extension: yaml` 和 `spring.config.import`。
 - 禁止在本地 yml 中写死 Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等业务环境配置；这些配置必须进入对应的 Nacos yaml DataId。
+- `service-gateway` 是接入层例外：只拉取 `service-gateway-{env}.yaml` 和 `common-{env}.yaml`，不引入 `dataSource`、`sharding`、`redis`、`rocketmq`、`seata`、`xxl-job`，避免网关耦合业务基础设施。
 
 Nacos yaml 的职责边界：
 

@@ -18,7 +18,7 @@ import java.util.Objects;
  * @classname : OpenApiKeyMaterialFactory
  * @date : 2026-05-29 22:40
  * @email : scott_x@163.com
- * @description : OpenAPI 商户接入密钥材料生成入口
+ * @description : 支付框架 OpenAPI 商户接入密钥材料生成入口
  * @status : create
  */
 public class OpenApiKeyMaterialFactory {
@@ -69,7 +69,7 @@ public class OpenApiKeyMaterialFactory {
     private static final String PRIVATE_KEY_END = "-----END PRIVATE KEY-----";
 
     /**
-     * OpenAPI 报文混合加密工具，用于生成 RSA 密钥对。
+     * 支付框架 OpenAPI 报文混合加密工具，用于生成 RSA 密钥对。
      */
     private final OpenApiPayloadCrypto payloadCrypto;
 
@@ -101,7 +101,7 @@ public class OpenApiKeyMaterialFactory {
     /**
      * 为商户生成 JWT HS256 签名密钥。
      * <p>
-     * 该密钥由 OPGS 生成并安全交付给商户；商户用它签发 JWT，OPGS 用它验签。
+     * 该密钥由支付平台生成并安全交付给商户；商户用它签发 JWT，平台用它验签。
      *
      * @param merchantId 商户号
      * @return 商户 JWT 签名密钥材料
@@ -117,48 +117,53 @@ public class OpenApiKeyMaterialFactory {
     }
 
     /**
-     * 生成 OPGS 平台请求体解密 RSA 密钥对。
+     * 生成支付平台请求体解密 RSA 密钥对。
      * <p>
-     * 平台私钥只允许 OPGS 服务端保存；平台公钥和 kid 可以下发给商户用于加密请求体 data。
+     * 平台私钥只允许平台服务端保存；平台公钥和 kid 可以下发给商户用于加密请求体 data。
      *
      * @param keyId 平台 RSA 密钥编号
      * @return 平台请求体解密密钥材料
      */
     public RsaKeyMaterial generatePlatformPayloadRsaKey(String keyId) {
-        return generateRsaKeyMaterial(keyId, "opgs-platform-payload", DEFAULT_RSA_KEY_SIZE);
+        return generateRsaKeyMaterial(keyId, "payment-platform-payload", DEFAULT_RSA_KEY_SIZE);
     }
 
     /**
-     * 生成商户响应解密 RSA 密钥对。
-     * <p>
-     * 生产环境推荐由商户自己生成该密钥对，只把公钥上传给 OPGS；该方法主要用于联调、沙箱和测试。
+     * 生成商户侧真正需要保存的对接材料。
      *
      * @param merchantId 商户号
-     * @param keyId      商户 RSA 密钥编号
-     * @return 商户响应解密密钥材料
+     * @param platformPayloadKey 平台请求体 RSA 密钥材料
+     * @return 商户对接材料
      */
-    public RsaKeyMaterial generateMerchantResponseRsaKey(String merchantId, String keyId) {
-        return generateRsaKeyMaterial(keyId, "merchant-response-" + merchantId, DEFAULT_RSA_KEY_SIZE);
+    public MerchantOpenApiCredential generateMerchantCredential(String merchantId, RsaKeyMaterial platformPayloadKey) {
+        MerchantJwtKey merchantJwtKey = generateMerchantJwtKey(merchantId);
+        return new MerchantOpenApiCredential(
+                merchantJwtKey.merchantId(),
+                merchantJwtKey.merchantKey(),
+                merchantJwtKey.algorithm(),
+                merchantJwtKey.expiresSeconds(),
+                platformPayloadKey.keyId(),
+                platformPayloadKey.publicKeyX509Base64(),
+                platformPayloadKey.publicKeyPem()
+        );
     }
 
     /**
      * 生成一套本地联调用商户接入材料。
      * <p>
-     * 该方法会同时生成 merchantKey、平台 RSA 密钥对、商户响应 RSA 密钥对，方便在单元测试和沙箱中观察完整流程。
-     * 生产环境不要把商户响应私钥交给 OPGS 保存。
+     * 该方法会同时生成商户可见材料和平台服务端内部材料，方便单元测试和沙箱中观察完整流程。
+     * 商户侧只需要保存返回对象中的 `merchantCredential`，不要接触平台 RSA 私钥。
      *
-     * @param merchantId            商户号
-     * @param platformPayloadKeyId  平台请求体解密 RSA kid
-     * @param merchantResponseKeyId 商户响应解密 RSA kid
+     * @param merchantId           商户号
+     * @param platformPayloadKeyId 平台请求体解密 RSA kid
      * @return 本地联调用商户接入材料
      */
     public OpenApiMerchantOnboardingMaterial generateDemoOnboardingMaterial(String merchantId,
-                                                                            String platformPayloadKeyId,
-                                                                            String merchantResponseKeyId) {
+                                                                            String platformPayloadKeyId) {
+        RsaKeyMaterial platformPayloadKey = generatePlatformPayloadRsaKey(platformPayloadKeyId);
         return new OpenApiMerchantOnboardingMaterial(
-                generateMerchantJwtKey(merchantId),
-                generatePlatformPayloadRsaKey(platformPayloadKeyId),
-                generateMerchantResponseRsaKey(merchantId, merchantResponseKeyId)
+                generateMerchantCredential(merchantId, platformPayloadKey),
+                platformPayloadKey
         );
     }
 
@@ -262,14 +267,32 @@ public class OpenApiKeyMaterialFactory {
     }
 
     /**
-     * 本地联调用商户接入材料。
+     * 商户侧 OpenAPI 对接材料。
      *
-     * @param merchantJwtKey     商户 JWT 签名密钥
-     * @param platformPayloadKey 平台请求体解密 RSA 密钥
-     * @param merchantResponseKey 商户响应解密 RSA 密钥
+     * @param merchantId                商户号
+     * @param merchantKey               商户 JWT HS256 签名密钥，商户服务端需要安全保存
+     * @param jwtAlgorithm              JWT 签名算法
+     * @param jwtExpiresSeconds         JWT 最大有效期，单位秒
+     * @param platformPayloadKeyId      平台请求体 RSA 公钥编号
+     * @param platformPublicKeyX509Base64 X.509 DER Base64 平台公钥
+     * @param platformPublicKeyPem      X.509 PEM 平台公钥
      */
-    public record OpenApiMerchantOnboardingMaterial(MerchantJwtKey merchantJwtKey,
-                                                    RsaKeyMaterial platformPayloadKey,
-                                                    RsaKeyMaterial merchantResponseKey) {
+    public record MerchantOpenApiCredential(String merchantId,
+                                            String merchantKey,
+                                            String jwtAlgorithm,
+                                            long jwtExpiresSeconds,
+                                            String platformPayloadKeyId,
+                                            String platformPublicKeyX509Base64,
+                                            String platformPublicKeyPem) {
+    }
+
+    /**
+     * 本地联调用商户接入材料，拆分商户可见信息和平台服务端内部信息。
+     *
+     * @param merchantCredential 商户实际需要保存和使用的对接材料
+     * @param platformPayloadKey 平台服务端内部 RSA 密钥材料，包含私钥，只能由平台保存
+     */
+    public record OpenApiMerchantOnboardingMaterial(MerchantOpenApiCredential merchantCredential,
+                                                    RsaKeyMaterial platformPayloadKey) {
     }
 }

@@ -73,7 +73,7 @@ JWT Payload 固定字段如下：
 | `jti` | 请求唯一标识 | 必填，建议使用商户订单号；后续写入 Redis 做防重放 |
 | `iat` | 签发时间 | 秒级时间戳，不能明显晚于服务器时间 |
 | `exp` | 过期时间 | 必须大于当前时间，且 `exp - iat <= 180` 秒 |
-| `merchantId` | OPGS 商户号 | 必填，用于查询商户 `merchantKey` |
+| `merchantId` | 支付平台商户号 | 必填，用于查询商户 `merchantKey` |
 
 服务端当前使用 Hutool JWT 的 `JWTSignerUtil.hs256(...)` 进行标准 HS256 验签，生成的 token 可被 [jwt.io](https://jwt.io/) 按 HS256 解析和验证。
 
@@ -98,7 +98,7 @@ base64url(protectedHeader).base64url(encryptedKey).base64url(iv).base64url(ciphe
 | 片段 | 含义 |
 | --- | --- |
 | `protectedHeader` | 受保护头，参与 AES-GCM AAD 校验 |
-| `encryptedKey` | 使用 OPGS 平台 RSA 公钥加密后的 AES 会话密钥 |
+| `encryptedKey` | 使用支付平台 RSA 公钥加密后的 AES 会话密钥 |
 | `iv` | AES-GCM 12 字节随机 IV |
 | `cipherText` | AES-GCM 加密后的业务 JSON |
 | `tag` | AES-GCM 128 bit 认证标签 |
@@ -107,10 +107,10 @@ base64url(protectedHeader).base64url(encryptedKey).base64url(iv).base64url(ciphe
 
 ```json
 {
-  "typ": "OPGS-PAYLOAD",
+  "typ": "PAYMENT-PAYLOAD",
   "alg": "RSA-OAEP-256",
   "enc": "A256GCM",
-  "kid": "opgs-rsa-2026-q2"
+  "kid": "payment-rsa-2026-q2"
 }
 ```
 
@@ -118,23 +118,21 @@ base64url(protectedHeader).base64url(encryptedKey).base64url(iv).base64url(ciphe
 
 ## 5. 密钥类型与生成入口
 
-OpenAPI 接入至少包含三类长期密钥和一类临时密钥。
+OpenAPI 默认接入只让商户保存两类长期材料和一类临时密钥。
 
 | 密钥 | 生成方 | 持有方 | 用途 | 是否下发商户 |
 | --- | --- | --- | --- | --- |
-| `merchantKey` | OPGS | OPGS + 商户服务端 | 商户生成 JWT HS256；OPGS 验证 JWT | 是 |
-| 平台请求体 RSA 私钥 | OPGS | OPGS | 解密商户请求体中的 AES 会话密钥 | 否 |
-| 平台请求体 RSA 公钥 | OPGS | OPGS + 商户服务端 | 商户加密请求体 AES 会话密钥 | 是 |
-| 商户响应 RSA 私钥 | 商户 | 商户服务端 | 商户解密 OPGS 响应或回调 data | 否 |
-| 商户响应 RSA 公钥 | 商户 | 商户 + OPGS | OPGS 加密响应或回调 data | 上传给 OPGS |
+| `merchantKey` | 支付平台 | 支付平台 + 商户服务端 | 商户生成 JWT HS256；平台验证 JWT | 是 |
+| 平台请求体 RSA 公钥 | 支付平台 | 支付平台 + 商户服务端 | 商户加密请求体 AES 会话密钥 | 是 |
+| 平台请求体 RSA 私钥 | 支付平台 | 仅支付平台服务端 | 解密商户请求体中的 AES 会话密钥 | 否 |
 | AES-256 会话密钥 | 商户每次请求随机生成 | 只在本次请求内存中短暂存在 | 加密业务 JSON 正文 | 不下发、不落库 |
 
 生产推荐权责：
 
-1. OPGS 生成 `merchantKey`，开户时通过安全渠道交付给商户。
-2. OPGS 生成平台 RSA 密钥对，只公开平台公钥和 `kid`，平台私钥进入 KMS 或加密配置。
-3. 商户自己生成响应 RSA 密钥对，只上传商户公钥和 `kid`，商户私钥必须留在商户侧。
-4. AES key 和 IV 每次请求随机生成，用完即丢弃，不允许复用和落库。
+1. 支付平台生成 `merchantKey`，开户时通过安全渠道交付给商户。
+2. 支付平台生成平台 RSA 密钥对，只公开平台公钥和 `kid`，平台私钥进入 KMS 或加密配置。
+3. AES key 和 IV 每次请求随机生成，用完即丢弃，不允许复用和落库。
+4. 响应加密默认暂不要求商户再生成 RSA 密钥对，避免接入复杂度过高；后续如需要对响应或回调 `data` 加密，可以作为增强能力单独开启。
 
 当前代码提供统一生成入口：
 
@@ -149,29 +147,28 @@ OpenApiKeyMaterialFactory factory = new OpenApiKeyMaterialFactory();
 
 OpenApiMerchantOnboardingMaterial material = factory.generateDemoOnboardingMaterial(
         "200045",
-        "opgs-rsa-2026-q2",
-        "merchant-200045-response-rsa-2026-q2"
+        "payment-rsa-2026-q2"
 );
 ```
 
 单独生成入口：
 
 ```java
-MerchantJwtKey merchantJwtKey = factory.generateMerchantJwtKey("200045");
-RsaKeyMaterial platformKey = factory.generatePlatformPayloadRsaKey("opgs-rsa-2026-q2");
-RsaKeyMaterial merchantResponseKey = factory.generateMerchantResponseRsaKey(
-        "200045",
-        "merchant-200045-response-rsa-2026-q2"
-);
+RsaKeyMaterial platformKey = factory.generatePlatformPayloadRsaKey("payment-rsa-2026-q2");
+MerchantOpenApiCredential credential = factory.generateMerchantCredential("200045", platformKey);
 ```
 
 生成后交付与保存：
 
-1. `merchantJwtKey.merchantKey()`：只给对应商户服务端；OPGS 侧加密保存，用于 JWT 验签。
-2. `platformKey.publicKeyPem()` 或 `platformKey.publicKeyX509Base64()`：给商户，用于加密请求体。
-3. `platformKey.privateKeyPem()` 或 `platformKey.privateKeyPkcs8Base64()`：只给 OPGS 服务端，生产必须进入 KMS 或加密配置。
-4. `merchantResponseKey.publicKeyPem()`：商户上传给 OPGS，用于 OPGS 加密响应或回调。
-5. `merchantResponseKey.privateKeyPem()`：只给商户服务端保存，OPGS 不应保存生产商户的响应私钥。
+商户只需要拿到并保存下面 2 项：
+
+1. `credential.merchantKey()`：商户 JWT HS256 签名密钥，只允许保存在商户服务端。
+2. `credential.platformPublicKeyPem()` 或 `credential.platformPublicKeyX509Base64()` + `credential.platformPayloadKeyId()`：用于加密请求体 `data`。
+
+平台服务端内部保存下面 2 项，绝对不能交给商户；下面的方法名只用于平台开发人员理解生成对象的字段，不是商户对接步骤：
+
+1. `platformKey.privateKeyPem()` 或 `platformKey.privateKeyPkcs8Base64()`：用于解密商户请求体，生产必须进入 KMS 或加密配置。
+2. 商户 `merchantKey` 的加密存储值：用于服务端 JWT 验签和密钥轮换。
 
 日志排查只允许打印长度、`kid` 和 `fingerprint(...)` 结果，不允许打印 `merchantKey`、JWT、私钥、完整密文、完整 PAN、CVV 或 CAVV。
 
@@ -179,7 +176,7 @@ RsaKeyMaterial merchantResponseKey = factory.generateMerchantResponseRsaKey(
 
 1. 商户组装授权交易业务 JSON。
 2. 商户生成 JWT，使用开户时获取的 `merchantKey` 按 HS256 签名。
-3. 商户获取 OPGS 平台 RSA 公钥和 `kid`。
+3. 商户获取支付平台 RSA 公钥和 `kid`。
 4. 商户随机生成 32 字节 AES key 和 12 字节 IV。
 5. 商户用 AES-256-GCM 加密业务 JSON，AAD 使用 `base64url(protectedHeader)`。
 6. 商户用 RSA-OAEP-SHA256 加密 AES key，得到 `encryptedKey`。
@@ -310,7 +307,9 @@ public class OpenApiPaymentController {
 
 ## 8. 响应加密策略
 
-当前脚手架测试先返回明文 `CommonResult`，用于验证请求链路。生产建议响应也使用同样的混合加密信封：
+当前默认方案先返回明文 `CommonResult`，只要响应体不包含 PAN、CVV、CAVV、私钥、token 等敏感字段，就不强制商户再维护一套响应解密密钥。这样 Java、PHP、Go、C 等不同技术栈商户接入时，只需要处理“JWT + 请求体加密”这一条主链路。
+
+如果后续某些响应或回调必须承载敏感业务数据，可以为该接口单独开启响应加密，响应体再使用混合加密信封：
 
 ```json
 {
@@ -320,12 +319,13 @@ public class OpenApiPaymentController {
 }
 ```
 
-响应加密时：
+响应加密增强模式开启后：
 
 1. `code` 和 `message` 可以保持明文，方便商户快速判断调用结果。
-2. `data` 使用商户 RSA 公钥加密返回业务数据。
-3. 平台可以在响应 header 或响应体中附加平台签名，便于商户验证响应来自 OPGS。
-4. 回调通知同样遵循 JWT 认证和 `data` 加密规则。
+2. `data` 使用商户提供的响应公钥加密返回业务数据。
+3. 商户响应公私钥由商户自己生成，平台只保存商户响应公钥，绝不要求商户把响应私钥交给平台。
+4. 平台可以在响应 header 或响应体中附加平台签名，便于商户验证响应来自当前支付平台。
+5. 普通授权、撤销、退款等接口默认不启用响应加密，减少商户对接复杂度。
 
 ## 9. cardInfo 是否二次加密
 
@@ -369,7 +369,7 @@ service-openapi/src/test/java/com/scott/payment/openapi/OpenApiSecurityFlowTests
 
 测试覆盖：
 
-1. `shouldGenerateMerchantSecurityMaterial`：生成 merchantKey、平台 RSA、商户响应 RSA，并打印安全摘要。
+1. `shouldGenerateMerchantSecurityMaterial`：生成商户可见对接材料和平台服务端 RSA 材料，并打印安全摘要。
 2. `shouldCreateAndVerifyMerchantJwtByHs256`：验证标准 HS256 JWT 生成和验签。
 3. `shouldEncryptAndDecryptOpenApiPayload`：验证 RSA-OAEP-256/AES-256-GCM 加密和解密，并打印脱敏明文。
 4. `shouldCallAuthorizationApiWithJwtAndEncryptedPayload`：验证授权接口完整调用链路，并打印接口响应。

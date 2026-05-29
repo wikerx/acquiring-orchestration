@@ -77,4 +77,19 @@ public final class SensitiveDataMaskUtils {
                         + matchResult.group(5)
         ));
     }
+
+    /**
+     * 对单个 PAN 卡号执行脱敏。
+     * <p>
+     * 支付日志只允许保留前 6 位和后 4 位，用于排查 BIN、尾号和链路数据是否一致；中间数字全部使用星号替换。
+     *
+     * @param cardNo 原始 PAN 卡号
+     * @return 脱敏后的 PAN，入参为空或长度不足时返回固定星号
+     */
+    public static String maskPan(String cardNo) {
+        if (cardNo == null || cardNo.length() < 10) {
+            return "******";
+        }
+        return cardNo.substring(0, 6) + "******" + cardNo.substring(cardNo.length() - 4);
+    }
 }

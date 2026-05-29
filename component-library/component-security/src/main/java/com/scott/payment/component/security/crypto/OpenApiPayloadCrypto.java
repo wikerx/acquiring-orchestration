@@ -35,15 +35,15 @@ import java.util.function.Function;
  * @classname : OpenApiPayloadCrypto
  * @date : 2026-05-29 21:45
  * @email : scott_x@163.com
- * @description : OpenAPI 报文混合加密工具，使用 RSA-OAEP-SHA256 包裹 AES-256-GCM 会话密钥
+ * @description : 支付框架 OpenAPI 报文混合加密工具，使用 RSA-OAEP-SHA256 包裹 AES-256-GCM 会话密钥
  * @status : create
  */
 public class OpenApiPayloadCrypto {
 
     /**
-     * OPGS 密文报文类型，写入受保护头，避免把其他系统生成的密文误当作开放 API 业务报文处理。
+     * 支付框架密文报文类型，写入受保护头，避免把其他系统生成的密文误当作开放 API 业务报文处理。
      */
-    private static final String PAYLOAD_TYPE = "OPGS-PAYLOAD";
+    private static final String PAYLOAD_TYPE = "PAYMENT-PAYLOAD";
 
     /**
      * 对称加密算法标识，A256GCM 表示 AES-256-GCM，兼容主流 Java、PHP、Go、C/OpenSSL 加密库。
@@ -103,11 +103,11 @@ public class OpenApiPayloadCrypto {
     /**
      * 使用平台公钥加密开放 API 明文业务报文。
      * <p>
-     * 商户侧调用该流程：随机生成 AES-256 key 和 IV，使用 AES-GCM 加密 JSON 明文，再用 OPGS 公钥通过
+     * 商户侧调用该流程：随机生成 AES-256 key 和 IV，使用 AES-GCM 加密 JSON 明文，再用支付平台公钥通过
      * RSA-OAEP-SHA256 加密 AES key，最终形成 compact 格式字符串放入请求体 data 字段。
      *
      * @param plainText          业务 JSON 明文
-     * @param recipientPublicKey 接收方 RSA 公钥，请求时为 OPGS 平台公钥，响应时为商户公钥
+     * @param recipientPublicKey 接收方 RSA 公钥，请求时为支付平台公钥，响应加密时可扩展为商户公钥
      * @param keyId              RSA 密钥编号，用于支持后续密钥轮换
      * @return compact 密文报文
      */

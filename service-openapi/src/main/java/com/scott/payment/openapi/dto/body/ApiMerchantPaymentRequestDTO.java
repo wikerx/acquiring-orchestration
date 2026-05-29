@@ -75,7 +75,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
-     * 商户信息，包含 OPGS 商户号以及子商户信息，所有收单类交易都需要用它定位商户配置。
+     * 商户信息，包含支付平台商户号以及子商户信息，所有收单类交易都需要用它定位商户配置。
      */
     @Valid
     @NotNull(message = "merchantInfo", groups = {Authorization.class, PreAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Reversal.class})
@@ -128,7 +128,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private static final long serialVersionUID = 1L;
 
         /**
-         * OPGS 颁发的商户号，必须与 JWT 中的 merchantId 保持一致，避免商户冒用其他商户配置。
+         * 支付平台颁发的商户号，必须与 JWT 中的 merchantId 保持一致，避免商户冒用其他商户配置。
          */
         @NotBlank(message = "merchantInfo.merchantId", groups = {Authorization.class, PreAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Reversal.class})
         @Pattern(regexp = "^[2-9]\\d{5,16}$", message = "merchantInfo.merchantId format does not match", groups = {Format.class})
