@@ -1,3 +1,22 @@
-Global Payment Architecture
-${spring.application.name}
-
+${AnsiColor.BRIGHT_BLUE}
+*************************************************************************************************************
+                 _______  _______ _________ _______           _______
+                (  ____ \(  ___  )\__   __/(  ____ \|\     /|(  ___  )|\     /|
+                | (    \/| (   ) |   ) (   | (    \/| )   ( || (   ) |( \   / )
+                | |      | (___) |   | |   | (__    | | _ | || (___) | \ (_) /
+                | | ____ |  ___  |   | |   |  __)   | |( )| ||  ___  |  \   /
+                | | \_  )| (   ) |   | |   | (      | || || || (   ) |   ) (
+                | (___) || )   ( |   | |   | (____/\| () () || )   ( |   | |
+                (_______)|/     \|   )_(   (_______/(_______)|/     \|   \_/
+*************************************************************************************************************
+Spring Boot Version：${spring-boot.version}${spring-boot.formatted-version}
+Spring Cloud Alibaba Version：@spring-cloud-alibaba.version@
+-------------------------------------------------------------------------------------------------------------
+${AnsiColor.BRIGHT_MAGENTA}
+Service Name：${spring.application.name}
+Service Port：${server.port}
+System Version：v1.0.0
+Author：scott
+Version Release Time：2026-05-29
+Version Release Note：acquiring orchestration service startup
+*************************************************************************************************************

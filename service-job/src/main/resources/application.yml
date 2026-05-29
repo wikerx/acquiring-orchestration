@@ -1,5 +1,5 @@
 server:
-  port: 8301
+  port: 8007
   shutdown: graceful
 
 spring:

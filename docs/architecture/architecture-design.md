@@ -931,15 +931,17 @@ spring:
 
 `application-{env}.yml` 只放 Nacos 连接信息和 `spring.config.import`。Redis Cluster、RocketMQ、数据库、分表、XXL-JOB、Seata 等外部依赖配置统一放到 Nacos Config 独立 DataId。
 
+Nacos DataId 统一使用 `.yaml` 后缀；dev、test、uat、prod 使用各自命名空间，禁止使用 `public` 承载业务配置。
+
 推荐 DataId：
 
 ```text
-{service-name}-{env}.yml
-common-{env}.yml
-dataSource-{env}.yml
-sharding-{env}.yml
-redis-{env}.yml
-rocketmq-{env}.yml
-seata-{env}.yml
-xxl-job-{env}.yml
+{service-name}-{env}.yaml
+common-{env}.yaml
+dataSource-{env}.yaml
+sharding-{env}.yaml
+redis-{env}.yaml
+rocketmq-{env}.yaml
+seata-{env}.yaml
+xxl-job-{env}.yaml
 ```

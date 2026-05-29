@@ -17,19 +17,33 @@ spring:
             connection-timeout: 30000
             idle-timeout: 600000
             max-lifetime: 1800000
-        slave:
+        slave_1:
           type: com.zaxxer.hikari.HikariDataSource
           driver-class-name: com.mysql.cj.jdbc.Driver
-          url: ${MYSQL_SLAVE_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
-          username: ${MYSQL_SLAVE_USERNAME:root}
-          password: ${MYSQL_SLAVE_PASSWORD:scott123456}
+          url: ${MYSQL_SLAVE_1_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+          username: ${MYSQL_SLAVE_1_USERNAME:root}
+          password: ${MYSQL_SLAVE_1_PASSWORD:scott123456}
           hikari:
-            pool-name: payment-acquiring-slave
+            pool-name: payment-acquiring-slave-1
             minimum-idle: 5
             maximum-pool-size: 20
             connection-timeout: 30000
             idle-timeout: 600000
             max-lifetime: 1800000
+        slave_2:
+          type: com.zaxxer.hikari.HikariDataSource
+          driver-class-name: com.mysql.cj.jdbc.Driver
+          url: ${MYSQL_SLAVE_2_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+          username: ${MYSQL_SLAVE_2_USERNAME:root}
+          password: ${MYSQL_SLAVE_2_PASSWORD:scott123456}
+          hikari:
+            pool-name: payment-acquiring-slave-2
+            minimum-idle: 5
+            maximum-pool-size: 20
+            connection-timeout: 30000
+            idle-timeout: 600000
+            max-lifetime: 1800000
+      strategy: round_robin
 
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml

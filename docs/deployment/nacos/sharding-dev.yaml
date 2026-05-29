@@ -1,0 +1,22 @@
+global-payment:
+  database:
+    timezone: Asia/Shanghai
+  sharding:
+    strategy: quarter
+    sharding-column: transaction_date_time
+    tables:
+      transaction:
+        logical-table: transaction
+        actual-data-nodes: master.transaction_${2026..2035}_q${1..4}
+        table-name-format: transaction_%d_q%d
+        required-column: transaction_date_time
+      payment-order:
+        logical-table: payment_order
+        actual-data-nodes: master.payment_order_${2026..2035}_q${1..4}
+        table-name-format: payment_order_%d_q%d
+        required-column: transaction_date_time
+      payout-order:
+        logical-table: payout_order
+        actual-data-nodes: master.payout_order_${2026..2035}_q${1..4}
+        table-name-format: payout_order_%d_q%d
+        required-column: transaction_date_time

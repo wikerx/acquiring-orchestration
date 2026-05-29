@@ -1,6 +1,6 @@
 spring:
   jackson:
-    time-zone: UTC
+    time-zone: Asia/Shanghai
     date-format: yyyy-MM-dd HH:mm:ss
 
 management:
@@ -12,4 +12,3 @@ management:
 global-payment:
   trace:
     header-name: X-Trace-Id
-

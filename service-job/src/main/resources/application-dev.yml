@@ -15,7 +15,7 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_SERVER:127.0.0.1:8848}
-        namespace: ${NACOS_NAMESPACE:public}
+        namespace: ${NACOS_NAMESPACE:324ad8dc-58d0-4d0d-b264-24a9f951a2b0}
         username: ${NACOS_USERNAME:nacos}
         password: ${NACOS_PASSWORD:nacos}
         register-enabled: true
@@ -25,7 +25,7 @@ spring:
         username: ${spring.cloud.nacos.discovery.username}
         password: ${spring.cloud.nacos.discovery.password}
         group: DEFAULT_GROUP
-        file-extension: yml
+        file-extension: yaml
         encode: UTF-8
         refresh-enabled: true
         config-retry-time: 3

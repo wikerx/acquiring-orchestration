@@ -1,10 +1,10 @@
 seata:
   enabled: false
   application-id: ${spring.application.name}
-  tx-service-group: global-payment-dev
+  tx-service-group: payment-acquiring-dev
   service:
     vgroup-mapping:
-      global-payment-dev: default
+      payment-acquiring-dev: default
   registry:
     type: nacos
     nacos:
@@ -17,4 +17,3 @@ seata:
       server-addr: ${spring.cloud.nacos.config.server-addr}
       namespace: ${spring.cloud.nacos.config.namespace}
       group: DEFAULT_GROUP
-
