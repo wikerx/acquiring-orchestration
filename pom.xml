@@ -32,6 +32,7 @@
         <rocketmq-spring.version>2.2.3</rocketmq-spring.version>
         <xxl-job.version>2.4.0</xxl-job.version>
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
+        <dynamic-datasource.version>4.3.1</dynamic-datasource.version>
         <mysql.version>8.0.33</mysql.version>
         <lombok.version>1.18.32</lombok.version>
         <fastjson2.version>2.0.61</fastjson2.version>
@@ -80,6 +81,11 @@
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-boot-starter</artifactId>
                 <version>${mybatis-plus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
+                <version>${dynamic-datasource.version}</version>
             </dependency>
             <dependency>
                 <groupId>mysql</groupId>

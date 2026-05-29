@@ -15,7 +15,7 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_SERVER:127.0.0.1:8848}
-        namespace: ${NACOS_NAMESPACE:global-payment-dev}
+        namespace: ${NACOS_NAMESPACE:public}
         username: ${NACOS_USERNAME:nacos}
         password: ${NACOS_PASSWORD:nacos}
         register-enabled: true

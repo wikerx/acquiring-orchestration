@@ -1,6 +1,7 @@
 spring:
   redis:
     database: 0
+    password: ${REDIS_PASSWORD:scott123456}
     timeout: 2s
     cluster:
       nodes:
@@ -14,4 +15,3 @@ spring:
         max-idle: 16
         min-idle: 4
         max-wait: 2s
-

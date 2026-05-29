@@ -25,3 +25,14 @@
 
 Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis 地址。
 
+## Dev 基础设施默认值
+
+本地 dev 环境默认连接以下基础设施，生产和预发环境必须通过环境变量或独立 Nacos DataId 覆盖：
+
+| 组件 | 默认地址 | 默认账号 | 说明 |
+| --- | --- | --- | --- |
+| MySQL | `127.0.0.1:3306/payment_acquiring` | `root` | `master`、`slave` 先指向同一个库，后续从库就绪后只替换 `MYSQL_SLAVE_URL`。 |
+| Redis | `127.0.0.1:6379` | 无用户名 | 默认密码从 `REDIS_PASSWORD` 读取，未设置时使用 dev 默认值。 |
+| Nacos | `127.0.0.1:8848` | `nacos` | dev 默认 namespace 使用 `public`，避免本地未创建命名空间时注册失败。 |
+
+读请求如需走从库，可在 service 或 mapper 方法上使用 `@DS(DataSourceName.SLAVE)`；未声明时默认走 `master`。

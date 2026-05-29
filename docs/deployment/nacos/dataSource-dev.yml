@@ -5,13 +5,36 @@ spring:
       strict: true
       datasource:
         master:
+          type: com.zaxxer.hikari.HikariDataSource
           driver-class-name: com.mysql.cj.jdbc.Driver
-          url: ${MYSQL_MASTER_URL:jdbc:mysql://127.0.0.1:3306/global_payment?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+          url: ${MYSQL_MASTER_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
           username: ${MYSQL_MASTER_USERNAME:root}
-          password: ${MYSQL_MASTER_PASSWORD:root}
+          password: ${MYSQL_MASTER_PASSWORD:scott123456}
+          hikari:
+            pool-name: payment-acquiring-master
+            minimum-idle: 5
+            maximum-pool-size: 20
+            connection-timeout: 30000
+            idle-timeout: 600000
+            max-lifetime: 1800000
         slave:
+          type: com.zaxxer.hikari.HikariDataSource
           driver-class-name: com.mysql.cj.jdbc.Driver
-          url: ${MYSQL_SLAVE_URL:jdbc:mysql://127.0.0.1:3306/global_payment?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+          url: ${MYSQL_SLAVE_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
           username: ${MYSQL_SLAVE_USERNAME:root}
-          password: ${MYSQL_SLAVE_PASSWORD:root}
+          password: ${MYSQL_SLAVE_PASSWORD:scott123456}
+          hikari:
+            pool-name: payment-acquiring-slave
+            minimum-idle: 5
+            maximum-pool-size: 20
+            connection-timeout: 30000
+            idle-timeout: 600000
+            max-lifetime: 1800000
 
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+  global-config:
+    banner: false
