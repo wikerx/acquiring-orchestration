@@ -1,7 +1,11 @@
+# RocketMQ 配置：用于交易异步事件、通知重试、对账补偿等消息链路。
 rocketmq:
+  # NameServer 地址，dev 默认本机。
   name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
   producer:
+    # 生产者分组按服务名隔离。
     group: ${spring.application.name}-producer
+    # 发送超时时间，单位毫秒。
     send-message-timeout: 3000
+    # 同步发送失败重试次数。
     retry-times-when-send-failed: 2
-

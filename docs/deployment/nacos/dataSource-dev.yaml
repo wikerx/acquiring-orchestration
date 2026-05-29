@@ -1,10 +1,14 @@
+# 数据源配置：dev 默认一主两从都指向同一个 MySQL，后续从库就绪后只替换 slave URL。
 spring:
   datasource:
     dynamic:
+      # 默认数据源。未显式声明 @DS 时走 master。
       primary: master
+      # 严格模式。访问不存在的数据源时直接失败，避免静默落到默认库。
       strict: true
       datasource:
         master:
+          # 主库：负责新增、更新、删除和未显式声明的访问。
           type: com.zaxxer.hikari.HikariDataSource
           driver-class-name: com.mysql.cj.jdbc.Driver
           url: ${MYSQL_MASTER_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
@@ -18,6 +22,7 @@ spring:
             idle-timeout: 600000
             max-lifetime: 1800000
         slave_1:
+          # 一号从库：负责查询、统计等读请求；dev 阶段先复用主库地址。
           type: com.zaxxer.hikari.HikariDataSource
           driver-class-name: com.mysql.cj.jdbc.Driver
           url: ${MYSQL_SLAVE_1_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
@@ -31,6 +36,7 @@ spring:
             idle-timeout: 600000
             max-lifetime: 1800000
         slave_2:
+          # 二号从库：读库扩展位，生产可配置为另一台只读实例。
           type: com.zaxxer.hikari.HikariDataSource
           driver-class-name: com.mysql.cj.jdbc.Driver
           url: ${MYSQL_SLAVE_2_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
@@ -43,12 +49,17 @@ spring:
             connection-timeout: 30000
             idle-timeout: 600000
             max-lifetime: 1800000
+      # slave 分组内的负载策略，多个从库之间轮询。
       strategy: round_robin
 
 mybatis-plus:
+  # Mapper XML 扫描路径，后续业务 mapper 放在各服务或组件模块 resources/mapper 下。
   mapper-locations: classpath*:/mapper/**/*.xml
   configuration:
+    # 数据库下划线字段自动映射为 Java 驼峰属性。
     map-underscore-to-camel-case: true
+    # 支付系统查询默认不使用 MyBatis 二级缓存，避免资金状态缓存不一致。
     cache-enabled: false
   global-config:
+    # 关闭 MyBatis-Plus banner，减少服务启动日志噪音。
     banner: false

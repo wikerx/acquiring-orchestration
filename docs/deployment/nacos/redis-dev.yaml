@@ -1,17 +1,27 @@
+# Redis 配置：按 Cluster 模式组织，业务侧通过 component-redis 统一访问。
 spring:
   redis:
+    # Redis database 编号。Cluster 模式一般固定为 0。
     database: 0
+    # dev 默认密码，可通过环境变量 REDIS_PASSWORD 覆盖。
     password: ${REDIS_PASSWORD:scott123456}
+    # 单次 Redis 操作超时时间。
     timeout: 2s
     cluster:
+      # 集群节点。dev 可以先用单节点，生产必须配置真实集群节点。
       nodes:
         - ${REDIS_NODE_1:127.0.0.1:6379}
         - ${REDIS_NODE_2:127.0.0.1:6380}
         - ${REDIS_NODE_3:127.0.0.1:6381}
+      # Redis Cluster 重定向最大次数。
       max-redirects: 3
     lettuce:
       pool:
+        # Lettuce 连接池最大活跃连接数。
         max-active: 32
+        # 最大空闲连接数。
         max-idle: 16
+        # 最小空闲连接数。
         min-idle: 4
+        # 获取连接最大等待时间。
         max-wait: 2s

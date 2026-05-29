@@ -1,17 +1,24 @@
+# Seata 配置：当前 dev 默认关闭，后续涉及跨服务事务时再按环境开启。
 seata:
+  # 是否启用 Seata。支付核心链路优先使用本地事务、事件和补偿，谨慎开启分布式事务。
   enabled: false
+  # Seata 应用标识，默认使用当前 Spring 应用名。
   application-id: ${spring.application.name}
+  # 事务分组，按系统和环境隔离。
   tx-service-group: payment-acquiring-dev
   service:
     vgroup-mapping:
+      # 事务分组到 Seata 集群的映射。
       payment-acquiring-dev: default
   registry:
+    # Seata 注册中心使用 Nacos，并复用当前服务的 Nacos 命名空间。
     type: nacos
     nacos:
       server-addr: ${spring.cloud.nacos.discovery.server-addr}
       namespace: ${spring.cloud.nacos.discovery.namespace}
       group: DEFAULT_GROUP
   config:
+    # Seata 配置中心使用 Nacos，并复用当前服务的 Nacos 命名空间。
     type: nacos
     nacos:
       server-addr: ${spring.cloud.nacos.config.server-addr}

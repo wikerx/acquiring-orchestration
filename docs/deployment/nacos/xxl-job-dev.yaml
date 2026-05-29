@@ -1,9 +1,13 @@
+# XXL-JOB 配置：用于定时对账、补偿、通知重试和运维巡检任务。
 xxl:
   job:
     admin:
+      # 调度中心地址，dev 默认本机。
       addresses: ${XXL_JOB_ADMIN:http://127.0.0.1:8088/xxl-job-admin}
     executor:
+      # 执行器名称，默认使用当前服务名。
       appname: ${spring.application.name}
+      # 执行日志目录。
       logpath: logs/xxl-job
+      # 执行日志保留天数。
       logretentiondays: 30
-

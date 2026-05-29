@@ -1,14 +1,19 @@
+# 公共配置：所有服务都会加载，用于统一时间格式、监控端点和链路追踪字段。
 spring:
   jackson:
+    # 数据库和接口默认使用 UTC+8，避免交易时间跨环境解析不一致。
     time-zone: Asia/Shanghai
+    # 接口和日志中常用的时间字符串格式。
     date-format: yyyy-MM-dd HH:mm:ss
 
 management:
   endpoints:
     web:
       exposure:
+        # 暴露基础健康检查、服务信息和 Prometheus 指标。
         include: health,info,prometheus
 
 global-payment:
   trace:
+    # 全链路追踪请求头名称，网关、OpenAPI、业务服务保持一致。
     header-name: X-Trace-Id

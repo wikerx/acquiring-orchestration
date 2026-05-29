@@ -1,8 +1,12 @@
+# service-openapi 专属配置：开放 API 鉴权、幂等、回调重试等参数。
 openapi:
   merchant:
+    # JWT iat/exp 与服务器时间允许的最大偏差，单位秒。
     timestamp-tolerance-seconds: 300
+    # 请求唯一标识 jti 的防重放缓存时间，单位秒。
     replay-cache-ttl-seconds: 600
   notify:
+    # 商户通知最大重试次数。
     max-retry-times: 8
+    # 商户通知失败后的重试 Topic。
     retry-topic: merchant-notify-retry
-

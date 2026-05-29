@@ -1,3 +1,5 @@
+# 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
+# Redis、MQ、数据库、分表、Seata、XXL-JOB 等配置统一从 Nacos yaml DataId 读取。
 server:
   port: 8002
   shutdown: graceful

@@ -23,6 +23,20 @@ Nacos DataId 统一使用标准 YAML 后缀 `.yaml`。dev 环境使用命名空�
 
 各服务的 `application-{env}.yml` 只负责连接 Nacos，并通过 `spring.config.import` 拉取上述 DataId。
 
+本地 `application.yml` 与 `application-{env}.yml` 的职责边界：
+
+- `application.yml`：只保留 `server.port`、`spring.application.name`、`spring.profiles.active`、`spring.main` 等启动入口配置。
+- `application-dev.yml`、`application-test.yml`、`application-uat.yml`、`application-prod.yml`：只保留当前环境的 Nacos 地址、命名空间、账号密码、`file-extension: yaml` 和 `spring.config.import`。
+- 禁止在本地 yml 中写死 Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等业务环境配置；这些配置必须进入对应的 Nacos yaml DataId。
+
+Nacos yaml 的职责边界：
+
+- `{service-name}-{env}.yaml`：单服务个性配置，例如 `service-openapi-dev.yaml`。
+- `common-{env}.yaml`：所有服务共享配置，例如时间格式、管理端点、链路头名称。
+- `dataSource-{env}.yaml`：主从数据源、连接池、MyBatis-Plus。
+- `sharding-{env}.yaml`：参与分表的逻辑表、分表字段、起始表、结束表和物理表命名格式。
+- `redis-{env}.yaml`、`rocketmq-{env}.yaml`、`seata-{env}.yaml`、`xxl-job-{env}.yaml`：对应中间件配置。
+
 ## Redis
 
 Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis 地址。
@@ -49,6 +63,22 @@ Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis �
 - `slave`：读库分组，负责查询、统计、报表等读请求。
 - `slave_1`、`slave_2`：当前 dev 默认都连接同一个 MySQL，生产环境按真实从库拆分。
 
+分表算法代码位置：
+
+```text
+component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithm.java
+component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/PaymentQuarterShardingProperties.java
+```
+
+`PaymentQuarterShardingProperties` 通过 `@ConfigurationProperties(prefix = "global-payment.sharding")` 绑定 Nacos 中的 `global-payment.sharding` 节点。
+
+测试入口位置：
+
+```text
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithmTest.java
+service-openapi/src/test/java/com/scott/payment/openapi/OpenApiApplicationTests.java
+```
+
 分表统一按季度分表。所有需要分表的业务表都必须传入交易时间字段 `transaction_date_time`，表名格式为：
 
 ```text
@@ -56,3 +86,32 @@ Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis �
 ```
 
 示例：`transaction_date_time = 2026-05-29 10:30:00` 时，`transaction` 表路由到 `transaction_2026_q2`。
+
+分表起始表和结束表在 `sharding-{env}.yaml` 中配置，每个环境独立维护：
+
+```yaml
+global-payment:
+  sharding:
+    strategy: quarter
+    database-timezone: Asia/Shanghai
+    sharding-column: transaction_date_time
+    tables:
+      transaction:
+        enabled: true
+        logical-table: transaction
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d_q%d"
+        actual-data-source: master
+```
+
+字段说明：
+
+- `enabled`：控制当前逻辑表是否参与分表。
+- `start-year` / `start-quarter`：当前环境的起始物理表。
+- `end-year` / `end-quarter`：当前环境已经准备好的最后一张物理表，后续追加表时扩展这里。
+- `table-name-format`：物理表命名规则，默认生成 `transaction_2026_q1` 这种表名。
+- `actual-data-source`：物理表所在数据源，当前默认在 `master`。

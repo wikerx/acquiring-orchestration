@@ -1,22 +1,50 @@
 global-payment:
-  database:
-    timezone: Asia/Shanghai
   sharding:
+    # 分表策略。quarter 表示按 transaction_date_time 所在季度分表。
     strategy: quarter
+    # 数据库统一时区。所有交易时间字段按 UTC+8 写入和路由，避免跨时区导致季度判断不一致。
+    database-timezone: Asia/Shanghai
+    # 全局默认分表字段。参与分表的表必须在写入和查询时传入该字段。
     sharding-column: transaction_date_time
+    # 参与分表的逻辑表清单。后续新增分表表，只需要在这里追加一个 table rule。
     tables:
       transaction:
+        # 是否启用当前逻辑表分表。建表未完成前可以先置为 false。
+        enabled: true
+        # 逻辑表名，代码调用分表算法时传入该名称。
         logical-table: transaction
-        actual-data-nodes: master.transaction_${2026..2035}_q${1..4}
-        table-name-format: transaction_%d_q%d
-        required-column: transaction_date_time
+        # 该表实际用于路由的分表字段。
+        sharding-column: transaction_date_time
+        # 起始表：dev 当前从 2026 年第 1 季度开始。
+        start-year: 2026
+        start-quarter: 1
+        # 结束表：后续追加分表时扩展 end-year/end-quarter。
+        end-year: 2035
+        end-quarter: 4
+        # 物理表命名格式，对应 transaction_2026_q1、transaction_2026_q2。
+        table-name-format: "%s_%d_q%d"
+        # 物理表所在数据源。当前分表表默认建在 master 写库。
+        actual-data-source: master
+        description: 交易流水主表，按交易时间季度分表。
       payment-order:
+        enabled: true
         logical-table: payment_order
-        actual-data-nodes: master.payment_order_${2026..2035}_q${1..4}
-        table-name-format: payment_order_%d_q%d
-        required-column: transaction_date_time
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d_q%d"
+        actual-data-source: master
+        description: 收单支付订单表，按交易时间季度分表。
       payout-order:
+        enabled: true
         logical-table: payout_order
-        actual-data-nodes: master.payout_order_${2026..2035}_q${1..4}
-        table-name-format: payout_order_%d_q%d
-        required-column: transaction_date_time
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d_q%d"
+        actual-data-source: master
+        description: 代付订单表，按交易时间季度分表。

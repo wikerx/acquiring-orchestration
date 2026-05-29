@@ -249,6 +249,7 @@ component-db
     │   └── DynamicDataSource.java
     ├── sharding
     │   ├── ShardingKey.java
+    │   ├── PaymentQuarterShardingProperties.java
     │   └── PaymentOrderShardingAlgorithm.java
     └── handler
         └── MybatisMetaObjectHandler.java
@@ -259,7 +260,7 @@ component-db
 1. MyBatis-Plus 配置；
 2. 主从数据源；
 3. 读写分离；
-4. 分表策略预留；
+4. 分表策略，当前按 `transaction_date_time` 所在季度路由；
 5. 事务配置；
 6. 基础实体字段。
 
@@ -924,12 +925,14 @@ src/main/resources
 `application.yml` 只保留服务名、端口和 profile 入口：
 
 ```yaml
+# 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
+# Redis、MQ、数据库、分表、Seata、XXL-JOB 等配置统一从 Nacos yaml DataId 读取。
 spring:
   profiles:
     active: @profiles.active@
 ```
 
-`application-{env}.yml` 只放 Nacos 连接信息和 `spring.config.import`。Redis Cluster、RocketMQ、数据库、分表、XXL-JOB、Seata 等外部依赖配置统一放到 Nacos Config 独立 DataId。
+`application-{env}.yml` 只放 Nacos 连接信息和 `spring.config.import`。Redis Cluster、RocketMQ、数据库、分表、XXL-JOB、Seata 等外部依赖配置统一放到 Nacos Config 独立 DataId。每个本地 yml 文件顶部保留注释，说明它只负责“连接配置中心”，不承载业务环境参数。
 
 Nacos DataId 统一使用 `.yaml` 后缀；dev、test、uat、prod 使用各自命名空间，禁止使用 `public` 承载业务配置。
 
@@ -945,3 +948,19 @@ rocketmq-{env}.yaml
 seata-{env}.yaml
 xxl-job-{env}.yaml
 ```
+
+`sharding-{env}.yaml` 用来声明分表参与表和表范围。分表算法位于：
+
+```text
+component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithm.java
+```
+
+分表配置模型位于：
+
+```text
+component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/PaymentQuarterShardingProperties.java
+```
+
+该配置模型通过 `@ConfigurationProperties(prefix = "global-payment.sharding")` 绑定 Nacos 中的 `global-payment.sharding` 节点。
+
+每个环境可以独立配置起始表和结束表，例如 dev 可以从 `2026_q1` 开始，prod 可以从真实投产季度开始。后续追加季度表时，只扩展对应环境 Nacos 里的 `end-year` / `end-quarter`，并完成物理建表即可。

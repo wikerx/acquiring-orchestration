@@ -89,6 +89,21 @@ log-config/logback-spring.xml
 
 Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等基础设施配置统一放到 Nacos Config，DataId 规范见 [Nacos 配置拆分规范](docs/deployment/nacos/README.md)。
 
+## 测试入口
+
+当前工程已预留单元测试入口：
+
+```text
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithmTest.java
+service-openapi/src/test/java/com/scott/payment/openapi/OpenApiApplicationTests.java
+```
+
+执行测试：
+
+```bash
+mvn -Pdev test
+```
+
 ## 开放 API 边界
 
 商户侧收单、代付、查询、退款等开放接口统一进入 `service-openapi`：
