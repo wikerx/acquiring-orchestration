@@ -152,10 +152,8 @@ public class MerchantJwtVerifier {
     }
 
     private void validateAudience(Object audiences) {
-        if (audiences instanceof Collection) {
-            if (((Collection<?>) audiences).contains(EXPECTED_AUDIENCE)) {
-                return;
-            }
+        if (audiences instanceof Collection<?> audienceCollection && audienceCollection.contains(EXPECTED_AUDIENCE)) {
+            return;
         }
         if (EXPECTED_AUDIENCE.equals(asString(audiences))) {
             return;
@@ -164,11 +162,11 @@ public class MerchantJwtVerifier {
     }
 
     private long toEpochSeconds(Object value, ApiCoResultEnum errorCode) {
-        if (value instanceof Date) {
-            return ((Date) value).getTime() / 1000L;
+        if (value instanceof Date date) {
+            return date.getTime() / 1000L;
         }
-        if (value instanceof Number) {
-            long timestamp = ((Number) value).longValue();
+        if (value instanceof Number number) {
+            long timestamp = number.longValue();
             return timestamp > 10_000_000_000L ? timestamp / 1000L : timestamp;
         }
         String text = asString(value);

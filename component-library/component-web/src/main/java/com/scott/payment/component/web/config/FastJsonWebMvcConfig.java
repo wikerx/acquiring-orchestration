@@ -11,7 +11,6 @@ import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -43,7 +42,7 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
 
     private FastJsonHttpMessageConverter fastJsonHttpMessageConverter() {
         FastJsonHttpMessageConverter converter = new FastJsonHttpMessageConverter();
-        converter.setSupportedMediaTypes(Collections.singletonList(MediaType.APPLICATION_JSON));
+        converter.setSupportedMediaTypes(List.of(MediaType.APPLICATION_JSON));
         converter.setFastJsonConfig(fastJsonConfig());
         return converter;
     }

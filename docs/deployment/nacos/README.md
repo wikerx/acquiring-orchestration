@@ -47,7 +47,7 @@ Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis �
 
 | 组件 | 默认地址 | 默认账号 | 说明 |
 | --- | --- | --- | --- |
-| MySQL | `127.0.0.1:3306/payment_acquiring` | `root` | `master`、`slave_1`、`slave_2` 先指向同一个库，后续从库就绪后替换从库 URL。 |
+| MySQL | `127.0.0.1:3306/payment_acquiring` | `root` | `master`、`slave_1`、`slave_2` 先指向同一个库，驱动使用 MySQL Connector/J 8.4.0，后续从库就绪后替换从库 URL。 |
 | Redis | `127.0.0.1:6379` | 无用户名 | 默认密码从 `REDIS_PASSWORD` 读取，未设置时使用 dev 默认值。 |
 | Nacos | `127.0.0.1:8848` | `nacos` | dev 默认 namespace ID 为 `324ad8dc-58d0-4d0d-b264-24a9f951a2b0`，对应命名空间 `dev`。 |
 

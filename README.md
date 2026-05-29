@@ -51,6 +51,7 @@ service-job
 - Spring Boot：3.5.14
 - Spring Cloud：2025.0.2
 - Spring Cloud Alibaba：2025.0.0.0
+- MySQL Connector/J：8.4.0（与 MySQL 8.4.x LTS 服务端版本对齐）
 - Servlet / Validation：Jakarta EE 命名空间
 
 说明：当前工程已升级到 JDK 17 兼容线，所有 Web、Validation、Nacos、Redis、RocketMQ、MyBatis-Plus、动态数据源、Fastjson2、Hutool、MapStruct 等依赖统一按 Spring Boot 3 / Spring Framework 6 生态版本管理。

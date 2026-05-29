@@ -45,17 +45,12 @@ public final class SensitiveDataMaskUtils {
         if (value == null || value.isEmpty()) {
             return value;
         }
-        Matcher matcher = CARD_FIELD_PATTERN.matcher(value);
-        StringBuffer buffer = new StringBuffer();
-        while (matcher.find()) {
-            String replacement = matcher.group(1)
-                    + matcher.group(2)
-                    + "******"
-                    + matcher.group(4)
-                    + matcher.group(5);
-            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
-        }
-        matcher.appendTail(buffer);
-        return buffer.toString();
+        return CARD_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
+                matchResult.group(1)
+                        + matchResult.group(2)
+                        + "******"
+                        + matchResult.group(4)
+                        + matchResult.group(5)
+        ));
     }
 }

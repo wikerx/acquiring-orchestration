@@ -31,22 +31,19 @@ public class UnifiedErrorController implements ErrorController {
     @RequestMapping("${server.error.path:${error.path:/error}}")
     public CommonResult<Void> handleError(HttpServletRequest request) {
         int status = resolveStatus(request);
-        if (HttpStatus.NOT_FOUND.value() == status) {
-            return CommonResult.error(ApiCoResultEnum.CO_NOT_FOUND);
-        }
-        if (HttpStatus.METHOD_NOT_ALLOWED.value() == status) {
-            return CommonResult.error(ApiCoResultEnum.CO_METHOD_NOT_ALLOWED);
-        }
-        if (status >= HttpStatus.BAD_REQUEST.value() && status < HttpStatus.INTERNAL_SERVER_ERROR.value()) {
-            return CommonResult.error(ApiCoResultEnum.CO_BAD_REQUEST);
-        }
-        return CommonResult.error(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR);
+        return switch (status) {
+            case 404 -> CommonResult.error(ApiCoResultEnum.CO_NOT_FOUND);
+            case 405 -> CommonResult.error(ApiCoResultEnum.CO_METHOD_NOT_ALLOWED);
+            default -> status >= HttpStatus.BAD_REQUEST.value() && status < HttpStatus.INTERNAL_SERVER_ERROR.value()
+                    ? CommonResult.error(ApiCoResultEnum.CO_BAD_REQUEST)
+                    : CommonResult.error(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR);
+        };
     }
 
     private int resolveStatus(HttpServletRequest request) {
         Object status = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
-        if (status instanceof Integer) {
-            return (Integer) status;
+        if (status instanceof Integer statusCode) {
+            return statusCode;
         }
         return HttpStatus.INTERNAL_SERVER_ERROR.value();
     }

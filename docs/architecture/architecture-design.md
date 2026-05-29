@@ -888,7 +888,8 @@ service-ledger
 5. Jakarta Servlet / Jakarta Validation 命名空间；
 6. MyBatis-Plus Spring Boot 3 Starter；
 7. Dynamic Datasource Spring Boot 3 Starter；
-8. Fastjson2 Spring 6 Extension。
+8. Fastjson2 Spring 6 Extension；
+9. MySQL Connector/J 8.4.0，用于对齐当前 MySQL 8.4.x LTS 数据库服务端，避免在生产稳定期直接跨到 9.x 驱动线。
 
 说明：这里暂不切 Spring Boot 4.x。当前 Spring Cloud Alibaba `2025.0.0.0` 对应 Spring Boot 3.5.x / Spring Cloud 2025.0.x / JDK 17+，更适合支付系统先完成稳定升级；后续如要进入 Spring Boot 4.x，应作为独立大版本迁移评审。
 

@@ -45,11 +45,10 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
         return other.apiVersion - this.apiVersion;
     }
 
-    @SuppressWarnings("unchecked")
     private Integer resolveRequestVersion(HttpServletRequest request) {
         Object attributes = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
-        if (attributes instanceof Map) {
-            Object version = ((Map<String, Object>) attributes).get("version");
+        if (attributes instanceof Map<?, ?> variables) {
+            Object version = variables.get("version");
             if (version != null) {
                 return parseVersion(String.valueOf(version));
             }
@@ -78,7 +77,7 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
             value = value.substring(1);
         }
         try {
-            return Integer.valueOf(value);
+            return Integer.parseInt(value);
         } catch (NumberFormatException exception) {
             return null;
         }
