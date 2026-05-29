@@ -2,6 +2,8 @@
 
 完整的 JWT 鉴权、RSA-OAEP-256/AES-256-GCM 混合加密、响应加密和防重放流程见 [OpenAPI 鉴权与加密流程](openapi-security-flow.md)。
 
+merchantKey、平台 RSA 密钥、商户响应 RSA 密钥的生成、交付和使用规则也在完整流程文档的“密钥类型与生成入口”章节中维护。
+
 ## 1. 授权方式
 
 对外 API 统一使用 JWT HS256 作为请求头授权凭证。

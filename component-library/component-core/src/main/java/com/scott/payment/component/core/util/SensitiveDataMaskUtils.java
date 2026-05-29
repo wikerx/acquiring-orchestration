@@ -30,17 +30,41 @@ public final class SensitiveDataMaskUtils {
             Pattern.CASE_INSENSITIVE
     );
 
+    /**
+     * 3DS 持卡人认证值脱敏正则，CAVV 属于交易认证敏感数据，日志中统一替换为星号。
+     */
+    private static final Pattern CAVV_PATTERN = Pattern.compile(
+            "(\"(?:cavv)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * 工具类不允许实例化。
+     */
     private SensitiveDataMaskUtils() {
     }
 
+    /**
+     * 对 JSON 文本中的敏感字段执行统一脱敏。
+     *
+     * @param json 原始 JSON 文本
+     * @return 脱敏后的 JSON 文本
+     */
     public static String maskJson(String json) {
         if (json == null || json.isEmpty()) {
             return json;
         }
         String masked = maskCardNo(json);
-        return SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
+        return CAVV_PATTERN.matcher(masked).replaceAll("$1***$3");
     }
 
+    /**
+     * 对卡号字段执行脱敏。
+     *
+     * @param value 原始文本
+     * @return 脱敏后的文本
+     */
     public static String maskCardNo(String value) {
         if (value == null || value.isEmpty()) {
             return value;

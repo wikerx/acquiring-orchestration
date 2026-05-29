@@ -4,9 +4,12 @@ import cn.hutool.jwt.JWTHeader;
 import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
+import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.OpenApiMerchantOnboardingMaterial;
 import com.scott.payment.component.web.handler.GlobalExceptionHandler;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentController;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
@@ -19,6 +22,7 @@ import com.scott.payment.openapi.support.OpenApiRequestBodyAdvice;
 import com.scott.payment.openapi.support.OpenApiRequestHeaderExtractor;
 import com.scott.payment.openapi.support.OpenApiValidator;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,9 +30,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,17 +54,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @description : OpenAPI JWT 鉴权、报文加解密和授权接口调用流程测试
  * @status : create
  */
+@Slf4j
 class OpenApiSecurityFlowTests {
 
     /**
      * 测试商户号，当前用于替代数据库中的商户基础资料。
      */
     private static final String MERCHANT_ID = "200045";
-
-    /**
-     * 测试 merchantKey，真实环境应由商户开户流程生成并保存到商户配置表或 KMS。
-     */
-    private static final String MERCHANT_KEY = "hGa8xl/kde6=C=O+";
 
     /**
      * 测试 RSA 密钥编号，模拟后续生产密钥轮换场景。
@@ -71,13 +73,62 @@ class OpenApiSecurityFlowTests {
     private static final long NOW_EPOCH_SECONDS = 1_704_960_018L;
 
     /**
+     * 密钥材料生成入口，测试中使用它展示 merchantKey、平台 RSA 和商户响应 RSA 的生成效果。
+     */
+    private final OpenApiKeyMaterialFactory keyMaterialFactory = new OpenApiKeyMaterialFactory();
+
+    /**
+     * 验证商户接入密钥材料可以统一生成，并通过安全日志展示关键摘要。
+     */
+    @Test
+    void shouldGenerateMerchantSecurityMaterial() {
+        OpenApiMerchantOnboardingMaterial material = keyMaterialFactory.generateDemoOnboardingMaterial(
+                MERCHANT_ID,
+                KEY_ID,
+                "merchant-" + MERCHANT_ID + "-response-rsa-001"
+        );
+
+        log.info("OpenAPI key material generated, merchantId: {}, jwtAlgorithm: {}, jwtExpiresSeconds: {}, jwtKeyLength: {}, jwtKeyFingerprint: {}",
+                material.merchantJwtKey().merchantId(),
+                material.merchantJwtKey().algorithm(),
+                material.merchantJwtKey().expiresSeconds(),
+                material.merchantJwtKey().merchantKey().length(),
+                keyMaterialFactory.fingerprint(material.merchantJwtKey().merchantKey()));
+        log.info("OpenAPI platform payload public key generated, keyId: {}, keySize: {}, publicKeyLength: {}, publicKeyFingerprint: {}, serverOnlyMaterialLength: {}",
+                material.platformPayloadKey().keyId(),
+                material.platformPayloadKey().keySize(),
+                material.platformPayloadKey().publicKeyX509Base64().length(),
+                keyMaterialFactory.fingerprint(material.platformPayloadKey().publicKeyX509Base64()),
+                material.platformPayloadKey().privateKeyPkcs8Base64().length());
+        log.info("OpenAPI merchant response public key generated, keyId: {}, keySize: {}, publicKeyLength: {}, publicKeyFingerprint: {}, merchantOnlyMaterialLength: {}",
+                material.merchantResponseKey().keyId(),
+                material.merchantResponseKey().keySize(),
+                material.merchantResponseKey().publicKeyX509Base64().length(),
+                keyMaterialFactory.fingerprint(material.merchantResponseKey().publicKeyX509Base64()),
+                material.merchantResponseKey().privateKeyPkcs8Base64().length());
+
+        assertThat(material.merchantJwtKey().merchantKey()).isNotBlank();
+        assertThat(material.platformPayloadKey().publicKeyPem()).startsWith("-----BEGIN PUBLIC KEY-----");
+        assertThat(material.platformPayloadKey().privateKeyPem()).startsWith("-----BEGIN PRIVATE KEY-----");
+        assertThat(material.merchantResponseKey().publicKeyPem()).startsWith("-----BEGIN PUBLIC KEY-----");
+    }
+
+    /**
      * 验证 JWT 使用标准 HS256 生成后，可以被当前 OpenAPI 验签器解析和验证。
      */
     @Test
     void shouldCreateAndVerifyMerchantJwtByHs256() {
-        String token = createMerchantJwt(MERCHANT_ID, MERCHANT_KEY, NOW_EPOCH_SECONDS);
+        String merchantKey = keyMaterialFactory.generateMerchantJwtKey(MERCHANT_ID).merchantKey();
+        String token = createMerchantJwt(MERCHANT_ID, merchantKey, NOW_EPOCH_SECONDS);
 
-        JwtMerchantClaims claims = new MerchantJwtVerifier().verify(token, MERCHANT_KEY, NOW_EPOCH_SECONDS + 10L);
+        JwtMerchantClaims claims = new MerchantJwtVerifier().verify(token, merchantKey, NOW_EPOCH_SECONDS + 10L);
+
+        log.info("OpenAPI merchant JWT verified, merchantId: {}, jwtId: {}, issuedAt: {}, expiresAt: {}, tokenParts: {}",
+                claims.getMerchantId(),
+                claims.getJwtId(),
+                claims.getIssuedAt(),
+                claims.getExpiresAt(),
+                token.split("\\.").length);
 
         assertThat(token.split("\\.")).hasSize(3);
         assertThat(claims.getMerchantId()).isEqualTo(MERCHANT_ID);
@@ -97,6 +148,13 @@ class OpenApiSecurityFlowTests {
         String encryptedData = payloadCrypto.encrypt(plainText, platformKeyPair.getPublic(), KEY_ID);
         String decryptedText = payloadCrypto.decrypt(encryptedData, keyId -> platformKeyPair.getPrivate());
 
+        log.info("OpenAPI payload encrypted, protectedHeader: {}, compactParts: {}, encryptedLength: {}, encryptedFingerprint: {}",
+                decodeProtectedHeader(encryptedData),
+                encryptedData.split("\\.").length,
+                encryptedData.length(),
+                keyMaterialFactory.fingerprint(encryptedData));
+        log.info("OpenAPI payload decrypted, maskedPayload: {}", SensitiveDataMaskUtils.maskJson(decryptedText));
+
         assertThat(encryptedData.split("\\.")).hasSize(5);
         assertThat(encryptedData).doesNotContain("5387380678556554");
         assertThat(decryptedText).isEqualTo(plainText);
@@ -110,19 +168,30 @@ class OpenApiSecurityFlowTests {
         OpenApiPayloadCrypto payloadCrypto = new OpenApiPayloadCrypto();
         KeyPair platformKeyPair = payloadCrypto.generateRsaKeyPair(2048);
         String encryptedData = payloadCrypto.encrypt(authorizationPlainText(), platformKeyPair.getPublic(), KEY_ID);
-        String authorization = createMerchantJwt(MERCHANT_ID, MERCHANT_KEY, System.currentTimeMillis() / 1000L);
+        String merchantKey = keyMaterialFactory.generateMerchantJwtKey(MERCHANT_ID).merchantKey();
+        String authorization = createMerchantJwt(MERCHANT_ID, merchantKey, System.currentTimeMillis() / 1000L);
         AtomicReference<ApiMerchantPaymentRequestDTO> capturedRequest = new AtomicReference<>();
-        MockMvc mockMvc = buildMockMvc(payloadCrypto, platformKeyPair, capturedRequest);
+        MockMvc mockMvc = buildMockMvc(payloadCrypto, platformKeyPair, merchantKey, capturedRequest);
 
         mockMvc.perform(post("/api/rest/payment/v1/authorization")
                         .contentType(MediaType.APPLICATION_JSON)
                         .header("authorization", authorization)
                         .content(JsonUtils.toJsonString(Map.of("data", encryptedData))))
+                .andDo(result -> log.info("OpenAPI authorization api response, status: {}, body: {}",
+                        result.getResponse().getStatus(),
+                        result.getResponse().getContentAsString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("T200"))
                 .andExpect(jsonPath("$.data.merchantOrderNo").value("20250116140182865587"))
                 .andExpect(jsonPath("$.data.currency").value("USD"))
                 .andExpect(jsonPath("$.data.amount").value(1238945));
+
+        log.info("OpenAPI controller received DTO, merchantId: {}, tradeNo: {}, maskedPan: {}, amount: {}, currency: {}",
+                capturedRequest.get().getMerchantInfo().getMerchantId(),
+                capturedRequest.get().getOrderInfo().getTradeNo(),
+                maskPan(capturedRequest.get().getCardInfo().getCardNo()),
+                capturedRequest.get().getOrderInfo().getAmount(),
+                capturedRequest.get().getOrderInfo().getCurrency());
 
         assertThat(capturedRequest.get()).isNotNull();
         assertThat(capturedRequest.get().getMerchantInfo().getMerchantId()).isEqualTo(MERCHANT_ID);
@@ -130,8 +199,18 @@ class OpenApiSecurityFlowTests {
         assertThat(capturedRequest.get().getThreeDsInfo().getThreeDsVersion()).isEqualTo("2.2.0");
     }
 
+    /**
+     * 构建 OpenAPI 授权接口 MockMvc。
+     *
+     * @param payloadCrypto   OpenAPI 报文加解密工具
+     * @param platformKeyPair 平台 RSA 密钥对
+     * @param merchantKey     商户 JWT HS256 签名密钥，测试中只传入内存，不写日志
+     * @param capturedRequest 捕获控制器收到的解密 DTO
+     * @return MockMvc 实例
+     */
     private MockMvc buildMockMvc(OpenApiPayloadCrypto payloadCrypto,
                                  KeyPair platformKeyPair,
+                                 String merchantKey,
                                  AtomicReference<ApiMerchantPaymentRequestDTO> capturedRequest) {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
         OpenApiPayloadKeyProvider payloadKeyProvider = new TestOpenApiPayloadKeyProvider(platformKeyPair);
@@ -140,7 +219,7 @@ class OpenApiSecurityFlowTests {
         OpenApiRequestBodyAdvice requestBodyAdvice = new OpenApiRequestBodyAdvice(payloadDecoder, openApiValidator);
         OpenApiRequestHeaderExtractor headerExtractor = new OpenApiRequestHeaderExtractor(
                 new MerchantJwtVerifier(),
-                merchantId -> MERCHANT_KEY);
+                merchantId -> merchantKey);
         OpenApiPaymentService paymentService = (encryptedData, requestDTO) -> {
             capturedRequest.set(requestDTO);
             PaymentCreateVO response = new PaymentCreateVO();
@@ -156,6 +235,14 @@ class OpenApiSecurityFlowTests {
                 .build();
     }
 
+    /**
+     * 生成商户 JWT。
+     *
+     * @param merchantId  商户号
+     * @param merchantKey 商户 JWT 签名密钥
+     * @param issuedAt    签发秒级时间戳
+     * @return JWT 字符串
+     */
     private String createMerchantJwt(String merchantId, String merchantKey, long issuedAt) {
         Map<String, Object> header = new LinkedHashMap<>();
         header.put(JWTHeader.TYPE, "JWT");
@@ -167,9 +254,14 @@ class OpenApiSecurityFlowTests {
         payload.put(RegisteredPayload.ISSUED_AT, issuedAt);
         payload.put(RegisteredPayload.EXPIRES_AT, issuedAt + 180L);
         payload.put("merchantId", merchantId);
-        return JWTUtil.createToken(header, payload, merchantKey.getBytes());
+        return JWTUtil.createToken(header, payload, merchantKey.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 构建授权接口明文业务报文。
+     *
+     * @return 授权接口业务 JSON
+     */
     private String authorizationPlainText() {
         return """
                 {
@@ -225,6 +317,30 @@ class OpenApiSecurityFlowTests {
                     "description": "authorize request"
                   }
                 }""";
+    }
+
+    /**
+     * 解码 compact 密文中的受保护头，便于测试日志观察算法和 kid。
+     *
+     * @param encryptedData compact 密文
+     * @return 受保护头 JSON
+     */
+    private String decodeProtectedHeader(String encryptedData) {
+        String protectedHeader = encryptedData.split("\\.", -1)[0];
+        return new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 脱敏 PAN 卡号，保留前 6 后 4 用于确认链路效果。
+     *
+     * @param cardNo 原始 PAN
+     * @return 脱敏 PAN
+     */
+    private String maskPan(String cardNo) {
+        if (cardNo == null || cardNo.length() < 10) {
+            return "******";
+        }
+        return cardNo.substring(0, 6) + "******" + cardNo.substring(cardNo.length() - 4);
     }
 
     /**

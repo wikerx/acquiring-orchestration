@@ -193,6 +193,8 @@ component-security
     ├── crypto
     │   ├── HmacSha256Signer.java
     │   └── OpenApiPayloadCrypto.java
+    ├── key
+    │   └── OpenApiKeyMaterialFactory.java
     ├── jwt
     │   ├── JwtMerchantClaims.java
     │   └── MerchantJwtVerifier.java

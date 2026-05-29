@@ -116,7 +116,66 @@ base64url(protectedHeader).base64url(encryptedKey).base64url(iv).base64url(ciphe
 
 `kid` 是平台 RSA 密钥编号，用于后续无停机轮换平台密钥。
 
-## 5. 商户请求生成流程
+## 5. 密钥类型与生成入口
+
+OpenAPI 接入至少包含三类长期密钥和一类临时密钥。
+
+| 密钥 | 生成方 | 持有方 | 用途 | 是否下发商户 |
+| --- | --- | --- | --- | --- |
+| `merchantKey` | OPGS | OPGS + 商户服务端 | 商户生成 JWT HS256；OPGS 验证 JWT | 是 |
+| 平台请求体 RSA 私钥 | OPGS | OPGS | 解密商户请求体中的 AES 会话密钥 | 否 |
+| 平台请求体 RSA 公钥 | OPGS | OPGS + 商户服务端 | 商户加密请求体 AES 会话密钥 | 是 |
+| 商户响应 RSA 私钥 | 商户 | 商户服务端 | 商户解密 OPGS 响应或回调 data | 否 |
+| 商户响应 RSA 公钥 | 商户 | 商户 + OPGS | OPGS 加密响应或回调 data | 上传给 OPGS |
+| AES-256 会话密钥 | 商户每次请求随机生成 | 只在本次请求内存中短暂存在 | 加密业务 JSON 正文 | 不下发、不落库 |
+
+生产推荐权责：
+
+1. OPGS 生成 `merchantKey`，开户时通过安全渠道交付给商户。
+2. OPGS 生成平台 RSA 密钥对，只公开平台公钥和 `kid`，平台私钥进入 KMS 或加密配置。
+3. 商户自己生成响应 RSA 密钥对，只上传商户公钥和 `kid`，商户私钥必须留在商户侧。
+4. AES key 和 IV 每次请求随机生成，用完即丢弃，不允许复用和落库。
+
+当前代码提供统一生成入口：
+
+```text
+component-library/component-security/src/main/java/com/scott/payment/component/security/key/OpenApiKeyMaterialFactory.java
+```
+
+本地联调入口示例：
+
+```java
+OpenApiKeyMaterialFactory factory = new OpenApiKeyMaterialFactory();
+
+OpenApiMerchantOnboardingMaterial material = factory.generateDemoOnboardingMaterial(
+        "200045",
+        "opgs-rsa-2026-q2",
+        "merchant-200045-response-rsa-2026-q2"
+);
+```
+
+单独生成入口：
+
+```java
+MerchantJwtKey merchantJwtKey = factory.generateMerchantJwtKey("200045");
+RsaKeyMaterial platformKey = factory.generatePlatformPayloadRsaKey("opgs-rsa-2026-q2");
+RsaKeyMaterial merchantResponseKey = factory.generateMerchantResponseRsaKey(
+        "200045",
+        "merchant-200045-response-rsa-2026-q2"
+);
+```
+
+生成后交付与保存：
+
+1. `merchantJwtKey.merchantKey()`：只给对应商户服务端；OPGS 侧加密保存，用于 JWT 验签。
+2. `platformKey.publicKeyPem()` 或 `platformKey.publicKeyX509Base64()`：给商户，用于加密请求体。
+3. `platformKey.privateKeyPem()` 或 `platformKey.privateKeyPkcs8Base64()`：只给 OPGS 服务端，生产必须进入 KMS 或加密配置。
+4. `merchantResponseKey.publicKeyPem()`：商户上传给 OPGS，用于 OPGS 加密响应或回调。
+5. `merchantResponseKey.privateKeyPem()`：只给商户服务端保存，OPGS 不应保存生产商户的响应私钥。
+
+日志排查只允许打印长度、`kid` 和 `fingerprint(...)` 结果，不允许打印 `merchantKey`、JWT、私钥、完整密文、完整 PAN、CVV 或 CAVV。
+
+## 6. 商户请求生成流程
 
 1. 商户组装授权交易业务 JSON。
 2. 商户生成 JWT，使用开户时获取的 `merchantKey` 按 HS256 签名。
@@ -199,7 +258,7 @@ authorization: <jwt-token>
 }
 ```
 
-## 6. 服务端处理流程
+## 7. 服务端处理流程
 
 `service-openapi` 当前链路：
 
@@ -249,7 +308,7 @@ public class OpenApiPaymentController {
 }
 ```
 
-## 7. 响应加密策略
+## 8. 响应加密策略
 
 当前脚手架测试先返回明文 `CommonResult`，用于验证请求链路。生产建议响应也使用同样的混合加密信封：
 
@@ -268,7 +327,7 @@ public class OpenApiPaymentController {
 3. 平台可以在响应 header 或响应体中附加平台签名，便于商户验证响应来自 OPGS。
 4. 回调通知同样遵循 JWT 认证和 `data` 加密规则。
 
-## 8. cardInfo 是否二次加密
+## 9. cardInfo 是否二次加密
 
 默认不要求商户对 `cardInfo` 再做二次加密。
 
@@ -284,10 +343,10 @@ public class OpenApiPaymentController {
 1. PAN 只允许脱敏日志，例如 `538738******6554`。
 2. CVV/CVC 只允许用于本次授权，授权后禁止存储。
 3. 交易核心落库必须做 PAN tokenization 或字段级强加密。
-4. MQ、异常、审计日志、业务响应禁止输出完整 PAN 和 CVV。
+4. MQ、异常、审计日志、业务响应禁止输出完整 PAN、CVV 和 CAVV。
 5. 后续可以为高安全商户提供可选的 `cardInfo` 字段级 JWE 子信封。
 
-## 9. 密钥与防重放
+## 10. 密钥与防重放
 
 生产环境要求：
 
@@ -300,7 +359,7 @@ public class OpenApiPaymentController {
 7. 商户密钥轮换时支持新旧 `merchantKey` 短时间并行校验。
 8. 平台 RSA 密钥轮换时通过 `kid` 选择私钥，旧密钥保留到所有商户完成切换。
 
-## 10. 当前测试入口
+## 11. 当前测试入口
 
 已在 `service-openapi` 增加安全链路测试：
 
@@ -310,9 +369,10 @@ service-openapi/src/test/java/com/scott/payment/openapi/OpenApiSecurityFlowTests
 
 测试覆盖：
 
-1. `shouldCreateAndVerifyMerchantJwtByHs256`：验证标准 HS256 JWT 生成和验签。
-2. `shouldEncryptAndDecryptOpenApiPayload`：验证 RSA-OAEP-256/AES-256-GCM 加密和解密。
-3. `shouldCallAuthorizationApiWithJwtAndEncryptedPayload`：验证授权接口完整调用链路。
+1. `shouldGenerateMerchantSecurityMaterial`：生成 merchantKey、平台 RSA、商户响应 RSA，并打印安全摘要。
+2. `shouldCreateAndVerifyMerchantJwtByHs256`：验证标准 HS256 JWT 生成和验签。
+3. `shouldEncryptAndDecryptOpenApiPayload`：验证 RSA-OAEP-256/AES-256-GCM 加密和解密，并打印脱敏明文。
+4. `shouldCallAuthorizationApiWithJwtAndEncryptedPayload`：验证授权接口完整调用链路，并打印接口响应。
 
 执行命令：
 
@@ -320,7 +380,7 @@ service-openapi/src/test/java/com/scott/payment/openapi/OpenApiSecurityFlowTests
 mvn -pl service-openapi -am test
 ```
 
-## 11. 参考标准
+## 12. 参考标准
 
 1. [RFC 7519 - JSON Web Token](https://www.rfc-editor.org/rfc/rfc7519)
 2. [RFC 7518 - JSON Web Algorithms](https://www.rfc-editor.org/rfc/rfc7518)

@@ -211,6 +211,14 @@ public class OpenApiPayloadCrypto {
         }
     }
 
+    /**
+     * 构建 compact 密文第一段受保护头。
+     * <p>
+     * 受保护头会作为 AES-GCM AAD 参与完整性校验，所以 `typ`、`alg`、`enc`、`kid` 任意字段被篡改都会导致解密失败。
+     *
+     * @param keyId RSA 密钥编号
+     * @return Base64Url 编码后的受保护头
+     */
     private String encodeProtectedHeader(String keyId) {
         Map<String, String> header = new LinkedHashMap<>();
         header.put("typ", PAYLOAD_TYPE);
@@ -220,6 +228,12 @@ public class OpenApiPayloadCrypto {
         return base64Url(JsonUtils.toJsonString(header).getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 解码 compact 报文第一段受保护头。
+     *
+     * @param protectedHeader Base64Url 编码后的受保护头
+     * @return 受保护头键值对
+     */
     private Map<String, String> decodeProtectedHeader(String protectedHeader) {
         try {
             String headerJson = new String(base64UrlDecode(protectedHeader), StandardCharsets.UTF_8);
@@ -230,6 +244,11 @@ public class OpenApiPayloadCrypto {
         }
     }
 
+    /**
+     * 校验受保护头，防止错误算法、错误报文类型或降级算法进入解密流程。
+     *
+     * @param header 受保护头键值对
+     */
     private void validateProtectedHeader(Map<String, String> header) {
         if (header == null
                 || !PAYLOAD_TYPE.equals(header.get("typ"))
@@ -239,6 +258,16 @@ public class OpenApiPayloadCrypto {
         }
     }
 
+    /**
+     * 执行 AES-GCM 加密或解密。
+     *
+     * @param mode            Cipher 加解密模式
+     * @param contentKey      AES 会话密钥
+     * @param iv              AES-GCM 随机 IV
+     * @param protectedHeader compact 报文第一段，作为 AAD 参与完整性校验
+     * @param input           待加密或待解密数据
+     * @return 加密或解密结果
+     */
     private byte[] aesGcm(int mode, byte[] contentKey, byte[] iv, String protectedHeader, byte[] input) {
         try {
             Cipher cipher = Cipher.getInstance(AES_GCM_TRANSFORMATION);
@@ -251,6 +280,14 @@ public class OpenApiPayloadCrypto {
         }
     }
 
+    /**
+     * 执行 RSA-OAEP-SHA256 密钥包裹或解包。
+     *
+     * @param mode  Cipher 加解密模式
+     * @param key   RSA 公钥或私钥
+     * @param input 待加密或待解密数据
+     * @return RSA 运算结果
+     */
     private byte[] rsaOaep(int mode, java.security.Key key, byte[] input) {
         try {
             Cipher cipher = Cipher.getInstance(RSA_OAEP_TRANSFORMATION);
@@ -266,16 +303,34 @@ public class OpenApiPayloadCrypto {
         }
     }
 
+    /**
+     * 生成安全随机字节。
+     *
+     * @param length 字节长度
+     * @return 随机字节
+     */
     private byte[] randomBytes(int length) {
         byte[] value = new byte[length];
         secureRandom.nextBytes(value);
         return value;
     }
 
+    /**
+     * 执行无填充 Base64Url 编码。
+     *
+     * @param value 原始字节
+     * @return Base64Url 文本
+     */
     private String base64Url(byte[] value) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
     }
 
+    /**
+     * 执行 Base64Url 解码。
+     *
+     * @param value Base64Url 文本
+     * @return 原始字节
+     */
     private byte[] base64UrlDecode(String value) {
         try {
             return Base64.getUrlDecoder().decode(value);
@@ -284,12 +339,25 @@ public class OpenApiPayloadCrypto {
         }
     }
 
+    /**
+     * 拼接两个字节数组。
+     *
+     * @param left  左侧字节数组
+     * @param right 右侧字节数组
+     * @return 拼接后的字节数组
+     */
     private byte[] concat(byte[] left, byte[] right) {
         byte[] result = Arrays.copyOf(left, left.length + right.length);
         System.arraycopy(right, 0, result, left.length, right.length);
         return result;
     }
 
+    /**
+     * 归一化 PEM 或 Base64 密钥文本。
+     *
+     * @param value PEM 或 Base64 密钥文本
+     * @return 去掉 PEM 头尾和空白后的 Base64 文本
+     */
     private String normalizePem(String value) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "openapi key can not be blank");
