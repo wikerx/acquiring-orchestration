@@ -191,8 +191,11 @@ component-security
 └── src/main/java/com/scott/payment/component/security
     ├── config
     ├── crypto
-    │   ├── AesEncryptor.java
-    │   └── HmacSha256Signer.java
+    │   ├── HmacSha256Signer.java
+    │   └── OpenApiPayloadCrypto.java
+    ├── jwt
+    │   ├── JwtMerchantClaims.java
+    │   └── MerchantJwtVerifier.java
     ├── sign
     │   ├── SignatureRequest.java
     │   ├── SignatureVerifier.java
@@ -210,12 +213,12 @@ component-security
 职责：
 
 1. 内部 API 鉴权；
-2. 外部商户 API 签名；
-3. timestamp + nonce 防重放；
-4. HMAC-SHA256 签名；
-5. AES 加解密；
+2. 外部商户 API JWT HS256 验签；
+3. JWT jti + Redis 防重放；
+4. RSA-OAEP-256 + AES-256-GCM 混合加解密；
+5. 旧式 HMAC-SHA256 参数签名兼容；
 6. 渠道回调验签扩展接口；
-7. 商户 API Key / Secret 校验模型。
+7. 商户 merchantKey、平台 RSA 密钥和密钥轮换模型。
 
 推荐依赖：
 
@@ -416,8 +419,8 @@ component-job -> component-core
 4. 商户开放 API 接入；
 5. 渠道回调 API 接入；
 6. 内部 API 与外部 API 路由区分；
-7. 商户签名校验；
-8. timestamp + nonce 防重放；
+7. 商户 JWT 请求头基础检查；
+8. 防重放与业务级验签下沉到 `service-openapi`；
 9. 渠道回调路径预留；
 10. 统一 TraceId。
 
@@ -544,9 +547,9 @@ service-checkout
 1. 商户侧收单、代付、查询、退款等开放 API 入口；
 2. JWT 授权验签；
 3. 报文数据解密；
-4. 商户号、AppId、API Key 等基础参数校验；
+4. 商户号、merchantKey、RSA kid 等基础参数校验；
 5. 商户产品权限、接口权限和限额前置校验；
-6. timestamp + nonce 防重放；
+6. JWT jti + Redis 防重放；
 7. 幂等键校验；
 8. 外部请求模型转换为内部交易命令；
 9. 渠道侧回调入口、基础验签和报文验真；
