@@ -172,6 +172,25 @@ MerchantOpenApiCredential credential = factory.generateMerchantCredential("20004
 
 日志排查只允许打印长度、`kid` 和 `fingerprint(...)` 结果，不允许打印 `merchantKey`、JWT、私钥、完整密文、完整 PAN、CVV 或 CAVV。
 
+### 5.1 推荐表关系
+
+生产可以按下面几张表拆分存储，测试用例里使用内存 Record 模拟同样关系：
+
+| 表 | 主键/唯一键 | 核心字段 | 用途 |
+| --- | --- | --- | --- |
+| `merchant_info` | `merchant_id` | `merchant_name`、`status` | 查询商户是否存在、是否可用 |
+| `merchant_jwt_key` | `merchant_id + key_version` | `merchant_key_cipher`、`enabled`、`effective_time`、`expire_time` | 服务端按 `merchantId` 找到 merchantKey，完成 JWT HS256 验签 |
+| `platform_payload_key` | `platform_key_id` | `public_key_x509_base64`、`private_key_cipher`、`enabled` | 商户用公钥加密请求，平台用私钥解密请求 |
+| `merchant_response_key` | `merchant_id + response_key_id` | `public_key_x509_base64`、`enabled` | 响应加密增强模式下，平台用商户响应公钥加密响应 `data` |
+
+关联关系：
+
+1. `merchant_info.merchant_id` 关联 `merchant_jwt_key.merchant_id`。
+2. 请求体 compact header 的 `kid` 关联 `platform_payload_key.platform_key_id`。
+3. 响应体 compact header 的 `kid` 关联 `merchant_response_key.response_key_id`。
+4. `platform_payload_key.private_key_cipher` 是平台保留材料，不能给商户。
+5. `merchant_response_key` 只保存商户响应公钥；商户响应私钥由商户自己保存，平台不保存。
+
 ## 6. 商户请求生成流程
 
 1. 商户组装授权交易业务 JSON。
@@ -373,6 +392,26 @@ service-openapi/src/test/java/com/scott/payment/openapi/OpenApiSecurityFlowTests
 2. `shouldCreateAndVerifyMerchantJwtByHs256`：验证标准 HS256 JWT 生成和验签。
 3. `shouldEncryptAndDecryptOpenApiPayload`：验证 RSA-OAEP-256/AES-256-GCM 加密和解密，并打印脱敏明文。
 4. `shouldCallAuthorizationApiWithJwtAndEncryptedPayload`：验证授权接口完整调用链路，并打印接口响应。
+5. `shouldCompleteMerchantOpenApiRoundTripWithDatabaseKeysAndEncryptedResponse`：模拟商户表、商户 JWT 密钥表、平台 RSA 密钥表、商户响应公钥表，覆盖商户加密请求、HTTP 调用、服务端成功验签、错误密钥、过期 JWT、密文篡改、DTO 解析、服务端响应加密和商户响应解密。
+
+完整闭环用例中的关键步骤：
+
+1. 平台生成 `merchantKey` 和平台请求体 RSA 公私钥，把 `merchantKey` 与平台私钥保存到平台侧表。
+2. 平台只把 `merchantKey`、平台 RSA 公钥和 `platformKeyId` 给商户。
+3. 商户生成响应 RSA 公私钥，把响应公钥和 `responseKeyId` 上传给平台；响应私钥保留在商户侧。
+4. 商户组装业务 JSON，使用平台公钥加密请求体 `data`，使用 `merchantKey` 生成 JWT 请求头。
+5. 服务端按 JWT `merchantId` 查 `merchant_jwt_key`，完成 JWT Header、Payload、Signature 校验。
+6. 服务端按请求体 compact header 的 `kid` 查 `platform_payload_key`，用平台私钥解密 `data` 并转换 DTO。
+7. 服务端生成响应业务数据；默认可明文返回非敏感字段，增强模式下使用 `merchant_response_key` 中的商户响应公钥加密 `data`。
+8. 商户收到响应后，用自己保存的响应私钥解密响应 `data`。
+
+还需要在生产继续补齐的流程：
+
+1. JWT `jti` 防重放：写入 Redis，TTL 略大于 JWT 有效期。
+2. 密钥轮换：`merchant_jwt_key` 和 `platform_payload_key` 均保留版本/生效/失效时间。
+3. 密钥加密存储：`merchant_key_cipher`、`private_key_cipher` 必须进入 KMS 或使用配置加密。
+4. 审计日志：只输出 kid、长度、指纹和脱敏业务字段。
+5. 商户停启用：`merchant_info.status` 和密钥表 `enabled` 需要一起参与校验。
 
 执行命令：
 

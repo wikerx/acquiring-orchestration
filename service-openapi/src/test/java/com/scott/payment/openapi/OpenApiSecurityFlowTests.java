@@ -3,16 +3,22 @@ package com.scott.payment.openapi;
 import cn.hutool.jwt.JWTHeader;
 import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
+import com.alibaba.fastjson2.TypeReference;
+import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.MerchantOpenApiCredential;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.OpenApiMerchantOnboardingMaterial;
+import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.RsaKeyMaterial;
 import com.scott.payment.component.web.handler.GlobalExceptionHandler;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentController;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
+import com.scott.payment.openapi.security.MerchantKeyProvider;
 import com.scott.payment.openapi.security.OpenApiPayloadKeyProvider;
 import com.scott.payment.openapi.service.OpenApiPaymentService;
 import com.scott.payment.openapi.support.OpenApiHeaderInterceptor;
@@ -26,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import jakarta.validation.Validation;
@@ -41,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -66,6 +74,21 @@ class OpenApiSecurityFlowTests {
      * 测试 RSA 密钥编号，模拟后续生产密钥轮换场景。
      */
     private static final String KEY_ID = "payment-test-rsa-001";
+
+    /**
+     * 商户响应加密公钥编号，模拟响应加密增强模式下商户上传的平台侧配置。
+     */
+    private static final String MERCHANT_RESPONSE_KEY_ID = "merchant-200045-response-rsa-001";
+
+    /**
+     * OpenAPI 授权测试路径，模拟商户真实发起收单授权请求。
+     */
+    private static final String AUTHORIZATION_PATH = "/api/rest/payment/v1/authorization";
+
+    /**
+     * OpenAPI 授权请求头名称，测试日志只打印摘要，不打印完整 JWT。
+     */
+    private static final String AUTHORIZATION_HEADER = "authorization";
 
     /**
      * 固定测试时间，避免 JWT iat/exp 因真实时钟变化导致测试不稳定。
@@ -140,6 +163,7 @@ class OpenApiSecurityFlowTests {
         OpenApiPayloadCrypto payloadCrypto = new OpenApiPayloadCrypto();
         KeyPair platformKeyPair = payloadCrypto.generateRsaKeyPair(2048);
         String plainText = authorizationPlainText();
+        log.info("授权请求明文已生成，脱敏后的明文参数：{}", SensitiveDataMaskUtils.maskJson(plainText));
 
         String encryptedData = payloadCrypto.encrypt(plainText, platformKeyPair.getPublic(), KEY_ID);
         String decryptedText = payloadCrypto.decrypt(encryptedData, keyId -> platformKeyPair.getPrivate());
@@ -154,6 +178,55 @@ class OpenApiSecurityFlowTests {
         assertThat(encryptedData.split("\\.")).hasSize(5);
         assertThat(encryptedData).doesNotContain("5387380678556554");
         assertThat(decryptedText).isEqualTo(plainText);
+    }
+
+    /**
+     * 验证商户从开户拿到密钥后，完成一次带响应加密的 OpenAPI 请求闭环。
+     * <p>
+     * 该用例把数据库表、商户侧动作、服务端动作和响应解密放在同一条链路中，方便观察真实接入时每个密钥的用途。
+     */
+    @Test
+    void shouldCompleteMerchantOpenApiRoundTripWithDatabaseKeysAndEncryptedResponse() throws Exception {
+        OpenApiPayloadCrypto payloadCrypto = new OpenApiPayloadCrypto();
+        ProvisionedOpenApiEnvironment environment = provisionOpenApiEnvironment(payloadCrypto);
+        String plainRequestJson = authorizationPlainText();
+        long issuedAt = System.currentTimeMillis() / 1000L;
+
+        logMerchantKeyTopology(environment);
+        String encryptedRequestData = buildMerchantEncryptedRequest(payloadCrypto, environment, plainRequestJson);
+        String authorization = createMerchantJwt(MERCHANT_ID, environment.clientKeyBox().merchantKey(), issuedAt);
+        String httpRequestBody = JsonUtils.toJsonString(Map.of("data", encryptedRequestData));
+        logMerchantHttpRequest(authorization, httpRequestBody);
+
+        verifyServerSecurityChecks(payloadCrypto, environment, authorization, encryptedRequestData, issuedAt);
+
+        AtomicReference<ApiMerchantPaymentRequestDTO> capturedRequest = new AtomicReference<>();
+        MockMvc mockMvc = buildMockMvc(payloadCrypto, environment.database(), environment.database(), capturedRequest);
+        MvcResult mvcResult = mockMvc.perform(post(AUTHORIZATION_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(AUTHORIZATION_HEADER, authorization)
+                        .content(httpRequestBody))
+                .andDo(result -> log.info("商户HTTP请求已进入服务端，HTTP状态：{}，服务端明文响应摘要：{}",
+                        result.getResponse().getStatus(),
+                        SensitiveDataMaskUtils.maskJson(result.getResponse().getContentAsString())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ApiCoResultEnum.SUCCESS.getCode()))
+                .andReturn();
+
+        assertThat(capturedRequest.get()).isNotNull();
+        assertThat(capturedRequest.get().getMerchantInfo().getMerchantId()).isEqualTo(MERCHANT_ID);
+        log.info("服务端完成DTO解析，商户订单号：{}，脱敏卡号：{}，交易金额：{} {}",
+                capturedRequest.get().getOrderInfo().getTradeNo(),
+                SensitiveDataMaskUtils.maskPan(capturedRequest.get().getCardInfo().getCardNo()),
+                capturedRequest.get().getOrderInfo().getAmount(),
+                capturedRequest.get().getOrderInfo().getCurrency());
+
+        String encryptedResponseJson = encryptServerResponseData(payloadCrypto, environment, mvcResult.getResponse().getContentAsString());
+        PaymentCreateVO merchantResponse = decryptMerchantResponseData(payloadCrypto, environment, encryptedResponseJson);
+
+        assertThat(merchantResponse.getMerchantOrderNo()).isEqualTo("20250116140182865587");
+        assertThat(merchantResponse.getCurrency()).isEqualTo("USD");
+        assertThat(merchantResponse.getAmount()).isEqualTo(1_238_945L);
     }
 
     /**
@@ -208,14 +281,32 @@ class OpenApiSecurityFlowTests {
                                  KeyPair platformKeyPair,
                                  String merchantKey,
                                  AtomicReference<ApiMerchantPaymentRequestDTO> capturedRequest) {
+        return buildMockMvc(payloadCrypto,
+                new TestOpenApiPayloadKeyProvider(platformKeyPair),
+                merchantId -> merchantKey,
+                capturedRequest);
+    }
+
+    /**
+     * 构建 OpenAPI 授权接口 MockMvc。
+     *
+     * @param payloadCrypto      OpenAPI 报文加解密工具
+     * @param payloadKeyProvider 平台 RSA 密钥提供器，模拟服务端按 kid 查找私钥
+     * @param merchantKeyProvider 商户 JWT 密钥提供器，模拟服务端按 merchantId 查找 merchantKey
+     * @param capturedRequest    捕获控制器收到的解密 DTO
+     * @return MockMvc 实例
+     */
+    private MockMvc buildMockMvc(OpenApiPayloadCrypto payloadCrypto,
+                                 OpenApiPayloadKeyProvider payloadKeyProvider,
+                                 MerchantKeyProvider merchantKeyProvider,
+                                 AtomicReference<ApiMerchantPaymentRequestDTO> capturedRequest) {
         Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
-        OpenApiPayloadKeyProvider payloadKeyProvider = new TestOpenApiPayloadKeyProvider(platformKeyPair);
         OpenApiPayloadDecoder payloadDecoder = new OpenApiPayloadDecoder(payloadCrypto, payloadKeyProvider);
         OpenApiValidator openApiValidator = new OpenApiValidator(validator);
         OpenApiRequestBodyAdvice requestBodyAdvice = new OpenApiRequestBodyAdvice(payloadDecoder, openApiValidator);
         OpenApiRequestHeaderExtractor headerExtractor = new OpenApiRequestHeaderExtractor(
                 new MerchantJwtVerifier(),
-                merchantId -> merchantKey);
+                merchantKeyProvider);
         OpenApiPaymentService paymentService = (encryptedData, requestDTO) -> {
             capturedRequest.set(requestDTO);
             PaymentCreateVO response = new PaymentCreateVO();
@@ -229,6 +320,223 @@ class OpenApiSecurityFlowTests {
                 .setCustomArgumentResolvers(new OpenApiRequestArgumentResolver())
                 .setControllerAdvice(requestBodyAdvice, new GlobalExceptionHandler())
                 .build();
+    }
+
+    /**
+     * 初始化测试用 OpenAPI 安全环境，模拟平台开户流程和数据库落库。
+     *
+     * @param payloadCrypto OpenAPI 报文加解密工具
+     * @return 已完成开户和密钥落库的测试环境
+     */
+    private ProvisionedOpenApiEnvironment provisionOpenApiEnvironment(OpenApiPayloadCrypto payloadCrypto) {
+        RsaKeyMaterial platformPayloadKey = keyMaterialFactory.generatePlatformPayloadRsaKey(KEY_ID);
+        MerchantOpenApiCredential merchantCredential = keyMaterialFactory.generateMerchantCredential(MERCHANT_ID, platformPayloadKey);
+        KeyPair merchantResponseKeyPair = payloadCrypto.generateRsaKeyPair(2048);
+        MerchantResponseKeyRow responseKeyRow = new MerchantResponseKeyRow(
+                MERCHANT_ID,
+                MERCHANT_RESPONSE_KEY_ID,
+                Base64.getEncoder().encodeToString(merchantResponseKeyPair.getPublic().getEncoded()),
+                Boolean.TRUE
+        );
+        TestOpenApiSecurityDatabase database = new TestOpenApiSecurityDatabase(
+                payloadCrypto,
+                new MerchantInfoRow(MERCHANT_ID, "Scott Test Merchant", "ACTIVE"),
+                new MerchantJwtKeyRow(MERCHANT_ID, "jwt-v1", merchantCredential.merchantKey(), Boolean.TRUE),
+                new PlatformPayloadKeyRow(
+                        platformPayloadKey.keyId(),
+                        platformPayloadKey.publicKeyX509Base64(),
+                        platformPayloadKey.privateKeyPkcs8Base64(),
+                        Boolean.TRUE
+                ),
+                responseKeyRow
+        );
+        MerchantClientKeyBox clientKeyBox = new MerchantClientKeyBox(
+                MERCHANT_ID,
+                merchantCredential.merchantKey(),
+                merchantCredential.platformPayloadKeyId(),
+                merchantCredential.platformPublicKeyX509Base64(),
+                responseKeyRow.responseKeyId(),
+                Base64.getEncoder().encodeToString(merchantResponseKeyPair.getPrivate().getEncoded())
+        );
+        return new ProvisionedOpenApiEnvironment(database, clientKeyBox);
+    }
+
+    /**
+     * 打印商户开户后的密钥拓扑，日志只输出密钥长度、kid 和指纹。
+     *
+     * @param environment 测试环境
+     */
+    private void logMerchantKeyTopology(ProvisionedOpenApiEnvironment environment) {
+        TestOpenApiSecurityDatabase database = environment.database();
+        MerchantClientKeyBox clientKeyBox = environment.clientKeyBox();
+        log.info("密钥拓扑-商户信息表，商户号：{}，商户名称：{}，状态：{}",
+                database.merchantInfoRow().merchantId(),
+                database.merchantInfoRow().merchantName(),
+                database.merchantInfoRow().status());
+        log.info("密钥拓扑-商户可见材料，merchantKey长度：{}，merchantKey指纹：{}，平台公钥kid：{}，平台公钥指纹：{}",
+                clientKeyBox.merchantKey().length(),
+                keyMaterialFactory.fingerprint(clientKeyBox.merchantKey()),
+                clientKeyBox.platformPayloadKeyId(),
+                keyMaterialFactory.fingerprint(clientKeyBox.platformPublicKeyX509Base64()));
+        log.info("密钥拓扑-平台保留材料，平台私钥kid：{}，平台私钥长度：{}，商户响应公钥kid：{}，商户响应公钥指纹：{}",
+                database.platformPayloadKeyRow().platformKeyId(),
+                database.platformPayloadKeyRow().privateKeyPkcs8Base64().length(),
+                database.merchantResponseKeyRow().responseKeyId(),
+                keyMaterialFactory.fingerprint(database.merchantResponseKeyRow().publicKeyX509Base64()));
+        log.info("密钥拓扑-关联关系，merchantId关联merchantKey，platformKeyId关联平台公私钥，responseKeyId关联商户响应公钥和商户侧私钥");
+    }
+
+    /**
+     * 模拟商户使用平台公钥加密请求体 data。
+     *
+     * @param payloadCrypto    OpenAPI 报文加解密工具
+     * @param environment      测试环境
+     * @param plainRequestJson 商户业务 JSON 明文
+     * @return compact 密文 data
+     */
+    private String buildMerchantEncryptedRequest(OpenApiPayloadCrypto payloadCrypto,
+                                                 ProvisionedOpenApiEnvironment environment,
+                                                 String plainRequestJson) {
+        MerchantClientKeyBox clientKeyBox = environment.clientKeyBox();
+        String encryptedData = payloadCrypto.encrypt(
+                plainRequestJson,
+                clientKeyBox.platformPayloadPublicKey(payloadCrypto),
+                clientKeyBox.platformPayloadKeyId()
+        );
+        log.info("商户完成请求体加密，明文参数脱敏：{}",
+                SensitiveDataMaskUtils.maskJson(plainRequestJson));
+        log.info("商户完成请求体加密，data段数：{}，data长度：{}，data指纹：{}",
+                encryptedData.split("\\.").length,
+                encryptedData.length(),
+                keyMaterialFactory.fingerprint(encryptedData));
+        return encryptedData;
+    }
+
+    /**
+     * 打印商户 HTTP 调用过程，避免输出完整 JWT 和完整密文。
+     *
+     * @param authorization   商户 JWT
+     * @param httpRequestBody HTTP 请求体
+     */
+    private void logMerchantHttpRequest(String authorization, String httpRequestBody) {
+        Map<String, Object> safeHeaders = new LinkedHashMap<>();
+        safeHeaders.put("Content-Type", MediaType.APPLICATION_JSON_VALUE);
+        safeHeaders.put(AUTHORIZATION_HEADER + "Parts", authorization.split("\\.").length);
+        safeHeaders.put(AUTHORIZATION_HEADER + "Fingerprint", keyMaterialFactory.fingerprint(authorization));
+        Map<String, Object> safeBody = new LinkedHashMap<>();
+        safeBody.put("data", "<compact密文省略>");
+        safeBody.put("bodyLength", httpRequestBody.length());
+        safeBody.put("bodyFingerprint", keyMaterialFactory.fingerprint(httpRequestBody));
+        log.info("商户发起HTTP请求，method：POST，path：{}，headers安全摘要：{}，body安全摘要：{}",
+                AUTHORIZATION_PATH,
+                JsonUtils.toJsonString(safeHeaders),
+                JsonUtils.toJsonString(safeBody));
+    }
+
+    /**
+     * 模拟服务端收到请求后的安全校验，包括成功验签、错误密钥、过期 JWT 和密文篡改。
+     *
+     * @param payloadCrypto     OpenAPI 报文加解密工具
+     * @param environment       测试环境
+     * @param authorization     商户 JWT
+     * @param encryptedData     商户请求体密文
+     * @param nowEpochSeconds   当前秒级时间戳
+     */
+    private void verifyServerSecurityChecks(OpenApiPayloadCrypto payloadCrypto,
+                                            ProvisionedOpenApiEnvironment environment,
+                                            String authorization,
+                                            String encryptedData,
+                                            long nowEpochSeconds) {
+        TestOpenApiSecurityDatabase database = environment.database();
+        MerchantJwtVerifier verifier = new MerchantJwtVerifier();
+        JwtMerchantClaims claims = verifier.verify(
+                authorization,
+                database.getMerchantKey(MERCHANT_ID),
+                nowEpochSeconds + 1L
+        );
+        String decryptedJson = payloadCrypto.decrypt(encryptedData, database::getPlatformPrivateKey);
+        log.info("服务端验签成功，商户号：{}，jti：{}，请求体解密摘要：{}",
+                claims.getMerchantId(),
+                claims.getJwtId(),
+                SensitiveDataMaskUtils.maskJson(decryptedJson));
+
+        assertThatThrownBy(() -> verifier.verify(authorization, "wrong-merchant-key", nowEpochSeconds + 1L))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getMessage());
+        log.info("服务端异常用例-错误merchantKey验签失败，预期错误码：{}",
+                ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getCode());
+
+        String expiredJwt = createMerchantJwt(MERCHANT_ID, database.getMerchantKey(MERCHANT_ID), NOW_EPOCH_SECONDS);
+        assertThatThrownBy(() -> verifier.verify(expiredJwt, database.getMerchantKey(MERCHANT_ID), NOW_EPOCH_SECONDS + 181L))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getMessage());
+        log.info("服务端异常用例-JWT过期被拒绝，预期错误码：{}",
+                ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getCode());
+
+        String tamperedData = encryptedData.substring(0, encryptedData.length() - 1)
+                + (encryptedData.endsWith("A") ? "B" : "A");
+        assertThatThrownBy(() -> payloadCrypto.decrypt(tamperedData, database::getPlatformPrivateKey))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL.getMessage());
+        log.info("服务端异常用例-data密文被篡改，AES-GCM认证失败并拒绝解析");
+    }
+
+    /**
+     * 模拟服务端响应加密增强模式。
+     *
+     * @param payloadCrypto       OpenAPI 报文加解密工具
+     * @param environment         测试环境
+     * @param plainResponseBody   控制器返回的明文 CommonResult
+     * @return 服务端加密后的响应 JSON
+     */
+    private String encryptServerResponseData(OpenApiPayloadCrypto payloadCrypto,
+                                             ProvisionedOpenApiEnvironment environment,
+                                             String plainResponseBody) {
+        Map<String, Object> responseMap = JsonUtils.parseObject(plainResponseBody, new TypeReference<Map<String, Object>>() {
+        });
+        String plainResponseData = JsonUtils.toJsonString(responseMap.get("data"));
+        String encryptedResponseData = payloadCrypto.encrypt(
+                plainResponseData,
+                environment.database().getMerchantResponsePublicKey(MERCHANT_ID),
+                environment.database().getMerchantResponseKeyId(MERCHANT_ID)
+        );
+        Map<String, Object> encryptedResponse = new LinkedHashMap<>();
+        encryptedResponse.put("code", responseMap.get("code"));
+        encryptedResponse.put("message", responseMap.get("message"));
+        encryptedResponse.put("data", encryptedResponseData);
+        log.info("服务端完成响应加密，使用商户响应公钥kid：{}，响应data长度：{}，响应data指纹：{}",
+                environment.database().getMerchantResponseKeyId(MERCHANT_ID),
+                encryptedResponseData.length(),
+                keyMaterialFactory.fingerprint(encryptedResponseData));
+        return JsonUtils.toJsonString(encryptedResponse);
+    }
+
+    /**
+     * 模拟商户收到响应后，使用商户侧响应私钥解密 data。
+     *
+     * @param payloadCrypto         OpenAPI 报文加解密工具
+     * @param environment           测试环境
+     * @param encryptedResponseJson 服务端加密响应 JSON
+     * @return 商户解密后的业务响应
+     */
+    private PaymentCreateVO decryptMerchantResponseData(OpenApiPayloadCrypto payloadCrypto,
+                                                        ProvisionedOpenApiEnvironment environment,
+                                                        String encryptedResponseJson) {
+        Map<String, Object> responseMap = JsonUtils.parseObject(encryptedResponseJson, new TypeReference<Map<String, Object>>() {
+        });
+        String encryptedResponseData = String.valueOf(responseMap.get("data"));
+        String plainResponseData = payloadCrypto.decrypt(
+                encryptedResponseData,
+                keyId -> environment.clientKeyBox().merchantResponsePrivateKey(payloadCrypto, keyId)
+        );
+        PaymentCreateVO merchantResponse = JsonUtils.parseObject(plainResponseData, PaymentCreateVO.class);
+        log.info("商户完成响应解密，响应码：{}，响应消息：{}，订单号：{}，金额：{}，币种：{}",
+                responseMap.get("code"),
+                responseMap.get("message"),
+                merchantResponse.getMerchantOrderNo(),
+                merchantResponse.getAmount(),
+                merchantResponse.getCurrency());
+        return merchantResponse;
     }
 
     /**
@@ -324,6 +632,247 @@ class OpenApiSecurityFlowTests {
     private String decodeProtectedHeader(String encryptedData) {
         String protectedHeader = encryptedData.split("\\.", -1)[0];
         return new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 已完成开户初始化的 OpenAPI 测试环境。
+     *
+     * @param database     模拟平台侧数据库表
+     * @param clientKeyBox 模拟商户侧安全保存的密钥材料
+     */
+    private record ProvisionedOpenApiEnvironment(TestOpenApiSecurityDatabase database,
+                                                 MerchantClientKeyBox clientKeyBox) {
+    }
+
+    /**
+     * 商户基础信息表记录。
+     *
+     * @param merchantId   支付平台分配的商户号
+     * @param merchantName 商户名称
+     * @param status       商户状态，生产环境可扩展为启用、冻结、注销等状态
+     */
+    private record MerchantInfoRow(String merchantId, String merchantName, String status) {
+    }
+
+    /**
+     * 商户 JWT 密钥表记录。
+     * <p>
+     * 生产数据库中 merchantKey 必须加密存储；当前测试为了完整验签链路，使用内存明文模拟解密后的密钥值。
+     *
+     * @param merchantId  商户号
+     * @param keyVersion  商户 JWT 密钥版本号
+     * @param merchantKey 商户 JWT HS256 签名密钥
+     * @param enabled     当前密钥是否启用
+     */
+    private record MerchantJwtKeyRow(String merchantId, String keyVersion, String merchantKey, Boolean enabled) {
+    }
+
+    /**
+     * 平台请求体 RSA 密钥表记录。
+     * <p>
+     * publicKeyX509Base64 可下发给商户；privateKeyPkcs8Base64 只能由平台服务端/KMS 保存。
+     *
+     * @param platformKeyId        平台 RSA kid
+     * @param publicKeyX509Base64  X.509 DER Base64 公钥
+     * @param privateKeyPkcs8Base64 PKCS#8 DER Base64 私钥
+     * @param enabled              当前平台密钥是否启用
+     */
+    private record PlatformPayloadKeyRow(String platformKeyId,
+                                         String publicKeyX509Base64,
+                                         String privateKeyPkcs8Base64,
+                                         Boolean enabled) {
+    }
+
+    /**
+     * 商户响应公钥表记录。
+     * <p>
+     * 该表只保存商户上传的响应公钥；响应私钥留在商户侧，用于商户解密平台响应 data。
+     *
+     * @param merchantId          商户号
+     * @param responseKeyId       商户响应公钥 kid
+     * @param publicKeyX509Base64 X.509 DER Base64 商户响应公钥
+     * @param enabled             当前响应公钥是否启用
+     */
+    private record MerchantResponseKeyRow(String merchantId,
+                                          String responseKeyId,
+                                          String publicKeyX509Base64,
+                                          Boolean enabled) {
+    }
+
+    /**
+     * 商户侧安全保存的密钥材料。
+     * <p>
+     * merchantKey、平台公钥和商户响应私钥都只应出现在商户服务端，不应进入浏览器、App 包或前端代码。
+     *
+     * @param merchantId                       商户号
+     * @param merchantKey                      商户 JWT HS256 签名密钥
+     * @param platformPayloadKeyId             平台请求体公钥 kid
+     * @param platformPublicKeyX509Base64      平台请求体 X.509 DER Base64 公钥
+     * @param merchantResponseKeyId            商户响应私钥 kid
+     * @param merchantResponsePrivateKeyBase64 商户响应 PKCS#8 DER Base64 私钥
+     */
+    private record MerchantClientKeyBox(String merchantId,
+                                        String merchantKey,
+                                        String platformPayloadKeyId,
+                                        String platformPublicKeyX509Base64,
+                                        String merchantResponseKeyId,
+                                        String merchantResponsePrivateKeyBase64) {
+
+        /**
+         * 读取平台请求体公钥。
+         *
+         * @param payloadCrypto OpenAPI 报文加解密工具
+         * @return 平台 RSA 公钥
+         */
+        private PublicKey platformPayloadPublicKey(OpenApiPayloadCrypto payloadCrypto) {
+            return payloadCrypto.readPublicKey(platformPublicKeyX509Base64);
+        }
+
+        /**
+         * 读取商户响应私钥。
+         *
+         * @param payloadCrypto OpenAPI 报文加解密工具
+         * @param responseKeyId 响应密文受保护头中的 kid
+         * @return 商户响应 RSA 私钥
+         */
+        private PrivateKey merchantResponsePrivateKey(OpenApiPayloadCrypto payloadCrypto, String responseKeyId) {
+            assertThat(responseKeyId).isEqualTo(merchantResponseKeyId);
+            return payloadCrypto.readPrivateKey(merchantResponsePrivateKeyBase64);
+        }
+    }
+
+    /**
+     * OpenAPI 安全测试数据库。
+     * <p>
+     * 该类同时实现商户密钥查询和平台私钥查询接口，用内存表模拟后续 MySQL/Nacos/KMS 的组合查询。
+     */
+    private static final class TestOpenApiSecurityDatabase implements MerchantKeyProvider, OpenApiPayloadKeyProvider {
+
+        /**
+         * OpenAPI 报文加解密工具，用于把表中的 Base64 密钥恢复为 JCA Key。
+         */
+        private final OpenApiPayloadCrypto payloadCrypto;
+
+        /**
+         * 商户基础信息表。
+         */
+        private final MerchantInfoRow merchantInfoRow;
+
+        /**
+         * 商户 JWT 密钥表。
+         */
+        private final MerchantJwtKeyRow merchantJwtKeyRow;
+
+        /**
+         * 平台请求体 RSA 密钥表。
+         */
+        private final PlatformPayloadKeyRow platformPayloadKeyRow;
+
+        /**
+         * 商户响应公钥表。
+         */
+        private final MerchantResponseKeyRow merchantResponseKeyRow;
+
+        private TestOpenApiSecurityDatabase(OpenApiPayloadCrypto payloadCrypto,
+                                            MerchantInfoRow merchantInfoRow,
+                                            MerchantJwtKeyRow merchantJwtKeyRow,
+                                            PlatformPayloadKeyRow platformPayloadKeyRow,
+                                            MerchantResponseKeyRow merchantResponseKeyRow) {
+            this.payloadCrypto = payloadCrypto;
+            this.merchantInfoRow = merchantInfoRow;
+            this.merchantJwtKeyRow = merchantJwtKeyRow;
+            this.platformPayloadKeyRow = platformPayloadKeyRow;
+            this.merchantResponseKeyRow = merchantResponseKeyRow;
+        }
+
+        /**
+         * 获取商户基础信息表记录。
+         *
+         * @return 商户基础信息
+         */
+        private MerchantInfoRow merchantInfoRow() {
+            return merchantInfoRow;
+        }
+
+        /**
+         * 获取平台 RSA 密钥表记录。
+         *
+         * @return 平台请求体 RSA 密钥记录
+         */
+        private PlatformPayloadKeyRow platformPayloadKeyRow() {
+            return platformPayloadKeyRow;
+        }
+
+        /**
+         * 获取商户响应公钥表记录。
+         *
+         * @return 商户响应公钥记录
+         */
+        private MerchantResponseKeyRow merchantResponseKeyRow() {
+            return merchantResponseKeyRow;
+        }
+
+        /**
+         * 根据 merchantId 查询商户 JWT 签名密钥。
+         *
+         * @param merchantId 支付平台分配的商户号
+         * @return 商户 JWT HS256 签名密钥
+         */
+        @Override
+        public String getMerchantKey(String merchantId) {
+            assertThat(merchantId).isEqualTo(merchantJwtKeyRow.merchantId());
+            assertThat(merchantJwtKeyRow.enabled()).isTrue();
+            return merchantJwtKeyRow.merchantKey();
+        }
+
+        /**
+         * 根据 kid 查询平台请求体解密私钥。
+         *
+         * @param keyId 平台 RSA kid
+         * @return 平台 RSA 私钥
+         */
+        @Override
+        public PrivateKey getPlatformPrivateKey(String keyId) {
+            assertThat(keyId).isEqualTo(platformPayloadKeyRow.platformKeyId());
+            assertThat(platformPayloadKeyRow.enabled()).isTrue();
+            return payloadCrypto.readPrivateKey(platformPayloadKeyRow.privateKeyPkcs8Base64());
+        }
+
+        /**
+         * 根据 kid 查询平台请求体加密公钥。
+         *
+         * @param keyId 平台 RSA kid
+         * @return 平台 RSA 公钥
+         */
+        @Override
+        public PublicKey getPlatformPublicKey(String keyId) {
+            assertThat(keyId).isEqualTo(platformPayloadKeyRow.platformKeyId());
+            assertThat(platformPayloadKeyRow.enabled()).isTrue();
+            return payloadCrypto.readPublicKey(platformPayloadKeyRow.publicKeyX509Base64());
+        }
+
+        /**
+         * 根据 merchantId 查询商户响应公钥。
+         *
+         * @param merchantId 商户号
+         * @return 商户响应 RSA 公钥
+         */
+        private PublicKey getMerchantResponsePublicKey(String merchantId) {
+            assertThat(merchantId).isEqualTo(merchantResponseKeyRow.merchantId());
+            assertThat(merchantResponseKeyRow.enabled()).isTrue();
+            return payloadCrypto.readPublicKey(merchantResponseKeyRow.publicKeyX509Base64());
+        }
+
+        /**
+         * 根据 merchantId 查询商户响应公钥 kid。
+         *
+         * @param merchantId 商户号
+         * @return 商户响应公钥 kid
+         */
+        private String getMerchantResponseKeyId(String merchantId) {
+            assertThat(merchantId).isEqualTo(merchantResponseKeyRow.merchantId());
+            return merchantResponseKeyRow.responseKeyId();
+        }
     }
 
     /**
