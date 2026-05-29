@@ -3,7 +3,7 @@ package com.scott.payment.openapi.api.rest.payment.v2;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
-import com.scott.payment.openapi.dto.body.ApiMerchantCardOrganizationRequestDTO;
+import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.service.OpenApiPaymentService;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,21 +43,21 @@ public class OpenApiPaymentV2Controller {
      * 请求 /api/rest/payment/v1/authorization 时仍然命中 V1 控制器。
      *
      * @param request    Servlet 请求上下文
-     * @param encydata   商户密文请求体
+     * @param encryptedData 商户密文请求体
      * @param requestDTO 解密后的统一请求参数
      * @return 收单授权交易响应
      */
     @VerificationAndProcessing(
-            dataReceiver = ApiMerchantCardOrganizationRequestDTO.class,
+            dataReceiver = ApiMerchantPaymentRequestDTO.class,
             validationGroups = {
-                    ApiMerchantCardOrganizationRequestDTO.Authorization.class,
-                    ApiMerchantCardOrganizationRequestDTO.Format.class
+                    ApiMerchantPaymentRequestDTO.Authorization.class,
+                    ApiMerchantPaymentRequestDTO.Format.class
             }
     )
     @PostMapping("/authorization")
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
-                                                       @RequestBody String encydata,
-                                                       ApiMerchantCardOrganizationRequestDTO requestDTO) {
-        return CommonResult.success(openApiPaymentService.createPayment(encydata, requestDTO));
+                                                       @RequestBody String encryptedData,
+                                                       ApiMerchantPaymentRequestDTO requestDTO) {
+        return CommonResult.success(openApiPaymentService.createPayment(encryptedData, requestDTO));
     }
 }

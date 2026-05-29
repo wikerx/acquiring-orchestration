@@ -17,13 +17,16 @@ import java.util.TreeMap;
  * @classname : HmacSha256Signer
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
- * @description : HMAC SHA256 签名工具
+ * @description : 通用 HMAC-SHA256 签名工具，不作为 OpenAPI JWT 验签入口使用
  * @status : create
  */
 public class HmacSha256Signer {
 
     /**
-     * Java 标准加密扩展中的 HMAC-SHA256 算法名称，用于商户参数签名和兼容 JWT 签名格式。
+     * Java 标准加密扩展中的 HMAC-SHA256 算法名称。
+     * <p>
+     * 支付开放接口 JWT 验签统一走 {@code MerchantJwtVerifier + Hutool JWTSignerUtil.hs256}，
+     * 当前类仅保留给普通参数签名或历史兼容场景使用。
      */
     private static final String HMAC_SHA256 = "HmacSHA256";
 

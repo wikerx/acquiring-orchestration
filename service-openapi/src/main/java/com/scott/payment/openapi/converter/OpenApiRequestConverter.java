@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.converter;
 
-import com.scott.payment.openapi.dto.body.ApiMerchantCardOrganizationRequestDTO;
+import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.dto.body.PaymentCreateRequestDTO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.mapstruct.Mapper;
@@ -28,17 +28,17 @@ public interface OpenApiRequestConverter {
     PaymentCreateVO toPaymentCreateVO(PaymentCreateRequestDTO requestDTO);
 
     /**
-     * 将卡组统一请求 DTO 转换为创建响应。
+     * 将商户收单支付授权请求 DTO 转换为创建响应。
      *
-     * @param requestDTO 卡组统一请求 DTO
+     * @param requestDTO 商户收单支付授权请求 DTO
      * @return 创建响应
      */
-    default PaymentCreateVO toPaymentCreateVO(ApiMerchantCardOrganizationRequestDTO requestDTO) {
+    default PaymentCreateVO toPaymentCreateVO(ApiMerchantPaymentRequestDTO requestDTO) {
         PaymentCreateVO vo = new PaymentCreateVO();
         if (requestDTO == null || requestDTO.getOrderInfo() == null) {
             return vo;
         }
-        ApiMerchantCardOrganizationRequestDTO.OrderInfoDTO orderInfo = requestDTO.getOrderInfo();
+        ApiMerchantPaymentRequestDTO.OrderInfoDTO orderInfo = requestDTO.getOrderInfo();
         vo.setMerchantOrderNo(orderInfo.getTradeNo());
         vo.setCurrency(orderInfo.getCurrency());
         vo.setAmount(toMinorAmount(orderInfo.getAmount()));

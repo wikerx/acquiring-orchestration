@@ -18,6 +18,7 @@
 - [跨境支付系统工程约束](docs/payment-engineering.md)
 - [Spring Cloud 支付系统架构设计](docs/architecture/architecture-design.md)
 - [OpenAPI 授权认证规范](docs/api/openapi-authentication.md)
+- [OpenAPI 鉴权与加密流程](docs/api/openapi-security-flow.md)
 
 ## 工程结构
 

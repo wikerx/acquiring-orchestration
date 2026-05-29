@@ -25,7 +25,9 @@ public class OpenApiEncryptedRequestDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 商户提交的加密业务报文，解密后会转换成 {@link VerificationAndProcessing#dataReceiver()} 指定的 DTO。
+     * 商户提交的加密业务报文，使用 protectedHeader.encryptedKey.iv.cipherText.tag 五段式 compact 格式。
+     * <p>
+     * 解密后会转换成 {@link VerificationAndProcessing#dataReceiver()} 指定的 DTO。
      */
     @NotBlank(message = "data can not be blank")
     private String data;

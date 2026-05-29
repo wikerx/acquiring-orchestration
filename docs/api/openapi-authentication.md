@@ -1,5 +1,7 @@
 # OpenAPI 授权认证规范
 
+完整的 JWT 鉴权、RSA-OAEP-256/AES-256-GCM 混合加密、响应加密和防重放流程见 [OpenAPI 鉴权与加密流程](openapi-security-flow.md)。
+
 ## 1. 授权方式
 
 对外 API 统一使用 JWT HS256 作为请求头授权凭证。
@@ -65,11 +67,11 @@ POST /api/rest/payment/v1/authorization
 
 非法路径、未知接口、请求方法不支持、参数不合法、请求体解析失败等异常，统一返回 `CommonResult` JSON，不返回 HTML 错误页。
 
-JWT 负责授权认证；请求体按统一密文信封传递业务数据：
+JWT 负责授权认证；请求体按统一密文信封传递业务数据。`data` 必须使用 `protectedHeader.encryptedKey.iv.cipherText.tag` 五段式 compact 密文格式：
 
 ```json
 {
-  "data": "ciphertext"
+  "data": "base64url(protectedHeader).base64url(encryptedKey).base64url(iv).base64url(cipherText).base64url(tag)"
 }
 ```
 
@@ -112,7 +114,7 @@ JWT 负责授权认证；请求体按统一密文信封传递业务数据：
     "expirationYear": "2025",
     "securityCode": "123"
   },
-  "threeDsInfo": {
+  "threeDSInfo": {
     "eci": "212",
     "cavv": "KANiJlHEqL/yaEfVxr/BUoQBicnh",
     "dsTransactionId": "b96c957d-daa1-4b7f-b8b4-373fb9dec47b",
@@ -137,11 +139,11 @@ JWT 负责授权认证；请求体按统一密文信封传递业务数据：
 @RequestMapping("/api/rest/payment/{version}")
 public class OpenApiPaymentController {
 
-    @VerificationAndProcessing(dataReceiver = ApiMerchantCardOrganizationRequestDTO.class)
+    @VerificationAndProcessing(dataReceiver = ApiMerchantPaymentRequestDTO.class)
     @PostMapping("/authorization")
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
                                                        @RequestBody String encydata,
-                                                       ApiMerchantCardOrganizationRequestDTO requestDTO) {
+                                                       ApiMerchantPaymentRequestDTO requestDTO) {
         return CommonResult.success(openApiPaymentService.createPayment(encydata, requestDTO));
     }
 }

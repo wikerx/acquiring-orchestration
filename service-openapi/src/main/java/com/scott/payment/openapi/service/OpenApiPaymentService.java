@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.service;
 
-import com.scott.payment.openapi.dto.body.ApiMerchantCardOrganizationRequestDTO;
+import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 
 /**
@@ -21,5 +21,5 @@ public interface OpenApiPaymentService {
      * @param requestDTO    解密后的统一请求参数
      * @return 创建交易响应
      */
-    PaymentCreateVO createPayment(String encryptedData, ApiMerchantCardOrganizationRequestDTO requestDTO);
+    PaymentCreateVO createPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO);
 }

@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.config;
 
+import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,5 +25,15 @@ public class OpenApiSecurityConfig {
     @Bean
     public MerchantJwtVerifier merchantJwtVerifier() {
         return new MerchantJwtVerifier();
+    }
+
+    /**
+     * 注册 OpenAPI 报文加解密工具。
+     *
+     * @return OpenAPI 报文混合加密工具
+     */
+    @Bean
+    public OpenApiPayloadCrypto openApiPayloadCrypto() {
+        return new OpenApiPayloadCrypto();
     }
 }

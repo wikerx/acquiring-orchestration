@@ -3,13 +3,12 @@ package com.scott.payment.openapi.support;
 import com.scott.payment.component.core.enums.ApiCoResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.openapi.dto.body.OpenApiEncryptedRequestDTO;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
+import com.scott.payment.openapi.security.OpenApiPayloadKeyProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 
 /**
  * @author : scott
@@ -22,6 +21,21 @@ import java.util.Base64;
  */
 @Component
 public class OpenApiPayloadDecoder {
+
+    /**
+     * OpenAPI 报文混合加密工具，负责解析 data compact 密文并执行 RSA-OAEP/AES-GCM 解密。
+     */
+    private final OpenApiPayloadCrypto payloadCrypto;
+
+    /**
+     * 平台 RSA 私钥提供器，后续生产环境通过 Nacos、数据库或 KMS 按 kid 获取真实密钥。
+     */
+    private final OpenApiPayloadKeyProvider payloadKeyProvider;
+
+    public OpenApiPayloadDecoder(OpenApiPayloadCrypto payloadCrypto, OpenApiPayloadKeyProvider payloadKeyProvider) {
+        this.payloadCrypto = payloadCrypto;
+        this.payloadKeyProvider = payloadKeyProvider;
+    }
 
     /**
      * 解密并转换商户密文请求体。
@@ -64,28 +78,19 @@ public class OpenApiPayloadDecoder {
         }
     }
 
+    /**
+     * 使用平台私钥解密商户 data 密文。
+     * <p>
+     * 当前 headerDTO 已经由拦截器完成 JWT 验签，这里再次检查 merchantId，避免绕过拦截器直接进入请求体解析流程。
+     *
+     * @param encryptedData 商户提交的 compact 密文
+     * @param headerDTO     已验签的请求头上下文
+     * @return 解密后的业务 JSON 明文
+     */
     private String decrypt(String encryptedData, OpenApiRequestHeaderDTO headerDTO) {
-        // TODO 接入商户密钥后，在这里按 merchantId 做真实验真与解密。
-        String value = encryptedData.trim();
-        if (value.startsWith("{")) {
-            return value;
+        if (headerDTO == null || !StringUtils.hasText(headerDTO.getMerchantId())) {
+            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED);
         }
-        String decoded = tryBase64Decode(value);
-        if (decoded != null && decoded.trim().startsWith("{")) {
-            return decoded.trim();
-        }
-        return value;
-    }
-
-    private String tryBase64Decode(String value) {
-        try {
-            return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException ignored) {
-            try {
-                return new String(Base64.getUrlDecoder().decode(value), StandardCharsets.UTF_8);
-            } catch (IllegalArgumentException exception) {
-                return null;
-            }
-        }
+        return payloadCrypto.decrypt(encryptedData.trim(), payloadKeyProvider::getPlatformPrivateKey);
     }
 }

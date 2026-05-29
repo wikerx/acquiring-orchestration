@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.service.impl;
 
 import com.scott.payment.openapi.converter.OpenApiRequestConverter;
-import com.scott.payment.openapi.dto.body.ApiMerchantCardOrganizationRequestDTO;
+import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.service.OpenApiPaymentService;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.stereotype.Service;
@@ -35,7 +35,7 @@ public class OpenApiPaymentServiceImpl implements OpenApiPaymentService {
      * @return 创建交易响应
      */
     @Override
-    public PaymentCreateVO createPayment(String encryptedData, ApiMerchantCardOrganizationRequestDTO requestDTO) {
+    public PaymentCreateVO createPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return converter.toPaymentCreateVO(requestDTO);
     }
 }

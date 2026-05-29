@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.dto.body;
 
+import com.alibaba.fastjson2.annotation.JSONField;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -16,15 +17,15 @@ import jakarta.validation.constraints.Pattern;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : ApiMerchantCardOrganizationRequestDTO
+ * @classname : ApiMerchantPaymentRequestDTO
  * @date : 2026-05-28 16:22
  * @email : scott_x@163.com
- * @description : 开放接口卡交易统一请求参数
+ * @description : 开放接口收单支付授权统一请求参数
  * @status : create
  */
 @Data
 @NoArgsConstructor
-public class ApiMerchantCardOrganizationRequestDTO implements Serializable {
+public class ApiMerchantPaymentRequestDTO implements Serializable {
 
     /**
      * 序列化版本号，用于保证统一卡交易请求对象在接口、日志、消息等链路中的反序列化兼容性。
@@ -89,8 +90,11 @@ public class ApiMerchantCardOrganizationRequestDTO implements Serializable {
 
     /**
      * 3D Secure 认证信息，商户使用 3DS 交易时传入，用于渠道风控和责任转移判断。
+     * <p>
+     * API 文档使用字段名 threeDSInfo，这里保留 threeDsInfo Java 命名并通过 JSONField 兼容商户报文。
      */
     @Valid
+    @JSONField(name = "threeDSInfo", alternateNames = {"threeDsInfo"})
     private ThreeDsInfoDTO threeDsInfo;
 
     /**
@@ -111,7 +115,7 @@ public class ApiMerchantCardOrganizationRequestDTO implements Serializable {
      * 原交易或后续操作信息，退款、撤销、冲正等非首次授权接口通过该对象定位原交易。
      */
     @Valid
-    @NotNull(message = "transactionInfo", groups = {Refund.class, AuthorizationCancel.class, Reversal.class})
+    @NotNull(message = "transactionInfo", groups = {Authorization.class, Refund.class, AuthorizationCancel.class, Reversal.class})
     private TransactionInfoDTO transactionInfo;
 
     @Data
@@ -206,12 +210,44 @@ public class ApiMerchantCardOrganizationRequestDTO implements Serializable {
         private String subPhone;
 
         /**
+         * 子商户邮编，卡组织和通道可能按国家、卡品牌执行不同长度规则，当前先按通用 ASCII 长度校验。
+         */
+        @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,32}$", message = "merchantInfo.subMerchantInfo.subPostal format does not match", groups = {Format.class})
+        private String subPostal;
+
+        /**
+         * 子商户税号，供部分国家、区域或卡组织扩展风控使用。
+         */
+        @Pattern(regexp = "^$|^(?:[^\\u4e00-\\u9fa5·]{1,32})$", message = "merchantInfo.subMerchantInfo.subTaxId format does not match", groups = {Format.class})
+        private String subTaxId;
+
+        /**
          * 子商户 MCC 行业类别码，四位数字，用于卡组织行业识别和费率规则。
          */
         @NotBlank(message = "merchantInfo.subMerchantInfo.merchantCategory", groups = {Authorization.class})
         @Pattern(regexp = "^\\d{4}$", message = "merchantInfo.subMerchantInfo.merchantCategory format does not match", groups = {Format.class})
         private String merchantCategory;
 
+        /**
+         * Intes 代码，当前主要服务 Diners 等卡组扩展参数，非相关卡组可不传。
+         */
+        @Pattern(regexp = "^$|^[a-zA-Z0-9]{3,4}$", message = "merchantInfo.subMerchantInfo.intesCode format does not match", groups = {Format.class})
+        private String intesCode;
+
+        /**
+         * 费用类型，Diners 等卡组在请款或后续扩展交易中可能要求传入。
+         */
+        @Pattern(regexp = "^$|^[a-zA-Z0-9]{3}$", message = "merchantInfo.subMerchantInfo.chargeType format does not match", groups = {Format.class})
+        private String chargeType;
+
+        /**
+         * 校验个人名称和公司名称二选一。
+         * <p>
+         * 卡组织规则要求至少存在一个真实经营主体名称，避免只传子商户号但缺少可识别主体信息。
+         *
+         * @return true 表示子商户名称信息满足接口要求
+         */
+        @JSONField(serialize = false)
         @AssertTrue(message = "Must fill in one of merchantInfo.subMerchantInfo.subName or merchantInfo.subMerchantInfo.subCompanyName", groups = {Authorization.class})
         public boolean isSubNameOrCompanyNameValid() {
             return hasText(subName) || hasText(subCompanyName);
@@ -327,6 +363,7 @@ public class ApiMerchantCardOrganizationRequestDTO implements Serializable {
         private String postal;
 
         @AssertTrue(message = "The total length of billingCardHolderInfo.firstName and billingCardHolderInfo.lastName cannot exceed 64 characters", groups = {Authorization.class})
+        @JSONField(serialize = false)
         public boolean isFirstNameAndLastNameValid() {
             return length(firstName) + length(lastName) <= 64;
         }
@@ -416,7 +453,7 @@ public class ApiMerchantCardOrganizationRequestDTO implements Serializable {
         /**
          * 商户侧交易唯一标识，退款、撤销、冲正等后续操作通过它保证交易幂等。
          */
-        @NotBlank(message = "transactionInfo.transactionId", groups = {Refund.class, AuthorizationCancel.class, Reversal.class})
+        @NotBlank(message = "transactionInfo.transactionId", groups = {Authorization.class, Refund.class, AuthorizationCancel.class, Reversal.class})
         @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "transactionInfo.transactionId format does not match", groups = {Format.class})
         private String transactionId;
 
