@@ -20,6 +20,9 @@ import java.util.Set;
 @Component
 public class OpenApiValidator {
 
+    /**
+     * Spring Bean Validation 校验器，用于执行 DTO 字段约束和自定义断言规则。
+     */
     private final Validator validator;
 
     public OpenApiValidator(Validator validator) {

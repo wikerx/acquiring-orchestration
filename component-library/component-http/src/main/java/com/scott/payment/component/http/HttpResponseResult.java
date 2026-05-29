@@ -1,5 +1,7 @@
 package com.scott.payment.component.http;
 
+import lombok.Data;
+
 import java.io.Serializable;
 
 /**
@@ -11,11 +13,22 @@ import java.io.Serializable;
  * @description : HTTP 响应结果模型
  * @status : create
  */
+@Data
 public class HttpResponseResult implements Serializable {
 
+    /**
+     * 序列化版本号，用于保证 HTTP 响应对象在日志、缓存或服务间传递时的反序列化兼容性。
+     */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * HTTP 状态码，例如 200、400、500，用于判断远程调用协议层是否成功。
+     */
     private int status;
+
+    /**
+     * HTTP 响应体原文，调用方根据业务接口协议自行解析为 JSON、XML 或纯文本。
+     */
     private String body;
 
     public HttpResponseResult() {
@@ -23,22 +36,6 @@ public class HttpResponseResult implements Serializable {
 
     public HttpResponseResult(int status, String body) {
         this.status = status;
-        this.body = body;
-    }
-
-    public int getStatus() {
-        return status;
-    }
-
-    public void setStatus(int status) {
-        this.status = status;
-    }
-
-    public String getBody() {
-        return body;
-    }
-
-    public void setBody(String body) {
         this.body = body;
     }
 }

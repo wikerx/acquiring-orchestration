@@ -14,10 +14,17 @@ import java.util.regex.Pattern;
  */
 public final class SensitiveDataMaskUtils {
 
+    /**
+     * 卡号字段脱敏正则，匹配 cardNo 或 pan，并保留前 6 位和后 4 位用于排查与对账。
+     */
     private static final Pattern CARD_FIELD_PATTERN = Pattern.compile(
             "(\"(?:cardNo|pan)\"\\s*:\\s*\")([0-9]{6})([0-9]{1,9})([0-9]{4})(\")",
             Pattern.CASE_INSENSITIVE
     );
+
+    /**
+     * 安全码字段脱敏正则，匹配 securityCode、cvv、cvc，日志中统一替换为星号。
+     */
     private static final Pattern SECURITY_CODE_PATTERN = Pattern.compile(
             "(\"(?:securityCode|cvv|cvc)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE

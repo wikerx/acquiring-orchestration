@@ -17,6 +17,9 @@ import java.lang.reflect.Method;
  */
 public class ApiRequestHandlerMapping extends RequestMappingHandlerMapping {
 
+    /**
+     * REST 路由中的版本变量占位符，只有包含该占位符的控制器才启用版本匹配和降级逻辑。
+     */
     public static final String VERSION_FLAG = "{version}";
 
     /**

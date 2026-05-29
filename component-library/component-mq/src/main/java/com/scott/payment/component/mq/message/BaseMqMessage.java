@@ -1,5 +1,7 @@
 package com.scott.payment.component.mq.message;
 
+import lombok.Data;
+
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
@@ -12,27 +14,21 @@ import java.time.LocalDateTime;
  * @description : 基础消息体模型
  * @status : create
  */
+@Data
 public class BaseMqMessage implements Serializable {
 
+    /**
+     * 序列化版本号，用于保证 MQ 消息对象在生产、消费、重试和补偿场景下的兼容性。
+     */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 消息唯一标识，用于 MQ 幂等消费、日志追踪和问题排查。
+     */
     private String messageId;
+
+    /**
+     * 消息创建时间，用于计算延迟、过期和消费耗时。
+     */
     private LocalDateTime createdAt;
-
-    public String getMessageId() {
-        return messageId;
-    }
-
-    public void setMessageId(String messageId) {
-        this.messageId = messageId;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }
-

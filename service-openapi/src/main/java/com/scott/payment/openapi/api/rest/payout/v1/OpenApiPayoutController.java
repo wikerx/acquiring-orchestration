@@ -26,6 +26,9 @@ import javax.servlet.http.HttpServletRequest;
 @RequestMapping("/api/rest/payout/{version}")
 public class OpenApiPayoutController {
 
+    /**
+     * 开放接口代付业务服务，负责创建代付交易并承接后续状态流转。
+     */
     private final OpenApiPayoutService openApiPayoutService;
 
     public OpenApiPayoutController(OpenApiPayoutService openApiPayoutService) {

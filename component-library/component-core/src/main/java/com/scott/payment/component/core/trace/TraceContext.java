@@ -11,8 +11,14 @@ package com.scott.payment.component.core.trace;
  */
 public final class TraceContext {
 
+    /**
+     * 链路追踪请求头名称，网关、服务和日志 MDC 可使用该字段串联一次请求的全链路日志。
+     */
     public static final String TRACE_ID_HEADER = "X-Trace-Id";
 
+    /**
+     * 当前线程的 traceId 存储，适用于 Servlet 同步请求链路，线程复用前必须调用 clear 清理。
+     */
     private static final ThreadLocal<String> TRACE_ID = new ThreadLocal<>();
 
     private TraceContext() {
@@ -30,4 +36,3 @@ public final class TraceContext {
         TRACE_ID.remove();
     }
 }
-

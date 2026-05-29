@@ -18,6 +18,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class OpenApiPaymentServiceImpl implements OpenApiPaymentService {
 
+    /**
+     * OpenAPI 请求转换器，负责把外部公共请求 DTO 转换成当前接口响应或内部服务对象。
+     */
     private final OpenApiRequestConverter converter;
 
     public OpenApiPaymentServiceImpl(OpenApiRequestConverter converter) {

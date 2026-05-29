@@ -17,6 +17,9 @@ import java.util.Map;
  */
 public class MerchantSignatureVerifier implements SignatureVerifier {
 
+    /**
+     * HMAC-SHA256 签名器，负责生成期望签名，当前类只负责常量时间比较和验签编排。
+     */
     private final HmacSha256Signer signer = new HmacSha256Signer();
 
     @Override

@@ -18,6 +18,11 @@ import org.springframework.util.StringUtils;
 @Component
 public class LocalMerchantKeyProvider implements MerchantKeyProvider {
 
+    /**
+     * 本地默认商户 JWT 签名密钥。
+     * <p>
+     * 当前用于脚手架联调，生产环境应按 merchantId 从商户配置服务、数据库或 Nacos 独立配置中获取。
+     */
     private final String defaultMerchantKey;
 
     public LocalMerchantKeyProvider(@Value("${opgs.openapi.default-merchant-key:hGa8xl/kde6=C=O+}") String defaultMerchantKey) {

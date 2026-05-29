@@ -22,6 +22,9 @@ import java.util.TreeMap;
  */
 public class HmacSha256Signer {
 
+    /**
+     * Java 标准加密扩展中的 HMAC-SHA256 算法名称，用于商户参数签名和兼容 JWT 签名格式。
+     */
     private static final String HMAC_SHA256 = "HmacSHA256";
 
     /**

@@ -13,8 +13,14 @@ import com.scott.payment.component.core.result.IResult;
  */
 public class ServiceException extends RuntimeException {
 
+    /**
+     * 序列化版本号，用于保证异常对象在日志、RPC 或测试序列化场景下的兼容性。
+     */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 服务内部错误码，用于区分业务异常类型并交给统一异常处理器转换响应。
+     */
     private final String code;
 
     public ServiceException(String code, String message) {

@@ -18,6 +18,9 @@ import java.util.Map;
  */
 public final class HttpClientUtils {
 
+    /**
+     * 默认 HTTP 超时时间，单位毫秒，用于避免渠道或外部系统无响应导致调用线程长期阻塞。
+     */
     private static final int DEFAULT_TIMEOUT_MILLIS = 10000;
 
     private HttpClientUtils() {

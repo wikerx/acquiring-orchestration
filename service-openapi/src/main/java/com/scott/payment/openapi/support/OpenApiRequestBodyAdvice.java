@@ -31,7 +31,14 @@ import java.lang.reflect.Type;
 @Component
 public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
 
+    /**
+     * 开放 API 密文解码器，负责从请求体提取 data、解密并转换成目标 DTO。
+     */
     private final OpenApiPayloadDecoder payloadDecoder;
+
+    /**
+     * 开放 API 参数校验器，负责根据注解配置的校验分组执行 Bean Validation。
+     */
     private final OpenApiValidator openApiValidator;
 
     public OpenApiRequestBodyAdvice(OpenApiPayloadDecoder payloadDecoder, OpenApiValidator openApiValidator) {

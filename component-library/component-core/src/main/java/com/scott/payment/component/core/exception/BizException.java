@@ -11,8 +11,14 @@ package com.scott.payment.component.core.exception;
  */
 public class BizException extends RuntimeException {
 
+    /**
+     * 序列化版本号，用于保证异常对象在日志、RPC 或测试序列化场景下的兼容性。
+     */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 业务错误码，用于映射统一响应码和前端/调用方的错误处理逻辑。
+     */
     private final String code;
 
     public BizException(String code, String message) {
@@ -24,4 +30,3 @@ public class BizException extends RuntimeException {
         return code;
     }
 }
-

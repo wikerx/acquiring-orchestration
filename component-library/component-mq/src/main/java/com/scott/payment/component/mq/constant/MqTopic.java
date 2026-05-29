@@ -11,10 +11,16 @@ package com.scott.payment.component.mq.constant;
  */
 public final class MqTopic {
 
+    /**
+     * 收单交易事件主题，用于支付创建、状态变更、通知和对账相关异步消息。
+     */
     public static final String PAYMENT_EVENT = "payment-event";
+
+    /**
+     * 代付交易事件主题，用于代付创建、状态变更、通知和对账相关异步消息。
+     */
     public static final String PAYOUT_EVENT = "payout-event";
 
     private MqTopic() {
     }
 }
-

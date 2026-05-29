@@ -22,10 +22,24 @@ import java.util.Objects;
 @Data
 public class CommonResult<T> implements Serializable {
 
+    /**
+     * 序列化版本号，用于保证统一响应对象在服务间传输或日志落库时的反序列化兼容性。
+     */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 业务响应码，对外 API 使用 T/F/Z 等业务码，内部接口可使用基础错误码。
+     */
     private String code;
+
+    /**
+     * 响应描述，成功时返回成功信息，失败时返回商户或调用方可理解的错误说明。
+     */
     private String message;
+
+    /**
+     * 响应数据载荷，成功时承载业务结果，失败时通常为空。
+     */
     private T data;
 
     public static <T> CommonResult<T> success(T data) {

@@ -22,6 +22,9 @@ import javax.servlet.http.HttpServletResponse;
 @Component
 public class OpenApiHeaderInterceptor implements HandlerInterceptor {
 
+    /**
+     * 请求头提取器，负责校验必填请求头并完成商户 JWT 验签。
+     */
     private final OpenApiRequestHeaderExtractor headerExtractor;
 
     public OpenApiHeaderInterceptor(OpenApiRequestHeaderExtractor headerExtractor) {

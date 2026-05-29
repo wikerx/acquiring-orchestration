@@ -59,7 +59,14 @@ public enum ApiCoResultEnum implements IResult {
     CO_REQUEST_PARSE_ERROR("Z605", "Request parse error"),
     CO_RESPONSE_PARSE_ERROR("Z606", "Response parse error");
 
+    /**
+     * 对外响应码，T 表示成功或处理中，F 表示业务失败，Z 表示系统或渠道解析类异常。
+     */
     private final String code;
+
+    /**
+     * 对外响应描述，面向商户展示，内容应保持稳定、可读、避免泄露内部实现细节。
+     */
     private final String message;
 
     ApiCoResultEnum(String code, String message) {

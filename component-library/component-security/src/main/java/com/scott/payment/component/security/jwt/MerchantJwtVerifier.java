@@ -25,11 +25,34 @@ import java.util.Date;
  */
 public class MerchantJwtVerifier {
 
+    /**
+     * JWT Header 中约定的 token 类型，商户侧必须生成标准 JWT。
+     */
     private static final String JWT_TYPE = "JWT";
+
+    /**
+     * 开放 API 当前支持的 JWT 签名算法，固定为 HS256/HmacSHA256。
+     */
     private static final String JWT_ALGORITHM = "HS256";
+
+    /**
+     * JWT Payload 中 aud 的固定接收方，避免商户将其他系统 token 误用于网关。
+     */
     private static final String EXPECTED_AUDIENCE = "gateway";
+
+    /**
+     * JWT Payload 中 iss 的固定签发方，标识 token 由商户服务端签发。
+     */
     private static final String EXPECTED_ISSUER = "merchant";
+
+    /**
+     * JWT 最大有效时间窗口，单位秒，当前按支付接口要求限制为 3 分钟。
+     */
     private static final long MAX_TOKEN_SECONDS = 180L;
+
+    /**
+     * 允许的服务器与商户侧时钟偏移，单位秒，用于降低轻微时间漂移导致的误拒绝。
+     */
     private static final long ALLOWED_CLOCK_SKEW_SECONDS = 60L;
 
     /**

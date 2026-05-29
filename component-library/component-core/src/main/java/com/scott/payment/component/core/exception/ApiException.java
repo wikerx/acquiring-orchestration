@@ -13,6 +13,9 @@ import com.scott.payment.component.core.result.IResult;
  */
 public class ApiException extends ServiceException {
 
+    /**
+     * 序列化版本号，用于保证开放 API 异常对象在日志、RPC 或测试序列化场景下的兼容性。
+     */
     private static final long serialVersionUID = 1L;
 
     public ApiException(String code, String message) {

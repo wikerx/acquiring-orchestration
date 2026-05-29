@@ -17,6 +17,9 @@ import java.util.Map;
  */
 public class ApiVersionCondition implements RequestCondition<ApiVersionCondition> {
 
+    /**
+     * 当前控制器支持的 API 主版本号，例如 v1 对应 1、v2 对应 2。
+     */
     private final int apiVersion;
 
     public ApiVersionCondition(int apiVersion) {

@@ -27,6 +27,9 @@ import javax.servlet.http.HttpServletRequest;
 @RequestMapping("/api/rest/payment/{version}")
 public class OpenApiPaymentController {
 
+    /**
+     * 开放接口收单支付业务服务，负责创建授权、支付等收单交易。
+     */
     private final OpenApiPaymentService openApiPaymentService;
 
     public OpenApiPaymentController(OpenApiPaymentService openApiPaymentService) {

@@ -21,7 +21,14 @@ import java.util.List;
 @Configuration
 public class OpenApiWebMvcConfig implements WebMvcConfigurer {
 
+    /**
+     * 开放 API 请求头拦截器，进入控制器前完成 Authorization/JWT 校验。
+     */
     private final OpenApiHeaderInterceptor headerInterceptor;
+
+    /**
+     * 开放 API 参数解析器，用于把解密后的 DTO 注入控制器方法参数。
+     */
     private final OpenApiRequestArgumentResolver requestArgumentResolver;
 
     public OpenApiWebMvcConfig(OpenApiHeaderInterceptor headerInterceptor,

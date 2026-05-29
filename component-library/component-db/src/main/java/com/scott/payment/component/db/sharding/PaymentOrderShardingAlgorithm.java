@@ -11,6 +11,9 @@ package com.scott.payment.component.db.sharding;
  */
 public class PaymentOrderShardingAlgorithm {
 
+    /**
+     * 默认订单分表数量，当前按 16 张物理表做取模路由，后续可从 Nacos 或 ShardingSphere 配置读取。
+     */
     private static final int DEFAULT_TABLE_COUNT = 16;
 
     public String tableName(String logicalTableName, String merchantId, String orderNo) {
@@ -18,4 +21,3 @@ public class PaymentOrderShardingAlgorithm {
         return logicalTableName + "_" + hash % DEFAULT_TABLE_COUNT;
     }
 }
-

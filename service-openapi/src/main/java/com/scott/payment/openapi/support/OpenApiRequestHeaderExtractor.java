@@ -23,10 +23,24 @@ import javax.servlet.http.HttpServletRequest;
 @Component
 public class OpenApiRequestHeaderExtractor {
 
+    /**
+     * 开放 API 授权请求头名称，商户 JWT 默认从该请求头读取。
+     */
     private static final String HEADER_AUTHORIZATION = "authorization";
+
+    /**
+     * Authorization 请求头可选 Bearer 前缀，兼容标准网关和商户直连两种写法。
+     */
     private static final String BEARER_PREFIX = "Bearer ";
 
+    /**
+     * 商户 JWT 验签器，负责校验 Header、Payload、签名和有效期。
+     */
     private final MerchantJwtVerifier merchantJwtVerifier;
+
+    /**
+     * 商户密钥提供器，根据 JWT 中的 merchantId 查询 merchantKey。
+     */
     private final MerchantKeyProvider merchantKeyProvider;
 
     public OpenApiRequestHeaderExtractor(MerchantJwtVerifier merchantJwtVerifier,
