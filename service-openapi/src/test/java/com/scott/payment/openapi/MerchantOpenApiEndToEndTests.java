@@ -132,18 +132,22 @@ class MerchantOpenApiEndToEndTests {
         MerchantSecurityMaterialDTO onboardingMaterial = provisionMerchant();
         MerchantSecurityMaterialDTO clientMaterial = merchantSecurityService.getMerchantClientSecurityMaterial(MERCHANT_ID);
         String plainRequestJson = MerchantOpenApiTestSupport.authorizationPlainText(MERCHANT_ID, SUCCESS_TRADE_NO);
+        log.info("plainRequestJson={}", plainRequestJson);
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
                 payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64()),
                 clientMaterial.getPlatformPayloadKeyId()
         );
+        log.info("encryptedData={}", encryptedData);
         String authorization = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,
                 clientMaterial.getMerchantKey(),
                 System.currentTimeMillis() / 1000L,
                 SUCCESS_TRADE_NO
         );
+        log.info("authorization: {}", authorization);
         String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
+        log.info("httpRequestBody={}", httpRequestBody);
 
         log.info("商户准备调用OpenAPI-密钥摘要：merchantKey指纹={}，平台公钥kid={}，平台公钥指纹={}",
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
@@ -166,7 +170,9 @@ class MerchantOpenApiEndToEndTests {
                 .andReturn();
 
         String encryptedResponseJson = encryptServerResponseData(MERCHANT_ID, mvcResult.getResponse().getContentAsString());
+        log.info("encryptedResponseJson={}", encryptedResponseJson);
         PaymentCreateVO decryptedResponse = decryptMerchantResponseData(onboardingMaterial, encryptedResponseJson);
+        log.info("decryptedResponse={}", decryptedResponse);
 
         assertThat(decryptedResponse.getMerchantOrderNo()).isEqualTo(SUCCESS_TRADE_NO);
         assertThat(decryptedResponse.getCurrency()).isEqualTo("USD");
