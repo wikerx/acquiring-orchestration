@@ -161,8 +161,8 @@ MerchantOpenApiCredential credential = factory.generateMerchantCredential("20004
 当前 `service-openapi` 也提供了数据库初始化入口，测试和后续平台开户流程可以直接调用：
 
 ```java
-OpenApiMerchantSecurityMaterialDTO material =
-        openApiMerchantSecurityService.provisionMerchantSecurityMaterial(seedDTO);
+MerchantSecurityMaterialDTO material =
+        merchantSecurityService.provisionMerchantSecurityMaterial(seedDTO);
 ```
 
 该方法会写入商户基础信息、商户 JWT 密钥、平台请求体 RSA 密钥；如果传入 `merchantResponseKeyId`，再额外生成商户响应加密公钥。读请求通过 MyBatisPlus 查询对应表，写请求走 `master`，读请求走 `slave` 读组。当前 dev/test 主从均配置到同一个 MySQL，后续生产可把 `slave_1`、`slave_2` 指向真实从库。
@@ -173,6 +173,8 @@ OpenApiMerchantSecurityMaterialDTO material =
 
 1. `credential.merchantKey()`：商户 JWT HS256 签名密钥，只允许保存在商户服务端。
 2. `credential.platformPublicKeyPem()` 或 `credential.platformPublicKeyX509Base64()` + `credential.platformPayloadKeyId()`：用于加密请求体 `data`。
+
+因此默认接入不是“三把密钥都让商户维护”。商户默认只维护 `merchantKey` 和平台请求体公钥；平台私钥永远不下发。响应加密增强模式可选开启，开启后商户再维护自己生成的响应私钥，平台只保存商户响应公钥。
 
 平台服务端内部保存下面 2 项，绝对不能交给商户；下面的方法名只用于平台开发人员理解生成对象的字段，不是商户对接步骤：
 
@@ -187,7 +189,7 @@ OpenApiMerchantSecurityMaterialDTO material =
 
 | 表 | 主键/唯一键 | 核心字段 | 用途 |
 | --- | --- | --- | --- |
-| `base_merchant_info` | `merchant_id` | `merchant_name`、`merchant_status`、`merchant_category_code`、`country_code` | 查询商户是否存在、是否可用，保存外卡收单常用商户基础资料 |
+| `base_merchant_info` | `merchant_id` | `merchant_name`、`merchant_status`、`merchant_category_code`、`platform_payload_key_id`、`response_key_id`、`country_code` | 查询商户是否存在、是否可用，保存外卡收单常用商户基础资料和默认密钥编号 |
 | `base_merchant_jwt_key` | `merchant_id + key_version` | `merchant_key`、`algorithm`、`enabled`、`effective_time`、`expire_time` | 服务端按 `merchantId` 找到 merchantKey，完成 JWT HS256 验签 |
 | `base_platform_payload_key` | `platform_key_id` | `public_key_x509_base64`、`private_key_pkcs8_base64`、`enabled` | 商户用公钥加密请求，平台用私钥解密请求 |
 | `base_merchant_response_key` | `merchant_id + response_key_id` | `public_key_x509_base64`、`enabled` | 响应加密增强模式下，平台用商户响应公钥加密响应 `data` |
@@ -295,7 +297,7 @@ OpenApiHeaderInterceptor
     -> OpenApiValidator
     -> OpenApiRequestArgumentResolver
     -> OpenApiPaymentController
-    -> OpenApiPaymentService
+    -> PaymentService
 ```
 
 处理步骤：
@@ -323,12 +325,14 @@ OpenApiHeaderInterceptor
 @RequestMapping("/api/rest/payment/{version}")
 public class OpenApiPaymentController {
 
+    private final PaymentService paymentService;
+
     @VerificationAndProcessing(dataReceiver = ApiMerchantPaymentRequestDTO.class)
     @PostMapping("/authorization")
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
                                                        @RequestBody String encryptedData,
                                                        ApiMerchantPaymentRequestDTO requestDTO) {
-        return CommonResult.success(openApiPaymentService.createPayment(encryptedData, requestDTO));
+        return CommonResult.success(paymentService.createPayment(encryptedData, requestDTO));
     }
 }
 ```
@@ -393,7 +397,11 @@ public class OpenApiPaymentController {
 
 ```text
 service-openapi/src/test/java/com/scott/payment/openapi/OpenApiSecurityFlowTests.java
-service-openapi/src/test/java/com/scott/payment/openapi/OpenApiMerchantSecurityDatabaseFlowTests.java
+service-openapi/src/test/java/com/scott/payment/openapi/MerchantSecurityDatabaseFlowTests.java
+service-openapi/src/test/java/com/scott/payment/openapi/MerchantOnboardingFlowTests.java
+service-openapi/src/test/java/com/scott/payment/openapi/MerchantKeyCryptoUsageTests.java
+service-openapi/src/test/java/com/scott/payment/openapi/MerchantOpenApiEndToEndTests.java
+service-openapi/src/test/java/com/scott/payment/openapi/support/MerchantOpenApiTestSupport.java
 service-openapi/src/test/resources/sql/openapi-merchant-security-schema.sql
 ```
 
@@ -405,6 +413,9 @@ service-openapi/src/test/resources/sql/openapi-merchant-security-schema.sql
 4. `shouldCallAuthorizationApiWithJwtAndEncryptedPayload`：验证授权接口完整调用链路，并打印接口响应。
 5. `shouldCompleteMerchantOpenApiRoundTripWithDatabaseKeysAndEncryptedResponse`：模拟商户表、商户 JWT 密钥表、平台 RSA 密钥表、商户响应公钥表，覆盖商户加密请求、HTTP 调用、服务端成功验签、错误密钥、过期 JWT、密文篡改、DTO 解析、服务端响应加密和商户响应解密。
 6. `shouldCompleteMerchantOpenApiRoundTripWithMysqlAndMyBatisPlus`：连接真实 MySQL `payment_acquiring`，创建 OpenAPI 商户与密钥表，写入两个测试商户，通过 MyBatisPlus 查询商户基础信息、merchantKey、平台 RSA 公私钥和商户响应公钥，并完成同一条加解密闭环。
+7. `MerchantOnboardingFlowTests`：覆盖商户开户、商户侧材料查询、服务端内部材料查询、所有商户查询、JWT 密钥轮换和密钥迭代记录查询。
+8. `MerchantKeyCryptoUsageTests`：覆盖商户查询自身密钥、使用平台公钥加密请求体、平台使用商户响应公钥加密响应、商户使用响应私钥解密响应。
+9. `MerchantOpenApiEndToEndTests`：使用 MockMvc 直接调用 `service-openapi`，覆盖成功调用、响应增强加密解密、缺少请求头、错误 merchantKey、JWT 过期和密文篡改等异常分支。
 
 完整闭环用例中的关键步骤：
 

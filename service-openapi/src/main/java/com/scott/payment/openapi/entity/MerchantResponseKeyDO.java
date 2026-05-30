@@ -8,7 +8,7 @@ import lombok.EqualsAndHashCode;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiMerchantResponseKeyDO
+ * @classname : MerchantResponseKeyDO
  * @date : 2026-05-30 00:00
  * @email : scott_x@163.com
  * @description : OpenAPI 商户响应加密公钥数据库实体
@@ -17,7 +17,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("base_merchant_response_key")
-public class OpenApiMerchantResponseKeyDO extends BaseEntity {
+public class MerchantResponseKeyDO extends BaseEntity {
 
     /**
      * 序列化版本号，用于保证实体在缓存、测试或序列化传输场景中的兼容性。

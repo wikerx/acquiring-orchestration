@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiMerchantSecurityMaterialDTO
+ * @classname : MerchantSecurityMaterialDTO
  * @date : 2026-05-30 00:00
  * @email : scott_x@163.com
  * @description : OpenAPI 商户开户后生成的对接密钥材料
@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
  */
 @Data
 @NoArgsConstructor
-public class OpenApiMerchantSecurityMaterialDTO {
+public class MerchantSecurityMaterialDTO {
 
     /**
      * 支付框架颁发的商户号。

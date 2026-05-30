@@ -8,7 +8,7 @@ import lombok.EqualsAndHashCode;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiPlatformPayloadKeyDO
+ * @classname : PlatformPayloadKeyDO
  * @date : 2026-05-30 00:00
  * @email : scott_x@163.com
  * @description : OpenAPI 平台报文加密 RSA 密钥数据库实体
@@ -17,7 +17,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("base_platform_payload_key")
-public class OpenApiPlatformPayloadKeyDO extends BaseEntity {
+public class PlatformPayloadKeyDO extends BaseEntity {
 
     /**
      * 序列化版本号，用于保证实体在缓存、测试或序列化传输场景中的兼容性。

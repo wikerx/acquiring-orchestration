@@ -4,7 +4,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
-import com.scott.payment.openapi.service.OpenApiPaymentService;
+import com.scott.payment.openapi.service.PaymentService;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,10 +30,15 @@ public class OpenApiPaymentController {
     /**
      * 开放接口收单支付业务服务，负责创建授权、支付等收单交易。
      */
-    private final OpenApiPaymentService openApiPaymentService;
+    private final PaymentService paymentService;
 
-    public OpenApiPaymentController(OpenApiPaymentService openApiPaymentService) {
-        this.openApiPaymentService = openApiPaymentService;
+    /**
+     * 创建开放接口收单支付控制器。
+     *
+     * @param paymentService 开放接口收单支付业务服务
+     */
+    public OpenApiPaymentController(PaymentService paymentService) {
+        this.paymentService = paymentService;
     }
 
     /**
@@ -55,6 +60,6 @@ public class OpenApiPaymentController {
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
                                                        @RequestBody String encryptedData,
                                                        ApiMerchantPaymentRequestDTO requestDTO) {
-        return CommonResult.success(openApiPaymentService.createPayment(encryptedData, requestDTO));
+        return CommonResult.success(paymentService.createPayment(encryptedData, requestDTO));
     }
 }

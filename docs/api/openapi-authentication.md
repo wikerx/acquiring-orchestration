@@ -25,6 +25,13 @@ authorization: <jwt-token>
 <merchantKey>
 ```
 
+默认对接时，商户只需要保存两类材料：
+
+1. `merchantKey`：生成请求头 JWT。
+2. `platformPayloadKeyId + platformPublicKeyPem`：加密请求体 `data`。
+
+平台 RSA 私钥永远不下发给商户。响应加密增强模式是可选能力，只有响应或回调里确实要承载敏感数据时，才需要商户额外维护自己的响应 RSA 私钥，并把响应公钥交给平台保存。
+
 ## 3. JWT Header
 
 ```json
@@ -141,12 +148,14 @@ JWT 负责授权认证；请求体按统一密文信封传递业务数据。`dat
 @RequestMapping("/api/rest/payment/{version}")
 public class OpenApiPaymentController {
 
+    private final PaymentService paymentService;
+
     @VerificationAndProcessing(dataReceiver = ApiMerchantPaymentRequestDTO.class)
     @PostMapping("/authorization")
     public CommonResult<PaymentCreateVO> createPayment(HttpServletRequest request,
-                                                       @RequestBody String encydata,
+                                                       @RequestBody String encryptedData,
                                                        ApiMerchantPaymentRequestDTO requestDTO) {
-        return CommonResult.success(openApiPaymentService.createPayment(encydata, requestDTO));
+        return CommonResult.success(paymentService.createPayment(encryptedData, requestDTO));
     }
 }
 ```

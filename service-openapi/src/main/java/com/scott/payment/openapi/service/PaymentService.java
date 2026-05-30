@@ -6,13 +6,13 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiPaymentService
+ * @classname : PaymentService
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
  * @description : 开放接口收单支付服务接口
  * @status : create
  */
-public interface OpenApiPaymentService {
+public interface PaymentService {
 
     /**
      * 创建收单支付交易。

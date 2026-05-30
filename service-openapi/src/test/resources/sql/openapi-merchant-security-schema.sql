@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     merchant_short_name VARCHAR(64) NULL COMMENT '商户简称',
     merchant_status VARCHAR(16) NOT NULL COMMENT '商户状态：ACTIVE/FROZEN/CLOSED',
     merchant_category_code VARCHAR(4) NOT NULL COMMENT '商户类别码MCC',
+    platform_payload_key_id VARCHAR(64) NULL COMMENT '商户默认使用的平台请求体RSA公钥编号kid',
+    response_key_id VARCHAR(64) NULL COMMENT '响应加密增强模式下的商户响应公钥编号kid',
     country_code CHAR(3) NOT NULL COMMENT '商户所在国家三字码',
     region_code VARCHAR(16) NULL COMMENT '商户所在州、省或区域代码',
     city VARCHAR(64) NULL COMMENT '商户所在城市',
@@ -21,6 +23,36 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     UNIQUE KEY uk_base_merchant_info_mid (merchant_id),
     KEY idx_base_merchant_status (merchant_status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础商户信息表';
+
+SET @add_platform_payload_key_id_sql = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE base_merchant_info ADD COLUMN platform_payload_key_id VARCHAR(64) NULL COMMENT ''商户默认使用的平台请求体RSA公钥编号kid'' AFTER merchant_category_code',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'platform_payload_key_id'
+);
+PREPARE add_platform_payload_key_id_stmt FROM @add_platform_payload_key_id_sql;
+EXECUTE add_platform_payload_key_id_stmt;
+DEALLOCATE PREPARE add_platform_payload_key_id_stmt;
+
+SET @add_response_key_id_sql = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE base_merchant_info ADD COLUMN response_key_id VARCHAR(64) NULL COMMENT ''响应加密增强模式下的商户响应公钥编号kid'' AFTER platform_payload_key_id',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'response_key_id'
+);
+PREPARE add_response_key_id_stmt FROM @add_response_key_id_sql;
+EXECUTE add_response_key_id_stmt;
+DEALLOCATE PREPARE add_response_key_id_stmt;
 
 CREATE TABLE IF NOT EXISTS base_merchant_jwt_key (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',

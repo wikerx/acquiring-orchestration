@@ -8,7 +8,7 @@ import lombok.EqualsAndHashCode;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiMerchantInfoDO
+ * @classname : MerchantInfoDO
  * @date : 2026-05-30 00:00
  * @email : scott_x@163.com
  * @description : OpenAPI 商户基础信息数据库实体
@@ -17,7 +17,7 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("base_merchant_info")
-public class OpenApiMerchantInfoDO extends BaseEntity {
+public class MerchantInfoDO extends BaseEntity {
 
     /**
      * 序列化版本号，用于保证实体在缓存、测试或序列化传输场景中的兼容性。
@@ -48,6 +48,20 @@ public class OpenApiMerchantInfoDO extends BaseEntity {
      * 商户类别码，外卡收单通常使用 MCC 四位数字识别商户经营类型。
      */
     private String merchantCategoryCode;
+
+    /**
+     * 商户默认使用的平台请求体 RSA 公钥编号。
+     * <p>
+     * 商户加密请求体 data 时把该值写入 compact header 的 kid，服务端据此查找平台私钥解密。
+     */
+    private String platformPayloadKeyId;
+
+    /**
+     * 响应加密增强模式下的商户响应公钥编号。
+     * <p>
+     * 默认开放接口可为空；只有启用响应 data 加密时，服务端才使用该编号查找商户响应公钥。
+     */
+    private String responseKeyId;
 
     /**
      * 商户所在国家三字码，使用 ISO 3166-1 alpha-3，例如 USA、CAN、GBR。

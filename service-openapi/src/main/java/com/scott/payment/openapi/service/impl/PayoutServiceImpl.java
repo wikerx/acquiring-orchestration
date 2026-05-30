@@ -1,20 +1,26 @@
 package com.scott.payment.openapi.service.impl;
 
 import com.scott.payment.openapi.dto.body.PayoutCreateRequestDTO;
-import com.scott.payment.openapi.service.OpenApiPayoutService;
+import com.scott.payment.openapi.service.PayoutService;
 import org.springframework.stereotype.Service;
 
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiPayoutServiceImpl
+ * @classname : PayoutServiceImpl
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
  * @description : 开放接口代付服务实现
  * @status : create
  */
 @Service
-public class OpenApiPayoutServiceImpl implements OpenApiPayoutService {
+public class PayoutServiceImpl implements PayoutService {
+
+    /**
+     * 创建开放接口代付服务实现。
+     */
+    public PayoutServiceImpl() {
+    }
 
     /**
      * 创建代付交易。

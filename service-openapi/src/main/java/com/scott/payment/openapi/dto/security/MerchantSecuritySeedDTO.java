@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiMerchantSecuritySeedDTO
+ * @classname : MerchantSecuritySeedDTO
  * @date : 2026-05-30 00:00
  * @email : scott_x@163.com
  * @description : OpenAPI 商户安全材料初始化入参
@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
  */
 @Data
 @NoArgsConstructor
-public class OpenApiMerchantSecuritySeedDTO {
+public class MerchantSecuritySeedDTO {
 
     /**
      * 支付框架颁发的商户号，必须全局唯一。

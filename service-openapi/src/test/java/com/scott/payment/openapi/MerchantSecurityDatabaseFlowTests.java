@@ -13,9 +13,9 @@ import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
-import com.scott.payment.openapi.dto.security.OpenApiMerchantSecurityMaterialDTO;
-import com.scott.payment.openapi.dto.security.OpenApiMerchantSecuritySeedDTO;
-import com.scott.payment.openapi.service.OpenApiMerchantSecurityService;
+import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
+import com.scott.payment.openapi.dto.security.MerchantSecuritySeedDTO;
+import com.scott.payment.openapi.service.MerchantSecurityService;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,7 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiMerchantSecurityDatabaseFlowTests
+ * @classname : MerchantSecurityDatabaseFlowTests
  * @date : 2026-05-30 00:00
  * @email : scott_x@163.com
  * @description : OpenAPI 商户密钥 MySQL 存储、MyBatisPlus 查询和加密接口调用集成测试
@@ -56,7 +56,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("mysql-test")
 @SpringBootTest(classes = OpenApiApplication.class)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
-class OpenApiMerchantSecurityDatabaseFlowTests {
+class MerchantSecurityDatabaseFlowTests {
 
     /**
      * 主测试商户号，模拟真实外卡收单商户。
@@ -116,7 +116,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
     /**
      * OpenAPI 商户安全服务，内部通过 MyBatisPlus Mapper 查询商户和密钥表。
      */
-    private final OpenApiMerchantSecurityService merchantSecurityService;
+    private final MerchantSecurityService merchantSecurityService;
 
     /**
      * OpenAPI 报文加解密工具，用于模拟商户加密请求和服务端响应加密。
@@ -134,12 +134,12 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
     @Autowired
-    OpenApiMerchantSecurityDatabaseFlowTests(MockMvc mockMvc,
-                                             JdbcTemplate jdbcTemplate,
-                                             OpenApiMerchantSecurityService merchantSecurityService,
-                                             OpenApiPayloadCrypto payloadCrypto,
-                                             MerchantJwtVerifier merchantJwtVerifier,
-                                             OpenApiKeyMaterialFactory keyMaterialFactory) {
+    MerchantSecurityDatabaseFlowTests(MockMvc mockMvc,
+                                      JdbcTemplate jdbcTemplate,
+                                      MerchantSecurityService merchantSecurityService,
+                                      OpenApiPayloadCrypto payloadCrypto,
+                                      MerchantJwtVerifier merchantJwtVerifier,
+                                      OpenApiKeyMaterialFactory keyMaterialFactory) {
         this.mockMvc = mockMvc;
         this.jdbcTemplate = jdbcTemplate;
         this.merchantSecurityService = merchantSecurityService;
@@ -152,7 +152,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
      * 清理当前测试商户数据，避免重复执行测试时历史密钥影响断言。
      */
     @BeforeEach
-    void cleanOpenApiMerchantSecurityData() {
+    void cleanMerchantSecurityData() {
         jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
         jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
         jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE platform_key_id IN (?, ?)", PLATFORM_KEY_ID, SECOND_PLATFORM_KEY_ID);
@@ -166,8 +166,8 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
      */
     @Test
     void shouldCompleteMerchantOpenApiRoundTripWithMysqlAndMyBatisPlus() throws Exception {
-        OpenApiMerchantSecurityMaterialDTO merchantMaterial = provisionMerchant(MERCHANT_ID, PLATFORM_KEY_ID, RESPONSE_KEY_ID);
-        OpenApiMerchantSecurityMaterialDTO secondMerchantMaterial = provisionMerchant(
+        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchant(MERCHANT_ID, PLATFORM_KEY_ID, RESPONSE_KEY_ID);
+        MerchantSecurityMaterialDTO secondMerchantMaterial = provisionMerchant(
                 SECOND_MERCHANT_ID,
                 SECOND_PLATFORM_KEY_ID,
                 SECOND_RESPONSE_KEY_ID
@@ -213,8 +213,8 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         assertThat(merchantResponse.getAmount()).isEqualTo(1_238_945L);
     }
 
-    private OpenApiMerchantSecurityMaterialDTO provisionMerchant(String merchantId, String platformKeyId, String responseKeyId) {
-        OpenApiMerchantSecuritySeedDTO seedDTO = new OpenApiMerchantSecuritySeedDTO();
+    private MerchantSecurityMaterialDTO provisionMerchant(String merchantId, String platformKeyId, String responseKeyId) {
+        MerchantSecuritySeedDTO seedDTO = new MerchantSecuritySeedDTO();
         seedDTO.setMerchantId(merchantId);
         seedDTO.setMerchantName("Scott Test Merchant " + merchantId);
         seedDTO.setMerchantShortName("ScottMerchant" + merchantId);
@@ -233,8 +233,8 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         return merchantSecurityService.provisionMerchantSecurityMaterial(seedDTO);
     }
 
-    private void logProvisionedSecurityMaterials(OpenApiMerchantSecurityMaterialDTO merchantMaterial,
-                                                 OpenApiMerchantSecurityMaterialDTO secondMerchantMaterial) {
+    private void logProvisionedSecurityMaterials(MerchantSecurityMaterialDTO merchantMaterial,
+                                                 MerchantSecurityMaterialDTO secondMerchantMaterial) {
         log.info("系统生成商户密钥材料，商户数量：2，主商户号：{}，第二商户号：{}",
                 merchantMaterial.getMerchantId(),
                 secondMerchantMaterial.getMerchantId());
@@ -249,8 +249,8 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         log.info("密钥关联关系：merchant_id关联merchantKey；platform_key_id关联平台RSA公私钥；response_key_id关联商户响应公钥和商户侧响应私钥");
     }
 
-    private void assertDatabaseLookupByMyBatisPlus(OpenApiMerchantSecurityMaterialDTO merchantMaterial,
-                                                   OpenApiMerchantSecurityMaterialDTO secondMerchantMaterial) {
+    private void assertDatabaseLookupByMyBatisPlus(MerchantSecurityMaterialDTO merchantMaterial,
+                                                   MerchantSecurityMaterialDTO secondMerchantMaterial) {
         assertThat(merchantSecurityService.getActiveMerchant(merchantMaterial.getMerchantId()).getMerchantName())
                 .isEqualTo(merchantMaterial.getMerchantName());
         assertThat(merchantSecurityService.getMerchantKey(merchantMaterial.getMerchantId()))
@@ -268,7 +268,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
                 secondMerchantMaterial.getMerchantId());
     }
 
-    private String encryptMerchantRequestData(OpenApiMerchantSecurityMaterialDTO merchantMaterial, String plainRequestJson) {
+    private String encryptMerchantRequestData(MerchantSecurityMaterialDTO merchantMaterial, String plainRequestJson) {
         String encryptedRequestData = payloadCrypto.encrypt(
                 plainRequestJson,
                 merchantSecurityService.getPlatformPublicKey(merchantMaterial.getPlatformPayloadKeyId()),
@@ -299,7 +299,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
 
     private void verifyServerReceiveAndSecurityBranches(String authorization,
                                                         String encryptedRequestData,
-                                                        OpenApiMerchantSecurityMaterialDTO merchantMaterial) {
+                                                        MerchantSecurityMaterialDTO merchantMaterial) {
         String merchantId = merchantJwtVerifier.peekMerchantId(authorization);
         String merchantKey = merchantSecurityService.getMerchantKey(merchantId);
         JwtMerchantClaims claims = merchantJwtVerifier.verify(authorization, merchantKey);
@@ -362,7 +362,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         return JsonUtils.toJsonString(encryptedResponse);
     }
 
-    private PaymentCreateVO decryptMerchantResponseData(OpenApiMerchantSecurityMaterialDTO merchantMaterial,
+    private PaymentCreateVO decryptMerchantResponseData(MerchantSecurityMaterialDTO merchantMaterial,
                                                         String encryptedResponseJson) {
         Map<String, Object> responseMap = JsonUtils.parseObject(encryptedResponseJson, new TypeReference<Map<String, Object>>() {
         });
@@ -381,7 +381,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         return responseVO;
     }
 
-    private PrivateKey resolveMerchantResponsePrivateKey(OpenApiMerchantSecurityMaterialDTO merchantMaterial, String keyId) {
+    private PrivateKey resolveMerchantResponsePrivateKey(MerchantSecurityMaterialDTO merchantMaterial, String keyId) {
         assertThat(keyId).isEqualTo(merchantMaterial.getMerchantResponseKeyId());
         return payloadCrypto.readPrivateKey(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64());
     }

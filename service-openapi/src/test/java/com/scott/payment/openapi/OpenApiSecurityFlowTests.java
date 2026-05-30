@@ -20,7 +20,7 @@ import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentController;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
 import com.scott.payment.openapi.security.OpenApiPayloadKeyProvider;
-import com.scott.payment.openapi.service.OpenApiPaymentService;
+import com.scott.payment.openapi.service.PaymentService;
 import com.scott.payment.openapi.support.OpenApiHeaderInterceptor;
 import com.scott.payment.openapi.support.OpenApiPayloadDecoder;
 import com.scott.payment.openapi.support.OpenApiRequestArgumentResolver;
@@ -306,7 +306,7 @@ class OpenApiSecurityFlowTests {
         OpenApiRequestHeaderExtractor headerExtractor = new OpenApiRequestHeaderExtractor(
                 new MerchantJwtVerifier(),
                 merchantKeyProvider);
-        OpenApiPaymentService paymentService = (encryptedData, requestDTO) -> {
+        PaymentService paymentService = (encryptedData, requestDTO) -> {
             capturedRequest.set(requestDTO);
             PaymentCreateVO response = new PaymentCreateVO();
             response.setMerchantOrderNo(requestDTO.getOrderInfo().getTradeNo());

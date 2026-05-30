@@ -5,13 +5,13 @@ import com.scott.payment.openapi.dto.body.PayoutCreateRequestDTO;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiPayoutService
+ * @classname : PayoutService
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
  * @description : 开放接口代付服务接口
  * @status : create
  */
-public interface OpenApiPayoutService {
+public interface PayoutService {
 
     /**
      * 创建代付交易。

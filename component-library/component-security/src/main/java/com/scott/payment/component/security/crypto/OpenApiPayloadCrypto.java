@@ -71,6 +71,31 @@ public class OpenApiPayloadCrypto {
     private static final String RSA_ALGORITHM = "RSA";
 
     /**
+     * PEM 文本每行字符数，使用 64 字符便于 OpenSSL、PHP、Go 等工具读取。
+     */
+    private static final int PEM_LINE_LENGTH = 64;
+
+    /**
+     * X.509 公钥 PEM 开始标识。
+     */
+    private static final String PUBLIC_KEY_BEGIN = "-----BEGIN PUBLIC KEY-----";
+
+    /**
+     * X.509 公钥 PEM 结束标识。
+     */
+    private static final String PUBLIC_KEY_END = "-----END PUBLIC KEY-----";
+
+    /**
+     * PKCS#8 私钥 PEM 开始标识。
+     */
+    private static final String PRIVATE_KEY_BEGIN = "-----BEGIN PRIVATE KEY-----";
+
+    /**
+     * PKCS#8 私钥 PEM 结束标识。
+     */
+    private static final String PRIVATE_KEY_END = "-----END PRIVATE KEY-----";
+
+    /**
      * AES 会话密钥长度，32 字节即 256 bit。
      */
     private static final int AES_KEY_BYTES = 32;
@@ -209,6 +234,29 @@ public class OpenApiPayloadCrypto {
         } catch (Exception exception) {
             throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "openapi rsa key pair can not be generated");
         }
+    }
+
+    /**
+     * 将 X.509 DER Base64 公钥转换为 PEM 文本。
+     * <p>
+     * 商户侧 Java、PHP、Go、C/OpenSSL 等不同技术栈通常更容易直接读取 PEM 格式，
+     * 因此统一在安全组件中提供格式转换，避免测试类或业务代码散落重复工具逻辑。
+     *
+     * @param publicKeyBase64 X.509 DER Base64 公钥
+     * @return X.509 PEM 公钥
+     */
+    public String toPublicKeyPem(String publicKeyBase64) {
+        return toPem(publicKeyBase64, PUBLIC_KEY_BEGIN, PUBLIC_KEY_END);
+    }
+
+    /**
+     * 将 PKCS#8 DER Base64 私钥转换为 PEM 文本。
+     *
+     * @param privateKeyBase64 PKCS#8 DER Base64 私钥
+     * @return PKCS#8 PEM 私钥
+     */
+    public String toPrivateKeyPem(String privateKeyBase64) {
+        return toPem(privateKeyBase64, PRIVATE_KEY_BEGIN, PRIVATE_KEY_END);
     }
 
     /**
@@ -368,5 +416,22 @@ public class OpenApiPayloadCrypto {
                 .replace("-----BEGIN PRIVATE KEY-----", "")
                 .replace("-----END PRIVATE KEY-----", "")
                 .replaceAll("\\s", "");
+    }
+
+    /**
+     * 将 DER Base64 文本按 PEM 头尾和 64 字符换行规则封装。
+     *
+     * @param base64 DER Base64 文本
+     * @param begin  PEM 开始标识
+     * @param end    PEM 结束标识
+     * @return PEM 文本
+     */
+    private String toPem(String base64, String begin, String end) {
+        String normalizedBase64 = normalizePem(base64);
+        StringBuilder builder = new StringBuilder(begin).append('\n');
+        for (int index = 0; index < normalizedBase64.length(); index += PEM_LINE_LENGTH) {
+            builder.append(normalizedBase64, index, Math.min(index + PEM_LINE_LENGTH, normalizedBase64.length())).append('\n');
+        }
+        return builder.append(end).toString();
     }
 }

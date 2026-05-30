@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : OpenApiMerchantJwtKeyDO
+ * @classname : MerchantJwtKeyDO
  * @date : 2026-05-30 00:00
  * @email : scott_x@163.com
  * @description : OpenAPI 商户 JWT 签名密钥数据库实体
@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("base_merchant_jwt_key")
-public class OpenApiMerchantJwtKeyDO extends BaseEntity {
+public class MerchantJwtKeyDO extends BaseEntity {
 
     /**
      * 序列化版本号，用于保证实体在缓存、测试或序列化传输场景中的兼容性。

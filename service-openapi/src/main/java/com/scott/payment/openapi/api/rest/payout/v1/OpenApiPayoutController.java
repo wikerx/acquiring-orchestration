@@ -4,7 +4,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.dto.body.PayoutCreateRequestDTO;
-import com.scott.payment.openapi.service.OpenApiPayoutService;
+import com.scott.payment.openapi.service.PayoutService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,25 +29,30 @@ public class OpenApiPayoutController {
     /**
      * 开放接口代付业务服务，负责创建代付交易并承接后续状态流转。
      */
-    private final OpenApiPayoutService openApiPayoutService;
+    private final PayoutService payoutService;
 
-    public OpenApiPayoutController(OpenApiPayoutService openApiPayoutService) {
-        this.openApiPayoutService = openApiPayoutService;
+    /**
+     * 创建开放接口代付控制器。
+     *
+     * @param payoutService 开放接口代付业务服务
+     */
+    public OpenApiPayoutController(PayoutService payoutService) {
+        this.payoutService = payoutService;
     }
 
     /**
      * 创建代付交易。
      *
      * @param request    Servlet 请求上下文
-     * @param encydata   商户密文请求体
+     * @param encryptedData 商户密文请求体
      * @param requestDTO 解密后的代付请求参数
      * @return 代付交易受理结果
      */
     @VerificationAndProcessing(dataReceiver = PayoutCreateRequestDTO.class)
     @PostMapping("/create")
     public CommonResult<String> createPayout(HttpServletRequest request,
-                                             @RequestBody String encydata,
+                                             @RequestBody String encryptedData,
                                              PayoutCreateRequestDTO requestDTO) {
-        return CommonResult.success(openApiPayoutService.createPayout(encydata, requestDTO));
+        return CommonResult.success(payoutService.createPayout(encryptedData, requestDTO));
     }
 }
