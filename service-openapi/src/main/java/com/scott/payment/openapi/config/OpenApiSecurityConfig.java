@@ -2,6 +2,7 @@ package com.scott.payment.openapi.config;
 
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
+import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -35,5 +36,15 @@ public class OpenApiSecurityConfig {
     @Bean
     public OpenApiPayloadCrypto openApiPayloadCrypto() {
         return new OpenApiPayloadCrypto();
+    }
+
+    /**
+     * 注册 OpenAPI 密钥材料生成入口。
+     *
+     * @return OpenAPI 商户密钥材料生成器
+     */
+    @Bean
+    public OpenApiKeyMaterialFactory openApiKeyMaterialFactory() {
+        return new OpenApiKeyMaterialFactory();
     }
 }

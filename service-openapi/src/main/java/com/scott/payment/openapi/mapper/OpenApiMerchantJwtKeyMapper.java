@@ -1,0 +1,18 @@
+package com.scott.payment.openapi.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.scott.payment.openapi.entity.OpenApiMerchantJwtKeyDO;
+import org.apache.ibatis.annotations.Mapper;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiMerchantJwtKeyMapper
+ * @date : 2026-05-30 00:00
+ * @email : scott_x@163.com
+ * @description : OpenAPI 商户 JWT 签名密钥 MyBatisPlus Mapper
+ * @status : create
+ */
+@Mapper
+public interface OpenApiMerchantJwtKeyMapper extends BaseMapper<OpenApiMerchantJwtKeyDO> {
+}
