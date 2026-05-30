@@ -171,21 +171,27 @@ public class OpenApiMerchantSecurityServiceImpl implements OpenApiMerchantSecuri
         validateSeed(seedDTO);
         LocalDateTime now = LocalDateTime.now();
         String platformKeyId = defaultIfBlank(seedDTO.getPlatformPayloadKeyId(), "payment-platform-payload-v1");
-        String responseKeyId = defaultIfBlank(seedDTO.getMerchantResponseKeyId(), seedDTO.getMerchantId() + "-response-v1");
+        String responseKeyId = seedDTO.getMerchantResponseKeyId();
 
         RsaKeyMaterial platformPayloadKey = keyMaterialFactory.generatePlatformPayloadRsaKey(platformKeyId);
         MerchantOpenApiCredential merchantCredential = keyMaterialFactory.generateMerchantCredential(
                 seedDTO.getMerchantId(),
                 platformPayloadKey
         );
-        KeyPair merchantResponseKeyPair = payloadCrypto.generateRsaKeyPair(RSA_KEY_SIZE);
-        String merchantResponsePublicKey = Base64.getEncoder().encodeToString(merchantResponseKeyPair.getPublic().getEncoded());
-        String merchantResponsePrivateKey = Base64.getEncoder().encodeToString(merchantResponseKeyPair.getPrivate().getEncoded());
+        String merchantResponsePublicKey = null;
+        String merchantResponsePrivateKey = null;
+        if (StringUtils.hasText(responseKeyId)) {
+            KeyPair merchantResponseKeyPair = payloadCrypto.generateRsaKeyPair(RSA_KEY_SIZE);
+            merchantResponsePublicKey = Base64.getEncoder().encodeToString(merchantResponseKeyPair.getPublic().getEncoded());
+            merchantResponsePrivateKey = Base64.getEncoder().encodeToString(merchantResponseKeyPair.getPrivate().getEncoded());
+        }
 
         upsertMerchantInfo(seedDTO, now);
         upsertMerchantJwtKey(seedDTO.getMerchantId(), merchantCredential.merchantKey(), now);
         upsertPlatformPayloadKey(platformPayloadKey, now);
-        upsertMerchantResponseKey(seedDTO.getMerchantId(), responseKeyId, merchantResponsePublicKey, now);
+        if (StringUtils.hasText(responseKeyId)) {
+            upsertMerchantResponseKey(seedDTO.getMerchantId(), responseKeyId, merchantResponsePublicKey, now);
+        }
 
         OpenApiMerchantSecurityMaterialDTO materialDTO = new OpenApiMerchantSecurityMaterialDTO();
         materialDTO.setMerchantId(seedDTO.getMerchantId());
@@ -196,10 +202,12 @@ public class OpenApiMerchantSecurityServiceImpl implements OpenApiMerchantSecuri
         materialDTO.setPlatformPayloadKeyId(platformPayloadKey.keyId());
         materialDTO.setPlatformPublicKeyX509Base64(platformPayloadKey.publicKeyX509Base64());
         materialDTO.setPlatformPublicKeyPem(platformPayloadKey.publicKeyPem());
-        materialDTO.setMerchantResponseKeyId(responseKeyId);
-        materialDTO.setMerchantResponsePublicKeyX509Base64(merchantResponsePublicKey);
-        materialDTO.setMerchantResponsePrivateKeyPkcs8Base64(merchantResponsePrivateKey);
-        materialDTO.setMerchantResponsePrivateKeyPem(toPrivateKeyPem(merchantResponsePrivateKey));
+        if (StringUtils.hasText(responseKeyId)) {
+            materialDTO.setMerchantResponseKeyId(responseKeyId);
+            materialDTO.setMerchantResponsePublicKeyX509Base64(merchantResponsePublicKey);
+            materialDTO.setMerchantResponsePrivateKeyPkcs8Base64(merchantResponsePrivateKey);
+            materialDTO.setMerchantResponsePrivateKeyPem(toPrivateKeyPem(merchantResponsePrivateKey));
+        }
         return materialDTO;
     }
 

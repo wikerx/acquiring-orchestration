@@ -165,7 +165,7 @@ OpenApiMerchantSecurityMaterialDTO material =
         openApiMerchantSecurityService.provisionMerchantSecurityMaterial(seedDTO);
 ```
 
-该方法会写入商户基础信息、商户 JWT 密钥、平台请求体 RSA 密钥和商户响应公钥；读请求通过 MyBatisPlus 查询对应表，写请求走 `master`，读请求走 `slave` 读组。当前 dev/test 主从均配置到同一个 MySQL，后续生产可把 `slave_1`、`slave_2` 指向真实从库。
+该方法会写入商户基础信息、商户 JWT 密钥、平台请求体 RSA 密钥；如果传入 `merchantResponseKeyId`，再额外生成商户响应加密公钥。读请求通过 MyBatisPlus 查询对应表，写请求走 `master`，读请求走 `slave` 读组。当前 dev/test 主从均配置到同一个 MySQL，后续生产可把 `slave_1`、`slave_2` 指向真实从库。
 
 生成后交付与保存：
 
@@ -187,18 +187,18 @@ OpenApiMerchantSecurityMaterialDTO material =
 
 | 表 | 主键/唯一键 | 核心字段 | 用途 |
 | --- | --- | --- | --- |
-| `openapi_merchant_info` | `merchant_id` | `merchant_name`、`merchant_status`、`merchant_category_code`、`country_code` | 查询商户是否存在、是否可用，保存外卡收单常用商户基础资料 |
-| `openapi_merchant_jwt_key` | `merchant_id + key_version` | `merchant_key`、`algorithm`、`enabled`、`effective_time`、`expire_time` | 服务端按 `merchantId` 找到 merchantKey，完成 JWT HS256 验签 |
-| `openapi_platform_payload_key` | `platform_key_id` | `public_key_x509_base64`、`private_key_pkcs8_base64`、`enabled` | 商户用公钥加密请求，平台用私钥解密请求 |
-| `openapi_merchant_response_key` | `merchant_id + response_key_id` | `public_key_x509_base64`、`enabled` | 响应加密增强模式下，平台用商户响应公钥加密响应 `data` |
+| `base_merchant_info` | `merchant_id` | `merchant_name`、`merchant_status`、`merchant_category_code`、`country_code` | 查询商户是否存在、是否可用，保存外卡收单常用商户基础资料 |
+| `base_merchant_jwt_key` | `merchant_id + key_version` | `merchant_key`、`algorithm`、`enabled`、`effective_time`、`expire_time` | 服务端按 `merchantId` 找到 merchantKey，完成 JWT HS256 验签 |
+| `base_platform_payload_key` | `platform_key_id` | `public_key_x509_base64`、`private_key_pkcs8_base64`、`enabled` | 商户用公钥加密请求，平台用私钥解密请求 |
+| `base_merchant_response_key` | `merchant_id + response_key_id` | `public_key_x509_base64`、`enabled` | 响应加密增强模式下，平台用商户响应公钥加密响应 `data` |
 
 关联关系：
 
-1. `openapi_merchant_info.merchant_id` 关联 `openapi_merchant_jwt_key.merchant_id`。
-2. 请求体 compact header 的 `kid` 关联 `openapi_platform_payload_key.platform_key_id`。
-3. 响应体 compact header 的 `kid` 关联 `openapi_merchant_response_key.response_key_id`。
-4. `openapi_platform_payload_key.private_key_pkcs8_base64` 是平台保留材料，不能给商户；测试环境明文保存，生产必须进入 KMS、HSM 或加密配置。
-5. `openapi_merchant_response_key` 只保存商户响应公钥；商户响应私钥由商户自己保存，平台不保存。
+1. `base_merchant_info.merchant_id` 关联 `base_merchant_jwt_key.merchant_id`。
+2. 请求体 compact header 的 `kid` 关联 `base_platform_payload_key.platform_key_id`。
+3. 响应体 compact header 的 `kid` 关联 `base_merchant_response_key.response_key_id`。
+4. `base_platform_payload_key.private_key_pkcs8_base64` 是平台保留材料，不能给商户；测试环境明文保存，生产必须进入 KMS、HSM 或加密配置。
+5. `base_merchant_response_key` 只保存商户响应公钥；商户响应私钥由商户自己保存，平台不保存。
 
 ## 6. 商户请求生成流程
 
@@ -410,17 +410,17 @@ service-openapi/src/test/resources/sql/openapi-merchant-security-schema.sql
 
 1. 平台生成 `merchantKey` 和平台请求体 RSA 公私钥，把 `merchantKey` 与平台私钥保存到平台侧表。
 2. 平台只把 `merchantKey`、平台 RSA 公钥和 `platformKeyId` 给商户。
-3. 商户生成响应 RSA 公私钥，把响应公钥和 `responseKeyId` 上传给平台；响应私钥保留在商户侧。
+3. 如果启用响应加密增强，商户生成响应 RSA 公私钥，把响应公钥和 `responseKeyId` 上传给平台；响应私钥保留在商户侧。默认授权接口可以不启用该步骤。
 4. 商户组装业务 JSON，使用平台公钥加密请求体 `data`，使用 `merchantKey` 生成 JWT 请求头。
-5. 服务端按 JWT `merchantId` 查 `openapi_merchant_jwt_key`，完成 JWT Header、Payload、Signature 校验。
-6. 服务端按请求体 compact header 的 `kid` 查 `openapi_platform_payload_key`，用平台私钥解密 `data` 并转换 DTO。
-7. 服务端生成响应业务数据；默认可明文返回非敏感字段，增强模式下使用 `openapi_merchant_response_key` 中的商户响应公钥加密 `data`。
-8. 商户收到响应后，用自己保存的响应私钥解密响应 `data`。
+5. 服务端按 JWT `merchantId` 查 `base_merchant_jwt_key`，完成 JWT Header、Payload、Signature 校验。
+6. 服务端按请求体 compact header 的 `kid` 查 `base_platform_payload_key`，用平台私钥解密 `data` 并转换 DTO。
+7. 服务端生成响应业务数据；默认可明文返回非敏感字段，增强模式下使用 `base_merchant_response_key` 中的商户响应公钥加密 `data`。
+8. 如果启用响应加密增强，商户收到响应后，用自己保存的响应私钥解密响应 `data`。
 
 还需要在生产继续补齐的流程：
 
 1. JWT `jti` 防重放：写入 Redis，TTL 略大于 JWT 有效期。
-2. 密钥轮换：`openapi_merchant_jwt_key` 和 `openapi_platform_payload_key` 均保留版本/生效/失效时间。
+2. 密钥轮换：`base_merchant_jwt_key` 和 `base_platform_payload_key` 均保留版本/生效/失效时间。
 3. 密钥加密存储：`merchant_key`、`private_key_pkcs8_base64` 目前仅用于测试明文链路，生产必须改为 KMS/HSM 或使用配置加密。
 4. 审计日志：只输出 kid、长度、指纹和脱敏业务字段。
 5. 商户停启用：`merchant_info.status` 和密钥表 `enabled` 需要一起参与校验。

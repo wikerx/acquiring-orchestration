@@ -88,6 +88,8 @@ public class OpenApiMerchantSecuritySeedDTO {
 
     /**
      * 商户响应公钥编号，平台响应加密增强模式写入 kid。
+     * <p>
+     * 该字段是可选增强项；默认 API 对接不要求商户提供响应解密密钥。
      */
     private String merchantResponseKeyId;
 }

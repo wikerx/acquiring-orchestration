@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("openapi_merchant_jwt_key")
+@TableName("base_merchant_jwt_key")
 public class OpenApiMerchantJwtKeyDO extends BaseEntity {
 
     /**
@@ -27,7 +27,7 @@ public class OpenApiMerchantJwtKeyDO extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 支付框架颁发的商户号，用于关联 openapi_merchant_info.merchant_id。
+     * 支付框架颁发的商户号，用于关联 base_merchant_info.merchant_id。
      */
     private String merchantId;
 

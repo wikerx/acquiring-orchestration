@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS openapi_merchant_info (
+CREATE TABLE IF NOT EXISTS base_merchant_info (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_id VARCHAR(32) NOT NULL COMMENT '支付框架颁发的商户号',
     merchant_name VARCHAR(128) NOT NULL COMMENT '商户主体名称',
@@ -18,11 +18,11 @@ CREATE TABLE IF NOT EXISTS openapi_merchant_info (
     gmt_modified DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识：0正常，1删除',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_openapi_merchant_info_mid (merchant_id),
-    KEY idx_openapi_merchant_status (merchant_status, deleted)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OpenAPI商户基础信息表';
+    UNIQUE KEY uk_base_merchant_info_mid (merchant_id),
+    KEY idx_base_merchant_status (merchant_status, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础商户信息表';
 
-CREATE TABLE IF NOT EXISTS openapi_merchant_jwt_key (
+CREATE TABLE IF NOT EXISTS base_merchant_jwt_key (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_id VARCHAR(32) NOT NULL COMMENT '支付框架颁发的商户号',
     key_version VARCHAR(32) NOT NULL COMMENT '商户JWT密钥版本号',
@@ -36,11 +36,11 @@ CREATE TABLE IF NOT EXISTS openapi_merchant_jwt_key (
     gmt_modified DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识：0正常，1删除',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_openapi_merchant_jwt_key_mid_ver (merchant_id, key_version),
-    KEY idx_openapi_merchant_jwt_key_lookup (merchant_id, algorithm, enabled, deleted)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OpenAPI商户JWT签名密钥表';
+    UNIQUE KEY uk_base_merchant_jwt_key_mid_ver (merchant_id, key_version),
+    KEY idx_base_merchant_jwt_key_lookup (merchant_id, algorithm, enabled, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础商户JWT签名密钥表';
 
-CREATE TABLE IF NOT EXISTS openapi_platform_payload_key (
+CREATE TABLE IF NOT EXISTS base_platform_payload_key (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     platform_key_id VARCHAR(64) NOT NULL COMMENT '平台请求体RSA密钥编号kid',
     public_key_x509_base64 TEXT NOT NULL COMMENT '平台X.509 DER Base64公钥，下发给商户',
@@ -52,11 +52,11 @@ CREATE TABLE IF NOT EXISTS openapi_platform_payload_key (
     gmt_modified DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识：0正常，1删除',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_openapi_platform_payload_key_kid (platform_key_id),
-    KEY idx_openapi_platform_payload_key_status (enabled, deleted)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OpenAPI平台请求体RSA密钥表';
+    UNIQUE KEY uk_base_platform_payload_key_kid (platform_key_id),
+    KEY idx_base_platform_payload_key_status (enabled, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础平台请求体RSA密钥表';
 
-CREATE TABLE IF NOT EXISTS openapi_merchant_response_key (
+CREATE TABLE IF NOT EXISTS base_merchant_response_key (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_id VARCHAR(32) NOT NULL COMMENT '支付框架颁发的商户号',
     response_key_id VARCHAR(64) NOT NULL COMMENT '商户响应RSA公钥编号kid',
@@ -68,6 +68,6 @@ CREATE TABLE IF NOT EXISTS openapi_merchant_response_key (
     gmt_modified DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识：0正常，1删除',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_openapi_merchant_response_key_mid_kid (merchant_id, response_key_id),
-    KEY idx_openapi_merchant_response_key_lookup (merchant_id, enabled, deleted)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='OpenAPI商户响应加密公钥表';
+    UNIQUE KEY uk_base_merchant_response_key_mid_kid (merchant_id, response_key_id),
+    KEY idx_base_merchant_response_key_lookup (merchant_id, enabled, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础商户响应加密公钥表';

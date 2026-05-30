@@ -110,21 +110,20 @@ class OpenApiSecurityFlowTests {
                 KEY_ID
         );
 
-        log.info("商户对接材料已生成，商户号：{}，JWT算法：{}，JWT有效期秒数：{}，商户签名密钥长度：{}，商户签名密钥指纹：{}",
+        log.info("商户对接材料已生成，商户号：{}，JWT算法：{}，JWT有效期秒数：{}，merchantKey安全指纹：{}",
                 material.merchantCredential().merchantId(),
                 material.merchantCredential().jwtAlgorithm(),
                 material.merchantCredential().jwtExpiresSeconds(),
-                material.merchantCredential().merchantKey().length(),
                 keyMaterialFactory.fingerprint(material.merchantCredential().merchantKey()));
         log.info("下发给商户的平台公钥摘要，keyId：{}，公钥长度：{}，公钥指纹：{}",
                 material.merchantCredential().platformPayloadKeyId(),
                 material.merchantCredential().platformPublicKeyX509Base64().length(),
                 keyMaterialFactory.fingerprint(material.merchantCredential().platformPublicKeyX509Base64()));
-        log.info("平台服务端内部私钥材料摘要，keyId：{}，密钥位数：{}，公钥指纹：{}，服务端私钥长度：{}",
+        log.info("平台服务端内部私钥材料摘要，keyId：{}，密钥位数：{}，公钥指纹：{}，私钥仅平台保存：{}",
                 material.platformPayloadKey().keyId(),
                 material.platformPayloadKey().keySize(),
                 keyMaterialFactory.fingerprint(material.platformPayloadKey().publicKeyX509Base64()),
-                material.platformPayloadKey().privateKeyPkcs8Base64().length());
+                Boolean.TRUE);
 
         assertThat(material.merchantCredential().merchantKey()).isNotBlank();
         assertThat(material.merchantCredential().platformPublicKeyPem()).startsWith("-----BEGIN PUBLIC KEY-----");
@@ -373,17 +372,16 @@ class OpenApiSecurityFlowTests {
                 database.merchantInfoRow().merchantId(),
                 database.merchantInfoRow().merchantName(),
                 database.merchantInfoRow().status());
-        log.info("密钥拓扑-商户可见材料，merchantKey长度：{}，merchantKey指纹：{}，平台公钥kid：{}，平台公钥指纹：{}",
-                clientKeyBox.merchantKey().length(),
+        log.info("密钥拓扑-商户默认必需材料，merchantKey只在开户时安全交付，日志仅打印指纹：{}，平台公钥ID：{}，平台公钥指纹：{}",
                 keyMaterialFactory.fingerprint(clientKeyBox.merchantKey()),
                 clientKeyBox.platformPayloadKeyId(),
                 keyMaterialFactory.fingerprint(clientKeyBox.platformPublicKeyX509Base64()));
-        log.info("密钥拓扑-平台保留材料，平台私钥kid：{}，平台私钥长度：{}，商户响应公钥kid：{}，商户响应公钥指纹：{}",
+        log.info("密钥拓扑-平台保留材料，平台私钥ID：{}，私钥仅平台保存：{}，响应加密增强公钥ID：{}，商户响应公钥指纹：{}",
                 database.platformPayloadKeyRow().platformKeyId(),
-                database.platformPayloadKeyRow().privateKeyPkcs8Base64().length(),
+                Boolean.TRUE,
                 database.merchantResponseKeyRow().responseKeyId(),
                 keyMaterialFactory.fingerprint(database.merchantResponseKeyRow().publicKeyX509Base64()));
-        log.info("密钥拓扑-关联关系，merchantId关联merchantKey，platformKeyId关联平台公私钥，responseKeyId关联商户响应公钥和商户侧私钥");
+        log.info("密钥拓扑-关联关系，merchantId关联merchantKey，platformKeyId关联平台公私钥；responseKeyId只在响应加密增强模式下关联商户响应公钥和商户侧私钥");
     }
 
     /**
@@ -463,22 +461,21 @@ class OpenApiSecurityFlowTests {
         assertThatThrownBy(() -> verifier.verify(authorization, "wrong-merchant-key", nowEpochSeconds + 1L))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getMessage());
-        log.info("服务端异常用例-错误merchantKey验签失败，预期错误码：{}",
+        log.info("反向用例校验通过-错误merchantKey会被拒绝，预期错误码：{}",
                 ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getCode());
 
         String expiredJwt = createMerchantJwt(MERCHANT_ID, database.getMerchantKey(MERCHANT_ID), NOW_EPOCH_SECONDS);
         assertThatThrownBy(() -> verifier.verify(expiredJwt, database.getMerchantKey(MERCHANT_ID), NOW_EPOCH_SECONDS + 181L))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getMessage());
-        log.info("服务端异常用例-JWT过期被拒绝，预期错误码：{}",
+        log.info("反向用例校验通过-JWT过期会被拒绝，预期错误码：{}",
                 ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getCode());
 
-        String tamperedData = encryptedData.substring(0, encryptedData.length() - 1)
-                + (encryptedData.endsWith("A") ? "B" : "A");
+        String tamperedData = tamperCiphertextSegment(encryptedData);
         assertThatThrownBy(() -> payloadCrypto.decrypt(tamperedData, database::getPlatformPrivateKey))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL.getMessage());
-        log.info("服务端异常用例-data密文被篡改，AES-GCM认证失败并拒绝解析");
+        log.info("反向用例校验通过-data密文被篡改时，AES-GCM认证失败，服务端拒绝解析");
     }
 
     /**
@@ -504,7 +501,7 @@ class OpenApiSecurityFlowTests {
         encryptedResponse.put("code", responseMap.get("code"));
         encryptedResponse.put("message", responseMap.get("message"));
         encryptedResponse.put("data", encryptedResponseData);
-        log.info("服务端完成响应加密，使用商户响应公钥kid：{}，响应data长度：{}，响应data指纹：{}",
+        log.info("增强模式下服务端完成响应加密，使用商户响应公钥ID：{}，响应data长度：{}，响应data指纹：{}",
                 environment.database().getMerchantResponseKeyId(MERCHANT_ID),
                 encryptedResponseData.length(),
                 keyMaterialFactory.fingerprint(encryptedResponseData));
@@ -632,6 +629,23 @@ class OpenApiSecurityFlowTests {
     private String decodeProtectedHeader(String encryptedData) {
         String protectedHeader = encryptedData.split("\\.", -1)[0];
         return new String(Base64.getUrlDecoder().decode(protectedHeader), StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 稳定篡改 compact 密文中的 ciphertext 段，确保 AES-GCM 认证一定失败。
+     *
+     * @param encryptedData OpenAPI compact 密文
+     * @return 已篡改 ciphertext 段的密文
+     */
+    private String tamperCiphertextSegment(String encryptedData) {
+        String[] segments = encryptedData.split("\\.");
+        assertThat(segments).hasSize(5);
+        StringBuilder ciphertextBuilder = new StringBuilder(segments[3]);
+        int tamperIndex = ciphertextBuilder.length() / 2;
+        char currentChar = ciphertextBuilder.charAt(tamperIndex);
+        ciphertextBuilder.setCharAt(tamperIndex, currentChar == 'A' ? 'B' : 'A');
+        segments[3] = ciphertextBuilder.toString();
+        return String.join(".", segments);
     }
 
     /**

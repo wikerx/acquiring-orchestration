@@ -59,24 +59,24 @@ public class OpenApiMerchantSecurityMaterialDTO {
     private String platformPublicKeyPem;
 
     /**
-     * 商户响应公钥编号，平台响应加密增强模式写入 kid。
+     * 商户响应公钥编号，平台响应加密增强模式写入 kid；默认对接可为空。
      */
     private String merchantResponseKeyId;
 
     /**
-     * 商户响应 X.509 DER Base64 公钥，平台保存并用于加密响应 data。
+     * 商户响应 X.509 DER Base64 公钥，平台保存并用于加密响应 data；默认对接可为空。
      */
     private String merchantResponsePublicKeyX509Base64;
 
     /**
      * 商户响应 PKCS#8 DER Base64 私钥。
      * <p>
-     * 该字段只用于测试展示商户侧解密流程；生产中平台不应保存商户响应私钥。
+     * 该字段只用于测试展示商户侧解密流程；默认对接可为空，生产中平台不应保存商户响应私钥。
      */
     private String merchantResponsePrivateKeyPkcs8Base64;
 
     /**
-     * 商户响应 PKCS#8 PEM 私钥，商户侧用于解密平台响应 data。
+     * 商户响应 PKCS#8 PEM 私钥，商户侧用于解密平台响应 data；默认对接可为空。
      */
     private String merchantResponsePrivateKeyPem;
 }

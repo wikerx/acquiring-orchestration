@@ -16,7 +16,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("openapi_merchant_info")
+@TableName("base_merchant_info")
 public class OpenApiMerchantInfoDO extends BaseEntity {
 
     /**

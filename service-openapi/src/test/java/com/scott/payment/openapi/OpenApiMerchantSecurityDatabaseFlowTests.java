@@ -99,7 +99,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
     private static final String SECOND_RESPONSE_KEY_ID = "merchant-200046-response-test-v1";
 
     /**
-     * 固定过期 JWT 测试时间，避免异常用例依赖真实时间。
+     * 固定过期 JWT 测试时间，避免反向用例依赖真实时间。
      */
     private static final long FIXED_EXPIRED_ISSUED_AT = 1_704_960_018L;
 
@@ -153,10 +153,10 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
      */
     @BeforeEach
     void cleanOpenApiMerchantSecurityData() {
-        jdbcTemplate.update("DELETE FROM openapi_merchant_response_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM openapi_merchant_jwt_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM openapi_platform_payload_key WHERE platform_key_id IN (?, ?)", PLATFORM_KEY_ID, SECOND_PLATFORM_KEY_ID);
-        jdbcTemplate.update("DELETE FROM openapi_merchant_info WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
+        jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
+        jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
+        jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE platform_key_id IN (?, ?)", PLATFORM_KEY_ID, SECOND_PLATFORM_KEY_ID);
+        jdbcTemplate.update("DELETE FROM base_merchant_info WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
     }
 
     /**
@@ -238,13 +238,14 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         log.info("系统生成商户密钥材料，商户数量：2，主商户号：{}，第二商户号：{}",
                 merchantMaterial.getMerchantId(),
                 secondMerchantMaterial.getMerchantId());
-        log.info("给商户使用的材料：merchantKey指纹：{}，平台公钥kid：{}，平台公钥指纹：{}，商户响应私钥kid：{}，商户响应私钥指纹：{}",
+        log.info("商户默认必需材料摘要：merchantKey指纹：{}，平台公钥kid：{}，平台公钥指纹：{}",
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantKey()),
                 merchantMaterial.getPlatformPayloadKeyId(),
-                keyMaterialFactory.fingerprint(merchantMaterial.getPlatformPublicKeyX509Base64()),
+                keyMaterialFactory.fingerprint(merchantMaterial.getPlatformPublicKeyX509Base64()));
+        log.info("响应加密增强材料摘要：响应密钥ID：{}，商户响应私钥指纹：{}。该能力默认可不启用，只有要求响应data也加密时才需要商户保存。",
                 merchantMaterial.getMerchantResponseKeyId(),
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));
-        log.info("平台保留的材料：平台私钥只在openapi_platform_payload_key表内保存，平台只保存商户响应公钥，响应私钥不属于平台");
+        log.info("平台保留的材料：平台私钥只在base_platform_payload_key表内保存，平台只保存商户响应公钥，响应私钥不属于平台");
         log.info("密钥关联关系：merchant_id关联merchantKey；platform_key_id关联平台RSA公私钥；response_key_id关联商户响应公钥和商户侧响应私钥");
     }
 
@@ -318,7 +319,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         assertThatThrownBy(() -> merchantJwtVerifier.verify(authorization, "wrong-merchant-key"))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getMessage());
-        log.info("异常分支-错误merchantKey验签失败，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getCode());
+        log.info("反向用例校验通过-错误merchantKey会被拒绝，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getCode());
 
         String expiredJwt = createMerchantJwt(
                 merchantMaterial.getMerchantId(),
@@ -331,14 +332,13 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
                 FIXED_EXPIRED_ISSUED_AT + 181L
         )).isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getMessage());
-        log.info("异常分支-JWT过期被拒绝，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getCode());
+        log.info("反向用例校验通过-JWT过期会被拒绝，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getCode());
 
-        String tamperedData = encryptedRequestData.substring(0, encryptedRequestData.length() - 1)
-                + (encryptedRequestData.endsWith("A") ? "B" : "A");
+        String tamperedData = tamperCiphertextSegment(encryptedRequestData);
         assertThatThrownBy(() -> payloadCrypto.decrypt(tamperedData, merchantSecurityService::getPlatformPrivateKey))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL.getMessage());
-        log.info("异常分支-data密文被篡改，AES-GCM认证失败，服务端拒绝解析");
+        log.info("反向用例校验通过-data密文被篡改时，AES-GCM认证失败，服务端拒绝解析");
     }
 
     private String encryptServerResponseData(String merchantId, String plainResponseBody) {
@@ -355,7 +355,7 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         encryptedResponse.put("code", responseMap.get("code"));
         encryptedResponse.put("message", responseMap.get("message"));
         encryptedResponse.put("data", encryptedResponseData);
-        log.info("服务端响应加密完成，使用商户响应公钥kid：{}，响应data长度：{}，响应data指纹：{}",
+        log.info("增强模式下服务端响应加密完成，使用商户响应公钥ID：{}，响应data长度：{}，响应data指纹：{}",
                 responseKeyId,
                 encryptedResponseData.length(),
                 keyMaterialFactory.fingerprint(encryptedResponseData));
@@ -398,6 +398,23 @@ class OpenApiMerchantSecurityDatabaseFlowTests {
         payload.put(RegisteredPayload.EXPIRES_AT, issuedAt + 180L);
         payload.put("merchantId", merchantId);
         return JWTUtil.createToken(header, payload, merchantKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 稳定篡改 compact 密文中的 ciphertext 段，确保 AES-GCM 认证一定失败。
+     *
+     * @param encryptedData OpenAPI compact 密文
+     * @return 已篡改 ciphertext 段的密文
+     */
+    private String tamperCiphertextSegment(String encryptedData) {
+        String[] segments = encryptedData.split("\\.");
+        assertThat(segments).hasSize(5);
+        StringBuilder ciphertextBuilder = new StringBuilder(segments[3]);
+        int tamperIndex = ciphertextBuilder.length() / 2;
+        char currentChar = ciphertextBuilder.charAt(tamperIndex);
+        ciphertextBuilder.setCharAt(tamperIndex, currentChar == 'A' ? 'B' : 'A');
+        segments[3] = ciphertextBuilder.toString();
+        return String.join(".", segments);
     }
 
     private String authorizationPlainText(String merchantId) {

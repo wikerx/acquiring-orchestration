@@ -822,11 +822,11 @@ service-merchant
   - merchant_api_key
 
 service-openapi
-  - openapi_request_log_xxxx
-  - openapi_idempotent_record
+  - base_api_request_log_xxxx
+  - base_api_idempotent_record
   - merchant_notify_task
   - merchant_notify_log
-  - openapi_error_mapping
+  - base_api_error_mapping
 
 service-payment
   - payment_order_xxxx

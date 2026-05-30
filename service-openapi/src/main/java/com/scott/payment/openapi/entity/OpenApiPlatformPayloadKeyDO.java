@@ -16,7 +16,7 @@ import lombok.EqualsAndHashCode;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("openapi_platform_payload_key")
+@TableName("base_platform_payload_key")
 public class OpenApiPlatformPayloadKeyDO extends BaseEntity {
 
     /**
