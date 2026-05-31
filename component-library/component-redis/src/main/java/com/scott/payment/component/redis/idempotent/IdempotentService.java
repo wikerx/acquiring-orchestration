@@ -11,6 +11,14 @@ package com.scott.payment.component.redis.idempotent;
  */
 public interface IdempotentService {
 
+    /**
+     * 获取幂等处理权。
+     * <p>
+     * 返回 true 表示当前请求第一次进入，可继续处理；返回 false 表示相同业务键仍在有效期内，应直接拦截或返回已处理结果。
+     *
+     * @param idempotentKey 幂等业务键
+     * @param ttlSeconds    幂等有效期，单位秒
+     * @return 是否获取成功
+     */
     boolean acquire(String idempotentKey, long ttlSeconds);
 }
-

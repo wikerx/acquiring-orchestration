@@ -8,6 +8,7 @@ import com.scott.payment.component.core.enums.ApiCoResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
@@ -94,6 +95,16 @@ class OpenApiSecurityFlowTests {
      * 固定测试时间，避免 JWT iat/exp 因真实时钟变化导致测试不稳定。
      */
     private static final long NOW_EPOCH_SECONDS = 1_704_960_018L;
+
+    /**
+     * 测试用平台收单订单号前缀，保持与 service-payment 模拟实现一致。
+     */
+    private static final String PAYMENT_ORDER_PREFIX = "PA";
+
+    /**
+     * 测试用交易已接收状态，表示 OpenAPI 请求已完成鉴权、解密和参数校验。
+     */
+    private static final String STATUS_RECEIVED = "RECEIVED";
 
     /**
      * 密钥材料生成入口，测试中展示商户可见材料和平台内部 RSA 材料的生成效果。
@@ -309,9 +320,11 @@ class OpenApiSecurityFlowTests {
         PaymentService paymentService = (encryptedData, requestDTO) -> {
             capturedRequest.set(requestDTO);
             PaymentCreateVO response = new PaymentCreateVO();
+            response.setPaymentOrderNo(PaymentOrderNoGenerator.nextOrderNo(PAYMENT_ORDER_PREFIX));
             response.setMerchantOrderNo(requestDTO.getOrderInfo().getTradeNo());
             response.setCurrency(requestDTO.getOrderInfo().getCurrency());
-            response.setAmount(requestDTO.getOrderInfo().getAmount().movePointRight(2).longValue());
+            response.setStatus(STATUS_RECEIVED);
+            response.setAmount(requestDTO.getOrderInfo().getAmount().movePointRight(2).longValueExact());
             return response;
         };
         return MockMvcBuilders.standaloneSetup(new OpenApiPaymentController(paymentService))

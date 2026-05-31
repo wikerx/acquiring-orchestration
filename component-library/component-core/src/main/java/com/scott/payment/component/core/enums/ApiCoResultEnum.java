@@ -49,6 +49,7 @@ public enum ApiCoResultEnum implements IResult {
     CO_UNSUPPORTED_CARD_BRANDS("F413", "Unsupported card brands"),
 
     CO_INTERNAL_SERVER_ERROR("F500", "Internal Server Error"),
+    CO_BAD_GATEWAY("F502", "Bad gateway"),
     CO_THE_NETWORK_IS_BUSY("F503", "The network is busy, please try again later"),
 
     CO_ORDER_ALREADY_EXIST("F510", "Order already exist"),

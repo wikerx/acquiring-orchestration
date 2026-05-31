@@ -13,6 +13,12 @@ import com.scott.payment.component.mq.message.BaseMqMessage;
  */
 public interface MqProducer {
 
+    /**
+     * 发送普通消息。
+     *
+     * @param topic   RocketMQ Topic
+     * @param tag     RocketMQ Tag，用于消费者过滤业务类型
+     * @param message 基础消息体
+     */
     void send(String topic, String tag, BaseMqMessage message);
 }
-

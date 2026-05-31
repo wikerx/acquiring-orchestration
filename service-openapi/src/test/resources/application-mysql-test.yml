@@ -31,6 +31,10 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 
+openapi:
+  payment-client:
+    remote-enabled: false
+
 logging:
   level:
     com.scott.payment.openapi: INFO

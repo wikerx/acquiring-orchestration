@@ -11,8 +11,23 @@ package com.scott.payment.component.redis.lock;
  */
 public interface RedisLockService {
 
+    /**
+     * 尝试获取 Redis 分布式锁。
+     *
+     * @param key        锁键
+     * @param value      锁值，建议使用请求唯一号或线程唯一标识
+     * @param ttlSeconds 锁过期时间，单位秒
+     * @return 是否获取成功
+     */
     boolean tryLock(String key, String value, long ttlSeconds);
 
+    /**
+     * 释放 Redis 分布式锁。
+     * <p>
+     * 只有锁值匹配时才允许删除，避免误删其他请求持有的锁。
+     *
+     * @param key   锁键
+     * @param value 锁值
+     */
     void unlock(String key, String value);
 }
-

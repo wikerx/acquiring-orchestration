@@ -1,0 +1,14 @@
+# service-gateway 专属配置：网关只保留接入层规则，不引入数据库、Redis、MQ、Seata、分表等业务基础设施。
+gateway:
+  route:
+    # 商户收单 OpenAPI 入口，路由到 service-openapi。
+    payment-openapi-path: /api/rest/payment/**
+    # 商户代付 OpenAPI 入口，路由到 service-openapi。
+    payout-openapi-path: /api/rest/payout/**
+    # 渠道回调入口，统一由 service-openapi 处理后分发。
+    channel-callback-path: /channel/**
+    # OpenAPI 健康检查、通知重试等支持入口。
+    support-path: /openapi/**
+  security:
+    # 网关只做路径白名单和基础响应头处理；JWT验签、报文解密、参数校验下沉到 service-openapi。
+    delegate-auth-to-openapi: true

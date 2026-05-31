@@ -13,47 +13,49 @@ spring:
     allow-bean-definition-overriding: true
   cloud:
     gateway:
-      httpclient:
-        # 连接下游微服务的超时时间，单位毫秒。
-        connect-timeout: 3000
-        # 下游接口整体响应超时，避免网关线程长时间堆积。
-        response-timeout: 10s
-      default-filters:
-        # 保留原始 Host，方便下游根据域名做审计或多租户判断。
-        - PreserveHostHeader
-        # 外部请求不透传浏览器 Cookie，避免商户 API 和后台登录态互相污染。
-        - RemoveRequestHeader=Cookie
-        # 移除底层容器响应头，减少技术栈暴露。
-        - RemoveResponseHeader=Server
-        # 跨域响应头只保留第一份，避免重复写入导致浏览器拒绝。
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin RETAIN_FIRST
-      globalcors:
-        cors-configurations:
-          "[/api/rest/**]":
-            allowed-origin-patterns: "*"
-            allowed-methods:
-              - GET
-              - POST
-              - OPTIONS
-            allowed-headers: "*"
-            exposed-headers:
-              - X-Trace-Id
-            allow-credentials: false
-            max-age: 1800
-          "[/channel/**]":
-            allowed-origin-patterns: "*"
-            allowed-methods:
-              - POST
-              - OPTIONS
-            allowed-headers: "*"
-            allow-credentials: false
-            max-age: 1800
-          "[/openapi/**]":
-            allowed-origin-patterns: "*"
-            allowed-methods:
-              - GET
-              - POST
-              - OPTIONS
-            allowed-headers: "*"
-            allow-credentials: false
-            max-age: 1800
+      server:
+        webflux:
+          httpclient:
+            # 连接下游微服务的超时时间，单位毫秒。
+            connect-timeout: 3000
+            # 下游接口整体响应超时，避免网关线程长时间堆积。
+            response-timeout: 10s
+          default-filters:
+            # 保留原始 Host，方便下游根据域名做审计或多租户判断。
+            - PreserveHostHeader
+            # 外部请求不透传浏览器 Cookie，避免商户 API 和后台登录态互相污染。
+            - RemoveRequestHeader=Cookie
+            # 移除底层容器响应头，减少技术栈暴露。
+            - RemoveResponseHeader=Server
+            # 跨域响应头只保留第一份，避免重复写入导致浏览器拒绝。
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin RETAIN_FIRST
+          globalcors:
+            cors-configurations:
+              "[/api/rest/**]":
+                allowed-origin-patterns: "*"
+                allowed-methods:
+                  - GET
+                  - POST
+                  - OPTIONS
+                allowed-headers: "*"
+                exposed-headers:
+                  - X-Trace-Id
+                allow-credentials: false
+                max-age: 1800
+              "[/channel/**]":
+                allowed-origin-patterns: "*"
+                allowed-methods:
+                  - POST
+                  - OPTIONS
+                allowed-headers: "*"
+                allow-credentials: false
+                max-age: 1800
+              "[/openapi/**]":
+                allowed-origin-patterns: "*"
+                allowed-methods:
+                  - GET
+                  - POST
+                  - OPTIONS
+                allowed-headers: "*"
+                allow-credentials: false
+                max-age: 1800

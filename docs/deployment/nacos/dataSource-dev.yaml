@@ -50,7 +50,8 @@ spring:
             idle-timeout: 600000
             max-lifetime: 1800000
       # slave 分组内的负载策略，多个从库之间轮询。
-      strategy: round_robin
+      # dynamic-datasource 4.x 这里需要填写策略类名；不能写 round_robin 这种别名，否则启动时会按类名加载并报 ClassNotFoundException。
+      strategy: com.baomidou.dynamic.datasource.strategy.LoadBalanceDynamicDataSourceStrategy
 
 mybatis-plus:
   # Mapper XML 扫描路径，后续业务 mapper 放在各服务或组件模块 resources/mapper 下。

@@ -4,6 +4,7 @@ import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.dto.body.PaymentCreateRequestDTO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
 import java.math.BigDecimal;
 
@@ -20,11 +21,20 @@ import java.math.BigDecimal;
 public interface OpenApiRequestConverter {
 
     /**
+     * 当前收单支付基础响应使用两位小数币种的最小单位。
+     * <p>
+     * 后续接入 JPY、KWD 等特殊币种时，应改为按 ISO 4217 币种精度配置动态转换。
+     */
+    int DEFAULT_MINOR_UNIT_SCALE = 2;
+
+    /**
      * 将普通收单创建 DTO 转换为创建响应。
      *
      * @param requestDTO 普通收单创建 DTO
      * @return 创建响应
      */
+    @Mapping(target = "paymentOrderNo", ignore = true)
+    @Mapping(target = "status", ignore = true)
     PaymentCreateVO toPaymentCreateVO(PaymentCreateRequestDTO requestDTO);
 
     /**
@@ -55,6 +65,6 @@ public interface OpenApiRequestConverter {
         if (amount == null) {
             return null;
         }
-        return amount.movePointRight(2).longValue();
+        return amount.movePointRight(DEFAULT_MINOR_UNIT_SCALE).longValueExact();
     }
 }

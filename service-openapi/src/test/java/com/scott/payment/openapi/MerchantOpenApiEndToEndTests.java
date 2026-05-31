@@ -3,6 +3,7 @@ package com.scott.payment.openapi;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.enums.ApiCoResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
@@ -132,22 +133,26 @@ class MerchantOpenApiEndToEndTests {
         MerchantSecurityMaterialDTO onboardingMaterial = provisionMerchant();
         MerchantSecurityMaterialDTO clientMaterial = merchantSecurityService.getMerchantClientSecurityMaterial(MERCHANT_ID);
         String plainRequestJson = MerchantOpenApiTestSupport.authorizationPlainText(MERCHANT_ID, SUCCESS_TRADE_NO);
-        log.info("plainRequestJson={}", plainRequestJson);
+        log.info("商户生成请求明文JSON-脱敏内容：{}", SensitiveDataMaskUtils.maskJson(plainRequestJson));
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
                 payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64()),
                 clientMaterial.getPlatformPayloadKeyId()
         );
-        log.info("encryptedData={}", encryptedData);
+        log.info("商户完成请求体data加密-data段数：{}，data摘要：{}",
+                MerchantOpenApiTestSupport.compactPartCount(encryptedData),
+                MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory));
         String authorization = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,
                 clientMaterial.getMerchantKey(),
                 System.currentTimeMillis() / 1000L,
                 SUCCESS_TRADE_NO
         );
-        log.info("authorization: {}", authorization);
+        log.info("商户完成JWT请求头封装-authorization摘要：{}",
+                MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory));
         String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
-        log.info("httpRequestBody={}", httpRequestBody);
+        log.info("商户完成HTTP请求体封装-body摘要：{}",
+                MerchantOpenApiTestSupport.safeSecretSummary(httpRequestBody, keyMaterialFactory));
 
         log.info("商户准备调用OpenAPI-密钥摘要：merchantKey指纹={}，平台公钥kid={}，平台公钥指纹={}",
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
@@ -170,7 +175,8 @@ class MerchantOpenApiEndToEndTests {
                 .andReturn();
 
         String encryptedResponseJson = encryptServerResponseData(MERCHANT_ID, mvcResult.getResponse().getContentAsString());
-        log.info("encryptedResponseJson={}", encryptedResponseJson);
+        log.info("服务端返回响应已做安全处理-响应摘要：{}",
+                MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseJson, keyMaterialFactory));
         PaymentCreateVO decryptedResponse = decryptMerchantResponseData(onboardingMaterial, encryptedResponseJson);
         log.info("decryptedResponse={}", decryptedResponse);
 

@@ -32,8 +32,9 @@ Nacos DataId 统一使用标准 YAML 后缀 `.yaml`。dev 环境使用命名空�
 
 Nacos yaml 的职责边界：
 
-- `{service-name}-{env}.yaml`：单服务个性配置，例如 `service-openapi-dev.yaml`。
+- `{service-name}-{env}.yaml`：单服务个性配置，例如 `service-openapi-dev.yaml`、`service-payment-dev.yaml`、`service-gateway-dev.yaml`。
 - `common-{env}.yaml`：所有服务共享配置，例如时间格式、管理端点、链路头名称。
+- `service-gateway-{env}.yaml`：只放网关接入层说明、白名单路径和观测规则，不放数据库、Redis、MQ、Seata、分表配置。
 - `dataSource-{env}.yaml`：主从数据源、连接池、MyBatis-Plus。
 - `sharding-{env}.yaml`：参与分表的逻辑表、分表字段、起始表、结束表和物理表命名格式。
 - `redis-{env}.yaml`、`rocketmq-{env}.yaml`、`seata-{env}.yaml`、`xxl-job-{env}.yaml`：对应中间件配置。
@@ -78,6 +79,7 @@ component-library/component-db/src/main/java/com/scott/payment/component/db/shar
 ```text
 component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithmTest.java
 service-openapi/src/test/java/com/scott/payment/openapi/OpenApiApplicationTests.java
+service-openapi/src/test/java/com/scott/payment/openapi/MerchantOpenApiEndToEndTests.java
 ```
 
 分表统一按季度分表。所有需要分表的业务表都必须传入交易时间字段 `transaction_date_time`，表名格式为：

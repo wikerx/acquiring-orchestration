@@ -1,0 +1,13 @@
+# service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
+payment:
+  order:
+    # 收单支付平台订单号前缀。
+    prefix: PA
+  idempotent:
+    # 创建交易幂等锁默认有效期，单位秒。
+    create-ttl-seconds: 600
+  event:
+    # 支付创建事件 Topic。
+    topic: payment-event
+    # 支付创建事件 Tag。
+    created-tag: PAYMENT_CREATED
