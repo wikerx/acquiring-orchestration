@@ -1,5 +1,6 @@
 package com.scott.payment.openapi;
 
+import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.enums.ApiCoResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -66,21 +67,30 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                 "amount", 1238945,
                 "currency", "USD"
         ));
+        log.info("响应参数明文：{}" , plainResponseData);
+
         String encryptedResponseData = payloadCrypto.encrypt(
                 plainResponseData,
                 payloadCrypto.readPublicKey(MERCHANT_RESPONSE_PUBLIC_KEY_X509_BASE64)
         );
+        log.info("响应参数密文：{}" , encryptedResponseData);
+
         String encryptedHttpResponse = JsonUtils.toJsonString(Map.of(
                 "code", ApiCoResultEnum.SUCCESS.getCode(),
                 "message", ApiCoResultEnum.SUCCESS.getMessage(),
                 "data", encryptedResponseData
         ));
+        log.info("encryptedHttpResponse：{}" , encryptedHttpResponse);
+
         Map<String, Object> responseMap = JsonUtils.parseObject(encryptedHttpResponse, new TypeReference<>() {
         });
+        log.info("responseMap：{}" , JSON.toJSONString(responseMap));
+
         String decryptedData = payloadCrypto.decrypt(
                 String.valueOf(responseMap.get("data")),
                 payloadCrypto.readPrivateKey(MERCHANT_RESPONSE_PRIVATE_KEY_PKCS8_BASE64)
         );
+        log.info("decryptedData：{}" , decryptedData);
 
         assertThat(responseMap.get("code")).isEqualTo(ApiCoResultEnum.SUCCESS.getCode());
         assertThat(MerchantOpenApiTestSupport.compactPartCount(encryptedResponseData)).isEqualTo(5);

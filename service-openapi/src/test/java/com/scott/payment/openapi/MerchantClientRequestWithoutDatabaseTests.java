@@ -73,17 +73,25 @@ class MerchantClientRequestWithoutDatabaseTests {
     @Test
     void shouldBuildMerchantEncryptedHttpRequestWithoutDatabase() {
         String plainRequestJson = MerchantOpenApiTestSupport.authorizationPlainText(MERCHANT_ID, TRADE_NO);
+        log.info("明文请求参数：{}" , plainRequestJson);
+
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
                 payloadCrypto.readPublicKey(PLATFORM_PUBLIC_KEY_X509_BASE64)
         );
+        log.info("请求参数加密：{}" , encryptedData);
+
+
         String authorization = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,
                 MERCHANT_KEY,
                 System.currentTimeMillis() / 1000L,
                 TRADE_NO
         );
+        log.info("authorization：{}" , authorization);
+
         String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
+        log.info("请求参数：{}" , httpRequestBody);
 
         log.info("商户侧固定密钥摘要-merchantKey指纹：{}，平台公钥指纹：{}",
                 keyMaterialFactory.fingerprint(MERCHANT_KEY),
