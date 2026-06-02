@@ -1,10 +1,18 @@
 # OpenAPI 授权认证规范
 
-完整的 JWT 鉴权、RSA-OAEP-256/AES-256-GCM 混合加密、响应加密和防重放流程见 [OpenAPI 鉴权与加密流程](openapi-security-flow.md)。
+完整的 JWT 鉴权、RSA-OAEP-256/AES-256-GCM 请求加密、响应 `data` 强制加密和防重放流程见 [OpenAPI 鉴权与加密流程](openapi-security-flow.md)。
 
-商户侧只需要关注 `merchantKey` 和平台 RSA 公钥；平台 RSA 私钥只由支付平台服务端保存。完整的生成、交付和使用规则在完整流程文档的“密钥类型与生成入口”章节中维护。
+## 1. 商户需要保存的材料
 
-## 1. 授权方式
+默认对接时，商户只需要保存下面 3 项：
+
+1. `merchantKey`：用于生成请求头 JWT HS256 签名。
+2. 平台公钥：用于加密每次请求随机生成的 AES-256-GCM 会话密钥。
+3. 商户响应私钥：用于解密平台响应体中的 `data`。
+
+平台私钥不下发给商户；商户响应私钥不上传给平台。所有密钥查询都基于 `merchantId`，请求和响应中不再携带 `keyId` 或 `kid`。
+
+## 2. 请求头
 
 对外 API 统一使用 JWT HS256 作为请求头授权凭证。
 
@@ -14,23 +22,6 @@ authorization: <jwt-token>
 ```
 
 兼容 `Bearer <jwt-token>` 格式。
-
-## 2. 商户密钥
-
-`merchantKey` 由平台开户时生成并提供给商户。服务端使用商户号 `merchantId` 查询对应密钥，再校验 JWT 签名。
-
-商户侧只需要保存平台下发的 `merchantKey`，不要把该值写入前端代码、App 包、日志或公开文档。下面只表示格式，不是可使用的密钥：
-
-```text
-<merchantKey>
-```
-
-默认对接时，商户只需要保存两类材料：
-
-1. `merchantKey`：生成请求头 JWT。
-2. `platformPayloadKeyId + platformPublicKeyPem`：加密请求体 `data`。
-
-平台 RSA 私钥永远不下发给商户。响应加密增强模式是可选能力，只有响应或回调里确实要承载敏感数据时，才需要商户额外维护自己的响应 RSA 私钥，并把响应公钥交给平台保存。
 
 ## 3. JWT Header
 
@@ -58,8 +49,8 @@ authorization: <jwt-token>
 
 1. `aud` 必须包含 `gateway`。
 2. `iss` 必须等于 `merchant`。
-3. `jti` 必填，用作请求唯一标识，后续接入 Redis 幂等与防重放。
-4. `merchantId` 必填，用于查询 `merchantKey`。
+3. `jti` 必填，用作请求唯一标识；Redis 可用时写入防重放 Key，重复请求会被拒绝。
+4. `merchantId` 必填，用于查询商户基础信息和当前启用的 `merchantKey`。
 5. `exp` 必须大于当前时间。
 6. `exp - iat` 不能超过 180 秒。
 7. `alg` 只允许 `HS256`。
@@ -84,63 +75,52 @@ JWT 负责授权认证；请求体按统一密文信封传递业务数据。`dat
 }
 ```
 
+`protectedHeader` 不携带密钥编号：
+
+```json
+{
+  "typ": "PAYMENT-PAYLOAD",
+  "alg": "RSA-OAEP-256",
+  "enc": "A256GCM"
+}
+```
+
 `data` 解密后的明文示例：
 
 ```json
 {
   "merchantInfo": {
-    "merchantId": "200045",
-    "subMerchantInfo": {
-      "subName": "John",
-      "subCompanyName": "JohnCompany",
-      "subId": "123456789111111",
-      "subStreet": "Regent Street",
-      "subCity": "London",
-      "subState": "AL",
-      "subCountryCode": "USA",
-      "merchantCategory": "5311"
-    }
+    "merchantId": "200045"
   },
   "orderInfo": {
     "amount": 12389.45,
     "currency": "USD",
     "tradeNo": "20250116140182865587"
   },
-  "billingCardHolderInfo": {
-    "firstName": "John",
-    "lastName": "tom",
-    "phone": "+55-5085149876",
-    "email": "username@example.com",
-    "country": "USA",
-    "state": "AL",
-    "city": "city name",
-    "street": "street name",
-    "postal": "03400"
-  },
   "cardInfo": {
     "cardNo": "5387380678556554",
     "expirationMonth": "03",
-    "expirationYear": "2025",
+    "expirationYear": "2028",
     "securityCode": "123"
-  },
-  "threeDSInfo": {
-    "eci": "212",
-    "cavv": "KANiJlHEqL/yaEfVxr/BUoQBicnh",
-    "dsTransactionId": "b96c957d-daa1-4b7f-b8b4-373fb9dec47b",
-    "threeDsVersion": "2.2.0"
   }
 }
 ```
 
-`service-openapi` 的 `@VerificationAndProcessing(dataReceiver = XxxDTO.class)` 会完成：
+## 6. 响应体
 
-1. JWT 请求头校验；
-2. `data` 密文请求体解密；
-3. DTO 转换；
-4. DTO 属性校验；
-5. 控制器参数注入。
+OpenAPI 成功响应会强制加密 `data`：
 
-示例：
+```json
+{
+  "code": "T200",
+  "message": "SUCCESS",
+  "data": "<compact encrypted response>"
+}
+```
+
+商户收到响应后，使用自己的响应私钥解密 `data`。失败响应通常 `data == null`，只返回明文错误码和错误说明。
+
+## 7. 控制器示例
 
 ```java
 @ApiVersion(apiVersion = 1)
@@ -160,18 +140,4 @@ public class OpenApiPaymentController {
 }
 ```
 
-## 6. cardInfo 加密策略
-
-默认不要求商户对 `cardInfo` 做二次加密。推荐默认方案是：
-
-1. HTTPS 保护传输层；
-2. `authorization` JWT HS256 证明商户身份、请求唯一性和时效；
-3. 请求体 `data` 做统一应用层加密；
-4. `service-openapi` 解密后只在内存中短暂持有卡数据；
-5. 日志、MQ、异常、响应禁止输出完整 PAN 和 CVV；
-6. 交易核心侧对 PAN 做令牌化或强加密存储；
-7. CVV/CVC 只允许用于本次授权，授权后禁止存储。
-
-这样比强制 `cardInfo` 再套一层加密更容易接入，也更容易统一治理密钥和错误处理。
-
-可以预留高级模式：对安全等级更高、直连卡组织或有特殊合规要求的商户，支持 `cardInfo` 字段级二次加密或独立 JWE 子信封。
+`@VerificationAndProcessing` 会完成 JWT 校验、请求体解密、DTO 转换和 Bean Validation。响应加密由 `OpenApiResponseBodyAdvice` 统一处理。

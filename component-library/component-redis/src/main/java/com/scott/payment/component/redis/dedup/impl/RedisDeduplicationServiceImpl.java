@@ -4,6 +4,7 @@ import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.redis.constant.RedisKeyConstants;
 import com.scott.payment.component.redis.dedup.RedisDeduplicationService;
 import com.scott.payment.component.redis.support.RedisKeySupport;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +24,7 @@ import java.util.Locale;
  * @status : create
  */
 @Service
+@ConditionalOnBean(StringRedisTemplate.class)
 public class RedisDeduplicationServiceImpl implements RedisDeduplicationService {
 
     /**

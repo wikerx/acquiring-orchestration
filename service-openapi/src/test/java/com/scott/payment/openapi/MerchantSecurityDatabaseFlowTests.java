@@ -31,7 +31,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.nio.charset.StandardCharsets;
-import java.security.PrivateKey;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -77,26 +76,6 @@ class MerchantSecurityDatabaseFlowTests {
      * OpenAPI 授权请求头名称。
      */
     private static final String AUTHORIZATION_HEADER = "authorization";
-
-    /**
-     * 平台请求体 RSA 密钥编号，商户加密请求体时写入 data 的 kid。
-     */
-    private static final String PLATFORM_KEY_ID = "payment-platform-payload-test-v1";
-
-    /**
-     * 商户响应 RSA 公钥编号，平台响应加密增强模式写入 data 的 kid。
-     */
-    private static final String RESPONSE_KEY_ID = "merchant-200045-response-test-v1";
-
-    /**
-     * 第二个商户的平台请求体 RSA 密钥编号。
-     */
-    private static final String SECOND_PLATFORM_KEY_ID = "payment-platform-payload-test-v2";
-
-    /**
-     * 第二个商户的响应 RSA 公钥编号。
-     */
-    private static final String SECOND_RESPONSE_KEY_ID = "merchant-200046-response-test-v1";
 
     /**
      * 固定过期 JWT 测试时间，避免反向用例依赖真实时间。
@@ -155,7 +134,7 @@ class MerchantSecurityDatabaseFlowTests {
     void cleanMerchantSecurityData() {
         jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
         jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE platform_key_id IN (?, ?)", PLATFORM_KEY_ID, SECOND_PLATFORM_KEY_ID);
+        jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
         jdbcTemplate.update("DELETE FROM base_merchant_info WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
     }
 
@@ -166,12 +145,8 @@ class MerchantSecurityDatabaseFlowTests {
      */
     @Test
     void shouldCompleteMerchantOpenApiRoundTripWithMysqlAndMyBatisPlus() throws Exception {
-        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchant(MERCHANT_ID, PLATFORM_KEY_ID, RESPONSE_KEY_ID);
-        MerchantSecurityMaterialDTO secondMerchantMaterial = provisionMerchant(
-                SECOND_MERCHANT_ID,
-                SECOND_PLATFORM_KEY_ID,
-                SECOND_RESPONSE_KEY_ID
-        );
+        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchant(MERCHANT_ID);
+        MerchantSecurityMaterialDTO secondMerchantMaterial = provisionMerchant(SECOND_MERCHANT_ID);
 
         logProvisionedSecurityMaterials(merchantMaterial, secondMerchantMaterial);
         assertDatabaseLookupByMyBatisPlus(merchantMaterial, secondMerchantMaterial);
@@ -192,28 +167,22 @@ class MerchantSecurityDatabaseFlowTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(AUTHORIZATION_HEADER, authorization)
                         .content(httpRequestBody))
-                .andDo(result -> log.info("服务端HTTP调用完成，HTTP状态：{}，明文响应摘要：{}",
+                .andDo(result -> log.info("服务端HTTP调用完成，HTTP状态：{}，加密响应摘要：{}",
                         result.getResponse().getStatus(),
-                        result.getResponse().getContentAsString()))
+                        keyMaterialFactory.fingerprint(result.getResponse().getContentAsString())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ApiCoResultEnum.SUCCESS.getCode()))
-                .andExpect(jsonPath("$.data.merchantOrderNo").value("20250116140182865587"))
-                .andExpect(jsonPath("$.data.currency").value("USD"))
-                .andExpect(jsonPath("$.data.amount").value(1_238_945L))
+                .andExpect(jsonPath("$.data").isString())
                 .andReturn();
 
-        String encryptedResponseJson = encryptServerResponseData(
-                merchantMaterial.getMerchantId(),
-                mvcResult.getResponse().getContentAsString()
-        );
-        PaymentCreateVO merchantResponse = decryptMerchantResponseData(merchantMaterial, encryptedResponseJson);
+        PaymentCreateVO merchantResponse = decryptMerchantResponseData(merchantMaterial, mvcResult.getResponse().getContentAsString());
 
         assertThat(merchantResponse.getMerchantOrderNo()).isEqualTo("20250116140182865587");
         assertThat(merchantResponse.getCurrency()).isEqualTo("USD");
         assertThat(merchantResponse.getAmount()).isEqualTo(1_238_945L);
     }
 
-    private MerchantSecurityMaterialDTO provisionMerchant(String merchantId, String platformKeyId, String responseKeyId) {
+    private MerchantSecurityMaterialDTO provisionMerchant(String merchantId) {
         MerchantSecuritySeedDTO seedDTO = new MerchantSecuritySeedDTO();
         seedDTO.setMerchantId(merchantId);
         seedDTO.setMerchantName("Scott Test Merchant " + merchantId);
@@ -228,8 +197,6 @@ class MerchantSecurityDatabaseFlowTests {
         seedDTO.setSettlementCurrency("USD");
         seedDTO.setTimezone("Asia/Shanghai");
         seedDTO.setRiskLevel("NORMAL");
-        seedDTO.setPlatformPayloadKeyId(platformKeyId);
-        seedDTO.setMerchantResponseKeyId(responseKeyId);
         return merchantSecurityService.provisionMerchantSecurityMaterial(seedDTO);
     }
 
@@ -238,15 +205,12 @@ class MerchantSecurityDatabaseFlowTests {
         log.info("系统生成商户密钥材料，商户数量：2，主商户号：{}，第二商户号：{}",
                 merchantMaterial.getMerchantId(),
                 secondMerchantMaterial.getMerchantId());
-        log.info("商户默认必需材料摘要：merchantKey指纹：{}，平台公钥kid：{}，平台公钥指纹：{}",
+        log.info("商户默认必需材料摘要：merchantKey指纹：{}，平台公钥指纹：{}，商户响应私钥指纹：{}",
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantKey()),
-                merchantMaterial.getPlatformPayloadKeyId(),
-                keyMaterialFactory.fingerprint(merchantMaterial.getPlatformPublicKeyX509Base64()));
-        log.info("响应加密增强材料摘要：响应密钥ID：{}，商户响应私钥指纹：{}。该能力默认可不启用，只有要求响应data也加密时才需要商户保存。",
-                merchantMaterial.getMerchantResponseKeyId(),
+                keyMaterialFactory.fingerprint(merchantMaterial.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));
-        log.info("平台保留的材料：平台私钥只在base_platform_payload_key表内保存，平台只保存商户响应公钥，响应私钥不属于平台");
-        log.info("密钥关联关系：merchant_id关联merchantKey；platform_key_id关联平台RSA公私钥；response_key_id关联商户响应公钥和商户侧响应私钥");
+        log.info("平台保留的材料：每个merchant_id独立关联平台请求体RSA私钥、商户响应公钥和merchantKey；平台不保存商户响应私钥");
+        log.info("密钥关联关系：merchant_id关联merchantKey、平台请求体RSA密钥、商户响应公钥；请求体和响应体都不再携带密钥编号");
     }
 
     private void assertDatabaseLookupByMyBatisPlus(MerchantSecurityMaterialDTO merchantMaterial,
@@ -255,12 +219,9 @@ class MerchantSecurityDatabaseFlowTests {
                 .isEqualTo(merchantMaterial.getMerchantName());
         assertThat(merchantSecurityService.getMerchantKey(merchantMaterial.getMerchantId()))
                 .isEqualTo(merchantMaterial.getMerchantKey());
-        assertThat(merchantSecurityService.getPlatformPublicKey(merchantMaterial.getPlatformPayloadKeyId()))
+        assertThat(merchantSecurityService.getPlatformPublicKey(merchantMaterial.getMerchantId()))
                 .isNotNull();
-        assertThat(merchantSecurityService.getMerchantResponsePublicKey(
-                merchantMaterial.getMerchantId(),
-                merchantMaterial.getMerchantResponseKeyId()
-        )).isNotNull();
+        assertThat(merchantSecurityService.getMerchantResponsePublicKey(merchantMaterial.getMerchantId())).isNotNull();
         assertThat(merchantSecurityService.getMerchantKey(secondMerchantMaterial.getMerchantId()))
                 .isEqualTo(secondMerchantMaterial.getMerchantKey());
         log.info("MyBatisPlus数据库检索成功，主商户：{}，第二商户：{}，主从数据源当前都指向同一个MySQL库",
@@ -271,8 +232,7 @@ class MerchantSecurityDatabaseFlowTests {
     private String encryptMerchantRequestData(MerchantSecurityMaterialDTO merchantMaterial, String plainRequestJson) {
         String encryptedRequestData = payloadCrypto.encrypt(
                 plainRequestJson,
-                merchantSecurityService.getPlatformPublicKey(merchantMaterial.getPlatformPayloadKeyId()),
-                merchantMaterial.getPlatformPayloadKeyId()
+                merchantSecurityService.getPlatformPublicKey(merchantMaterial.getMerchantId())
         );
         log.info("商户请求JSON明文已生成，脱敏内容：{}", SensitiveDataMaskUtils.maskJson(plainRequestJson));
         log.info("商户完成请求体data加密，data段数：{}，data长度：{}，data指纹：{}",
@@ -303,7 +263,7 @@ class MerchantSecurityDatabaseFlowTests {
         String merchantId = merchantJwtVerifier.peekMerchantId(authorization);
         String merchantKey = merchantSecurityService.getMerchantKey(merchantId);
         JwtMerchantClaims claims = merchantJwtVerifier.verify(authorization, merchantKey);
-        String decryptedJson = payloadCrypto.decrypt(encryptedRequestData, merchantSecurityService::getPlatformPrivateKey);
+        String decryptedJson = payloadCrypto.decrypt(encryptedRequestData, merchantSecurityService.getPlatformPrivateKey(merchantMaterial.getMerchantId()));
         ApiMerchantPaymentRequestDTO requestDTO = JsonUtils.parseObject(decryptedJson, ApiMerchantPaymentRequestDTO.class);
 
         log.info("服务端收到商户参数，JWT验签成功，商户号：{}，jti：{}，请求体解密脱敏：{}",
@@ -335,41 +295,20 @@ class MerchantSecurityDatabaseFlowTests {
         log.info("反向用例校验通过-JWT过期会被拒绝，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getCode());
 
         String tamperedData = tamperCiphertextSegment(encryptedRequestData);
-        assertThatThrownBy(() -> payloadCrypto.decrypt(tamperedData, merchantSecurityService::getPlatformPrivateKey))
+        assertThatThrownBy(() -> payloadCrypto.decrypt(tamperedData, merchantSecurityService.getPlatformPrivateKey(merchantMaterial.getMerchantId())))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL.getMessage());
         log.info("反向用例校验通过-data密文被篡改时，AES-GCM认证失败，服务端拒绝解析");
     }
 
-    private String encryptServerResponseData(String merchantId, String plainResponseBody) {
-        Map<String, Object> responseMap = JsonUtils.parseObject(plainResponseBody, new TypeReference<Map<String, Object>>() {
-        });
-        String responseKeyId = merchantSecurityService.getEnabledMerchantResponseKeyId(merchantId);
-        String plainResponseData = JsonUtils.toJsonString(responseMap.get("data"));
-        String encryptedResponseData = payloadCrypto.encrypt(
-                plainResponseData,
-                merchantSecurityService.getMerchantResponsePublicKey(merchantId, responseKeyId),
-                responseKeyId
-        );
-        Map<String, Object> encryptedResponse = new LinkedHashMap<>();
-        encryptedResponse.put("code", responseMap.get("code"));
-        encryptedResponse.put("message", responseMap.get("message"));
-        encryptedResponse.put("data", encryptedResponseData);
-        log.info("增强模式下服务端响应加密完成，使用商户响应公钥ID：{}，响应data长度：{}，响应data指纹：{}",
-                responseKeyId,
-                encryptedResponseData.length(),
-                keyMaterialFactory.fingerprint(encryptedResponseData));
-        return JsonUtils.toJsonString(encryptedResponse);
-    }
-
     private PaymentCreateVO decryptMerchantResponseData(MerchantSecurityMaterialDTO merchantMaterial,
                                                         String encryptedResponseJson) {
-        Map<String, Object> responseMap = JsonUtils.parseObject(encryptedResponseJson, new TypeReference<Map<String, Object>>() {
+        Map<String, Object> responseMap = JsonUtils.parseObject(encryptedResponseJson, new TypeReference<>() {
         });
         String encryptedResponseData = String.valueOf(responseMap.get("data"));
         String plainResponseData = payloadCrypto.decrypt(
                 encryptedResponseData,
-                keyId -> resolveMerchantResponsePrivateKey(merchantMaterial, keyId)
+                payloadCrypto.readPrivateKey(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64())
         );
         PaymentCreateVO responseVO = JsonUtils.parseObject(plainResponseData, PaymentCreateVO.class);
         log.info("商户收到响应并解密成功，响应码：{}，响应消息：{}，订单号：{}，金额：{}，币种：{}",
@@ -379,11 +318,6 @@ class MerchantSecurityDatabaseFlowTests {
                 responseVO.getAmount(),
                 responseVO.getCurrency());
         return responseVO;
-    }
-
-    private PrivateKey resolveMerchantResponsePrivateKey(MerchantSecurityMaterialDTO merchantMaterial, String keyId) {
-        assertThat(keyId).isEqualTo(merchantMaterial.getMerchantResponseKeyId());
-        return payloadCrypto.readPrivateKey(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64());
     }
 
     private String createMerchantJwt(String merchantId, String merchantKey, long issuedAt) {

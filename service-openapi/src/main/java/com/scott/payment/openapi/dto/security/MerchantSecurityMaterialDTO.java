@@ -44,11 +44,6 @@ public class MerchantSecurityMaterialDTO {
     private Long jwtExpiresSeconds;
 
     /**
-     * 平台请求体加密公钥编号，商户加密请求体 data 时写入 kid。
-     */
-    private String platformPayloadKeyId;
-
-    /**
      * 平台请求体 X.509 DER Base64 公钥，商户侧可保存并用于加密请求体。
      */
     private String platformPublicKeyX509Base64;
@@ -57,11 +52,6 @@ public class MerchantSecurityMaterialDTO {
      * 平台请求体 PEM 公钥，方便 Java、PHP、Go、C/OpenSSL 等不同技术栈读取。
      */
     private String platformPublicKeyPem;
-
-    /**
-     * 商户响应公钥编号，平台响应加密增强模式写入 kid；默认对接可为空。
-     */
-    private String merchantResponseKeyId;
 
     /**
      * 商户响应 X.509 DER Base64 公钥，平台保存并用于加密响应 data；默认对接可为空。

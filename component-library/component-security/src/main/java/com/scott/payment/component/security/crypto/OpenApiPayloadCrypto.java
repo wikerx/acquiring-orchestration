@@ -126,22 +126,21 @@ public class OpenApiPayloadCrypto {
     private final SecureRandom secureRandom = new SecureRandom();
 
     /**
-     * 使用平台公钥加密开放 API 明文业务报文。
+     * 使用接收方公钥加密开放 API 明文业务报文。
      * <p>
      * 商户侧调用该流程：随机生成 AES-256 key 和 IV，使用 AES-GCM 加密 JSON 明文，再用支付平台公钥通过
      * RSA-OAEP-SHA256 加密 AES key，最终形成 compact 格式字符串放入请求体 data 字段。
      *
      * @param plainText          业务 JSON 明文
-     * @param recipientPublicKey 接收方 RSA 公钥，请求时为支付平台公钥，响应加密时可扩展为商户公钥
-     * @param keyId              RSA 密钥编号，用于支持后续密钥轮换
+     * @param recipientPublicKey 接收方 RSA 公钥，请求时为商户独立平台公钥，响应时为商户响应公钥
      * @return compact 密文报文
      */
-    public String encrypt(String plainText, PublicKey recipientPublicKey, String keyId) {
+    public String encrypt(String plainText, PublicKey recipientPublicKey) {
         Objects.requireNonNull(plainText, "plainText can not be null");
         Objects.requireNonNull(recipientPublicKey, "recipientPublicKey can not be null");
         byte[] contentKey = randomBytes(AES_KEY_BYTES);
         byte[] iv = randomBytes(GCM_IV_BYTES);
-        String protectedHeader = encodeProtectedHeader(keyId);
+        String protectedHeader = encodeProtectedHeader();
         byte[] cipherWithTag = aesGcm(Cipher.ENCRYPT_MODE, contentKey, iv, protectedHeader, plainText.getBytes(StandardCharsets.UTF_8));
         byte[] cipherText = Arrays.copyOf(cipherWithTag, cipherWithTag.length - GCM_TAG_BYTES);
         byte[] tag = Arrays.copyOfRange(cipherWithTag, cipherWithTag.length - GCM_TAG_BYTES, cipherWithTag.length);
@@ -157,28 +156,24 @@ public class OpenApiPayloadCrypto {
     /**
      * 解密开放 API compact 密文报文。
      * <p>
-     * 服务端先从受保护头读取 kid，再通过私钥解析器找到对应 RSA 私钥，解开 AES key 后使用 AES-GCM
-     * 解密业务报文。如果密文、认证标签或 header 被篡改，AES-GCM 会直接解密失败。
+     * 服务端必须先从 JWT 中取得 merchantId，再按 merchantId 查询当前商户独立的平台私钥。受保护头只描述
+     * 报文类型和算法，不再携带密钥编号，避免商户或攻击者通过请求体自行选择密钥。
      *
-     * @param compactPayload     compact 密文报文
-     * @param privateKeyResolver 按 kid 解析 RSA 私钥的函数
+     * @param compactPayload compact 密文报文
+     * @param privateKey     按 merchantId 查询到的平台 RSA 私钥或商户响应 RSA 私钥
      * @return 业务 JSON 明文
      */
-    public String decrypt(String compactPayload, Function<String, PrivateKey> privateKeyResolver) {
+    public String decrypt(String compactPayload, PrivateKey privateKey) {
         if (!StringUtils.hasText(compactPayload)) {
             throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "data");
         }
-        Objects.requireNonNull(privateKeyResolver, "privateKeyResolver can not be null");
+        Objects.requireNonNull(privateKey, "privateKey can not be null");
         String[] parts = compactPayload.split("\\.", -1);
         if (parts.length != COMPACT_PARTS) {
             throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data");
         }
         Map<String, String> header = decodeProtectedHeader(parts[0]);
         validateProtectedHeader(header);
-        PrivateKey privateKey = privateKeyResolver.apply(header.get("kid"));
-        if (privateKey == null) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data.kid");
-        }
         byte[] contentKey = rsaOaep(Cipher.DECRYPT_MODE, privateKey, base64UrlDecode(parts[1]));
         byte[] iv = base64UrlDecode(parts[2]);
         byte[] cipherText = base64UrlDecode(parts[3]);
@@ -186,6 +181,22 @@ public class OpenApiPayloadCrypto {
         byte[] cipherWithTag = concat(cipherText, tag);
         byte[] plainText = aesGcm(Cipher.DECRYPT_MODE, contentKey, iv, parts[0], cipherWithTag);
         return new String(plainText, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 兼容旧调用形态的解密入口。
+     * <p>
+     * 新方案中 compact header 不携带密钥编号，调用方应先按 merchantId 查询私钥，再调用
+     * {@link #decrypt(String, PrivateKey)}。该方法只在迁移期保留，私钥解析器接收到的参数固定为 null。
+     *
+     * @param compactPayload     compact 密文报文
+     * @param privateKeyResolver 历史按密钥编号查私钥的函数，当前只用于返回调用方已经选定的私钥
+     * @return 业务 JSON 明文
+     */
+    @Deprecated
+    public String decrypt(String compactPayload, Function<String, PrivateKey> privateKeyResolver) {
+        Objects.requireNonNull(privateKeyResolver, "privateKeyResolver can not be null");
+        return decrypt(compactPayload, privateKeyResolver.apply(null));
     }
 
     /**
@@ -262,17 +273,15 @@ public class OpenApiPayloadCrypto {
     /**
      * 构建 compact 密文第一段受保护头。
      * <p>
-     * 受保护头会作为 AES-GCM AAD 参与完整性校验，所以 `typ`、`alg`、`enc`、`kid` 任意字段被篡改都会导致解密失败。
+     * 受保护头会作为 AES-GCM AAD 参与完整性校验，所以 `typ`、`alg`、`enc` 任意字段被篡改都会导致解密失败。
      *
-     * @param keyId RSA 密钥编号
      * @return Base64Url 编码后的受保护头
      */
-    private String encodeProtectedHeader(String keyId) {
+    private String encodeProtectedHeader() {
         Map<String, String> header = new LinkedHashMap<>();
         header.put("typ", PAYLOAD_TYPE);
         header.put("alg", KEY_ENCRYPTION_ALGORITHM);
         header.put("enc", CONTENT_ENCRYPTION_ALGORITHM);
-        header.put("kid", StringUtils.hasText(keyId) ? keyId : "default");
         return base64Url(JsonUtils.toJsonString(header).getBytes(StandardCharsets.UTF_8));
     }
 

@@ -29,9 +29,11 @@ public class MerchantKeyRevisionDTO {
     private String keyType;
 
     /**
-     * 密钥编号。JWT 密钥使用 keyVersion，响应加密公钥使用 responseKeyId。
+     * 密钥版本号或后台展示标识。
+     * <p>
+     * 当前 OpenAPI 请求体、响应体都不携带 keyId；这里仅用于后台查看密钥迭代记录。
      */
-    private String keyId;
+    private String keyVersion;
 
     /**
      * 密钥算法。

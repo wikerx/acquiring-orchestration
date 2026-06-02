@@ -44,11 +44,6 @@ public class ServerSecurityMaterialDTO {
     private Long jwtExpiresSeconds;
 
     /**
-     * 平台请求体 RSA 密钥编号。
-     */
-    private String platformPayloadKeyId;
-
-    /**
      * 平台请求体 X.509 DER Base64 公钥。
      */
     private String platformPublicKeyX509Base64;
@@ -64,11 +59,6 @@ public class ServerSecurityMaterialDTO {
      * 平台请求体密钥安全指纹，用于日志核对。
      */
     private String platformKeyFingerprint;
-
-    /**
-     * 响应加密增强模式下的商户响应公钥编号；默认接入可为空。
-     */
-    private String merchantResponseKeyId;
 
     /**
      * 商户响应 X.509 DER Base64 公钥；默认接入可为空。

@@ -80,16 +80,4 @@ public class MerchantSecuritySeedDTO {
      * 商户风险等级，例如 LOW、NORMAL、HIGH。
      */
     private String riskLevel;
-
-    /**
-     * 平台请求体 RSA 密钥编号，商户加密请求体 data 时写入 kid。
-     */
-    private String platformPayloadKeyId;
-
-    /**
-     * 商户响应公钥编号，平台响应加密增强模式写入 kid。
-     * <p>
-     * 该字段是可选增强项；默认 API 对接不要求商户提供响应解密密钥。
-     */
-    private String merchantResponseKeyId;
 }

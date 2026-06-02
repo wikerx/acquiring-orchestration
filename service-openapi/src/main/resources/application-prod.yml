@@ -34,3 +34,9 @@ spring:
 
 logging:
   config: classpath:log-config/logback-spring.xml
+
+openapi:
+  security:
+    replay:
+      # 生产环境必须强制 Redis 防重放成功，避免 JWT jti 无法落地导致重放风险。
+      required: true

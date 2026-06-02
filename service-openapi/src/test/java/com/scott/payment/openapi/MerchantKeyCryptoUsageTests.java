@@ -40,16 +40,6 @@ class MerchantKeyCryptoUsageTests {
     private static final String MERCHANT_ID = "220001";
 
     /**
-     * 测试平台请求体 RSA kid。
-     */
-    private static final String PLATFORM_KEY_ID = "payment-platform-crypto-v1";
-
-    /**
-     * 测试商户响应加密 RSA kid。
-     */
-    private static final String RESPONSE_KEY_ID = "merchant-220001-response-v1";
-
-    /**
      * 商户密钥服务，用于模拟商户查询自己可用的对接材料。
      */
     private final MerchantSecurityService merchantSecurityService;
@@ -81,14 +71,13 @@ class MerchantKeyCryptoUsageTests {
     }
 
     /**
-     * 每个用例执行前清理本类测试商户和测试平台 kid。
+     * 每个用例执行前清理本类测试商户。
      */
     @BeforeEach
     void cleanMerchantData() {
         MerchantOpenApiTestSupport.cleanMerchantSecurityData(
                 jdbcTemplate,
-                List.of(MERCHANT_ID),
-                List.of(PLATFORM_KEY_ID)
+                List.of(MERCHANT_ID)
         );
     }
 
@@ -98,24 +87,22 @@ class MerchantKeyCryptoUsageTests {
     @Test
     void shouldQueryMerchantKeysAndEncryptRequestData() {
         merchantSecurityService.provisionMerchantSecurityMaterial(
-                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID, PLATFORM_KEY_ID, RESPONSE_KEY_ID)
+                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID)
         );
         MerchantSecurityMaterialDTO clientMaterial = merchantSecurityService.getMerchantClientSecurityMaterial(MERCHANT_ID);
         String plainText = MerchantOpenApiTestSupport.authorizationPlainText(MERCHANT_ID, "202605300001");
 
         String encryptedData = payloadCrypto.encrypt(
                 plainText,
-                payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64()),
-                clientMaterial.getPlatformPayloadKeyId()
+                payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64())
         );
-        String decryptedText = payloadCrypto.decrypt(encryptedData, merchantSecurityService::getPlatformPrivateKey);
+        String decryptedText = payloadCrypto.decrypt(encryptedData, merchantSecurityService.getPlatformPrivateKey(MERCHANT_ID));
 
         assertThat(MerchantOpenApiTestSupport.compactPartCount(encryptedData)).isEqualTo(5);
         assertThat(decryptedText).isEqualTo(plainText);
-        log.info("商户查询密钥成功-商户号：{}，merchantKey指纹：{}，平台公钥kid：{}，平台公钥指纹：{}",
+        log.info("商户查询密钥成功-商户号：{}，merchantKey指纹：{}，平台公钥指纹：{}",
                 clientMaterial.getMerchantId(),
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
-                clientMaterial.getPlatformPayloadKeyId(),
                 keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()));
         log.info("商户请求加密成功-data段数：{}，data摘要：{}，解密后脱敏明文：{}",
                 MerchantOpenApiTestSupport.compactPartCount(encryptedData),
@@ -129,7 +116,7 @@ class MerchantKeyCryptoUsageTests {
     @Test
     void shouldDecryptEncryptedResponseWithMerchantPrivateKey() {
         MerchantSecurityMaterialDTO onboardingMaterial = merchantSecurityService.provisionMerchantSecurityMaterial(
-                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID, PLATFORM_KEY_ID, RESPONSE_KEY_ID)
+                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID)
         );
         String plainResponseData = """
                 {
@@ -142,17 +129,16 @@ class MerchantKeyCryptoUsageTests {
 
         String encryptedResponseData = payloadCrypto.encrypt(
                 plainResponseData,
-                merchantSecurityService.getMerchantResponsePublicKey(MERCHANT_ID, RESPONSE_KEY_ID),
-                RESPONSE_KEY_ID
+                merchantSecurityService.getMerchantResponsePublicKey(MERCHANT_ID)
         );
         String decryptedResponseData = payloadCrypto.decrypt(
                 encryptedResponseData,
-                keyId -> MerchantOpenApiTestSupport.resolveMerchantResponsePrivateKey(onboardingMaterial, payloadCrypto, keyId)
+                MerchantOpenApiTestSupport.resolveMerchantResponsePrivateKey(onboardingMaterial, payloadCrypto)
         );
 
         assertThat(decryptedResponseData).isEqualTo(plainResponseData);
-        log.info("平台响应加密成功-使用商户响应公钥kid：{}，密文摘要：{}",
-                RESPONSE_KEY_ID,
+        log.info("平台响应加密成功-商户号：{}，密文摘要：{}",
+                MERCHANT_ID,
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyMaterialFactory));
         log.info("商户响应解密成功-使用商户响应私钥指纹：{}，响应明文：{}",
                 keyMaterialFactory.fingerprint(onboardingMaterial.getMerchantResponsePrivateKeyPkcs8Base64()),

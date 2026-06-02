@@ -73,12 +73,10 @@ public final class MerchantOpenApiTestSupport {
     /**
      * 构造一套外卡收单商户开户初始化参数。
      *
-     * @param merchantId    支付框架颁发的商户号
-     * @param platformKeyId 平台请求体 RSA 公钥编号
-     * @param responseKeyId 商户响应加密公钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 商户开户初始化参数
      */
-    public static MerchantSecuritySeedDTO buildMerchantSeed(String merchantId, String platformKeyId, String responseKeyId) {
+    public static MerchantSecuritySeedDTO buildMerchantSeed(String merchantId) {
         MerchantSecuritySeedDTO seedDTO = new MerchantSecuritySeedDTO();
         seedDTO.setMerchantId(merchantId);
         seedDTO.setMerchantName("Scott Payment Merchant " + merchantId);
@@ -93,30 +91,25 @@ public final class MerchantOpenApiTestSupport {
         seedDTO.setSettlementCurrency("USD");
         seedDTO.setTimezone("Asia/Shanghai");
         seedDTO.setRiskLevel("NORMAL");
-        seedDTO.setPlatformPayloadKeyId(platformKeyId);
-        seedDTO.setMerchantResponseKeyId(responseKeyId);
         return seedDTO;
     }
 
     /**
-     * 清理指定商户和密钥编号的测试数据。
+     * 清理指定商户的测试数据。
      * <p>
-     * 该方法只删除测试指定商户和指定平台 kid，避免误删本地已有业务数据。
+     * 该方法只删除测试指定商户，避免误删本地已有业务数据。
      *
-     * @param jdbcTemplate       JDBC 模板，仅用于测试数据清理
-     * @param merchantIdList     需要清理的商户号列表
-     * @param platformKeyIdList  需要清理的平台请求体 RSA kid 列表
+     * @param jdbcTemplate   JDBC 模板，仅用于测试数据清理
+     * @param merchantIdList 需要清理的商户号列表
      */
     public static void cleanMerchantSecurityData(JdbcTemplate jdbcTemplate,
-                                                 List<String> merchantIdList,
-                                                 List<String> platformKeyIdList) {
+                                                 List<String> merchantIdList) {
         merchantIdList.forEach(merchantId -> {
             jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id = ?", merchantId);
+            jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_info WHERE merchant_id = ?", merchantId);
         });
-        platformKeyIdList.forEach(platformKeyId ->
-                jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE platform_key_id = ?", platformKeyId));
     }
 
     /**
@@ -273,13 +266,10 @@ public final class MerchantOpenApiTestSupport {
      *
      * @param merchantMaterial 商户开户时拿到的响应私钥材料
      * @param payloadCrypto    OpenAPI 报文加解密工具
-     * @param keyId            响应密文 header 中的 kid
      * @return 商户响应私钥
      */
     public static PrivateKey resolveMerchantResponsePrivateKey(MerchantSecurityMaterialDTO merchantMaterial,
-                                                               OpenApiPayloadCrypto payloadCrypto,
-                                                               String keyId) {
-        Assertions.assertThat(keyId).isEqualTo(merchantMaterial.getMerchantResponseKeyId());
+                                                               OpenApiPayloadCrypto payloadCrypto) {
         return payloadCrypto.readPrivateKey(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64());
     }
 

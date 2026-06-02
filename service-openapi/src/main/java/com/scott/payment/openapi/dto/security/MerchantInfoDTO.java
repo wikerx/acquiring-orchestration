@@ -42,16 +42,6 @@ public class MerchantInfoDTO {
     private String merchantCategoryCode;
 
     /**
-     * 商户默认使用的平台请求体 RSA 公钥编号。
-     */
-    private String platformPayloadKeyId;
-
-    /**
-     * 响应加密增强模式下的商户响应公钥编号；默认接入可为空。
-     */
-    private String responseKeyId;
-
-    /**
      * 商户所在国家三字码。
      */
     private String countryCode;

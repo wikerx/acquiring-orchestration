@@ -12,3 +12,8 @@ spring:
   main:
     allow-bean-definition-overriding: true
 
+openapi:
+  security:
+    replay:
+      # 本地默认不强制 Redis 防重放成功，避免未启动 Redis 时影响本地启动；生产环境必须在 application-prod.yml 开启。
+      required: false

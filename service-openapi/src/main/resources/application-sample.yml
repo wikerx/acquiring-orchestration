@@ -34,3 +34,9 @@ spring:
 
 logging:
   config: classpath:log-config/logback-spring.xml
+
+openapi:
+  security:
+    replay:
+      # 示例环境沿用本地调试策略；真实 UAT/生产必须开启 Redis 强制防重放。
+      required: false

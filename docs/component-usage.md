@@ -14,7 +14,7 @@ merchant/client
 ```
 
 - `service-gateway`：只负责路径白名单、路由、基础响应头和兜底错误，不加载数据库、Redis、MQ、Seata、分表配置。
-- `service-openapi`：负责 JWT 鉴权、请求体解密、公共参数校验、商户基础信息校验，然后调用支付核心服务。
+- `service-openapi`：负责 JWT 鉴权、JWT jti 防重放、请求体解密、公共参数校验、商户基础信息校验，然后调用支付核心服务。
 - `service-payment`：负责收单交易创建、订单号生成、交易状态初始化、异步事件发送。
 - `service-gateway` 使用 `spring-cloud-starter-gateway-server-webflux` 和 `spring-cloud-starter-loadbalancer`；`lb://service-openapi` 必须依赖 LoadBalancer 才能从 Nacos 实例列表完成转发。
 
@@ -64,6 +64,7 @@ Redis 序列化统一由 `RedisTemplateConfig` 配置：
 - key/hashKey：字符串序列化；
 - value/hashValue：JSON 序列化；
 - 支持 Java 17 时间类型。
+- Redis 工具实现类使用条件装配：只有存在 `RedisTemplate` 或 `StringRedisTemplate` 时才注册，避免 OpenAPI、Gateway 等暂时不依赖 Redis 的服务被工具包阻塞启动。
 
 常用调用示例：
 
@@ -141,6 +142,29 @@ openapi:
 
 当 `remote-enabled=false` 时，`service-openapi` 会在本地生成模拟平台订单号和 `RECEIVED` 状态，方便商户侧
 验证响应解析、日志追踪和加解密闭环；该模式只用于单元测试或单服务本地调试。
+
+## ISO 国家与币种工具
+
+`component-core` 提供 ISO 识别工具，方便外卡收单接口做国家、币种、浏览器语言和金额辅币位校验：
+
+- `IsoCountryResolver`：支持按国家二位字母、三位字母、常用三位数字、英文全称、中文全称、浏览器语言识别国家。
+- `IsoCountryInfo`：输出 alpha2、alpha3、numeric、英文名、中文名和七大洲归属。
+- `IsoCurrencyResolver`：支持按 ISO 4217 三位字母、三位数字、英文名、中文名识别币种。
+- `IsoCurrencyInfo`：输出币种三位字母、三位数字、英文名、中文名、辅币位和最小单位换算倍数。
+
+说明：ISO 4217 没有标准“两位字母币种代码”，支付接口应使用三位字母，例如 `USD`、`CNY`、`JPY`。JDK 17 不直接暴露全量 ISO 3166-1 numeric 国家数字码，当前国家三数字码先覆盖跨境收单常用市场；如需全量国家数字码，建议落到 `base_country` 基础字典表统一维护。
+
+示例：
+
+```java
+IsoCountryInfo countryInfo = IsoCountryResolver.resolve("USA")
+        .orElseThrow();
+
+IsoCurrencyInfo currencyInfo = IsoCurrencyResolver.resolve("840")
+        .orElseThrow();
+
+BigDecimal minorAmount = IsoCurrencyResolver.toMinorUnit(new BigDecimal("123.45"), currencyInfo);
+```
 
 ## 金额单位
 

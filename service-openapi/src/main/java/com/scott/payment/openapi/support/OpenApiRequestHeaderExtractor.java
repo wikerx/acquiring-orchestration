@@ -43,10 +43,17 @@ public class OpenApiRequestHeaderExtractor {
      */
     private final MerchantKeyProvider merchantKeyProvider;
 
+    /**
+     * JWT jti 防重放服务，Redis 可用时写入防重放键。
+     */
+    private final OpenApiJwtReplayProtectionService replayProtectionService;
+
     public OpenApiRequestHeaderExtractor(MerchantJwtVerifier merchantJwtVerifier,
-                                         MerchantKeyProvider merchantKeyProvider) {
+                                         MerchantKeyProvider merchantKeyProvider,
+                                         OpenApiJwtReplayProtectionService replayProtectionService) {
         this.merchantJwtVerifier = merchantJwtVerifier;
         this.merchantKeyProvider = merchantKeyProvider;
+        this.replayProtectionService = replayProtectionService;
     }
 
     /**
@@ -63,6 +70,7 @@ public class OpenApiRequestHeaderExtractor {
         String merchantId = merchantJwtVerifier.peekMerchantId(token);
         String merchantKey = merchantKeyProvider.getMerchantKey(merchantId);
         JwtMerchantClaims claims = merchantJwtVerifier.verify(token, merchantKey);
+        replayProtectionService.checkAndMark(claims.getMerchantId(), claims.getJwtId(), claims.getExpiresAt());
 
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setAuthorization(token);
@@ -73,6 +81,14 @@ public class OpenApiRequestHeaderExtractor {
         return headerDTO;
     }
 
+    /**
+     * 校验当前接口声明必须携带的请求头。
+     * <p>
+     * Authorization 会返回稳定的未授权错误码，其他缺失请求头会返回必填参数缺失错误码，便于商户排查接入问题。
+     *
+     * @param request         HTTP 请求
+     * @param requiredHeaders 当前接口要求存在的请求头名称列表
+     */
     private void validateRequiredHeaders(HttpServletRequest request, String[] requiredHeaders) {
         if (requiredHeaders == null || requiredHeaders.length == 0) {
             return;
@@ -87,6 +103,14 @@ public class OpenApiRequestHeaderExtractor {
         }
     }
 
+    /**
+     * 从 Authorization 请求头解析 JWT Token。
+     * <p>
+     * 支持标准 Bearer Token 和直接传 JWT 两种形式，降低商户接入门槛。
+     *
+     * @param authorization 原始 Authorization 请求头
+     * @return 去除 Bearer 前缀后的 JWT Token
+     */
     private String resolveToken(String authorization) {
         if (!StringUtils.hasText(authorization)) {
             throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_NULL);

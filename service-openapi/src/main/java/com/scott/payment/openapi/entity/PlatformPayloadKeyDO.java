@@ -25,9 +25,11 @@ public class PlatformPayloadKeyDO extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 平台 RSA 密钥编号，写入商户请求体 data 的受保护头 kid 字段。
+     * 支付框架颁发的商户号。
+     * <p>
+     * 当前安全方案要求每个商户独立维护一套平台请求体 RSA 密钥，服务端解密时只允许按 merchantId 查询私钥。
      */
-    private String platformKeyId;
+    private String merchantId;
 
     /**
      * 平台 RSA X.509 DER Base64 公钥，可下发给商户用于加密请求体。

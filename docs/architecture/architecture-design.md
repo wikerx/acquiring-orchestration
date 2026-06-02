@@ -549,7 +549,7 @@ service-checkout
 1. 商户侧收单、代付、查询、退款等开放 API 入口；
 2. JWT 授权验签；
 3. 报文数据解密；
-4. 商户号、merchantKey、RSA kid 等基础参数校验；
+4. 商户号、merchantKey、商户独立 RSA 密钥材料等基础参数校验；
 5. 商户产品权限、接口权限和限额前置校验；
 6. JWT jti + Redis 防重放；
 7. 幂等键校验；

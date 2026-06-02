@@ -2,6 +2,7 @@ package com.scott.payment.component.redis.list.impl;
 
 import com.scott.payment.component.redis.list.RedisListService;
 import com.scott.payment.component.redis.support.RedisKeySupport;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -20,6 +21,7 @@ import java.util.List;
  * @status : create
  */
 @Service
+@ConditionalOnBean(RedisTemplate.class)
 public class RedisListServiceImpl implements RedisListService {
 
     /**

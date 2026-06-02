@@ -28,7 +28,7 @@ public class OpenApiPayloadDecoder {
     private final OpenApiPayloadCrypto payloadCrypto;
 
     /**
-     * 平台 RSA 私钥提供器，后续生产环境通过 Nacos、数据库或 KMS 按 kid 获取真实密钥。
+     * 平台 RSA 私钥提供器，生产环境通过 merchantId 从数据库、KMS 或 HSM 获取当前商户独立私钥。
      */
     private final OpenApiPayloadKeyProvider payloadKeyProvider;
 
@@ -91,6 +91,6 @@ public class OpenApiPayloadDecoder {
         if (headerDTO == null || !StringUtils.hasText(headerDTO.getMerchantId())) {
             throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED);
         }
-        return payloadCrypto.decrypt(encryptedData.trim(), payloadKeyProvider::getPlatformPrivateKey);
+        return payloadCrypto.decrypt(encryptedData.trim(), payloadKeyProvider.getPlatformPrivateKey(headerDTO.getMerchantId()));
     }
 }

@@ -23,7 +23,6 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,16 +51,6 @@ class MerchantOpenApiEndToEndTests {
      * 测试商户号。
      */
     private static final String MERCHANT_ID = "230001";
-
-    /**
-     * 测试平台请求体 RSA kid。
-     */
-    private static final String PLATFORM_KEY_ID = "payment-platform-openapi-e2e-v1";
-
-    /**
-     * 测试商户响应加密 RSA kid。
-     */
-    private static final String RESPONSE_KEY_ID = "merchant-230001-response-v1";
 
     /**
      * 成功分支商户订单号。
@@ -112,14 +101,13 @@ class MerchantOpenApiEndToEndTests {
     }
 
     /**
-     * 每个用例执行前清理本类测试商户和测试平台 kid。
+     * 每个用例执行前清理本类测试商户数据，确保密钥材料按 merchantId 重新生成。
      */
     @BeforeEach
     void cleanMerchantData() {
         MerchantOpenApiTestSupport.cleanMerchantSecurityData(
                 jdbcTemplate,
-                List.of(MERCHANT_ID),
-                List.of(PLATFORM_KEY_ID)
+                List.of(MERCHANT_ID)
         );
     }
 
@@ -136,8 +124,7 @@ class MerchantOpenApiEndToEndTests {
         log.info("商户生成请求明文JSON-脱敏内容：{}", SensitiveDataMaskUtils.maskJson(plainRequestJson));
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
-                payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64()),
-                clientMaterial.getPlatformPayloadKeyId()
+                payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64())
         );
         log.info("商户完成请求体data加密-data段数：{}，data摘要：{}",
                 MerchantOpenApiTestSupport.compactPartCount(encryptedData),
@@ -154,10 +141,10 @@ class MerchantOpenApiEndToEndTests {
         log.info("商户完成HTTP请求体封装-body摘要：{}",
                 MerchantOpenApiTestSupport.safeSecretSummary(httpRequestBody, keyMaterialFactory));
 
-        log.info("商户准备调用OpenAPI-密钥摘要：merchantKey指纹={}，平台公钥kid={}，平台公钥指纹={}",
+        log.info("商户准备调用OpenAPI-密钥摘要：merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
-                clientMaterial.getPlatformPayloadKeyId(),
-                keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()));
+                keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()),
+                keyMaterialFactory.fingerprint(onboardingMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));
         log.info("商户准备调用OpenAPI-HTTP安全摘要：{}",
                 JsonUtils.toJsonString(MerchantOpenApiTestSupport.safeHttpCallSummary(authorization, httpRequestBody, keyMaterialFactory)));
 
@@ -165,19 +152,15 @@ class MerchantOpenApiEndToEndTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
                         .content(httpRequestBody))
-                .andDo(result -> log.info("服务端返回明文响应，HTTP状态：{}，响应体：{}",
+                .andDo(result -> log.info("服务端返回加密响应，HTTP状态：{}，响应体摘要：{}",
                         result.getResponse().getStatus(),
-                        result.getResponse().getContentAsString()))
+                        MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ApiCoResultEnum.SUCCESS.getCode()))
-                .andExpect(jsonPath("$.data.merchantOrderNo").value(SUCCESS_TRADE_NO))
-                .andExpect(jsonPath("$.data.currency").value("USD"))
+                .andExpect(jsonPath("$.data").isString())
                 .andReturn();
 
-        String encryptedResponseJson = encryptServerResponseData(MERCHANT_ID, mvcResult.getResponse().getContentAsString());
-        log.info("服务端返回响应已做安全处理-响应摘要：{}",
-                MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseJson, keyMaterialFactory));
-        PaymentCreateVO decryptedResponse = decryptMerchantResponseData(onboardingMaterial, encryptedResponseJson);
+        PaymentCreateVO decryptedResponse = decryptMerchantResponseData(onboardingMaterial, mvcResult.getResponse().getContentAsString());
         log.info("decryptedResponse={}", decryptedResponse);
 
         assertThat(decryptedResponse.getMerchantOrderNo()).isEqualTo(SUCCESS_TRADE_NO);
@@ -199,8 +182,7 @@ class MerchantOpenApiEndToEndTests {
         String plainRequestJson = MerchantOpenApiTestSupport.authorizationPlainText(MERCHANT_ID, "202605300004");
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
-                payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64()),
-                clientMaterial.getPlatformPayloadKeyId()
+                payloadCrypto.readPublicKey(clientMaterial.getPlatformPublicKeyX509Base64())
         );
         String validAuthorization = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,
@@ -235,7 +217,7 @@ class MerchantOpenApiEndToEndTests {
      */
     private MerchantSecurityMaterialDTO provisionMerchant() {
         return merchantSecurityService.provisionMerchantSecurityMaterial(
-                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID, PLATFORM_KEY_ID, RESPONSE_KEY_ID)
+                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID)
         );
     }
 
@@ -268,33 +250,6 @@ class MerchantOpenApiEndToEndTests {
     }
 
     /**
-     * 模拟服务端响应加密增强模式：使用商户响应公钥加密响应 data。
-     *
-     * @param merchantId         支付框架颁发的商户号
-     * @param plainResponseBody  OpenAPI 控制器返回的明文响应 JSON
-     * @return data 已加密的响应 JSON
-     */
-    private String encryptServerResponseData(String merchantId, String plainResponseBody) {
-        Map<String, Object> responseMap = JsonUtils.parseObject(plainResponseBody, new TypeReference<Map<String, Object>>() {
-        });
-        String responseKeyId = merchantSecurityService.getEnabledMerchantResponseKeyId(merchantId);
-        String plainResponseData = JsonUtils.toJsonString(responseMap.get("data"));
-        String encryptedResponseData = payloadCrypto.encrypt(
-                plainResponseData,
-                merchantSecurityService.getMerchantResponsePublicKey(merchantId, responseKeyId),
-                responseKeyId
-        );
-        Map<String, Object> encryptedResponse = new LinkedHashMap<>();
-        encryptedResponse.put("code", responseMap.get("code"));
-        encryptedResponse.put("message", responseMap.get("message"));
-        encryptedResponse.put("data", encryptedResponseData);
-        log.info("服务端响应加密增强-使用商户响应公钥kid={}，响应data摘要={}",
-                responseKeyId,
-                MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyMaterialFactory));
-        return JsonUtils.toJsonString(encryptedResponse);
-    }
-
-    /**
      * 模拟商户收到响应后，使用自己保存的响应私钥解密响应 data。
      *
      * @param merchantMaterial    商户开户时拿到的响应私钥材料
@@ -303,12 +258,12 @@ class MerchantOpenApiEndToEndTests {
      */
     private PaymentCreateVO decryptMerchantResponseData(MerchantSecurityMaterialDTO merchantMaterial,
                                                         String encryptedResponseJson) {
-        Map<String, Object> responseMap = JsonUtils.parseObject(encryptedResponseJson, new TypeReference<Map<String, Object>>() {
+        Map<String, Object> responseMap = JsonUtils.parseObject(encryptedResponseJson, new TypeReference<>() {
         });
         String encryptedResponseData = String.valueOf(responseMap.get("data"));
         String plainResponseData = payloadCrypto.decrypt(
                 encryptedResponseData,
-                keyId -> MerchantOpenApiTestSupport.resolveMerchantResponsePrivateKey(merchantMaterial, payloadCrypto, keyId)
+                MerchantOpenApiTestSupport.resolveMerchantResponsePrivateKey(merchantMaterial, payloadCrypto)
         );
         log.info("商户响应解密成功-响应码={}，响应消息={}，响应明文={}",
                 responseMap.get("code"),

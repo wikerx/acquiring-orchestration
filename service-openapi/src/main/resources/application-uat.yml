@@ -34,3 +34,9 @@ spring:
 
 logging:
   config: classpath:log-config/logback-spring.xml
+
+openapi:
+  security:
+    replay:
+      # UAT 按生产形态校验 JWT jti 防重放，Redis 不可用时拒绝 OpenAPI 请求。
+      required: true

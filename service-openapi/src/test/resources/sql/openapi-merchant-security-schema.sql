@@ -5,8 +5,6 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     merchant_short_name VARCHAR(64) NULL COMMENT '商户简称',
     merchant_status VARCHAR(16) NOT NULL COMMENT '商户状态：ACTIVE/FROZEN/CLOSED',
     merchant_category_code VARCHAR(4) NOT NULL COMMENT '商户类别码MCC',
-    platform_payload_key_id VARCHAR(64) NULL COMMENT '商户默认使用的平台请求体RSA公钥编号kid',
-    response_key_id VARCHAR(64) NULL COMMENT '响应加密增强模式下的商户响应公钥编号kid',
     country_code CHAR(3) NOT NULL COMMENT '商户所在国家三字码',
     region_code VARCHAR(16) NULL COMMENT '商户所在州、省或区域代码',
     city VARCHAR(64) NULL COMMENT '商户所在城市',
@@ -23,36 +21,6 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     UNIQUE KEY uk_base_merchant_info_mid (merchant_id),
     KEY idx_base_merchant_status (merchant_status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础商户信息表';
-
-SET @add_platform_payload_key_id_sql = (
-    SELECT IF(
-        COUNT(*) = 0,
-        'ALTER TABLE base_merchant_info ADD COLUMN platform_payload_key_id VARCHAR(64) NULL COMMENT ''商户默认使用的平台请求体RSA公钥编号kid'' AFTER merchant_category_code',
-        'SELECT 1'
-    )
-    FROM information_schema.columns
-    WHERE table_schema = DATABASE()
-      AND table_name = 'base_merchant_info'
-      AND column_name = 'platform_payload_key_id'
-);
-PREPARE add_platform_payload_key_id_stmt FROM @add_platform_payload_key_id_sql;
-EXECUTE add_platform_payload_key_id_stmt;
-DEALLOCATE PREPARE add_platform_payload_key_id_stmt;
-
-SET @add_response_key_id_sql = (
-    SELECT IF(
-        COUNT(*) = 0,
-        'ALTER TABLE base_merchant_info ADD COLUMN response_key_id VARCHAR(64) NULL COMMENT ''响应加密增强模式下的商户响应公钥编号kid'' AFTER platform_payload_key_id',
-        'SELECT 1'
-    )
-    FROM information_schema.columns
-    WHERE table_schema = DATABASE()
-      AND table_name = 'base_merchant_info'
-      AND column_name = 'response_key_id'
-);
-PREPARE add_response_key_id_stmt FROM @add_response_key_id_sql;
-EXECUTE add_response_key_id_stmt;
-DEALLOCATE PREPARE add_response_key_id_stmt;
 
 CREATE TABLE IF NOT EXISTS base_merchant_jwt_key (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -74,7 +42,7 @@ CREATE TABLE IF NOT EXISTS base_merchant_jwt_key (
 
 CREATE TABLE IF NOT EXISTS base_platform_payload_key (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    platform_key_id VARCHAR(64) NOT NULL COMMENT '平台请求体RSA密钥编号kid',
+    merchant_id VARCHAR(32) NOT NULL COMMENT '支付框架颁发的商户号，每个商户独立一套平台请求体RSA密钥',
     public_key_x509_base64 TEXT NOT NULL COMMENT '平台X.509 DER Base64公钥，下发给商户',
     private_key_pkcs8_base64 TEXT NOT NULL COMMENT '平台PKCS#8 DER Base64私钥，测试环境明文，生产必须KMS或加密存储',
     algorithm VARCHAR(64) NOT NULL COMMENT '请求体加密算法',
@@ -84,14 +52,28 @@ CREATE TABLE IF NOT EXISTS base_platform_payload_key (
     gmt_modified DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识：0正常，1删除',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_base_platform_payload_key_kid (platform_key_id),
+    UNIQUE KEY uk_base_platform_payload_key_mid (merchant_id),
     KEY idx_base_platform_payload_key_status (enabled, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础平台请求体RSA密钥表';
+
+SET @add_platform_payload_merchant_id_sql = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE base_platform_payload_key ADD COLUMN merchant_id VARCHAR(32) NULL COMMENT ''支付框架颁发的商户号，每个商户独立一套平台请求体RSA密钥'' AFTER id',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_platform_payload_key'
+      AND column_name = 'merchant_id'
+);
+PREPARE add_platform_payload_merchant_id_stmt FROM @add_platform_payload_merchant_id_sql;
+EXECUTE add_platform_payload_merchant_id_stmt;
+DEALLOCATE PREPARE add_platform_payload_merchant_id_stmt;
 
 CREATE TABLE IF NOT EXISTS base_merchant_response_key (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_id VARCHAR(32) NOT NULL COMMENT '支付框架颁发的商户号',
-    response_key_id VARCHAR(64) NOT NULL COMMENT '商户响应RSA公钥编号kid',
     public_key_x509_base64 TEXT NOT NULL COMMENT '商户X.509 DER Base64响应公钥，平台只保存公钥',
     algorithm VARCHAR(64) NOT NULL COMMENT '响应data加密算法',
     key_size INT NOT NULL COMMENT 'RSA密钥位数',
@@ -100,6 +82,66 @@ CREATE TABLE IF NOT EXISTS base_merchant_response_key (
     gmt_modified DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识：0正常，1删除',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_base_merchant_response_key_mid_kid (merchant_id, response_key_id),
+    UNIQUE KEY uk_base_merchant_response_key_mid (merchant_id),
     KEY idx_base_merchant_response_key_lookup (merchant_id, enabled, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础商户响应加密公钥表';
+
+SET @drop_merchant_info_platform_payload_key_id_sql = (
+    SELECT IF(
+        COUNT(*) > 0,
+        'ALTER TABLE base_merchant_info DROP COLUMN platform_payload_key_id',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'platform_payload_key_id'
+);
+PREPARE drop_merchant_info_platform_payload_key_id_stmt FROM @drop_merchant_info_platform_payload_key_id_sql;
+EXECUTE drop_merchant_info_platform_payload_key_id_stmt;
+DEALLOCATE PREPARE drop_merchant_info_platform_payload_key_id_stmt;
+
+SET @drop_merchant_info_response_key_id_sql = (
+    SELECT IF(
+        COUNT(*) > 0,
+        'ALTER TABLE base_merchant_info DROP COLUMN response_key_id',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'response_key_id'
+);
+PREPARE drop_merchant_info_response_key_id_stmt FROM @drop_merchant_info_response_key_id_sql;
+EXECUTE drop_merchant_info_response_key_id_stmt;
+DEALLOCATE PREPARE drop_merchant_info_response_key_id_stmt;
+
+SET @drop_platform_payload_key_id_sql = (
+    SELECT IF(
+        COUNT(*) > 0,
+        'ALTER TABLE base_platform_payload_key DROP COLUMN platform_key_id',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_platform_payload_key'
+      AND column_name = 'platform_key_id'
+);
+PREPARE drop_platform_payload_key_id_stmt FROM @drop_platform_payload_key_id_sql;
+EXECUTE drop_platform_payload_key_id_stmt;
+DEALLOCATE PREPARE drop_platform_payload_key_id_stmt;
+
+SET @drop_merchant_response_key_id_sql = (
+    SELECT IF(
+        COUNT(*) > 0,
+        'ALTER TABLE base_merchant_response_key DROP COLUMN response_key_id',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_response_key'
+      AND column_name = 'response_key_id'
+);
+PREPARE drop_merchant_response_key_id_stmt FROM @drop_merchant_response_key_id_sql;
+EXECUTE drop_merchant_response_key_id_stmt;
+DEALLOCATE PREPARE drop_merchant_response_key_id_stmt;

@@ -50,20 +50,6 @@ public class MerchantInfoDO extends BaseEntity {
     private String merchantCategoryCode;
 
     /**
-     * 商户默认使用的平台请求体 RSA 公钥编号。
-     * <p>
-     * 商户加密请求体 data 时把该值写入 compact header 的 kid，服务端据此查找平台私钥解密。
-     */
-    private String platformPayloadKeyId;
-
-    /**
-     * 响应加密增强模式下的商户响应公钥编号。
-     * <p>
-     * 默认开放接口可为空；只有启用响应 data 加密时，服务端才使用该编号查找商户响应公钥。
-     */
-    private String responseKeyId;
-
-    /**
      * 商户所在国家三字码，使用 ISO 3166-1 alpha-3，例如 USA、CAN、GBR。
      */
     private String countryCode;

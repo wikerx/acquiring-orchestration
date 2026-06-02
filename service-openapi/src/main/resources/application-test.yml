@@ -34,3 +34,9 @@ spring:
 
 logging:
   config: classpath:log-config/logback-spring.xml
+
+openapi:
+  security:
+    replay:
+      # 测试环境默认允许未部署 Redis 时执行接口测试；联调压测可在 Nacos 中覆盖为 true。
+      required: false

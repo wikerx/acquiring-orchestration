@@ -2,6 +2,7 @@ package com.scott.payment.component.redis.zset.impl;
 
 import com.scott.payment.component.redis.support.RedisKeySupport;
 import com.scott.payment.component.redis.zset.RedisZSetService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import java.util.Set;
  * @status : create
  */
 @Service
+@ConditionalOnBean(RedisTemplate.class)
 public class RedisZSetServiceImpl implements RedisZSetService {
 
     /**

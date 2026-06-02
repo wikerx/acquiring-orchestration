@@ -1,6 +1,7 @@
 package com.scott.payment.component.redis.lock.impl;
 
 import com.scott.payment.component.redis.lock.RedisLockService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ import java.util.List;
  * @status : create
  */
 @Service
+@ConditionalOnBean(StringRedisTemplate.class)
 public class RedisLockServiceImpl implements RedisLockService {
 
     /**

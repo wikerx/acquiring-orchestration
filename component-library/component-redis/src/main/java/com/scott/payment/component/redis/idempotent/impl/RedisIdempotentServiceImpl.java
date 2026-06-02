@@ -1,6 +1,7 @@
 package com.scott.payment.component.redis.idempotent.impl;
 
 import com.scott.payment.component.redis.idempotent.IdempotentService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -17,6 +18,7 @@ import java.time.Duration;
  * @status : create
  */
 @Service
+@ConditionalOnBean(StringRedisTemplate.class)
 public class RedisIdempotentServiceImpl implements IdempotentService {
 
     /**

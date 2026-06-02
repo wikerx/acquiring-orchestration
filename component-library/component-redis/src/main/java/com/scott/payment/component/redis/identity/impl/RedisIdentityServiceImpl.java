@@ -4,6 +4,7 @@ import com.scott.payment.component.redis.constant.RedisKeyConstants;
 import com.scott.payment.component.redis.identity.RedisIdentityService;
 import com.scott.payment.component.redis.identity.RedisOrderNoGenerator;
 import com.scott.payment.component.redis.support.RedisKeySupport;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -26,6 +27,7 @@ import java.util.Locale;
  * @status : create
  */
 @Service
+@ConditionalOnBean(StringRedisTemplate.class)
 public class RedisIdentityServiceImpl implements RedisIdentityService {
 
     /**

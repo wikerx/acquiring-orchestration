@@ -30,11 +30,6 @@ public class MerchantResponseKeyDO extends BaseEntity {
     private String merchantId;
 
     /**
-     * 商户响应公钥编号，平台响应加密时写入 data 的受保护头 kid 字段。
-     */
-    private String responseKeyId;
-
-    /**
      * 商户 RSA X.509 DER Base64 响应公钥。
      * <p>
      * 平台只保存商户响应公钥；响应私钥由商户自己保存，用于解密平台响应 data。

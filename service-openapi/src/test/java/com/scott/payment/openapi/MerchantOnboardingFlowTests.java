@@ -46,26 +46,6 @@ class MerchantOnboardingFlowTests {
     private static final String SECOND_MERCHANT_ID = "210002";
 
     /**
-     * 主测试商户默认使用的平台请求体 RSA kid。
-     */
-    private static final String PLATFORM_KEY_ID = "payment-platform-onboarding-v1";
-
-    /**
-     * 第二个测试商户默认使用的平台请求体 RSA kid。
-     */
-    private static final String SECOND_PLATFORM_KEY_ID = "payment-platform-onboarding-v2";
-
-    /**
-     * 主测试商户响应加密增强模式 RSA kid。
-     */
-    private static final String RESPONSE_KEY_ID = "merchant-210001-response-v1";
-
-    /**
-     * 第二个测试商户响应加密增强模式 RSA kid。
-     */
-    private static final String SECOND_RESPONSE_KEY_ID = "merchant-210002-response-v1";
-
-    /**
      * 商户基础数据和密钥服务，内部使用 MyBatisPlus Mapper 访问 MySQL。
      */
     private final MerchantSecurityService merchantSecurityService;
@@ -90,14 +70,13 @@ class MerchantOnboardingFlowTests {
     }
 
     /**
-     * 每个用例执行前只清理本类测试商户和测试平台 kid，避免历史执行数据影响断言。
+     * 每个用例执行前只清理本类测试商户，避免历史执行数据影响断言。
      */
     @BeforeEach
     void cleanMerchantData() {
         MerchantOpenApiTestSupport.cleanMerchantSecurityData(
                 jdbcTemplate,
-                List.of(MERCHANT_ID, SECOND_MERCHANT_ID),
-                List.of(PLATFORM_KEY_ID, SECOND_PLATFORM_KEY_ID)
+                List.of(MERCHANT_ID, SECOND_MERCHANT_ID)
         );
     }
 
@@ -110,19 +89,16 @@ class MerchantOnboardingFlowTests {
 
         assertThat(materialDTO.getMerchantId()).isEqualTo(MERCHANT_ID);
         assertThat(materialDTO.getMerchantKey()).isNotBlank();
-        assertThat(materialDTO.getPlatformPayloadKeyId()).isEqualTo(PLATFORM_KEY_ID);
         assertThat(materialDTO.getPlatformPublicKeyX509Base64()).isNotBlank();
+        assertThat(materialDTO.getMerchantResponsePublicKeyX509Base64()).isNotBlank();
         assertThat(materialDTO.getMerchantResponsePrivateKeyPkcs8Base64()).isNotBlank();
 
-        log.info("开户成功-商户号：{}，商户必拿材料：merchantKey指纹={}，平台公钥kid={}，平台公钥指纹={}",
+        log.info("开户成功-商户号：{}，商户必拿材料：merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
                 materialDTO.getMerchantId(),
                 keyMaterialFactory.fingerprint(materialDTO.getMerchantKey()),
-                materialDTO.getPlatformPayloadKeyId(),
-                keyMaterialFactory.fingerprint(materialDTO.getPlatformPublicKeyX509Base64()));
-        log.info("开户成功-响应加密增强材料：responseKeyId={}，商户响应私钥指纹={}。默认普通对接可不启用响应加密增强模式。",
-                materialDTO.getMerchantResponseKeyId(),
+                keyMaterialFactory.fingerprint(materialDTO.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(materialDTO.getMerchantResponsePrivateKeyPkcs8Base64()));
-        log.info("开户成功-平台保留材料：平台私钥只由服务端保存；商户响应私钥只交付商户，平台只保存商户响应公钥。");
+        log.info("开户成功-平台保留材料：平台私钥只由服务端保存；商户响应私钥只交付商户，平台只保存商户响应公钥；所有密钥按merchantId关联。");
     }
 
     /**
@@ -136,18 +112,18 @@ class MerchantOnboardingFlowTests {
         ServerSecurityMaterialDTO serverMaterial = merchantSecurityService.getServerSecurityMaterial(MERCHANT_ID);
 
         assertThat(clientMaterial.getMerchantKey()).isEqualTo(provisionedMaterial.getMerchantKey());
-        assertThat(clientMaterial.getPlatformPayloadKeyId()).isEqualTo(PLATFORM_KEY_ID);
         assertThat(clientMaterial.getPlatformPublicKeyX509Base64()).isEqualTo(provisionedMaterial.getPlatformPublicKeyX509Base64());
         assertThat(clientMaterial.getMerchantResponsePrivateKeyPkcs8Base64()).isNull();
+        assertThat(clientMaterial.getMerchantResponsePublicKeyX509Base64()).isEqualTo(provisionedMaterial.getMerchantResponsePublicKeyX509Base64());
         assertThat(serverMaterial.getMerchantKey()).isEqualTo(provisionedMaterial.getMerchantKey());
         assertThat(serverMaterial.getPlatformPrivateKeyPkcs8Base64()).isNotBlank();
         assertThat(serverMaterial.getMerchantResponsePublicKeyX509Base64()).isEqualTo(provisionedMaterial.getMerchantResponsePublicKeyX509Base64());
 
-        log.info("商户侧查询成功-商户号：{}，merchantKey指纹={}，平台公钥kid={}，平台公钥指纹={}",
+        log.info("商户侧查询成功-商户号：{}，merchantKey指纹={}，平台公钥指纹={}，响应公钥指纹={}",
                 clientMaterial.getMerchantId(),
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
-                clientMaterial.getPlatformPayloadKeyId(),
-                keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()));
+                keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()),
+                keyMaterialFactory.fingerprint(clientMaterial.getMerchantResponsePublicKeyX509Base64()));
         log.info("服务端查询成功-商户号：{}，merchantKey指纹={}，平台私钥存在={}，响应公钥指纹={}",
                 serverMaterial.getMerchantId(),
                 serverMaterial.getMerchantKeyFingerprint(),
@@ -161,11 +137,7 @@ class MerchantOnboardingFlowTests {
     @Test
     void shouldQueryMerchantListAndKeyRevisionRecords() {
         provisionPrimaryMerchant();
-        merchantSecurityService.provisionMerchantSecurityMaterial(MerchantOpenApiTestSupport.buildMerchantSeed(
-                SECOND_MERCHANT_ID,
-                SECOND_PLATFORM_KEY_ID,
-                SECOND_RESPONSE_KEY_ID
-        ));
+        merchantSecurityService.provisionMerchantSecurityMaterial(MerchantOpenApiTestSupport.buildMerchantSeed(SECOND_MERCHANT_ID));
 
         List<MerchantInfoDTO> merchantInfoList = merchantSecurityService.listMerchantInfos();
         List<MerchantKeyRevisionDTO> beforeRevisionList = merchantSecurityService.listMerchantKeyRevisions(MERCHANT_ID);
@@ -176,10 +148,10 @@ class MerchantOnboardingFlowTests {
                 .extracting(MerchantInfoDTO::getMerchantId)
                 .contains(MERCHANT_ID, SECOND_MERCHANT_ID);
         assertThat(beforeRevisionList).hasSizeGreaterThanOrEqualTo(2);
-        assertThat(rotatedRevision.getKeyId()).isEqualTo("jwt-v2");
+        assertThat(rotatedRevision.getKeyVersion()).isEqualTo("jwt-v2");
         assertThat(afterRevisionList)
-                .extracting(MerchantKeyRevisionDTO::getKeyId)
-                .contains("jwt-v1", "jwt-v2", RESPONSE_KEY_ID);
+                .extracting(MerchantKeyRevisionDTO::getKeyVersion)
+                .contains("jwt-v1", "jwt-v2", MERCHANT_ID);
 
         log.info("商户列表查询成功-本次测试商户：{}",
                 merchantInfoList.stream()
@@ -199,7 +171,7 @@ class MerchantOnboardingFlowTests {
      */
     private MerchantSecurityMaterialDTO provisionPrimaryMerchant() {
         return merchantSecurityService.provisionMerchantSecurityMaterial(
-                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID, PLATFORM_KEY_ID, RESPONSE_KEY_ID)
+                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID)
         );
     }
 }

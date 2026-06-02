@@ -34,3 +34,9 @@ spring:
 
 logging:
   config: classpath:log-config/logback-spring.xml
+
+openapi:
+  security:
+    replay:
+      # 开发环境允许 Redis 临时不可用时降级，便于本地调试；上线环境不得使用该配置。
+      required: false

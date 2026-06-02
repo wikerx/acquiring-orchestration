@@ -15,18 +15,18 @@ import java.security.PublicKey;
 public interface OpenApiPayloadKeyProvider {
 
     /**
-     * 根据密钥编号获取支付平台私钥，用于解密商户请求中的 AES 会话密钥。
+     * 根据商户号获取该商户独立的平台私钥，用于解密商户请求中的 AES 会话密钥。
      *
-     * @param keyId 密文报文 header 中的密钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 私钥
      */
-    PrivateKey getPlatformPrivateKey(String keyId);
+    PrivateKey getPlatformPrivateKey(String merchantId);
 
     /**
-     * 根据密钥编号获取支付平台公钥，主要用于本地联调生成商户请求密文。
+     * 根据商户号获取该商户独立的平台公钥，主要用于本地联调生成商户请求密文。
      *
-     * @param keyId 密钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 公钥
      */
-    PublicKey getPlatformPublicKey(String keyId);
+    PublicKey getPlatformPublicKey(String merchantId);
 }

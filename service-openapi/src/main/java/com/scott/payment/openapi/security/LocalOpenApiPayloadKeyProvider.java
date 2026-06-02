@@ -24,11 +24,6 @@ import java.security.PublicKey;
 public class LocalOpenApiPayloadKeyProvider implements OpenApiPayloadKeyProvider {
 
     /**
-     * 本地默认密钥编号，生产环境应按平台密钥轮换策略配置，例如 payment-rsa-2026-q2。
-     */
-    private final String defaultKeyId;
-
-    /**
      * 配置的支付平台私钥，优先从 Nacos 或环境变量注入。
      */
     private final PrivateKey configuredPrivateKey;
@@ -44,10 +39,8 @@ public class LocalOpenApiPayloadKeyProvider implements OpenApiPayloadKeyProvider
     private final KeyPair volatileKeyPair;
 
     public LocalOpenApiPayloadKeyProvider(OpenApiPayloadCrypto payloadCrypto,
-                                          @Value("${payment.openapi.crypto.default-key-id:payment-dev-rsa-001}") String defaultKeyId,
                                           @Value("${payment.openapi.crypto.private-key-pkcs8-base64:}") String privateKeyBase64,
                                           @Value("${payment.openapi.crypto.public-key-x509-base64:}") String publicKeyBase64) {
-        this.defaultKeyId = defaultKeyId;
         this.configuredPrivateKey = StringUtils.hasText(privateKeyBase64) ? payloadCrypto.readPrivateKey(privateKeyBase64) : null;
         this.configuredPublicKey = StringUtils.hasText(publicKeyBase64) ? payloadCrypto.readPublicKey(publicKeyBase64) : null;
         this.volatileKeyPair = this.configuredPrivateKey == null || this.configuredPublicKey == null
@@ -56,32 +49,37 @@ public class LocalOpenApiPayloadKeyProvider implements OpenApiPayloadKeyProvider
     }
 
     /**
-     * 根据密钥编号获取平台私钥。
+     * 根据商户号获取本地平台私钥。
      *
-     * @param keyId 密文报文 header 中的密钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 私钥
      */
     @Override
-    public PrivateKey getPlatformPrivateKey(String keyId) {
-        validateKeyId(keyId);
+    public PrivateKey getPlatformPrivateKey(String merchantId) {
+        validateMerchantId(merchantId);
         return configuredPrivateKey != null ? configuredPrivateKey : volatileKeyPair.getPrivate();
     }
 
     /**
-     * 根据密钥编号获取平台公钥。
+     * 根据商户号获取本地平台公钥。
      *
-     * @param keyId 密钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 公钥
      */
     @Override
-    public PublicKey getPlatformPublicKey(String keyId) {
-        validateKeyId(keyId);
+    public PublicKey getPlatformPublicKey(String merchantId) {
+        validateMerchantId(merchantId);
         return configuredPublicKey != null ? configuredPublicKey : volatileKeyPair.getPublic();
     }
 
-    private void validateKeyId(String keyId) {
-        if (StringUtils.hasText(keyId) && !defaultKeyId.equals(keyId)) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data.kid");
+    /**
+     * 校验商户号，避免请求体解密阶段绕过 JWT 上下文直接调用本地密钥。
+     *
+     * @param merchantId 支付框架颁发的商户号
+     */
+    private void validateMerchantId(String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_MER_INVALID);
         }
     }
 }

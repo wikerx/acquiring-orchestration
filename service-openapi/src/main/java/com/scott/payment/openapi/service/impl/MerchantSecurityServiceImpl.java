@@ -29,12 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 /**
@@ -181,28 +179,18 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     public MerchantSecurityMaterialDTO provisionMerchantSecurityMaterial(MerchantSecuritySeedDTO seedDTO) {
         validateSeed(seedDTO);
         LocalDateTime now = LocalDateTime.now();
-        String platformKeyId = defaultIfBlank(seedDTO.getPlatformPayloadKeyId(), "payment-platform-payload-v1");
-        String responseKeyId = seedDTO.getMerchantResponseKeyId();
-
-        RsaKeyMaterial platformPayloadKey = keyMaterialFactory.generatePlatformPayloadRsaKey(platformKeyId);
+        RsaKeyMaterial platformPayloadKey = keyMaterialFactory.generatePlatformPayloadRsaKey(seedDTO.getMerchantId());
+        RsaKeyMaterial merchantResponseKey = keyMaterialFactory.generateMerchantResponseRsaKey(seedDTO.getMerchantId());
         MerchantOpenApiCredential merchantCredential = keyMaterialFactory.generateMerchantCredential(
                 seedDTO.getMerchantId(),
-                platformPayloadKey
+                platformPayloadKey,
+                merchantResponseKey
         );
-        String merchantResponsePublicKey = null;
-        String merchantResponsePrivateKey = null;
-        if (StringUtils.hasText(responseKeyId)) {
-            KeyPair merchantResponseKeyPair = payloadCrypto.generateRsaKeyPair(RSA_KEY_SIZE);
-            merchantResponsePublicKey = Base64.getEncoder().encodeToString(merchantResponseKeyPair.getPublic().getEncoded());
-            merchantResponsePrivateKey = Base64.getEncoder().encodeToString(merchantResponseKeyPair.getPrivate().getEncoded());
-        }
 
-        upsertMerchantInfo(seedDTO, platformKeyId, responseKeyId, now);
+        upsertMerchantInfo(seedDTO, now);
         upsertMerchantJwtKey(seedDTO.getMerchantId(), merchantCredential.merchantKey(), now);
-        upsertPlatformPayloadKey(platformPayloadKey, now);
-        if (StringUtils.hasText(responseKeyId)) {
-            upsertMerchantResponseKey(seedDTO.getMerchantId(), responseKeyId, merchantResponsePublicKey, now);
-        }
+        upsertPlatformPayloadKey(seedDTO.getMerchantId(), platformPayloadKey, now);
+        upsertMerchantResponseKey(seedDTO.getMerchantId(), merchantResponseKey.publicKeyX509Base64(), now);
 
         MerchantSecurityMaterialDTO materialDTO = new MerchantSecurityMaterialDTO();
         materialDTO.setMerchantId(seedDTO.getMerchantId());
@@ -210,15 +198,11 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         materialDTO.setMerchantKey(merchantCredential.merchantKey());
         materialDTO.setJwtAlgorithm(JWT_ALGORITHM);
         materialDTO.setJwtExpiresSeconds(JWT_EXPIRES_SECONDS);
-        materialDTO.setPlatformPayloadKeyId(platformPayloadKey.keyId());
         materialDTO.setPlatformPublicKeyX509Base64(platformPayloadKey.publicKeyX509Base64());
         materialDTO.setPlatformPublicKeyPem(platformPayloadKey.publicKeyPem());
-        if (StringUtils.hasText(responseKeyId)) {
-            materialDTO.setMerchantResponseKeyId(responseKeyId);
-            materialDTO.setMerchantResponsePublicKeyX509Base64(merchantResponsePublicKey);
-            materialDTO.setMerchantResponsePrivateKeyPkcs8Base64(merchantResponsePrivateKey);
-            materialDTO.setMerchantResponsePrivateKeyPem(payloadCrypto.toPrivateKeyPem(merchantResponsePrivateKey));
-        }
+        materialDTO.setMerchantResponsePublicKeyX509Base64(merchantCredential.merchantResponsePublicKeyX509Base64());
+        materialDTO.setMerchantResponsePrivateKeyPkcs8Base64(merchantCredential.merchantResponsePrivateKeyPkcs8Base64());
+        materialDTO.setMerchantResponsePrivateKeyPem(merchantCredential.merchantResponsePrivateKeyPem());
         return materialDTO;
     }
 
@@ -236,8 +220,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     public MerchantSecurityMaterialDTO getMerchantClientSecurityMaterial(String merchantId) {
         MerchantInfoDO merchantInfoDO = getActiveMerchant(merchantId);
         MerchantJwtKeyDO jwtKeyDO = selectActiveMerchantJwtKey(merchantId);
-        PlatformPayloadKeyDO platformKeyDO = selectActivePlatformPayloadKey(merchantInfoDO.getPlatformPayloadKeyId());
-        MerchantResponseKeyDO responseKeyDO = selectNullableMerchantResponseKey(merchantId, merchantInfoDO.getResponseKeyId());
+        PlatformPayloadKeyDO platformKeyDO = selectActivePlatformPayloadKey(merchantId);
+        MerchantResponseKeyDO responseKeyDO = selectActiveMerchantResponseKey(merchantId);
         return toMerchantClientSecurityMaterial(merchantInfoDO, jwtKeyDO, platformKeyDO, responseKeyDO);
     }
 
@@ -255,8 +239,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     public ServerSecurityMaterialDTO getServerSecurityMaterial(String merchantId) {
         MerchantInfoDO merchantInfoDO = getActiveMerchant(merchantId);
         MerchantJwtKeyDO jwtKeyDO = selectActiveMerchantJwtKey(merchantId);
-        PlatformPayloadKeyDO platformKeyDO = selectActivePlatformPayloadKey(merchantInfoDO.getPlatformPayloadKeyId());
-        MerchantResponseKeyDO responseKeyDO = selectNullableMerchantResponseKey(merchantId, merchantInfoDO.getResponseKeyId());
+        PlatformPayloadKeyDO platformKeyDO = selectActivePlatformPayloadKey(merchantId);
+        MerchantResponseKeyDO responseKeyDO = selectActiveMerchantResponseKey(merchantId);
         return toServerSecurityMaterial(merchantInfoDO, jwtKeyDO, platformKeyDO, responseKeyDO);
     }
 
@@ -351,28 +335,28 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     }
 
     /**
-     * 从从库查询平台 RSA 私钥。
+     * 从从库查询商户独立的平台 RSA 私钥。
      *
-     * @param keyId 密文报文 header 中的密钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 私钥
      */
     @Override
     @DS(DataSourceName.SLAVE)
-    public PrivateKey getPlatformPrivateKey(String keyId) {
-        PlatformPayloadKeyDO keyDO = selectActivePlatformPayloadKey(keyId);
+    public PrivateKey getPlatformPrivateKey(String merchantId) {
+        PlatformPayloadKeyDO keyDO = selectActivePlatformPayloadKey(merchantId);
         return payloadCrypto.readPrivateKey(keyDO.getPrivateKeyPkcs8Base64());
     }
 
     /**
-     * 从从库查询平台 RSA 公钥。
+     * 从从库查询商户独立的平台 RSA 公钥。
      *
-     * @param keyId 密钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 公钥
      */
     @Override
     @DS(DataSourceName.SLAVE)
-    public PublicKey getPlatformPublicKey(String keyId) {
-        PlatformPayloadKeyDO keyDO = selectActivePlatformPayloadKey(keyId);
+    public PublicKey getPlatformPublicKey(String merchantId) {
+        PlatformPayloadKeyDO keyDO = selectActivePlatformPayloadKey(merchantId);
         return payloadCrypto.readPublicKey(keyDO.getPublicKeyX509Base64());
     }
 
@@ -402,42 +386,23 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     /**
      * 从从库查询商户响应 RSA 公钥。
      *
-     * @param merchantId    支付框架颁发的商户号
-     * @param responseKeyId 商户响应公钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 商户响应 RSA 公钥
      */
     @Override
     @DS(DataSourceName.SLAVE)
-    public PublicKey getMerchantResponsePublicKey(String merchantId, String responseKeyId) {
-        MerchantResponseKeyDO keyDO = selectActiveMerchantResponseKey(merchantId, responseKeyId);
+    public PublicKey getMerchantResponsePublicKey(String merchantId) {
+        MerchantResponseKeyDO keyDO = selectActiveMerchantResponseKey(merchantId);
         return payloadCrypto.readPublicKey(keyDO.getPublicKeyX509Base64());
-    }
-
-    /**
-     * 从从库查询商户当前启用的响应公钥编号。
-     *
-     * @param merchantId 支付框架颁发的商户号
-     * @return 响应公钥编号
-     */
-    @Override
-    @DS(DataSourceName.SLAVE)
-    public String getEnabledMerchantResponseKeyId(String merchantId) {
-        MerchantResponseKeyDO keyDO = selectActiveMerchantResponseKey(merchantId, null);
-        return keyDO.getResponseKeyId();
     }
 
     /**
      * 根据开户入参组装商户基础信息实体。
      *
-     * @param seedDTO       商户开户与测试初始化入参
-     * @param platformKeyId 商户默认使用的平台请求体 RSA 公钥编号
-     * @param responseKeyId 响应加密增强模式下的商户响应公钥编号
-     * @param now           当前写库时间
+     * @param seedDTO 商户开户与测试初始化入参
+     * @param now     当前写库时间
      */
-    private void upsertMerchantInfo(MerchantSecuritySeedDTO seedDTO,
-                                    String platformKeyId,
-                                    String responseKeyId,
-                                    LocalDateTime now) {
+    private void upsertMerchantInfo(MerchantSecuritySeedDTO seedDTO, LocalDateTime now) {
         MerchantInfoDO entity = new MerchantInfoDO();
         entity.setMerchantId(seedDTO.getMerchantId());
         entity.setMerchantName(seedDTO.getMerchantName());
@@ -453,8 +418,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setSettlementCurrency(defaultIfBlank(seedDTO.getSettlementCurrency(), DEFAULT_SETTLEMENT_CURRENCY));
         entity.setTimezone(defaultIfBlank(seedDTO.getTimezone(), DEFAULT_TIMEZONE));
         entity.setRiskLevel(defaultIfBlank(seedDTO.getRiskLevel(), DEFAULT_RISK_LEVEL));
-        entity.setPlatformPayloadKeyId(platformKeyId);
-        entity.setResponseKeyId(responseKeyId);
         entity.setDeleted(NOT_DELETED);
         upsertMerchantInfo(entity, now);
     }
@@ -482,12 +445,13 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     /**
      * 将平台请求体 RSA 密钥写入平台密钥实体。
      *
-     * @param platformPayloadKey 平台请求体 RSA 密钥材料
+     * @param merchantId          支付框架颁发的商户号
+     * @param platformPayloadKey  平台请求体 RSA 密钥材料
      * @param now                当前写库时间
      */
-    private void upsertPlatformPayloadKey(RsaKeyMaterial platformPayloadKey, LocalDateTime now) {
+    private void upsertPlatformPayloadKey(String merchantId, RsaKeyMaterial platformPayloadKey, LocalDateTime now) {
         PlatformPayloadKeyDO entity = new PlatformPayloadKeyDO();
-        entity.setPlatformKeyId(platformPayloadKey.keyId());
+        entity.setMerchantId(merchantId);
         entity.setPublicKeyX509Base64(platformPayloadKey.publicKeyX509Base64());
         entity.setPrivateKeyPkcs8Base64(platformPayloadKey.privateKeyPkcs8Base64());
         entity.setAlgorithm(PAYLOAD_ALGORITHM);
@@ -501,17 +465,14 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * 将商户响应公钥写入响应加密密钥实体。
      *
      * @param merchantId          支付框架颁发的商户号
-     * @param responseKeyId       商户响应公钥编号
      * @param publicKeyX509Base64 商户响应 X.509 DER Base64 公钥
      * @param now                 当前写库时间
      */
     private void upsertMerchantResponseKey(String merchantId,
-                                           String responseKeyId,
                                            String publicKeyX509Base64,
                                            LocalDateTime now) {
         MerchantResponseKeyDO entity = new MerchantResponseKeyDO();
         entity.setMerchantId(merchantId);
-        entity.setResponseKeyId(responseKeyId);
         entity.setPublicKeyX509Base64(publicKeyX509Base64);
         entity.setAlgorithm(PAYLOAD_ALGORITHM);
         entity.setKeySize(RSA_KEY_SIZE);
@@ -552,7 +513,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     }
 
     /**
-     * 按 platformKeyId 幂等写入平台请求体 RSA 密钥。
+     * 按 merchantId 幂等写入平台请求体 RSA 密钥。
      *
      * @param entity 平台请求体 RSA 密钥实体
      * @param now    当前写库时间
@@ -560,14 +521,14 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     private void upsertPlatformPayloadKey(PlatformPayloadKeyDO entity, LocalDateTime now) {
         PlatformPayloadKeyDO existing = platformPayloadKeyMapper.selectOne(
                 Wrappers.<PlatformPayloadKeyDO>lambdaQuery()
-                        .eq(PlatformPayloadKeyDO::getPlatformKeyId, entity.getPlatformKeyId())
+                        .eq(PlatformPayloadKeyDO::getMerchantId, entity.getMerchantId())
                         .last("LIMIT 1")
         );
         saveOrUpdate(entity, existing == null ? null : existing.getId(), now, platformPayloadKeyMapper::insert, platformPayloadKeyMapper::updateById);
     }
 
     /**
-     * 按 merchantId 和 responseKeyId 幂等写入商户响应公钥。
+     * 按 merchantId 幂等写入商户响应公钥。
      *
      * @param entity 商户响应公钥实体
      * @param now    当前写库时间
@@ -576,7 +537,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         MerchantResponseKeyDO existing = merchantResponseKeyMapper.selectOne(
                 Wrappers.<MerchantResponseKeyDO>lambdaQuery()
                         .eq(MerchantResponseKeyDO::getMerchantId, entity.getMerchantId())
-                        .eq(MerchantResponseKeyDO::getResponseKeyId, entity.getResponseKeyId())
                         .last("LIMIT 1")
         );
         saveOrUpdate(entity, existing == null ? null : existing.getId(), now, merchantResponseKeyMapper::insert, merchantResponseKeyMapper::updateById);
@@ -620,24 +580,22 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     }
 
     /**
-     * 查询平台当前启用的请求体 RSA 密钥。
+     * 查询商户当前启用的平台请求体 RSA 密钥。
      *
-     * @param keyId 平台请求体 RSA 密钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 平台请求体 RSA 密钥实体
      */
-    private PlatformPayloadKeyDO selectActivePlatformPayloadKey(String keyId) {
-        if (!StringUtils.hasText(keyId)) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "data.kid");
-        }
+    private PlatformPayloadKeyDO selectActivePlatformPayloadKey(String merchantId) {
+        validateMerchantId(merchantId);
         PlatformPayloadKeyDO keyDO = platformPayloadKeyMapper.selectOne(
                 Wrappers.<PlatformPayloadKeyDO>lambdaQuery()
-                        .eq(PlatformPayloadKeyDO::getPlatformKeyId, keyId)
+                        .eq(PlatformPayloadKeyDO::getMerchantId, merchantId)
                         .eq(PlatformPayloadKeyDO::getEnabled, ENABLED)
                         .eq(PlatformPayloadKeyDO::getDeleted, NOT_DELETED)
                         .last("LIMIT 1")
         );
         if (keyDO == null) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data.kid");
+            throw new ApiException(ApiCoResultEnum.CO_MERCHANT_CONFIG_NOT_FOUND, "platformPayloadKey");
         }
         return keyDO;
     }
@@ -645,11 +603,10 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     /**
      * 查询商户当前启用的响应公钥。
      *
-     * @param merchantId    支付框架颁发的商户号
-     * @param responseKeyId 响应公钥编号，为空时取最近启用版本
+     * @param merchantId 支付框架颁发的商户号
      * @return 商户响应公钥实体
      */
-    private MerchantResponseKeyDO selectActiveMerchantResponseKey(String merchantId, String responseKeyId) {
+    private MerchantResponseKeyDO selectActiveMerchantResponseKey(String merchantId) {
         validateMerchantId(merchantId);
         var queryWrapper = Wrappers.<MerchantResponseKeyDO>lambdaQuery()
                 .eq(MerchantResponseKeyDO::getMerchantId, merchantId)
@@ -657,28 +614,11 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                 .eq(MerchantResponseKeyDO::getDeleted, NOT_DELETED)
                 .orderByDesc(MerchantResponseKeyDO::getGmtModified)
                 .last("LIMIT 1");
-        if (StringUtils.hasText(responseKeyId)) {
-            queryWrapper.eq(MerchantResponseKeyDO::getResponseKeyId, responseKeyId);
-        }
         MerchantResponseKeyDO keyDO = merchantResponseKeyMapper.selectOne(queryWrapper);
         if (keyDO == null) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "responseKeyId");
+            throw new ApiException(ApiCoResultEnum.CO_MERCHANT_CONFIG_NOT_FOUND, "merchantResponseKey");
         }
         return keyDO;
-    }
-
-    /**
-     * 按商户和 keyId 查询响应公钥；未启用响应加密时返回空。
-     *
-     * @param merchantId    支付框架颁发的商户号
-     * @param responseKeyId 响应公钥编号
-     * @return 商户响应公钥实体或空
-     */
-    private MerchantResponseKeyDO selectNullableMerchantResponseKey(String merchantId, String responseKeyId) {
-        if (!StringUtils.hasText(responseKeyId)) {
-            return null;
-        }
-        return selectActiveMerchantResponseKey(merchantId, responseKeyId);
     }
 
     /**
@@ -709,8 +649,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         dto.setMerchantShortName(entity.getMerchantShortName());
         dto.setMerchantStatus(entity.getMerchantStatus());
         dto.setMerchantCategoryCode(entity.getMerchantCategoryCode());
-        dto.setPlatformPayloadKeyId(entity.getPlatformPayloadKeyId());
-        dto.setResponseKeyId(entity.getResponseKeyId());
         dto.setCountryCode(entity.getCountryCode());
         dto.setRegionCode(entity.getRegionCode());
         dto.setCity(entity.getCity());
@@ -742,11 +680,9 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         dto.setMerchantKey(jwtKeyDO.getMerchantKey());
         dto.setJwtAlgorithm(jwtKeyDO.getAlgorithm());
         dto.setJwtExpiresSeconds(jwtKeyDO.getExpiresSeconds());
-        dto.setPlatformPayloadKeyId(platformKeyDO.getPlatformKeyId());
         dto.setPlatformPublicKeyX509Base64(platformKeyDO.getPublicKeyX509Base64());
         dto.setPlatformPublicKeyPem(payloadCrypto.toPublicKeyPem(platformKeyDO.getPublicKeyX509Base64()));
         if (responseKeyDO != null) {
-            dto.setMerchantResponseKeyId(responseKeyDO.getResponseKeyId());
             dto.setMerchantResponsePublicKeyX509Base64(responseKeyDO.getPublicKeyX509Base64());
         }
         return dto;
@@ -771,12 +707,10 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         dto.setMerchantKeyFingerprint(keyMaterialFactory.fingerprint(jwtKeyDO.getMerchantKey()));
         dto.setJwtAlgorithm(jwtKeyDO.getAlgorithm());
         dto.setJwtExpiresSeconds(jwtKeyDO.getExpiresSeconds());
-        dto.setPlatformPayloadKeyId(platformKeyDO.getPlatformKeyId());
         dto.setPlatformPublicKeyX509Base64(platformKeyDO.getPublicKeyX509Base64());
         dto.setPlatformPrivateKeyPkcs8Base64(platformKeyDO.getPrivateKeyPkcs8Base64());
         dto.setPlatformKeyFingerprint(keyMaterialFactory.fingerprint(platformKeyDO.getPublicKeyX509Base64()));
         if (responseKeyDO != null) {
-            dto.setMerchantResponseKeyId(responseKeyDO.getResponseKeyId());
             dto.setMerchantResponsePublicKeyX509Base64(responseKeyDO.getPublicKeyX509Base64());
             dto.setMerchantResponseKeyFingerprint(keyMaterialFactory.fingerprint(responseKeyDO.getPublicKeyX509Base64()));
         }
@@ -793,7 +727,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         MerchantKeyRevisionDTO dto = new MerchantKeyRevisionDTO();
         dto.setMerchantId(entity.getMerchantId());
         dto.setKeyType(KEY_TYPE_JWT);
-        dto.setKeyId(entity.getKeyVersion());
+        dto.setKeyVersion(entity.getKeyVersion());
         dto.setAlgorithm(entity.getAlgorithm());
         dto.setKeyFingerprint(keyMaterialFactory.fingerprint(entity.getMerchantKey()));
         dto.setEnabled(Integer.valueOf(ENABLED).equals(entity.getEnabled()));
@@ -812,7 +746,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         MerchantKeyRevisionDTO dto = new MerchantKeyRevisionDTO();
         dto.setMerchantId(entity.getMerchantId());
         dto.setKeyType(KEY_TYPE_RESPONSE);
-        dto.setKeyId(entity.getResponseKeyId());
+        dto.setKeyVersion(entity.getMerchantId());
         dto.setAlgorithm(entity.getAlgorithm());
         dto.setKeyFingerprint(keyMaterialFactory.fingerprint(entity.getPublicKeyX509Base64()));
         dto.setEnabled(Integer.valueOf(ENABLED).equals(entity.getEnabled()));

@@ -82,17 +82,8 @@ public interface MerchantSecurityService extends MerchantKeyProvider, OpenApiPay
     /**
      * 查询商户响应加密公钥。
      *
-     * @param merchantId    支付框架颁发的商户号
-     * @param responseKeyId 商户响应公钥编号
+     * @param merchantId 支付框架颁发的商户号
      * @return 商户响应 RSA 公钥
      */
-    PublicKey getMerchantResponsePublicKey(String merchantId, String responseKeyId);
-
-    /**
-     * 查询商户当前启用的响应公钥编号。
-     *
-     * @param merchantId 支付框架颁发的商户号
-     * @return 响应公钥编号
-     */
-    String getEnabledMerchantResponseKeyId(String merchantId);
+    PublicKey getMerchantResponsePublicKey(String merchantId);
 }

@@ -2,6 +2,7 @@ package com.scott.payment.component.redis.hash.impl;
 
 import com.scott.payment.component.redis.hash.RedisHashService;
 import com.scott.payment.component.redis.support.RedisKeySupport;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
  * @status : create
  */
 @Service
+@ConditionalOnBean(RedisTemplate.class)
 public class RedisHashServiceImpl implements RedisHashService {
 
     /**
