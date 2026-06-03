@@ -73,7 +73,7 @@ public enum ApiResultEnum implements IResult {
     /**
      * 缺少 authorization 请求头。
      */
-    AUTHORIZATION_HEADER_MISSING("F401001", "Authorization header is missing"),
+    AUTHORIZATION_HEADER_MISSING("F401001", "Authorization required"),
 
     /**
      * JWT 类型或算法非法。
