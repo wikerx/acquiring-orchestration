@@ -27,6 +27,9 @@ class IsoStandardResolverTests {
     void shouldResolveCountryByMultipleIsoRepresentations() {
         IsoCountryInfo unitedStates = IsoCountryResolver.resolve("840").orElseThrow();
         assertThat(unitedStates.alpha2()).isEqualTo("US");
+        assertThat(unitedStates.flagEmoji()).isEqualTo("🇺🇸");
+        assertThat(unitedStates.currencyAlpha3Code()).isEqualTo("USD");
+        assertThat(unitedStates.primaryLanguageCode()).isEqualTo("en");
         assertThat(IsoCountryResolver.resolve("USA").orElseThrow().numeric()).isEqualTo("840");
         assertThat(IsoCountryResolver.resolve("United States").orElseThrow().alpha3()).isEqualTo("USA");
         assertThat(IsoCountryResolver.resolve("美国").orElseThrow().continentCode()).isEqualTo("NA");
@@ -34,6 +37,8 @@ class IsoStandardResolverTests {
         IsoCountryInfo china = IsoCountryResolver.resolve("中国大陆").orElseThrow();
         assertThat(china.alpha2()).isEqualTo("CN");
         assertThat(china.numeric()).isEqualTo("156");
+        assertThat(china.currencyAlpha3Code()).isEqualTo("CNY");
+        assertThat(china.continentName()).isEqualTo("亚洲");
     }
 
     /**
@@ -58,6 +63,8 @@ class IsoStandardResolverTests {
         IsoCurrencyInfo usd = IsoCurrencyResolver.resolve("USD").orElseThrow();
         assertThat(usd.numericCode()).isEqualTo("840");
         assertThat(usd.defaultFractionDigits()).isEqualTo(2);
+        assertThat(usd.minimumAmount()).isEqualByComparingTo("0.01");
+        assertThat(usd.currencySymbol()).isNotBlank();
         assertThat(usd.hasStandardAlpha2Code()).isFalse();
         assertThat(IsoCurrencyResolver.toMinorUnit(new BigDecimal("12.34"), usd)).isEqualTo(1234L);
 
@@ -69,5 +76,18 @@ class IsoStandardResolverTests {
         assertThat(jpy.defaultFractionDigits()).isZero();
         assertThatThrownBy(() -> IsoCurrencyResolver.toMinorUnit(new BigDecimal("100.01"), jpy))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /**
+     * 校验内置 ISO 基础字典已经覆盖全量国家地区和主要当前/历史币种，避免退回少量常用市场映射。
+     */
+    @Test
+    void shouldProvideFullIsoDictionarySnapshot() {
+        assertThat(IsoCountryResolver.listIndexedCountries()).hasSizeGreaterThanOrEqualTo(240);
+        assertThat(IsoCurrencyResolver.listIndexedCurrencies()).hasSizeGreaterThanOrEqualTo(200);
+        assertThat(IsoCountryResolver.resolve("010").orElseThrow().alpha2()).isEqualTo("AQ");
+        assertThat(IsoCountryResolver.resolve("Antarctica").orElseThrow().continentCode()).isEqualTo("AN");
+        assertThat(IsoCurrencyResolver.resolve("Euro").orElseThrow().alphabeticCode()).isEqualTo("EUR");
+        assertThat(IsoCurrencyResolver.resolve("€").orElseThrow().alphabeticCode()).isEqualTo("EUR");
     }
 }

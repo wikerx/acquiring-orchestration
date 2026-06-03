@@ -1,6 +1,7 @@
 package com.scott.payment.component.core.iso;
 
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -16,46 +17,10 @@ import static java.util.Map.entry;
  * @classname : IsoCountryResolver
  * @date : 2026-06-02 15:44
  * @email : scott_x@163.com
- * @description : ISO 3166 国家地区识别工具
- * @status : create
+ * @description : ISO 3166 国家地区识别工具，支持 alpha-2、alpha-3、numeric、英文名、中文名、别名识别
+ * @status : update
  */
 public final class IsoCountryResolver {
-
-    /**
-     * 简体中文显示名称使用的 Locale。
-     */
-    private static final Locale ZH_CN = Locale.SIMPLIFIED_CHINESE;
-
-    /**
-     * 英文显示名称使用的 Locale。
-     */
-    private static final Locale EN = Locale.ENGLISH;
-
-    /**
-     * 常用跨境收单市场 ISO 3166-1 numeric 到 alpha-2 的映射。
-     * <p>
-     * JDK 17 的 Locale 能提供 alpha-2、alpha-3 和本地化名称，但不直接暴露国家三数字码。这里先覆盖常用收单、
-     * 清算、风控和商户资料场景，后续如果需要全量 ISO 3166 表，可把该映射迁移到配置或基础字典表。
-     */
-    private static final Map<String, String> NUMERIC_TO_ALPHA2 = Map.ofEntries(
-            entry("004", "AF"), entry("008", "AL"), entry("012", "DZ"), entry("032", "AR"),
-            entry("036", "AU"), entry("040", "AT"), entry("048", "BH"), entry("050", "BD"),
-            entry("056", "BE"), entry("076", "BR"), entry("100", "BG"), entry("124", "CA"),
-            entry("152", "CL"), entry("156", "CN"), entry("170", "CO"), entry("188", "CR"),
-            entry("191", "HR"), entry("196", "CY"), entry("203", "CZ"), entry("208", "DK"),
-            entry("233", "EE"), entry("246", "FI"), entry("250", "FR"), entry("276", "DE"),
-            entry("300", "GR"), entry("344", "HK"), entry("348", "HU"), entry("352", "IS"),
-            entry("356", "IN"), entry("360", "ID"), entry("372", "IE"), entry("376", "IL"),
-            entry("380", "IT"), entry("392", "JP"), entry("410", "KR"), entry("414", "KW"),
-            entry("428", "LV"), entry("440", "LT"), entry("442", "LU"), entry("446", "MO"),
-            entry("458", "MY"), entry("484", "MX"), entry("528", "NL"), entry("554", "NZ"),
-            entry("578", "NO"), entry("586", "PK"), entry("604", "PE"), entry("608", "PH"),
-            entry("616", "PL"), entry("620", "PT"), entry("634", "QA"), entry("642", "RO"),
-            entry("682", "SA"), entry("688", "RS"), entry("702", "SG"), entry("703", "SK"),
-            entry("705", "SI"), entry("710", "ZA"), entry("724", "ES"), entry("752", "SE"),
-            entry("756", "CH"), entry("764", "TH"), entry("784", "AE"), entry("792", "TR"),
-            entry("826", "GB"), entry("840", "US"), entry("858", "UY"), entry("704", "VN")
-    );
 
     /**
      * 常用中文别名到 alpha-2 的映射，用于兼容商户资料、浏览器语言和人工录入。
@@ -65,45 +30,19 @@ public final class IsoCountryResolver {
             entry("英国", "GB"), entry("日本", "JP"), entry("韩国", "KR"), entry("新加坡", "SG"),
             entry("加拿大", "CA"), entry("澳大利亚", "AU"), entry("德国", "DE"), entry("法国", "FR"),
             entry("意大利", "IT"), entry("西班牙", "ES"), entry("荷兰", "NL"), entry("瑞士", "CH"),
-            entry("香港", "HK"), entry("澳门", "MO"), entry("巴西", "BR"), entry("墨西哥", "MX"),
-            entry("印度", "IN"), entry("马来西亚", "MY"), entry("泰国", "TH"), entry("越南", "VN")
+            entry("香港", "HK"), entry("香港特别行政区", "HK"), entry("澳门", "MO"), entry("澳门特别行政区", "MO"),
+            entry("台湾", "TW"), entry("巴西", "BR"), entry("墨西哥", "MX"), entry("印度", "IN"),
+            entry("马来西亚", "MY"), entry("泰国", "TH"), entry("越南", "VN")
     );
 
     /**
-     * alpha-2 到洲代码的常用映射，用于风控、费率和运营统计。
-     */
-    private static final Map<String, String> ALPHA2_TO_CONTINENT = Map.ofEntries(
-            entry("US", "NA"), entry("CA", "NA"), entry("MX", "NA"), entry("CR", "NA"),
-            entry("BR", "SA"), entry("AR", "SA"), entry("CL", "SA"), entry("CO", "SA"),
-            entry("PE", "SA"), entry("UY", "SA"), entry("CN", "AS"), entry("HK", "AS"),
-            entry("MO", "AS"), entry("JP", "AS"), entry("KR", "AS"), entry("SG", "AS"),
-            entry("MY", "AS"), entry("TH", "AS"), entry("VN", "AS"), entry("IN", "AS"),
-            entry("ID", "AS"), entry("PH", "AS"), entry("AE", "AS"), entry("SA", "AS"),
-            entry("QA", "AS"), entry("KW", "AS"), entry("PK", "AS"), entry("AU", "OC"),
-            entry("NZ", "OC"), entry("GB", "EU"), entry("DE", "EU"), entry("FR", "EU"),
-            entry("IT", "EU"), entry("ES", "EU"), entry("NL", "EU"), entry("CH", "EU"),
-            entry("SE", "EU"), entry("NO", "EU"), entry("DK", "EU"), entry("FI", "EU"),
-            entry("IE", "EU"), entry("PT", "EU"), entry("PL", "EU"), entry("ZA", "AF")
-    );
-
-    /**
-     * 洲代码到中文名称映射。
-     */
-    private static final Map<String, String> CONTINENT_NAME = Map.of(
-            "AS", "亚洲",
-            "EU", "欧洲",
-            "NA", "北美洲",
-            "SA", "南美洲",
-            "AF", "非洲",
-            "OC", "大洋洲",
-            "AN", "南极洲"
-    );
-
-    /**
-     * 标准化后的国家索引，覆盖 alpha-2、alpha-3、numeric、英文名称、中文名称和常用别名。
+     * 标准化后的国家索引，覆盖 alpha-2、alpha-3、numeric、英文全称、英文简称、中文名称和常用别名。
      */
     private static final Map<String, IsoCountryInfo> COUNTRY_INDEX = buildCountryIndex();
 
+    /**
+     * 工具类不允许实例化。
+     */
     private IsoCountryResolver() {
     }
 
@@ -123,8 +62,8 @@ public final class IsoCountryResolver {
     /**
      * 根据浏览器 Accept-Language 头识别最优 Locale。
      *
-     * @param acceptLanguage    浏览器 Accept-Language 头，例如 zh-CN,en-US;q=0.8
-     * @param supportedLocales  系统支持的 Locale 列表
+     * @param acceptLanguage   浏览器 Accept-Language 头，例如 zh-CN,en-US;q=0.8
+     * @param supportedLocales 系统支持的 Locale 列表
      * @return 命中的 Locale；没有命中时返回空
      */
     public static Optional<Locale> matchBrowserLocale(String acceptLanguage, Collection<Locale> supportedLocales) {
@@ -156,17 +95,24 @@ public final class IsoCountryResolver {
     }
 
     /**
-     * 查询当前内置国家索引，便于单元测试和管理后台展示。
+     * 查询当前内置国家地区列表，便于单元测试、基础数据初始化和管理后台展示。
      *
-     * @return 国家信息列表
+     * @return 国家地区信息列表
      */
     public static List<IsoCountryInfo> listIndexedCountries() {
-        return COUNTRY_INDEX.values()
+        return IsoStandardData.COUNTRIES
                 .stream()
-                .collect(Collectors.toMap(IsoCountryInfo::alpha2, country -> country, (left, right) -> left, LinkedHashMap::new))
-                .values()
-                .stream()
+                .sorted(Comparator.comparing(IsoCountryInfo::alpha2))
                 .toList();
+    }
+
+    /**
+     * 查询当前国家索引快照。
+     *
+     * @return 标准化查询值到国家地区信息的映射
+     */
+    public static Map<String, IsoCountryInfo> indexSnapshot() {
+        return COUNTRY_INDEX;
     }
 
     /**
@@ -176,45 +122,35 @@ public final class IsoCountryResolver {
      */
     private static Map<String, IsoCountryInfo> buildCountryIndex() {
         Map<String, IsoCountryInfo> index = new LinkedHashMap<>();
-        NUMERIC_TO_ALPHA2.forEach((numeric, alpha2) -> {
-            Locale locale = new Locale("", alpha2);
-            String alpha3 = safeIso3Country(locale);
-            String continentCode = ALPHA2_TO_CONTINENT.getOrDefault(alpha2, "");
-            IsoCountryInfo country = new IsoCountryInfo(
-                    alpha2,
-                    alpha3,
-                    numeric,
-                    locale.getDisplayCountry(EN),
-                    locale.getDisplayCountry(ZH_CN),
-                    continentCode,
-                    CONTINENT_NAME.getOrDefault(continentCode, "")
-            );
-            index.put(normalize(alpha2), country);
-            index.put(normalize(alpha3), country);
-            index.put(normalize(numeric), country);
-            index.put(normalize(country.englishName()), country);
-            index.put(normalize(country.chineseName()), country);
+        IsoStandardData.COUNTRIES.forEach(country -> {
+            putIndex(index, country.alpha2(), country);
+            putIndex(index, country.alpha3(), country);
+            putIndex(index, country.numeric(), country);
+            putIndex(index, country.englishName(), country);
+            putIndex(index, country.shortEnglishName(), country);
+            putIndex(index, country.chineseName(), country);
         });
         CHINESE_ALIAS_TO_ALPHA2.forEach((alias, alpha2) -> {
             IsoCountryInfo country = index.get(normalize(alpha2));
             if (country != null) {
-                index.put(normalize(alias), country);
+                putIndex(index, alias, country);
             }
         });
-        return Map.copyOf(index);
+        return Map.copyOf(index.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, right) -> left, LinkedHashMap::new)));
     }
 
     /**
-     * 安全获取 ISO alpha-3 国家代码。
+     * 写入索引，空值不写入。
      *
-     * @param locale 国家 Locale
-     * @return alpha-3 国家代码
+     * @param index   索引集合
+     * @param key     原始索引键
+     * @param country 国家地区信息
      */
-    private static String safeIso3Country(Locale locale) {
-        try {
-            return locale.getISO3Country();
-        } catch (Exception exception) {
-            return "";
+    private static void putIndex(Map<String, IsoCountryInfo> index, String key, IsoCountryInfo country) {
+        if (hasText(key)) {
+            index.putIfAbsent(normalize(key), country);
         }
     }
 

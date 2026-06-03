@@ -1,0 +1,246 @@
+package com.scott.payment.openapi;
+
+import com.alibaba.fastjson2.TypeReference;
+import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
+import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
+import com.scott.payment.openapi.service.MerchantSecurityService;
+import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
+import com.scott.payment.openapi.vo.iso.IsoCountryVO;
+import com.scott.payment.openapi.vo.iso.IsoCurrencyVO;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import java.security.PrivateKey;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantOpenApiIsoDictionaryTests
+ * @date : 2026-06-03 15:50
+ * @email : scott_x@163.com
+ * @description : 商户 200045 加密调用 ISO 国家地区与币种 OpenAPI 接口测试
+ * @status : create
+ */
+@Slf4j
+@AutoConfigureMockMvc
+@ActiveProfiles("mysql-test")
+@SpringBootTest(classes = OpenApiApplication.class)
+@Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+class MerchantOpenApiIsoDictionaryTests {
+
+    /**
+     * 测试商户号，模拟商户 200045 调用开放接口。
+     */
+    private static final String MERCHANT_ID = "200045";
+
+    /**
+     * 国家地区查询接口地址。
+     */
+    private static final String COUNTRY_PATH = "/api/rest/iso/v1/countries";
+
+    /**
+     * 币种查询接口地址。
+     */
+    private static final String CURRENCY_PATH = "/api/rest/iso/v1/currencies";
+
+    /**
+     * MockMvc 用于走完整 Spring MVC、拦截器、请求解密和响应加密链路。
+     */
+    private final MockMvc mockMvc;
+
+    /**
+     * 商户安全材料服务，用于准备 200045 商户的 JWT 密钥、平台公钥和商户响应私钥。
+     */
+    private final MerchantSecurityService merchantSecurityService;
+
+    /**
+     * OpenAPI 报文加解密工具，测试中模拟商户加密请求和解密响应。
+     */
+    private final OpenApiPayloadCrypto payloadCrypto;
+
+    /**
+     * 密钥材料工具，用于计算安全指纹，避免日志打印完整密钥和密文。
+     */
+    private final OpenApiKeyMaterialFactory keyMaterialFactory;
+
+    /**
+     * 创建商户 ISO 字典 OpenAPI 测试。
+     *
+     * @param mockMvc                 MockMvc
+     * @param merchantSecurityService 商户安全材料服务
+     * @param payloadCrypto           OpenAPI 报文加解密工具
+     * @param keyMaterialFactory      OpenAPI 密钥材料工具
+     */
+    @Autowired
+    MerchantOpenApiIsoDictionaryTests(MockMvc mockMvc,
+                                      MerchantSecurityService merchantSecurityService,
+                                      OpenApiPayloadCrypto payloadCrypto,
+                                      OpenApiKeyMaterialFactory keyMaterialFactory) {
+        this.mockMvc = mockMvc;
+        this.merchantSecurityService = merchantSecurityService;
+        this.payloadCrypto = payloadCrypto;
+        this.keyMaterialFactory = keyMaterialFactory;
+    }
+
+    /**
+     * 模拟商户 200045 加密查询国家地区列表，平台解密处理后加密响应，商户再解密响应 data。
+     *
+     * @throws Exception MockMvc 调用异常
+     */
+    @Test
+    void shouldQueryCountriesThroughEncryptedOpenApi() throws Exception {
+        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
+        String plainRequestJson = JsonUtils.toJsonString(Map.of("keyword", "United States"));
+        MvcResult mvcResult = performEncryptedPost(
+                COUNTRY_PATH,
+                plainRequestJson,
+                merchantMaterial,
+                "iso-country-200045"
+        );
+        List<IsoCountryVO> countryList = decryptDataList(
+                mvcResult.getResponse().getContentAsString(),
+                merchantMaterial,
+                new TypeReference<List<IsoCountryVO>>() {
+                }
+        );
+
+        log.info("商户解密国家地区响应成功，响应数量：{}，第一条：{}", countryList.size(), countryList.isEmpty() ? null : countryList.get(0));
+        assertThat(countryList).extracting(IsoCountryVO::getAlpha3).contains("USA");
+    }
+
+    /**
+     * 模拟商户 200045 加密查询币种列表，平台解密处理后加密响应，商户再解密响应 data。
+     *
+     * @throws Exception MockMvc 调用异常
+     */
+    @Test
+    void shouldQueryCurrenciesThroughEncryptedOpenApi() throws Exception {
+        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
+        String plainRequestJson = JsonUtils.toJsonString(Map.of("keyword", "USD"));
+        MvcResult mvcResult = performEncryptedPost(
+                CURRENCY_PATH,
+                plainRequestJson,
+                merchantMaterial,
+                "iso-currency-200045"
+        );
+        List<IsoCurrencyVO> currencyList = decryptDataList(
+                mvcResult.getResponse().getContentAsString(),
+                merchantMaterial,
+                new TypeReference<List<IsoCurrencyVO>>() {
+                }
+        );
+
+        log.info("商户解密币种响应成功，响应数量：{}，第一条：{}", currencyList.size(), currencyList.isEmpty() ? null : currencyList.get(0));
+        assertThat(currencyList).extracting(IsoCurrencyVO::getAlphabeticCode).contains("USD");
+        assertThat(currencyList).filteredOn(currency -> "USD".equals(currency.getAlphabeticCode()))
+                .first()
+                .extracting(IsoCurrencyVO::getDefaultFractionDigits)
+                .isEqualTo(2);
+    }
+
+    /**
+     * 准备商户 200045 的安全材料。
+     * <p>
+     * 当前测试通过服务端开户流程幂等写入数据库，确保测试库存在 JWT、平台请求体 RSA 密钥和商户响应公钥。
+     *
+     * @return 商户侧用于联调的安全材料
+     */
+    private MerchantSecurityMaterialDTO provisionMerchantMaterial() {
+        MerchantSecurityMaterialDTO merchantMaterial = merchantSecurityService.provisionMerchantSecurityMaterial(
+                MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID)
+        );
+        log.info("商户200045安全材料准备完成，merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+                keyMaterialFactory.fingerprint(merchantMaterial.getMerchantKey()),
+                keyMaterialFactory.fingerprint(merchantMaterial.getPlatformPublicKeyX509Base64()),
+                keyMaterialFactory.fingerprint(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));
+        return merchantMaterial;
+    }
+
+    /**
+     * 模拟商户完成请求体加密、JWT 请求头封装并发起 OpenAPI 调用。
+     *
+     * @param path                OpenAPI 请求路径
+     * @param plainRequestJson    明文业务 JSON
+     * @param merchantMaterial    商户侧安全材料
+     * @param jwtId               JWT 唯一标识
+     * @return MockMvc 调用结果
+     * @throws Exception MockMvc 调用异常
+     */
+    private MvcResult performEncryptedPost(String path,
+                                           String plainRequestJson,
+                                           MerchantSecurityMaterialDTO merchantMaterial,
+                                           String jwtId) throws Exception {
+        String encryptedData = payloadCrypto.encrypt(
+                plainRequestJson,
+                payloadCrypto.readPublicKey(merchantMaterial.getPlatformPublicKeyX509Base64())
+        );
+        String authorization = MerchantOpenApiTestSupport.createMerchantJwt(
+                MERCHANT_ID,
+                merchantMaterial.getMerchantKey(),
+                System.currentTimeMillis() / 1000L,
+                jwtId
+        );
+        String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
+        log.info("商户发起ISO查询，path={}，请求明文={}，authorization摘要={}，data摘要={}",
+                path,
+                plainRequestJson,
+                MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory),
+                MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory));
+
+        return mockMvc.perform(post(path)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
+                        .content(httpRequestBody))
+                .andDo(result -> log.info("平台返回ISO查询加密响应，path={}，HTTP状态={}，响应摘要={}",
+                        path,
+                        result.getResponse().getStatus(),
+                        MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(ApiCoResultEnum.SUCCESS.getCode()))
+                .andExpect(jsonPath("$.data").isString())
+                .andReturn();
+    }
+
+    /**
+     * 模拟商户使用响应私钥解密 CommonResult.data 并转换成目标列表。
+     *
+     * @param encryptedResponseJson 平台返回的加密响应 JSON
+     * @param merchantMaterial      商户侧安全材料
+     * @param typeReference         目标列表类型
+     * @param <T>                   响应数据元素类型
+     * @return 解密后的响应列表
+     */
+    private <T> List<T> decryptDataList(String encryptedResponseJson,
+                                        MerchantSecurityMaterialDTO merchantMaterial,
+                                        TypeReference<List<T>> typeReference) {
+        CommonResult<String> encryptedResult = JsonUtils.parseObject(
+                encryptedResponseJson,
+                new TypeReference<CommonResult<String>>() {
+                }
+        );
+        assertThat(encryptedResult).isNotNull();
+        PrivateKey responsePrivateKey = payloadCrypto.readPrivateKey(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64());
+        String plainDataJson = payloadCrypto.decrypt(encryptedResult.getData(), responsePrivateKey);
+        log.info("商户响应data解密完成，明文data={}", plainDataJson);
+        return JsonUtils.parseObject(plainDataJson, typeReference);
+    }
+}

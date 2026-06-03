@@ -147,12 +147,12 @@ openapi:
 
 `component-core` 提供 ISO 识别工具，方便外卡收单接口做国家、币种、浏览器语言和金额辅币位校验：
 
-- `IsoCountryResolver`：支持按国家二位字母、三位字母、常用三位数字、英文全称、中文全称、浏览器语言识别国家。
-- `IsoCountryInfo`：输出 alpha2、alpha3、numeric、英文名、中文名和七大洲归属。
-- `IsoCurrencyResolver`：支持按 ISO 4217 三位字母、三位数字、英文名、中文名识别币种。
-- `IsoCurrencyInfo`：输出币种三位字母、三位数字、英文名、中文名、辅币位和最小单位换算倍数。
+- `IsoCountryResolver`：支持按国家二位字母、三位字母、三位数字、英文全称、英文简称、中文全称、中文别名、浏览器语言识别国家。
+- `IsoCountryInfo`：输出 alpha2、alpha3、numeric、英文全称、英文简称、中文名、七大洲、国旗图标、主要语言和默认币种。
+- `IsoCurrencyResolver`：支持按 ISO 4217 三位字母、三位数字、英文名、中文名、币种符号识别币种。
+- `IsoCurrencyInfo`：输出币种三位字母、三位数字、英文名、中文名、辅币位、最小金额、币种符号和最小单位换算倍数。
 
-说明：ISO 4217 没有标准“两位字母币种代码”，支付接口应使用三位字母，例如 `USD`、`CNY`、`JPY`。JDK 17 不直接暴露全量 ISO 3166-1 numeric 国家数字码，当前国家三数字码先覆盖跨境收单常用市场；如需全量国家数字码，建议落到 `base_country` 基础字典表统一维护。
+说明：ISO 4217 没有标准“两位字母币种代码”，支付接口应使用三位字母，例如 `USD`、`CNY`、`JPY`。当前代码内置 249 个 ISO 3166-1 国家/地区和 233 个 JDK 当前可用 ISO 4217 币种；数据库初始化脚本在 `docs/sql/base-iso-dictionary-schema.sql`，表名为 `base_iso_country`、`base_iso_currency`。国家默认币种通过 `base_iso_country.currency_alpha3_code` 关联 `base_iso_currency.alpha3_code`。
 
 示例：
 

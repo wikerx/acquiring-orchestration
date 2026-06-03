@@ -2,11 +2,13 @@ package com.scott.payment.component.core.iso;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Currency;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * @author : scott
@@ -14,26 +16,19 @@ import java.util.Optional;
  * @classname : IsoCurrencyResolver
  * @date : 2026-06-02 15:55
  * @email : scott_x@163.com
- * @description : ISO 4217 币种识别与金额辅币位工具
- * @status : create
+ * @description : ISO 4217 币种识别与金额辅币位工具，支持三字母码、三数字码、英文名、中文名识别
+ * @status : update
  */
 public final class IsoCurrencyResolver {
-
-    /**
-     * 简体中文显示名称使用的 Locale。
-     */
-    private static final Locale ZH_CN = Locale.SIMPLIFIED_CHINESE;
-
-    /**
-     * 英文显示名称使用的 Locale。
-     */
-    private static final Locale EN = Locale.ENGLISH;
 
     /**
      * 标准化后的币种索引，覆盖 ISO 4217 三字母码、三数字码、英文名和中文名。
      */
     private static final Map<String, IsoCurrencyInfo> CURRENCY_INDEX = buildCurrencyIndex();
 
+    /**
+     * 工具类不允许实例化。
+     */
     private IsoCurrencyResolver() {
     }
 
@@ -85,6 +80,18 @@ public final class IsoCurrencyResolver {
     }
 
     /**
+     * 查询当前币种列表，便于单元测试、基础数据初始化和管理后台展示。
+     *
+     * @return 币种信息列表
+     */
+    public static List<IsoCurrencyInfo> listIndexedCurrencies() {
+        return IsoStandardData.CURRENCIES
+                .stream()
+                .sorted(Comparator.comparing(IsoCurrencyInfo::alphabeticCode))
+                .toList();
+    }
+
+    /**
      * 查询当前币种索引。
      *
      * @return 标准化查询值到币种信息的映射
@@ -100,33 +107,29 @@ public final class IsoCurrencyResolver {
      */
     private static Map<String, IsoCurrencyInfo> buildCurrencyIndex() {
         Map<String, IsoCurrencyInfo> index = new LinkedHashMap<>();
-        Currency.getAvailableCurrencies().forEach(currency -> {
-            IsoCurrencyInfo info = toCurrencyInfo(currency);
-            index.put(normalize(info.alphabeticCode()), info);
-            index.put(normalize(info.numericCode()), info);
-            index.put(normalize(info.englishName()), info);
-            index.put(normalize(info.chineseName()), info);
+        IsoStandardData.CURRENCIES.forEach(currency -> {
+            putIndex(index, currency.alphabeticCode(), currency);
+            putIndex(index, currency.numericCode(), currency);
+            putIndex(index, currency.englishName(), currency);
+            putIndex(index, currency.chineseName(), currency);
+            putIndex(index, currency.currencySymbol(), currency);
         });
-        return Map.copyOf(index);
+        return Map.copyOf(index.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (left, right) -> left, LinkedHashMap::new)));
     }
 
     /**
-     * 将 JDK Currency 转换为支付框架币种信息。
+     * 写入索引，空值不写入。
      *
-     * @param currency JDK 币种对象
-     * @return ISO 币种信息
+     * @param index    索引集合
+     * @param key      原始索引键
+     * @param currency 币种信息
      */
-    private static IsoCurrencyInfo toCurrencyInfo(Currency currency) {
-        int fractionDigits = currency.getDefaultFractionDigits();
-        long multiplier = fractionDigits < 0 ? 0L : BigDecimal.TEN.pow(fractionDigits).longValueExact();
-        return new IsoCurrencyInfo(
-                currency.getCurrencyCode(),
-                String.format("%03d", currency.getNumericCode()),
-                currency.getDisplayName(EN),
-                currency.getDisplayName(ZH_CN),
-                fractionDigits,
-                multiplier
-        );
+    private static void putIndex(Map<String, IsoCurrencyInfo> index, String key, IsoCurrencyInfo currency) {
+        if (hasText(key)) {
+            index.putIfAbsent(normalize(key), currency);
+        }
     }
 
     /**
