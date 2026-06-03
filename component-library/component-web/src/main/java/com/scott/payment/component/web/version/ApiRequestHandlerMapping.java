@@ -42,11 +42,23 @@ public class ApiRequestHandlerMapping extends RequestMappingHandlerMapping {
         return new ApiVersionCondition(version);
     }
 
+    /**
+     * 当前版本策略只支持控制器类级别声明，方法级别不单独覆盖版本。
+     *
+     * @param method 控制器方法
+     * @return 方法级版本条件，当前固定返回 null
+     */
     @Override
     protected RequestCondition<?> getCustomMethodCondition(Method method) {
         return null;
     }
 
+    /**
+     * 为控制器类型创建版本条件。
+     *
+     * @param handlerType 控制器类型
+     * @return 自定义版本条件
+     */
     @Override
     protected RequestCondition<?> getCustomTypeCondition(Class<?> handlerType) {
         return createCondition(handlerType);

@@ -16,8 +16,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class AuthorizationAspect {
 
+    /**
+     * 开放接口请求认证预留入口。
+     * <p>
+     * 当前正式链路由 {@code OpenApiRequestArgumentResolver} 完成 JWT、请求体解密、参数校验和防重放处理；
+     * 该方法保留给后续 AOP 编排扩展，避免在控制器中重复认证逻辑。
+     */
     public void verifyMerchantRequest() {
-        log.debug("Start open API merchant request verification");
-        // The real aspect will orchestrate signature, decrypt, merchant validation, and replay checks.
+        log.debug("开始开放接口商户请求认证预处理");
     }
 }

@@ -42,14 +42,38 @@ public class CommonResult<T> implements Serializable {
      */
     private T data;
 
+    /**
+     * 使用默认成功码构建成功响应。
+     *
+     * @param data 响应数据
+     * @param <T>  响应数据类型
+     * @return 成功响应
+     */
     public static <T> CommonResult<T> success(T data) {
         return success(ApiResultEnum.SUCCESS, data);
     }
 
+    /**
+     * 使用指定结果枚举构建成功响应。
+     *
+     * @param result 业务结果枚举
+     * @param data   响应数据
+     * @param <T>    响应数据类型
+     * @return 成功响应
+     */
     public static <T> CommonResult<T> success(IResult result, T data) {
         return success(result.getCode(), result.getMessage(), data);
     }
 
+    /**
+     * 使用指定响应码和响应说明构建成功响应。
+     *
+     * @param code    响应码
+     * @param message 响应说明
+     * @param data    响应数据
+     * @param <T>     响应数据类型
+     * @return 成功响应
+     */
     public static <T> CommonResult<T> success(String code, String message, T data) {
         CommonResult<T> result = new CommonResult<>();
         result.setCode(code);
@@ -58,6 +82,12 @@ public class CommonResult<T> implements Serializable {
         return result;
     }
 
+    /**
+     * 构建无数据成功响应。
+     *
+     * @param <T> 响应数据类型
+     * @return 成功响应
+     */
     public static <T> CommonResult<T> success() {
         CommonResult<T> result = new CommonResult<>();
         result.setCode(ApiResultEnum.SUCCESS.getCode());
@@ -65,6 +95,13 @@ public class CommonResult<T> implements Serializable {
         return result;
     }
 
+    /**
+     * 使用指定结果枚举构建无数据成功响应。
+     *
+     * @param resultEnum 业务结果枚举
+     * @param <T>        响应数据类型
+     * @return 成功响应
+     */
     public static <T> CommonResult<T> success(IResult resultEnum) {
         CommonResult<T> result = new CommonResult<>();
         result.setCode(resultEnum.getCode());
@@ -72,14 +109,36 @@ public class CommonResult<T> implements Serializable {
         return result;
     }
 
+    /**
+     * 将已有响应转换为错误响应，保留原响应码和说明。
+     *
+     * @param result 已有响应
+     * @param <T>    新响应数据类型
+     * @return 错误响应
+     */
     public static <T> CommonResult<T> error(CommonResult<?> result) {
         return error(result.getCode(), result.getMessage());
     }
 
+    /**
+     * 使用结果枚举构建错误响应。
+     *
+     * @param resultEnum 业务结果枚举
+     * @param <T>        响应数据类型
+     * @return 错误响应
+     */
     public static <T> CommonResult<T> error(IResult resultEnum) {
         return error(resultEnum.getCode(), resultEnum.getMessage());
     }
 
+    /**
+     * 使用指定错误码和错误说明构建错误响应。
+     *
+     * @param code    错误码
+     * @param message 错误说明
+     * @param <T>     响应数据类型
+     * @return 错误响应
+     */
     public static <T> CommonResult<T> error(String code, String message) {
         if (ErrorCode.SUCCESS.equals(code) || ApiResultEnum.SUCCESS.getCode().equals(code)) {
             throw new IllegalArgumentException("code must be an error code");
@@ -90,18 +149,44 @@ public class CommonResult<T> implements Serializable {
         return result;
     }
 
+    /**
+     * 将业务异常转换为错误响应。
+     *
+     * @param exception 业务异常
+     * @param <T>       响应数据类型
+     * @return 错误响应
+     */
     public static <T> CommonResult<T> error(BizException exception) {
         return error(exception.getCode(), exception.getMessage());
     }
 
+    /**
+     * 将服务异常转换为错误响应。
+     *
+     * @param exception 服务异常
+     * @param <T>       响应数据类型
+     * @return 错误响应
+     */
     public static <T> CommonResult<T> error(ServiceException exception) {
         return error(exception.getCode(), exception.getMessage());
     }
 
+    /**
+     * 判断响应是否成功且数据不为空。
+     *
+     * @param result 响应对象
+     * @return true 表示响应成功且存在数据
+     */
     public static boolean resultNonNull(CommonResult<?> result) {
         return isSuccess(result) && Objects.nonNull(result.getData());
     }
 
+    /**
+     * 判断响应是否成功。
+     *
+     * @param result 响应对象
+     * @return true 表示响应码为系统成功码
+     */
     public static boolean isSuccess(CommonResult<?> result) {
         return Objects.nonNull(result)
                 && (Objects.equals(ErrorCode.SUCCESS, result.getCode())

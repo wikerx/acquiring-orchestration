@@ -24,14 +24,27 @@ public final class TraceContext {
     private TraceContext() {
     }
 
+    /**
+     * 写入当前线程的链路追踪号。
+     *
+     * @param traceId 链路追踪号
+     */
     public static void setTraceId(String traceId) {
         TRACE_ID.set(traceId);
     }
 
+    /**
+     * 获取当前线程的链路追踪号。
+     *
+     * @return 链路追踪号，未设置时返回 null
+     */
     public static String getTraceId() {
         return TRACE_ID.get();
     }
 
+    /**
+     * 清理当前线程链路追踪号，避免线程池复用时串号。
+     */
     public static void clear() {
         TRACE_ID.remove();
     }

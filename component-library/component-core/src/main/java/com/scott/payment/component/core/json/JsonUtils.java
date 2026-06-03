@@ -20,10 +20,24 @@ public final class JsonUtils {
     private JsonUtils() {
     }
 
+    /**
+     * 将对象序列化为 JSON 字符串。
+     *
+     * @param object 待序列化对象
+     * @return JSON 字符串
+     */
     public static String toJsonString(Object object) {
         return JSON.toJSONString(object);
     }
 
+    /**
+     * 将 JSON 字符串反序列化为指定类型对象。
+     *
+     * @param json  JSON 字符串
+     * @param clazz 目标类型
+     * @param <T>   目标泛型
+     * @return 目标对象，空字符串返回 null
+     */
     public static <T> T parseObject(String json, Class<T> clazz) {
         if (isBlank(json)) {
             return null;
@@ -31,6 +45,14 @@ public final class JsonUtils {
         return JSON.parseObject(json, clazz);
     }
 
+    /**
+     * 将 JSON 字符串反序列化为带泛型信息的对象。
+     *
+     * @param json          JSON 字符串
+     * @param typeReference 泛型类型引用
+     * @param <T>           目标泛型
+     * @return 目标对象，空字符串返回 null
+     */
     public static <T> T parseObject(String json, TypeReference<T> typeReference) {
         if (isBlank(json)) {
             return null;
@@ -38,6 +60,14 @@ public final class JsonUtils {
         return JSON.parseObject(json, typeReference.getType());
     }
 
+    /**
+     * 将 JSON 数组字符串反序列化为对象列表。
+     *
+     * @param json  JSON 数组字符串
+     * @param clazz 列表元素类型
+     * @param <T>   列表元素泛型
+     * @return 目标对象列表，空字符串返回空列表
+     */
     public static <T> List<T> parseArray(String json, Class<T> clazz) {
         if (isBlank(json)) {
             return Collections.emptyList();

@@ -13,6 +13,11 @@ import com.scott.payment.component.job.model.JobExecuteResult;
  */
 public abstract class AbstractJobHandler {
 
+    /**
+     * 执行调度任务。
+     *
+     * @param parameter 调度平台传入的任务参数
+     * @return 任务执行结果
+     */
     public abstract JobExecuteResult execute(String parameter);
 }
-

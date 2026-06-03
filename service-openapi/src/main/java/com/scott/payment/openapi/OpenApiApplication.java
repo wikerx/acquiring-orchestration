@@ -15,8 +15,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
 public class OpenApiApplication {
 
+    /**
+     * 启动开放接口服务。
+     *
+     * @param args JVM 启动参数
+     */
     public static void main(String[] args) {
         SpringApplication.run(OpenApiApplication.class, args);
     }
 }
-

@@ -24,6 +24,14 @@ public class MerchantSignatureVerifier implements SignatureVerifier {
      */
     private final HmacSha256Signer signer = new HmacSha256Signer();
 
+    /**
+     * 校验旧式参数签名，使用常量时间比较降低签名猜测侧信道风险。
+     *
+     * @param parameters 待签名参数
+     * @param signature  调用方传入的签名
+     * @param secret     签名密钥
+     * @return true 表示签名一致
+     */
     @Override
     public boolean verify(Map<String, String> parameters, String signature, String secret) {
         if (signature == null || secret == null) {

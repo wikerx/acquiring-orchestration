@@ -16,9 +16,13 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class AdminHealthController {
 
+    /**
+     * 后台管理服务健康检查入口，用于网关、注册中心或部署平台探测服务存活状态。
+     *
+     * @return 当前服务名称
+     */
     @GetMapping("/admin/health")
     public ApiResult<String> health() {
         return ApiResult.success("service-admin");
     }
 }
-

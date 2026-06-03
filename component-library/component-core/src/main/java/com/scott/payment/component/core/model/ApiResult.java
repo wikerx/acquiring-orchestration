@@ -37,6 +37,13 @@ public class ApiResult<T> implements Serializable {
      */
     private T data;
 
+    /**
+     * 构建成功响应。
+     *
+     * @param data 响应数据
+     * @param <T>  响应数据类型
+     * @return 成功响应
+     */
     public static <T> ApiResult<T> success(T data) {
         ApiResult<T> result = new ApiResult<>();
         result.setCode(ErrorCode.SUCCESS);
@@ -45,6 +52,14 @@ public class ApiResult<T> implements Serializable {
         return result;
     }
 
+    /**
+     * 构建失败响应。
+     *
+     * @param code    错误码
+     * @param message 错误说明
+     * @param <T>     响应数据类型
+     * @return 失败响应
+     */
     public static <T> ApiResult<T> fail(String code, String message) {
         ApiResult<T> result = new ApiResult<>();
         result.setCode(code);

@@ -26,20 +26,52 @@ public final class HttpClientUtils {
     private HttpClientUtils() {
     }
 
+    /**
+     * 发起 GET 请求，使用默认超时时间。
+     *
+     * @param url     请求地址
+     * @param headers 请求头
+     * @return HTTP 响应结果
+     */
     public static HttpResponseResult get(String url, Map<String, String> headers) {
         return get(url, headers, DEFAULT_TIMEOUT_MILLIS);
     }
 
+    /**
+     * 发起 GET 请求。
+     *
+     * @param url           请求地址
+     * @param headers       请求头
+     * @param timeoutMillis 超时时间，单位毫秒
+     * @return HTTP 响应结果
+     */
     public static HttpResponseResult get(String url, Map<String, String> headers, int timeoutMillis) {
         HttpRequest request = HttpRequest.get(url).timeout(timeoutMillis);
         addHeaders(request, headers);
         return execute(request);
     }
 
+    /**
+     * 发起 JSON POST 请求，使用默认超时时间。
+     *
+     * @param url     请求地址
+     * @param headers 请求头
+     * @param body    请求体对象
+     * @return HTTP 响应结果
+     */
     public static HttpResponseResult postJson(String url, Map<String, String> headers, Object body) {
         return postJson(url, headers, body, DEFAULT_TIMEOUT_MILLIS);
     }
 
+    /**
+     * 发起 JSON POST 请求。
+     *
+     * @param url           请求地址
+     * @param headers       请求头
+     * @param body          请求体对象
+     * @param timeoutMillis 超时时间，单位毫秒
+     * @return HTTP 响应结果
+     */
     public static HttpResponseResult postJson(String url, Map<String, String> headers, Object body, int timeoutMillis) {
         HttpRequest request = HttpRequest.post(url)
                 .timeout(timeoutMillis)

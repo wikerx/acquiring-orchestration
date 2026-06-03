@@ -25,6 +25,11 @@ import java.util.List;
 @Configuration
 public class FastJsonWebMvcConfig implements WebMvcConfigurer {
 
+    /**
+     * 替换 Spring MVC 默认 JSON 转换器，统一使用 fastjson2 处理请求和响应报文。
+     *
+     * @param converters Spring MVC 当前注册的消息转换器列表
+     */
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
         converters.removeIf(converter -> converter instanceof MappingJackson2HttpMessageConverter);

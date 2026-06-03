@@ -16,6 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class PaymentHealthController {
 
+    /**
+     * 收单支付核心服务健康检查入口。
+     *
+     * @return 当前服务名称
+     */
     @GetMapping("/payment/health")
     public ApiResult<String> health() {
         return ApiResult.success("service-payment");

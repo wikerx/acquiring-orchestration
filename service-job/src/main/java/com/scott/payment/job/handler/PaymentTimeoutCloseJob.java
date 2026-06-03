@@ -16,6 +16,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class PaymentTimeoutCloseJob extends AbstractJobHandler {
 
+    /**
+     * 执行支付超时关单任务，后续接入 XXL-JOB 或 RocketMQ 延迟消息后在这里编排关单逻辑。
+     *
+     * @param parameter 调度平台传入的任务参数
+     * @return 任务执行结果
+     */
     @Override
     public JobExecuteResult execute(String parameter) {
         log.info("Execute payment timeout close job, parameter: {}", parameter);

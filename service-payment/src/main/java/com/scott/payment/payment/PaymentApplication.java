@@ -15,8 +15,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
 public class PaymentApplication {
 
+    /**
+     * 启动收单支付核心服务。
+     *
+     * @param args JVM 启动参数
+     */
     public static void main(String[] args) {
         SpringApplication.run(PaymentApplication.class, args);
     }
 }
-

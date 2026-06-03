@@ -362,6 +362,11 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         @Pattern(regexp = "^.{1,32}$", message = "billingCardHolderInfo.postal format does not match", groups = {Format.class})
         private String postal;
 
+        /**
+         * 校验持卡人姓名总长度，避免渠道侧因 firstName + lastName 超长拒绝交易。
+         *
+         * @return true 表示姓名总长度满足限制
+         */
         @AssertTrue(message = "The total length of billingCardHolderInfo.firstName and billingCardHolderInfo.lastName cannot exceed 64 characters", groups = {Authorization.class})
         @JSONField(serialize = false)
         public boolean isFirstNameAndLastNameValid() {

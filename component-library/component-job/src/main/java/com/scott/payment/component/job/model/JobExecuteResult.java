@@ -24,6 +24,11 @@ public class JobExecuteResult {
      */
     private String message;
 
+    /**
+     * 构建成功任务执行结果。
+     *
+     * @return 成功任务执行结果
+     */
     public static JobExecuteResult success() {
         JobExecuteResult result = new JobExecuteResult();
         result.setSuccess(true);

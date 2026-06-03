@@ -22,15 +22,34 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      */
     private final int apiVersion;
 
+    /**
+     * 创建 API 版本匹配条件。
+     *
+     * @param apiVersion 当前控制器支持的主版本号
+     */
     public ApiVersionCondition(int apiVersion) {
         this.apiVersion = apiVersion;
     }
 
+    /**
+     * 合并版本匹配条件，优先使用更靠近处理方法的条件。
+     *
+     * @param other 其他版本条件
+     * @return 合并后的版本条件
+     */
     @Override
     public ApiVersionCondition combine(ApiVersionCondition other) {
         return other;
     }
 
+    /**
+     * 判断当前控制器版本是否能处理请求版本。
+     * <p>
+     * 请求版本大于控制器版本时允许匹配，用于实现 v2 请求自动降级到 v1 控制器。
+     *
+     * @param request HTTP 请求
+     * @return 匹配成功返回当前条件，不匹配返回 null
+     */
     @Override
     public ApiVersionCondition getMatchingCondition(HttpServletRequest request) {
         Integer requestVersion = resolveRequestVersion(request);
@@ -40,6 +59,13 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
         return this;
     }
 
+    /**
+     * 多个控制器同时匹配时选择版本号最高且不超过请求版本的控制器。
+     *
+     * @param other   其他版本条件
+     * @param request HTTP 请求
+     * @return 排序结果
+     */
     @Override
     public int compareTo(ApiVersionCondition other, HttpServletRequest request) {
         return other.apiVersion - this.apiVersion;
