@@ -29,7 +29,7 @@ public interface OpenApiIsoDictionaryService {
     /**
      * 查询币种列表。
      *
-     * @param requestDTO 商户查询条件；keyword 为空时返回全部启用币种
+     * @param requestDTO 商户查询条件；全部字段为空时返回全部启用币种
      * @return 币种响应列表
      */
     List<IsoCurrencyVO> queryCurrencies(IsoCurrencyQueryRequestDTO requestDTO);

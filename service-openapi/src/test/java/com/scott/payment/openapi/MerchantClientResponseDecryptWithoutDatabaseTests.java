@@ -1,6 +1,5 @@
 package com.scott.payment.openapi;
 
-import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.enums.ApiCoResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -67,30 +66,35 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                 "amount", 1238945,
                 "currency", "USD"
         ));
-        log.info("响应参数明文：{}" , plainResponseData);
+        log.info("响应参数明文：{}", plainResponseData);
 
         String encryptedResponseData = payloadCrypto.encrypt(
                 plainResponseData,
                 payloadCrypto.readPublicKey(MERCHANT_RESPONSE_PUBLIC_KEY_X509_BASE64)
         );
-        log.info("响应参数密文：{}" , encryptedResponseData);
+        log.info("响应参数加密完成，data摘要：{}",
+                MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyMaterialFactory));
 
         String encryptedHttpResponse = JsonUtils.toJsonString(Map.of(
                 "code", ApiCoResultEnum.SUCCESS.getCode(),
                 "message", ApiCoResultEnum.SUCCESS.getMessage(),
                 "data", encryptedResponseData
         ));
-        log.info("encryptedHttpResponse：{}" , encryptedHttpResponse);
+        log.info("平台响应封装完成，响应摘要：{}",
+                MerchantOpenApiTestSupport.safeSecretSummary(encryptedHttpResponse, keyMaterialFactory));
 
         Map<String, Object> responseMap = JsonUtils.parseObject(encryptedHttpResponse, new TypeReference<>() {
         });
-        log.info("responseMap：{}" , JSON.toJSONString(responseMap));
+        log.info("平台响应解析完成，code={}，message={}，data摘要={}",
+                responseMap.get("code"),
+                responseMap.get("message"),
+                MerchantOpenApiTestSupport.safeSecretSummary(String.valueOf(responseMap.get("data")), keyMaterialFactory));
 
         String decryptedData = payloadCrypto.decrypt(
                 String.valueOf(responseMap.get("data")),
                 payloadCrypto.readPrivateKey(MERCHANT_RESPONSE_PRIVATE_KEY_PKCS8_BASE64)
         );
-        log.info("decryptedData：{}" , decryptedData);
+        log.info("商户响应data解密完成，明文data：{}", decryptedData);
 
         assertThat(responseMap.get("code")).isEqualTo(ApiCoResultEnum.SUCCESS.getCode());
         assertThat(MerchantOpenApiTestSupport.compactPartCount(encryptedResponseData)).isEqualTo(5);

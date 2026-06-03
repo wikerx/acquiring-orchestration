@@ -109,7 +109,7 @@ class MerchantOpenApiIsoDictionaryTests {
     @Test
     void shouldQueryCountriesThroughEncryptedOpenApi() throws Exception {
         MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
-        String plainRequestJson = JsonUtils.toJsonString(Map.of("keyword", "United States"));
+        String plainRequestJson = JsonUtils.toJsonString(Map.of("alpha3", "USA"));
         MvcResult mvcResult = performEncryptedPost(
                 COUNTRY_PATH,
                 plainRequestJson,
@@ -135,7 +135,7 @@ class MerchantOpenApiIsoDictionaryTests {
     @Test
     void shouldQueryCurrenciesThroughEncryptedOpenApi() throws Exception {
         MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
-        String plainRequestJson = JsonUtils.toJsonString(Map.of("keyword", "USD"));
+        String plainRequestJson = JsonUtils.toJsonString(Map.of("alphabeticCode", "USD"));
         MvcResult mvcResult = performEncryptedPost(
                 CURRENCY_PATH,
                 plainRequestJson,
@@ -155,6 +155,50 @@ class MerchantOpenApiIsoDictionaryTests {
                 .first()
                 .extracting(IsoCurrencyVO::getDefaultFractionDigits)
                 .isEqualTo(2);
+    }
+
+    /**
+     * 模拟商户国家地区查询参数格式错误，验证平台能返回稳定参数错误码。
+     *
+     * @throws Exception MockMvc 调用异常
+     */
+    @Test
+    void shouldRejectInvalidCountryQueryParameter() throws Exception {
+        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
+        String plainRequestJson = JsonUtils.toJsonString(Map.of("alpha2", "USA"));
+
+        MvcResult mvcResult = performEncryptedPostExpectError(
+                COUNTRY_PATH,
+                plainRequestJson,
+                merchantMaterial,
+                "iso-country-invalid-alpha2",
+                ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID
+        );
+
+        log.info("商户国家地区查询异常响应验证完成，错误响应：{}",
+                mvcResult.getResponse().getContentAsString());
+    }
+
+    /**
+     * 模拟商户币种查询参数格式错误，验证平台能返回稳定参数错误码。
+     *
+     * @throws Exception MockMvc 调用异常
+     */
+    @Test
+    void shouldRejectInvalidCurrencyQueryParameter() throws Exception {
+        MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
+        String plainRequestJson = JsonUtils.toJsonString(Map.of("alphabeticCode", "US"));
+
+        MvcResult mvcResult = performEncryptedPostExpectError(
+                CURRENCY_PATH,
+                plainRequestJson,
+                merchantMaterial,
+                "iso-currency-invalid-code",
+                ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID
+        );
+
+        log.info("商户币种查询异常响应验证完成，错误响应：{}",
+                mvcResult.getResponse().getContentAsString());
     }
 
     /**
@@ -217,6 +261,53 @@ class MerchantOpenApiIsoDictionaryTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(ApiCoResultEnum.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data").isString())
+                .andReturn();
+    }
+
+    /**
+     * 模拟商户发起预期失败的加密 OpenAPI 请求，并校验平台返回指定错误码。
+     *
+     * @param path             OpenAPI 请求路径
+     * @param plainRequestJson 明文业务 JSON
+     * @param merchantMaterial 商户侧安全材料
+     * @param jwtId            JWT 唯一标识
+     * @param expectedError    预期错误枚举
+     * @return MockMvc 调用结果
+     * @throws Exception MockMvc 调用异常
+     */
+    private MvcResult performEncryptedPostExpectError(String path,
+                                                      String plainRequestJson,
+                                                      MerchantSecurityMaterialDTO merchantMaterial,
+                                                      String jwtId,
+                                                      ApiCoResultEnum expectedError) throws Exception {
+        String encryptedData = payloadCrypto.encrypt(
+                plainRequestJson,
+                payloadCrypto.readPublicKey(merchantMaterial.getPlatformPublicKeyX509Base64())
+        );
+        String authorization = MerchantOpenApiTestSupport.createMerchantJwt(
+                MERCHANT_ID,
+                merchantMaterial.getMerchantKey(),
+                System.currentTimeMillis() / 1000L,
+                jwtId
+        );
+        String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
+        log.info("商户发起ISO异常查询，path={}，请求明文={}，authorization摘要={}，data摘要={}，预期错误码={}",
+                path,
+                plainRequestJson,
+                MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory),
+                MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory),
+                expectedError.getCode());
+
+        return mockMvc.perform(post(path)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
+                        .content(httpRequestBody))
+                .andDo(result -> log.info("平台返回ISO异常响应，path={}，HTTP状态={}，响应={}",
+                        path,
+                        result.getResponse().getStatus(),
+                        result.getResponse().getContentAsString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(expectedError.getCode()))
                 .andReturn();
     }
 

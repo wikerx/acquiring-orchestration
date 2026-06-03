@@ -2,6 +2,7 @@ package com.scott.payment.openapi;
 
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -53,7 +54,7 @@ class IsoDictionaryServiceTests {
         List<IsoCountryInfo> northAmericaCountries = isoDictionaryService.listCountriesByContinent("NA");
         List<IsoCountryInfo> usdCountries = isoDictionaryService.listCountriesByCurrency("USD");
 
-        log.info("ISO国家地区-全量数量：{}", allCountries.size());
+        log.info("ISO国家地区-全量数量：{}", JsonUtils.toJsonString(allCountries));
         log.info("ISO国家地区-按英文名查询United States：{}", unitedStates);
         log.info("ISO国家地区-北美洲数量：{}", northAmericaCountries.size());
         log.info("ISO国家地区-默认USD币种国家数量：{}", usdCountries.size());
@@ -76,7 +77,7 @@ class IsoDictionaryServiceTests {
         boolean invalidJpyAmount = isoDictionaryService.isCurrencyFractionValid(new BigDecimal("12.34"), "JPY");
         long usdMinorAmount = isoDictionaryService.toMinorUnit(new BigDecimal("12.34"), "USD");
 
-        log.info("ISO币种-全量数量：{}", allCurrencies.size());
+        log.info("ISO币种-全量数量：{}", JsonUtils.toJsonString(allCurrencies));
         log.info("ISO币种-按USD查询结果：{}", usdCurrencies);
         log.info("ISO币种-USD金额12.34辅币位是否合法：{}", validUsdAmount);
         log.info("ISO币种-JPY金额12.34辅币位是否合法：{}", invalidJpyAmount);

@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.function.BiPredicate;
 
 /**
  * @author : scott
@@ -54,13 +56,13 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
     /**
      * 查询币种列表。
      *
-     * @param requestDTO 商户查询条件；keyword 为空时返回全部启用币种
+     * @param requestDTO 商户查询条件；全部字段为空时返回全部启用币种
      * @return 币种响应列表
      */
     @Override
     public List<IsoCurrencyVO> queryCurrencies(IsoCurrencyQueryRequestDTO requestDTO) {
-        String keyword = requestDTO == null ? null : requestDTO.getKeyword();
-        return isoDictionaryService.searchCurrencies(keyword)
+        List<IsoCurrencyInfo> currencyList = listCurrenciesByRequest(requestDTO);
+        return currencyList
                 .stream()
                 .map(this::toCurrencyVO)
                 .toList();
@@ -76,13 +78,79 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
         if (requestDTO == null) {
             return isoDictionaryService.listCountries();
         }
-        if (StringUtils.hasText(requestDTO.getContinentCode())) {
-            return isoDictionaryService.listCountriesByContinent(requestDTO.getContinentCode());
+        return isoDictionaryService.listCountries()
+                .stream()
+                .filter(country -> matchesCountryRequest(country, requestDTO))
+                .toList();
+    }
+
+    /**
+     * 根据请求条件选择币种查询方式。
+     *
+     * @param requestDTO 商户币种查询条件
+     * @return 币种信息列表
+     */
+    private List<IsoCurrencyInfo> listCurrenciesByRequest(IsoCurrencyQueryRequestDTO requestDTO) {
+        if (requestDTO == null) {
+            return isoDictionaryService.listCurrencies();
         }
-        if (StringUtils.hasText(requestDTO.getCurrencyCode())) {
-            return isoDictionaryService.listCountriesByCurrency(requestDTO.getCurrencyCode());
+        return isoDictionaryService.listCurrencies()
+                .stream()
+                .filter(currency -> matchesCurrencyRequest(currency, requestDTO))
+                .toList();
+    }
+
+    /**
+     * 判断国家地区是否满足商户传入的字段级查询条件。
+     * <p>
+     * 所有非空字段使用 AND 关系，确保商户传多个条件时返回更精确的交集。
+     *
+     * @param countryInfo 国家地区信息
+     * @param requestDTO  商户查询条件
+     * @return true 表示满足全部非空查询条件
+     */
+    private boolean matchesCountryRequest(IsoCountryInfo countryInfo, IsoCountryQueryRequestDTO requestDTO) {
+        return matchIfPresent(requestDTO.getAlpha2(), countryInfo.alpha2(), this::equalsNormalized)
+                && matchIfPresent(requestDTO.getAlpha3(), countryInfo.alpha3(), this::equalsNormalized)
+                && matchIfPresent(requestDTO.getNumeric(), countryInfo.numeric(), this::equalsNormalized)
+                && matchIfPresent(requestDTO.getEnglishName(), countryInfo.englishName(), this::containsNormalized)
+                && matchIfPresent(requestDTO.getShortEnglishName(), countryInfo.shortEnglishName(), this::containsNormalized)
+                && matchIfPresent(requestDTO.getChineseName(), countryInfo.chineseName(), this::containsNormalized)
+                && matchIfPresent(requestDTO.getContinentCode(), countryInfo.continentCode(), this::equalsNormalized)
+                && matchIfPresent(requestDTO.getPrimaryLanguageCode(), countryInfo.primaryLanguageCode(), this::equalsNormalized)
+                && matchIfPresent(requestDTO.getCurrencyAlpha3Code(), countryInfo.currencyAlpha3Code(), this::equalsNormalized);
+    }
+
+    /**
+     * 判断币种是否满足商户传入的字段级查询条件。
+     * <p>
+     * 所有非空字段使用 AND 关系，确保商户传多个条件时返回更精确的交集。
+     *
+     * @param currencyInfo 币种信息
+     * @param requestDTO   商户查询条件
+     * @return true 表示满足全部非空查询条件
+     */
+    private boolean matchesCurrencyRequest(IsoCurrencyInfo currencyInfo, IsoCurrencyQueryRequestDTO requestDTO) {
+        return matchIfPresent(requestDTO.getAlphabeticCode(), currencyInfo.alphabeticCode(), this::equalsNormalized)
+                && matchIfPresent(requestDTO.getNumericCode(), currencyInfo.numericCode(), this::equalsNormalized)
+                && matchIfPresent(requestDTO.getEnglishName(), currencyInfo.englishName(), this::containsNormalized)
+                && matchIfPresent(requestDTO.getChineseName(), currencyInfo.chineseName(), this::containsNormalized)
+                && matchIfPresent(requestDTO.getCurrencySymbol(), currencyInfo.currencySymbol(), this::equalsNormalized);
+    }
+
+    /**
+     * 查询值为空时放行；查询值不为空时按指定匹配器判断。
+     *
+     * @param requestValue 商户传入的查询值
+     * @param targetValue  字典中的目标值
+     * @param matcher      匹配器
+     * @return true 表示条件为空或条件命中
+     */
+    private boolean matchIfPresent(String requestValue, String targetValue, BiPredicate<String, String> matcher) {
+        if (!StringUtils.hasText(requestValue)) {
+            return true;
         }
-        return isoDictionaryService.searchCountries(requestDTO.getKeyword());
+        return matcher.test(targetValue, requestValue);
     }
 
     /**
@@ -126,5 +194,41 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
         currencyVO.setMinimumAmount(currencyInfo.minimumAmount());
         currencyVO.setCurrencySymbol(currencyInfo.currencySymbol());
         return currencyVO;
+    }
+
+    /**
+     * 判断目标值和查询值标准化后是否相等。
+     *
+     * @param targetValue  字典中的目标值
+     * @param requestValue 商户传入的查询值
+     * @return true 表示相等
+     */
+    private boolean equalsNormalized(String targetValue, String requestValue) {
+        return normalize(targetValue).equals(normalize(requestValue));
+    }
+
+    /**
+     * 判断目标值标准化后是否包含查询值。
+     *
+     * @param targetValue  字典中的目标值
+     * @param requestValue 商户传入的查询值
+     * @return true 表示包含
+     */
+    private boolean containsNormalized(String targetValue, String requestValue) {
+        return normalize(targetValue).contains(normalize(requestValue));
+    }
+
+    /**
+     * 标准化商户查询文本。
+     *
+     * @param value 原始文本
+     * @return 去空白、短横线、下划线并转大写后的文本
+     */
+    private String normalize(String value) {
+        return value == null ? "" : value.trim()
+                .replace(" ", "")
+                .replace("-", "")
+                .replace("_", "")
+                .toUpperCase(Locale.ROOT);
     }
 }

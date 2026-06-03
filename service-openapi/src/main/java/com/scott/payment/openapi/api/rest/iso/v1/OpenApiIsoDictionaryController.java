@@ -47,15 +47,15 @@ public class OpenApiIsoDictionaryController {
     /**
      * 查询系统支持的国家地区列表。
      * <p>
-     * 商户请求体仍需按 OpenAPI 标准加密。明文 JSON 可为 `{}` 查询全部，也可传 keyword、continentCode 或
-     * currencyCode 过滤。
+     * 商户请求体仍需按 OpenAPI 标准加密。明文 JSON 可为 `{}` 查询全部，也可传 alpha2、alpha3、numeric、
+     * continentCode、currencyAlpha3Code 等标准字段组合过滤。
      *
      * @param request       Servlet 请求上下文
      * @param encryptedData 商户密文请求体
      * @param requestDTO    解密后的查询条件
      * @return 国家地区列表，响应 data 会由响应增强统一加密
      */
-    @VerificationAndProcessing(dataReceiver = IsoCountryQueryRequestDTO.class, validator = false)
+    @VerificationAndProcessing(dataReceiver = IsoCountryQueryRequestDTO.class)
     @PostMapping("/countries")
     public CommonResult<List<IsoCountryVO>> queryCountries(HttpServletRequest request,
                                                            @RequestBody String encryptedData,
@@ -66,14 +66,15 @@ public class OpenApiIsoDictionaryController {
     /**
      * 查询系统支持的币种列表。
      * <p>
-     * 商户请求体仍需按 OpenAPI 标准加密。明文 JSON 可为 `{}` 查询全部，也可传 keyword 查询指定币种。
+     * 商户请求体仍需按 OpenAPI 标准加密。明文 JSON 可为 `{}` 查询全部，也可传 alphabeticCode、numericCode、
+     * englishName、chineseName、currencySymbol 等标准字段组合过滤。
      *
      * @param request       Servlet 请求上下文
      * @param encryptedData 商户密文请求体
      * @param requestDTO    解密后的查询条件
      * @return 币种列表，响应 data 会由响应增强统一加密
      */
-    @VerificationAndProcessing(dataReceiver = IsoCurrencyQueryRequestDTO.class, validator = false)
+    @VerificationAndProcessing(dataReceiver = IsoCurrencyQueryRequestDTO.class)
     @PostMapping("/currencies")
     public CommonResult<List<IsoCurrencyVO>> queryCurrencies(HttpServletRequest request,
                                                              @RequestBody String encryptedData,

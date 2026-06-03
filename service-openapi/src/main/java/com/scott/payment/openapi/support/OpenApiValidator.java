@@ -41,6 +41,6 @@ public class OpenApiValidator {
             return;
         }
         ConstraintViolation<Object> violation = violations.iterator().next();
-        throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID, violation.getPropertyPath() + " " + violation.getMessage());
+        throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID, violation.getMessage());
     }
 }

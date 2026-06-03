@@ -473,28 +473,19 @@ public final class CardNoGenerator {
      * @param args 命令行参数，当前未使用
      */
     public static void main(String[] args) {
-//        log.info("Mastercard: {}", SensitiveDataMaskUtils.maskPan(generateMasterCardNumber()));
-//        log.info("Visa      : {}", SensitiveDataMaskUtils.maskPan(generateVisaCardNumber()));
-//        log.info("Amex      : {}", SensitiveDataMaskUtils.maskPan(generateAmexCardNumber()));
-//        log.info("Discover  : {}", SensitiveDataMaskUtils.maskPan(generateDiscoverCardNumber()));
-//        log.info("Diners    : {}", SensitiveDataMaskUtils.maskPan(generateDinersCardNumber()));
-//        log.info("JCB       : {}", SensitiveDataMaskUtils.maskPan(generateJcbCardNumber()));
-//        log.info("EnRoute   : {}", SensitiveDataMaskUtils.maskPan(generateEnrouteCardNumber()));
-//        log.info("Voyager   : {}", SensitiveDataMaskUtils.maskPan(generateVoyagerCardNumber()));
-
-        log.info("Mastercard: {}", generateMasterCardNumber());
-        log.info("Visa      : {}", generateVisaCardNumber());
-        log.info("Amex      : {}", generateAmexCardNumber());
-        log.info("Discover  : {}", generateDiscoverCardNumber());
-        log.info("Diners    : {}", generateDinersCardNumber());
-        log.info("JCB       : {}", generateJcbCardNumber());
-        log.info("EnRoute   : {}", generateEnrouteCardNumber());
-        log.info("Voyager   : {}", generateVoyagerCardNumber());
+        log.info("Mastercard: {}", SensitiveDataMaskUtils.maskPan(generateMasterCardNumber()));
+        log.info("Visa      : {}", SensitiveDataMaskUtils.maskPan(generateVisaCardNumber()));
+        log.info("Amex      : {}", SensitiveDataMaskUtils.maskPan(generateAmexCardNumber()));
+        log.info("Discover  : {}", SensitiveDataMaskUtils.maskPan(generateDiscoverCardNumber()));
+        log.info("Diners    : {}", SensitiveDataMaskUtils.maskPan(generateDinersCardNumber()));
+        log.info("JCB       : {}", SensitiveDataMaskUtils.maskPan(generateJcbCardNumber()));
+        log.info("EnRoute   : {}", SensitiveDataMaskUtils.maskPan(generateEnrouteCardNumber()));
+        log.info("Voyager   : {}", SensitiveDataMaskUtils.maskPan(generateVoyagerCardNumber()));
 
         List<String> masterCards = generateMasterCardNumbers(5);
         for (String cardNumber : masterCards) {
             log.info("批量生成结果，maskedCardNo={}，valid={}",
-                    cardNumber,
+                    SensitiveDataMaskUtils.maskPan(cardNumber),
                     isValidCreditCardNumber(cardNumber)
             );
         }
