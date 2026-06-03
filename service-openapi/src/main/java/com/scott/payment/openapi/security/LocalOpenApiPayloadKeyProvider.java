@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.security;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import org.springframework.beans.factory.annotation.Value;
@@ -79,7 +79,7 @@ public class LocalOpenApiPayloadKeyProvider implements OpenApiPayloadKeyProvider
      */
     private void validateMerchantId(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_MER_INVALID);
+            throw new ApiException(ApiResultEnum.MERCHANT_INVALID);
         }
     }
 }

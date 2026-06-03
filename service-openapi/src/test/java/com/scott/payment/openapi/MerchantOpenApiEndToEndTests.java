@@ -1,7 +1,7 @@
 package com.scott.payment.openapi;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
@@ -156,7 +156,7 @@ class MerchantOpenApiEndToEndTests {
                         result.getResponse().getStatus(),
                         MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiCoResultEnum.SUCCESS.getCode()))
+                .andExpect(jsonPath("$.code").value(ApiResultEnum.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data").isString())
                 .andReturn();
 
@@ -195,19 +195,19 @@ class MerchantOpenApiEndToEndTests {
         assertOpenApiError("缺少authorization请求头",
                 null,
                 validBody,
-                ApiCoResultEnum.CO_UNAUTHORIZED_NULL);
+                ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
         assertOpenApiError("错误merchantKey导致JWT签名失败",
                 MerchantOpenApiTestSupport.createMerchantJwt(MERCHANT_ID, "wrong-merchant-key", System.currentTimeMillis() / 1000L, "bad-key"),
                 validBody,
-                ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN);
+                ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID);
         assertOpenApiError("JWT已过期",
                 MerchantOpenApiTestSupport.createMerchantJwt(MERCHANT_ID, clientMaterial.getMerchantKey(), EXPIRED_ISSUED_AT, "expired-jwt"),
                 validBody,
-                ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP);
+                ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
         assertOpenApiError("请求体data被篡改",
                 validAuthorization,
                 MerchantOpenApiTestSupport.wrapEncryptedData(MerchantOpenApiTestSupport.tamperCiphertextSegment(encryptedData)),
-                ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL);
+                ApiResultEnum.ENCRYPTED_DATA_INVALID);
     }
 
     /**
@@ -233,7 +233,7 @@ class MerchantOpenApiEndToEndTests {
     private void assertOpenApiError(String caseName,
                                     String authorization,
                                     String body,
-                                    ApiCoResultEnum expectedEnum) throws Exception {
+                                    ApiResultEnum expectedEnum) throws Exception {
         var requestBuilder = post(MerchantOpenApiTestSupport.AUTHORIZATION_PATH)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body);

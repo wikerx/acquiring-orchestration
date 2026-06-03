@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import org.springframework.stereotype.Component;
 
@@ -41,6 +41,6 @@ public class OpenApiValidator {
             return;
         }
         ConstraintViolation<Object> violation = violations.iterator().next();
-        throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID, violation.getMessage());
+        throw new ApiException(ApiResultEnum.PARAM_INVALID, violation.getMessage());
     }
 }

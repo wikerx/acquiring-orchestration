@@ -1,6 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.mq.constant.MqTopic;
@@ -95,7 +95,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 || !StringUtils.hasText(commandDTO.getCurrency())
                 || commandDTO.getAmount() == null
                 || commandDTO.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID);
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
         if (commandDTO.getTransactionDateTime() == null) {
             commandDTO.setTransactionDateTime(LocalDateTime.now());

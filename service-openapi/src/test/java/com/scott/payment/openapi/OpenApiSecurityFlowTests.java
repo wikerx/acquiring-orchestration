@@ -1,6 +1,6 @@
 package com.scott.payment.openapi;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
@@ -144,8 +144,8 @@ class OpenApiSecurityFlowTests {
 
         assertThatThrownBy(() -> jwtVerifier.verify(authorization, "wrong-merchant-key"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getMessage());
-        log.info("异常分支-错误merchantKey验签失败，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getCode());
+                .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getMessage());
+        log.info("异常分支-错误merchantKey验签失败，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getCode());
 
         String expiredJwt = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,
@@ -155,15 +155,15 @@ class OpenApiSecurityFlowTests {
         );
         assertThatThrownBy(() -> jwtVerifier.verify(expiredJwt, merchantJwtKey.merchantKey(), EXPIRED_ISSUED_AT + 181L))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getMessage());
-        log.info("异常分支-JWT过期被拒绝，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getCode());
+                .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED.getMessage());
+        log.info("异常分支-JWT过期被拒绝，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_EXPIRED.getCode());
 
         String tamperedData = MerchantOpenApiTestSupport.tamperCiphertextSegment(encryptedRequestData);
         assertThatThrownBy(() -> payloadCrypto.decrypt(
                 tamperedData,
                 payloadCrypto.readPrivateKey(platformPayloadKey.privateKeyPkcs8Base64())
         )).isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL.getMessage());
-        log.info("异常分支-data密文被篡改，AES-GCM认证失败，预期错误码：{}", ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL.getCode());
+                .hasMessageContaining(ApiResultEnum.ENCRYPTED_DATA_INVALID.getMessage());
+        log.info("异常分支-data密文被篡改，AES-GCM认证失败，预期错误码：{}", ApiResultEnum.ENCRYPTED_DATA_INVALID.getCode());
     }
 }

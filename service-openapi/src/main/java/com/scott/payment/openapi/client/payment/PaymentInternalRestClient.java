@@ -1,7 +1,7 @@
 package com.scott.payment.openapi.client.payment;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
@@ -100,7 +100,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             );
             return unwrapResult(result);
         } catch (RestClientException exception) {
-            throw new ApiException(ApiCoResultEnum.CO_BAD_GATEWAY, "service-payment call failed");
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment call failed");
         }
     }
 
@@ -117,7 +117,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         URI uri = URI.create(authorizationUrl);
         String host = uri.getHost();
         if (host == null) {
-            throw new ApiException(ApiCoResultEnum.CO_BAD_GATEWAY, "service-payment url host is empty");
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment url host is empty");
         }
         if (LOCALHOST.equalsIgnoreCase(host) || IPV6_LOOPBACK.equals(host)
                 || IPV4_HOST_PATTERN.matcher(host).matches() || host.contains(DOMAIN_SEPARATOR)) {
@@ -134,13 +134,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private PaymentCreateClientResponseDTO unwrapResult(CommonResult<PaymentCreateClientResponseDTO> result) {
         if (result == null) {
-            throw new ApiException(ApiCoResultEnum.CO_BAD_GATEWAY, "service-payment response is empty");
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response is empty");
         }
         if (!CommonResult.isSuccess(result)) {
             throw new ApiException(result.getCode(), result.getMessage());
         }
         if (result.getData() == null) {
-            throw new ApiException(ApiCoResultEnum.CO_BAD_GATEWAY, "service-payment response data is empty");
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response data is empty");
         }
         return result.getData();
     }

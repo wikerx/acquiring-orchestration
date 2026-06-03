@@ -1,6 +1,6 @@
 package com.scott.payment.component.web.handler;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.http.HttpStatus;
@@ -32,11 +32,11 @@ public class UnifiedErrorController implements ErrorController {
     public CommonResult<Void> handleError(HttpServletRequest request) {
         int status = resolveStatus(request);
         return switch (status) {
-            case 404 -> CommonResult.error(ApiCoResultEnum.CO_NOT_FOUND);
-            case 405 -> CommonResult.error(ApiCoResultEnum.CO_METHOD_NOT_ALLOWED);
+            case 404 -> CommonResult.error(ApiResultEnum.NOT_FOUND);
+            case 405 -> CommonResult.error(ApiResultEnum.METHOD_NOT_ALLOWED);
             default -> status >= HttpStatus.BAD_REQUEST.value() && status < HttpStatus.INTERNAL_SERVER_ERROR.value()
-                    ? CommonResult.error(ApiCoResultEnum.CO_BAD_REQUEST)
-                    : CommonResult.error(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR);
+                    ? CommonResult.error(ApiResultEnum.BAD_REQUEST)
+                    : CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
         };
     }
 

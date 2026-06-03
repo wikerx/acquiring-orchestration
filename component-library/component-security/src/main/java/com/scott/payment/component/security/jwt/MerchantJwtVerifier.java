@@ -6,7 +6,7 @@ import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
 import cn.hutool.jwt.signers.JWTSigner;
 import cn.hutool.jwt.signers.JWTSignerUtil;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import org.springframework.util.StringUtils;
 
@@ -65,7 +65,7 @@ public class MerchantJwtVerifier {
         JWT jwt = parseToken(token);
         String merchantId = asString(jwt.getPayload("merchantId"));
         if (!StringUtils.hasText(merchantId)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_MER_INVALID);
+            throw new ApiException(ApiResultEnum.MERCHANT_INVALID);
         }
         return merchantId;
     }
@@ -91,7 +91,7 @@ public class MerchantJwtVerifier {
      */
     public JwtMerchantClaims verify(String token, String merchantKey, long nowEpochSeconds) {
         if (!StringUtils.hasText(merchantKey)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_NO_KEY);
+            throw new ApiException(ApiResultEnum.MERCHANT_SIGNING_KEY_NOT_CONFIGURED);
         }
         JWT jwt = parseToken(token);
         validateHeader(jwt);
@@ -101,46 +101,46 @@ public class MerchantJwtVerifier {
 
     private JWT parseToken(String token) {
         if (!StringUtils.hasText(token)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_NULL);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
         }
         try {
             return JWTUtil.parseToken(token);
         } catch (Exception exception) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
         }
     }
 
     private void validateHeader(JWT jwt) {
         if (!JWT_TYPE.equalsIgnoreCase(asString(jwt.getHeader(JWTHeader.TYPE)))) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
         }
         if (!JWT_ALGORITHM.equalsIgnoreCase(asString(jwt.getHeader(JWTHeader.ALGORITHM)))) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
         }
     }
 
     private void validateSignature(JWT jwt, String merchantKey) {
         JWTSigner signer = JWTSignerUtil.hs256(merchantKey.getBytes(StandardCharsets.UTF_8));
         if (!jwt.verify(signer)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID);
         }
     }
 
     private JwtMerchantClaims validatePayload(JWT jwt, long nowEpochSeconds) {
         validateAudience(jwt.getPayload(RegisteredPayload.AUDIENCE));
         if (!EXPECTED_ISSUER.equals(asString(jwt.getPayload(RegisteredPayload.ISSUER)))) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_ISS);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_ISS_INVALID);
         }
         String jwtId = asString(jwt.getPayload(RegisteredPayload.JWT_ID));
         String merchantId = asString(jwt.getPayload("merchantId"));
         if (!StringUtils.hasText(jwtId)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
         }
         if (!StringUtils.hasText(merchantId)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_MER_INVALID);
+            throw new ApiException(ApiResultEnum.MERCHANT_INVALID);
         }
-        long issuedAt = toEpochSeconds(jwt.getPayload(RegisteredPayload.ISSUED_AT), ApiCoResultEnum.CO_UNAUTHORIZED_JWT_IAT);
-        long expiresAt = toEpochSeconds(jwt.getPayload(RegisteredPayload.EXPIRES_AT), ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP);
+        long issuedAt = toEpochSeconds(jwt.getPayload(RegisteredPayload.ISSUED_AT), ApiResultEnum.AUTHORIZATION_JWT_IAT_INVALID);
+        long expiresAt = toEpochSeconds(jwt.getPayload(RegisteredPayload.EXPIRES_AT), ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
         validateTimeWindow(issuedAt, expiresAt, nowEpochSeconds);
 
         JwtMerchantClaims claims = new JwtMerchantClaims();
@@ -158,10 +158,10 @@ public class MerchantJwtVerifier {
         if (EXPECTED_AUDIENCE.equals(asString(audiences))) {
             return;
         }
-        throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_AUD);
+        throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_AUD_INVALID);
     }
 
-    private long toEpochSeconds(Object value, ApiCoResultEnum errorCode) {
+    private long toEpochSeconds(Object value, ApiResultEnum errorCode) {
         if (value instanceof Date date) {
             return date.getTime() / 1000L;
         }
@@ -183,16 +183,16 @@ public class MerchantJwtVerifier {
 
     private void validateTimeWindow(long issuedAt, long expiresAt, long nowEpochSeconds) {
         if (issuedAt <= 0L || expiresAt <= 0L || expiresAt <= issuedAt) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
         }
         if (expiresAt - issuedAt > MAX_TOKEN_SECONDS) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
         }
         if (issuedAt > nowEpochSeconds + ALLOWED_CLOCK_SKEW_SECONDS) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_IAT);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_IAT_INVALID);
         }
         if (expiresAt <= nowEpochSeconds) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
         }
     }
 

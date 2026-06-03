@@ -1,6 +1,6 @@
 package com.scott.payment.component.security.crypto;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 
 import javax.crypto.Mac;
@@ -74,7 +74,7 @@ public class HmacSha256Signer {
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_SHA256));
             return mac.doFinal(content.getBytes(StandardCharsets.UTF_8));
         } catch (Exception exception) {
-            throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "HMAC-SHA256 signature can not be calculated");
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "HMAC-SHA256 signature can not be calculated");
         }
     }
 

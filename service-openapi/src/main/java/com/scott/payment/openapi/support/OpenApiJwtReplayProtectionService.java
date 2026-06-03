@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -83,7 +83,7 @@ public class OpenApiJwtReplayProtectionService {
             return;
         }
         if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(jwtId)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
         }
         String replayKey = buildReplayKey(merchantId, jwtId);
         long ttlSeconds = calculateTtlSeconds(expiresAt);
@@ -100,7 +100,7 @@ public class OpenApiJwtReplayProtectionService {
                     merchantId,
                     jwtId.length(),
                     JWT_REPLAY_KEY_PREFIX);
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
         }
     }
 
@@ -112,7 +112,7 @@ public class OpenApiJwtReplayProtectionService {
      */
     private void handleRedisFailure(String merchantId, DataAccessException exception) {
         if (replayRequired) {
-            throw new ApiException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR);
+            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
         if (redisFallbackWarned.compareAndSet(false, true)) {
             log.warn("开放接口JWT防重放Redis暂不可用，本地降级为仅校验JWT本身，商户号：{}，错误类型：{}",

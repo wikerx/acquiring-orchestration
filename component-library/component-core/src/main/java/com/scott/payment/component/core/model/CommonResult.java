@@ -1,7 +1,7 @@
 package com.scott.payment.component.core.model;
 
 import com.scott.payment.component.core.constant.ErrorCode;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.BizException;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.result.IResult;
@@ -43,7 +43,7 @@ public class CommonResult<T> implements Serializable {
     private T data;
 
     public static <T> CommonResult<T> success(T data) {
-        return success(ApiCoResultEnum.SUCCESS, data);
+        return success(ApiResultEnum.SUCCESS, data);
     }
 
     public static <T> CommonResult<T> success(IResult result, T data) {
@@ -60,8 +60,8 @@ public class CommonResult<T> implements Serializable {
 
     public static <T> CommonResult<T> success() {
         CommonResult<T> result = new CommonResult<>();
-        result.setCode(ApiCoResultEnum.SUCCESS.getCode());
-        result.setMessage(ApiCoResultEnum.SUCCESS.getMessage());
+        result.setCode(ApiResultEnum.SUCCESS.getCode());
+        result.setMessage(ApiResultEnum.SUCCESS.getMessage());
         return result;
     }
 
@@ -81,7 +81,7 @@ public class CommonResult<T> implements Serializable {
     }
 
     public static <T> CommonResult<T> error(String code, String message) {
-        if (ErrorCode.SUCCESS.equals(code) || ApiCoResultEnum.SUCCESS.getCode().equals(code)) {
+        if (ErrorCode.SUCCESS.equals(code) || ApiResultEnum.SUCCESS.getCode().equals(code)) {
             throw new IllegalArgumentException("code must be an error code");
         }
         CommonResult<T> result = new CommonResult<>();
@@ -105,6 +105,6 @@ public class CommonResult<T> implements Serializable {
     public static boolean isSuccess(CommonResult<?> result) {
         return Objects.nonNull(result)
                 && (Objects.equals(ErrorCode.SUCCESS, result.getCode())
-                || Objects.equals(ApiCoResultEnum.SUCCESS.getCode(), result.getCode()));
+                || Objects.equals(ApiResultEnum.SUCCESS.getCode(), result.getCode()));
     }
 }

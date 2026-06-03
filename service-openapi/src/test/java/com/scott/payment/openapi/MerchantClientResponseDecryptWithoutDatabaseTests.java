@@ -1,7 +1,7 @@
 package com.scott.payment.openapi;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
@@ -76,8 +76,8 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyMaterialFactory));
 
         String encryptedHttpResponse = JsonUtils.toJsonString(Map.of(
-                "code", ApiCoResultEnum.SUCCESS.getCode(),
-                "message", ApiCoResultEnum.SUCCESS.getMessage(),
+                "code", ApiResultEnum.SUCCESS.getCode(),
+                "message", ApiResultEnum.SUCCESS.getMessage(),
                 "data", encryptedResponseData
         ));
         log.info("平台响应封装完成，响应摘要：{}",
@@ -96,7 +96,7 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
         );
         log.info("商户响应data解密完成，明文data：{}", decryptedData);
 
-        assertThat(responseMap.get("code")).isEqualTo(ApiCoResultEnum.SUCCESS.getCode());
+        assertThat(responseMap.get("code")).isEqualTo(ApiResultEnum.SUCCESS.getCode());
         assertThat(MerchantOpenApiTestSupport.compactPartCount(encryptedResponseData)).isEqualTo(5);
         assertThat(decryptedData).isEqualTo(plainResponseData);
         log.info("平台响应加密摘要-商户号：{}，响应公钥指纹：{}，data摘要：{}",

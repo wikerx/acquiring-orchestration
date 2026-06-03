@@ -1,6 +1,6 @@
 package com.scott.payment.component.security.key;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 
@@ -198,7 +198,7 @@ public class OpenApiKeyMaterialFactory {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest).substring(0, 16);
         } catch (Exception exception) {
-            throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "fingerprint can not be calculated");
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "fingerprint can not be calculated");
         }
     }
 

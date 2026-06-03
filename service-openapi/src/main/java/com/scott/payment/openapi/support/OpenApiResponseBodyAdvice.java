@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
@@ -120,12 +120,12 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
      */
     private OpenApiRequestHeaderDTO getHeaderContext(ServerHttpRequest request) {
         if (!(request instanceof ServletServerHttpRequest servletRequest)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED);
+            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
         }
         HttpServletRequest httpServletRequest = servletRequest.getServletRequest();
         Object value = httpServletRequest.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         if (!(value instanceof OpenApiRequestHeaderDTO headerDTO)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED);
+            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
         }
         return headerDTO;
     }

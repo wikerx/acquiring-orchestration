@@ -4,7 +4,7 @@ import cn.hutool.jwt.JWTHeader;
 import cn.hutool.jwt.JWTUtil;
 import cn.hutool.jwt.RegisteredPayload;
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
@@ -171,7 +171,7 @@ class MerchantSecurityDatabaseFlowTests {
                         result.getResponse().getStatus(),
                         keyMaterialFactory.fingerprint(result.getResponse().getContentAsString())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiCoResultEnum.SUCCESS.getCode()))
+                .andExpect(jsonPath("$.code").value(ApiResultEnum.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data").isString())
                 .andReturn();
 
@@ -278,8 +278,8 @@ class MerchantSecurityDatabaseFlowTests {
 
         assertThatThrownBy(() -> merchantJwtVerifier.verify(authorization, "wrong-merchant-key"))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getMessage());
-        log.info("反向用例校验通过-错误merchantKey会被拒绝，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_SIGN.getCode());
+                .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getMessage());
+        log.info("反向用例校验通过-错误merchantKey会被拒绝，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getCode());
 
         String expiredJwt = createMerchantJwt(
                 merchantMaterial.getMerchantId(),
@@ -291,13 +291,13 @@ class MerchantSecurityDatabaseFlowTests {
                 merchantMaterial.getMerchantKey(),
                 FIXED_EXPIRED_ISSUED_AT + 181L
         )).isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getMessage());
-        log.info("反向用例校验通过-JWT过期会被拒绝，预期错误码：{}", ApiCoResultEnum.CO_UNAUTHORIZED_JWT_EXP.getCode());
+                .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_EXPIRED.getMessage());
+        log.info("反向用例校验通过-JWT过期会被拒绝，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_EXPIRED.getCode());
 
         String tamperedData = tamperCiphertextSegment(encryptedRequestData);
         assertThatThrownBy(() -> payloadCrypto.decrypt(tamperedData, merchantSecurityService.getPlatformPrivateKey(merchantMaterial.getMerchantId())))
                 .isInstanceOf(ApiException.class)
-                .hasMessageContaining(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL.getMessage());
+                .hasMessageContaining(ApiResultEnum.ENCRYPTED_DATA_INVALID.getMessage());
         log.info("反向用例校验通过-data密文被篡改时，AES-GCM认证失败，服务端拒绝解析");
     }
 

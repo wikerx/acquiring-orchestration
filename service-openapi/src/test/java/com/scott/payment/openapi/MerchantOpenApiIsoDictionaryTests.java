@@ -1,7 +1,7 @@
 package com.scott.payment.openapi;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
@@ -172,7 +172,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 plainRequestJson,
                 merchantMaterial,
                 "iso-country-invalid-alpha2",
-                ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID
+                ApiResultEnum.PARAM_INVALID
         );
 
         log.info("商户国家地区查询异常响应验证完成，错误响应：{}",
@@ -194,7 +194,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 plainRequestJson,
                 merchantMaterial,
                 "iso-currency-invalid-code",
-                ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID
+                ApiResultEnum.PARAM_INVALID
         );
 
         log.info("商户币种查询异常响应验证完成，错误响应：{}",
@@ -259,7 +259,7 @@ class MerchantOpenApiIsoDictionaryTests {
                         result.getResponse().getStatus(),
                         MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(ApiCoResultEnum.SUCCESS.getCode()))
+                .andExpect(jsonPath("$.code").value(ApiResultEnum.SUCCESS.getCode()))
                 .andExpect(jsonPath("$.data").isString())
                 .andReturn();
     }
@@ -279,7 +279,7 @@ class MerchantOpenApiIsoDictionaryTests {
                                                       String plainRequestJson,
                                                       MerchantSecurityMaterialDTO merchantMaterial,
                                                       String jwtId,
-                                                      ApiCoResultEnum expectedError) throws Exception {
+                                                      ApiResultEnum expectedError) throws Exception {
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
                 payloadCrypto.readPublicKey(merchantMaterial.getPlatformPublicKeyX509Base64())

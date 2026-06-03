@@ -2,7 +2,7 @@ package com.scott.payment.openapi.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
@@ -301,7 +301,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     public MerchantKeyRevisionDTO rotateMerchantJwtKey(String merchantId, String keyVersion) {
         validateMerchantId(merchantId);
         if (!StringUtils.hasText(keyVersion)) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "keyVersion");
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "keyVersion");
         }
         getActiveMerchant(merchantId);
         LocalDateTime now = LocalDateTime.now();
@@ -378,7 +378,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                         .last("LIMIT 1")
         );
         if (merchantInfoDO == null) {
-            throw new ApiException(ApiCoResultEnum.CO_MERCHANT_CONFIG_NOT_FOUND, merchantId);
+            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, merchantId);
         }
         return merchantInfoDO;
     }
@@ -559,7 +559,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                         .last("LIMIT 1")
         );
         if (keyDO == null) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_NO_KEY);
+            throw new ApiException(ApiResultEnum.MERCHANT_SIGNING_KEY_NOT_CONFIGURED);
         }
         return keyDO;
     }
@@ -595,7 +595,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                         .last("LIMIT 1")
         );
         if (keyDO == null) {
-            throw new ApiException(ApiCoResultEnum.CO_MERCHANT_CONFIG_NOT_FOUND, "platformPayloadKey");
+            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "platformPayloadKey");
         }
         return keyDO;
     }
@@ -616,7 +616,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                 .last("LIMIT 1");
         MerchantResponseKeyDO keyDO = merchantResponseKeyMapper.selectOne(queryWrapper);
         if (keyDO == null) {
-            throw new ApiException(ApiCoResultEnum.CO_MERCHANT_CONFIG_NOT_FOUND, "merchantResponseKey");
+            throw new ApiException(ApiResultEnum.MERCHANT_CONFIG_NOT_FOUND, "merchantResponseKey");
         }
         return keyDO;
     }
@@ -787,10 +787,10 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private void validateSeed(MerchantSecuritySeedDTO seedDTO) {
         if (seedDTO == null || !StringUtils.hasText(seedDTO.getMerchantId())) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "merchantId");
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "merchantId");
         }
         if (!StringUtils.hasText(seedDTO.getMerchantName())) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "merchantName");
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "merchantName");
         }
     }
 
@@ -801,7 +801,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private void validateMerchantId(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_MER_INVALID);
+            throw new ApiException(ApiResultEnum.MERCHANT_INVALID);
         }
     }
 

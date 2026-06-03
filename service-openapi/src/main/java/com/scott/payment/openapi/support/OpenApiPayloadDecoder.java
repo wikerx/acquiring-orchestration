@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
@@ -47,13 +47,13 @@ public class OpenApiPayloadDecoder {
      */
     public Object decode(String requestBody, Class<?> dataReceiver, OpenApiRequestHeaderDTO headerDTO) {
         if (!StringUtils.hasText(requestBody)) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "data");
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "data");
         }
         String cipherText = extractCipherText(requestBody);
         String plainText = decrypt(cipherText, headerDTO);
         Object data = parsePlainText(plainText, dataReceiver);
         if (data == null) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL);
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID);
         }
         return data;
     }
@@ -74,7 +74,7 @@ public class OpenApiPayloadDecoder {
         try {
             return JsonUtils.parseObject(plainText, dataReceiver);
         } catch (Exception exception) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL);
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID);
         }
     }
 
@@ -89,7 +89,7 @@ public class OpenApiPayloadDecoder {
      */
     private String decrypt(String encryptedData, OpenApiRequestHeaderDTO headerDTO) {
         if (headerDTO == null || !StringUtils.hasText(headerDTO.getMerchantId())) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED);
+            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
         }
         return payloadCrypto.decrypt(encryptedData.trim(), payloadKeyProvider.getPlatformPrivateKey(headerDTO.getMerchantId()));
     }

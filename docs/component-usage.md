@@ -55,7 +55,7 @@ Redis 基础接口在 `component-redis`：
 ```java
 boolean firstRequest = idempotentService.acquire("payment:create:" + merchantOrderNo, 600);
 if (!firstRequest) {
-    throw new ServiceException(ApiCoResultEnum.CO_ORDER_ALREADY_EXIST);
+    throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS);
 }
 ```
 

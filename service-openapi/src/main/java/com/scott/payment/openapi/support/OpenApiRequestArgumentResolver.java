@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
@@ -60,11 +60,11 @@ public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentReso
                                   NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
         HttpServletRequest request = webRequest.getNativeRequest(HttpServletRequest.class);
         if (request == null) {
-            throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "http request can not be resolved");
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "http request can not be resolved");
         }
         Object data = request.getAttribute(OpenApiRequestAttributes.DECRYPTED_DATA);
         if (data == null) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL);
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID);
         }
         return data;
     }

@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.support;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
@@ -96,9 +96,9 @@ public class OpenApiRequestHeaderExtractor {
         for (String header : requiredHeaders) {
             if (!StringUtils.hasText(request.getHeader(header))) {
                 if (HEADER_AUTHORIZATION.equalsIgnoreCase(header)) {
-                    throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_NULL);
+                    throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
                 }
-                throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "header." + header);
+                throw new ApiException(ApiResultEnum.PARAM_MISSING, "header." + header);
             }
         }
     }
@@ -113,7 +113,7 @@ public class OpenApiRequestHeaderExtractor {
      */
     private String resolveToken(String authorization) {
         if (!StringUtils.hasText(authorization)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_NULL);
+            throw new ApiException(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
         }
         if (authorization.startsWith(BEARER_PREFIX)) {
             return authorization.substring(BEARER_PREFIX.length()).trim();

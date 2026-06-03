@@ -1,6 +1,6 @@
 package com.scott.payment.component.db.sharding;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 
 import java.time.Instant;
@@ -54,7 +54,7 @@ public class PaymentOrderShardingAlgorithm {
      */
     public String tableName(String logicalTableName, Date transactionDateTime) {
         if (transactionDateTime == null) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING.getCode(), "transaction_date_time is required");
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time is required");
         }
         Instant instant = transactionDateTime.toInstant();
         return tableName(logicalTableName, LocalDateTime.ofInstant(instant, DATABASE_ZONE_ID));
@@ -82,7 +82,7 @@ public class PaymentOrderShardingAlgorithm {
         int startQuarterIndex = quarterIndex(tableRule.getStartYear(), tableRule.getStartQuarter());
         int endQuarterIndex = quarterIndex(tableRule.getEndYear(), tableRule.getEndQuarter());
         if (routeQuarterIndex < startQuarterIndex || routeQuarterIndex > endQuarterIndex) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID.getCode(),
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "transaction_date_time is outside sharding table range");
         }
         return String.format(tableRule.getTableNameFormat(), tableRule.getLogicalTable(), year, quarter);
@@ -100,7 +100,7 @@ public class PaymentOrderShardingAlgorithm {
                             String logicalTableName,
                             Date transactionDateTime) {
         if (transactionDateTime == null) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING.getCode(), "transaction_date_time is required");
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time is required");
         }
         ZoneId zoneId = ZoneId.of(properties.getDatabaseTimezone());
         return tableName(properties, logicalTableName, LocalDateTime.ofInstant(transactionDateTime.toInstant(), zoneId));
@@ -167,22 +167,22 @@ public class PaymentOrderShardingAlgorithm {
 
     private void validateRequired(String logicalTableName, LocalDateTime transactionDateTime) {
         if (logicalTableName == null || logicalTableName.trim().isEmpty()) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING.getCode(), "logicalTableName is required");
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "logicalTableName is required");
         }
         if (transactionDateTime == null) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING.getCode(), "transaction_date_time is required");
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time is required");
         }
     }
 
     private PaymentQuarterShardingProperties.TableRule getTableRule(PaymentQuarterShardingProperties properties,
                                                                     String logicalTableName) {
         if (properties == null || properties.getTables() == null) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING.getCode(), "sharding tables config is required");
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding tables config is required");
         }
         Map<String, PaymentQuarterShardingProperties.TableRule> tables = properties.getTables();
         PaymentQuarterShardingProperties.TableRule tableRule = tables.get(logicalTableName);
         if (tableRule == null || Boolean.FALSE.equals(tableRule.getEnabled())) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID.getCode(),
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "logicalTableName is not configured for sharding");
         }
         if (tableRule.getLogicalTable() == null || tableRule.getLogicalTable().trim().isEmpty()) {
@@ -196,11 +196,11 @@ public class PaymentOrderShardingAlgorithm {
 
     private void validateQuarter(Integer year, Integer quarter, String label) {
         if (year == null || quarter == null) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING.getCode(),
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(),
                     label + " sharding year and quarter are required");
         }
         if (quarter < 1 || quarter > 4) {
-            throw new ServiceException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID.getCode(),
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     label + " sharding quarter must be between 1 and 4");
         }
     }

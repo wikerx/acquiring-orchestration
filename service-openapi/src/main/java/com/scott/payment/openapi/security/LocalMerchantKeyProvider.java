@@ -1,6 +1,6 @@
 package com.scott.payment.openapi.security;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -46,11 +46,11 @@ public class LocalMerchantKeyProvider implements MerchantKeyProvider {
     @Override
     public String getMerchantKey(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_MER_INVALID);
+            throw new ApiException(ApiResultEnum.MERCHANT_INVALID);
         }
         // TODO 后续替换为商户服务/数据库/Nacos 密钥查询，并支持密钥轮换。
         if (!StringUtils.hasText(defaultMerchantKey)) {
-            throw new ApiException(ApiCoResultEnum.CO_UNAUTHORIZED_JWT_NO_KEY);
+            throw new ApiException(ApiResultEnum.MERCHANT_SIGNING_KEY_NOT_CONFIGURED);
         }
         return defaultMerchantKey;
     }

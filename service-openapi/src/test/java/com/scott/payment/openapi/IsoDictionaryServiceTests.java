@@ -56,8 +56,8 @@ class IsoDictionaryServiceTests {
 
         log.info("ISO国家地区-全量数量：{}", JsonUtils.toJsonString(allCountries));
         log.info("ISO国家地区-按英文名查询United States：{}", unitedStates);
-        log.info("ISO国家地区-北美洲数量：{}", northAmericaCountries.size());
-        log.info("ISO国家地区-默认USD币种国家数量：{}", usdCountries.size());
+        log.info("ISO国家地区-北美洲数量：{}", JsonUtils.toJsonString(northAmericaCountries));
+        log.info("ISO国家地区-默认USD币种国家数量：{}", JsonUtils.toJsonString(usdCountries));
 
         assertThat(allCountries).hasSizeGreaterThan(200);
         assertThat(isoDictionaryService.getCountry("840")).map(IsoCountryInfo::alpha3).contains("USA");

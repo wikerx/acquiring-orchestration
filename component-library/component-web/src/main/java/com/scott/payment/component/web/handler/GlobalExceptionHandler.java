@@ -1,6 +1,6 @@
 package com.scott.payment.component.web.handler;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.BizException;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -76,7 +76,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public CommonResult<Void> handleValidException(MethodArgumentNotValidException exception) {
         log.warn("Request parameter validation failed: {}", exception.getMessage());
-        return CommonResult.error(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID.getCode(), exception.getMessage());
+        return CommonResult.error(ApiResultEnum.PARAM_INVALID.getCode(), exception.getMessage());
     }
 
     /**
@@ -88,7 +88,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public CommonResult<Void> handleMethodNotSupportedException(HttpRequestMethodNotSupportedException exception) {
         log.warn("Request method not supported: {}", exception.getMessage());
-        return CommonResult.error(ApiCoResultEnum.CO_METHOD_NOT_ALLOWED);
+        return CommonResult.error(ApiResultEnum.METHOD_NOT_ALLOWED);
     }
 
     /**
@@ -107,7 +107,7 @@ public class GlobalExceptionHandler {
     })
     public CommonResult<Void> handleRequestParameterException(Exception exception) {
         log.warn("Request parameter exception: {}", exception.getMessage());
-        return CommonResult.error(ApiCoResultEnum.CO_REQUIRED_PARAMETER_INVALID.getCode(), exception.getMessage());
+        return CommonResult.error(ApiResultEnum.PARAM_INVALID.getCode(), exception.getMessage());
     }
 
     /**
@@ -119,6 +119,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public CommonResult<Void> handleException(Exception exception) {
         log.error("System exception", exception);
-        return CommonResult.error(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR);
+        return CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
     }
 }

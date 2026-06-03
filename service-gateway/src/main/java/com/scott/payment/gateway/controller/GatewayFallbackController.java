@@ -1,6 +1,6 @@
 package com.scott.payment.gateway.controller;
 
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,6 +28,6 @@ public class GatewayFallbackController {
      */
     @RequestMapping("/gateway/fallback/not-found")
     public CommonResult<Void> notFound(ServerWebExchange exchange) {
-        return CommonResult.error(ApiCoResultEnum.CO_NOT_FOUND);
+        return CommonResult.error(ApiResultEnum.NOT_FOUND);
     }
 }

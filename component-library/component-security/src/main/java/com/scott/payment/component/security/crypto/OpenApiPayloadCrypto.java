@@ -1,7 +1,7 @@
 package com.scott.payment.component.security.crypto;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.scott.payment.component.core.enums.ApiCoResultEnum;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -165,12 +165,12 @@ public class OpenApiPayloadCrypto {
      */
     public String decrypt(String compactPayload, PrivateKey privateKey) {
         if (!StringUtils.hasText(compactPayload)) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_MISSING, "data");
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "data");
         }
         Objects.requireNonNull(privateKey, "privateKey can not be null");
         String[] parts = compactPayload.split("\\.", -1);
         if (parts.length != COMPACT_PARTS) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data");
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data");
         }
         Map<String, String> header = decodeProtectedHeader(parts[0]);
         validateProtectedHeader(header);
@@ -210,7 +210,7 @@ public class OpenApiPayloadCrypto {
             byte[] encoded = Base64.getDecoder().decode(normalizePem(publicKeyBase64));
             return KeyFactory.getInstance(RSA_ALGORITHM).generatePublic(new X509EncodedKeySpec(encoded));
         } catch (Exception exception) {
-            throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "openapi public key can not be parsed");
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi public key can not be parsed");
         }
     }
 
@@ -225,7 +225,7 @@ public class OpenApiPayloadCrypto {
             byte[] encoded = Base64.getDecoder().decode(normalizePem(privateKeyBase64));
             return KeyFactory.getInstance(RSA_ALGORITHM).generatePrivate(new PKCS8EncodedKeySpec(encoded));
         } catch (Exception exception) {
-            throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "openapi private key can not be parsed");
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi private key can not be parsed");
         }
     }
 
@@ -243,7 +243,7 @@ public class OpenApiPayloadCrypto {
             generator.initialize(keySize, secureRandom);
             return generator.generateKeyPair();
         } catch (Exception exception) {
-            throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "openapi rsa key pair can not be generated");
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi rsa key pair can not be generated");
         }
     }
 
@@ -297,7 +297,7 @@ public class OpenApiPayloadCrypto {
             return JsonUtils.parseObject(headerJson, new TypeReference<Map<String, String>>() {
             });
         } catch (Exception exception) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data.header");
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data.header");
         }
     }
 
@@ -311,7 +311,7 @@ public class OpenApiPayloadCrypto {
                 || !PAYLOAD_TYPE.equals(header.get("typ"))
                 || !KEY_ENCRYPTION_ALGORITHM.equals(header.get("alg"))
                 || !CONTENT_ENCRYPTION_ALGORITHM.equals(header.get("enc"))) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data.header");
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data.header");
         }
     }
 
@@ -333,7 +333,7 @@ public class OpenApiPayloadCrypto {
             cipher.updateAAD(protectedHeader.getBytes(StandardCharsets.US_ASCII));
             return cipher.doFinal(input);
         } catch (Exception exception) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data");
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data");
         }
     }
 
@@ -356,7 +356,7 @@ public class OpenApiPayloadCrypto {
             cipher.init(mode, key, oaepParameterSpec);
             return cipher.doFinal(input);
         } catch (Exception exception) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data.key");
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data.key");
         }
     }
 
@@ -392,7 +392,7 @@ public class OpenApiPayloadCrypto {
         try {
             return Base64.getUrlDecoder().decode(value);
         } catch (IllegalArgumentException exception) {
-            throw new ApiException(ApiCoResultEnum.CO_REQUIRED_PARAMETER_ILLEGAL, "data");
+            throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data");
         }
     }
 
@@ -417,7 +417,7 @@ public class OpenApiPayloadCrypto {
      */
     private String normalizePem(String value) {
         if (!StringUtils.hasText(value)) {
-            throw new ServiceException(ApiCoResultEnum.CO_INTERNAL_SERVER_ERROR.getCode(), "openapi key can not be blank");
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi key can not be blank");
         }
         return value
                 .replace("-----BEGIN PUBLIC KEY-----", "")
