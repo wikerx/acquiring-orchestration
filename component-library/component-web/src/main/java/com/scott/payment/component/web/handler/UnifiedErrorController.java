@@ -23,16 +23,6 @@ import jakarta.servlet.http.HttpServletRequest;
 public class UnifiedErrorController implements ErrorController {
 
     /**
-     * 开放 API 路径前缀，商户开放接口命名空间下的请求需要先完成 Authorization 校验。
-     */
-    private static final String OPEN_API_REST_PREFIX = "/api/rest/";
-
-    /**
-     * 标准授权请求头名称。
-     */
-    private static final String HEADER_AUTHORIZATION = "authorization";
-
-    /**
      * 处理未命中路由、非法路径和容器层异常。
      *
      * @param request HTTP 请求
@@ -41,11 +31,11 @@ public class UnifiedErrorController implements ErrorController {
     @RequestMapping("${server.error.path:${error.path:/error}}")
     public CommonResult<Void> handleError(HttpServletRequest request) {
         int status = resolveStatus(request);
-        if (isOpenApiRestRequest(request) && !hasAuthorization(request)) {
-            return CommonResult.error(ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
-        }
         return switch (status) {
-            case 404 -> CommonResult.error(ApiResultEnum.NOT_FOUND);
+            case 404 -> OpenApiErrorResponseSupport.routeNotFound(
+                    request,
+                    OpenApiErrorResponseSupport.resolveOriginalRequestUri(request)
+            );
             case 405 -> CommonResult.error(ApiResultEnum.METHOD_NOT_ALLOWED);
             default -> status >= HttpStatus.BAD_REQUEST.value() && status < HttpStatus.INTERNAL_SERVER_ERROR.value()
                     ? CommonResult.error(ApiResultEnum.BAD_REQUEST)
@@ -59,41 +49,5 @@ public class UnifiedErrorController implements ErrorController {
             return statusCode;
         }
         return HttpStatus.INTERNAL_SERVER_ERROR.value();
-    }
-
-    /**
-     * 判断原始请求是否属于商户开放 API REST 命名空间。
-     *
-     * @param request HTTP 请求
-     * @return true 表示原始请求地址以 /api/rest/ 开头
-     */
-    private boolean isOpenApiRestRequest(HttpServletRequest request) {
-        String requestUri = resolveOriginalRequestUri(request);
-        return requestUri != null && requestUri.startsWith(OPEN_API_REST_PREFIX);
-    }
-
-    /**
-     * 判断请求是否携带授权头。
-     *
-     * @param request HTTP 请求
-     * @return true 表示存在 Authorization 请求头
-     */
-    private boolean hasAuthorization(HttpServletRequest request) {
-        String authorization = request.getHeader(HEADER_AUTHORIZATION);
-        return authorization != null && !authorization.isBlank();
-    }
-
-    /**
-     * 获取容器转发到 /error 前的原始请求地址。
-     *
-     * @param request HTTP 请求
-     * @return 原始请求地址，缺失时回退到当前请求地址
-     */
-    private String resolveOriginalRequestUri(HttpServletRequest request) {
-        Object requestUri = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
-        if (requestUri instanceof String originalRequestUri) {
-            return originalRequestUri;
-        }
-        return request.getRequestURI();
     }
 }

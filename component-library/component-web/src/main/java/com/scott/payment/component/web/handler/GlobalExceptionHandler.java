@@ -15,7 +15,10 @@ import org.springframework.web.bind.ServletRequestBindingException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 
 /**
@@ -92,6 +95,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 处理路由不存在或静态资源不存在异常。
+     * <p>
+     * Spring Boot 3 默认会把未匹配路径包装成 NoResourceFoundException；开放 API 命名空间下如果未携带
+     * Authorization，需要优先返回认证缺失，避免把商户非法请求误判为服务内部错误。
+     *
+     * @param exception 路由未命中异常
+     * @param request   HTTP 请求
+     * @return 统一错误响应
+     */
+    @ExceptionHandler({
+            NoHandlerFoundException.class,
+            NoResourceFoundException.class
+    })
+    public CommonResult<Void> handleRouteNotFoundException(Exception exception, HttpServletRequest request) {
+        String requestPath = resolveRouteNotFoundPath(exception, request);
+        log.warn("Request route not found, path: {}, exception: {}", requestPath, exception.getClass().getSimpleName());
+        return OpenApiErrorResponseSupport.routeNotFound(request, requestPath);
+    }
+
+    /**
      * 处理常见请求参数异常。
      *
      * @param exception 参数异常
@@ -120,5 +143,22 @@ public class GlobalExceptionHandler {
     public CommonResult<Void> handleException(Exception exception) {
         log.error("System exception", exception);
         return CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * 解析路由未命中异常中的原始请求地址。
+     *
+     * @param exception 路由未命中异常
+     * @param request   HTTP 请求
+     * @return 原始请求地址
+     */
+    private String resolveRouteNotFoundPath(Exception exception, HttpServletRequest request) {
+        if (exception instanceof NoResourceFoundException noResourceFoundException) {
+            return noResourceFoundException.getResourcePath();
+        }
+        if (exception instanceof NoHandlerFoundException noHandlerFoundException) {
+            return noHandlerFoundException.getRequestURL();
+        }
+        return OpenApiErrorResponseSupport.resolveOriginalRequestUri(request);
     }
 }
