@@ -45,6 +45,10 @@
 | Content-Type | Header | M | `application/json;charset=UTF-8` | 请求体格式 |
 | X-Request-Id | Header | O | `REQ202606060001` | 前端生成的请求ID，便于日志排查 |
 | X-Trace-Id | Header | O | `TRACE202606060001` | 链路追踪ID |
+| X-Operator-Id | Header | O | `10001` | 当前后台操作人ID，操作日志自动采集时使用 |
+| X-Operator-Name | Header | O | `admin` | 当前后台操作人名称，操作日志自动采集时使用 |
+| X-Operator-Type | Header | O | `1` | 操作人类别：1后台用户，2商户用户，3系统任务 |
+| X-Merchant-Id | Header | O | `200045` | 当前操作涉及商户时传入，操作日志自动采集时使用 |
 
 ### 1.6 公共响应结构
 
@@ -684,9 +688,9 @@
 
 #### 6.1.1 接口说明
 
-写入后台操作日志。该接口主要供后台管理系统或后续 AOP 自动采集调用。
+写入后台操作日志。该接口主要供后台管理系统、内部服务或特殊前端行为显式写入日志。
 
-前端一般不需要直接调用该接口，除非某些前端独立操作也需要审计。
+普通后台管理接口已接入 `@AdminOperationLog` 注解和 AOP 自动采集，前端一般不需要直接调用该接口。日志写入接口本身不会再次自动采集，避免形成递归日志。
 
 #### 6.1.2 请求说明
 
@@ -842,13 +846,54 @@
 }
 ```
 
+### 6.3 操作日志自动采集
+
+#### 6.3.1 采集说明
+
+`service-admin` 已提供 `@AdminOperationLog` 注解和 AOP 自动采集能力。后台管理接口只要在 Controller 方法上声明该注解，系统会自动记录模块、业务类型、请求路径、请求方式、操作人、请求参数、耗时、成功失败状态和异常信息。
+
+当前已接入自动采集的接口包括系统配置、数据字典和操作日志查询接口。操作日志写入接口不会自动采集，避免写日志时再次触发写日志。
+
+#### 6.3.2 注解示例
+
+```java
+@AdminOperationLog(
+        moduleName = "系统配置",
+        businessType = AdminOperationTypeConstants.UPDATE,
+        operation = "保存或更新系统参数配置"
+)
+@PostMapping("/configs")
+public CommonResult<SysConfigDTO> saveConfig(@RequestBody SysConfigSaveRequest request) {
+    return CommonResult.success(configService.saveConfig(request));
+}
+```
+
+#### 6.3.3 自动采集请求头
+
+| 请求头 | 必填 | 示例 | 说明 |
+| --- | --- | --- | --- |
+| X-Trace-Id | O | `TRACE202606060001` | 链路追踪ID |
+| X-Request-Id | O | `REQ202606060001` | 请求ID |
+| X-Operator-Id | O | `10001` | 当前操作人ID |
+| X-Operator-Name | O | `admin` | 当前操作人名称 |
+| X-Operator-Type | O | `1` | 操作人类别：1后台用户，2商户用户，3系统任务 |
+| X-Merchant-Id | O | `200045` | 当前操作涉及商户时记录 |
+
+#### 6.3.4 采集边界
+
+1. `service-admin` 的 AOP 只采集进入 `service-admin` 的管理后台接口。
+2. 商户系统前端如果调用的是 `service-merchant`、`service-openapi` 或其他微服务，不会被 `service-admin` 本地 AOP 自动采集。
+3. 商户系统后续建议采用共享日志组件或领域事件方式：业务服务完成操作后异步投递操作日志事件，由 `service-admin` 或日志消费者统一落库。
+4. 商户用户操作建议使用 `operatorType=2`，同时写入 `merchantId`、`operatorId`、`operatorName`，方便后台按商户维度审计。
+5. 自动采集会对请求参数和响应结果做脱敏、截断，禁止记录完整 JWT、token、私钥、密码、卡号、CVV 等敏感明文。
+
 ## 7. 当前限制和后续规划
 
 ### 7.1 当前限制
 
 1. 配置、字典列表接口当前返回列表，尚未返回分页结构。
 2. 操作日志查询当前服务端限制最多 500 条。
-3. 操作日志写入当前为显式接口，尚未接入 AOP 自动采集。
+3. 操作日志自动采集当前覆盖 `service-admin` 本服务，不跨微服务采集商户系统前端操作。
 4. 后台登录态、菜单权限、按钮权限尚未在当前接口层实现。
 
 ### 7.2 后续规划
@@ -856,8 +901,7 @@
 | 功能 | 说明 |
 | --- | --- |
 | 分页查询 | 配置、字典、日志列表统一升级为分页响应 |
-| 操作日志 AOP | 基于注解自动采集后台操作日志 |
+| 跨服务操作日志 | 将操作日志注解或事件模型沉淀到公共组件，支持商户系统、运营后台和系统任务统一审计 |
 | 权限控制 | 接入后台用户、角色、菜单、按钮权限 |
-| 敏感字段脱敏 | 统一脱敏工具接入操作日志采集 |
+| 敏感字段脱敏增强 | 持续扩展脱敏字段，覆盖 token、密钥指纹、证件号、手机号等更多字段 |
 | 接口导出 | 支持操作日志导出、字典导出 |
-

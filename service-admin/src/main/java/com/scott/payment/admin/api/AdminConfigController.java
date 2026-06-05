@@ -1,5 +1,7 @@
 package com.scott.payment.admin.api;
 
+import com.scott.payment.admin.annotation.AdminOperationLog;
+import com.scott.payment.admin.constant.AdminOperationTypeConstants;
 import com.scott.payment.admin.dto.SysConfigDTO;
 import com.scott.payment.admin.dto.SysConfigQueryRequest;
 import com.scott.payment.admin.dto.SysConfigSaveRequest;
@@ -50,6 +52,7 @@ public class AdminConfigController {
      * @return 保存后的配置
      */
     @PostMapping
+    @AdminOperationLog(moduleName = "系统配置", businessType = AdminOperationTypeConstants.UPDATE, operation = "保存或更新系统参数配置")
     public CommonResult<SysConfigDTO> saveConfig(@Valid @RequestBody SysConfigSaveRequest request) {
         return CommonResult.success(configService.saveConfig(request));
     }
@@ -61,6 +64,7 @@ public class AdminConfigController {
      * @return 系统参数配置
      */
     @GetMapping("/{configKey}")
+    @AdminOperationLog(moduleName = "系统配置", businessType = AdminOperationTypeConstants.QUERY, operation = "根据配置键查询系统参数配置")
     public CommonResult<SysConfigDTO> getConfig(@PathVariable String configKey) {
         return CommonResult.success(configService.getConfigByKey(configKey));
     }
@@ -72,6 +76,7 @@ public class AdminConfigController {
      * @return 系统参数配置列表
      */
     @PostMapping("/search")
+    @AdminOperationLog(moduleName = "系统配置", businessType = AdminOperationTypeConstants.QUERY, operation = "查询系统参数配置列表")
     public CommonResult<List<SysConfigDTO>> listConfigs(@RequestBody(required = false) SysConfigQueryRequest request) {
         return CommonResult.success(configService.listConfigs(request));
     }
@@ -83,6 +88,7 @@ public class AdminConfigController {
      * @return 删除结果
      */
     @DeleteMapping("/{configKey}")
+    @AdminOperationLog(moduleName = "系统配置", businessType = AdminOperationTypeConstants.DELETE, operation = "删除系统参数配置")
     public CommonResult<Void> deleteConfig(@PathVariable String configKey) {
         configService.deleteConfig(configKey);
         return CommonResult.success();

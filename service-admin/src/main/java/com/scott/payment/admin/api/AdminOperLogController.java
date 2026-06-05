@@ -1,5 +1,7 @@
 package com.scott.payment.admin.api;
 
+import com.scott.payment.admin.annotation.AdminOperationLog;
+import com.scott.payment.admin.constant.AdminOperationTypeConstants;
 import com.scott.payment.admin.dto.SysOperLogDTO;
 import com.scott.payment.admin.dto.SysOperLogQueryRequest;
 import com.scott.payment.admin.dto.SysOperLogRecordRequest;
@@ -60,6 +62,7 @@ public class AdminOperLogController {
      * @return 操作日志列表
      */
     @PostMapping("/search")
+    @AdminOperationLog(moduleName = "操作日志", businessType = AdminOperationTypeConstants.QUERY, operation = "查询后台操作日志列表")
     public CommonResult<List<SysOperLogDTO>> listOperLogs(@RequestBody(required = false) SysOperLogQueryRequest request) {
         return CommonResult.success(operLogService.listOperLogs(request));
     }

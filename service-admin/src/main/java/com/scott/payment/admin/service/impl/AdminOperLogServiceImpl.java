@@ -56,6 +56,9 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
      */
     @Override
     public void recordOperLog(SysOperLogRecordRequest request) {
+        if (request == null) {
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         SysOperLogDO entity = new SysOperLogDO();
         entity.setTraceId(request.getTraceId());
