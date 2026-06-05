@@ -1,0 +1,98 @@
+package com.scott.payment.admin.dto;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysOperLogDTO
+ * @date : 2026-06-05 00:00
+ * @email : scott_x@163.com
+ * @description : 系统后台操作日志响应 DTO
+ * @status : create
+ */
+@Data
+public class SysOperLogDTO {
+
+    /**
+     * 主键ID。
+     */
+    private Long id;
+
+    /**
+     * 链路追踪ID。
+     */
+    private String traceId;
+
+    /**
+     * 请求ID。
+     */
+    private String requestId;
+
+    /**
+     * 商户号。
+     */
+    private String merchantId;
+
+    /**
+     * 模块名称。
+     */
+    private String moduleName;
+
+    /**
+     * 业务类型。
+     */
+    private Integer businessType;
+
+    /**
+     * 请求方式。
+     */
+    private String requestMethod;
+
+    /**
+     * 操作人ID。
+     */
+    private String operatorId;
+
+    /**
+     * 操作人名称。
+     */
+    private String operatorName;
+
+    /**
+     * 请求URL。
+     */
+    private String operUrl;
+
+    /**
+     * 操作IP。
+     */
+    private String operIp;
+
+    /**
+     * 执行时长，单位毫秒。
+     */
+    private Long costTime;
+
+    /**
+     * 操作状态：0失败，1成功。
+     */
+    private Integer status;
+
+    /**
+     * 错误码。
+     */
+    private String errorCode;
+
+    /**
+     * 错误信息。
+     */
+    private String errorMsg;
+
+    /**
+     * 操作时间。
+     */
+    private LocalDateTime operatedAt;
+}

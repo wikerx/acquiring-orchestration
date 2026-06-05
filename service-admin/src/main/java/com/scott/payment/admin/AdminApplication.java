@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @classname : AdminApplication
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
- * @description : Admin 服务启动类
+ * @description : 支付框架后台管理服务启动入口
  * @status : create
  */
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
@@ -18,7 +18,7 @@ public class AdminApplication {
     /**
      * 启动后台管理服务。
      *
-     * @param args JVM 启动参数
+     * @param args 命令行参数
      */
     public static void main(String[] args) {
         SpringApplication.run(AdminApplication.class, args);

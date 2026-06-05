@@ -1,0 +1,66 @@
+package com.scott.payment.admin.api;
+
+import com.scott.payment.admin.dto.SysOperLogDTO;
+import com.scott.payment.admin.dto.SysOperLogQueryRequest;
+import com.scott.payment.admin.dto.SysOperLogRecordRequest;
+import com.scott.payment.admin.service.AdminOperLogService;
+import com.scott.payment.component.core.model.CommonResult;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminOperLogController
+ * @date : 2026-06-05 00:00
+ * @email : scott_x@163.com
+ * @description : 管理后台操作日志内部接口
+ * @status : create
+ */
+@RestController
+@RequestMapping("/admin/system/oper-logs")
+public class AdminOperLogController {
+
+    /**
+     * 操作日志服务。
+     */
+    private final AdminOperLogService operLogService;
+
+    /**
+     * 创建操作日志内部接口。
+     *
+     * @param operLogService 操作日志服务
+     */
+    public AdminOperLogController(AdminOperLogService operLogService) {
+        this.operLogService = operLogService;
+    }
+
+    /**
+     * 写入后台操作日志。
+     * <p>
+     * 该接口只面向内部管理系统或后续 AOP 调用，入参必须已经完成脱敏，禁止记录密钥、JWT、卡号和 CVV 明文。
+     *
+     * @param request 写入请求
+     * @return 写入结果
+     */
+    @PostMapping
+    public CommonResult<Void> recordOperLog(@RequestBody SysOperLogRecordRequest request) {
+        operLogService.recordOperLog(request);
+        return CommonResult.success();
+    }
+
+    /**
+     * 按条件查询后台操作日志列表。
+     *
+     * @param request 查询条件
+     * @return 操作日志列表
+     */
+    @PostMapping("/search")
+    public CommonResult<List<SysOperLogDTO>> listOperLogs(@RequestBody(required = false) SysOperLogQueryRequest request) {
+        return CommonResult.success(operLogService.listOperLogs(request));
+    }
+}
