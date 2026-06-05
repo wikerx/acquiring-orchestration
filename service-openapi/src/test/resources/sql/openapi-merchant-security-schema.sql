@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     merchant_id VARCHAR(32) NOT NULL COMMENT '支付框架颁发的商户号',
     merchant_name VARCHAR(128) NOT NULL COMMENT '商户主体名称',
     merchant_short_name VARCHAR(64) NULL COMMENT '商户简称',
-    merchant_status VARCHAR(16) NOT NULL COMMENT '商户状态：ACTIVE/FROZEN/CLOSED',
+    merchant_status TINYINT NOT NULL DEFAULT 1 COMMENT '商户状态：1正常，2冻结，3关闭',
     merchant_category_code VARCHAR(4) NOT NULL COMMENT '商户类别码MCC',
     country_code CHAR(3) NOT NULL COMMENT '商户所在国家三字码',
     region_code VARCHAR(16) NULL COMMENT '商户所在州、省或区域代码',
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     contact_phone VARCHAR(32) NULL COMMENT '商户联系人电话',
     settlement_currency CHAR(3) NOT NULL COMMENT '默认结算币种',
     timezone VARCHAR(64) NOT NULL COMMENT '商户业务时区',
-    risk_level VARCHAR(16) NOT NULL COMMENT '商户风险等级',
+    risk_level TINYINT NOT NULL DEFAULT 2 COMMENT '商户风险等级：1低，2中，3高',
     gmt_create DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     gmt_modified DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除标识：0正常，1删除',
@@ -21,6 +21,44 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     UNIQUE KEY uk_base_merchant_info_mid (merchant_id),
     KEY idx_base_merchant_status (merchant_status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础商户信息表';
+
+SET @convert_merchant_status_sql = (
+    SELECT IF(
+        COUNT(*) > 0,
+        'UPDATE base_merchant_info SET merchant_status = CASE UPPER(merchant_status) WHEN ''ACTIVE'' THEN ''1'' WHEN ''FROZEN'' THEN ''2'' WHEN ''CLOSED'' THEN ''3'' ELSE ''1'' END WHERE merchant_status IS NOT NULL',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'merchant_status'
+      AND data_type IN ('varchar', 'char')
+);
+PREPARE convert_merchant_status_stmt FROM @convert_merchant_status_sql;
+EXECUTE convert_merchant_status_stmt;
+DEALLOCATE PREPARE convert_merchant_status_stmt;
+
+ALTER TABLE base_merchant_info
+    MODIFY COLUMN merchant_status TINYINT NOT NULL DEFAULT 1 COMMENT '商户状态：1正常，2冻结，3关闭';
+
+SET @convert_merchant_risk_level_sql = (
+    SELECT IF(
+        COUNT(*) > 0,
+        'UPDATE base_merchant_info SET risk_level = CASE UPPER(risk_level) WHEN ''LOW'' THEN ''1'' WHEN ''NORMAL'' THEN ''2'' WHEN ''MEDIUM'' THEN ''2'' WHEN ''HIGH'' THEN ''3'' ELSE ''2'' END WHERE risk_level IS NOT NULL',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'risk_level'
+      AND data_type IN ('varchar', 'char')
+);
+PREPARE convert_merchant_risk_level_stmt FROM @convert_merchant_risk_level_sql;
+EXECUTE convert_merchant_risk_level_stmt;
+DEALLOCATE PREPARE convert_merchant_risk_level_stmt;
+
+ALTER TABLE base_merchant_info
+    MODIFY COLUMN risk_level TINYINT NOT NULL DEFAULT 2 COMMENT '商户风险等级：1低，2中，3高';
 
 CREATE TABLE IF NOT EXISTS base_merchant_jwt_key (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',

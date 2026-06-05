@@ -162,7 +162,7 @@ base64url(protectedHeader).base64url(encryptedKey).base64url(iv).base64url(ciphe
 
 | 表 | 关键字段 | 用途 |
 | --- | --- | --- |
-| `base_merchant_info` | `merchant_id`、`merchant_name`、`merchant_status`、`country_code`、`gmt_create`、`gmt_modified`、`deleted` | 商户基础资料 |
+| `base_merchant_info` | `merchant_id`、`merchant_name`、`merchant_status`、`risk_level`、`country_code`、`gmt_create`、`gmt_modified`、`deleted` | 商户基础资料；`merchant_status` 使用数字码：1 正常、2 冻结、3 关闭，`risk_level` 使用数字码：1 低、2 普通、3 高 |
 | `base_merchant_jwt_key` | `merchant_id`、`key_version`、`merchant_key`、`algorithm`、`enabled`、`effective_time`、`expire_time` | 按商户号查询 JWT 验签密钥 |
 | `base_platform_payload_key` | `merchant_id`、`public_key_x509_base64`、`private_key_pkcs8_base64`、`algorithm`、`key_size`、`enabled`、`gmt_create`、`gmt_modified`、`deleted` | 每个商户独立的平台请求体 RSA 密钥对 |
 | `base_merchant_response_key` | `merchant_id`、`public_key_x509_base64`、`algorithm`、`key_size`、`enabled`、`gmt_create`、`gmt_modified`、`deleted` | 商户响应公钥，平台用于加密响应 `data` |

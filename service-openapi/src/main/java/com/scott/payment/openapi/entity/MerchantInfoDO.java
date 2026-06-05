@@ -40,9 +40,9 @@ public class MerchantInfoDO extends BaseEntity {
     private String merchantShortName;
 
     /**
-     * 商户状态。ACTIVE 表示可交易，FROZEN 表示冻结，CLOSED 表示关闭。
+     * 商户状态。1 表示正常可交易，2 表示冻结，3 表示关闭。
      */
-    private String merchantStatus;
+    private Integer merchantStatus;
 
     /**
      * 商户类别码，外卡收单通常使用 MCC 四位数字识别商户经营类型。
@@ -90,9 +90,9 @@ public class MerchantInfoDO extends BaseEntity {
     private String timezone;
 
     /**
-     * 商户风险等级，例如 LOW、NORMAL、HIGH，用于后续限额、风控和交易策略。
+     * 商户风险等级。1 表示低风险，2 表示普通风险，3 表示高风险。
      */
-    private String riskLevel;
+    private Integer riskLevel;
 
     /**
      * 逻辑删除标识。0 表示正常，1 表示删除，查询时必须过滤已删除记录。

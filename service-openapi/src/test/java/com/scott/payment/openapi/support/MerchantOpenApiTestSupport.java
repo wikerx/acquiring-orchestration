@@ -8,6 +8,7 @@ import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecuritySeedDTO;
+import com.scott.payment.openapi.enums.MerchantRiskLevelEnum;
 import org.assertj.core.api.Assertions;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -90,7 +91,7 @@ public final class MerchantOpenApiTestSupport {
         seedDTO.setContactPhone("+1-408-555-0100");
         seedDTO.setSettlementCurrency("USD");
         seedDTO.setTimezone("Asia/Shanghai");
-        seedDTO.setRiskLevel("NORMAL");
+        seedDTO.setRiskLevel(MerchantRiskLevelEnum.NORMAL.getCode());
         return seedDTO;
     }
 

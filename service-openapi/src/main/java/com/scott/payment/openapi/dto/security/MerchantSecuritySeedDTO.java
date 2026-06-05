@@ -77,7 +77,7 @@ public class MerchantSecuritySeedDTO {
     private String timezone;
 
     /**
-     * 商户风险等级，例如 LOW、NORMAL、HIGH。
+     * 商户风险等级。1 表示低风险，2 表示普通风险，3 表示高风险；为空时默认普通风险。
      */
-    private String riskLevel;
+    private Integer riskLevel;
 }

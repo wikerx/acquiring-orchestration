@@ -32,9 +32,9 @@ public class MerchantInfoDTO {
     private String merchantShortName;
 
     /**
-     * 商户状态。ACTIVE 表示可交易，FROZEN 表示冻结，CLOSED 表示关闭。
+     * 商户状态。1 表示正常可交易，2 表示冻结，3 表示关闭。
      */
-    private String merchantStatus;
+    private Integer merchantStatus;
 
     /**
      * 商户类别码 MCC。
@@ -82,7 +82,7 @@ public class MerchantInfoDTO {
     private String timezone;
 
     /**
-     * 商户风险等级。
+     * 商户风险等级。1 表示低风险，2 表示普通风险，3 表示高风险。
      */
-    private String riskLevel;
+    private Integer riskLevel;
 }

@@ -19,6 +19,8 @@ import com.scott.payment.openapi.entity.MerchantInfoDO;
 import com.scott.payment.openapi.entity.MerchantJwtKeyDO;
 import com.scott.payment.openapi.entity.MerchantResponseKeyDO;
 import com.scott.payment.openapi.entity.PlatformPayloadKeyDO;
+import com.scott.payment.openapi.enums.MerchantRiskLevelEnum;
+import com.scott.payment.openapi.enums.MerchantStatusEnum;
 import com.scott.payment.openapi.mapper.MerchantInfoMapper;
 import com.scott.payment.openapi.mapper.MerchantJwtKeyMapper;
 import com.scott.payment.openapi.mapper.MerchantResponseKeyMapper;
@@ -47,11 +49,6 @@ import java.util.List;
 @Primary
 @Service
 public class MerchantSecurityServiceImpl implements MerchantSecurityService {
-
-    /**
-     * 商户可交易状态。
-     */
-    private static final String MERCHANT_STATUS_ACTIVE = "ACTIVE";
 
     /**
      * 当前 JWT 标准算法。
@@ -92,11 +89,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * 数据库已启用标识。
      */
     private static final int ENABLED = 1;
-
-    /**
-     * 默认商户风险等级。
-     */
-    private static final String DEFAULT_RISK_LEVEL = "NORMAL";
 
     /**
      * 默认商户业务时区。
@@ -373,7 +365,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         MerchantInfoDO merchantInfoDO = merchantInfoMapper.selectOne(
                 Wrappers.<MerchantInfoDO>lambdaQuery()
                         .eq(MerchantInfoDO::getMerchantId, merchantId)
-                        .eq(MerchantInfoDO::getMerchantStatus, MERCHANT_STATUS_ACTIVE)
+                        .eq(MerchantInfoDO::getMerchantStatus, MerchantStatusEnum.ACTIVE.getCode())
                         .eq(MerchantInfoDO::getDeleted, NOT_DELETED)
                         .last("LIMIT 1")
         );
@@ -407,7 +399,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setMerchantId(seedDTO.getMerchantId());
         entity.setMerchantName(seedDTO.getMerchantName());
         entity.setMerchantShortName(defaultIfBlank(seedDTO.getMerchantShortName(), seedDTO.getMerchantName()));
-        entity.setMerchantStatus(MERCHANT_STATUS_ACTIVE);
+        entity.setMerchantStatus(MerchantStatusEnum.ACTIVE.getCode());
         entity.setMerchantCategoryCode(defaultIfBlank(seedDTO.getMerchantCategoryCode(), "5311"));
         entity.setCountryCode(defaultIfBlank(seedDTO.getCountryCode(), "USA"));
         entity.setRegionCode(defaultIfBlank(seedDTO.getRegionCode(), "CA"));
@@ -417,7 +409,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setContactPhone(defaultIfBlank(seedDTO.getContactPhone(), "+1-408-555-0100"));
         entity.setSettlementCurrency(defaultIfBlank(seedDTO.getSettlementCurrency(), DEFAULT_SETTLEMENT_CURRENCY));
         entity.setTimezone(defaultIfBlank(seedDTO.getTimezone(), DEFAULT_TIMEZONE));
-        entity.setRiskLevel(defaultIfBlank(seedDTO.getRiskLevel(), DEFAULT_RISK_LEVEL));
+        entity.setRiskLevel(defaultIfNull(seedDTO.getRiskLevel(), MerchantRiskLevelEnum.NORMAL.getCode()));
         entity.setDeleted(NOT_DELETED);
         upsertMerchantInfo(entity, now);
     }
@@ -814,6 +806,17 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
+    }
+
+    /**
+     * 返回非空整数值，避免开户测试数据未指定枚举码时写入空状态。
+     *
+     * @param value        入参中的整数值
+     * @param defaultValue 默认整数值
+     * @return 非空整数值
+     */
+    private Integer defaultIfNull(Integer value, Integer defaultValue) {
+        return value == null ? defaultValue : value;
     }
 
 }

@@ -15,6 +15,7 @@ import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecuritySeedDTO;
+import com.scott.payment.openapi.enums.MerchantRiskLevelEnum;
 import com.scott.payment.openapi.service.MerchantSecurityService;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
@@ -196,7 +197,7 @@ class MerchantSecurityDatabaseFlowTests {
         seedDTO.setContactPhone("+1-408-555-0100");
         seedDTO.setSettlementCurrency("USD");
         seedDTO.setTimezone("Asia/Shanghai");
-        seedDTO.setRiskLevel("NORMAL");
+        seedDTO.setRiskLevel(MerchantRiskLevelEnum.NORMAL.getCode());
         return merchantSecurityService.provisionMerchantSecurityMaterial(seedDTO);
     }
 
