@@ -1,17 +1,19 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.SysOperLogDTO;
 import com.scott.payment.admin.dto.SysOperLogQueryRequest;
 import com.scott.payment.admin.dto.SysOperLogRecordRequest;
 import com.scott.payment.admin.entity.SysOperLogDO;
 import com.scott.payment.admin.mapper.SysOperLogMapper;
 import com.scott.payment.admin.service.AdminOperLogService;
+import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -92,22 +94,38 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
      * @return 操作日志列表
      */
     @Override
-    public List<SysOperLogDTO> listOperLogs(SysOperLogQueryRequest request) {
+    public PageResult<SysOperLogDTO> pageOperLogs(SysOperLogQueryRequest request) {
         SysOperLogQueryRequest query = request == null ? new SysOperLogQueryRequest() : request;
-        return operLogMapper.selectList(
-                Wrappers.<SysOperLogDO>lambdaQuery()
-                        .eq(StringUtils.hasText(query.getTraceId()), SysOperLogDO::getTraceId, query.getTraceId())
-                        .eq(StringUtils.hasText(query.getRequestId()), SysOperLogDO::getRequestId, query.getRequestId())
-                        .eq(StringUtils.hasText(query.getMerchantId()), SysOperLogDO::getMerchantId, query.getMerchantId())
-                        .eq(StringUtils.hasText(query.getOperatorId()), SysOperLogDO::getOperatorId, query.getOperatorId())
-                        .eq(StringUtils.hasText(query.getModuleName()), SysOperLogDO::getModuleName, query.getModuleName())
-                        .eq(query.getBusinessType() != null, SysOperLogDO::getBusinessType, query.getBusinessType())
-                        .eq(query.getStatus() != null, SysOperLogDO::getStatus, query.getStatus())
-                        .ge(query.getOperatedStartAt() != null, SysOperLogDO::getOperatedAt, query.getOperatedStartAt())
-                        .le(query.getOperatedEndAt() != null, SysOperLogDO::getOperatedAt, query.getOperatedEndAt())
-                        .orderByDesc(SysOperLogDO::getOperatedAt)
-                        .last("LIMIT 500")
-        ).stream().map(this::toOperLogDTO).toList();
+        Page<SysOperLogDO> page = operLogMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()),
+                buildOperLogQueryWrapper(query)
+        );
+        return PageResult.of(
+                page.getTotal(),
+                page.getCurrent(),
+                page.getSize(),
+                page.getRecords().stream().map(this::toOperLogDTO).toList()
+        );
+    }
+
+    /**
+     * 构建操作日志查询条件。
+     *
+     * @param query 查询请求
+     * @return MyBatis Plus 查询条件
+     */
+    private LambdaQueryWrapper<SysOperLogDO> buildOperLogQueryWrapper(SysOperLogQueryRequest query) {
+        return Wrappers.<SysOperLogDO>lambdaQuery()
+                .eq(StringUtils.hasText(query.getTraceId()), SysOperLogDO::getTraceId, query.getTraceId())
+                .eq(StringUtils.hasText(query.getRequestId()), SysOperLogDO::getRequestId, query.getRequestId())
+                .eq(StringUtils.hasText(query.getMerchantId()), SysOperLogDO::getMerchantId, query.getMerchantId())
+                .eq(StringUtils.hasText(query.getOperatorId()), SysOperLogDO::getOperatorId, query.getOperatorId())
+                .eq(StringUtils.hasText(query.getModuleName()), SysOperLogDO::getModuleName, query.getModuleName())
+                .eq(query.getBusinessType() != null, SysOperLogDO::getBusinessType, query.getBusinessType())
+                .eq(query.getStatus() != null, SysOperLogDO::getStatus, query.getStatus())
+                .ge(query.getOperatedStartAt() != null, SysOperLogDO::getOperatedAt, query.getOperatedStartAt())
+                .le(query.getOperatedEndAt() != null, SysOperLogDO::getOperatedAt, query.getOperatedEndAt())
+                .orderByDesc(SysOperLogDO::getOperatedAt);
     }
 
     /**

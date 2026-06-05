@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.dto.SysConfigDTO;
 import com.scott.payment.admin.dto.SysConfigQueryRequest;
@@ -9,11 +11,11 @@ import com.scott.payment.admin.mapper.SysConfigMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -99,17 +101,34 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @return 系统参数配置列表
      */
     @Override
-    public List<SysConfigDTO> listConfigs(SysConfigQueryRequest request) {
+    public PageResult<SysConfigDTO> pageConfigs(SysConfigQueryRequest request) {
         SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
-        return sysConfigMapper.selectList(
-                Wrappers.<SysConfigDO>lambdaQuery()
-                        .eq(SysConfigDO::getDeleted, NOT_DELETED)
-                        .eq(StringUtils.hasText(query.getConfigKey()), SysConfigDO::getConfigKey, query.getConfigKey())
-                        .eq(StringUtils.hasText(query.getConfigGroup()), SysConfigDO::getConfigGroup, query.getConfigGroup())
-                        .eq(query.getStatus() != null, SysConfigDO::getStatus, query.getStatus())
-                        .likeRight(StringUtils.hasText(query.getConfigName()), SysConfigDO::getConfigName, query.getConfigName())
-                        .orderByDesc(SysConfigDO::getUpdatedAt)
-        ).stream().map(this::toConfigDTO).toList();
+        Page<SysConfigDO> page = sysConfigMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()),
+                buildConfigQueryWrapper(query)
+        );
+        return PageResult.of(
+                page.getTotal(),
+                page.getCurrent(),
+                page.getSize(),
+                page.getRecords().stream().map(this::toConfigDTO).toList()
+        );
+    }
+
+    /**
+     * 构建系统参数配置查询条件。
+     *
+     * @param query 查询请求
+     * @return MyBatis Plus 查询条件
+     */
+    private LambdaQueryWrapper<SysConfigDO> buildConfigQueryWrapper(SysConfigQueryRequest query) {
+        return Wrappers.<SysConfigDO>lambdaQuery()
+                .eq(SysConfigDO::getDeleted, NOT_DELETED)
+                .eq(StringUtils.hasText(query.getConfigKey()), SysConfigDO::getConfigKey, query.getConfigKey())
+                .eq(StringUtils.hasText(query.getConfigGroup()), SysConfigDO::getConfigGroup, query.getConfigGroup())
+                .eq(query.getStatus() != null, SysConfigDO::getStatus, query.getStatus())
+                .likeRight(StringUtils.hasText(query.getConfigName()), SysConfigDO::getConfigName, query.getConfigName())
+                .orderByDesc(SysConfigDO::getUpdatedAt);
     }
 
     /**

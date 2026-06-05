@@ -29,7 +29,42 @@ public class PageResult<T> implements Serializable {
     private long total;
 
     /**
+     * 当前页码，从 1 开始。
+     */
+    private long pageNo;
+
+    /**
+     * 每页记录数。
+     */
+    private long pageSize;
+
+    /**
+     * 总页数。
+     */
+    private long pages;
+
+    /**
      * 当前页数据列表，无数据时返回空集合，避免调用方处理 null。
      */
     private List<T> records = Collections.emptyList();
+
+    /**
+     * 构建分页响应。
+     *
+     * @param total    总记录数
+     * @param pageNo   当前页码
+     * @param pageSize 每页记录数
+     * @param records  当前页记录
+     * @param <T>      记录类型
+     * @return 分页响应
+     */
+    public static <T> PageResult<T> of(long total, long pageNo, long pageSize, List<T> records) {
+        PageResult<T> result = new PageResult<>();
+        result.setTotal(total);
+        result.setPageNo(pageNo);
+        result.setPageSize(pageSize);
+        result.setPages(pageSize <= 0 ? 0 : (total + pageSize - 1) / pageSize);
+        result.setRecords(records == null ? Collections.emptyList() : records);
+        return result;
+    }
 }

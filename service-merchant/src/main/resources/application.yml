@@ -11,3 +11,8 @@ spring:
     active: @profiles.active@
   main:
     allow-bean-definition-overriding: true
+
+payment:
+  operation-log:
+    enabled: true
+    admin-record-url: ${ADMIN_OPERATION_LOG_RECORD_URL:http://127.0.0.1:8001/admin/system/oper-logs}

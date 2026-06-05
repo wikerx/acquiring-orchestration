@@ -3,8 +3,7 @@ package com.scott.payment.admin.service;
 import com.scott.payment.admin.dto.SysConfigDTO;
 import com.scott.payment.admin.dto.SysConfigQueryRequest;
 import com.scott.payment.admin.dto.SysConfigSaveRequest;
-
-import java.util.List;
+import com.scott.payment.component.core.model.PageResult;
 
 /**
  * @author : scott
@@ -39,7 +38,7 @@ public interface AdminConfigService {
      * @param request 查询条件
      * @return 系统参数配置列表
      */
-    List<SysConfigDTO> listConfigs(SysConfigQueryRequest request);
+    PageResult<SysConfigDTO> pageConfigs(SysConfigQueryRequest request);
 
     /**
      * 软删除指定配置。

@@ -1,6 +1,8 @@
 package com.scott.payment.admin.dto;
 
+import com.scott.payment.component.core.model.PageRequest;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
@@ -14,7 +16,8 @@ import java.time.LocalDateTime;
  * @status : create
  */
 @Data
-public class SysOperLogQueryRequest {
+@EqualsAndHashCode(callSuper = true)
+public class SysOperLogQueryRequest extends PageRequest {
 
     /**
      * 链路追踪ID。

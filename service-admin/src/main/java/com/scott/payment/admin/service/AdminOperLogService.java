@@ -3,8 +3,7 @@ package com.scott.payment.admin.service;
 import com.scott.payment.admin.dto.SysOperLogDTO;
 import com.scott.payment.admin.dto.SysOperLogQueryRequest;
 import com.scott.payment.admin.dto.SysOperLogRecordRequest;
-
-import java.util.List;
+import com.scott.payment.component.core.model.PageResult;
 
 /**
  * @author : scott
@@ -30,5 +29,5 @@ public interface AdminOperLogService {
      * @param request 查询条件
      * @return 操作日志列表
      */
-    List<SysOperLogDTO> listOperLogs(SysOperLogQueryRequest request);
+    PageResult<SysOperLogDTO> pageOperLogs(SysOperLogQueryRequest request);
 }

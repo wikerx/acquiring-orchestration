@@ -1,15 +1,15 @@
-package com.scott.payment.admin.constant;
+package com.scott.payment.component.web.operation.constant;
 
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : AdminOperationTypeConstants
+ * @classname : OperationTypeConstants
  * @date : 2026-06-06 00:00
  * @email : scott_x@163.com
- * @description : 管理后台操作日志业务类型常量
+ * @description : 管理类系统操作日志业务类型常量
  * @status : create
  */
-public final class AdminOperationTypeConstants {
+public final class OperationTypeConstants {
 
     /**
      * 新增操作。
@@ -54,6 +54,6 @@ public final class AdminOperationTypeConstants {
     /**
      * 工具类不允许实例化。
      */
-    private AdminOperationTypeConstants() {
+    private OperationTypeConstants() {
     }
 }

@@ -1,17 +1,18 @@
-package com.scott.payment.admin.aspect;
+package com.scott.payment.component.web.operation.aspect;
 
-import com.scott.payment.admin.annotation.AdminOperationLog;
-import com.scott.payment.admin.dto.SysOperLogRecordRequest;
-import com.scott.payment.admin.service.AdminOperLogService;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import com.scott.payment.component.web.operation.annotation.OperationLog;
+import com.scott.payment.component.web.operation.dto.OperationLogRecord;
+import com.scott.payment.component.web.operation.service.OperationLogRecorder;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -24,17 +25,17 @@ import java.util.Objects;
 /**
  * @author : scott
  * @version : v1.0.0
- * @classname : AdminOperationLogAspect
+ * @classname : OperationLogAspect
  * @date : 2026-06-06 00:00
  * @email : scott_x@163.com
- * @description : 管理后台操作日志 AOP 自动采集切面
+ * @description : 管理类系统操作日志 AOP 自动采集切面
  * @status : create
  */
 @Slf4j
 @Aspect
 @Order(100)
 @Component
-public class AdminOperationLogAspect {
+public class OperationLogAspect {
 
     /**
      * 请求ID请求头。
@@ -67,7 +68,12 @@ public class AdminOperationLogAspect {
     private static final String HEADER_OPERATOR_TYPE = "X-Operator-Type";
 
     /**
-     * 日志字段最大保存长度，避免大对象请求拖慢管理后台日志表。
+     * 操作地点请求头。
+     */
+    private static final String HEADER_OPERATOR_LOCATION = "X-Operator-Location";
+
+    /**
+     * 日志字段最大保存长度，避免大对象请求拖慢日志表。
      */
     private static final int MAX_LOG_TEXT_LENGTH = 4000;
 
@@ -82,21 +88,21 @@ public class AdminOperationLogAspect {
     private static final int FAILED_STATUS = 0;
 
     /**
-     * 操作日志服务。
+     * 操作日志记录器提供器。没有业务服务提供记录器时，切面只跳过记录，不影响业务启动。
      */
-    private final AdminOperLogService operLogService;
+    private final ObjectProvider<OperationLogRecorder> recorderProvider;
 
     /**
-     * 创建管理后台操作日志切面。
+     * 创建管理类系统操作日志切面。
      *
-     * @param operLogService 操作日志服务
+     * @param recorderProvider 操作日志记录器提供器
      */
-    public AdminOperationLogAspect(AdminOperLogService operLogService) {
-        this.operLogService = operLogService;
+    public OperationLogAspect(ObjectProvider<OperationLogRecorder> recorderProvider) {
+        this.recorderProvider = recorderProvider;
     }
 
     /**
-     * 环绕采集带有 {@link AdminOperationLog} 注解的方法调用。
+     * 环绕采集带有 {@link OperationLog} 注解的方法调用。
      *
      * @param point     方法调用切点
      * @param operation 操作日志注解
@@ -104,7 +110,7 @@ public class AdminOperationLogAspect {
      * @throws Throwable 原方法抛出的异常
      */
     @Around("@annotation(operation)")
-    public Object around(ProceedingJoinPoint point, AdminOperationLog operation) throws Throwable {
+    public Object around(ProceedingJoinPoint point, OperationLog operation) throws Throwable {
         long startNanoTime = System.nanoTime();
         Object result = null;
         Throwable failure = null;
@@ -121,7 +127,7 @@ public class AdminOperationLogAspect {
     }
 
     /**
-     * 写入操作日志，日志写入失败时只打印错误，不影响原业务接口返回。
+     * 写入操作日志，日志写入失败时只打印警告，不影响原业务接口返回。
      *
      * @param point     方法调用切点
      * @param operation 操作日志注解
@@ -130,53 +136,58 @@ public class AdminOperationLogAspect {
      * @param costTime  方法耗时，单位毫秒
      */
     private void recordOperationLog(ProceedingJoinPoint point,
-                                    AdminOperationLog operation,
+                                    OperationLog operation,
                                     Object result,
                                     Throwable failure,
                                     long costTime) {
+        OperationLogRecorder recorder = recorderProvider.getIfAvailable();
+        if (recorder == null) {
+            return;
+        }
         try {
             HttpServletRequest request = currentRequest();
-            SysOperLogRecordRequest logRequest = new SysOperLogRecordRequest();
-            logRequest.setTraceId(header(request, HEADER_TRACE_ID));
-            logRequest.setRequestId(header(request, HEADER_REQUEST_ID));
-            logRequest.setMerchantId(header(request, HEADER_MERCHANT_ID));
-            logRequest.setModuleName(operation.moduleName());
-            logRequest.setBusinessType(operation.businessType());
-            logRequest.setMethodName(methodName(point));
-            logRequest.setRequestMethod(request == null ? null : request.getMethod());
-            logRequest.setOperatorType(resolveOperatorType(request, operation.operatorType()));
-            logRequest.setOperatorId(header(request, HEADER_OPERATOR_ID));
-            logRequest.setOperatorName(header(request, HEADER_OPERATOR_NAME));
-            logRequest.setOperUrl(request == null ? null : request.getRequestURI());
-            logRequest.setOperIp(clientIp(request));
-            logRequest.setRequestParam(operation.recordRequest() ? serializeForLog(point.getArgs()) : null);
-            logRequest.setResponseResult(operation.recordResponse() ? serializeForLog(result) : null);
-            logRequest.setCostTime(costTime);
-            logRequest.setStatus(failure == null ? SUCCESS_STATUS : FAILED_STATUS);
-            fillFailure(logRequest, failure);
-            operLogService.recordOperLog(logRequest);
+            OperationLogRecord record = new OperationLogRecord();
+            record.setTraceId(header(request, HEADER_TRACE_ID));
+            record.setRequestId(header(request, HEADER_REQUEST_ID));
+            record.setMerchantId(header(request, HEADER_MERCHANT_ID));
+            record.setModuleName(operation.moduleName());
+            record.setBusinessType(operation.businessType());
+            record.setMethodName(methodName(point));
+            record.setRequestMethod(request == null ? null : request.getMethod());
+            record.setOperatorType(resolveOperatorType(request, operation.operatorType()));
+            record.setOperatorId(header(request, HEADER_OPERATOR_ID));
+            record.setOperatorName(header(request, HEADER_OPERATOR_NAME));
+            record.setOperUrl(request == null ? null : request.getRequestURI());
+            record.setOperIp(clientIp(request));
+            record.setOperLocation(header(request, HEADER_OPERATOR_LOCATION));
+            record.setRequestParam(operation.recordRequest() ? serializeForLog(point.getArgs()) : null);
+            record.setResponseResult(operation.recordResponse() ? serializeForLog(result) : null);
+            record.setCostTime(costTime);
+            record.setStatus(failure == null ? SUCCESS_STATUS : FAILED_STATUS);
+            fillFailure(record, failure);
+            recorder.record(record);
         } catch (Exception exception) {
-            log.warn("管理后台操作日志写入失败，方法：{}，原因：{}", methodName(point), exception.getMessage());
+            log.warn("管理类系统操作日志采集失败，方法：{}，原因：{}", methodName(point), exception.getMessage());
         }
     }
 
     /**
      * 填充异常信息。
      *
-     * @param logRequest 操作日志写入请求
-     * @param failure    原方法异常
+     * @param record  操作日志采集记录
+     * @param failure 原方法异常
      */
-    private void fillFailure(SysOperLogRecordRequest logRequest, Throwable failure) {
+    private void fillFailure(OperationLogRecord record, Throwable failure) {
         if (failure == null) {
             return;
         }
         if (failure instanceof ServiceException serviceException) {
-            logRequest.setErrorCode(serviceException.getCode());
-            logRequest.setErrorMsg(truncate(serviceException.getMessage()));
+            record.setErrorCode(serviceException.getCode());
+            record.setErrorMsg(truncate(serviceException.getMessage()));
             return;
         }
-        logRequest.setErrorCode(failure.getClass().getSimpleName());
-        logRequest.setErrorMsg(truncate(failure.getMessage()));
+        record.setErrorCode(failure.getClass().getSimpleName());
+        record.setErrorMsg(truncate(failure.getMessage()));
     }
 
     /**

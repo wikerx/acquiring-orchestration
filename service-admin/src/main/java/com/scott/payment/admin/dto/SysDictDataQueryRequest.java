@@ -1,6 +1,8 @@
 package com.scott.payment.admin.dto;
 
+import com.scott.payment.component.core.model.PageRequest;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * @author : scott
@@ -12,7 +14,8 @@ import lombok.Data;
  * @status : create
  */
 @Data
-public class SysDictDataQueryRequest {
+@EqualsAndHashCode(callSuper = true)
+public class SysDictDataQueryRequest extends PageRequest {
 
     /**
      * 字典类型编码，支持精确查询。

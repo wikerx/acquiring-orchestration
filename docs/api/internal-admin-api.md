@@ -68,6 +68,37 @@
 | message | string | M | 响应说明 |
 | data | object/array/null | O | 响应数据 |
 
+### 1.7 公共分页结构
+
+列表接口统一支持分页，查询请求可携带 `pageNo` 和 `pageSize`。不传时默认查询第 1 页，每页 20 条；服务端单页最大限制为 500 条。
+
+#### 1.7.1 分页请求参数
+
+| 字段 | 类型 | 必填 | 示例 | 说明 |
+| --- | --- | --- | --- | --- |
+| pageNo | integer | O | `1` | 当前页码，从 1 开始 |
+| pageSize | integer | O | `20` | 每页记录数，最大 500 |
+
+#### 1.7.2 分页响应 data 结构
+
+```json
+{
+  "total": 100,
+  "pageNo": 1,
+  "pageSize": 20,
+  "pages": 5,
+  "records": []
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| total | long | M | 满足查询条件的总记录数 |
+| pageNo | long | M | 当前页码 |
+| pageSize | long | M | 每页记录数 |
+| pages | long | M | 总页数 |
+| records | array | M | 当前页列表数据 |
+
 健康检查接口当前返回 `ApiResult<T>`，成功结构如下：
 
 ```json
@@ -78,23 +109,23 @@
 }
 ```
 
-### 1.7 通用枚举
+### 1.8 通用枚举
 
-#### 1.7.1 启用状态
+#### 1.8.1 启用状态
 
 | 值 | 说明 |
 | --- | --- |
 | 0 | 停用 |
 | 1 | 启用 |
 
-#### 1.7.2 是否标识
+#### 1.8.2 是否标识
 
 | 值 | 说明 |
 | --- | --- |
 | 0 | 否 |
 | 1 | 是 |
 
-#### 1.7.3 配置值类型
+#### 1.8.3 配置值类型
 
 | 值 | 说明 |
 | --- | --- |
@@ -103,7 +134,7 @@
 | 3 | 布尔 |
 | 4 | JSON |
 
-#### 1.7.4 操作日志业务类型
+#### 1.8.4 操作日志业务类型
 
 | 值 | 说明 |
 | --- | --- |
@@ -116,7 +147,7 @@
 | 7 | 冻结 |
 | 8 | 解冻 |
 
-#### 1.7.5 操作人类别
+#### 1.8.5 操作人类别
 
 | 值 | 说明 |
 | --- | --- |
@@ -124,7 +155,7 @@
 | 2 | 商户用户 |
 | 3 | 系统任务 |
 
-### 1.8 安全注意事项
+### 1.9 安全注意事项
 
 1. 内部接口只能用于管理后台、内部服务或受控网络环境。
 2. 操作日志接口的 `requestParam`、`responseResult` 必须由调用方先脱敏。
@@ -333,13 +364,17 @@
 | configKey | string | O | `sys.user.init_password` | 参数键名，精确查询 |
 | configGroup | string | O | `system` | 配置分组，精确查询 |
 | status | integer | O | `1` | 状态：0停用，1启用 |
+| pageNo | integer | O | `1` | 当前页码 |
+| pageSize | integer | O | `20` | 每页记录数，最大 500 |
 
 #### 4.3.4 请求示例
 
 ```json
 {
   "configGroup": "system",
-  "status": 1
+  "status": 1,
+  "pageNo": 1,
+  "pageSize": 20
 }
 ```
 
@@ -349,25 +384,31 @@
 {
   "code": "T200",
   "message": "Success",
-  "data": [
-    {
-      "id": 1,
-      "configName": "系统初始化密码",
-      "configKey": "sys.user.init_password",
-      "configValue": "123456",
-      "valueType": 1,
-      "configGroup": "system",
-      "systemBuiltin": 1,
-      "visible": 0,
-      "encrypted": 1,
-      "status": 1,
-      "remark": "后台用户初始化密码",
-      "createdBy": "admin",
-      "updatedBy": "admin",
-      "createdAt": "2026-06-06T10:00:00",
-      "updatedAt": "2026-06-06T10:00:00"
-    }
-  ]
+  "data": {
+    "total": 1,
+    "pageNo": 1,
+    "pageSize": 20,
+    "pages": 1,
+    "records": [
+      {
+        "id": 1,
+        "configName": "系统初始化密码",
+        "configKey": "sys.user.init_password",
+        "configValue": "123456",
+        "valueType": 1,
+        "configGroup": "system",
+        "systemBuiltin": 1,
+        "visible": 0,
+        "encrypted": 1,
+        "status": 1,
+        "remark": "后台用户初始化密码",
+        "createdBy": "admin",
+        "updatedBy": "admin",
+        "createdAt": "2026-06-06T10:00:00",
+        "updatedAt": "2026-06-06T10:00:00"
+      }
+    ]
+  }
 }
 ```
 
@@ -471,13 +512,17 @@
 | dictType | string | O | `merchant_status` | 字典类型编码，精确查询 |
 | bizDomain | string | O | `merchant` | 业务域，精确查询 |
 | status | integer | O | `1` | 状态 |
+| pageNo | integer | O | `1` | 当前页码 |
+| pageSize | integer | O | `20` | 每页记录数，最大 500 |
 
 #### 5.2.3 请求示例
 
 ```json
 {
   "bizDomain": "merchant",
-  "status": 1
+  "status": 1,
+  "pageNo": 1,
+  "pageSize": 20
 }
 ```
 
@@ -487,20 +532,26 @@
 {
   "code": "T200",
   "message": "Success",
-  "data": [
-    {
-      "id": 1,
-      "dictName": "商户状态",
-      "dictType": "merchant_status",
-      "bizDomain": "merchant",
-      "systemBuiltin": 1,
-      "editable": 1,
-      "status": 1,
-      "remark": "商户基础状态",
-      "createdAt": "2026-06-06T10:00:00",
-      "updatedAt": "2026-06-06T10:00:00"
-    }
-  ]
+  "data": {
+    "total": 1,
+    "pageNo": 1,
+    "pageSize": 20,
+    "pages": 1,
+    "records": [
+      {
+        "id": 1,
+        "dictName": "商户状态",
+        "dictType": "merchant_status",
+        "bizDomain": "merchant",
+        "systemBuiltin": 1,
+        "editable": 1,
+        "status": 1,
+        "remark": "商户基础状态",
+        "createdAt": "2026-06-06T10:00:00",
+        "updatedAt": "2026-06-06T10:00:00"
+      }
+    ]
+  }
 }
 ```
 
@@ -617,6 +668,8 @@
 | parentValue | string | O | `null` | 父级字典值 |
 | locale | string | O | `zh-CN` | 语言区域 |
 | status | integer | O | `1` | 状态 |
+| pageNo | integer | O | `1` | 当前页码 |
+| pageSize | integer | O | `20` | 每页记录数，最大 500 |
 
 #### 5.5.3 请求示例
 
@@ -624,7 +677,9 @@
 {
   "dictType": "merchant_status",
   "locale": "zh-CN",
-  "status": 1
+  "status": 1,
+  "pageNo": 1,
+  "pageSize": 20
 }
 ```
 
@@ -634,24 +689,30 @@
 {
   "code": "T200",
   "message": "Success",
-  "data": [
-    {
-      "id": 1,
-      "dictType": "merchant_status",
-      "dictLabel": "正常",
-      "dictValue": "1",
-      "parentValue": null,
-      "locale": "zh-CN",
-      "dictSort": 1,
-      "listClass": "success",
-      "extraJson": "{\"color\":\"green\"}",
-      "isDefault": 1,
-      "status": 1,
-      "remark": "商户可正常交易",
-      "createdAt": "2026-06-06T10:00:00",
-      "updatedAt": "2026-06-06T10:00:00"
-    }
-  ]
+  "data": {
+    "total": 1,
+    "pageNo": 1,
+    "pageSize": 20,
+    "pages": 1,
+    "records": [
+      {
+        "id": 1,
+        "dictType": "merchant_status",
+        "dictLabel": "正常",
+        "dictValue": "1",
+        "parentValue": null,
+        "locale": "zh-CN",
+        "dictSort": 1,
+        "listClass": "success",
+        "extraJson": "{\"color\":\"green\"}",
+        "isDefault": 1,
+        "status": 1,
+        "remark": "商户可正常交易",
+        "createdAt": "2026-06-06T10:00:00",
+        "updatedAt": "2026-06-06T10:00:00"
+      }
+    ]
+  }
 }
 ```
 
@@ -690,7 +751,7 @@
 
 写入后台操作日志。该接口主要供后台管理系统、内部服务或特殊前端行为显式写入日志。
 
-普通后台管理接口已接入 `@AdminOperationLog` 注解和 AOP 自动采集，前端一般不需要直接调用该接口。日志写入接口本身不会再次自动采集，避免形成递归日志。
+普通后台管理接口和商户管理接口可接入 `@OperationLog` 注解和 AOP 自动采集，前端一般不需要直接调用该接口。日志写入接口本身不会再次自动采集，避免形成递归日志。
 
 #### 6.1.2 请求说明
 
@@ -761,7 +822,7 @@
 
 #### 6.2.1 接口说明
 
-按条件查询后台操作日志。当前服务端限制最多返回 500 条，避免未分页查询拖垮后台列表。
+按条件分页查询后台操作日志。服务端单页最大限制为 500 条，避免后台列表误查大结果集。
 
 #### 6.2.2 请求说明
 
@@ -783,6 +844,8 @@
 | status | integer | O | `1` | 操作状态 |
 | operatedStartAt | string | O | `2026-06-06T00:00:00` | 操作开始时间 |
 | operatedEndAt | string | O | `2026-06-06T23:59:59` | 操作结束时间 |
+| pageNo | integer | O | `1` | 当前页码 |
+| pageSize | integer | O | `20` | 每页记录数，最大 500 |
 
 #### 6.2.4 请求示例
 
@@ -792,7 +855,9 @@
   "businessType": 2,
   "status": 1,
   "operatedStartAt": "2026-06-06T00:00:00",
-  "operatedEndAt": "2026-06-06T23:59:59"
+  "operatedEndAt": "2026-06-06T23:59:59",
+  "pageNo": 1,
+  "pageSize": 20
 }
 ```
 
@@ -823,26 +888,32 @@
 {
   "code": "T200",
   "message": "Success",
-  "data": [
-    {
-      "id": 1,
-      "traceId": "TRACE202606060001",
-      "requestId": "REQ202606060001",
-      "merchantId": "200045",
-      "moduleName": "商户管理",
-      "businessType": 2,
-      "requestMethod": "POST",
-      "operatorId": "10001",
-      "operatorName": "admin",
-      "operUrl": "/admin/merchant/update",
-      "operIp": "127.0.0.1",
-      "costTime": 35,
-      "status": 1,
-      "errorCode": null,
-      "errorMsg": null,
-      "operatedAt": "2026-06-06T10:00:00"
-    }
-  ]
+  "data": {
+    "total": 1,
+    "pageNo": 1,
+    "pageSize": 20,
+    "pages": 1,
+    "records": [
+      {
+        "id": 1,
+        "traceId": "TRACE202606060001",
+        "requestId": "REQ202606060001",
+        "merchantId": "200045",
+        "moduleName": "商户管理",
+        "businessType": 2,
+        "requestMethod": "POST",
+        "operatorId": "10001",
+        "operatorName": "admin",
+        "operUrl": "/admin/merchant/update",
+        "operIp": "127.0.0.1",
+        "costTime": 35,
+        "status": 1,
+        "errorCode": null,
+        "errorMsg": null,
+        "operatedAt": "2026-06-06T10:00:00"
+      }
+    ]
+  }
 }
 ```
 
@@ -850,16 +921,16 @@
 
 #### 6.3.1 采集说明
 
-`service-admin` 已提供 `@AdminOperationLog` 注解和 AOP 自动采集能力。后台管理接口只要在 Controller 方法上声明该注解，系统会自动记录模块、业务类型、请求路径、请求方式、操作人、请求参数、耗时、成功失败状态和异常信息。
+系统已在 `component-web` 提供 `@OperationLog` 注解和 AOP 自动采集能力。后台管理、商户管理等管理类接口只要在 Controller 方法上声明该注解，系统会自动记录模块、业务类型、请求路径、请求方式、操作人、请求参数、耗时、成功失败状态和异常信息。
 
-当前已接入自动采集的接口包括系统配置、数据字典和操作日志查询接口。操作日志写入接口不会自动采集，避免写日志时再次触发写日志。
+当前 `service-admin` 已接入自动采集的接口包括系统配置、数据字典和操作日志查询接口。`service-merchant` 已提供操作日志上报记录器，后续商户管理端 Controller 使用同一个 `@OperationLog` 即可采集。支付交易 OpenAPI 接口不属于管理类系统，不接入操作日志采集。
 
 #### 6.3.2 注解示例
 
 ```java
-@AdminOperationLog(
+@OperationLog(
         moduleName = "系统配置",
-        businessType = AdminOperationTypeConstants.UPDATE,
+        businessType = OperationTypeConstants.UPDATE,
         operation = "保存或更新系统参数配置"
 )
 @PostMapping("/configs")
@@ -881,26 +952,25 @@ public CommonResult<SysConfigDTO> saveConfig(@RequestBody SysConfigSaveRequest r
 
 #### 6.3.4 采集边界
 
-1. `service-admin` 的 AOP 只采集进入 `service-admin` 的管理后台接口。
-2. 商户系统前端如果调用的是 `service-merchant`、`service-openapi` 或其他微服务，不会被 `service-admin` 本地 AOP 自动采集。
-3. 商户系统后续建议采用共享日志组件或领域事件方式：业务服务完成操作后异步投递操作日志事件，由 `service-admin` 或日志消费者统一落库。
-4. 商户用户操作建议使用 `operatorType=2`，同时写入 `merchantId`、`operatorId`、`operatorName`，方便后台按商户维度审计。
-5. 自动采集会对请求参数和响应结果做脱敏、截断，禁止记录完整 JWT、token、私钥、密码、卡号、CVV 等敏感明文。
+1. 操作日志 AOP 只采集标注 `@OperationLog` 的管理类接口。
+2. `service-admin` 使用本地记录器直接写入 `sys_oper_log`。
+3. `service-merchant` 使用上报记录器把商户管理端操作日志提交到 `service-admin` 的 `/admin/system/oper-logs`。
+4. 支付交易 OpenAPI、渠道回调、健康检查等接口不标注 `@OperationLog`，不采集操作日志。
+5. 商户用户操作建议使用 `operatorType=2`，同时写入 `merchantId`、`operatorId`、`operatorName`，方便后台按商户维度审计。
+6. 自动采集会对请求参数和响应结果做脱敏、截断，禁止记录完整 JWT、token、私钥、密码、卡号、CVV 等敏感明文。
 
 ## 7. 当前限制和后续规划
 
 ### 7.1 当前限制
 
-1. 配置、字典列表接口当前返回列表，尚未返回分页结构。
-2. 操作日志查询当前服务端限制最多 500 条。
-3. 操作日志自动采集当前覆盖 `service-admin` 本服务，不跨微服务采集商户系统前端操作。
-4. 后台登录态、菜单权限、按钮权限尚未在当前接口层实现。
+1. 后台登录态、菜单权限、按钮权限尚未在当前接口层实现。
+2. 商户管理端操作日志当前通过 HTTP 上报到 `service-admin`，后续可升级为 MQ 异步事件，降低跨服务调用耦合。
 
 ### 7.2 后续规划
 
 | 功能 | 说明 |
 | --- | --- |
-| 分页查询 | 配置、字典、日志列表统一升级为分页响应 |
+| 分页查询 | 已支持配置、字典、日志列表分页响应，后续继续补充筛选条件和导出 |
 | 跨服务操作日志 | 将操作日志注解或事件模型沉淀到公共组件，支持商户系统、运营后台和系统任务统一审计 |
 | 权限控制 | 接入后台用户、角色、菜单、按钮权限 |
 | 敏感字段脱敏增强 | 持续扩展脱敏字段，覆盖 token、密钥指纹、证件号、手机号等更多字段 |

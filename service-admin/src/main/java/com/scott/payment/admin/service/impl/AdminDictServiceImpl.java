@@ -1,6 +1,8 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.SysDictDataDTO;
 import com.scott.payment.admin.dto.SysDictDataQueryRequest;
 import com.scott.payment.admin.dto.SysDictDataSaveRequest;
@@ -14,11 +16,11 @@ import com.scott.payment.admin.mapper.SysDictTypeMapper;
 import com.scott.payment.admin.service.AdminDictService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * @author : scott
@@ -106,17 +108,18 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典类型列表
      */
     @Override
-    public List<SysDictTypeDTO> listDictTypes(SysDictTypeQueryRequest request) {
+    public PageResult<SysDictTypeDTO> pageDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
-        return dictTypeMapper.selectList(
-                Wrappers.<SysDictTypeDO>lambdaQuery()
-                        .eq(SysDictTypeDO::getDeleted, NOT_DELETED)
-                        .eq(StringUtils.hasText(query.getDictType()), SysDictTypeDO::getDictType, query.getDictType())
-                        .eq(StringUtils.hasText(query.getBizDomain()), SysDictTypeDO::getBizDomain, query.getBizDomain())
-                        .eq(query.getStatus() != null, SysDictTypeDO::getStatus, query.getStatus())
-                        .likeRight(StringUtils.hasText(query.getDictName()), SysDictTypeDO::getDictName, query.getDictName())
-                        .orderByDesc(SysDictTypeDO::getUpdatedAt)
-        ).stream().map(this::toDictTypeDTO).toList();
+        Page<SysDictTypeDO> page = dictTypeMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()),
+                buildDictTypeQueryWrapper(query)
+        );
+        return PageResult.of(
+                page.getTotal(),
+                page.getCurrent(),
+                page.getSize(),
+                page.getRecords().stream().map(this::toDictTypeDTO).toList()
+        );
     }
 
     /**
@@ -171,20 +174,53 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @return 字典数据列表
      */
     @Override
-    public List<SysDictDataDTO> listDictData(SysDictDataQueryRequest request) {
+    public PageResult<SysDictDataDTO> pageDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
-        return dictDataMapper.selectList(
-                Wrappers.<SysDictDataDO>lambdaQuery()
-                        .eq(SysDictDataDO::getDeleted, NOT_DELETED)
-                        .eq(StringUtils.hasText(query.getDictType()), SysDictDataDO::getDictType, query.getDictType())
-                        .eq(StringUtils.hasText(query.getDictValue()), SysDictDataDO::getDictValue, query.getDictValue())
-                        .eq(StringUtils.hasText(query.getParentValue()), SysDictDataDO::getParentValue, query.getParentValue())
-                        .eq(StringUtils.hasText(query.getLocale()), SysDictDataDO::getLocale, query.getLocale())
-                        .eq(query.getStatus() != null, SysDictDataDO::getStatus, query.getStatus())
-                        .likeRight(StringUtils.hasText(query.getDictLabel()), SysDictDataDO::getDictLabel, query.getDictLabel())
-                        .orderByAsc(SysDictDataDO::getDictSort)
-                        .orderByAsc(SysDictDataDO::getId)
-        ).stream().map(this::toDictDataDTO).toList();
+        Page<SysDictDataDO> page = dictDataMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()),
+                buildDictDataQueryWrapper(query)
+        );
+        return PageResult.of(
+                page.getTotal(),
+                page.getCurrent(),
+                page.getSize(),
+                page.getRecords().stream().map(this::toDictDataDTO).toList()
+        );
+    }
+
+    /**
+     * 构建字典类型查询条件。
+     *
+     * @param query 查询请求
+     * @return MyBatis Plus 查询条件
+     */
+    private LambdaQueryWrapper<SysDictTypeDO> buildDictTypeQueryWrapper(SysDictTypeQueryRequest query) {
+        return Wrappers.<SysDictTypeDO>lambdaQuery()
+                .eq(SysDictTypeDO::getDeleted, NOT_DELETED)
+                .eq(StringUtils.hasText(query.getDictType()), SysDictTypeDO::getDictType, query.getDictType())
+                .eq(StringUtils.hasText(query.getBizDomain()), SysDictTypeDO::getBizDomain, query.getBizDomain())
+                .eq(query.getStatus() != null, SysDictTypeDO::getStatus, query.getStatus())
+                .likeRight(StringUtils.hasText(query.getDictName()), SysDictTypeDO::getDictName, query.getDictName())
+                .orderByDesc(SysDictTypeDO::getUpdatedAt);
+    }
+
+    /**
+     * 构建字典数据查询条件。
+     *
+     * @param query 查询请求
+     * @return MyBatis Plus 查询条件
+     */
+    private LambdaQueryWrapper<SysDictDataDO> buildDictDataQueryWrapper(SysDictDataQueryRequest query) {
+        return Wrappers.<SysDictDataDO>lambdaQuery()
+                .eq(SysDictDataDO::getDeleted, NOT_DELETED)
+                .eq(StringUtils.hasText(query.getDictType()), SysDictDataDO::getDictType, query.getDictType())
+                .eq(StringUtils.hasText(query.getDictValue()), SysDictDataDO::getDictValue, query.getDictValue())
+                .eq(StringUtils.hasText(query.getParentValue()), SysDictDataDO::getParentValue, query.getParentValue())
+                .eq(StringUtils.hasText(query.getLocale()), SysDictDataDO::getLocale, query.getLocale())
+                .eq(query.getStatus() != null, SysDictDataDO::getStatus, query.getStatus())
+                .likeRight(StringUtils.hasText(query.getDictLabel()), SysDictDataDO::getDictLabel, query.getDictLabel())
+                .orderByAsc(SysDictDataDO::getDictSort)
+                .orderByAsc(SysDictDataDO::getId);
     }
 
     /**

@@ -1,18 +1,17 @@
 package com.scott.payment.admin.api;
 
-import com.scott.payment.admin.annotation.AdminOperationLog;
-import com.scott.payment.admin.constant.AdminOperationTypeConstants;
 import com.scott.payment.admin.dto.SysOperLogDTO;
 import com.scott.payment.admin.dto.SysOperLogQueryRequest;
 import com.scott.payment.admin.dto.SysOperLogRecordRequest;
 import com.scott.payment.admin.service.AdminOperLogService;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.web.operation.annotation.OperationLog;
+import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 /**
  * @author : scott
@@ -62,8 +61,8 @@ public class AdminOperLogController {
      * @return 操作日志列表
      */
     @PostMapping("/search")
-    @AdminOperationLog(moduleName = "操作日志", businessType = AdminOperationTypeConstants.QUERY, operation = "查询后台操作日志列表")
-    public CommonResult<List<SysOperLogDTO>> listOperLogs(@RequestBody(required = false) SysOperLogQueryRequest request) {
-        return CommonResult.success(operLogService.listOperLogs(request));
+    @OperationLog(moduleName = "操作日志", businessType = OperationTypeConstants.QUERY, operation = "分页查询后台操作日志列表")
+    public CommonResult<PageResult<SysOperLogDTO>> listOperLogs(@RequestBody(required = false) SysOperLogQueryRequest request) {
+        return CommonResult.success(operLogService.pageOperLogs(request));
     }
 }
