@@ -131,6 +131,11 @@ public enum ApiResultEnum implements IResult {
     ENCRYPTED_DATA_INVALID("F402003", "Encrypted request data is invalid"),
 
     /**
+     * 登录账号无权访问当前资源。
+     */
+    FORBIDDEN("F403", "Forbidden"),
+
+    /**
      * 请求资源不存在。
      */
     NOT_FOUND("F404", "Not found"),
