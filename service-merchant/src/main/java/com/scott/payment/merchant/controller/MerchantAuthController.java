@@ -7,6 +7,7 @@ import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,6 +53,7 @@ public class MerchantAuthController {
      * @return 注册后的账号信息
      */
     @PostMapping("/register")
+    @RequiresPermission("merchant:account:create")
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.CREATE,
             operation = "注册商户系统账号", recordRequest = false, recordResponse = false)
     public CommonResult<AuthAccountDTO> register(@Valid @RequestBody AuthRegisterRequest request) {
@@ -83,6 +85,7 @@ public class MerchantAuthController {
      * @return 当前登录账号、菜单和权限
      */
     @GetMapping("/me")
+    @RequiresPermission("merchant:dashboard:view")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
         return CommonResult.success(systemAuthService.currentUser(AuthConstants.APP_MERCHANT, authorization));
     }
@@ -94,6 +97,7 @@ public class MerchantAuthController {
      * @return 空响应
      */
     @PostMapping("/logout")
+    @RequiresPermission("merchant:dashboard:view")
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.UPDATE,
             operation = "商户系统账号退出登录", recordRequest = false, recordResponse = false)
     public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {

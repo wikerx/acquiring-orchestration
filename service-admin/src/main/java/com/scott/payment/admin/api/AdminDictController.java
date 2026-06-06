@@ -9,6 +9,7 @@ import com.scott.payment.admin.dto.SysDictTypeSaveRequest;
 import com.scott.payment.admin.service.AdminDictService;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.validation.Valid;
@@ -54,6 +55,7 @@ public class AdminDictController {
      * @return 保存后的字典类型
      */
     @PostMapping("/types")
+    @RequiresPermission("admin:dict:save")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.UPDATE, operation = "保存或更新字典类型")
     public CommonResult<SysDictTypeDTO> saveDictType(@Valid @RequestBody SysDictTypeSaveRequest request) {
         return CommonResult.success(dictService.saveDictType(request));
@@ -66,6 +68,7 @@ public class AdminDictController {
      * @return 字典类型列表
      */
     @PostMapping("/types/search")
+    @RequiresPermission("admin:dict:view")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.QUERY, operation = "分页查询字典类型列表")
     public CommonResult<PageResult<SysDictTypeDTO>> listDictTypes(@RequestBody(required = false) SysDictTypeQueryRequest request) {
         return CommonResult.success(dictService.pageDictTypes(request));
@@ -78,6 +81,7 @@ public class AdminDictController {
      * @return 删除结果
      */
     @DeleteMapping("/types/{dictType}")
+    @RequiresPermission("admin:dict:delete")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.DELETE, operation = "删除字典类型")
     public CommonResult<Void> deleteDictType(@PathVariable String dictType) {
         dictService.deleteDictType(dictType);
@@ -91,6 +95,7 @@ public class AdminDictController {
      * @return 保存后的字典数据
      */
     @PostMapping("/data")
+    @RequiresPermission("admin:dict:save")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.UPDATE, operation = "保存或更新字典数据")
     public CommonResult<SysDictDataDTO> saveDictData(@Valid @RequestBody SysDictDataSaveRequest request) {
         return CommonResult.success(dictService.saveDictData(request));
@@ -103,6 +108,7 @@ public class AdminDictController {
      * @return 字典数据列表
      */
     @PostMapping("/data/search")
+    @RequiresPermission("admin:dict:view")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.QUERY, operation = "分页查询字典数据列表")
     public CommonResult<PageResult<SysDictDataDTO>> listDictData(@RequestBody(required = false) SysDictDataQueryRequest request) {
         return CommonResult.success(dictService.pageDictData(request));
@@ -117,6 +123,7 @@ public class AdminDictController {
      * @return 删除结果
      */
     @DeleteMapping("/data/{dictType}/{dictValue}")
+    @RequiresPermission("admin:dict:delete")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.DELETE, operation = "删除字典数据")
     public CommonResult<Void> deleteDictData(@PathVariable String dictType,
                                              @PathVariable String dictValue,

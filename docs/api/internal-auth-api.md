@@ -29,7 +29,8 @@
 - 白名单：登录接口、健康检查、Swagger/OpenAPI 文档、静态资源、`/error`。
 - 非白名单接口必须携带 `Authorization: Bearer {accessToken}`。
 - token 缺失、格式错误、无效、过期或已退出返回 `401`。
-- 若 `sys_permission` 配置了当前 HTTP 方法和资源路径，则后端校验当前账号是否拥有对应权限，缺少权限返回 `403`。
+- 后端接口优先读取 Controller 方法上的 `@RequiresPermission` 权限标记；未标记时再回退到 `sys_permission.resource_method/resource_path` 路径匹配。
+- 当前账号缺少接口要求的权限时返回 `403`。
 - 鉴权成功后，服务端写入 `InternalAuthContextHolder`，包含当前账号、用户、应用、商户号、角色集合和权限集合。
 - 支付 OpenAPI 的商户 JWT/HMAC/RSA 加密鉴权与本文档后台登录 token 独立，不混用。
 

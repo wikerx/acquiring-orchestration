@@ -6,6 +6,7 @@ import com.scott.payment.admin.dto.SysOperLogRecordRequest;
 import com.scott.payment.admin.service.AdminOperLogService;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -49,6 +50,7 @@ public class AdminOperLogController {
      * @return 写入结果
      */
     @PostMapping
+    @RequiresPermission("admin:oper-log:create")
     public CommonResult<Void> recordOperLog(@RequestBody SysOperLogRecordRequest request) {
         operLogService.recordOperLog(request);
         return CommonResult.success();
@@ -61,6 +63,7 @@ public class AdminOperLogController {
      * @return 操作日志列表
      */
     @PostMapping("/search")
+    @RequiresPermission("admin:oper-log:view")
     @OperationLog(moduleName = "操作日志", businessType = OperationTypeConstants.QUERY, operation = "分页查询后台操作日志列表")
     public CommonResult<PageResult<SysOperLogDTO>> listOperLogs(@RequestBody(required = false) SysOperLogQueryRequest request) {
         return CommonResult.success(operLogService.pageOperLogs(request));

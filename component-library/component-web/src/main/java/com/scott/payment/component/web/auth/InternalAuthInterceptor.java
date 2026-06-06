@@ -6,6 +6,7 @@ import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.alibaba.fastjson2.JSON;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -13,6 +14,7 @@ import org.springframework.http.MediaType;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.method.HandlerMethod;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -78,7 +80,13 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
             return false;
         }
         try {
-            InternalAuthAccount account = authChecker.check(appCode, authorization, request.getMethod(), request.getRequestURI());
+            InternalAuthAccount account = authChecker.check(
+                    appCode,
+                    authorization,
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    requiredPermission(handler)
+            );
             InternalAuthContextHolder.set(account);
             return true;
         } catch (ServiceException exception) {
@@ -105,6 +113,18 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
 
     private boolean isWhitelisted(String requestPath) {
         return whitelistPatterns.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, requestPath));
+    }
+
+    private String requiredPermission(Object handler) {
+        if (!(handler instanceof HandlerMethod handlerMethod)) {
+            return null;
+        }
+        RequiresPermission methodPermission = handlerMethod.getMethodAnnotation(RequiresPermission.class);
+        if (methodPermission != null && StringUtils.hasText(methodPermission.value())) {
+            return methodPermission.value();
+        }
+        RequiresPermission typePermission = handlerMethod.getBeanType().getAnnotation(RequiresPermission.class);
+        return typePermission == null ? null : typePermission.value();
     }
 
     private void writeError(HttpServletResponse response, int httpStatus, ApiResultEnum result) throws IOException {

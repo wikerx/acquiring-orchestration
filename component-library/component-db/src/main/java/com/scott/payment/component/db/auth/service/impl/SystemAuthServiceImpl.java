@@ -262,18 +262,25 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param authorization Authorization 请求头
      * @param requestMethod HTTP 请求方法
      * @param requestPath   请求路径
+     * @param permissionCode 接口显式声明的权限编码
      * @return 当前登录账号上下文
      */
     @Override
     @DS(DataSourceName.SLAVE)
-    public InternalAuthAccount check(String appCode, String authorization, String requestMethod, String requestPath) {
+    public InternalAuthAccount check(String appCode,
+                                     String authorization,
+                                     String requestMethod,
+                                     String requestPath,
+                                     String permissionCode) {
         SysAppDO app = getEnabledApp(appCode);
         SysLoginSessionDO session = getActiveSession(app.getId(), authorization);
         SysAccountDO account = getEnabledAccount(session.getAccountId());
         SysUserDO user = getEnabledUser(session.getUserId());
         List<String> roleCodes = queryRoleCodes(app.getId(), account.getId());
         List<String> permissionCodes = queryPermissionCodes(app.getId(), account.getId());
-        String requiredPermission = findRequiredPermission(app.getId(), requestMethod, requestPath);
+        String requiredPermission = StringUtils.hasText(permissionCode)
+                ? permissionCode
+                : findRequiredPermission(app.getId(), requestMethod, requestPath);
         if (StringUtils.hasText(requiredPermission) && !permissionCodes.contains(requiredPermission)) {
             throw new ServiceException(ApiResultEnum.FORBIDDEN);
         }

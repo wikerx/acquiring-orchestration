@@ -6,6 +6,7 @@ import com.scott.payment.admin.dto.SysConfigSaveRequest;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.validation.Valid;
@@ -51,6 +52,7 @@ public class AdminConfigController {
      * @return 保存后的配置
      */
     @PostMapping
+    @RequiresPermission("admin:config:save")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.UPDATE, operation = "保存或更新系统参数配置")
     public CommonResult<SysConfigDTO> saveConfig(@Valid @RequestBody SysConfigSaveRequest request) {
         return CommonResult.success(configService.saveConfig(request));
@@ -63,6 +65,7 @@ public class AdminConfigController {
      * @return 系统参数配置
      */
     @GetMapping("/{configKey}")
+    @RequiresPermission("admin:config:view")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.QUERY, operation = "根据配置键查询系统参数配置")
     public CommonResult<SysConfigDTO> getConfig(@PathVariable String configKey) {
         return CommonResult.success(configService.getConfigByKey(configKey));
@@ -75,6 +78,7 @@ public class AdminConfigController {
      * @return 系统参数配置列表
      */
     @PostMapping("/search")
+    @RequiresPermission("admin:config:view")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.QUERY, operation = "分页查询系统参数配置列表")
     public CommonResult<PageResult<SysConfigDTO>> listConfigs(@RequestBody(required = false) SysConfigQueryRequest request) {
         return CommonResult.success(configService.pageConfigs(request));
@@ -87,6 +91,7 @@ public class AdminConfigController {
      * @return 删除结果
      */
     @DeleteMapping("/{configKey}")
+    @RequiresPermission("admin:config:delete")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.DELETE, operation = "删除系统参数配置")
     public CommonResult<Void> deleteConfig(@PathVariable String configKey) {
         configService.deleteConfig(configKey);

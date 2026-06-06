@@ -18,7 +18,12 @@ public interface InternalAuthChecker {
      * @param authorization Authorization 请求头
      * @param requestMethod HTTP 请求方法
      * @param requestPath   请求路径
+     * @param permissionCode 接口显式声明的权限编码
      * @return 当前登录账号上下文
      */
-    InternalAuthAccount check(String appCode, String authorization, String requestMethod, String requestPath);
+    InternalAuthAccount check(String appCode,
+                              String authorization,
+                              String requestMethod,
+                              String requestPath,
+                              String permissionCode);
 }
