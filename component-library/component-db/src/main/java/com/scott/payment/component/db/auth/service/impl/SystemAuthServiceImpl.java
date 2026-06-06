@@ -2,6 +2,7 @@ package com.scott.payment.component.db.auth.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.LoginTokenUtils;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -40,6 +41,7 @@ import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -87,6 +89,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * 顶级菜单父ID。
      */
     private static final long ROOT_MENU_PARENT_ID = 0L;
+
+    /**
+     * 接口资源通配路径匹配器。
+     */
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private final SysAppMapper sysAppMapper;
     private final SysUserMapper sysUserMapper;
@@ -165,7 +172,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         SysAccountDO account = buildAccount(app, user, request, now);
         sysAccountMapper.insert(account);
 
-        SysRoleDO role = getRegisterRole(app, request.getRoleCode());
+        SysRoleDO role = getRegisterRole(app, request);
         bindRole(app, account, role, now);
         return toAccountDTO(app, user, account);
     }
@@ -249,6 +256,31 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
+     * 校验当前请求登录态和接口权限。
+     *
+     * @param appCode       应用编码
+     * @param authorization Authorization 请求头
+     * @param requestMethod HTTP 请求方法
+     * @param requestPath   请求路径
+     * @return 当前登录账号上下文
+     */
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public InternalAuthAccount check(String appCode, String authorization, String requestMethod, String requestPath) {
+        SysAppDO app = getEnabledApp(appCode);
+        SysLoginSessionDO session = getActiveSession(app.getId(), authorization);
+        SysAccountDO account = getEnabledAccount(session.getAccountId());
+        SysUserDO user = getEnabledUser(session.getUserId());
+        List<String> roleCodes = queryRoleCodes(app.getId(), account.getId());
+        List<String> permissionCodes = queryPermissionCodes(app.getId(), account.getId());
+        String requiredPermission = findRequiredPermission(app.getId(), requestMethod, requestPath);
+        if (StringUtils.hasText(requiredPermission) && !permissionCodes.contains(requiredPermission)) {
+            throw new ServiceException(ApiResultEnum.FORBIDDEN);
+        }
+        return buildInternalAuthAccount(app, user, account, roleCodes, permissionCodes);
+    }
+
+    /**
      * 构建用户主体。
      *
      * @param appCode 应用编码
@@ -329,10 +361,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param roleCode 指定角色编码
      * @return 角色
      */
-    private SysRoleDO getRegisterRole(SysAppDO app, String roleCode) {
-        String targetRole = StringUtils.hasText(roleCode)
-                ? roleCode
-                : defaultRoleCode(app.getAppCode());
+    private SysRoleDO getRegisterRole(SysAppDO app, AuthRegisterRequest request) {
+        String targetRole = StringUtils.hasText(request.getRoleCode())
+                ? request.getRoleCode()
+                : defaultRoleCode(app.getAppCode(), request.getMerchantId());
         SysRoleDO role = sysRoleMapper.selectOne(
                 Wrappers.<SysRoleDO>lambdaQuery()
                         .eq(SysRoleDO::getAppId, app.getId())
@@ -341,6 +373,16 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                         .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
                         .last("LIMIT 1")
         );
+        if (role == null && AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
+            role = sysRoleMapper.selectOne(
+                    Wrappers.<SysRoleDO>lambdaQuery()
+                            .eq(SysRoleDO::getAppId, app.getId())
+                            .eq(SysRoleDO::getRoleCode, AuthConstants.DEFAULT_MERCHANT_ROLE)
+                            .eq(SysRoleDO::getStatus, AuthConstants.ENABLED)
+                            .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
+                            .last("LIMIT 1")
+            );
+        }
         if (role == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "role not found:" + targetRole);
         }
@@ -350,13 +392,18 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     /**
      * 获取应用默认角色编码。
      *
-     * @param appCode 应用编码
+     * @param appCode    应用编码
+     * @param merchantId 商户号
      * @return 默认角色编码
      */
-    private String defaultRoleCode(String appCode) {
-        return AuthConstants.APP_MERCHANT.equals(appCode)
-                ? AuthConstants.DEFAULT_MERCHANT_ROLE
-                : AuthConstants.DEFAULT_ADMIN_ROLE;
+    private String defaultRoleCode(String appCode, String merchantId) {
+        if (!AuthConstants.APP_MERCHANT.equals(appCode)) {
+            return AuthConstants.DEFAULT_ADMIN_ROLE;
+        }
+        if (StringUtils.hasText(merchantId)) {
+            return AuthConstants.DEFAULT_MERCHANT_ROLE + "_" + merchantId;
+        }
+        return AuthConstants.DEFAULT_MERCHANT_ROLE;
     }
 
     /**
@@ -659,6 +706,32 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
+     * 查询账号角色编码。
+     *
+     * @param appId     系统应用ID
+     * @param accountId 账号ID
+     * @return 角色编码集合
+     */
+    private List<String> queryRoleCodes(Long appId, Long accountId) {
+        List<Long> roleIds = queryRoleIds(appId, accountId);
+        if (roleIds.isEmpty()) {
+            return List.of();
+        }
+        return sysRoleMapper.selectList(
+                        Wrappers.<SysRoleDO>lambdaQuery()
+                                .eq(SysRoleDO::getAppId, appId)
+                                .in(SysRoleDO::getId, roleIds)
+                                .eq(SysRoleDO::getStatus, AuthConstants.ENABLED)
+                                .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysRoleDO::getRoleCode)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    /**
      * 查询菜单树。
      *
      * @param appId     系统应用ID
@@ -732,6 +805,96 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    /**
+     * 查询当前接口需要的权限编码。
+     *
+     * @param appId         系统应用ID
+     * @param requestMethod HTTP 方法
+     * @param requestPath   请求路径
+     * @return 权限编码，未配置则为空
+     */
+    private String findRequiredPermission(Long appId, String requestMethod, String requestPath) {
+        if (!StringUtils.hasText(requestPath)) {
+            return null;
+        }
+        List<SysPermissionDO> permissions = sysPermissionMapper.selectList(
+                Wrappers.<SysPermissionDO>lambdaQuery()
+                        .eq(SysPermissionDO::getAppId, appId)
+                        .eq(SysPermissionDO::getPermissionType, "API")
+                        .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .isNotNull(SysPermissionDO::getResourcePath)
+        );
+        SysPermissionDO matchedPermission = null;
+        int matchedScore = -1;
+        for (SysPermissionDO permission : permissions) {
+            if (!matchMethod(permission.getResourceMethod(), requestMethod)) {
+                continue;
+            }
+            if (PATH_MATCHER.match(permission.getResourcePath(), requestPath)) {
+                int score = matchScore(permission);
+                if (score > matchedScore) {
+                    matchedPermission = permission;
+                    matchedScore = score;
+                }
+            }
+        }
+        return matchedPermission == null ? null : matchedPermission.getPermissionCode();
+    }
+
+    /**
+     * 判断权限 HTTP 方法是否匹配当前请求。
+     *
+     * @param permissionMethod 权限配置方法
+     * @param requestMethod    当前请求方法
+     * @return true 表示匹配
+     */
+    private boolean matchMethod(String permissionMethod, String requestMethod) {
+        return !StringUtils.hasText(permissionMethod)
+                || "*".equals(permissionMethod)
+                || permissionMethod.equalsIgnoreCase(requestMethod);
+    }
+
+    /**
+     * 计算权限匹配优先级，精确 HTTP 方法优先于通配方法，路径越长越优先。
+     *
+     * @param permission 权限配置
+     * @return 匹配分数
+     */
+    private int matchScore(SysPermissionDO permission) {
+        int methodScore = StringUtils.hasText(permission.getResourceMethod())
+                && !"*".equals(permission.getResourceMethod()) ? 1000 : 0;
+        return methodScore + permission.getResourcePath().length();
+    }
+
+    /**
+     * 构建当前登录上下文。
+     *
+     * @param app             系统应用
+     * @param user            用户主体
+     * @param account         登录账号
+     * @param roleCodes       角色编码集合
+     * @param permissionCodes 权限编码集合
+     * @return 当前登录上下文
+     */
+    private InternalAuthAccount buildInternalAuthAccount(SysAppDO app,
+                                                        SysUserDO user,
+                                                        SysAccountDO account,
+                                                        List<String> roleCodes,
+                                                        List<String> permissionCodes) {
+        InternalAuthAccount authAccount = new InternalAuthAccount();
+        authAccount.setAppCode(app.getAppCode());
+        authAccount.setAppId(app.getId());
+        authAccount.setAccountId(account.getId());
+        authAccount.setUserId(user.getId());
+        authAccount.setMerchantId(account.getMerchantId());
+        authAccount.setLoginAccount(account.getLoginAccount());
+        authAccount.setRealName(user.getRealName());
+        authAccount.setRoles(roleCodes);
+        authAccount.setPermissions(permissionCodes);
+        return authAccount;
     }
 
     /**

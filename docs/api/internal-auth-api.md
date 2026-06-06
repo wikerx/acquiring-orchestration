@@ -20,8 +20,20 @@
 - `sys_account` 表示某个用户在某个系统下的登录账号。
 - `sys_role`、`sys_menu`、`sys_permission` 分别管理角色、菜单和后端权限。
 - 商户系统账号通过 `sys_account.merchant_id` 绑定已有 `base_merchant_info.merchant_id`，不重复创建商户主表。
+- `sys_merchant_user`、`sys_merchant_user_role` 保留商户端用户与 `base_merchant_info.id` 的兼容绑定关系，业务登录仍以 `sys_account` 为准。
 
-### 1.3 公共响应格式
+### 1.3 自动鉴权
+
+`service-admin` 和 `service-merchant` 已接入 Spring MVC Interceptor 自动鉴权：
+
+- 白名单：登录接口、健康检查、Swagger/OpenAPI 文档、静态资源、`/error`。
+- 非白名单接口必须携带 `Authorization: Bearer {accessToken}`。
+- token 缺失、格式错误、无效、过期或已退出返回 `401`。
+- 若 `sys_permission` 配置了当前 HTTP 方法和资源路径，则后端校验当前账号是否拥有对应权限，缺少权限返回 `403`。
+- 鉴权成功后，服务端写入 `InternalAuthContextHolder`，包含当前账号、用户、应用、商户号、角色集合和权限集合。
+- 支付 OpenAPI 的商户 JWT/HMAC/RSA 加密鉴权与本文档后台登录 token 独立，不混用。
+
+### 1.4 公共响应格式
 
 ```json
 {
@@ -31,7 +43,7 @@
 }
 ```
 
-### 1.4 Token 使用方式
+### 1.5 Token 使用方式
 
 登录成功后返回 `accessToken`，前端后续请求放入请求头：
 
@@ -41,7 +53,7 @@ Authorization: Bearer {accessToken}
 
 服务端数据库仅保存 `token_hash`，不保存 token 明文。
 
-### 1.5 字段必填说明
+### 1.6 字段必填说明
 
 | 标识 | 说明 |
 | --- | --- |
@@ -214,7 +226,7 @@ Authorization: Bearer {accessToken}
 
 注册 `MERCHANT` 应用下的商户系统账号。该接口不会创建商户主表，`merchantId` 必须已经存在于 `base_merchant_info`，且商户状态可用。
 
-默认绑定角色 `MERCHANT_ADMIN`。
+默认优先绑定当前商户专属角色 `MERCHANT_ADMIN_{merchantId}`；如果数据库尚未初始化商户专属角色，则回退到通用 `MERCHANT_ADMIN`。
 
 #### 3.1.2 请求说明
 

@@ -285,6 +285,55 @@ CREATE TABLE IF NOT EXISTS sys_account_role (
     KEY idx_sys_account_role_role (app_id, role_id, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='账号角色关联表';
 
+CREATE TABLE IF NOT EXISTS sys_user_role (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    app_id BIGINT NOT NULL COMMENT '系统应用ID',
+    user_id BIGINT NOT NULL COMMENT '用户主体ID',
+    role_id BIGINT NOT NULL COMMENT '角色ID',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    created_by BIGINT NULL COMMENT '创建人ID',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_sys_user_role_deleted (app_id, user_id, role_id, deleted),
+    KEY idx_sys_user_role_user (app_id, user_id, deleted),
+    KEY idx_sys_user_role_role (app_id, role_id, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户主体角色关联表';
+
+CREATE TABLE IF NOT EXISTS sys_merchant_user (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_info_id BIGINT NOT NULL COMMENT '商户主表ID，对应 base_merchant_info.id',
+    merchant_id VARCHAR(32) NOT NULL COMMENT '支付框架商户号，对应 base_merchant_info.merchant_id',
+    user_id BIGINT NULL COMMENT '用户主体ID，对应 sys_user.id',
+    account_id BIGINT NULL COMMENT '登录账号ID，对应 sys_account.id',
+    login_account VARCHAR(100) NULL COMMENT '商户端登录账号',
+    real_name VARCHAR(100) NULL COMMENT '用户姓名',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    created_by BIGINT NULL COMMENT '创建人ID',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
+    updated_by BIGINT NULL COMMENT '修改人ID',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_sys_merchant_user_account_deleted (account_id, deleted),
+    KEY idx_sys_merchant_user_mid (merchant_info_id, status, deleted),
+    KEY idx_sys_merchant_user_merchant (merchant_id, status, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户端登录用户表';
+
+CREATE TABLE IF NOT EXISTS sys_merchant_user_role (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    app_id BIGINT NOT NULL COMMENT '系统应用ID',
+    merchant_info_id BIGINT NOT NULL COMMENT '商户主表ID，对应 base_merchant_info.id',
+    merchant_user_id BIGINT NOT NULL COMMENT '商户端用户ID，对应 sys_merchant_user.id',
+    role_id BIGINT NOT NULL COMMENT '角色ID',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    created_by BIGINT NULL COMMENT '创建人ID',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_sys_merchant_user_role_deleted (app_id, merchant_user_id, role_id, deleted),
+    KEY idx_sys_merchant_user_role_user (app_id, merchant_user_id, deleted),
+    KEY idx_sys_merchant_user_role_merchant (merchant_info_id, role_id, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户端用户角色关联表';
+
 CREATE TABLE IF NOT EXISTS sys_role_menu (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     app_id BIGINT NOT NULL COMMENT '系统应用ID',
@@ -387,6 +436,18 @@ VALUES
     (7, 2, 0, 'merchant_settlement', '结算管理', 'MENU', '/settlements', 'merchant/settlement/index', 'merchant:settlement:view', 'settlement', 1, 20, 1, 0),
     (8, 2, 0, 'merchant_account', '账号管理', 'MENU', '/account/users', 'merchant/account/user/index', 'merchant:account:view', 'user', 1, 30, 1, 0);
 
+INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+VALUES
+    (9, 1, 2, 'admin_config', '系统配置', 'MENU', '/system/configs', 'admin/system/config/index', 'admin:config:view', 'setting', 1, 13, 1, 0),
+    (10, 1, 2, 'admin_dict', '数据字典', 'MENU', '/system/dicts', 'admin/system/dict/index', 'admin:dict:view', 'dict', 1, 14, 1, 0),
+    (11, 1, 2, 'admin_oper_log', '操作日志', 'MENU', '/system/oper-logs', 'admin/system/oper-log/index', 'admin:oper-log:view', 'log', 1, 15, 1, 0),
+    (12, 2, 0, 'merchant_info', '商户信息', 'MENU', '/merchant/info', 'merchant/info/index', 'merchant:info:view', 'shop', 1, 2, 1, 0),
+    (13, 2, 0, 'merchant_store', '店铺管理', 'MENU', '/stores', 'merchant/store/index', 'merchant:store:view', 'store', 1, 5, 1, 0),
+    (14, 2, 0, 'merchant_order', '订单查询', 'MENU', '/orders', 'merchant/order/index', 'merchant:order:view', 'order', 1, 11, 1, 0),
+    (15, 2, 0, 'merchant_refund', '退款管理', 'MENU', '/refunds', 'merchant/refund/index', 'merchant:refund:view', 'refund', 1, 12, 1, 0),
+    (16, 2, 0, 'merchant_api_key', 'API密钥', 'MENU', '/api-keys', 'merchant/api-key/index', 'merchant:api-key:view', 'key', 1, 31, 1, 0),
+    (17, 2, 0, 'merchant_oper_log', '操作日志', 'MENU', '/oper-logs', 'merchant/oper-log/index', 'merchant:oper-log:view', 'log', 1, 32, 1, 0);
+
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
     (1, 1, 1, 'admin:dashboard:view', '后台控制台查看', 'MENU', 'GET', '/admin/dashboard/**', 1, 0),
@@ -399,16 +460,166 @@ VALUES
     (8, 2, 8, 'merchant:account:view', '商户账号查看', 'API', 'POST', '/merchant/account/users/search', 1, 0),
     (9, 2, 8, 'merchant:account:create', '商户账号创建', 'API', 'POST', '/merchant/auth/register', 1, 0);
 
+INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+VALUES
+    (10, 1, 9, 'admin:config:view', '系统配置查看', 'API', 'GET', '/admin/system/configs/**', 1, 0),
+    (11, 1, 9, 'admin:config:save', '系统配置保存', 'API', 'POST', '/admin/system/configs', 1, 0),
+    (12, 1, 9, 'admin:config:delete', '系统配置删除', 'API', 'DELETE', '/admin/system/configs/**', 1, 0),
+    (13, 1, 10, 'admin:dict:view', '数据字典查看', 'API', 'POST', '/admin/system/dicts/**/search', 1, 0),
+    (14, 1, 10, 'admin:dict:save', '数据字典保存', 'API', 'POST', '/admin/system/dicts/**', 1, 0),
+    (15, 1, 10, 'admin:dict:delete', '数据字典删除', 'API', 'DELETE', '/admin/system/dicts/**', 1, 0),
+    (16, 1, 11, 'admin:oper-log:view', '后台操作日志查看', 'API', 'POST', '/admin/system/oper-logs/search', 1, 0),
+    (17, 1, 11, 'admin:oper-log:create', '后台操作日志写入', 'API', 'POST', '/admin/system/oper-logs', 1, 0),
+    (18, 2, 12, 'merchant:info:view', '商户信息查看', 'API', 'GET', '/merchant/info/**', 1, 0),
+    (19, 2, 13, 'merchant:store:view', '商户店铺查看', 'API', 'GET', '/merchant/stores/**', 1, 0),
+    (20, 2, 13, 'merchant:store:manage', '商户店铺管理', 'API', '*', '/merchant/stores/**', 1, 0),
+    (21, 2, 14, 'merchant:order:view', '商户订单查询', 'API', '*', '/merchant/orders/**', 1, 0),
+    (22, 2, 15, 'merchant:refund:apply', '商户退款申请', 'API', 'POST', '/merchant/refunds/**', 1, 0),
+    (23, 2, 7, 'merchant:settlement:view', '商户结算查询', 'API', '*', '/merchant/settlements/**', 1, 0),
+    (24, 2, 8, 'merchant:account:view', '商户账户查询', 'API', '*', '/merchant/account/**', 1, 0),
+    (25, 2, 16, 'merchant:api-key:view', '商户API密钥查看', 'API', 'GET', '/merchant/api-keys/**', 1, 0),
+    (26, 2, 16, 'merchant:api-key:manage', '商户API密钥管理', 'API', '*', '/merchant/api-keys/**', 1, 0),
+    (27, 2, 17, 'merchant:oper-log:view', '商户操作日志查询', 'API', '*', '/merchant/oper-logs/**', 1, 0);
+
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+SELECT 2,
+       CONCAT('MERCHANT_ADMIN_', merchant_id),
+       CONCAT(merchant_name, ' 商户管理员'),
+       'SYSTEM',
+       'SELF',
+       CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认拥有商户端全部菜单和权限'),
+       1,
+       1,
+       0
+FROM base_merchant_info
+WHERE merchant_status = 1 AND deleted = 0;
+
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+SELECT 2,
+       CONCAT('MERCHANT_OPERATOR_', merchant_id),
+       CONCAT(merchant_name, ' 商户操作员'),
+       'SYSTEM',
+       'SELF',
+       CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认拥有商户端业务操作权限'),
+       1,
+       2,
+       0
+FROM base_merchant_info
+WHERE merchant_status = 1 AND deleted = 0;
+
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+SELECT 2,
+       CONCAT('MERCHANT_VIEWER_', merchant_id),
+       CONCAT(merchant_name, ' 商户查看员'),
+       'SYSTEM',
+       'SELF',
+       CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认仅拥有商户端查询权限'),
+       1,
+       3,
+       0
+FROM base_merchant_info
+WHERE merchant_status = 1 AND deleted = 0;
+
+INSERT IGNORE INTO sys_role_data_scope (app_id, role_id, scope_type, scope_value, deleted)
+SELECT r.app_id, r.id, 'MERCHANT', m.merchant_id, 0
+FROM sys_role r
+JOIN base_merchant_info m ON r.role_code IN (
+    CONCAT('MERCHANT_ADMIN_', m.merchant_id),
+    CONCAT('MERCHANT_OPERATOR_', m.merchant_id),
+    CONCAT('MERCHANT_VIEWER_', m.merchant_id)
+)
+WHERE r.app_id = 2 AND m.merchant_status = 1 AND m.deleted = 0 AND r.deleted = 0;
+
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT app_id, 1, id, 0 FROM sys_menu WHERE app_id = 1 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT app_id, 2, id, 0 FROM sys_menu WHERE app_id = 2 AND deleted = 0;
 
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT r.app_id, r.id, m.id, 0
+FROM sys_role r
+JOIN sys_menu m ON m.app_id = r.app_id AND m.deleted = 0
+WHERE r.app_id = 2
+  AND r.deleted = 0
+  AND r.role_code LIKE 'MERCHANT_ADMIN\_%';
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT r.app_id, r.id, m.id, 0
+FROM sys_role r
+JOIN sys_menu m ON m.app_id = r.app_id AND m.deleted = 0
+WHERE r.app_id = 2
+  AND r.deleted = 0
+  AND r.role_code LIKE 'MERCHANT_OPERATOR\_%'
+  AND m.menu_code IN ('merchant_dashboard', 'merchant_info', 'merchant_store', 'merchant_transaction',
+                      'merchant_order', 'merchant_refund', 'merchant_settlement', 'merchant_account',
+                      'merchant_oper_log');
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT r.app_id, r.id, m.id, 0
+FROM sys_role r
+JOIN sys_menu m ON m.app_id = r.app_id AND m.deleted = 0
+WHERE r.app_id = 2
+  AND r.deleted = 0
+  AND r.role_code LIKE 'MERCHANT_VIEWER\_%'
+  AND m.permission_code IN ('merchant:dashboard:view', 'merchant:info:view', 'merchant:transaction:view',
+                            'merchant:order:view', 'merchant:settlement:view', 'merchant:account:view',
+                            'merchant:oper-log:view');
+
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT app_id, 1, id, 0 FROM sys_permission WHERE app_id = 1 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT app_id, 2, id, 0 FROM sys_permission WHERE app_id = 2 AND deleted = 0;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT r.app_id, r.id, p.id, 0
+FROM sys_role r
+JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
+WHERE r.app_id = 2
+  AND r.deleted = 0
+  AND r.role_code LIKE 'MERCHANT_ADMIN\_%';
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT r.app_id, r.id, p.id, 0
+FROM sys_role r
+JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
+WHERE r.app_id = 2
+  AND r.deleted = 0
+  AND r.role_code LIKE 'MERCHANT_OPERATOR\_%'
+  AND p.permission_code IN ('merchant:dashboard:view', 'merchant:info:view', 'merchant:store:view',
+                            'merchant:store:manage', 'merchant:transaction:view', 'merchant:order:view',
+                            'merchant:refund:apply', 'merchant:settlement:view', 'merchant:account:view',
+                            'merchant:oper-log:view');
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT r.app_id, r.id, p.id, 0
+FROM sys_role r
+JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
+WHERE r.app_id = 2
+  AND r.deleted = 0
+  AND r.role_code LIKE 'MERCHANT_VIEWER\_%'
+  AND p.permission_code IN ('merchant:dashboard:view', 'merchant:info:view', 'merchant:transaction:view',
+                            'merchant:order:view', 'merchant:settlement:view', 'merchant:account:view',
+                            'merchant:oper-log:view');
+
+INSERT IGNORE INTO sys_user_role (app_id, user_id, role_id, deleted)
+SELECT ar.app_id, a.user_id, ar.role_id, 0
+FROM sys_account_role ar
+JOIN sys_account a ON a.id = ar.account_id AND a.app_id = ar.app_id AND a.deleted = 0
+WHERE ar.deleted = 0;
+
+INSERT IGNORE INTO sys_merchant_user (merchant_info_id, merchant_id, user_id, account_id, login_account, real_name, status, deleted)
+SELECT m.id, m.merchant_id, a.user_id, a.id, a.login_account, u.real_name, a.status, 0
+FROM sys_account a
+JOIN sys_user u ON u.id = a.user_id AND u.deleted = 0
+JOIN base_merchant_info m ON m.merchant_id = a.merchant_id AND m.deleted = 0
+WHERE a.app_id = 2 AND a.deleted = 0 AND a.merchant_id IS NOT NULL;
+
+INSERT IGNORE INTO sys_merchant_user_role (app_id, merchant_info_id, merchant_user_id, role_id, deleted)
+SELECT ar.app_id, mu.merchant_info_id, mu.id, ar.role_id, 0
+FROM sys_merchant_user mu
+JOIN sys_account_role ar ON ar.account_id = mu.account_id AND ar.app_id = 2 AND ar.deleted = 0
+WHERE mu.deleted = 0;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -4,6 +4,7 @@ import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
+import com.scott.payment.component.core.auth.InternalAuthChecker;
 
 /**
  * @author : scott
@@ -14,7 +15,7 @@ import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
  * @description : 管理类系统登录注册与权限服务
  * @status : create
  */
-public interface SystemAuthService {
+public interface SystemAuthService extends InternalAuthChecker {
 
     /**
      * 注册系统账号。

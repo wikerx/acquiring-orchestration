@@ -26,6 +26,67 @@ Architecture style:
 
 ---
 
+## Current Module Map
+
+Shared libraries:
+
+* `component-library/component-core`: common result models, exceptions, enums, auth context, password/token utilities.
+* `component-library/component-web`: web configuration, global exception handling, operation log aspect, internal auth interceptor.
+* `component-library/component-security`: OpenAPI JWT, signature, crypto, key, replay utilities.
+* `component-library/component-db`: shared MyBatis Plus entities, mappers, auth/RBAC service, ISO dictionary support.
+* `component-library/component-redis`, `component-mq`, `component-job`: Redis, RocketMQ, and job support components.
+
+Services:
+
+* `service-gateway`: route and gateway fallback service.
+* `service-openapi`: merchant OpenAPI security, onboarding, and external API entry.
+* `service-admin`: internal admin APIs, system config, dictionary, operation logs, admin auth.
+* `service-merchant`: merchant portal APIs and merchant auth.
+* `service-payment`, `service-payout`, `service-checkout`, `service-job`: payment, payout, checkout, and scheduled job services.
+
+---
+
+## Build, Test, And Start Commands
+
+Use Maven from repository root.
+
+Build all modules:
+
+```bash
+mvn -Pdev clean package
+```
+
+Run focused tests for changed modules:
+
+```bash
+mvn -pl component-library/component-core,component-library/component-db,component-library/component-web,service-admin,service-merchant -am test
+```
+
+Run a single service locally:
+
+```bash
+mvn -pl service-admin -am spring-boot:run -Dspring-boot.run.profiles=dev
+mvn -pl service-merchant -am spring-boot:run -Dspring-boot.run.profiles=dev
+mvn -pl service-openapi -am spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+Dev datasource is documented in `docs/deployment/nacos/dataSource-dev.yaml`.
+Default local database is `payment_acquiring` on `127.0.0.1:3306`.
+
+---
+
+## Documentation Rules
+
+Keep stable engineering guidance in `AGENTS.md`.
+
+Keep detailed API and business flow documents under `docs/api`.
+Keep deployment configuration examples under `docs/deployment`.
+Keep SQL scripts under service resources when they are service-owned, or under `docs/sql` for reference-only shared scripts.
+
+Do not create new scattered docs for small changes. Prefer updating the nearest existing document.
+
+---
+
 ## Primary Goal
 
 Always prioritize:

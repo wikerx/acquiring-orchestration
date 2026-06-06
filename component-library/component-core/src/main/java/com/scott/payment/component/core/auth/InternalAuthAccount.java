@@ -59,6 +59,11 @@ public class InternalAuthAccount implements Serializable {
     private String realName;
 
     /**
+     * 当前账号拥有的角色编码集合。
+     */
+    private List<String> roles = Collections.emptyList();
+
+    /**
      * 当前账号拥有的权限编码集合。
      */
     private List<String> permissions = Collections.emptyList();
