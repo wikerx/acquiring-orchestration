@@ -6,6 +6,8 @@ import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
@@ -53,11 +55,28 @@ public class AdminAuthController {
      * @return 注册后的账号信息
      */
     @PostMapping("/register")
-    @RequiresPermission("admin:user:create")
+    @RequiresPermission("system:user:add")
     @OperationLog(moduleName = "后台登录权限", businessType = OperationTypeConstants.CREATE,
             operation = "注册管理后台账号", recordRequest = false, recordResponse = false)
     public CommonResult<AuthAccountDTO> register(@Valid @RequestBody AuthRegisterRequest request) {
         return CommonResult.success(systemAuthService.register(AuthConstants.APP_ADMIN, request));
+    }
+
+    /**
+     * 发送管理后台登录动态验证码。
+     *
+     * @param request 验证码发送请求
+     * @param servletRequest Servlet 请求
+     * @return 验证码发送响应
+     */
+    @PostMapping("/verify-code/send")
+    public CommonResult<AuthVerifyCodeSendResponse> sendVerifyCode(@Valid @RequestBody AuthVerifyCodeSendRequest request,
+                                                                   HttpServletRequest servletRequest) {
+        return CommonResult.success(systemAuthService.sendLoginVerifyCode(
+                AuthConstants.APP_ADMIN,
+                request,
+                clientIp(servletRequest)
+        ));
     }
 
     /**
@@ -85,7 +104,7 @@ public class AdminAuthController {
      * @return 当前登录账号、菜单和权限
      */
     @GetMapping("/me")
-    @RequiresPermission("admin:dashboard:view")
+    @RequiresPermission("dashboard:view")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
         return CommonResult.success(systemAuthService.currentUser(AuthConstants.APP_ADMIN, authorization));
     }
@@ -97,7 +116,7 @@ public class AdminAuthController {
      * @return 空响应
      */
     @PostMapping("/logout")
-    @RequiresPermission("admin:dashboard:view")
+    @RequiresPermission("dashboard:view")
     @OperationLog(moduleName = "后台登录权限", businessType = OperationTypeConstants.UPDATE,
             operation = "管理后台账号退出登录", recordRequest = false, recordResponse = false)
     public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {

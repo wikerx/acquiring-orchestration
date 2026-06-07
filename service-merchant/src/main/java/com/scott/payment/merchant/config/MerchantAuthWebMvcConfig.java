@@ -36,6 +36,7 @@ public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
     private List<String> whitelist() {
         return List.of(
                 "/merchant/auth/login",
+                "/merchant/auth/verify-code/send",
                 "/merchant/health/**",
                 "/actuator/health/**",
                 "/swagger-ui/**",

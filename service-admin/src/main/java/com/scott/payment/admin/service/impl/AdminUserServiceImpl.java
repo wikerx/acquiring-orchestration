@@ -1,0 +1,358 @@
+package com.scott.payment.admin.service.impl;
+
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.dto.SysUserAccountCreateRequest;
+import com.scott.payment.admin.dto.SysUserAccountDTO;
+import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
+import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
+import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
+import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
+import com.scott.payment.admin.service.AdminUserService;
+import com.scott.payment.component.core.auth.PasswordHashUtils;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.db.auth.entity.SysAccountDO;
+import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
+import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.entity.SysLoginSessionDO;
+import com.scott.payment.component.db.auth.entity.SysRoleDO;
+import com.scott.payment.component.db.auth.entity.SysUserDO;
+import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.db.auth.mapper.SysAppMapper;
+import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
+import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
+import com.scott.payment.component.db.auth.mapper.SysUserMapper;
+import com.scott.payment.component.db.constant.DataSourceName;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminUserServiceImpl
+ * @date : 2026-06-06 00:00
+ * @description : 管理后台用户服务实现
+ * @status : create
+ */
+@Service
+public class AdminUserServiceImpl implements AdminUserService {
+
+    private static final long NOT_DELETED = 0L;
+
+    private final SysAppMapper sysAppMapper;
+    private final SysAccountMapper sysAccountMapper;
+    private final SysUserMapper sysUserMapper;
+    private final SysRoleMapper sysRoleMapper;
+    private final SysAccountRoleMapper sysAccountRoleMapper;
+    private final SysLoginSessionMapper sysLoginSessionMapper;
+
+    public AdminUserServiceImpl(SysAppMapper sysAppMapper,
+                                SysAccountMapper sysAccountMapper,
+                                SysUserMapper sysUserMapper,
+                                SysRoleMapper sysRoleMapper,
+                                SysAccountRoleMapper sysAccountRoleMapper,
+                                SysLoginSessionMapper sysLoginSessionMapper) {
+        this.sysAppMapper = sysAppMapper;
+        this.sysAccountMapper = sysAccountMapper;
+        this.sysUserMapper = sysUserMapper;
+        this.sysRoleMapper = sysRoleMapper;
+        this.sysAccountRoleMapper = sysAccountRoleMapper;
+        this.sysLoginSessionMapper = sysLoginSessionMapper;
+    }
+
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request) {
+        SysUserAccountQueryRequest query = request == null ? new SysUserAccountQueryRequest() : request;
+        SysAppDO app = getAdminApp();
+//        1. 分页查询账号信息
+        Page<SysAccountDO> page = sysAccountMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()),
+                Wrappers.<SysAccountDO>lambdaQuery()
+                        .eq(SysAccountDO::getAppId, app.getId())
+                        .eq(SysAccountDO::getDeleted, NOT_DELETED)
+                        .likeRight(StringUtils.hasText(query.getLoginAccount()), SysAccountDO::getLoginAccount, query.getLoginAccount())
+                        .likeRight(StringUtils.hasText(query.getMobile()), SysAccountDO::getMobile, query.getMobile())
+                        .likeRight(StringUtils.hasText(query.getEmail()), SysAccountDO::getEmail, query.getEmail())
+                        .eq(query.getStatus() != null, SysAccountDO::getStatus, query.getStatus())
+                        .orderByDesc(SysAccountDO::getUpdatedAt)
+        );
+//        2. 批量加载关联用户信息，避免 N+1 查询
+        Map<Long, SysUserDO> userMap = loadUsers(page);
+//        3. 转换成 DTO，返回分页结果
+        return PageResult.of(
+                page.getTotal(),
+                page.getCurrent(),
+                page.getSize(),
+                page.getRecords().stream().map(account -> toDTO(account, userMap.get(account.getUserId()))).toList()
+        );
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public SysUserAccountDTO createUser(SysUserAccountCreateRequest request) {
+        SysAppDO app = getAdminApp();
+        assertAccountNotExists(app.getId(), request.getLoginAccount());
+        LocalDateTime now = LocalDateTime.now();
+
+        SysUserDO user = new SysUserDO();
+        user.setUserType(AuthConstants.USER_TYPE_PLATFORM);
+        user.setRealName(normalize(request.getRealName()));
+        user.setMobile(normalize(request.getMobile()));
+        user.setEmail(normalize(request.getEmail()));
+        user.setCountryCode("CN");
+        user.setLanguage("zh-CN");
+        user.setTimezone("Asia/Shanghai");
+        user.setStatus(AuthConstants.ENABLED);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        user.setDeleted(NOT_DELETED);
+        sysUserMapper.insert(user);
+
+        String salt = PasswordHashUtils.generateSalt();
+        SysAccountDO account = new SysAccountDO();
+        account.setAppId(app.getId());
+        account.setUserId(user.getId());
+        account.setLoginAccount(normalize(request.getLoginAccount()));
+        account.setPasswordSalt(salt);
+        account.setPasswordHash(PasswordHashUtils.hashPassword(request.getPassword(), salt));
+        account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
+        account.setMobile(normalize(request.getMobile()));
+        account.setEmail(normalize(request.getEmail()));
+        account.setMfaEnabled(AuthConstants.DISABLED);
+        account.setPasswordExpired(AuthConstants.DISABLED);
+        account.setPasswordUpdatedAt(now);
+        account.setFailedLoginCount(0);
+        account.setLocked(AuthConstants.DISABLED);
+        account.setStatus(AuthConstants.ENABLED);
+        account.setCreatedAt(now);
+        account.setUpdatedAt(now);
+        account.setDeleted(NOT_DELETED);
+        sysAccountMapper.insert(account);
+
+        bindDefaultRole(app, account, now);
+        return toDTO(account, user);
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public SysUserAccountDTO updateUser(SysUserAccountUpdateRequest request) {
+        SysAppDO app = getAdminApp();
+        SysAccountDO account = getAccount(app.getId(), request.getAccountId());
+        SysUserDO user = getUser(account.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+        Integer status = request.getStatus() == null ? account.getStatus() : validStatus(request.getStatus());
+        String realName = request.getRealName() == null ? user.getRealName() : normalize(request.getRealName());
+        String mobile = request.getMobile() == null ? account.getMobile() : normalize(request.getMobile());
+        String email = request.getEmail() == null ? account.getEmail() : normalize(request.getEmail());
+
+        user.setRealName(realName);
+        user.setMobile(mobile);
+        user.setEmail(email);
+        user.setStatus(status);
+        user.setUpdatedAt(now);
+        sysUserMapper.updateById(user);
+
+        account.setMobile(mobile);
+        account.setEmail(email);
+        account.setStatus(status);
+        account.setUpdatedAt(now);
+        sysAccountMapper.updateById(account);
+        if (status == AuthConstants.DISABLED) {
+            logoutSessions(app.getId(), account.getId(), now);
+        }
+        return toDTO(account, user);
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void updateStatus(SysUserAccountStatusRequest request) {
+        SysAppDO app = getAdminApp();
+        SysAccountDO account = getAccount(app.getId(), request.getAccountId());
+        SysUserDO user = getUser(account.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+        Integer status = validStatus(request.getStatus());
+        account.setStatus(status);
+        account.setUpdatedAt(now);
+        sysAccountMapper.updateById(account);
+        user.setStatus(status);
+        user.setUpdatedAt(now);
+        sysUserMapper.updateById(user);
+        if (status == AuthConstants.DISABLED) {
+            logoutSessions(app.getId(), account.getId(), now);
+        }
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void resetPassword(SysUserAccountResetPasswordRequest request) {
+        SysAppDO app = getAdminApp();
+        SysAccountDO account = getAccount(app.getId(), request.getAccountId());
+        LocalDateTime now = LocalDateTime.now();
+        String salt = PasswordHashUtils.generateSalt();
+        account.setPasswordSalt(salt);
+        account.setPasswordHash(PasswordHashUtils.hashPassword(request.getPassword(), salt));
+        account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
+        account.setPasswordExpired(AuthConstants.DISABLED);
+        account.setPasswordUpdatedAt(now);
+        account.setFailedLoginCount(0);
+        account.setLocked(AuthConstants.DISABLED);
+        account.setLockedAt(null);
+        account.setLockedReason(null);
+        account.setUpdatedAt(now);
+        sysAccountMapper.updateById(account);
+        logoutSessions(app.getId(), account.getId(), now);
+    }
+
+    /**
+     * 获取后台管理系统对应的应用信息
+     */
+    private SysAppDO getAdminApp() {
+        SysAppDO app = sysAppMapper.selectOne(
+                Wrappers.<SysAppDO>lambdaQuery()
+                        .eq(SysAppDO::getAppCode, AuthConstants.APP_ADMIN)
+                        .eq(SysAppDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (app == null) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "ADMIN app not found");
+        }
+        return app;
+    }
+
+    private void assertAccountNotExists(Long appId, String loginAccount) {
+        Long count = sysAccountMapper.selectCount(
+                Wrappers.<SysAccountDO>lambdaQuery()
+                        .eq(SysAccountDO::getAppId, appId)
+                        .eq(SysAccountDO::getLoginAccount, normalize(loginAccount))
+                        .eq(SysAccountDO::getDeleted, NOT_DELETED)
+        );
+        if (count != null && count > 0) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "login account already exists");
+        }
+    }
+
+    private SysAccountDO getAccount(Long appId, Long accountId) {
+        SysAccountDO account = sysAccountMapper.selectOne(
+                Wrappers.<SysAccountDO>lambdaQuery()
+                        .eq(SysAccountDO::getId, accountId)
+                        .eq(SysAccountDO::getAppId, appId)
+                        .eq(SysAccountDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (account == null) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "account not found");
+        }
+        return account;
+    }
+
+    private SysUserDO getUser(Long userId) {
+        SysUserDO user = sysUserMapper.selectOne(
+                Wrappers.<SysUserDO>lambdaQuery()
+                        .eq(SysUserDO::getId, userId)
+                        .eq(SysUserDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (user == null) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "user not found");
+        }
+        return user;
+    }
+
+    private void bindDefaultRole(SysAppDO app, SysAccountDO account, LocalDateTime now) {
+        SysRoleDO role = sysRoleMapper.selectOne(
+                Wrappers.<SysRoleDO>lambdaQuery()
+                        .eq(SysRoleDO::getAppId, app.getId())
+                        .eq(SysRoleDO::getRoleCode, AuthConstants.DEFAULT_ADMIN_ROLE)
+                        .eq(SysRoleDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (role == null || role.getStatus() == null || role.getStatus() != AuthConstants.ENABLED) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "default admin role not found");
+        }
+        SysAccountRoleDO relation = new SysAccountRoleDO();
+        relation.setAppId(app.getId());
+        relation.setAccountId(account.getId());
+        relation.setRoleId(role.getId());
+        relation.setCreatedAt(now);
+        relation.setDeleted(NOT_DELETED);
+        sysAccountRoleMapper.insert(relation);
+    }
+
+    private Integer validStatus(Integer status) {
+        if (status == AuthConstants.ENABLED || status == AuthConstants.DISABLED) {
+            return status;
+        }
+        throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "status is invalid");
+    }
+
+    private void logoutSessions(Long appId, Long accountId, LocalDateTime now) {
+        sysLoginSessionMapper.update(
+                Wrappers.<SysLoginSessionDO>lambdaUpdate()
+                        .set(SysLoginSessionDO::getLogout, AuthConstants.ENABLED)
+                        .set(SysLoginSessionDO::getLogoutAt, now)
+                        .set(SysLoginSessionDO::getUpdatedAt, now)
+                        .eq(SysLoginSessionDO::getAppId, appId)
+                        .eq(SysLoginSessionDO::getAccountId, accountId)
+                        .eq(SysLoginSessionDO::getLogout, AuthConstants.DISABLED)
+        );
+    }
+
+    private String normalize(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    /**
+     * 根据分页账号列表，批量加载对应的用户信息
+     */
+    private Map<Long, SysUserDO> loadUsers(Page<SysAccountDO> page) {
+        if (page.getRecords().isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return sysUserMapper.selectList(
+                Wrappers.<SysUserDO>lambdaQuery()
+                        .in(SysUserDO::getId, page.getRecords().stream().map(SysAccountDO::getUserId).toList())
+                        .eq(SysUserDO::getDeleted, NOT_DELETED)
+        ).stream().collect(Collectors.toMap(SysUserDO::getId, Function.identity(), (left, right) -> left));
+    }
+
+
+    /**
+     * 账号+用户信息转换为前端 DTO
+     */
+    private SysUserAccountDTO toDTO(SysAccountDO account, SysUserDO user) {
+        SysUserAccountDTO dto = new SysUserAccountDTO();
+        dto.setAccountId(account.getId());
+        dto.setUserId(account.getUserId());
+        dto.setLoginAccount(account.getLoginAccount());
+        dto.setRealName(user == null ? null : user.getRealName());
+        dto.setMobile(account.getMobile());
+        dto.setEmail(account.getEmail());
+        dto.setUserType(user == null ? null : user.getUserType());
+        dto.setStatus(account.getStatus());
+        dto.setLocked(account.getLocked());
+        dto.setLastLoginAt(account.getLastLoginAt());
+        dto.setLastLoginIp(account.getLastLoginIp());
+        dto.setCreatedAt(account.getCreatedAt());
+        return dto;
+    }
+}

@@ -36,6 +36,7 @@ public class AdminAuthWebMvcConfig implements WebMvcConfigurer {
     private List<String> whitelist() {
         return List.of(
                 "/admin/auth/login",
+                "/admin/auth/verify-code/send",
                 "/admin/health/**",
                 "/actuator/health/**",
                 "/swagger-ui/**",

@@ -13,6 +13,8 @@ import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
 import com.scott.payment.component.db.auth.dto.AuthMenuDTO;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
@@ -25,6 +27,7 @@ import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysRoleMenuDO;
 import com.scott.payment.component.db.auth.entity.SysRolePermissionDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
+import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
@@ -37,6 +40,7 @@ import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
+import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.stereotype.Service;
@@ -44,6 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -91,6 +96,31 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private static final long ROOT_MENU_PARENT_ID = 0L;
 
     /**
+     * 登录验证码场景。
+     */
+    private static final String VERIFY_SCENE_LOGIN = "LOGIN";
+
+    /**
+     * 登录验证码有效期，单位秒。
+     */
+    private static final int VERIFY_CODE_TTL_SECONDS = 300;
+
+    /**
+     * 登录验证码最大验证次数。
+     */
+    private static final int VERIFY_CODE_MAX_ATTEMPTS = 5;
+
+    /**
+     * 本地开发验证码发送渠道。
+     */
+    private static final String VERIFY_CODE_SEND_CHANNEL = "LOCAL_DEV";
+
+    /**
+     * 验证码随机数生成器。
+     */
+    private static final SecureRandom VERIFY_CODE_RANDOM = new SecureRandom();
+
+    /**
      * 接口资源通配路径匹配器。
      */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
@@ -106,6 +136,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private final SysPermissionMapper sysPermissionMapper;
     private final SysLoginLogMapper sysLoginLogMapper;
     private final SysLoginSessionMapper sysLoginSessionMapper;
+    private final SysVerifyCodeMapper sysVerifyCodeMapper;
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
 
     /**
@@ -122,6 +153,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param sysPermissionMapper     权限 Mapper
      * @param sysLoginLogMapper       登录日志 Mapper
      * @param sysLoginSessionMapper   登录会话 Mapper
+     * @param sysVerifyCodeMapper     动态验证码 Mapper
      * @param baseMerchantInfoMapper  商户基础信息 Mapper
      */
     public SystemAuthServiceImpl(SysAppMapper sysAppMapper,
@@ -135,6 +167,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                  SysPermissionMapper sysPermissionMapper,
                                  SysLoginLogMapper sysLoginLogMapper,
                                  SysLoginSessionMapper sysLoginSessionMapper,
+                                 SysVerifyCodeMapper sysVerifyCodeMapper,
                                  BaseMerchantInfoMapper baseMerchantInfoMapper) {
         this.sysAppMapper = sysAppMapper;
         this.sysUserMapper = sysUserMapper;
@@ -147,6 +180,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.sysPermissionMapper = sysPermissionMapper;
         this.sysLoginLogMapper = sysLoginLogMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
+        this.sysVerifyCodeMapper = sysVerifyCodeMapper;
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
     }
 
@@ -178,6 +212,60 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
+     * 发送登录动态验证码。
+     *
+     * @param appCode  系统应用编码
+     * @param request  验证码发送请求
+     * @param clientIp 客户端IP
+     * @return 验证码发送响应
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AuthVerifyCodeSendResponse sendLoginVerifyCode(String appCode,
+                                                          AuthVerifyCodeSendRequest request,
+                                                          String clientIp) {
+        if (!VERIFY_SCENE_LOGIN.equals(request.getScene())) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "verify code scene is invalid");
+        }
+        SysAppDO app = getEnabledApp(appCode);
+        SysAccountDO account = findAccount(app.getId(), request.getLoginAccount());
+        if (account == null || account.getStatus() == null || account.getStatus() != AuthConstants.ENABLED) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account disabled or not found");
+        }
+        if (StringUtils.hasText(request.getMerchantId()) && !request.getMerchantId().equals(account.getMerchantId())) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant mismatch");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String code = generateVerifyCode();
+        String salt = PasswordHashUtils.generateSalt();
+        SysVerifyCodeDO verifyCode = new SysVerifyCodeDO();
+        verifyCode.setAppId(app.getId());
+        verifyCode.setScene(VERIFY_SCENE_LOGIN);
+        verifyCode.setReceiverType(resolveReceiverType(account));
+        verifyCode.setReceiver(resolveReceiver(account));
+        verifyCode.setCodeSalt(salt);
+        verifyCode.setCodeHash(PasswordHashUtils.hashPassword(code, salt));
+        verifyCode.setExpireAt(now.plusSeconds(VERIFY_CODE_TTL_SECONDS));
+        verifyCode.setUsed(AuthConstants.DISABLED);
+        verifyCode.setVerifyCount(0);
+        verifyCode.setSendIp(clientIp);
+        verifyCode.setSendChannel(VERIFY_CODE_SEND_CHANNEL);
+        verifyCode.setSendStatus(AuthConstants.ENABLED);
+        verifyCode.setCreatedAt(now);
+        sysVerifyCodeMapper.insert(verifyCode);
+
+        AuthVerifyCodeSendResponse response = new AuthVerifyCodeSendResponse();
+        response.setVerifyCodeId(String.valueOf(verifyCode.getId()));
+        response.setReceiverType(verifyCode.getReceiverType());
+        response.setMaskedReceiver(maskReceiver(verifyCode.getReceiver(), verifyCode.getReceiverType()));
+        response.setExpireSeconds(VERIFY_CODE_TTL_SECONDS);
+        response.setDevCode(code);
+        return response;
+    }
+
+    /**
      * 登录系统账号。
      *
      * @param appCode   系统应用编码
@@ -204,6 +292,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "merchant mismatch");
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant mismatch");
         }
+        validateLoginVerifyCode(app, account, request);
         if (!PasswordHashUtils.matches(request.getPassword(), account.getPasswordSalt(), account.getPasswordHash())) {
             increaseFailedLoginCount(account);
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "password mismatch");
@@ -359,6 +448,119 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         relation.setCreatedAt(now);
         relation.setDeleted(AuthConstants.NOT_DELETED);
         sysAccountRoleMapper.insert(relation);
+    }
+
+    /**
+     * 校验登录动态验证码。
+     *
+     * @param app     系统应用
+     * @param account 登录账号
+     * @param request 登录请求
+     */
+    private void validateLoginVerifyCode(SysAppDO app, SysAccountDO account, AuthLoginRequest request) {
+        if (!StringUtils.hasText(request.getVerifyCodeId()) || !StringUtils.hasText(request.getVerifyCode())) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is required");
+        }
+        Long verifyCodeId = parseVerifyCodeId(request.getVerifyCodeId());
+        SysVerifyCodeDO verifyCode = sysVerifyCodeMapper.selectById(verifyCodeId);
+        if (verifyCode == null
+                || !Objects.equals(verifyCode.getAppId(), app.getId())
+                || !VERIFY_SCENE_LOGIN.equals(verifyCode.getScene())
+                || verifyCode.getUsed() == null
+                || verifyCode.getUsed() == AuthConstants.ENABLED
+                || verifyCode.getExpireAt() == null
+                || verifyCode.getExpireAt().isBefore(LocalDateTime.now())
+                || !resolveReceiver(account).equals(verifyCode.getReceiver())) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is invalid or expired");
+        }
+        if (defaultInt(verifyCode.getVerifyCount()) >= VERIFY_CODE_MAX_ATTEMPTS) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code retry limit exceeded");
+        }
+        verifyCode.setVerifyCount(defaultInt(verifyCode.getVerifyCount()) + 1);
+        if (!PasswordHashUtils.matches(request.getVerifyCode(), verifyCode.getCodeSalt(), verifyCode.getCodeHash())) {
+            sysVerifyCodeMapper.updateById(verifyCode);
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is invalid or expired");
+        }
+        verifyCode.setUsed(AuthConstants.ENABLED);
+        verifyCode.setUsedAt(LocalDateTime.now());
+        sysVerifyCodeMapper.updateById(verifyCode);
+    }
+
+    /**
+     * 解析验证码ID。
+     *
+     * @param verifyCodeId 验证码ID字符串
+     * @return 验证码ID
+     */
+    private Long parseVerifyCodeId(String verifyCodeId) {
+        try {
+            return Long.valueOf(verifyCodeId);
+        } catch (NumberFormatException exception) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is invalid or expired");
+        }
+    }
+
+    /**
+     * 生成 6 位数字验证码。
+     *
+     * @return 验证码
+     */
+    private String generateVerifyCode() {
+        return String.format("%06d", VERIFY_CODE_RANDOM.nextInt(1_000_000));
+    }
+
+    /**
+     * 解析验证码接收方式。
+     *
+     * @param account 登录账号
+     * @return 接收方式
+     */
+    private String resolveReceiverType(SysAccountDO account) {
+        if (StringUtils.hasText(account.getEmail())) {
+            return "EMAIL";
+        }
+        if (StringUtils.hasText(account.getMobile())) {
+            return "SMS";
+        }
+        return "TOTP";
+    }
+
+    /**
+     * 解析验证码接收人。
+     *
+     * @param account 登录账号
+     * @return 接收人
+     */
+    private String resolveReceiver(SysAccountDO account) {
+        if (StringUtils.hasText(account.getEmail())) {
+            return account.getEmail();
+        }
+        if (StringUtils.hasText(account.getMobile())) {
+            return account.getMobile();
+        }
+        return account.getLoginAccount();
+    }
+
+    /**
+     * 脱敏验证码接收人。
+     *
+     * @param receiver     接收人
+     * @param receiverType 接收方式
+     * @return 脱敏接收人
+     */
+    private String maskReceiver(String receiver, String receiverType) {
+        if (!StringUtils.hasText(receiver)) {
+            return "-";
+        }
+        if ("EMAIL".equals(receiverType) && receiver.contains("@")) {
+            String[] parts = receiver.split("@", 2);
+            String prefix = parts[0].length() <= 2 ? parts[0] : parts[0].substring(0, 2);
+            return prefix + "***@" + parts[1];
+        }
+        if (receiver.length() >= 7) {
+            return receiver.substring(0, 3) + "****" + receiver.substring(receiver.length() - 4);
+        }
+        return receiver.charAt(0) + "***";
     }
 
     /**

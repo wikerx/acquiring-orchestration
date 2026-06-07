@@ -44,6 +44,8 @@ Services:
 * `service-merchant`: merchant portal APIs and merchant auth.
 * `service-payment`, `service-payout`, `service-checkout`, `service-job`: payment, payout, checkout, and scheduled job services.
 
+Frontend is maintained separately in `wikerx/acquiring-frontend`.
+
 ---
 
 ## Build, Test, And Start Commands

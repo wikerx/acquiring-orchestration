@@ -6,6 +6,8 @@ import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
@@ -58,6 +60,23 @@ public class MerchantAuthController {
             operation = "注册商户系统账号", recordRequest = false, recordResponse = false)
     public CommonResult<AuthAccountDTO> register(@Valid @RequestBody AuthRegisterRequest request) {
         return CommonResult.success(systemAuthService.register(AuthConstants.APP_MERCHANT, request));
+    }
+
+    /**
+     * 发送商户系统登录动态验证码。
+     *
+     * @param request 验证码发送请求
+     * @param servletRequest Servlet 请求
+     * @return 验证码发送响应
+     */
+    @PostMapping("/verify-code/send")
+    public CommonResult<AuthVerifyCodeSendResponse> sendVerifyCode(@Valid @RequestBody AuthVerifyCodeSendRequest request,
+                                                                   HttpServletRequest servletRequest) {
+        return CommonResult.success(systemAuthService.sendLoginVerifyCode(
+                AuthConstants.APP_MERCHANT,
+                request,
+                clientIp(servletRequest)
+        ));
     }
 
     /**

@@ -38,4 +38,16 @@ public class AuthLoginRequest implements Serializable {
      * 商户号，商户系统登录时可传，用于进一步限制账号必须属于该商户。
      */
     private String merchantId;
+
+    /**
+     * 动态验证码记录ID。
+     */
+    @NotBlank(message = "verifyCodeId")
+    private String verifyCodeId;
+
+    /**
+     * 动态验证码。
+     */
+    @NotBlank(message = "verifyCode")
+    private String verifyCode;
 }

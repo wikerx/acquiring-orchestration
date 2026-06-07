@@ -36,13 +36,23 @@
 | O | 可选 |
 | C | 条件必填 |
 
-### 1.5 公共请求头
+### 1.5 访问入口与公共请求头
 
-当前代码未强制实现后台登录态和权限拦截，前端可先按以下请求头对接。后续接入后台认证后，会在本章节补充 `Authorization`、租户、权限等字段。
+管理后台前端本地开发时通过 `service-gateway` 访问 `service-admin`：
+
+| 项目 | 内容 |
+| --- | --- |
+| 前端开发地址 | `http://localhost:5173` |
+| 网关地址 | `http://127.0.0.1:8000` |
+| 后端服务地址 | `http://127.0.0.1:8001` |
+| 前端代理 | `/admin/** -> http://127.0.0.1:8000/admin/**` |
+
+除 `/admin/auth/login` 和 `/admin/health/**` 外，后台接口已接入登录态和权限拦截，前端必须在请求头中携带登录返回的 token。
 
 | 参数 | 位置 | 必填 | 示例 | 说明 |
 | --- | --- | --- | --- | --- |
 | Content-Type | Header | M | `application/json;charset=UTF-8` | 请求体格式 |
+| Authorization | Header | C | `Bearer {accessToken}` | 登录后必填；登录和健康检查接口不需要 |
 | X-Request-Id | Header | O | `REQ202606060001` | 前端生成的请求ID，便于日志排查 |
 | X-Trace-Id | Header | O | `TRACE202606060001` | 链路追踪ID |
 | X-Operator-Id | Header | O | `10001` | 当前后台操作人ID，操作日志自动采集时使用 |
@@ -162,11 +172,35 @@
 3. 禁止在操作日志中记录卡号、CVV、JWT、token、merchantKey、私钥、密码等敏感明文。
 4. `sys_config` 不建议保存密钥、数据库密码、私钥等高敏感配置；这类数据应走 KMS/HSM 或专门密钥表。
 
+### 1.10 本地初始化管理员
+
+`service-admin/src/main/resources/sql/admin-system-schema.sql` 会初始化一个本地开发管理员账号。
+
+| 项目 | 内容 |
+| --- | --- |
+| 登录账号 | `admin` |
+| 初始密码 | `Admin@123456` |
+| 默认角色 | `ADMIN_OPERATOR` |
+| 适用范围 | 本地开发、首次初始化验证 |
+
+安全要求：
+
+1. 初始密码只用于本地开发和首次初始化验证，部署到共享环境后必须立即修改。
+2. 不要在生产环境继续使用该账号密码。
+3. 登录后前端会从 `/admin/auth/me` 获取当前账号菜单和权限，菜单展示与路由访问均以 `service-admin` 返回的 RBAC 数据为准。
+
 ## 2. 接口清单
 
 | 模块 | 功能 | 方法 | 地址 |
 | --- | --- | --- | --- |
 | 健康检查 | 服务存活探测 | GET | `/admin/health` |
+| 登录权限 | 管理后台登录 | POST | `/admin/auth/login` |
+| 登录权限 | 查询当前账号、菜单和权限 | GET | `/admin/auth/me` |
+| 登录权限 | 退出登录 | POST | `/admin/auth/logout` |
+| 登录权限 | 注册后台账号 | POST | `/admin/auth/register` |
+| 用户管理 | 查询后台用户列表 | POST | `/admin/system/users/search` |
+| 角色管理 | 查询后台角色列表 | POST | `/admin/system/roles/search` |
+| 菜单管理 | 查询后台菜单树 | POST | `/admin/system/menus/tree` |
 | 系统配置 | 保存或更新配置 | POST | `/admin/system/configs` |
 | 系统配置 | 根据配置键查询配置 | GET | `/admin/system/configs/{configKey}` |
 | 系统配置 | 查询配置列表 | POST | `/admin/system/configs/search` |
@@ -177,6 +211,7 @@
 | 字典数据 | 保存或更新字典数据 | POST | `/admin/system/dicts/data` |
 | 字典数据 | 查询字典数据列表 | POST | `/admin/system/dicts/data/search` |
 | 字典数据 | 删除字典数据 | DELETE | `/admin/system/dicts/data/{dictType}/{dictValue}` |
+| 登录日志 | 查询登录日志列表 | POST | `/admin/system/login-logs/search` |
 | 操作日志 | 写入操作日志 | POST | `/admin/system/oper-logs` |
 | 操作日志 | 查询操作日志列表 | POST | `/admin/system/oper-logs/search` |
 
@@ -917,15 +952,58 @@
 }
 ```
 
-### 6.3 操作日志自动采集
+### 6.3 查询登录日志列表
 
-#### 6.3.1 采集说明
+#### 6.3.1 接口说明
+
+按条件分页查询后台登录日志。服务端单页最大限制为 500 条。
+
+#### 6.3.2 请求说明
+
+| 项目 | 内容 |
+| --- | --- |
+| 请求方式 | POST |
+| 请求地址 | `/admin/system/login-logs/search` |
+
+#### 6.3.3 请求参数
+
+| 字段 | 类型 | 必填 | 示例 | 说明 |
+| --- | --- | --- | --- | --- |
+| appId | long | O | `1` | 系统应用ID |
+| loginAccount | string | O | `admin` | 登录账号，支持右模糊查询 |
+| loginIp | string | O | `127.0.0.1` | 登录IP |
+| merchantId | string | O | `200045` | 商户号 |
+| loginStatus | integer | O | `1` | 登录状态：0失败，1成功 |
+| loginStartAt | string | O | `2026-06-06T00:00:00` | 登录开始时间 |
+| loginEndAt | string | O | `2026-06-06T23:59:59` | 登录结束时间 |
+| pageNo | integer | O | `1` | 当前页码 |
+| pageSize | integer | O | `20` | 每页记录数，最大 500 |
+
+#### 6.3.4 响应参数
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| id | long | 主键ID |
+| appId | long | 系统应用ID |
+| accountId | long | 账号ID |
+| userId | long | 用户主体ID |
+| merchantId | string | 商户号 |
+| loginAccount | string | 登录账号 |
+| loginIp | string | 登录IP |
+| userAgent | string | User-Agent |
+| loginStatus | integer | 登录状态 |
+| failReason | string | 失败原因 |
+| loginAt | string | 登录时间 |
+
+### 6.4 操作日志自动采集
+
+#### 6.4.1 采集说明
 
 系统已在 `component-web` 提供 `@OperationLog` 注解和 AOP 自动采集能力。后台管理、商户管理等管理类接口只要在 Controller 方法上声明该注解，系统会自动记录模块、业务类型、请求路径、请求方式、操作人、请求参数、耗时、成功失败状态和异常信息。
 
 当前 `service-admin` 已接入自动采集的接口包括系统配置、数据字典和操作日志查询接口。`service-merchant` 已提供操作日志上报记录器，后续商户管理端 Controller 使用同一个 `@OperationLog` 即可采集。支付交易 OpenAPI 接口不属于管理类系统，不接入操作日志采集。
 
-#### 6.3.2 注解示例
+#### 6.4.2 注解示例
 
 ```java
 @OperationLog(
@@ -939,7 +1017,7 @@ public CommonResult<SysConfigDTO> saveConfig(@RequestBody SysConfigSaveRequest r
 }
 ```
 
-#### 6.3.3 自动采集请求头
+#### 6.4.3 自动采集请求头
 
 | 请求头 | 必填 | 示例 | 说明 |
 | --- | --- | --- | --- |

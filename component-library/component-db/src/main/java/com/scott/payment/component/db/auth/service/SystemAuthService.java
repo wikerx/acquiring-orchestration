@@ -4,6 +4,8 @@ import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.core.auth.InternalAuthChecker;
 
 /**
@@ -25,6 +27,16 @@ public interface SystemAuthService extends InternalAuthChecker {
      * @return 注册后的账号信息
      */
     AuthAccountDTO register(String appCode, AuthRegisterRequest request);
+
+    /**
+     * 发送登录动态验证码。
+     *
+     * @param appCode   系统应用编码
+     * @param request   验证码发送请求
+     * @param clientIp  客户端IP
+     * @return 验证码发送响应
+     */
+    AuthVerifyCodeSendResponse sendLoginVerifyCode(String appCode, AuthVerifyCodeSendRequest request, String clientIp);
 
     /**
      * 登录系统账号。

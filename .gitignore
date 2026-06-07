@@ -4,7 +4,9 @@ Thumbs.db
 
 # IDE
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 *.iml
 
 # Java / Maven / Gradle
@@ -14,10 +16,9 @@ build/
 out/
 *.class
 
-# Node / frontend
+# Frontend repository artifacts
 node_modules/
 dist/
-.next/
 .vite/
 
 # Logs
@@ -36,4 +37,3 @@ logs/
 # Generated
 coverage/
 reports/
-

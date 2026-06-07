@@ -50,7 +50,7 @@ public class AdminOperLogController {
      * @return 写入结果
      */
     @PostMapping
-    @RequiresPermission("admin:oper-log:create")
+    @RequiresPermission("system:oper-log:list")
     public CommonResult<Void> recordOperLog(@RequestBody SysOperLogRecordRequest request) {
         operLogService.recordOperLog(request);
         return CommonResult.success();
@@ -63,7 +63,7 @@ public class AdminOperLogController {
      * @return 操作日志列表
      */
     @PostMapping("/search")
-    @RequiresPermission("admin:oper-log:view")
+    @RequiresPermission("system:oper-log:list")
     @OperationLog(moduleName = "操作日志", businessType = OperationTypeConstants.QUERY, operation = "分页查询后台操作日志列表")
     public CommonResult<PageResult<SysOperLogDTO>> listOperLogs(@RequestBody(required = false) SysOperLogQueryRequest request) {
         return CommonResult.success(operLogService.pageOperLogs(request));
