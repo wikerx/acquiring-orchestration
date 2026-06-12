@@ -92,7 +92,7 @@ return success();                       // 无业务 data，仅表示操作成�
 1. 对外 OpenAPI 路径保留当前版本结构：`/api/rest/{domain}/{version}/{resource}`，例如 `/api/rest/iso/v1/currencies/query`。
 2. 对外 API Controller 按资源拆分，一个清晰外部 API 入口对应一个 Controller，不把国家、币种等不同资源混在同一个 Controller。
 3. 查询接口使用 `@PostMapping(".../query")`；创建接口使用 `@PostMapping`；整体替换使用 `@PutMapping`；局部更新使用 `@PatchMapping`；删除使用 `@DeleteMapping`。
-4. POST 查询接口的加密查询条件使用请求参数 `data`，POST/PUT/PATCH 的交易或变更参数放在 JSON 请求体 `data` 字段。
+4. POST 查询、交易或变更接口的加密业务参数统一放在 JSON 请求体 `data` 字段。
 
 ## 集合与并发
 

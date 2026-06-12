@@ -43,11 +43,11 @@
 
 1. 所有接口必须使用 HTTPS。
 2. 请求方法按资源语义选择。当前对外 OpenAPI 查询和创建均使用 `POST`，更新资源使用 `PUT` 或 `PATCH`，删除资源使用 `DELETE`。
-3. 查询接口的业务查询条件加密后放入请求参数 `data`。
+3. 查询接口的业务查询条件加密后放入 JSON 请求体外层 `data` 字段。
 4. 请求和响应字符集统一为 UTF-8。
 5. 请求头 `Content-Type` 固定为 `application/json`。
 6. 请求头 `authorization` 必须使用 `Bearer ` 加一个空格后拼接 JWT。
-7. `POST` 查询接口的业务参数必须加密后放入请求参数 `data`；`POST`、`PUT`、`PATCH` 交易或变更接口的业务参数必须加密后放入 JSON 请求体外层 `data` 字段。
+7. `POST` 查询、交易或变更接口的业务参数必须加密后放入 JSON 请求体外层 `data` 字段。
 8. 成功响应中的业务数据同样会加密后放入外层 `data` 字段。
 
 ### 1.6 时间说明
@@ -494,7 +494,7 @@ eyJ0eXAiOiJQQVlNRU5ULVBBWUxPQUQiLCJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NN
 | 场景 | Method | 规则 |
 | --- | --- | --- |
 | 创建支付、代付、退款等交易 | `POST` | 创建新业务资源或提交交易命令 |
-| 加密条件查询 | `POST` | 查询条件加密后放入请求参数 `data` |
+| 加密条件查询 | `POST` | 查询条件加密后放入 JSON 请求体外层 `data` 字段 |
 | 整体替换资源 | `PUT` | 请求必须具备幂等性 |
 | 局部更新资源 | `PATCH` | 仅更新指定字段 |
 | 删除资源 | `DELETE` | 仅用于明确支持删除的资源 |
@@ -526,7 +526,7 @@ POST /api/rest/iso/v1/countries/query
 完整示例：
 
 ```http
-POST https://api.example.com/api/rest/iso/v1/countries/query?data={compact encrypted payload}
+POST https://api.example.com/api/rest/iso/v1/countries/query
 ```
 
 ### 11.3 请求头
@@ -618,9 +618,14 @@ POST https://api.example.com/api/rest/iso/v1/countries/query?data={compact encry
 ### 11.6 实际 HTTP 请求示例
 
 ```http
-POST /api/rest/iso/v1/countries/query?data=<compact encrypted payload> HTTP/1.1
+POST /api/rest/iso/v1/countries/query HTTP/1.1
 Host: api.example.com
+Content-Type: application/json
 authorization: Bearer <jwt-token>
+
+{
+  "data": "<compact encrypted payload>"
+}
 ```
 
 ### 11.7 成功响应
@@ -724,7 +729,7 @@ POST /api/rest/iso/v1/currencies/query
 完整示例：
 
 ```http
-POST https://api.example.com/api/rest/iso/v1/currencies/query?data={compact encrypted payload}
+POST https://api.example.com/api/rest/iso/v1/currencies/query
 ```
 
 ### 12.3 请求头
@@ -793,9 +798,14 @@ POST https://api.example.com/api/rest/iso/v1/currencies/query?data={compact encr
 ### 12.6 实际 HTTP 请求示例
 
 ```http
-POST /api/rest/iso/v1/currencies/query?data=<compact encrypted payload> HTTP/1.1
+POST /api/rest/iso/v1/currencies/query HTTP/1.1
 Host: api.example.com
+Content-Type: application/json
 authorization: Bearer <jwt-token>
+
+{
+  "data": "<compact encrypted payload>"
+}
 ```
 
 ### 12.7 成功响应
@@ -862,9 +872,14 @@ authorization: Bearer <jwt-token>
 HTTP 请求结构：
 
 ```http
-POST /api/rest/iso/v1/currencies/query?data=<compact encrypted payload> HTTP/1.1
+POST /api/rest/iso/v1/currencies/query HTTP/1.1
 Host: api.example.com
+Content-Type: application/json
 authorization: Bearer <jwt-token>
+
+{
+  "data": "<compact encrypted payload>"
+}
 ```
 
 平台响应结构：

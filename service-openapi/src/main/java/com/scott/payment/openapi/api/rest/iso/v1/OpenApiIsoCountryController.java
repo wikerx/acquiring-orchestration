@@ -9,7 +9,7 @@ import com.scott.payment.openapi.vo.iso.IsoCountryVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -55,7 +55,7 @@ public class OpenApiIsoCountryController {
     @VerificationAndProcessing(dataReceiver = IsoCountryQueryRequestDTO.class)
     @PostMapping("/countries/query")
     public CommonResult<List<IsoCountryVO>> queryCountries(HttpServletRequest request,
-                                                           @RequestParam("data") String encryptedData,
+                                                           @RequestBody String encryptedData,
                                                            IsoCountryQueryRequestDTO requestDTO) {
         return success(isoDictionaryService.queryCountries(requestDTO));
     }

@@ -9,7 +9,7 @@ import com.scott.payment.openapi.vo.iso.IsoCurrencyVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -55,7 +55,7 @@ public class OpenApiIsoCurrencyController {
     @VerificationAndProcessing(dataReceiver = IsoCurrencyQueryRequestDTO.class)
     @PostMapping("/currencies/query")
     public CommonResult<List<IsoCurrencyVO>> queryCurrencies(HttpServletRequest request,
-                                                             @RequestParam("data") String encryptedData,
+                                                             @RequestBody String encryptedData,
                                                              IsoCurrencyQueryRequestDTO requestDTO) {
         return success(isoDictionaryService.queryCurrencies(requestDTO));
     }

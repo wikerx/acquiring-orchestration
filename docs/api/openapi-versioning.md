@@ -42,4 +42,4 @@ public class OpenApiPaymentV2Controller {
 
 1. 一个对外 API 入口对应一个清晰 Controller，避免把多个外部资源混入同一个控制器。
 2. 示例：`/api/rest/iso/{version}/countries/query` 使用 `OpenApiIsoCountryController`，`/api/rest/iso/{version}/currencies/query` 使用 `OpenApiIsoCurrencyController`。
-3. 查询接口使用 `@PostMapping(".../query")`；创建接口使用 `@PostMapping`；整体替换使用 `@PutMapping`；局部更新使用 `@PatchMapping`；删除使用 `@DeleteMapping`。
+3. 查询接口使用 `@PostMapping(".../query")`，密文入参使用 `@RequestBody String encryptedData`；创建接口使用 `@PostMapping`；整体替换使用 `@PutMapping`；局部更新使用 `@PatchMapping`；删除使用 `@DeleteMapping`。
