@@ -731,21 +731,21 @@ VALUES
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
-    (200, 1, 201, 'dashboard:view', '工作台查看', 'MENU', 'GET', '/dashboard', 1, 0),
-    (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'GET', '/system/user', 1, 0),
+    (200, 1, 201, 'dashboard:view', '工作台查看', 'MENU', 'GET', '/admin/auth/me', 1, 0),
+    (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'POST', '/admin/system/users/search', 1, 0),
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),
     (214, 1, 211, 'system:user:delete', '用户删除', 'BUTTON', 'DELETE', '/admin/system/users/**', 1, 0),
-    (215, 1, 211, 'system:user:reset-password', '用户重置密码', 'BUTTON', '*', '/admin/system/users/**/password', 1, 0),
-    (216, 1, 211, 'system:user:assign-role', '用户分配角色', 'BUTTON', '*', '/admin/system/users/**/roles', 1, 0),
-    (221, 1, 212, 'system:role:list', '角色管理查询', 'MENU', 'GET', '/system/role', 1, 0),
+    (215, 1, 211, 'system:user:reset-password', '用户重置密码', 'BUTTON', 'POST', '/admin/system/users/reset-password', 1, 0),
+    (216, 1, 211, 'system:user:assign-role', '用户分配角色', 'BUTTON', 'POST', '/admin/system/users/roles*', 1, 0),
+    (221, 1, 212, 'system:role:list', '角色管理查询', 'MENU', 'POST', '/admin/system/roles/search', 1, 0),
     (222, 1, 212, 'system:role:add', '角色新增', 'BUTTON', '*', '/admin/system/roles/**', 1, 0),
     (223, 1, 212, 'system:role:edit', '角色编辑', 'BUTTON', '*', '/admin/system/roles/**', 1, 0),
     (224, 1, 212, 'system:role:delete', '角色删除', 'BUTTON', '*', '/admin/system/roles/**', 1, 0),
-    (225, 1, 212, 'system:role:assign-menu', '角色分配菜单', 'BUTTON', '*', '/admin/system/roles/**/menus', 1, 0),
-    (226, 1, 212, 'system:role:assign-permission', '角色分配权限', 'BUTTON', '*', '/admin/system/roles/**/permissions', 1, 0),
+    (225, 1, 212, 'system:role:assign-menu', '角色分配菜单', 'BUTTON', 'POST', '/admin/system/roles/menus*', 1, 0),
+    (226, 1, 212, 'system:role:assign-permission', '角色分配权限', 'BUTTON', 'POST', '/admin/system/roles/permissions*', 1, 0),
     (227, 1, 212, 'system:role:data-scope', '角色数据范围', 'BUTTON', '*', '/admin/system/roles/**/data-scope', 1, 0),
-    (231, 1, 213, 'system:menu:list', '菜单管理查询', 'MENU', 'GET', '/system/menu', 1, 0),
+    (231, 1, 213, 'system:menu:list', '菜单管理查询', 'MENU', 'POST', '/admin/system/menus/tree', 1, 0),
     (232, 1, 213, 'system:menu:add', '菜单新增', 'BUTTON', '*', '/admin/system/menus/**', 1, 0),
     (233, 1, 213, 'system:menu:edit', '菜单编辑', 'BUTTON', '*', '/admin/system/menus/**', 1, 0),
     (234, 1, 213, 'system:menu:delete', '菜单删除', 'BUTTON', '*', '/admin/system/menus/**', 1, 0),
@@ -766,8 +766,8 @@ VALUES
     (256, 1, 215, 'system:config:add', '参数新增', 'BUTTON', 'POST', '/admin/system/configs', 1, 0),
     (257, 1, 215, 'system:config:edit', '参数编辑', 'BUTTON', 'POST', '/admin/system/configs', 1, 0),
     (258, 1, 215, 'system:config:delete', '参数删除', 'BUTTON', 'DELETE', '/admin/system/configs/**', 1, 0),
-    (261, 1, 216, 'system:login-log:list', '登录日志查询', 'MENU', '*', '/admin/auth/**', 1, 0),
-    (262, 1, 216, 'system:oper-log:list', '操作日志查询', 'BUTTON', '*', '/admin/system/oper-logs/**', 1, 0),
+    (261, 1, 216, 'system:login-log:list', '登录日志查询', 'MENU', 'POST', '/admin/system/login-logs/search', 1, 0),
+    (262, 1, 216, 'system:oper-log:list', '操作日志查询', 'BUTTON', 'POST', '/admin/system/oper-logs/search', 1, 0),
     (263, 1, 216, 'system:log:export', '日志导出', 'BUTTON', '*', '/admin/system/logs/export', 1, 0),
     (301, 1, 231, 'merchant:info:list', '商户信息查询', 'MENU', 'GET', '/merchant/info', 1, 0),
     (302, 1, 231, 'merchant:info:detail', '商户详情', 'BUTTON', '*', '/admin/merchants/**', 1, 0),
@@ -844,17 +844,48 @@ WHERE app_id = 1
   AND deleted = 0;
 
 UPDATE sys_permission
-SET resource_method = 'POST',
-    resource_path = '/admin/system/users/create'
+SET resource_method = CASE permission_code
+        WHEN 'dashboard:view' THEN 'GET'
+        WHEN 'system:user:list' THEN 'POST'
+        WHEN 'system:user:add' THEN 'POST'
+        WHEN 'system:user:reset-password' THEN 'POST'
+        WHEN 'system:user:assign-role' THEN 'POST'
+        WHEN 'system:role:list' THEN 'POST'
+        WHEN 'system:role:assign-menu' THEN 'POST'
+        WHEN 'system:role:assign-permission' THEN 'POST'
+        WHEN 'system:menu:list' THEN 'POST'
+        WHEN 'system:login-log:list' THEN 'POST'
+        WHEN 'system:oper-log:list' THEN 'POST'
+        ELSE resource_method
+    END,
+    resource_path = CASE permission_code
+        WHEN 'dashboard:view' THEN '/admin/auth/me'
+        WHEN 'system:user:list' THEN '/admin/system/users/search'
+        WHEN 'system:user:add' THEN '/admin/system/users/create'
+        WHEN 'system:user:reset-password' THEN '/admin/system/users/reset-password'
+        WHEN 'system:user:assign-role' THEN '/admin/system/users/roles*'
+        WHEN 'system:role:list' THEN '/admin/system/roles/search'
+        WHEN 'system:role:assign-menu' THEN '/admin/system/roles/menus*'
+        WHEN 'system:role:assign-permission' THEN '/admin/system/roles/permissions*'
+        WHEN 'system:menu:list' THEN '/admin/system/menus/tree'
+        WHEN 'system:login-log:list' THEN '/admin/system/login-logs/search'
+        WHEN 'system:oper-log:list' THEN '/admin/system/oper-logs/search'
+        ELSE resource_path
+    END
 WHERE app_id = 1
-  AND permission_code = 'system:user:add'
-  AND deleted = 0;
-
-UPDATE sys_permission
-SET resource_method = 'POST',
-    resource_path = '/admin/system/users/roles%'
-WHERE app_id = 1
-  AND permission_code = 'system:user:assign-role'
+  AND permission_code IN (
+      'dashboard:view',
+      'system:user:list',
+      'system:user:add',
+      'system:user:reset-password',
+      'system:user:assign-role',
+      'system:role:list',
+      'system:role:assign-menu',
+      'system:role:assign-permission',
+      'system:menu:list',
+      'system:login-log:list',
+      'system:oper-log:list'
+  )
   AND deleted = 0;
 
 UPDATE sys_role_menu role_menu
