@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -50,6 +52,6 @@ public class AdminLoginLogController {
     @RequiresPermission("system:login-log:list")
     @OperationLog(moduleName = "登录日志", businessType = OperationTypeConstants.QUERY, operation = "分页查询后台登录日志列表")
     public CommonResult<PageResult<SysLoginLogDTO>> listLoginLogs(@RequestBody(required = false) SysLoginLogQueryRequest request) {
-        return CommonResult.success(loginLogService.pageLoginLogs(request));
+        return success(loginLogService.pageLoginLogs(request));
     }
 }

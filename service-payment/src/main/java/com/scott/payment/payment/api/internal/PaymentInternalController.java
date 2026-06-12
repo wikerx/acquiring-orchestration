@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -44,6 +46,6 @@ public class PaymentInternalController {
      */
     @PostMapping("/authorization")
     public CommonResult<PaymentCreateResultDTO> createAuthorization(@RequestBody PaymentCreateCommandDTO commandDTO) {
-        return CommonResult.success(paymentTransactionService.createAuthorization(commandDTO));
+        return success(paymentTransactionService.createAuthorization(commandDTO));
     }
 }

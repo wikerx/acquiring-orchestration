@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
@@ -55,12 +54,12 @@ class MerchantOpenApiIsoDictionaryTests {
     /**
      * 国家地区查询接口地址。
      */
-    private static final String COUNTRY_PATH = "/api/rest/iso/v1/countries";
+    private static final String COUNTRY_PATH = "/api/rest/iso/v1/countries/query";
 
     /**
      * 币种查询接口地址。
      */
-    private static final String CURRENCY_PATH = "/api/rest/iso/v1/currencies";
+    private static final String CURRENCY_PATH = "/api/rest/iso/v1/currencies/query";
 
     /**
      * MockMvc 用于走完整 Spring MVC、拦截器、请求解密和响应加密链路。
@@ -110,7 +109,7 @@ class MerchantOpenApiIsoDictionaryTests {
     void shouldQueryCountriesThroughEncryptedOpenApi() throws Exception {
         MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
         String plainRequestJson = JsonUtils.toJsonString(Map.of("alpha3", "USA"));
-        MvcResult mvcResult = performEncryptedPost(
+        MvcResult mvcResult = performEncryptedQuery(
                 COUNTRY_PATH,
                 plainRequestJson,
                 merchantMaterial,
@@ -136,7 +135,7 @@ class MerchantOpenApiIsoDictionaryTests {
     void shouldQueryCurrenciesThroughEncryptedOpenApi() throws Exception {
         MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
         String plainRequestJson = JsonUtils.toJsonString(Map.of("alphabeticCode", "USD"));
-        MvcResult mvcResult = performEncryptedPost(
+        MvcResult mvcResult = performEncryptedQuery(
                 CURRENCY_PATH,
                 plainRequestJson,
                 merchantMaterial,
@@ -167,7 +166,7 @@ class MerchantOpenApiIsoDictionaryTests {
         MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
         String plainRequestJson = JsonUtils.toJsonString(Map.of("alpha2", "USA"));
 
-        MvcResult mvcResult = performEncryptedPostExpectError(
+        MvcResult mvcResult = performEncryptedQueryExpectError(
                 COUNTRY_PATH,
                 plainRequestJson,
                 merchantMaterial,
@@ -189,7 +188,7 @@ class MerchantOpenApiIsoDictionaryTests {
         MerchantSecurityMaterialDTO merchantMaterial = provisionMerchantMaterial();
         String plainRequestJson = JsonUtils.toJsonString(Map.of("alphabeticCode", "US"));
 
-        MvcResult mvcResult = performEncryptedPostExpectError(
+        MvcResult mvcResult = performEncryptedQueryExpectError(
                 CURRENCY_PATH,
                 plainRequestJson,
                 merchantMaterial,
@@ -220,7 +219,7 @@ class MerchantOpenApiIsoDictionaryTests {
     }
 
     /**
-     * 模拟商户完成请求体加密、JWT 请求头封装并发起 OpenAPI 调用。
+     * 模拟商户完成查询参数加密、JWT 请求头封装并发起 OpenAPI POST 查询调用。
      *
      * @param path                OpenAPI 请求路径
      * @param plainRequestJson    明文业务 JSON
@@ -229,10 +228,10 @@ class MerchantOpenApiIsoDictionaryTests {
      * @return MockMvc 调用结果
      * @throws Exception MockMvc 调用异常
      */
-    private MvcResult performEncryptedPost(String path,
-                                           String plainRequestJson,
-                                           MerchantSecurityMaterialDTO merchantMaterial,
-                                           String jwtId) throws Exception {
+    private MvcResult performEncryptedQuery(String path,
+                                            String plainRequestJson,
+                                            MerchantSecurityMaterialDTO merchantMaterial,
+                                            String jwtId) throws Exception {
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
                 payloadCrypto.readPublicKey(merchantMaterial.getPlatformPublicKeyX509Base64())
@@ -243,7 +242,6 @@ class MerchantOpenApiIsoDictionaryTests {
                 System.currentTimeMillis() / 1000L,
                 jwtId
         );
-        String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
         log.info("商户发起ISO查询，path={}，请求明文={}，authorization摘要={}，data摘要={}",
                 path,
                 plainRequestJson,
@@ -251,9 +249,8 @@ class MerchantOpenApiIsoDictionaryTests {
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory));
 
         return mockMvc.perform(post(path)
-                        .contentType(MediaType.APPLICATION_JSON)
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
-                        .content(httpRequestBody))
+                        .param("data", encryptedData))
                 .andDo(result -> log.info("平台返回ISO查询加密响应，path={}，HTTP状态={}，响应摘要={}",
                         path,
                         result.getResponse().getStatus(),
@@ -275,11 +272,11 @@ class MerchantOpenApiIsoDictionaryTests {
      * @return MockMvc 调用结果
      * @throws Exception MockMvc 调用异常
      */
-    private MvcResult performEncryptedPostExpectError(String path,
-                                                      String plainRequestJson,
-                                                      MerchantSecurityMaterialDTO merchantMaterial,
-                                                      String jwtId,
-                                                      ApiResultEnum expectedError) throws Exception {
+    private MvcResult performEncryptedQueryExpectError(String path,
+                                                       String plainRequestJson,
+                                                       MerchantSecurityMaterialDTO merchantMaterial,
+                                                       String jwtId,
+                                                       ApiResultEnum expectedError) throws Exception {
         String encryptedData = payloadCrypto.encrypt(
                 plainRequestJson,
                 payloadCrypto.readPublicKey(merchantMaterial.getPlatformPublicKeyX509Base64())
@@ -290,7 +287,6 @@ class MerchantOpenApiIsoDictionaryTests {
                 System.currentTimeMillis() / 1000L,
                 jwtId
         );
-        String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
         log.info("商户发起ISO异常查询，path={}，请求明文={}，authorization摘要={}，data摘要={}，预期错误码={}",
                 path,
                 plainRequestJson,
@@ -299,9 +295,8 @@ class MerchantOpenApiIsoDictionaryTests {
                 expectedError.getCode());
 
         return mockMvc.perform(post(path)
-                        .contentType(MediaType.APPLICATION_JSON)
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
-                        .content(httpRequestBody))
+                        .param("data", encryptedData))
                 .andDo(result -> log.info("平台返回ISO异常响应，path={}，HTTP状态={}，响应={}",
                         path,
                         result.getResponse().getStatus(),

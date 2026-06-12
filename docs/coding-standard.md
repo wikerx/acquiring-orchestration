@@ -73,6 +73,27 @@
 3. Web 层统一由 `component-web` 的 fastjson2 HTTP message converter 处理接口入参与响应。
 4. 不引入 `fastjson 1.x`、`Gson` 或业务侧自建 `ObjectMapper`，避免同一系统出现多套 JSON 行为。
 
+## Controller 响应模型
+
+1. `CommonResult` 用于业务接口，包括 OpenAPI、管理后台、商户后台、服务间内部接口。它承载支付业务码，例如 `T200`、`F401001`、`F500`，并提供 `isSuccess` 给服务间调用判断结果。
+2. `ApiResult` 只用于轻量基础接口，例如健康检查、简单回调 ACK、临时基础探针。不要在需要支付业务码、响应加密、分页或业务数据的接口中使用。
+3. Controller 可使用静态导入 `success` 简化写法，但必须保留数据语义：
+
+```java
+return success(service.query(request)); // 有业务 data
+return success();                       // 无业务 data，仅表示操作成功
+```
+
+4. 禁止把有返回数据的接口统一改成 `success()`。这会丢失响应 `data`，并破坏 OpenAPI 响应加密、前端渲染和服务间调用。
+5. 失败响应由统一异常处理或 `CommonResult.error(...)` 构造，业务代码不要返回成功码表达失败。
+
+## REST 路由
+
+1. 对外 OpenAPI 路径保留当前版本结构：`/api/rest/{domain}/{version}/{resource}`，例如 `/api/rest/iso/v1/currencies/query`。
+2. 对外 API Controller 按资源拆分，一个清晰外部 API 入口对应一个 Controller，不把国家、币种等不同资源混在同一个 Controller。
+3. 查询接口使用 `@PostMapping(".../query")`；创建接口使用 `@PostMapping`；整体替换使用 `@PutMapping`；局部更新使用 `@PatchMapping`；删除使用 `@DeleteMapping`。
+4. POST 查询接口的加密查询条件使用请求参数 `data`，POST/PUT/PATCH 的交易或变更参数放在 JSON 请求体 `data` 字段。
+
 ## 集合与并发
 
 1. 集合判空优先使用工具方法或 `isEmpty()`。

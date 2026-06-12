@@ -1,7 +1,10 @@
 package com.scott.payment.admin.service;
 
+import com.scott.payment.admin.dto.SysMenuCreateRequest;
 import com.scott.payment.admin.dto.SysMenuDTO;
 import com.scott.payment.admin.dto.SysMenuQueryRequest;
+import com.scott.payment.admin.dto.SysMenuStatusRequest;
+import com.scott.payment.admin.dto.SysMenuUpdateRequest;
 
 import java.util.List;
 
@@ -16,4 +19,10 @@ import java.util.List;
 public interface AdminMenuService {
 
     List<SysMenuDTO> treeMenus(SysMenuQueryRequest request);
+
+    SysMenuDTO createMenu(SysMenuCreateRequest request);
+
+    SysMenuDTO updateMenu(SysMenuUpdateRequest request);
+
+    void updateStatus(SysMenuStatusRequest request);
 }

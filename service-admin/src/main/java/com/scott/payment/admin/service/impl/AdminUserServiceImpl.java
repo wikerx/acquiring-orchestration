@@ -9,6 +9,9 @@ import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
 import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
 import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
 import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
+import com.scott.payment.admin.dto.SysRoleDTO;
+import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
+import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.admin.service.AdminUserService;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -33,8 +36,11 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -220,6 +226,53 @@ public class AdminUserServiceImpl implements AdminUserService {
         logoutSessions(app.getId(), account.getId(), now);
     }
 
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public SysUserRoleAuthDTO userRoles(Long accountId) {
+        SysAppDO app = getAdminApp();
+        SysAccountDO account = getAccount(app.getId(), accountId);
+        SysUserRoleAuthDTO dto = new SysUserRoleAuthDTO();
+        dto.setAccountId(account.getId());
+        dto.setRoles(loadEnabledRoles(app.getId()).stream().map(this::toRoleDTO).toList());
+        dto.setCheckedRoleIds(loadCheckedRoleIds(app.getId(), account.getId()));
+        return dto;
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void grantRoles(SysUserRoleGrantRequest request) {
+        SysAppDO app = getAdminApp();
+        SysAccountDO account = getAccount(app.getId(), request.getAccountId());
+        List<Long> roleIds = normalizeIds(request.getRoleIds());
+        validateRoleIds(app.getId(), roleIds);
+        LocalDateTime now = LocalDateTime.now();
+
+        List<SysAccountRoleDO> oldRelations = sysAccountRoleMapper.selectList(
+                Wrappers.<SysAccountRoleDO>lambdaQuery()
+                        .eq(SysAccountRoleDO::getAppId, app.getId())
+                        .eq(SysAccountRoleDO::getAccountId, account.getId())
+                        .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
+        );
+        oldRelations.forEach(relation -> sysAccountRoleMapper.update(
+                Wrappers.<SysAccountRoleDO>lambdaUpdate()
+                        .set(SysAccountRoleDO::getDeleted, relation.getId())
+                        .eq(SysAccountRoleDO::getId, relation.getId())
+                        .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
+        ));
+
+        for (Long roleId : roleIds) {
+            SysAccountRoleDO relation = new SysAccountRoleDO();
+            relation.setAppId(app.getId());
+            relation.setAccountId(account.getId());
+            relation.setRoleId(roleId);
+            relation.setCreatedAt(now);
+            relation.setDeleted(NOT_DELETED);
+            sysAccountRoleMapper.insert(relation);
+        }
+        logoutSessions(app.getId(), account.getId(), now);
+    }
+
     /**
      * 获取后台管理系统对应的应用信息
      */
@@ -295,6 +348,43 @@ public class AdminUserServiceImpl implements AdminUserService {
         sysAccountRoleMapper.insert(relation);
     }
 
+    private List<SysRoleDO> loadEnabledRoles(Long appId) {
+        return sysRoleMapper.selectList(
+                Wrappers.<SysRoleDO>lambdaQuery()
+                        .eq(SysRoleDO::getAppId, appId)
+                        .eq(SysRoleDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysRoleDO::getDeleted, NOT_DELETED)
+                        .orderByAsc(SysRoleDO::getSortNo)
+                        .orderByAsc(SysRoleDO::getId)
+        );
+    }
+
+    private List<Long> loadCheckedRoleIds(Long appId, Long accountId) {
+        return sysAccountRoleMapper.selectList(
+                Wrappers.<SysAccountRoleDO>lambdaQuery()
+                        .select(SysAccountRoleDO::getRoleId)
+                        .eq(SysAccountRoleDO::getAppId, appId)
+                        .eq(SysAccountRoleDO::getAccountId, accountId)
+                        .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
+        ).stream().map(SysAccountRoleDO::getRoleId).toList();
+    }
+
+    private void validateRoleIds(Long appId, List<Long> roleIds) {
+        if (roleIds.isEmpty()) {
+            return;
+        }
+        Long count = sysRoleMapper.selectCount(
+                Wrappers.<SysRoleDO>lambdaQuery()
+                        .eq(SysRoleDO::getAppId, appId)
+                        .eq(SysRoleDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysRoleDO::getDeleted, NOT_DELETED)
+                        .in(SysRoleDO::getId, roleIds)
+        );
+        if (count == null || count != roleIds.size()) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "role ids contain invalid role");
+        }
+    }
+
     private Integer validStatus(Integer status) {
         if (status == AuthConstants.ENABLED || status == AuthConstants.DISABLED) {
             return status;
@@ -319,6 +409,16 @@ public class AdminUserServiceImpl implements AdminUserService {
             return null;
         }
         return value.trim();
+    }
+
+    private List<Long> normalizeIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<Long> idSet = ids.stream()
+                .filter(id -> id != null && id > 0)
+                .collect(Collectors.toSet());
+        return new ArrayList<>(idSet);
     }
 
     /**
@@ -353,6 +453,21 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setLastLoginAt(account.getLastLoginAt());
         dto.setLastLoginIp(account.getLastLoginIp());
         dto.setCreatedAt(account.getCreatedAt());
+        return dto;
+    }
+
+    private SysRoleDTO toRoleDTO(SysRoleDO role) {
+        SysRoleDTO dto = new SysRoleDTO();
+        dto.setRoleId(role.getId());
+        dto.setRoleCode(role.getRoleCode());
+        dto.setRoleName(role.getRoleName());
+        dto.setRoleType(role.getRoleType());
+        dto.setDataScope(role.getDataScope());
+        dto.setDescription(role.getDescription());
+        dto.setStatus(role.getStatus());
+        dto.setSortNo(role.getSortNo());
+        dto.setCreatedAt(role.getCreatedAt());
+        dto.setUpdatedAt(role.getUpdatedAt());
         return dto;
     }
 }

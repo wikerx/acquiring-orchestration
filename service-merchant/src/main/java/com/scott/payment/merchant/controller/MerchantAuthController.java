@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -59,7 +61,7 @@ public class MerchantAuthController {
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.CREATE,
             operation = "注册商户系统账号", recordRequest = false, recordResponse = false)
     public CommonResult<AuthAccountDTO> register(@Valid @RequestBody AuthRegisterRequest request) {
-        return CommonResult.success(systemAuthService.register(AuthConstants.APP_MERCHANT, request));
+        return success(systemAuthService.register(AuthConstants.APP_MERCHANT, request));
     }
 
     /**
@@ -72,7 +74,7 @@ public class MerchantAuthController {
     @PostMapping("/verify-code/send")
     public CommonResult<AuthVerifyCodeSendResponse> sendVerifyCode(@Valid @RequestBody AuthVerifyCodeSendRequest request,
                                                                    HttpServletRequest servletRequest) {
-        return CommonResult.success(systemAuthService.sendLoginVerifyCode(
+        return success(systemAuthService.sendLoginVerifyCode(
                 AuthConstants.APP_MERCHANT,
                 request,
                 clientIp(servletRequest)
@@ -89,7 +91,7 @@ public class MerchantAuthController {
     @PostMapping("/login")
     public CommonResult<AuthLoginResponse> login(@Valid @RequestBody AuthLoginRequest request,
                                                  HttpServletRequest servletRequest) {
-        return CommonResult.success(systemAuthService.login(
+        return success(systemAuthService.login(
                 AuthConstants.APP_MERCHANT,
                 request,
                 clientIp(servletRequest),
@@ -106,7 +108,7 @@ public class MerchantAuthController {
     @GetMapping("/me")
     @RequiresPermission("merchant:dashboard:view")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
-        return CommonResult.success(systemAuthService.currentUser(AuthConstants.APP_MERCHANT, authorization));
+        return success(systemAuthService.currentUser(AuthConstants.APP_MERCHANT, authorization));
     }
 
     /**
@@ -121,7 +123,7 @@ public class MerchantAuthController {
             operation = "商户系统账号退出登录", recordRequest = false, recordResponse = false)
     public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {
         systemAuthService.logout(AuthConstants.APP_MERCHANT, authorization);
-        return CommonResult.success();
+        return success();
     }
 
     /**

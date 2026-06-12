@@ -6,6 +6,8 @@ import com.scott.payment.admin.dto.SysUserAccountQueryRequest;
 import com.scott.payment.admin.dto.SysUserAccountResetPasswordRequest;
 import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
 import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
+import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
+import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
@@ -27,4 +29,8 @@ public interface AdminUserService {
     void updateStatus(SysUserAccountStatusRequest request);
 
     void resetPassword(SysUserAccountResetPasswordRequest request);
+
+    SysUserRoleAuthDTO userRoles(Long accountId);
+
+    void grantRoles(SysUserRoleGrantRequest request);
 }

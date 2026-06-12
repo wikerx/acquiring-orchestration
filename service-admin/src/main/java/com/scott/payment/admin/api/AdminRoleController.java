@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -44,7 +46,7 @@ public class AdminRoleController {
     @RequiresPermission("system:role:list")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY, operation = "分页查询后台角色列表")
     public CommonResult<PageResult<SysRoleDTO>> listRoles(@RequestBody(required = false) SysRoleQueryRequest request) {
-        return CommonResult.success(roleService.pageRoles(request));
+        return success(roleService.pageRoles(request));
     }
 
     @PostMapping("/create")
@@ -52,7 +54,7 @@ public class AdminRoleController {
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.CREATE,
             operation = "新增后台角色", recordRequest = false, recordResponse = false)
     public CommonResult<SysRoleDTO> createRole(@Valid @RequestBody SysRoleCreateRequest request) {
-        return CommonResult.success(roleService.createRole(request));
+        return success(roleService.createRole(request));
     }
 
     @PostMapping("/update")
@@ -60,7 +62,7 @@ public class AdminRoleController {
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "编辑后台角色", recordRequest = false, recordResponse = false)
     public CommonResult<SysRoleDTO> updateRole(@Valid @RequestBody SysRoleUpdateRequest request) {
-        return CommonResult.success(roleService.updateRole(request));
+        return success(roleService.updateRole(request));
     }
 
     @PostMapping("/status")
@@ -69,7 +71,7 @@ public class AdminRoleController {
             operation = "更新后台角色状态", recordRequest = false, recordResponse = false)
     public CommonResult<Void> updateStatus(@Valid @RequestBody SysRoleStatusRequest request) {
         roleService.updateStatus(request);
-        return CommonResult.success();
+        return success();
     }
 
     @PostMapping("/delete")
@@ -78,7 +80,7 @@ public class AdminRoleController {
             operation = "删除后台角色", recordRequest = false, recordResponse = false)
     public CommonResult<Void> deleteRole(@Valid @RequestBody SysRoleDeleteRequest request) {
         roleService.deleteRole(request.getRoleId());
-        return CommonResult.success();
+        return success();
     }
 
     @PostMapping("/menus")
@@ -86,7 +88,7 @@ public class AdminRoleController {
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询角色菜单授权")
     public CommonResult<SysRoleMenuAuthDTO> roleMenus(@Valid @RequestBody SysRoleDeleteRequest request) {
-        return CommonResult.success(roleService.roleMenus(request.getRoleId()));
+        return success(roleService.roleMenus(request.getRoleId()));
     }
 
     @PostMapping("/menus/grant")
@@ -95,7 +97,7 @@ public class AdminRoleController {
             operation = "保存角色菜单授权", recordRequest = false, recordResponse = false)
     public CommonResult<Void> grantMenus(@Valid @RequestBody SysRoleMenuGrantRequest request) {
         roleService.grantMenus(request);
-        return CommonResult.success();
+        return success();
     }
 
     @PostMapping("/permissions")
@@ -103,7 +105,7 @@ public class AdminRoleController {
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询角色权限授权")
     public CommonResult<SysRolePermissionAuthDTO> rolePermissions(@Valid @RequestBody SysRoleDeleteRequest request) {
-        return CommonResult.success(roleService.rolePermissions(request.getRoleId()));
+        return success(roleService.rolePermissions(request.getRoleId()));
     }
 
     @PostMapping("/permissions/grant")
@@ -112,6 +114,6 @@ public class AdminRoleController {
             operation = "保存角色权限授权", recordRequest = false, recordResponse = false)
     public CommonResult<Void> grantPermissions(@Valid @RequestBody SysRolePermissionGrantRequest request) {
         roleService.grantPermissions(request);
-        return CommonResult.success();
+        return success();
     }
 }

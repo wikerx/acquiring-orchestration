@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -53,7 +55,7 @@ public class AdminOperLogController {
     @RequiresPermission("system:oper-log:list")
     public CommonResult<Void> recordOperLog(@RequestBody SysOperLogRecordRequest request) {
         operLogService.recordOperLog(request);
-        return CommonResult.success();
+        return success();
     }
 
     /**
@@ -66,6 +68,6 @@ public class AdminOperLogController {
     @RequiresPermission("system:oper-log:list")
     @OperationLog(moduleName = "操作日志", businessType = OperationTypeConstants.QUERY, operation = "分页查询后台操作日志列表")
     public CommonResult<PageResult<SysOperLogDTO>> listOperLogs(@RequestBody(required = false) SysOperLogQueryRequest request) {
-        return CommonResult.success(operLogService.pageOperLogs(request));
+        return success(operLogService.pageOperLogs(request));
     }
 }

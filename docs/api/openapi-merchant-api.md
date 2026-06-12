@@ -7,6 +7,7 @@
 | 版本 | 日期 | 作者 | 说明 |
 | --- | --- | --- | --- |
 | v1.0.0 | 2026-06-03 | scott | 创建商户 OpenAPI 对接文档，包含鉴权、加密、响应解密、ISO 国家地区和币种查询接口 |
+| v1.1.0 | 2026-06-12 | scott | 拆分 ISO 对外 API 控制器，补充响应模型和 HTTP Method 规范 |
 
 ### 1.2 适用范围
 
@@ -16,6 +17,8 @@
 | --- | --- | --- |
 | ISO 字典 | 查询国家地区列表 | v1 |
 | ISO 字典 | 查询币种列表 | v1 |
+| 支付 | 创建收单授权 | v1、v2 |
+| 代付 | 创建代付 | v1 |
 
 后续支付、退款、代付、回调等接口均在本文档上继续追加。
 
@@ -39,12 +42,13 @@
 ### 1.5 传输说明
 
 1. 所有接口必须使用 HTTPS。
-2. 请求方法当前统一为 `POST`。
-3. 请求和响应字符集统一为 UTF-8。
-4. 请求头 `Content-Type` 固定为 `application/json`。
-5. 请求头 `authorization` 必须使用 `Bearer ` 加一个空格后拼接 JWT。
-6. 所有业务请求参数必须加密后放入外层 `data` 字段。
-7. 成功响应中的业务数据同样会加密后放入外层 `data` 字段。
+2. 请求方法按资源语义选择。当前对外 OpenAPI 查询和创建均使用 `POST`，更新资源使用 `PUT` 或 `PATCH`，删除资源使用 `DELETE`。
+3. 查询接口的业务查询条件加密后放入请求参数 `data`。
+4. 请求和响应字符集统一为 UTF-8。
+5. 请求头 `Content-Type` 固定为 `application/json`。
+6. 请求头 `authorization` 必须使用 `Bearer ` 加一个空格后拼接 JWT。
+7. `POST` 查询接口的业务参数必须加密后放入请求参数 `data`；`POST`、`PUT`、`PATCH` 交易或变更接口的业务参数必须加密后放入 JSON 请求体外层 `data` 字段。
+8. 成功响应中的业务数据同样会加密后放入外层 `data` 字段。
 
 ### 1.6 时间说明
 
@@ -75,7 +79,7 @@ JWT 中的 `iat` 和 `exp` 使用 Unix epoch 秒，即从 UTC 1970-01-01 00:00:0
 示例：
 
 ```text
-https://api.example.com/api/rest/iso/v1/currencies
+https://api.example.com/api/rest/iso/v1/currencies/query
 ```
 
 ## 3. 商户密钥说明
@@ -129,7 +133,7 @@ sequenceDiagram
     M->>M: 随机生成 AES-256 key 和 12字节 IV
     M->>M: 使用 AES-256-GCM 加密业务 JSON
     M->>M: 使用平台公钥 RSA-OAEP-SHA256 加密 AES key
-    M->>P: POST OpenAPI，Header携带Bearer JWT，Body携带data密文
+    M->>P: POST OpenAPI，Header携带Bearer JWT，参数或Body携带data密文
     P->>DB: 根据JWT中的merchantId查询merchantKey
     P->>P: 使用merchantKey验签JWT并校验iat/exp/aud/iss/jti
     P->>DB: 根据merchantId查询平台私钥
@@ -382,6 +386,13 @@ eyJ0eXAiOiJQQVlNRU5ULVBBWUxPQUQiLCJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NN
 | `message` | string | M | 稳定的英文响应描述，便于商户系统落库和排查 |
 | `data` | string | O | 加密后的业务响应数据。失败且无业务数据时可为空 |
 
+平台实现约束：
+
+1. 商户 OpenAPI 业务接口统一返回 `CommonResult`，使用 `T/F/Z` 业务响应码。
+2. 有业务响应数据时必须返回 `success(data)`，平台会在响应写出前统一加密 `data`。
+3. 只有无业务数据的操作成功响应才能返回 `success()`。
+4. `ApiResult` 不用于商户 OpenAPI 业务接口，只用于健康检查、简单 ACK 等非业务响应。
+
 ### 8.2 支付业务状态码语义
 
 支付、退款、代付等交易类接口后续会使用以下稳定语义：
@@ -461,14 +472,16 @@ eyJ0eXAiOiJQQVlNRU5ULVBBWUxPQUQiLCJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NN
 当前接口版本为 `v1`，版本号位于 URL 中：
 
 ```text
-/api/rest/{resource}/{version}/{action}
+/api/rest/{domain}/{version}/{resource}
 ```
 
 示例：
 
 ```text
-/api/rest/iso/v1/countries
+/api/rest/iso/v1/countries/query
 ```
+
+同一业务域下的不同对外 API 必须拆分清楚。国家地区和币种虽然同属 ISO 域，但分别使用独立 Controller 入口，避免一个 Controller 混合多个对外 API。
 
 ### 9.2 版本兼容
 
@@ -476,12 +489,25 @@ eyJ0eXAiOiJQQVlNRU5ULVBBWUxPQUQiLCJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NN
 2. 后续升级 `v2` 时，会保留 `v1` 接口。
 3. 商户应按平台分配或文档约定的版本号调用。
 
+### 9.3 HTTP Method 规范
+
+| 场景 | Method | 规则 |
+| --- | --- | --- |
+| 创建支付、代付、退款等交易 | `POST` | 创建新业务资源或提交交易命令 |
+| 加密条件查询 | `POST` | 查询条件加密后放入请求参数 `data` |
+| 整体替换资源 | `PUT` | 请求必须具备幂等性 |
+| 局部更新资源 | `PATCH` | 仅更新指定字段 |
+| 删除资源 | `DELETE` | 仅用于明确支持删除的资源 |
+
 ## 10. 当前开放接口清单
 
 | 接口名称 | Method | Path | 说明 |
 | --- | --- | --- | --- |
-| 查询国家地区列表 | POST | `/api/rest/iso/v1/countries` | 查询系统支持的 ISO 3166 国家地区 |
-| 查询币种列表 | POST | `/api/rest/iso/v1/currencies` | 查询系统支持的 ISO 4217 币种 |
+| 查询国家地区列表 | POST | `/api/rest/iso/v1/countries/query` | 加密条件查询系统支持的 ISO 3166 国家地区 |
+| 查询币种列表 | POST | `/api/rest/iso/v1/currencies/query` | 加密条件查询系统支持的 ISO 4217 币种 |
+| 创建收单授权 | POST | `/api/rest/payment/v1/authorization` | 创建一笔收单授权交易 |
+| 创建收单授权 V2 | POST | `/api/rest/payment/v2/authorization` | 创建一笔 V2 收单授权交易 |
+| 创建代付 | POST | `/api/rest/payout/v1/create` | 创建一笔代付交易 |
 
 ## 11. 查询国家地区列表
 
@@ -494,13 +520,13 @@ eyJ0eXAiOiJQQVlNRU5ULVBBWUxPQUQiLCJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NN
 ### 11.2 接口地址
 
 ```http
-POST /api/rest/iso/v1/countries
+POST /api/rest/iso/v1/countries/query
 ```
 
 完整示例：
 
 ```http
-POST https://api.example.com/api/rest/iso/v1/countries
+POST https://api.example.com/api/rest/iso/v1/countries/query?data={compact encrypted payload}
 ```
 
 ### 11.3 请求头
@@ -592,14 +618,9 @@ POST https://api.example.com/api/rest/iso/v1/countries
 ### 11.6 实际 HTTP 请求示例
 
 ```http
-POST /api/rest/iso/v1/countries HTTP/1.1
+POST /api/rest/iso/v1/countries/query?data=<compact encrypted payload> HTTP/1.1
 Host: api.example.com
-Content-Type: application/json
 authorization: Bearer <jwt-token>
-
-{
-  "data": "<compact encrypted payload>"
-}
 ```
 
 ### 11.7 成功响应
@@ -697,13 +718,13 @@ authorization: Bearer <jwt-token>
 ### 12.2 接口地址
 
 ```http
-POST /api/rest/iso/v1/currencies
+POST /api/rest/iso/v1/currencies/query
 ```
 
 完整示例：
 
 ```http
-POST https://api.example.com/api/rest/iso/v1/currencies
+POST https://api.example.com/api/rest/iso/v1/currencies/query?data={compact encrypted payload}
 ```
 
 ### 12.3 请求头
@@ -772,14 +793,9 @@ POST https://api.example.com/api/rest/iso/v1/currencies
 ### 12.6 实际 HTTP 请求示例
 
 ```http
-POST /api/rest/iso/v1/currencies HTTP/1.1
+POST /api/rest/iso/v1/currencies/query?data=<compact encrypted payload> HTTP/1.1
 Host: api.example.com
-Content-Type: application/json
 authorization: Bearer <jwt-token>
-
-{
-  "data": "<compact encrypted payload>"
-}
 ```
 
 ### 12.7 成功响应
@@ -846,14 +862,9 @@ authorization: Bearer <jwt-token>
 HTTP 请求结构：
 
 ```http
-POST /api/rest/iso/v1/currencies HTTP/1.1
+POST /api/rest/iso/v1/currencies/query?data=<compact encrypted payload> HTTP/1.1
 Host: api.example.com
-Content-Type: application/json
 authorization: Bearer <jwt-token>
-
-{
-  "data": "<compact encrypted payload>"
-}
 ```
 
 平台响应结构：

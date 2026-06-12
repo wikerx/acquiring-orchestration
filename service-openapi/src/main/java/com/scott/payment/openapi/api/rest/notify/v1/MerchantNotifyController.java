@@ -5,6 +5,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.ApiResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -25,6 +27,6 @@ public class MerchantNotifyController {
      */
     @PostMapping("/retry")
     public ApiResult<String> retry() {
-        return ApiResult.success("accepted");
+        return success("accepted");
     }
 }

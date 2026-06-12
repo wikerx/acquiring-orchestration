@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -58,7 +60,7 @@ public class AdminDictController {
     @RequiresPermission("system:dict:edit")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.UPDATE, operation = "保存或更新字典类型")
     public CommonResult<SysDictTypeDTO> saveDictType(@Valid @RequestBody SysDictTypeSaveRequest request) {
-        return CommonResult.success(dictService.saveDictType(request));
+        return success(dictService.saveDictType(request));
     }
 
     /**
@@ -71,7 +73,7 @@ public class AdminDictController {
     @RequiresPermission("system:dict:list")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.QUERY, operation = "分页查询字典类型列表")
     public CommonResult<PageResult<SysDictTypeDTO>> listDictTypes(@RequestBody(required = false) SysDictTypeQueryRequest request) {
-        return CommonResult.success(dictService.pageDictTypes(request));
+        return success(dictService.pageDictTypes(request));
     }
 
     /**
@@ -85,7 +87,7 @@ public class AdminDictController {
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.DELETE, operation = "删除字典类型")
     public CommonResult<Void> deleteDictType(@PathVariable String dictType) {
         dictService.deleteDictType(dictType);
-        return CommonResult.success();
+        return success();
     }
 
     /**
@@ -98,7 +100,7 @@ public class AdminDictController {
     @RequiresPermission("system:dict:edit")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.UPDATE, operation = "保存或更新字典数据")
     public CommonResult<SysDictDataDTO> saveDictData(@Valid @RequestBody SysDictDataSaveRequest request) {
-        return CommonResult.success(dictService.saveDictData(request));
+        return success(dictService.saveDictData(request));
     }
 
     /**
@@ -111,7 +113,7 @@ public class AdminDictController {
     @RequiresPermission("system:dict:list")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.QUERY, operation = "分页查询字典数据列表")
     public CommonResult<PageResult<SysDictDataDTO>> listDictData(@RequestBody(required = false) SysDictDataQueryRequest request) {
-        return CommonResult.success(dictService.pageDictData(request));
+        return success(dictService.pageDictData(request));
     }
 
     /**
@@ -129,6 +131,6 @@ public class AdminDictController {
                                              @PathVariable String dictValue,
                                              @RequestParam(required = false) String locale) {
         dictService.deleteDictData(dictType, dictValue, locale);
-        return CommonResult.success();
+        return success();
     }
 }

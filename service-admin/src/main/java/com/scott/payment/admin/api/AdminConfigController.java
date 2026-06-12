@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -55,7 +57,7 @@ public class AdminConfigController {
     @RequiresPermission("system:config:edit")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.UPDATE, operation = "保存或更新系统参数配置")
     public CommonResult<SysConfigDTO> saveConfig(@Valid @RequestBody SysConfigSaveRequest request) {
-        return CommonResult.success(configService.saveConfig(request));
+        return success(configService.saveConfig(request));
     }
 
     /**
@@ -68,7 +70,7 @@ public class AdminConfigController {
     @RequiresPermission("system:config:list")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.QUERY, operation = "根据配置键查询系统参数配置")
     public CommonResult<SysConfigDTO> getConfig(@PathVariable String configKey) {
-        return CommonResult.success(configService.getConfigByKey(configKey));
+        return success(configService.getConfigByKey(configKey));
     }
 
     /**
@@ -81,7 +83,7 @@ public class AdminConfigController {
     @RequiresPermission("system:config:list")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.QUERY, operation = "分页查询系统参数配置列表")
     public CommonResult<PageResult<SysConfigDTO>> listConfigs(@RequestBody(required = false) SysConfigQueryRequest request) {
-        return CommonResult.success(configService.pageConfigs(request));
+        return success(configService.pageConfigs(request));
     }
 
     /**
@@ -95,6 +97,6 @@ public class AdminConfigController {
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.DELETE, operation = "删除系统参数配置")
     public CommonResult<Void> deleteConfig(@PathVariable String configKey) {
         configService.deleteConfig(configKey);
-        return CommonResult.success();
+        return success();
     }
 }

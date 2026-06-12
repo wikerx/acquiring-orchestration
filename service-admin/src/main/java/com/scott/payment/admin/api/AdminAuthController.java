@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -59,7 +61,7 @@ public class AdminAuthController {
     @OperationLog(moduleName = "后台登录权限", businessType = OperationTypeConstants.CREATE,
             operation = "注册管理后台账号", recordRequest = false, recordResponse = false)
     public CommonResult<AuthAccountDTO> register(@Valid @RequestBody AuthRegisterRequest request) {
-        return CommonResult.success(systemAuthService.register(AuthConstants.APP_ADMIN, request));
+        return success(systemAuthService.register(AuthConstants.APP_ADMIN, request));
     }
 
     /**
@@ -72,7 +74,7 @@ public class AdminAuthController {
     @PostMapping("/verify-code/send")
     public CommonResult<AuthVerifyCodeSendResponse> sendVerifyCode(@Valid @RequestBody AuthVerifyCodeSendRequest request,
                                                                    HttpServletRequest servletRequest) {
-        return CommonResult.success(systemAuthService.sendLoginVerifyCode(
+        return success(systemAuthService.sendLoginVerifyCode(
                 AuthConstants.APP_ADMIN,
                 request,
                 clientIp(servletRequest)
@@ -89,7 +91,7 @@ public class AdminAuthController {
     @PostMapping("/login")
     public CommonResult<AuthLoginResponse> login(@Valid @RequestBody AuthLoginRequest request,
                                                  HttpServletRequest servletRequest) {
-        return CommonResult.success(systemAuthService.login(
+        return success(systemAuthService.login(
                 AuthConstants.APP_ADMIN,
                 request,
                 clientIp(servletRequest),
@@ -106,7 +108,7 @@ public class AdminAuthController {
     @GetMapping("/me")
     @RequiresPermission("dashboard:view")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
-        return CommonResult.success(systemAuthService.currentUser(AuthConstants.APP_ADMIN, authorization));
+        return success(systemAuthService.currentUser(AuthConstants.APP_ADMIN, authorization));
     }
 
     /**
@@ -121,7 +123,7 @@ public class AdminAuthController {
             operation = "管理后台账号退出登录", recordRequest = false, recordResponse = false)
     public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {
         systemAuthService.logout(AuthConstants.APP_ADMIN, authorization);
-        return CommonResult.success();
+        return success();
     }
 
     /**

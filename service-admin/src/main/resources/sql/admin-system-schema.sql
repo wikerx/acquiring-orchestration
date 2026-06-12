@@ -850,6 +850,13 @@ WHERE app_id = 1
   AND permission_code = 'system:user:add'
   AND deleted = 0;
 
+UPDATE sys_permission
+SET resource_method = 'POST',
+    resource_path = '/admin/system/users/roles%'
+WHERE app_id = 1
+  AND permission_code = 'system:user:assign-role'
+  AND deleted = 0;
+
 UPDATE sys_role_menu role_menu
 JOIN sys_menu menu ON menu.id = role_menu.menu_id AND menu.app_id = role_menu.app_id
 SET role_menu.deleted = role_menu.id

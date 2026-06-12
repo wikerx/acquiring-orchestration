@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import static com.scott.payment.component.core.model.CommonResult.success;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -53,6 +55,6 @@ public class OpenApiPayoutController {
     public CommonResult<String> createPayout(HttpServletRequest request,
                                              @RequestBody String encryptedData,
                                              PayoutCreateRequestDTO requestDTO) {
-        return CommonResult.success(payoutService.createPayout(encryptedData, requestDTO));
+        return success(payoutService.createPayout(encryptedData, requestDTO));
     }
 }
