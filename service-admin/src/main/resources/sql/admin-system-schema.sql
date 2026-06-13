@@ -721,7 +721,7 @@ VALUES
     (240, 1, 0, 'admin_base_catalog_v3', '基础数据', 'CATALOG', '/base', NULL, NULL, 'DataLine', 1, 30, 1, 0),
     (241, 1, 240, 'admin_base_country_v3', '国家/地区', 'MENU', '/base/country', 'base/country', 'base:country:list', 'Location', 1, 31, 1, 0),
     (242, 1, 240, 'admin_base_currency_v3', '币种管理', 'MENU', '/base/currency', 'base/currency', 'base:currency:list', 'Coin', 1, 32, 1, 0),
-    (243, 1, 240, 'admin_base_region_currency_v3', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:region-currency:list', 'Connection', 1, 33, 1, 0),
+    (243, 1, 240, 'admin_base_region_currency_v3', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:countryCurrency:list', 'Connection', 1, 33, 1, 0),
     (250, 1, 0, 'admin_permission_catalog_v3', '权限中心', 'CATALOG', '/permission', NULL, NULL, 'Key', 1, 40, 1, 0),
     (251, 1, 250, 'admin_permission_app_v3', '应用权限', 'MENU', '/permission/app', 'permission/app', 'permission:app:list', 'Key', 1, 41, 1, 0),
     (252, 1, 250, 'admin_permission_data_scope_v3', '数据权限', 'MENU', '/permission/data-scope', 'permission/data-scope', 'permission:data-scope:list', 'Connection', 1, 42, 1, 0),
@@ -761,11 +761,11 @@ VALUES
     (251, 1, 215, 'system:dict:list', '字典查询', 'MENU', 'POST', '/admin/system/dicts/**/search', 1, 0),
     (252, 1, 215, 'system:dict:add', '字典新增', 'BUTTON', 'POST', '/admin/system/dicts/**', 1, 0),
     (253, 1, 215, 'system:dict:edit', '字典编辑', 'BUTTON', 'POST', '/admin/system/dicts/**', 1, 0),
-    (254, 1, 215, 'system:dict:delete', '字典删除', 'BUTTON', 'DELETE', '/admin/system/dicts/**', 1, 0),
+    (254, 1, 215, 'system:dict:remove', '字典删除', 'BUTTON', 'DELETE', '/admin/system/dicts/**', 1, 0),
     (255, 1, 215, 'system:config:list', '参数查询', 'BUTTON', '*', '/admin/system/configs/**', 1, 0),
     (256, 1, 215, 'system:config:add', '参数新增', 'BUTTON', 'POST', '/admin/system/configs', 1, 0),
     (257, 1, 215, 'system:config:edit', '参数编辑', 'BUTTON', 'POST', '/admin/system/configs', 1, 0),
-    (258, 1, 215, 'system:config:delete', '参数删除', 'BUTTON', 'DELETE', '/admin/system/configs/**', 1, 0),
+    (258, 1, 215, 'system:config:remove', '参数删除', 'BUTTON', 'DELETE', '/admin/system/configs/**', 1, 0),
     (261, 1, 216, 'system:login-log:list', '登录日志查询', 'MENU', 'POST', '/admin/system/login-logs/search', 1, 0),
     (262, 1, 216, 'system:oper-log:list', '操作日志查询', 'BUTTON', 'POST', '/admin/system/oper-logs/search', 1, 0),
     (263, 1, 216, 'system:log:export', '日志导出', 'BUTTON', '*', '/admin/system/logs/export', 1, 0),
@@ -793,19 +793,19 @@ VALUES
     (401, 1, 241, 'base:country:list', '国家地区查询', 'MENU', 'GET', '/base/country', 1, 0),
     (402, 1, 241, 'base:country:add', '国家地区新增', 'BUTTON', '*', '/admin/base/countries/**', 1, 0),
     (403, 1, 241, 'base:country:edit', '国家地区编辑', 'BUTTON', '*', '/admin/base/countries/**', 1, 0),
-    (404, 1, 241, 'base:country:delete', '国家地区删除', 'BUTTON', '*', '/admin/base/countries/**', 1, 0),
+    (404, 1, 241, 'base:country:remove', '国家地区删除', 'BUTTON', '*', '/admin/base/countries/**', 1, 0),
     (405, 1, 241, 'base:country:import', '国家地区导入', 'BUTTON', '*', '/admin/base/countries/import', 1, 0),
     (406, 1, 241, 'base:country:export', '国家地区导出', 'BUTTON', '*', '/admin/base/countries/export', 1, 0),
     (411, 1, 242, 'base:currency:list', '币种查询', 'MENU', 'GET', '/base/currency', 1, 0),
     (412, 1, 242, 'base:currency:add', '币种新增', 'BUTTON', '*', '/admin/base/currencies/**', 1, 0),
     (413, 1, 242, 'base:currency:edit', '币种编辑', 'BUTTON', '*', '/admin/base/currencies/**', 1, 0),
-    (414, 1, 242, 'base:currency:delete', '币种删除', 'BUTTON', '*', '/admin/base/currencies/**', 1, 0),
+    (414, 1, 242, 'base:currency:remove', '币种删除', 'BUTTON', '*', '/admin/base/currencies/**', 1, 0),
     (415, 1, 242, 'base:currency:import', '币种导入', 'BUTTON', '*', '/admin/base/currencies/import', 1, 0),
     (416, 1, 242, 'base:currency:export', '币种导出', 'BUTTON', '*', '/admin/base/currencies/export', 1, 0),
-    (421, 1, 243, 'base:region-currency:list', '地区币种配置查询', 'MENU', 'GET', '/base/region-currency', 1, 0),
-    (422, 1, 243, 'base:region-currency:add', '地区币种配置新增', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
-    (423, 1, 243, 'base:region-currency:edit', '地区币种配置编辑', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
-    (424, 1, 243, 'base:region-currency:delete', '地区币种配置删除', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
+    (421, 1, 243, 'base:countryCurrency:list', '地区币种配置查询', 'MENU', 'GET', '/base/region-currency', 1, 0),
+    (422, 1, 243, 'base:countryCurrency:add', '地区币种配置新增', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
+    (423, 1, 243, 'base:countryCurrency:edit', '地区币种配置编辑', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
+    (424, 1, 243, 'base:countryCurrency:remove', '地区币种配置删除', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
     (501, 1, 251, 'permission:app:list', '应用权限查询', 'MENU', 'GET', '/permission/app', 1, 0),
     (502, 1, 251, 'permission:app:add', '应用权限新增', 'BUTTON', '*', '/admin/permissions/apps/**', 1, 0),
     (503, 1, 251, 'permission:app:edit', '应用权限编辑', 'BUTTON', '*', '/admin/permissions/apps/**', 1, 0),
@@ -1044,3 +1044,234 @@ JOIN sys_account_role ar ON ar.account_id = mu.account_id AND ar.app_id = 2 AND 
 WHERE mu.deleted = 0;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ===================== 部门管理 =====================
+CREATE TABLE IF NOT EXISTS sys_dept (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    app_id BIGINT NOT NULL COMMENT '系统应用ID',
+    parent_id BIGINT NOT NULL DEFAULT 0 COMMENT '父部门ID，0为根节点',
+    dept_name VARCHAR(100) NOT NULL COMMENT '部门名称',
+    sort_no INT NOT NULL DEFAULT 100 COMMENT '显示排序',
+    leader VARCHAR(50) NULL COMMENT '负责人',
+    phone VARCHAR(30) NULL COMMENT '联系电话',
+    email VARCHAR(150) NULL COMMENT '邮箱',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    PRIMARY KEY (id),
+    KEY idx_sys_dept_app_parent (app_id, parent_id, status, deleted),
+    KEY idx_sys_dept_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='部门管理表';
+
+-- ===================== 岗位管理 =====================
+CREATE TABLE IF NOT EXISTS sys_post (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    app_id BIGINT NOT NULL COMMENT '系统应用ID',
+    post_code VARCHAR(80) NOT NULL COMMENT '岗位编码',
+    post_name VARCHAR(100) NOT NULL COMMENT '岗位名称',
+    sort_no INT NOT NULL DEFAULT 100 COMMENT '显示排序',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_sys_post_app_code_deleted (app_id, post_code, deleted),
+    KEY idx_sys_post_deleted (deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='岗位管理表';
+
+-- ===================== 系统监控菜单 =====================
+INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+VALUES
+    (220, 1, 0, 'system_monitor', '系统监控', 'CATALOG', '/monitor', NULL, NULL, 'Monitor', 1, 80, 1, 0),
+    (221, 1, 220, 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 81, 1, 0),
+    (222, 1, 220, 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 82, 1, 0),
+    (223, 1, 220, 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 83, 1, 0);
+
+-- ===================== 部门/岗位/字典/参数/日志权限（挂载到正确的 menu_id） =====================
+INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+VALUES
+    (632, 1, 214, 'system:dept:list', '部门管理查询', 'BUTTON', 'GET', '/admin/system/dept/**', 1, 0),
+    (633, 1, 214, 'system:dept:add', '部门管理新增', 'BUTTON', 'POST', '/admin/system/dept', 1, 0),
+    (634, 1, 214, 'system:dept:edit', '部门管理编辑', 'BUTTON', 'PUT', '/admin/system/dept/**', 1, 0),
+    (635, 1, 214, 'system:dept:remove', '部门管理删除', 'BUTTON', 'DELETE', '/admin/system/dept/**', 1, 0),
+    (636, 1, 217, 'system:post:list', '岗位管理查询', 'BUTTON', 'GET', '/admin/system/post/**', 1, 0),
+    (637, 1, 217, 'system:post:add', '岗位管理新增', 'BUTTON', 'POST', '/admin/system/post', 1, 0),
+    (638, 1, 217, 'system:post:edit', '岗位管理编辑', 'BUTTON', 'PUT', '/admin/system/post/**', 1, 0),
+    (639, 1, 217, 'system:post:remove', '岗位管理删除', 'BUTTON', 'DELETE', '/admin/system/post/**', 1, 0),
+    (640, 1, 218, 'system:config:add', '参数管理新增', 'BUTTON', 'POST', '/admin/system/config/**', 1, 0),
+    (641, 1, 218, 'system:config:edit', '参数管理编辑', 'BUTTON', 'PUT', '/admin/system/config/**', 1, 0),
+    (642, 1, 215, 'system:dict:add', '字典管理新增', 'BUTTON', 'POST', '/admin/system/dict/**', 1, 0),
+    (643, 1, 215, 'system:dict:edit', '字典管理编辑', 'BUTTON', 'PUT', '/admin/system/dict/**', 1, 0);
+
+-- 将新权限授予 admin 角色（role_id=1）
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT 1, 1, id, 0 FROM sys_permission WHERE id BETWEEN 632 AND 643 AND deleted = 0;
+
+-- =============================================================================
+-- 国际化字典种子数据 (sys_dict_type + sys_dict_data)
+-- 覆盖系统管理中所有前端需要的字典类型，支持 zh-CN 和 en-US
+-- =============================================================================
+
+-- ===================== 字典类型定义 =====================
+INSERT IGNORE INTO sys_dict_type (id, dict_name, dict_type, biz_domain, system_builtin, editable, status, deleted) VALUES
+(1,  '系统开关',      'sys_normal_disable',    'system', 1, 0, 1, 0),
+(2,  '显示状态',      'sys_show_hide',          'system', 1, 0, 1, 0),
+(3,  '是否',          'sys_yes_no',             'system', 1, 0, 1, 0),
+(4,  '通知类型',      'sys_notice_type',        'system', 1, 0, 1, 0),
+(5,  '菜单类型',      'sys_menu_type',          'system', 1, 0, 1, 0),
+(6,  '权限类型',      'sys_permission_type',    'system', 1, 0, 1, 0),
+(7,  '操作类型',      'sys_operation_type',     'system', 1, 0, 1, 0),
+(8,  '操作状态',      'sys_oper_status',        'system', 1, 0, 1, 0),
+(9,  '登录状态',      'sys_login_status',       'system', 1, 0, 1, 0),
+(10, '角色类型',      'sys_role_type',          'system', 1, 0, 1, 0),
+(11, '数据范围',      'sys_data_scope',         'system', 1, 0, 1, 0),
+(12, '商户状态',      'sys_merchant_status',    'merchant', 1, 0, 1, 0),
+(13, '风险等级',      'sys_risk_level',         'merchant', 1, 0, 1, 0),
+(14, '配置值类型',    'sys_config_value_type',  'system', 1, 0, 1, 0),
+(15, '用户状态',      'sys_user_status',        'system', 1, 0, 1, 0),
+(16, '账号状态',      'sys_account_status',     'system', 1, 0, 1, 0),
+(17, '岗位状态',      'sys_post_status',        'system', 1, 0, 1, 0);
+
+-- ===================== 字典数据 — zh-CN =====================
+INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale, dict_sort, list_class, is_default, status, deleted) VALUES
+-- 系统开关
+(100, 'sys_normal_disable', '启用', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(101, 'sys_normal_disable', '停用', '0', 'zh-CN', 2, 'danger',  0, 1, 0),
+-- 显示状态
+(110, 'sys_show_hide', '显示', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(111, 'sys_show_hide', '隐藏', '0', 'zh-CN', 2, 'warning', 0, 1, 0),
+-- 是否
+(120, 'sys_yes_no', '是', 'Y', 'zh-CN', 1, 'success', 1, 1, 0),
+(121, 'sys_yes_no', '否', 'N', 'zh-CN', 2, 'danger',  0, 1, 0),
+-- 通知类型
+(130, 'sys_notice_type', '通知',   '1', 'zh-CN', 1, 'primary', 1, 1, 0),
+(131, 'sys_notice_type', '公告',   '2', 'zh-CN', 2, 'warning', 0, 1, 0),
+-- 菜单类型
+(140, 'sys_menu_type', '目录', 'CATALOG', 'zh-CN', 1, 'primary', 1, 1, 0),
+(141, 'sys_menu_type', '菜单', 'MENU',    'zh-CN', 2, 'success', 0, 1, 0),
+(142, 'sys_menu_type', '按钮', 'BUTTON',  'zh-CN', 3, 'warning', 0, 1, 0),
+(143, 'sys_menu_type', '外链', 'LINK',    'zh-CN', 4, 'info',    0, 1, 0),
+-- 权限类型
+(150, 'sys_permission_type', '菜单权限', 'MENU',   'zh-CN', 1, 'primary', 1, 1, 0),
+(151, 'sys_permission_type', '按钮权限', 'BUTTON', 'zh-CN', 2, 'warning', 0, 1, 0),
+(152, 'sys_permission_type', '接口权限', 'API',    'zh-CN', 3, 'success', 0, 1, 0),
+(153, 'sys_permission_type', '数据权限', 'DATA',   'zh-CN', 4, 'info',    0, 1, 0),
+-- 操作类型
+(160, 'sys_operation_type', '新增', '1', 'zh-CN', 1, 'primary', 1, 1, 0),
+(161, 'sys_operation_type', '修改', '2', 'zh-CN', 2, 'warning', 0, 1, 0),
+(162, 'sys_operation_type', '删除', '3', 'zh-CN', 3, 'danger',  0, 1, 0),
+(163, 'sys_operation_type', '查询', '4', 'zh-CN', 4, 'info',    0, 1, 0),
+(164, 'sys_operation_type', '导出', '5', 'zh-CN', 5, 'success', 0, 1, 0),
+(165, 'sys_operation_type', '审核', '6', 'zh-CN', 6, 'warning', 0, 1, 0),
+(166, 'sys_operation_type', '冻结', '7', 'zh-CN', 7, 'danger',  0, 1, 0),
+(167, 'sys_operation_type', '解冻', '8', 'zh-CN', 8, 'success', 0, 1, 0),
+-- 操作状态
+(170, 'sys_oper_status', '成功', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(171, 'sys_oper_status', '失败', '0', 'zh-CN', 2, 'danger',  0, 1, 0),
+-- 登录状态
+(180, 'sys_login_status', '成功', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(181, 'sys_login_status', '失败', '0', 'zh-CN', 2, 'danger',  0, 1, 0),
+-- 角色类型
+(190, 'sys_role_type', '系统角色',   'SYSTEM', 'zh-CN', 1, 'primary', 1, 1, 0),
+(191, 'sys_role_type', '自定义角色', 'CUSTOM', 'zh-CN', 2, 'info',    0, 1, 0),
+-- 数据范围
+(200, 'sys_data_scope', '全部数据权限', 'ALL',      'zh-CN', 1, 'primary', 1, 1, 0),
+(201, 'sys_data_scope', '自身数据权限', 'SELF',     'zh-CN', 2, 'success', 0, 1, 0),
+(202, 'sys_data_scope', '自定义数据权限', 'CUSTOM', 'zh-CN', 3, 'warning', 0, 1, 0),
+(203, 'sys_data_scope', '组织数据权限', 'ORG',      'zh-CN', 4, 'info',    0, 1, 0),
+(204, 'sys_data_scope', '商户数据权限', 'MERCHANT', 'zh-CN', 5, 'info',    0, 1, 0),
+(205, 'sys_data_scope', '店铺数据权限', 'STORE',    'zh-CN', 6, 'info',    0, 1, 0),
+(206, 'sys_data_scope', '渠道数据权限', 'CHANNEL',  'zh-CN', 7, 'info',    0, 1, 0),
+-- 商户状态
+(210, 'sys_merchant_status', '正常', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(211, 'sys_merchant_status', '冻结', '2', 'zh-CN', 2, 'warning', 0, 1, 0),
+(212, 'sys_merchant_status', '关闭', '3', 'zh-CN', 3, 'danger',  0, 1, 0),
+-- 风险等级
+(220, 'sys_risk_level', '低', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(221, 'sys_risk_level', '中', '2', 'zh-CN', 2, 'warning', 0, 1, 0),
+(222, 'sys_risk_level', '高', '3', 'zh-CN', 3, 'danger',  0, 1, 0),
+-- 配置值类型
+(230, 'sys_config_value_type', '字符串', '1', 'zh-CN', 1, 'primary', 1, 1, 0),
+(231, 'sys_config_value_type', '数字',   '2', 'zh-CN', 2, 'success', 0, 1, 0),
+(232, 'sys_config_value_type', '布尔',   '3', 'zh-CN', 3, 'warning', 0, 1, 0),
+(233, 'sys_config_value_type', 'JSON',   '4', 'zh-CN', 4, 'info',    0, 1, 0),
+-- 用户状态 / 账号状态 / 岗位状态 (复用系统开关的值和颜色，仅标签略有不同)
+(240, 'sys_user_status', '正常', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(241, 'sys_user_status', '停用', '0', 'zh-CN', 2, 'danger',  0, 1, 0),
+(250, 'sys_account_status', '正常', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(251, 'sys_account_status', '停用', '0', 'zh-CN', 2, 'danger',  0, 1, 0),
+(260, 'sys_post_status', '正常', '1', 'zh-CN', 1, 'success', 1, 1, 0),
+(261, 'sys_post_status', '停用', '0', 'zh-CN', 2, 'danger',  0, 1, 0);
+
+-- ===================== 字典数据 — en-US =====================
+INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale, dict_sort, list_class, is_default, status, deleted) VALUES
+-- Normal/Disable
+(1100, 'sys_normal_disable', 'Enabled',  '1', 'en-US', 1, 'success', 1, 1, 0),
+(1101, 'sys_normal_disable', 'Disabled', '0', 'en-US', 2, 'danger',  0, 1, 0),
+-- Show/Hide
+(1110, 'sys_show_hide', 'Show', '1', 'en-US', 1, 'success', 1, 1, 0),
+(1111, 'sys_show_hide', 'Hide', '0', 'en-US', 2, 'warning', 0, 1, 0),
+-- Yes/No
+(1120, 'sys_yes_no', 'Yes', 'Y', 'en-US', 1, 'success', 1, 1, 0),
+(1121, 'sys_yes_no', 'No',  'N', 'en-US', 2, 'danger',  0, 1, 0),
+-- Notice Type
+(1130, 'sys_notice_type', 'Notice',       '1', 'en-US', 1, 'primary', 1, 1, 0),
+(1131, 'sys_notice_type', 'Announcement', '2', 'en-US', 2, 'warning', 0, 1, 0),
+-- Menu Type
+(1140, 'sys_menu_type', 'Catalog', 'CATALOG', 'en-US', 1, 'primary', 1, 1, 0),
+(1141, 'sys_menu_type', 'Menu',    'MENU',    'en-US', 2, 'success', 0, 1, 0),
+(1142, 'sys_menu_type', 'Button',  'BUTTON',  'en-US', 3, 'warning', 0, 1, 0),
+(1143, 'sys_menu_type', 'Link',    'LINK',    'en-US', 4, 'info',    0, 1, 0),
+-- Permission Type
+(1150, 'sys_permission_type', 'Menu Permission',       'MENU',   'en-US', 1, 'primary', 1, 1, 0),
+(1151, 'sys_permission_type', 'Button Permission',     'BUTTON', 'en-US', 2, 'warning', 0, 1, 0),
+(1152, 'sys_permission_type', 'API Permission',        'API',    'en-US', 3, 'success', 0, 1, 0),
+(1153, 'sys_permission_type', 'Data Scope Permission', 'DATA',   'en-US', 4, 'info',    0, 1, 0),
+-- Operation Type
+(1160, 'sys_operation_type', 'Create',   '1', 'en-US', 1, 'primary', 1, 1, 0),
+(1161, 'sys_operation_type', 'Update',   '2', 'en-US', 2, 'warning', 0, 1, 0),
+(1162, 'sys_operation_type', 'Delete',   '3', 'en-US', 3, 'danger',  0, 1, 0),
+(1163, 'sys_operation_type', 'Query',    '4', 'en-US', 4, 'info',    0, 1, 0),
+(1164, 'sys_operation_type', 'Export',   '5', 'en-US', 5, 'success', 0, 1, 0),
+(1165, 'sys_operation_type', 'Audit',    '6', 'en-US', 6, 'warning', 0, 1, 0),
+(1166, 'sys_operation_type', 'Freeze',   '7', 'en-US', 7, 'danger',  0, 1, 0),
+(1167, 'sys_operation_type', 'Unfreeze', '8', 'en-US', 8, 'success', 0, 1, 0),
+-- Operation Status
+(1170, 'sys_oper_status', 'Success', '1', 'en-US', 1, 'success', 1, 1, 0),
+(1171, 'sys_oper_status', 'Failure', '0', 'en-US', 2, 'danger',  0, 1, 0),
+-- Login Status
+(1180, 'sys_login_status', 'Success', '1', 'en-US', 1, 'success', 1, 1, 0),
+(1181, 'sys_login_status', 'Failure', '0', 'en-US', 2, 'danger',  0, 1, 0),
+-- Role Type
+(1190, 'sys_role_type', 'System',  'SYSTEM', 'en-US', 1, 'primary', 1, 1, 0),
+(1191, 'sys_role_type', 'Custom',  'CUSTOM', 'en-US', 2, 'info',    0, 1, 0),
+-- Data Scope
+(1200, 'sys_data_scope', 'All Data',          'ALL',      'en-US', 1, 'primary', 1, 1, 0),
+(1201, 'sys_data_scope', 'Self Data',         'SELF',     'en-US', 2, 'success', 0, 1, 0),
+(1202, 'sys_data_scope', 'Custom Data',       'CUSTOM',   'en-US', 3, 'warning', 0, 1, 0),
+(1203, 'sys_data_scope', 'Organization Data', 'ORG',      'en-US', 4, 'info',    0, 1, 0),
+(1204, 'sys_data_scope', 'Merchant Data',     'MERCHANT', 'en-US', 5, 'info',    0, 1, 0),
+(1205, 'sys_data_scope', 'Store Data',        'STORE',    'en-US', 6, 'info',    0, 1, 0),
+(1206, 'sys_data_scope', 'Channel Data',      'CHANNEL',  'en-US', 7, 'info',    0, 1, 0),
+-- Merchant Status
+(1210, 'sys_merchant_status', 'Active', '1', 'en-US', 1, 'success', 1, 1, 0),
+(1211, 'sys_merchant_status', 'Frozen', '2', 'en-US', 2, 'warning', 0, 1, 0),
+(1212, 'sys_merchant_status', 'Closed', '3', 'en-US', 3, 'danger',  0, 1, 0),
+-- Risk Level
+(1220, 'sys_risk_level', 'Low',    '1', 'en-US', 1, 'success', 1, 1, 0),
+(1221, 'sys_risk_level', 'Medium', '2', 'en-US', 2, 'warning', 0, 1, 0),
+(1222, 'sys_risk_level', 'High',   '3', 'en-US', 3, 'danger',  0, 1, 0),
+-- Config Value Type
+(1230, 'sys_config_value_type', 'String',  '1', 'en-US', 1, 'primary', 1, 1, 0),
+(1231, 'sys_config_value_type', 'Number',  '2', 'en-US', 2, 'success', 0, 1, 0),
+(1232, 'sys_config_value_type', 'Boolean', '3', 'en-US', 3, 'warning', 0, 1, 0),
+(1233, 'sys_config_value_type', 'JSON',    '4', 'en-US', 4, 'info',    0, 1, 0),
+-- User / Account / Post Status
+(1240, 'sys_user_status', 'Active',   '1', 'en-US', 1, 'success', 1, 1, 0),
+(1241, 'sys_user_status', 'Inactive', '0', 'en-US', 2, 'danger',  0, 1, 0),
+(1250, 'sys_account_status', 'Active',   '1', 'en-US', 1, 'success', 1, 1, 0),
+(1251, 'sys_account_status', 'Inactive', '0', 'en-US', 2, 'danger',  0, 1, 0),
+(1260, 'sys_post_status', 'Active',   '1', 'en-US', 1, 'success', 1, 1, 0),
+(1261, 'sys_post_status', 'Inactive', '0', 'en-US', 2, 'danger',  0, 1, 0);

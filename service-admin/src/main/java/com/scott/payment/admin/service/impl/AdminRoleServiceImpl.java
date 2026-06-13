@@ -4,12 +4,12 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.SysMenuDTO;
-import com.scott.payment.admin.dto.SysPermissionDTO;
 import com.scott.payment.admin.dto.SysRoleCreateRequest;
 import com.scott.payment.admin.dto.SysRoleDTO;
 import com.scott.payment.admin.dto.SysRoleMenuAuthDTO;
 import com.scott.payment.admin.dto.SysRoleMenuGrantRequest;
 import com.scott.payment.admin.dto.SysRolePermissionAuthDTO;
+import com.scott.payment.admin.dto.SysPermissionDTO;
 import com.scott.payment.admin.dto.SysRolePermissionGrantRequest;
 import com.scott.payment.admin.dto.SysRoleQueryRequest;
 import com.scott.payment.admin.dto.SysRoleStatusRequest;
@@ -22,14 +22,14 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
-import com.scott.payment.component.db.auth.entity.SysPermissionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
+import com.scott.payment.component.db.auth.entity.SysPermissionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleMenuDO;
 import com.scott.payment.component.db.auth.entity.SysRolePermissionDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
+import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
-import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
@@ -249,18 +249,37 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     @DS(DataSourceName.SLAVE)
     public SysRolePermissionAuthDTO rolePermissions(Long roleId) {
         SysAppDO app = getAdminApp();
-        SysRoleDO role = getRole(app.getId(), roleId);
         SysRolePermissionAuthDTO dto = new SysRolePermissionAuthDTO();
+        List<SysPermissionDO> allPermissions = sysPermissionMapper.selectList(
+                Wrappers.<SysPermissionDO>lambdaQuery()
+                        .eq(SysPermissionDO::getAppId, app.getId())
+                        .eq(SysPermissionDO::getDeleted, NOT_DELETED)
+                        .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
+                        .gt(SysPermissionDO::getMenuId, 0L)
+                        .ne(SysPermissionDO::getPermissionCode, "*:*:*")
+                        .orderByAsc(SysPermissionDO::getId)
+        );
+        List<SysPermissionDTO> permissionDTOs = allPermissions.stream()
+                .map(this::toPermissionDTO)
+                .toList();
+        if (roleId == null || roleId <= 0) {
+            dto.setRoleId(0L);
+            dto.setPermissions(permissionDTOs);
+            dto.setCheckedPermissionIds(List.of());
+            return dto;
+        }
+        SysRoleDO role = getRole(app.getId(), roleId);
         dto.setRoleId(role.getId());
         dto.setRoleCode(role.getRoleCode());
         dto.setRoleName(role.getRoleName());
-        dto.setPermissions(loadGrantablePermissions(app.getId()).stream().map(this::toPermissionDTO).toList());
-        dto.setCheckedPermissionIds(sysRolePermissionMapper.selectList(
+        dto.setPermissions(permissionDTOs);
+        List<Long> checkedIds = sysRolePermissionMapper.selectList(
                 Wrappers.<SysRolePermissionDO>lambdaQuery()
                         .eq(SysRolePermissionDO::getAppId, app.getId())
                         .eq(SysRolePermissionDO::getRoleId, role.getId())
                         .eq(SysRolePermissionDO::getDeleted, NOT_DELETED)
-        ).stream().map(SysRolePermissionDO::getPermissionId).toList());
+        ).stream().map(SysRolePermissionDO::getPermissionId).toList();
+        dto.setCheckedPermissionIds(checkedIds);
         return dto;
     }
 
@@ -273,6 +292,9 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         Set<Long> permissionIds = normalizeIds(request.getPermissionIds());
         validatePermissionIds(app.getId(), permissionIds);
         softDeleteRolePermissions(app.getId(), role.getId());
+        if (permissionIds.isEmpty()) {
+            return;
+        }
         LocalDateTime now = LocalDateTime.now();
         permissionIds.forEach(permissionId -> {
             SysRolePermissionDO relation = new SysRolePermissionDO();
@@ -333,11 +355,23 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     private Map<Long, Long> countRolePermissions(Long roleId) {
-        return Map.of(roleId, sysRolePermissionMapper.selectCount(
-                Wrappers.<SysRolePermissionDO>lambdaQuery()
-                        .eq(SysRolePermissionDO::getRoleId, roleId)
-                        .eq(SysRolePermissionDO::getDeleted, NOT_DELETED)
-        ));
+        List<Long> menuIds = sysRoleMenuMapper.selectList(
+                        Wrappers.<SysRoleMenuDO>lambdaQuery()
+                                .eq(SysRoleMenuDO::getRoleId, roleId)
+                                .eq(SysRoleMenuDO::getDeleted, NOT_DELETED)
+                ).stream()
+                .map(SysRoleMenuDO::getMenuId)
+                .toList();
+        if (menuIds.isEmpty()) {
+            return Map.of(roleId, 0L);
+        }
+        Long count = sysMenuMapper.selectCount(
+                Wrappers.<SysMenuDO>lambdaQuery()
+                        .in(SysMenuDO::getId, menuIds)
+                        .eq(SysMenuDO::getDeleted, NOT_DELETED)
+                        .isNotNull(SysMenuDO::getPermissionCode)
+        );
+        return Map.of(roleId, count == null ? 0L : count);
     }
 
     private Integer validStatus(Integer status) {
@@ -404,11 +438,28 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         if (page.getRecords().isEmpty()) {
             return Collections.emptyMap();
         }
-        return sysRolePermissionMapper.selectList(
-                Wrappers.<SysRolePermissionDO>lambdaQuery()
-                        .in(SysRolePermissionDO::getRoleId, page.getRecords().stream().map(SysRoleDO::getId).toList())
-                        .eq(SysRolePermissionDO::getDeleted, NOT_DELETED)
-        ).stream().collect(Collectors.groupingBy(SysRolePermissionDO::getRoleId, Collectors.counting()));
+        List<SysRoleMenuDO> roleMenus = sysRoleMenuMapper.selectList(
+                Wrappers.<SysRoleMenuDO>lambdaQuery()
+                        .in(SysRoleMenuDO::getRoleId, page.getRecords().stream().map(SysRoleDO::getId).toList())
+                        .eq(SysRoleMenuDO::getDeleted, NOT_DELETED)
+        );
+        Set<Long> menuIds = roleMenus.stream()
+                .map(SysRoleMenuDO::getMenuId)
+                .collect(Collectors.toSet());
+        if (menuIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Set<Long> permissionMenuIds = sysMenuMapper.selectList(
+                        Wrappers.<SysMenuDO>lambdaQuery()
+                                .in(SysMenuDO::getId, menuIds)
+                                .eq(SysMenuDO::getDeleted, NOT_DELETED)
+                                .isNotNull(SysMenuDO::getPermissionCode)
+                ).stream()
+                .map(SysMenuDO::getId)
+                .collect(Collectors.toSet());
+        return roleMenus.stream()
+                .filter(item -> permissionMenuIds.contains(item.getMenuId()))
+                .collect(Collectors.groupingBy(SysRoleMenuDO::getRoleId, Collectors.counting()));
     }
 
     private SysRoleDTO toDTO(SysRoleDO role, Map<Long, Long> menuCountMap, Map<Long, Long> permissionCountMap) {
@@ -434,20 +485,8 @@ public class AdminRoleServiceImpl implements AdminRoleService {
                         .eq(SysMenuDO::getAppId, appId)
                         .eq(SysMenuDO::getDeleted, NOT_DELETED)
                         .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
-                        .eq(SysMenuDO::getVisible, AuthConstants.ENABLED)
                         .orderByAsc(SysMenuDO::getSortNo)
                         .orderByAsc(SysMenuDO::getId)
-        );
-    }
-
-    private List<SysPermissionDO> loadGrantablePermissions(Long appId) {
-        return sysPermissionMapper.selectList(
-                Wrappers.<SysPermissionDO>lambdaQuery()
-                        .eq(SysPermissionDO::getAppId, appId)
-                        .eq(SysPermissionDO::getDeleted, NOT_DELETED)
-                        .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
-                        .orderByAsc(SysPermissionDO::getMenuId)
-                        .orderByAsc(SysPermissionDO::getId)
         );
     }
 
@@ -486,19 +525,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
-    private SysPermissionDTO toPermissionDTO(SysPermissionDO permission) {
-        SysPermissionDTO dto = new SysPermissionDTO();
-        dto.setPermissionId(permission.getId());
-        dto.setMenuId(permission.getMenuId());
-        dto.setPermissionCode(permission.getPermissionCode());
-        dto.setPermissionName(permission.getPermissionName());
-        dto.setPermissionType(permission.getPermissionType());
-        dto.setResourceMethod(permission.getResourceMethod());
-        dto.setResourcePath(permission.getResourcePath());
-        dto.setStatus(permission.getStatus());
-        return dto;
-    }
-
     private Set<Long> normalizeIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptySet();
@@ -515,7 +541,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
                         .eq(SysMenuDO::getAppId, appId)
                         .eq(SysMenuDO::getDeleted, NOT_DELETED)
                         .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
-                        .eq(SysMenuDO::getVisible, AuthConstants.ENABLED)
                         .in(SysMenuDO::getId, menuIds)
         );
         if (count == null || count != menuIds.size()) {
@@ -538,4 +563,18 @@ public class AdminRoleServiceImpl implements AdminRoleService {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "permission ids are invalid");
         }
     }
+
+    private SysPermissionDTO toPermissionDTO(SysPermissionDO permission) {
+        SysPermissionDTO dto = new SysPermissionDTO();
+        dto.setPermissionId(permission.getId());
+        dto.setMenuId(permission.getMenuId());
+        dto.setPermissionCode(permission.getPermissionCode());
+        dto.setPermissionName(permission.getPermissionName());
+        dto.setPermissionType(permission.getPermissionType());
+        dto.setResourceMethod(permission.getResourceMethod());
+        dto.setResourcePath(permission.getResourcePath());
+        dto.setStatus(permission.getStatus());
+        return dto;
+    }
+
 }

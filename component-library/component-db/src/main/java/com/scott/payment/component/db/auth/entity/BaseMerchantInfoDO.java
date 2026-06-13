@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -35,9 +37,74 @@ public class BaseMerchantInfoDO {
     private String merchantName;
 
     /**
+     * 商户简称。
+     */
+    private String merchantShortName;
+
+    /**
      * 商户状态。1 表示正常，2 表示冻结，3 表示关闭。
      */
     private Integer merchantStatus;
+
+    /**
+     * 商户类别码 MCC。
+     */
+    private String merchantCategoryCode;
+
+    /**
+     * 国家三字码。
+     */
+    private String countryCode;
+
+    /**
+     * 区域代码。
+     */
+    private String regionCode;
+
+    /**
+     * 城市。
+     */
+    private String city;
+
+    /**
+     * 地址。
+     */
+    private String addressLine;
+
+    /**
+     * 联系邮箱。
+     */
+    private String contactEmail;
+
+    /**
+     * 联系电话。
+     */
+    private String contactPhone;
+
+    /**
+     * 默认结算币种。
+     */
+    private String settlementCurrency;
+
+    /**
+     * 商户业务时区。
+     */
+    private String timezone;
+
+    /**
+     * 风险等级：1 低，2 中，3 高。
+     */
+    private Integer riskLevel;
+
+    /**
+     * 创建时间。
+     */
+    private LocalDateTime gmtCreate;
+
+    /**
+     * 修改时间。
+     */
+    private LocalDateTime gmtModified;
 
     /**
      * 删除标识。

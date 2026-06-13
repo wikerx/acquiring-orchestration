@@ -64,7 +64,7 @@ public class AdminUserController {
     }
 
     @PostMapping("/status")
-    @RequiresPermission("system:user:edit")
+    @RequiresPermission("system:user:changeStatus")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "更新后台用户状态", recordRequest = false, recordResponse = false)
     public CommonResult<Void> updateStatus(@Valid @RequestBody SysUserAccountStatusRequest request) {
@@ -73,7 +73,7 @@ public class AdminUserController {
     }
 
     @PostMapping("/reset-password")
-    @RequiresPermission("system:user:reset-password")
+    @RequiresPermission("system:user:resetPwd")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "重置后台用户密码", recordRequest = false, recordResponse = false)
     public CommonResult<Void> resetPassword(@Valid @RequestBody SysUserAccountResetPasswordRequest request) {

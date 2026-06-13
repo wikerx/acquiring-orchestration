@@ -106,7 +106,6 @@ public class AdminAuthController {
      * @return 当前登录账号、菜单和权限
      */
     @GetMapping("/me")
-    @RequiresPermission("dashboard:view")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
         return success(systemAuthService.currentUser(AuthConstants.APP_ADMIN, authorization));
     }
@@ -118,7 +117,6 @@ public class AdminAuthController {
      * @return 空响应
      */
     @PostMapping("/logout")
-    @RequiresPermission("dashboard:view")
     @OperationLog(moduleName = "后台登录权限", businessType = OperationTypeConstants.UPDATE,
             operation = "管理后台账号退出登录", recordRequest = false, recordResponse = false)
     public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {

@@ -25,7 +25,6 @@ import com.scott.payment.component.db.auth.entity.SysMenuDO;
 import com.scott.payment.component.db.auth.entity.SysPermissionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysRoleMenuDO;
-import com.scott.payment.component.db.auth.entity.SysRolePermissionDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
@@ -38,7 +37,6 @@ import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
-import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
@@ -132,7 +130,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private final SysAccountRoleMapper sysAccountRoleMapper;
     private final SysRoleMenuMapper sysRoleMenuMapper;
     private final SysMenuMapper sysMenuMapper;
-    private final SysRolePermissionMapper sysRolePermissionMapper;
     private final SysPermissionMapper sysPermissionMapper;
     private final SysLoginLogMapper sysLoginLogMapper;
     private final SysLoginSessionMapper sysLoginSessionMapper;
@@ -149,7 +146,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param sysAccountRoleMapper    账号角色 Mapper
      * @param sysRoleMenuMapper       角色菜单 Mapper
      * @param sysMenuMapper           菜单 Mapper
-     * @param sysRolePermissionMapper 角色权限 Mapper
      * @param sysPermissionMapper     权限 Mapper
      * @param sysLoginLogMapper       登录日志 Mapper
      * @param sysLoginSessionMapper   登录会话 Mapper
@@ -163,7 +159,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                  SysAccountRoleMapper sysAccountRoleMapper,
                                  SysRoleMenuMapper sysRoleMenuMapper,
                                  SysMenuMapper sysMenuMapper,
-                                 SysRolePermissionMapper sysRolePermissionMapper,
                                  SysPermissionMapper sysPermissionMapper,
                                  SysLoginLogMapper sysLoginLogMapper,
                                  SysLoginSessionMapper sysLoginSessionMapper,
@@ -176,7 +171,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.sysAccountRoleMapper = sysAccountRoleMapper;
         this.sysRoleMenuMapper = sysRoleMenuMapper;
         this.sysMenuMapper = sysMenuMapper;
-        this.sysRolePermissionMapper = sysRolePermissionMapper;
         this.sysPermissionMapper = sysPermissionMapper;
         this.sysLoginLogMapper = sysLoginLogMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
@@ -370,7 +364,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         String requiredPermission = StringUtils.hasText(permissionCode)
                 ? permissionCode
                 : findRequiredPermission(app.getId(), requestMethod, requestPath);
-        if (StringUtils.hasText(requiredPermission) && !permissionCodes.contains(requiredPermission)) {
+        if (StringUtils.hasText(requiredPermission) && !permissionCodes.contains(requiredPermission) && !permissionCodes.contains("*:*:*")) {
             throw new ServiceException(ApiResultEnum.FORBIDDEN);
         }
         return buildInternalAuthAccount(app, user, account, roleCodes, permissionCodes);
@@ -870,6 +864,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         response.setExpireAt(expireAt);
         response.setAccount(toAccountDTO(app, user, account));
         response.setMenus(queryMenuTree(app.getId(), account.getId()));
+        response.setRoles(queryRoleCodes(app.getId(), account.getId()));
         response.setPermissions(queryPermissionCodes(app.getId(), account.getId()));
         return response;
     }
@@ -968,6 +963,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                         Wrappers.<SysMenuDO>lambdaQuery()
                                 .eq(SysMenuDO::getAppId, appId)
                                 .in(SysMenuDO::getId, menuIds)
+                                .ne(SysMenuDO::getMenuType, "BUTTON")
                                 .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
                                 .eq(SysMenuDO::getVisible, AuthConstants.ENABLED)
                                 .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED)
@@ -990,26 +986,26 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         if (roleIds.isEmpty()) {
             return List.of();
         }
-        Set<Long> permissionIds = sysRolePermissionMapper.selectList(
-                        Wrappers.<SysRolePermissionDO>lambdaQuery()
-                                .eq(SysRolePermissionDO::getAppId, appId)
-                                .in(SysRolePermissionDO::getRoleId, roleIds)
-                                .eq(SysRolePermissionDO::getDeleted, AuthConstants.NOT_DELETED)
+        Set<Long> menuIds = sysRoleMenuMapper.selectList(
+                        Wrappers.<SysRoleMenuDO>lambdaQuery()
+                                .eq(SysRoleMenuDO::getAppId, appId)
+                                .in(SysRoleMenuDO::getRoleId, roleIds)
+                                .eq(SysRoleMenuDO::getDeleted, AuthConstants.NOT_DELETED)
                 ).stream()
-                .map(SysRolePermissionDO::getPermissionId)
+                .map(SysRoleMenuDO::getMenuId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        if (permissionIds.isEmpty()) {
+        if (menuIds.isEmpty()) {
             return List.of();
         }
-        return sysPermissionMapper.selectList(
-                        Wrappers.<SysPermissionDO>lambdaQuery()
-                                .eq(SysPermissionDO::getAppId, appId)
-                                .in(SysPermissionDO::getId, permissionIds)
-                                .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
-                                .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED)
+        return sysMenuMapper.selectList(
+                        Wrappers.<SysMenuDO>lambdaQuery()
+                                .eq(SysMenuDO::getAppId, appId)
+                                .in(SysMenuDO::getId, menuIds)
+                                .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
+                                .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED)
                 ).stream()
-                .map(SysPermissionDO::getPermissionCode)
+                .map(SysMenuDO::getPermissionCode)
                 .filter(StringUtils::hasText)
                 .distinct()
                 .sorted()

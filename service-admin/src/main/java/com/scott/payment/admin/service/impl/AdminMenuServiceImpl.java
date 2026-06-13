@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.scott.payment.admin.converter.MenuConverter;
 import com.scott.payment.admin.dto.SysMenuCreateRequest;
 import com.scott.payment.admin.dto.SysMenuDTO;
 import com.scott.payment.admin.dto.SysMenuQueryRequest;
@@ -57,7 +58,7 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         Integer visibleFilter = query.getVisible();
         if (defaultVisibleMenus) {
             statusFilter = AuthConstants.ENABLED;
-            visibleFilter = AuthConstants.ENABLED;
+            // 菜单管理页默认不过滤 visible，避免按钮类型菜单被隐藏
         }
         List<SysMenuDO> menus = sysMenuMapper.selectList(
                 Wrappers.<SysMenuDO>lambdaQuery()
@@ -236,22 +237,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     private SysMenuDTO toDTO(SysMenuDO menu) {
-        SysMenuDTO dto = new SysMenuDTO();
-        dto.setMenuId(menu.getId());
-        dto.setParentId(menu.getParentId());
-        dto.setMenuCode(menu.getMenuCode());
-        dto.setMenuName(menu.getMenuName());
-        dto.setMenuType(menu.getMenuType());
-        dto.setRoutePath(menu.getRoutePath());
-        dto.setComponentPath(menu.getComponentPath());
-        dto.setPermissionCode(menu.getPermissionCode());
-        dto.setIcon(menu.getIcon());
-        dto.setRedirect(menu.getRedirect());
-        dto.setVisible(menu.getVisible());
-        dto.setKeepAlive(menu.getKeepAlive());
-        dto.setExternalLink(menu.getExternalLink());
-        dto.setSortNo(menu.getSortNo());
-        dto.setStatus(menu.getStatus());
-        return dto;
+        return MenuConverter.INSTANCE.toDTO(menu);
     }
 }

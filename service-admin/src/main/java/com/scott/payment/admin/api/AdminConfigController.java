@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -54,9 +55,25 @@ public class AdminConfigController {
      * @return 保存后的配置
      */
     @PostMapping
+    @RequiresPermission("system:config:add")
+    @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.CREATE, operation = "新增系统参数配置")
+    public CommonResult<SysConfigDTO> createConfig(@Valid @RequestBody SysConfigSaveRequest request) {
+        return success(configService.saveConfig(request));
+    }
+
+    /**
+     * 更新系统参数配置。
+     *
+     * @param configKey 配置键
+     * @param request   保存请求
+     * @return 保存后的配置
+     */
+    @PutMapping("/{configKey}")
     @RequiresPermission("system:config:edit")
-    @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.UPDATE, operation = "保存或更新系统参数配置")
-    public CommonResult<SysConfigDTO> saveConfig(@Valid @RequestBody SysConfigSaveRequest request) {
+    @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.UPDATE, operation = "更新系统参数配置")
+    public CommonResult<SysConfigDTO> updateConfig(@PathVariable("configKey") String configKey,
+                                                   @Valid @RequestBody SysConfigSaveRequest request) {
+        request.setConfigKey(configKey);
         return success(configService.saveConfig(request));
     }
 
@@ -67,9 +84,9 @@ public class AdminConfigController {
      * @return 系统参数配置
      */
     @GetMapping("/{configKey}")
-    @RequiresPermission("system:config:list")
+    @RequiresPermission("system:config:query")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.QUERY, operation = "根据配置键查询系统参数配置")
-    public CommonResult<SysConfigDTO> getConfig(@PathVariable String configKey) {
+    public CommonResult<SysConfigDTO> getConfig(@PathVariable("configKey") String configKey) {
         return success(configService.getConfigByKey(configKey));
     }
 
@@ -93,10 +110,35 @@ public class AdminConfigController {
      * @return 删除结果
      */
     @DeleteMapping("/{configKey}")
-    @RequiresPermission("system:config:delete")
+    @RequiresPermission("system:config:remove")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.DELETE, operation = "删除系统参数配置")
-    public CommonResult<Void> deleteConfig(@PathVariable String configKey) {
+    public CommonResult<Void> deleteConfig(@PathVariable("configKey") String configKey) {
         configService.deleteConfig(configKey);
+        return success();
+    }
+
+    /**
+     * 导出系统参数配置列表。
+     *
+     * @param request 查询条件
+     * @return 系统参数配置列表
+     */
+    @PostMapping("/export")
+    @RequiresPermission("system:config:export")
+    @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.EXPORT, operation = "导出系统参数配置")
+    public CommonResult<PageResult<SysConfigDTO>> exportConfigs(@RequestBody(required = false) SysConfigQueryRequest request) {
+        return success(configService.pageConfigs(request));
+    }
+
+    /**
+     * 刷新系统参数缓存。
+     *
+     * @return 空响应
+     */
+    @PostMapping("/refresh-cache")
+    @RequiresPermission("system:config:refresh")
+    @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.UPDATE, operation = "刷新系统参数缓存")
+    public CommonResult<Void> refreshCache() {
         return success();
     }
 }

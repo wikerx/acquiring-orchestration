@@ -55,6 +55,11 @@ public class AuthLoginResponse implements Serializable {
     private List<AuthMenuDTO> menus = Collections.emptyList();
 
     /**
+     * 当前账号角色编码集合。
+     */
+    private List<String> roles = Collections.emptyList();
+
+    /**
      * 后端权限标识集合。
      */
     private List<String> permissions = Collections.emptyList();
