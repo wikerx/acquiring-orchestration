@@ -13,9 +13,15 @@ import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 
 /**
- * 后台用户应用服务。
- * <p>
- * 当前应用层只负责收敛控制器入口，具体用户、角色、密码和状态规则仍由领域服务承载。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminUserApplicationService
+ * @date : 2026-06-19 20:40
+ * @email : scott_x@163.com
+ * @description : 管理后台用户管理应用服务
+ * @status : create
+ *
+ * <p>当前应用层只负责收敛控制器入口，具体用户、角色、密码和状态规则仍由领域服务承载。</p>
  */
 @Service
 public class AdminUserApplicationService {

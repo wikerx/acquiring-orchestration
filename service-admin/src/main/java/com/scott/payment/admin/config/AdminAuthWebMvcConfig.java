@@ -13,11 +13,12 @@ import java.util.List;
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminAuthWebMvcConfig
- * @date : 2026-06-06 00:00
+ * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台接口自动鉴权配置
+ * @description : 管理后台认证WebMvc配置类
  * @status : create
  */
+
 @Configuration
 public class AdminAuthWebMvcConfig implements WebMvcConfigurer {
 

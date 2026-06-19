@@ -26,7 +26,13 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台数据字典接口入口。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDictController
+ * @date : 2026-06-19 20:40
+ * @email : scott_x@163.com
+ * @description : 管理后台数据字典控制器
+ * @status : create
  *
  * <p>Controller 只处理权限、参数接收和 HTTP 协议映射，具体业务编排交由
  * {@link AdminDictApplicationService}。</p>

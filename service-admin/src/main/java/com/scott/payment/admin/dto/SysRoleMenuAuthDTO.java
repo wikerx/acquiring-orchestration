@@ -11,8 +11,11 @@ import java.util.List;
  * @version : v1.0.0
  * @classname : SysRoleMenuAuthDTO
  * @date : 2026-06-07 00:00
- * @description : 角色菜单授权响应
+ * @email : scott_x@163.com
+ * @description : 管理后台角色菜单授权响应 DTO
  * @status : create
+ *
+ * <p>用于角色菜单授权页面，返回角色基础信息、可选菜单树和当前已勾选菜单主键。</p>
  */
 @Data
 public class SysRoleMenuAuthDTO implements Serializable {

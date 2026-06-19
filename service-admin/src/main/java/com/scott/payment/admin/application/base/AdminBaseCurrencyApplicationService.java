@@ -18,11 +18,37 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 币种基础资料应用服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseCurrencyApplicationService
+ * @date : 2026-06-19 21:09
+ * @email : scott_x@163.com
+ * @description : 币种基础资料应用服务
+ * @status : create
+ *
+ * <p>负责管理后台币种基础资料用例编排，包括分页查询、详情查询、新增、更新、状态切换和逻辑删除。</p>
  */
 @Service
 public class AdminBaseCurrencyApplicationService {
 
+    /**
+     * 默认启用状态。
+     */
+    private static final int DEFAULT_ENABLED_STATUS = 1;
+
+    /**
+     * 逻辑未删除标记。
+     */
+    private static final int NOT_DELETED = 0;
+
+    /**
+     * 逻辑已删除标记。
+     */
+    private static final int DELETED = 1;
+
+    /**
+     * 币种数据访问组件。
+     */
     private final IsoCurrencyMapper isoCurrencyMapper;
 
     /**
@@ -91,9 +117,9 @@ public class AdminBaseCurrencyApplicationService {
         currency.setId(null);
         currency.setCreatedAt(LocalDateTime.now());
         currency.setUpdatedAt(LocalDateTime.now());
-        currency.setDeleted(0);
+        currency.setDeleted(NOT_DELETED);
         if (currency.getStatus() == null) {
-            currency.setStatus(1);
+            currency.setStatus(DEFAULT_ENABLED_STATUS);
         }
         isoCurrencyMapper.insert(currency);
         return currency;
@@ -143,7 +169,7 @@ public class AdminBaseCurrencyApplicationService {
     public void removeCurrency(Long id) {
         IsoCurrencyDO currency = isoCurrencyMapper.selectById(id);
         if (currency != null) {
-            currency.setDeleted(1);
+            currency.setDeleted(DELETED);
             currency.setUpdatedAt(LocalDateTime.now());
             isoCurrencyMapper.updateById(currency);
         }

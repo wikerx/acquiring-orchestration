@@ -12,11 +12,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 部门实体与 DTO 转换器。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DeptConverter
+ * @date : 2026-06-19 20:30
+ * @email : scott_x@163.com
+ * @description : 部门对象转换器
+ * @status : create
+ *
+ * <p>负责部门实体与后台树形 DTO 之间的转换，并提供树结构组装能力。</p>
  */
+
 @Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface DeptConverter {
 
+    /**
+     * 转换器单例。
+     */
     DeptConverter INSTANCE = Mappers.getMapper(DeptConverter.class);
 
     /**

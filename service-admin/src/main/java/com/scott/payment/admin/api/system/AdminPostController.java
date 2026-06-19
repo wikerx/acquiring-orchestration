@@ -22,7 +22,13 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台岗位接口入口。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminPostController
+ * @date : 2026-06-19 20:40
+ * @email : scott_x@163.com
+ * @description : 管理后台岗位管理控制器
+ * @status : create
  *
  * <p>岗位分页、详情和维护请求统一通过
  * {@link AdminPostApplicationService} 编排，Controller 保持为薄入口层。</p>

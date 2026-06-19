@@ -17,15 +17,21 @@ import java.util.Map;
  * @author : scott
  * @version : v1.0.0
  * @classname : MonitorOnlineController
- * @date : 2026-06-12 17:31
+ * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 在线用户监控控制器，查询当前活跃登录会话并支持强制下线
+ * @description : 管理后台在线用户监控控制器
  * @status : create
+ *
+ * <p>系统监控菜单下的在线用户接口入口，负责在线会话列表查询和强制下线的参数接收、
+ * 权限校验与 HTTP 映射，具体会话查询与状态变更由应用服务层处理。</p>
  */
 @RestController
 @RequestMapping("/admin/monitor")
 public class MonitorOnlineController {
 
+    /**
+     * 在线用户监控应用服务。
+     */
     private final AdminMonitorOnlineApplicationService adminMonitorOnlineApplicationService;
 
     /**

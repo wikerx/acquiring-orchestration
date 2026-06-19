@@ -5,8 +5,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 管理后台 OpenAPI 安全材料配置。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminOpenApiSecurityConfig
+ * @date : 2026-06-19 20:30
+ * @email : scott_x@163.com
+ * @description : 管理后台OpenApiSecurity配置类
+ * @status : create
  */
+
 @Configuration
 public class AdminOpenApiSecurityConfig {
 

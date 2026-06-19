@@ -24,9 +24,15 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * 管理后台数据字典领域服务实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDictServiceImpl
+ * @date : 2026-06-19 21:55
+ * @email : scott_x@163.com
+ * @description : 管理后台数据字典领域服务实现
+ * @status : create
  *
- * <p>该类只负责字典主表和字典项的持久化规则，不承担权限控制或页面交互逻辑。</p>
+ * <p>该类只负责字典主表和字典项的持久化规则、唯一键约束与软删除处理，不承担权限控制或页面交互逻辑。</p>
  */
 @Service
 public class AdminDictServiceImpl implements AdminDictService {
@@ -51,7 +57,14 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     private static final String DEFAULT_LOCALE = "zh-CN";
 
+    /**
+     * 字典类型数据访问组件。
+     */
     private final SysDictTypeMapper dictTypeMapper;
+
+    /**
+     * 字典项数据访问组件。
+     */
     private final SysDictDataMapper dictDataMapper;
 
     public AdminDictServiceImpl(SysDictTypeMapper dictTypeMapper, SysDictDataMapper dictDataMapper) {

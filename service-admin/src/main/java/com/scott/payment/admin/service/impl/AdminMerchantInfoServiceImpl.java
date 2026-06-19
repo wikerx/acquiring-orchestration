@@ -36,7 +36,16 @@ import java.util.Base64;
 import java.util.List;
 
 /**
- * 管理后台商户信息服务实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantInfoServiceImpl
+ * @date : 2026-06-19 21:55
+ * @email : scott_x@163.com
+ * @description : 管理后台商户接入资料领域服务实现
+ * @status : create
+ *
+ * <p>负责商户基础资料维护、商户状态切换以及 OpenAPI 密钥材料初始化与轮换等核心领域规则，
+ * 不承担控制器协议适配和权限控制逻辑。</p>
  */
 @Service
 public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {

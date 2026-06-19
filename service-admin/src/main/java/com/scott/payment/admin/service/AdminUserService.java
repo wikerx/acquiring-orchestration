@@ -11,7 +11,15 @@ import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * 后台用户领域服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminUserService
+ * @date : 2026-06-19 21:54
+ * @email : scott_x@163.com
+ * @description : 管理后台用户领域服务
+ * @status : create
+ *
+ * <p>负责后台用户维护、状态变更、密码重置和角色授权等核心领域规则，不处理控制器协议适配。</p>
  */
 public interface AdminUserService {
 

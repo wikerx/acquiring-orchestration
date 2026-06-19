@@ -9,8 +9,11 @@ import java.time.LocalDateTime;
  * @version : v1.0.0
  * @classname : SysRoleDTO
  * @date : 2026-06-07 00:00
- * @description : 管理后台角色响应对象
+ * @email : scott_x@163.com
+ * @description : 管理后台角色响应 DTO
  * @status : create
+ *
+ * <p>用于角色列表、详情和授权页展示，承载角色基础信息及已分配菜单、权限数量摘要。</p>
  */
 @Data
 public class SysRoleDTO {

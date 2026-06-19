@@ -12,8 +12,11 @@ import java.util.List;
  * @version : v1.0.0
  * @classname : SysRolePermissionGrantRequest
  * @date : 2026-06-07 00:00
- * @description : 角色权限授权保存请求
+ * @email : scott_x@163.com
+ * @description : 管理后台角色权限授权保存请求 DTO
  * @status : create
+ *
+ * <p>用于提交角色权限授权结果，承载角色主键和本次授予的权限主键集合。</p>
  */
 @Data
 public class SysRolePermissionGrantRequest implements Serializable {

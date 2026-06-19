@@ -21,7 +21,13 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台菜单接口入口。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMenuController
+ * @date : 2026-06-19 20:40
+ * @email : scott_x@163.com
+ * @description : 管理后台菜单管理控制器
+ * @status : create
  *
  * <p>菜单树查询、菜单维护和状态切换均通过
  * {@link AdminMenuApplicationService} 编排，Controller 仅负责 HTTP 入口职责。</p>

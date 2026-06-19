@@ -12,8 +12,11 @@ import java.io.Serializable;
  * @version : v1.0.0
  * @classname : SysUserAccountResetPasswordRequest
  * @date : 2026-06-07 00:00
- * @description : 管理后台用户重置密码请求
+ * @email : scott_x@163.com
+ * @description : 管理后台用户重置密码请求 DTO
  * @status : create
+ *
+ * <p>用于后台管理员重置指定用户密码，承载账号主键和新的明文密码入参。</p>
  */
 @Data
 public class SysUserAccountResetPasswordRequest implements Serializable {

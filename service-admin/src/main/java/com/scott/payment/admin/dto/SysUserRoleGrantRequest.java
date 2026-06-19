@@ -10,8 +10,11 @@ import java.util.List;
  * @version : v1.0.0
  * @classname : SysUserRoleGrantRequest
  * @date : 2026-06-07 00:00
- * @description : 后台用户角色授权请求对象
+ * @email : scott_x@163.com
+ * @description : 管理后台用户角色授权请求 DTO
  * @status : create
+ *
+ * <p>用于提交用户角色授权结果，承载账号主键和本次授予的角色主键集合。</p>
  */
 @Data
 public class SysUserRoleGrantRequest {

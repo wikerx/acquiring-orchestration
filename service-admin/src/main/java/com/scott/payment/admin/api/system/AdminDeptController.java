@@ -21,7 +21,13 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台部门接口入口。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDeptController
+ * @date : 2026-06-19 20:40
+ * @email : scott_x@163.com
+ * @description : 管理后台部门管理控制器
+ * @status : create
  *
  * <p>部门树、详情和维护请求统一通过
  * {@link AdminDeptApplicationService} 编排，Controller 保持为薄入口层。</p>

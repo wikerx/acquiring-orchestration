@@ -11,9 +11,16 @@ import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 
 /**
- * 商户接入资料应用服务。
- * <p>
- * 负责承接管理后台入口，把商户资料维护与密钥编排统一收敛到应用层，避免控制器直接触达领域服务细节。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantInfoApplicationService
+ * @date : 2026-06-19 21:19
+ * @email : scott_x@163.com
+ * @description : 商户接入资料应用服务
+ * @status : create
+ *
+ * <p>负责承接管理后台商户管理入口，把商户资料维护与 OpenAPI 密钥材料编排统一收敛到应用层，
+ * 避免控制器直接触达领域服务细节。</p>
  */
 @Service
 public class AdminMerchantInfoApplicationService {

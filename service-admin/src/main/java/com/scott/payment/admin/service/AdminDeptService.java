@@ -6,9 +6,15 @@ import com.scott.payment.component.db.auth.entity.SysDeptDO;
 import java.util.List;
 
 /**
- * 后台部门领域服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDeptService
+ * @date : 2026-06-19 21:52
+ * @email : scott_x@163.com
+ * @description : 管理后台部门领域服务
+ * @status : create
  *
- * <p>负责部门树查询、部门维护和 admin 应用归属校验等领域规则。</p>
+ * <p>负责部门树查询、部门维护和 admin 应用归属校验等领域规则，不处理控制器协议适配逻辑。</p>
  */
 public interface AdminDeptService {
 

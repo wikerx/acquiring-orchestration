@@ -12,7 +12,15 @@ import com.scott.payment.admin.dto.SysRoleUpdateRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * 后台角色领域服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminRoleService
+ * @date : 2026-06-19 21:54
+ * @email : scott_x@163.com
+ * @description : 管理后台角色领域服务
+ * @status : create
+ *
+ * <p>负责后台角色维护、状态切换、菜单授权和权限授权等核心领域规则，不处理控制器协议适配。</p>
  */
 public interface AdminRoleService {
 

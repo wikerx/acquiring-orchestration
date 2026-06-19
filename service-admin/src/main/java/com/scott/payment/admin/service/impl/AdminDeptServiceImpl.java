@@ -18,12 +18,27 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 后台部门领域服务实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDeptServiceImpl
+ * @date : 2026-06-19 21:54
+ * @email : scott_x@163.com
+ * @description : 管理后台部门领域服务实现
+ * @status : create
+ *
+ * <p>负责部门树组装、部门维护和 admin 应用归属校验等领域规则，不承担权限控制或页面交互逻辑。</p>
  */
 @Service
 public class AdminDeptServiceImpl implements AdminDeptService {
 
+    /**
+     * 部门数据访问组件。
+     */
     private final SysDeptMapper sysDeptMapper;
+
+    /**
+     * 应用数据访问组件。
+     */
     private final SysAppMapper sysAppMapper;
 
     /**

@@ -8,11 +8,12 @@ import org.springframework.web.bind.annotation.RestController;
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminHealthController
- * @date : 2026-05-28 10:28
+ * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 后台管理服务健康检查控制器
+ * @description : 管理后台健康检查控制器
  * @status : create
  */
+
 @RestController
 public class AdminHealthController {
 

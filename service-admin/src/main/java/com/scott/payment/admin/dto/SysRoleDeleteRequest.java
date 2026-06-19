@@ -10,8 +10,11 @@ import java.io.Serializable;
  * @version : v1.0.0
  * @classname : SysRoleDeleteRequest
  * @date : 2026-06-07 00:00
- * @description : 管理后台角色删除请求
+ * @email : scott_x@163.com
+ * @description : 管理后台角色删除请求 DTO
  * @status : create
+ *
+ * <p>用于删除指定角色，仅承载目标角色主键。</p>
  */
 @Data
 public class SysRoleDeleteRequest implements Serializable {

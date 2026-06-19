@@ -49,8 +49,12 @@ import java.util.stream.Collectors;
  * @version : v1.0.0
  * @classname : AdminUserServiceImpl
  * @date : 2026-06-06 00:00
- * @description : 管理后台用户服务实现
+ * @email : scott_x@163.com
+ * @description : 管理后台用户领域服务实现
  * @status : create
+ *
+ * <p>负责后台用户维护、状态变更、密码重置和角色授权等核心领域规则，
+ * 不承担控制器协议适配和页面交互逻辑。</p>
  */
 @Service
 public class AdminUserServiceImpl implements AdminUserService {

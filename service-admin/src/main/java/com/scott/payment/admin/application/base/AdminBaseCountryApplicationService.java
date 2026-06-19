@@ -18,11 +18,37 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 国家地区基础资料应用服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseCountryApplicationService
+ * @date : 2026-06-19 21:08
+ * @email : scott_x@163.com
+ * @description : 国家地区基础资料应用服务
+ * @status : create
+ *
+ * <p>负责管理后台国家地区基础资料用例编排，包括分页查询、详情查询、新增、更新、状态切换和逻辑删除。</p>
  */
 @Service
 public class AdminBaseCountryApplicationService {
 
+    /**
+     * 默认启用状态。
+     */
+    private static final int DEFAULT_ENABLED_STATUS = 1;
+
+    /**
+     * 逻辑未删除标记。
+     */
+    private static final int NOT_DELETED = 0;
+
+    /**
+     * 逻辑已删除标记。
+     */
+    private static final int DELETED = 1;
+
+    /**
+     * 国家地区数据访问组件。
+     */
     private final IsoCountryMapper isoCountryMapper;
 
     /**
@@ -94,9 +120,9 @@ public class AdminBaseCountryApplicationService {
         country.setId(null);
         country.setCreatedAt(LocalDateTime.now());
         country.setUpdatedAt(LocalDateTime.now());
-        country.setDeleted(0);
+        country.setDeleted(NOT_DELETED);
         if (country.getStatus() == null) {
-            country.setStatus(1);
+            country.setStatus(DEFAULT_ENABLED_STATUS);
         }
         isoCountryMapper.insert(country);
         return country;
@@ -146,7 +172,7 @@ public class AdminBaseCountryApplicationService {
     public void removeCountry(Long id) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country != null) {
-            country.setDeleted(1);
+            country.setDeleted(DELETED);
             country.setUpdatedAt(LocalDateTime.now());
             isoCountryMapper.updateById(country);
         }

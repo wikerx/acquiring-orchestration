@@ -14,15 +14,21 @@ import java.util.Map;
  * @author : scott
  * @version : v1.0.0
  * @classname : MonitorServerController
- * @date : 2026-06-12 17:30
+ * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 服务监控控制器，提供 CPU、内存、JVM、磁盘等服务器运行信息
+ * @description : 管理后台服务器监控控制器
  * @status : create
+ *
+ * <p>系统监控菜单下的服务器信息接口入口，负责服务监控相关 HTTP 映射与权限校验，
+ * 具体节点运行指标采集由应用服务层完成。</p>
  */
 @RestController
 @RequestMapping("/admin/monitor")
 public class MonitorServerController {
 
+    /**
+     * 服务器监控应用服务。
+     */
     private final AdminMonitorServerApplicationService adminMonitorServerApplicationService;
 
     /**

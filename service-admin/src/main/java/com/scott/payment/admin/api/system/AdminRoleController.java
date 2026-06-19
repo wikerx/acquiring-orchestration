@@ -30,7 +30,8 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @version : v1.0.0
  * @classname : AdminRoleController
  * @date : 2026-06-07 00:00
- * @description : 管理后台角色内部接口
+ * @email : scott_x@163.com
+ * @description : 管理后台角色管理控制器
  * @status : create
  */
 @RestController
@@ -96,7 +97,7 @@ public class AdminRoleController {
      * @return 空响应
      */
     @PostMapping("/status")
-    @RequiresPermission("system:role:changeStatus")
+    @RequiresPermission("system:role:edit")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "更新后台角色状态", recordRequest = false, recordResponse = false)
     public CommonResult<Void> updateStatus(@Valid @RequestBody SysRoleStatusRequest request) {
@@ -111,7 +112,7 @@ public class AdminRoleController {
      * @return 空响应
      */
     @PostMapping("/delete")
-    @RequiresPermission("system:role:remove")
+    @RequiresPermission("system:role:delete")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.DELETE,
             operation = "删除后台角色", recordRequest = false, recordResponse = false)
     public CommonResult<Void> deleteRole(@Valid @RequestBody SysRoleDeleteRequest request) {
@@ -126,7 +127,7 @@ public class AdminRoleController {
      * @return 角色菜单授权信息
      */
     @PostMapping("/menus")
-    @RequiresPermission("system:role:dataScope")
+    @RequiresPermission("system:role:assign-menu")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询角色菜单授权")
     public CommonResult<SysRoleMenuAuthDTO> roleMenus(@Valid @RequestBody SysRoleDeleteRequest request) {
@@ -140,7 +141,7 @@ public class AdminRoleController {
      * @return 空响应
      */
     @PostMapping("/menus/grant")
-    @RequiresPermission("system:role:dataScope")
+    @RequiresPermission("system:role:assign-menu")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "保存角色菜单授权", recordRequest = false, recordResponse = false)
     public CommonResult<Void> grantMenus(@Valid @RequestBody SysRoleMenuGrantRequest request) {
@@ -155,7 +156,7 @@ public class AdminRoleController {
      * @return 角色权限授权信息
      */
     @PostMapping("/permissions")
-    @RequiresPermission("system:role:dataScope")
+    @RequiresPermission("system:role:assign-permission")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询角色权限授权")
     public CommonResult<SysRolePermissionAuthDTO> rolePermissions(@Valid @RequestBody SysRoleDeleteRequest request) {
@@ -169,7 +170,7 @@ public class AdminRoleController {
      * @return 空响应
      */
     @PostMapping("/permissions/grant")
-    @RequiresPermission("system:role:dataScope")
+    @RequiresPermission("system:role:assign-permission")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "保存角色权限授权", recordRequest = false, recordResponse = false)
     public CommonResult<Void> grantPermissions(@Valid @RequestBody SysRolePermissionGrantRequest request) {

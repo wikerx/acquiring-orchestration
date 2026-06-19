@@ -9,8 +9,11 @@ import java.time.LocalDateTime;
  * @version : v1.0.0
  * @classname : SysUserAccountDTO
  * @date : 2026-06-06 00:00
+ * @email : scott_x@163.com
  * @description : 管理后台用户账号响应 DTO
  * @status : create
+ *
+ * <p>用于用户列表与详情展示，承载账号标识、联系人信息、状态和最近登录摘要。</p>
  */
 @Data
 public class SysUserAccountDTO {

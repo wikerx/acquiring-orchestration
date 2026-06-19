@@ -14,12 +14,24 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 地区币种配置控制器 — 管理国家/地区与币种的关联关系
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseRegionCurrencyController
+ * @date : 2026-06-19 21:07
+ * @email : scott_x@163.com
+ * @description : 管理后台地区币种配置控制器
+ * @status : create
+ *
+ * <p>地区币种配置接口入口，负责国家/地区与默认币种关联关系的参数接收、权限校验和 HTTP 映射，
+ * 具体业务编排与映射数据组装由应用服务层完成。</p>
  */
 @RestController
 @RequestMapping("/admin/base/region-currencies")
 public class AdminBaseRegionCurrencyController {
 
+    /**
+     * 地区币种配置应用服务。
+     */
     private final AdminBaseRegionCurrencyApplicationService adminBaseRegionCurrencyApplicationService;
 
     /**

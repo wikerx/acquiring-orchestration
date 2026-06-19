@@ -19,7 +19,15 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * 后台系统参数配置领域服务实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminConfigServiceImpl
+ * @date : 2026-06-19 21:54
+ * @email : scott_x@163.com
+ * @description : 管理后台系统参数配置领域服务实现
+ * @status : create
+ *
+ * <p>负责系统参数配置的持久化规则、唯一键校验与软删除处理，不承担接口协议适配或权限控制逻辑。</p>
  */
 @Service
 public class AdminConfigServiceImpl implements AdminConfigService {

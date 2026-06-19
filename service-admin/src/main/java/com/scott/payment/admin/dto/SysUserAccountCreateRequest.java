@@ -12,8 +12,11 @@ import java.io.Serializable;
  * @version : v1.0.0
  * @classname : SysUserAccountCreateRequest
  * @date : 2026-06-07 00:00
- * @description : 管理后台用户新增请求
+ * @email : scott_x@163.com
+ * @description : 管理后台用户新增请求 DTO
  * @status : create
+ *
+ * <p>用于新增后台用户账号，承载登录账号、登录密码和基础联系人信息。</p>
  */
 @Data
 public class SysUserAccountCreateRequest implements Serializable {

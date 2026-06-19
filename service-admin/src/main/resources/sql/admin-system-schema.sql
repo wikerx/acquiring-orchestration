@@ -736,7 +736,7 @@ VALUES
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),
     (214, 1, 211, 'system:user:delete', '用户删除', 'BUTTON', 'DELETE', '/admin/system/users/**', 1, 0),
-    (215, 1, 211, 'system:user:reset-password', '用户重置密码', 'BUTTON', 'POST', '/admin/system/users/reset-password', 1, 0),
+    (215, 1, 211, 'system:user:resetPwd', '用户重置密码', 'BUTTON', 'POST', '/admin/system/users/reset-password', 1, 0),
     (216, 1, 211, 'system:user:assign-role', '用户分配角色', 'BUTTON', 'POST', '/admin/system/users/roles*', 1, 0),
     (221, 1, 212, 'system:role:list', '角色管理查询', 'MENU', 'POST', '/admin/system/roles/search', 1, 0),
     (222, 1, 212, 'system:role:add', '角色新增', 'BUTTON', '*', '/admin/system/roles/**', 1, 0),
@@ -848,7 +848,7 @@ SET resource_method = CASE permission_code
         WHEN 'dashboard:view' THEN 'GET'
         WHEN 'system:user:list' THEN 'POST'
         WHEN 'system:user:add' THEN 'POST'
-        WHEN 'system:user:reset-password' THEN 'POST'
+        WHEN 'system:user:resetPwd' THEN 'POST'
         WHEN 'system:user:assign-role' THEN 'POST'
         WHEN 'system:role:list' THEN 'POST'
         WHEN 'system:role:assign-menu' THEN 'POST'
@@ -862,7 +862,7 @@ SET resource_method = CASE permission_code
         WHEN 'dashboard:view' THEN '/admin/auth/me'
         WHEN 'system:user:list' THEN '/admin/system/users/search'
         WHEN 'system:user:add' THEN '/admin/system/users/create'
-        WHEN 'system:user:reset-password' THEN '/admin/system/users/reset-password'
+        WHEN 'system:user:resetPwd' THEN '/admin/system/users/reset-password'
         WHEN 'system:user:assign-role' THEN '/admin/system/users/roles*'
         WHEN 'system:role:list' THEN '/admin/system/roles/search'
         WHEN 'system:role:assign-menu' THEN '/admin/system/roles/menus*'
@@ -877,7 +877,7 @@ WHERE app_id = 1
       'dashboard:view',
       'system:user:list',
       'system:user:add',
-      'system:user:reset-password',
+      'system:user:resetPwd',
       'system:user:assign-role',
       'system:role:list',
       'system:role:assign-menu',
@@ -1087,7 +1087,10 @@ VALUES
     (220, 1, 0, 'system_monitor', '系统监控', 'CATALOG', '/monitor', NULL, NULL, 'Monitor', 1, 80, 1, 0),
     (221, 1, 220, 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 81, 1, 0),
     (222, 1, 220, 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 82, 1, 0),
-    (223, 1, 220, 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 83, 1, 0);
+    (223, 1, 220, 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 83, 1, 0),
+    (224, 1, 220, 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 84, 1, 0),
+    (225, 1, 220, 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 85, 1, 0),
+    (226, 1, 220, 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 86, 1, 0);
 
 -- ===================== 部门/岗位/字典/参数/日志权限（挂载到正确的 menu_id） =====================
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
@@ -1103,11 +1106,40 @@ VALUES
     (640, 1, 218, 'system:config:add', '参数管理新增', 'BUTTON', 'POST', '/admin/system/config/**', 1, 0),
     (641, 1, 218, 'system:config:edit', '参数管理编辑', 'BUTTON', 'PUT', '/admin/system/config/**', 1, 0),
     (642, 1, 215, 'system:dict:add', '字典管理新增', 'BUTTON', 'POST', '/admin/system/dict/**', 1, 0),
-    (643, 1, 215, 'system:dict:edit', '字典管理编辑', 'BUTTON', 'PUT', '/admin/system/dict/**', 1, 0);
+    (643, 1, 215, 'system:dict:edit', '字典管理编辑', 'BUTTON', 'PUT', '/admin/system/dict/**', 1, 0),
+    (644, 1, 223, 'system:cache:query', '缓存详情查询', 'BUTTON', 'GET', '/admin/monitor/cache/keys', 1, 0),
+    (645, 1, 223, 'system:cache:clear', '缓存删除', 'BUTTON', 'DELETE', '/admin/monitor/cache/key', 1, 0),
+    (646, 1, 224, 'monitor:job:handler:list', '任务处理器查询', 'BUTTON', 'GET', '/admin/monitor/job/handlers', 1, 0),
+    (647, 1, 224, 'monitor:job:query', '任务详情', 'BUTTON', 'POST', '/admin/monitor/job/search', 1, 0),
+    (648, 1, 224, 'monitor:job:add', '任务新增', 'BUTTON', 'POST', '/admin/monitor/job', 1, 0),
+    (649, 1, 224, 'monitor:job:edit', '任务修改', 'BUTTON', 'PUT', '/admin/monitor/job/**', 1, 0),
+    (650, 1, 224, 'monitor:job:remove', '任务删除', 'BUTTON', 'DELETE', '/admin/monitor/job/**', 1, 0),
+    (651, 1, 224, 'monitor:job:run', '任务手动执行', 'BUTTON', 'POST', '/admin/monitor/job/**/trigger', 1, 0),
+    (652, 1, 224, 'monitor:job:start', '任务启用', 'BUTTON', 'PUT', '/admin/monitor/job/**/status', 1, 0),
+    (653, 1, 224, 'monitor:job:stop', '任务停用', 'BUTTON', 'PUT', '/admin/monitor/job/**/status', 1, 0),
+    (654, 1, 225, 'monitor:jobLog:query', '任务日志详情', 'BUTTON', 'POST', '/admin/monitor/job-log/search', 1, 0),
+    (658, 1, 226, 'monitor:jobNode:query', '任务节点详情', 'BUTTON', 'GET', '/admin/monitor/job-node/list', 1, 0),
+    (659, 1, 226, 'monitor:jobNode:refresh', '任务节点刷新', 'BUTTON', 'GET', '/admin/monitor/job-node/list', 1, 0);
+
+INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+VALUES
+    (389, 1, 224, 'monitor_job_query', '任务详情', 'BUTTON', NULL, NULL, 'monitor:job:query', NULL, 0, 1, 1, 0),
+    (390, 1, 224, 'monitor_job_add', '任务新增', 'BUTTON', NULL, NULL, 'monitor:job:add', NULL, 0, 2, 1, 0),
+    (391, 1, 224, 'monitor_job_edit', '任务修改', 'BUTTON', NULL, NULL, 'monitor:job:edit', NULL, 0, 3, 1, 0),
+    (392, 1, 224, 'monitor_job_remove', '任务删除', 'BUTTON', NULL, NULL, 'monitor:job:remove', NULL, 0, 4, 1, 0),
+    (393, 1, 224, 'monitor_job_run', '手动执行', 'BUTTON', NULL, NULL, 'monitor:job:run', NULL, 0, 5, 1, 0),
+    (394, 1, 224, 'monitor_job_start', '任务启用', 'BUTTON', NULL, NULL, 'monitor:job:start', NULL, 0, 6, 1, 0),
+    (395, 1, 224, 'monitor_job_stop', '任务停用', 'BUTTON', NULL, NULL, 'monitor:job:stop', NULL, 0, 7, 1, 0),
+    (396, 1, 225, 'monitor_job_log_query', '日志详情', 'BUTTON', NULL, NULL, 'monitor:jobLog:query', NULL, 0, 1, 1, 0),
+    (400, 1, 226, 'monitor_job_node_query', '节点详情', 'BUTTON', NULL, NULL, 'monitor:jobNode:query', NULL, 0, 1, 1, 0),
+    (401, 1, 226, 'monitor_job_node_refresh', '节点刷新', 'BUTTON', NULL, NULL, 'monitor:jobNode:refresh', NULL, 0, 2, 1, 0);
 
 -- 将新权限授予 admin 角色（role_id=1）
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
-SELECT 1, 1, id, 0 FROM sys_permission WHERE id BETWEEN 632 AND 643 AND deleted = 0;
+SELECT 1, 1, id, 0 FROM sys_permission WHERE id BETWEEN 632 AND 659 AND deleted = 0;
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT 1, 1, id, 0 FROM sys_menu WHERE id BETWEEN 389 AND 401 AND deleted = 0;
 
 -- =============================================================================
 -- 国际化字典种子数据 (sys_dict_type + sys_dict_data)

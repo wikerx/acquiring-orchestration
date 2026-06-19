@@ -7,9 +7,16 @@ import com.scott.payment.component.web.operation.service.OperationLogRecorder;
 import org.springframework.stereotype.Component;
 
 /**
- * `service-admin` 本地操作日志落库记录器。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminOperationLogRecorder
+ * @date : 2026-06-19 21:55
+ * @email : scott_x@163.com
+ * @description : service-admin 本地操作日志落库记录器
+ * @status : create
  *
- * <p>负责将组件层采集到的通用操作日志记录转换为后台审计日志写入请求。</p>
+ * <p>负责将组件层采集到的通用操作日志记录转换为后台审计日志写入请求，
+ * 作为 component-web 与 service-admin 审计领域服务之间的桥接适配器。</p>
  */
 @Component
 public class AdminOperationLogRecorder implements OperationLogRecorder {

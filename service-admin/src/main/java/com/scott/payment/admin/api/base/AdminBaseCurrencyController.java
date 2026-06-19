@@ -15,12 +15,24 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 币种管理控制器 — 提供 ISO 4217 币种的增删改查分页接口
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseCurrencyController
+ * @date : 2026-06-19 21:06
+ * @email : scott_x@163.com
+ * @description : 管理后台币种管理控制器
+ * @status : create
+ *
+ * <p>币种管理接口入口，负责 ISO 4217 币种资料的参数接收、权限校验和 HTTP 映射，
+ * 具体业务编排与数据处理由应用服务层完成。</p>
  */
 @RestController
 @RequestMapping("/admin/base/currencies")
 public class AdminBaseCurrencyController {
 
+    /**
+     * 币种基础资料应用服务。
+     */
     private final AdminBaseCurrencyApplicationService adminBaseCurrencyApplicationService;
 
     /**

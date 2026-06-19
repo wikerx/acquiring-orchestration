@@ -25,7 +25,7 @@
 * `component-library/component-web`：Web 通用配置、统一异常处理、操作日志切面、内部鉴权拦截。
 * `component-library/component-db`：MyBatis Plus 公共实体、Mapper、认证与 RBAC 支撑、ISO 字典能力。
 * `component-library/component-security`：OpenAPI JWT、签名、加密、密钥、重放保护工具。
-* `component-library/component-redis`、`component-http`、`component-mq`、`component-job`：Redis、HTTP、RocketMQ、任务基础封装。
+* `component-library/component-redis`、`component-http`、`component-mq`、`component-job`：Redis、HTTP、RocketMQ、轻量级任务调度共享契约基础封装。
 
 ### 业务模块
 
@@ -37,7 +37,7 @@
 * `service-openapi`：商户开放接口入口服务。
 * `service-payment`：收单支付核心服务。
 * `service-payout`：代付核心服务。
-* `service-job`：定时任务服务。
+* `service-job`：轻量级任务调度中心与定时任务服务。
 
 ### 当前真实背景说明
 
@@ -727,4 +727,3 @@ NoopMqProducer
 * 直接修改 `/etc/codex/skills`
 * 直接安装会执行脚本的 Skill
 * 直接安装带未知依赖的 Skill
-

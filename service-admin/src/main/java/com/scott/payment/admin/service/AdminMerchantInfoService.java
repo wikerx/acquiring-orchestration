@@ -9,7 +9,15 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * 管理后台商户信息服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantInfoService
+ * @date : 2026-06-19 21:53
+ * @email : scott_x@163.com
+ * @description : 管理后台商户接入资料领域服务
+ * @status : create
+ *
+ * <p>负责商户基础资料维护、状态管理与 OpenAPI 密钥材料编排等核心领域能力，不处理 HTTP 协议细节。</p>
  */
 public interface AdminMerchantInfoService {
 

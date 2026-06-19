@@ -377,29 +377,28 @@ component-mq -> service-*
 
 ### 4.7 component-job
 
-定位：XXL-JOB 基础能力。
+定位：轻量级任务调度共享契约基础能力。
 
 建议包结构：
 
 ```text
 component-job
 └── src/main/java/com/scott/payment/component/job
-    ├── config
-    │   └── XxlJobConfig.java
+    ├── enums
+    ├── executor
     ├── model
     │   └── JobExecuteResult.java
     ├── handler
     │   └── AbstractJobHandler.java
-    └── log
-        └── JobLogHelper.java
+    └── compatibility
 ```
 
 职责：
 
-1. XXL-JOB 配置；
-2. 任务执行器基类；
-3. 任务执行结果模型；
-4. 任务日志工具。
+1. 任务状态、执行模式、调度模式等共享枚举；
+2. JobHandler / AsyncJobHandler 共享接口；
+3. JobExecuteContext、JobHandlerDescriptor、JobExecuteResult 共享模型；
+4. 历史字符串参数处理器兼容适配。
 
 推荐依赖：
 
@@ -737,16 +736,18 @@ channel-library
 
 ### 5.9 service-job
 
-定位：定时任务执行服务。
+定位：轻量级任务调度中心与任务执行服务。
 
 职责：
 
-1. 支付订单超时关闭；
-2. 渠道订单状态补偿查询；
-3. 代付订单状态补偿查询；
-4. 对账文件拉取任务预留；
-5. 结算任务预留；
-6. 清算任务预留。
+1. 任务定义管理；
+2. Cron 定时调度；
+3. 手动执行一次；
+4. 单机与分布式调度；
+5. 执行节点心跳；
+6. 执行日志、超时补偿与失败重试；
+7. 白名单 JobHandler 执行；
+8. 支付订单超时关闭、状态补偿、对账结算等业务任务承载。
 
 建议包结构：
 
@@ -754,13 +755,26 @@ channel-library
 service-job
 └── src/main/java/com/scott/payment/job
     ├── JobApplication.java
+    ├── api
+    │   └── internal
+    ├── application
+    ├── converter
+    ├── entity
+    ├── executor
     ├── handler
-    │   ├── PaymentTimeoutCloseJob.java
-    │   ├── PaymentStatusSyncJob.java
-    │   └── PayoutStatusSyncJob.java
-    ├── client
+    ├── mapper
+    ├── scheduler
+    ├── service
+    ├── support
     └── config
 ```
+
+说明：
+
+1. `service-job` 自身承载调度扫描、锁抢占、执行分发、日志落库和节点心跳。
+2. `service-admin` 只负责管理后台入口、权限和操作日志，不直接写调度逻辑。
+3. 第一版不支持脚本任务、任意 Bean 反射执行、任意 HTTP 回调任务。
+4. 所有任务处理器必须通过 Spring Bean 显式注册到 `JobHandlerRegistry` 白名单。
 
 ## 6. 依赖关系建议
 

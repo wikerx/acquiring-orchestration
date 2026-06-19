@@ -8,8 +8,11 @@ import lombok.Data;
  * @version : v1.0.0
  * @classname : SysMenuStatusRequest
  * @date : 2026-06-07 00:00
- * @description : 后台菜单状态请求对象
+ * @email : scott_x@163.com
+ * @description : 管理后台菜单状态更新请求 DTO
  * @status : create
+ *
+ * <p>用于菜单启停切换，仅承载目标菜单主键和目标状态值。</p>
  */
 @Data
 public class SysMenuStatusRequest {

@@ -26,9 +26,16 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 后台菜单领域服务实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMenuServiceImpl
+ * @date : 2026-06-19 22:22
+ * @email : scott_x@163.com
+ * @description : 管理后台菜单领域服务实现
+ * @status : create
  *
- * <p>负责菜单树组装、父子层级校验、菜单编码唯一性校验和菜单状态维护。</p>
+ * <p>负责菜单树组装、父子层级校验、菜单编码唯一性校验和菜单状态维护，
+ * 不承担控制器协议适配或页面交互逻辑。</p>
  */
 @Service
 public class AdminMenuServiceImpl implements AdminMenuService {

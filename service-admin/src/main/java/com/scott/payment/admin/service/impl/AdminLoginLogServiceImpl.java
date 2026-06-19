@@ -14,7 +14,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * 后台登录日志领域服务实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminLoginLogServiceImpl
+ * @date : 2026-06-19 21:55
+ * @email : scott_x@163.com
+ * @description : 管理后台登录日志领域服务实现
+ * @status : create
+ *
+ * <p>负责后台登录日志查询过滤与分页组装，不承担权限控制、控制器协议适配和页面展示逻辑。</p>
  */
 @Service
 public class AdminLoginLogServiceImpl implements AdminLoginLogService {

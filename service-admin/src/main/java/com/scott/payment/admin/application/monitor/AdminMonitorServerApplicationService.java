@@ -12,7 +12,16 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 服务监控应用服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMonitorServerApplicationService
+ * @date : 2026-06-19 20:30
+ * @email : scott_x@163.com
+ * @description : 管理后台服务器监控应用服务
+ * @status : create
+ *
+ * <p>负责管理后台服务器监控用例编排，采集当前节点的 CPU、JVM、系统与磁盘等运行指标，
+ * 并组装为前端监控页面可直接消费的结构化数据。</p>
  */
 @Service
 public class AdminMonitorServerApplicationService {

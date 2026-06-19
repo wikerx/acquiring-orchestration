@@ -25,6 +25,7 @@ import com.scott.payment.component.db.auth.entity.SysMenuDO;
 import com.scott.payment.component.db.auth.entity.SysPermissionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysRoleMenuDO;
+import com.scott.payment.component.db.auth.entity.SysRolePermissionDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
@@ -37,6 +38,7 @@ import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
+import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
@@ -129,6 +131,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private final SysRoleMapper sysRoleMapper;
     private final SysAccountRoleMapper sysAccountRoleMapper;
     private final SysRoleMenuMapper sysRoleMenuMapper;
+    private final SysRolePermissionMapper sysRolePermissionMapper;
     private final SysMenuMapper sysMenuMapper;
     private final SysPermissionMapper sysPermissionMapper;
     private final SysLoginLogMapper sysLoginLogMapper;
@@ -145,6 +148,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param sysRoleMapper           角色 Mapper
      * @param sysAccountRoleMapper    账号角色 Mapper
      * @param sysRoleMenuMapper       角色菜单 Mapper
+     * @param sysRolePermissionMapper 角色权限 Mapper
      * @param sysMenuMapper           菜单 Mapper
      * @param sysPermissionMapper     权限 Mapper
      * @param sysLoginLogMapper       登录日志 Mapper
@@ -158,6 +162,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                  SysRoleMapper sysRoleMapper,
                                  SysAccountRoleMapper sysAccountRoleMapper,
                                  SysRoleMenuMapper sysRoleMenuMapper,
+                                 SysRolePermissionMapper sysRolePermissionMapper,
                                  SysMenuMapper sysMenuMapper,
                                  SysPermissionMapper sysPermissionMapper,
                                  SysLoginLogMapper sysLoginLogMapper,
@@ -170,6 +175,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.sysRoleMapper = sysRoleMapper;
         this.sysAccountRoleMapper = sysAccountRoleMapper;
         this.sysRoleMenuMapper = sysRoleMenuMapper;
+        this.sysRolePermissionMapper = sysRolePermissionMapper;
         this.sysMenuMapper = sysMenuMapper;
         this.sysPermissionMapper = sysPermissionMapper;
         this.sysLoginLogMapper = sysLoginLogMapper;
@@ -986,6 +992,23 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         if (roleIds.isEmpty()) {
             return List.of();
         }
+        Set<String> permissionCodes = new java.util.TreeSet<>();
+        permissionCodes.addAll(queryMenuPermissionCodes(appId, roleIds));
+        permissionCodes.addAll(queryApiPermissionCodes(appId, roleIds));
+        return List.copyOf(permissionCodes);
+    }
+
+    /**
+     * 查询角色绑定菜单上的权限编码。
+     *
+     * <p>兼容历史 RBAC 模型：部分后台按钮权限仍直接挂载在菜单树上，
+     * 登录态需要继续下发这些权限编码，避免页面按钮与详情授权树出现误判。</p>
+     *
+     * @param appId   系统应用ID
+     * @param roleIds 角色ID集合
+     * @return 菜单权限编码集合
+     */
+    private List<String> queryMenuPermissionCodes(Long appId, List<Long> roleIds) {
         Set<Long> menuIds = sysRoleMenuMapper.selectList(
                         Wrappers.<SysRoleMenuDO>lambdaQuery()
                                 .eq(SysRoleMenuDO::getAppId, appId)
@@ -1006,6 +1029,43 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                 .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED)
                 ).stream()
                 .map(SysMenuDO::getPermissionCode)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    /**
+     * 查询角色绑定资源权限上的权限编码。
+     *
+     * <p>新的接口鉴权模型基于 {@code sys_permission} 资源权限表，
+     * 需要与菜单权限一并下发给登录态，确保按钮显隐和接口鉴权同时生效。</p>
+     *
+     * @param appId   系统应用ID
+     * @param roleIds 角色ID集合
+     * @return 资源权限编码集合
+     */
+    private List<String> queryApiPermissionCodes(Long appId, List<Long> roleIds) {
+        Set<Long> permissionIds = sysRolePermissionMapper.selectList(
+                        Wrappers.<SysRolePermissionDO>lambdaQuery()
+                                .eq(SysRolePermissionDO::getAppId, appId)
+                                .in(SysRolePermissionDO::getRoleId, roleIds)
+                                .eq(SysRolePermissionDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysRolePermissionDO::getPermissionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (permissionIds.isEmpty()) {
+            return List.of();
+        }
+        return sysPermissionMapper.selectList(
+                        Wrappers.<SysPermissionDO>lambdaQuery()
+                                .eq(SysPermissionDO::getAppId, appId)
+                                .in(SysPermissionDO::getId, permissionIds)
+                                .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
+                                .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysPermissionDO::getPermissionCode)
                 .filter(StringUtils::hasText)
                 .distinct()
                 .sorted()

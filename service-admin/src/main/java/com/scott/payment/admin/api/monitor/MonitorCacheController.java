@@ -15,8 +15,15 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * Redis 缓存监控控制器。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MonitorCacheController
+ * @date : 2026-06-19 20:30
+ * @email : scott_x@163.com
+ * @description : 管理后台 Redis 缓存监控控制器
+ * @status : create
  */
+
 @RestController
 @RequestMapping("/admin/monitor/cache")
 public class MonitorCacheController {

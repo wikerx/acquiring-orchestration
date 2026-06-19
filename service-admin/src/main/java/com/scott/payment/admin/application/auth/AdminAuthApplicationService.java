@@ -12,9 +12,16 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
 
 /**
- * 管理后台认证应用服务。
- * <p>
- * 当前负责收敛后台认证入口的应用层编排，后续可继续在这里补充设备信息、审计和风控扩展。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminAuthApplicationService
+ * @date : 2026-06-19 21:28
+ * @email : scott_x@163.com
+ * @description : 管理后台认证应用服务
+ * @status : create
+ *
+ * <p>负责管理后台认证相关用例编排，统一收敛注册、验证码发送、登录、当前用户查询和退出登录入口，
+ * 便于后续在应用层继续补充设备识别、审计留痕和登录风控扩展。</p>
  */
 @Service
 public class AdminAuthApplicationService {

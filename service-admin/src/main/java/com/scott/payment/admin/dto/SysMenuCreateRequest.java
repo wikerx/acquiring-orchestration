@@ -9,8 +9,11 @@ import lombok.Data;
  * @version : v1.0.0
  * @classname : SysMenuCreateRequest
  * @date : 2026-06-07 00:00
- * @description : 后台菜单新增请求对象
+ * @email : scott_x@163.com
+ * @description : 管理后台菜单新增请求 DTO
  * @status : create
+ *
+ * <p>用于新增后台菜单、目录、按钮或外链资源，承载菜单层级、路由与展示配置。</p>
  */
 @Data
 public class SysMenuCreateRequest {

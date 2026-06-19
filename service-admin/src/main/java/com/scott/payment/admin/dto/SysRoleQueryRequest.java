@@ -9,8 +9,11 @@ import lombok.EqualsAndHashCode;
  * @version : v1.0.0
  * @classname : SysRoleQueryRequest
  * @date : 2026-06-07 00:00
- * @description : 管理后台角色查询请求
+ * @email : scott_x@163.com
+ * @description : 管理后台角色查询请求 DTO
  * @status : create
+ *
+ * <p>用于角色分页检索，支持按角色编码、角色名称和状态过滤。</p>
  */
 @Data
 @EqualsAndHashCode(callSuper = true)

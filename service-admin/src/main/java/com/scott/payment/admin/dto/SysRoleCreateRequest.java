@@ -11,8 +11,11 @@ import java.io.Serializable;
  * @version : v1.0.0
  * @classname : SysRoleCreateRequest
  * @date : 2026-06-07 00:00
- * @description : 管理后台角色新增请求
+ * @email : scott_x@163.com
+ * @description : 管理后台角色新增请求 DTO
  * @status : create
+ *
+ * <p>用于新增后台角色，承载角色编码、角色名称、数据范围和排序等配置。</p>
  */
 @Data
 public class SysRoleCreateRequest implements Serializable {

@@ -9,7 +9,15 @@ import com.scott.payment.admin.dto.SysMenuUpdateRequest;
 import java.util.List;
 
 /**
- * 后台菜单领域服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMenuService
+ * @date : 2026-06-19 21:53
+ * @email : scott_x@163.com
+ * @description : 管理后台菜单领域服务
+ * @status : create
+ *
+ * <p>负责后台菜单树、菜单维护、层级关系与状态变更等领域规则，不承载接口协议适配。</p>
  */
 public interface AdminMenuService {
 

@@ -9,7 +9,13 @@ import com.scott.payment.admin.dto.SysDictTypeSaveRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * 管理后台数据字典领域服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDictService
+ * @date : 2026-06-19 21:52
+ * @email : scott_x@163.com
+ * @description : 管理后台数据字典领域服务
+ * @status : create
  *
  * <p>负责字典类型与字典项的持久化、查询和删除规则，不处理接口协议适配。</p>
  */

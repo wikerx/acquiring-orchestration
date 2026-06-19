@@ -21,12 +21,24 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 地区币种配置应用服务。
- * <p>
- * 当前应用层负责把国家地区与币种映射的后台维护入口收敛起来，避免控制器直接拼装 Mapper 查询结果。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseRegionCurrencyApplicationService
+ * @date : 2026-06-19 21:10
+ * @email : scott_x@163.com
+ * @description : 地区币种配置应用服务
+ * @status : create
+ *
+ * <p>负责管理后台国家地区与默认币种映射关系的用例编排，避免控制器直接拼装 Mapper 查询结果，
+ * 并统一处理分页展示、详情查询、导出、绑定更新与状态切换。</p>
  */
 @Service
 public class AdminBaseRegionCurrencyApplicationService {
+
+    /**
+     * 币种启用状态。
+     */
+    private static final int ENABLED_STATUS = 1;
 
     /**
      * 国家地区 Mapper。
@@ -187,7 +199,7 @@ public class AdminBaseRegionCurrencyApplicationService {
         Map<String, IsoCurrencyDO> currencyMap = new LinkedHashMap<>();
         isoCurrencyMapper.selectList(new LambdaQueryWrapper<IsoCurrencyDO>()
                         .eq(IsoCurrencyDO::getDeleted, AuthConstants.NOT_DELETED)
-                        .eq(IsoCurrencyDO::getStatus, 1))
+                        .eq(IsoCurrencyDO::getStatus, ENABLED_STATUS))
                 .forEach(currency -> currencyMap.put(currency.getAlpha3Code(), currency));
         return currencyMap;
     }

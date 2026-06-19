@@ -16,8 +16,15 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * Redis 缓存监控应用服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMonitorCacheApplicationService
+ * @date : 2026-06-19 20:30
+ * @email : scott_x@163.com
+ * @description : 管理后台 Redis 缓存监控应用服务
+ * @status : create
  */
+
 @Service
 public class AdminMonitorCacheApplicationService {
 

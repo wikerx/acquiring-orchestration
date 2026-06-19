@@ -19,12 +19,27 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 后台岗位领域服务实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminPostServiceImpl
+ * @date : 2026-06-19 21:56
+ * @email : scott_x@163.com
+ * @description : 管理后台岗位领域服务实现
+ * @status : create
+ *
+ * <p>负责岗位查询、维护和 admin 应用归属校验等领域规则，不承担权限控制或页面交互逻辑。</p>
  */
 @Service
 public class AdminPostServiceImpl implements AdminPostService {
 
+    /**
+     * 岗位数据访问组件。
+     */
     private final SysPostMapper sysPostMapper;
+
+    /**
+     * 应用数据访问组件。
+     */
     private final SysAppMapper sysAppMapper;
 
     /**

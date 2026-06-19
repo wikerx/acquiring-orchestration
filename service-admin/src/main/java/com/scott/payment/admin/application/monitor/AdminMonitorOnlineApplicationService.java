@@ -19,13 +19,33 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 在线用户监控应用服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMonitorOnlineApplicationService
+ * @date : 2026-06-19 20:30
+ * @email : scott_x@163.com
+ * @description : 管理后台在线用户监控应用服务
+ * @status : create
+ *
+ * <p>负责管理后台在线用户监控用例编排，统一处理登录会话分页查询、账户与用户信息补充、
+ * 以及强制下线等后台监控动作。</p>
  */
 @Service
 public class AdminMonitorOnlineApplicationService {
 
+    /**
+     * 在线会话数据访问组件。
+     */
     private final SysLoginSessionMapper sysLoginSessionMapper;
+
+    /**
+     * 账号数据访问组件。
+     */
     private final SysAccountMapper sysAccountMapper;
+
+    /**
+     * 用户数据访问组件。
+     */
     private final SysUserMapper sysUserMapper;
 
     /**

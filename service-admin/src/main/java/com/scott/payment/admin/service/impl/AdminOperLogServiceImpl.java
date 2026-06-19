@@ -17,7 +17,15 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * 后台操作日志领域服务实现。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminOperLogServiceImpl
+ * @date : 2026-06-19 21:55
+ * @email : scott_x@163.com
+ * @description : 管理后台操作日志领域服务实现
+ * @status : create
+ *
+ * <p>负责后台操作日志写入、默认字段补齐和审计分页查询，不承担控制器协议适配逻辑。</p>
  */
 @Service
 public class AdminOperLogServiceImpl implements AdminOperLogService {

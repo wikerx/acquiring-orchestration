@@ -195,7 +195,7 @@ VALUES
     (310, 1, 212, 'system_role_query',         '角色查询', 'BUTTON', NULL, NULL, 'system:role:query',        NULL, 0, 0, 0, 1, 1, 0),
     (311, 1, 212, 'system_role_add',           '角色新增', 'BUTTON', NULL, NULL, 'system:role:add',          NULL, 0, 0, 0, 2, 1, 0),
     (312, 1, 212, 'system_role_edit',          '角色修改', 'BUTTON', NULL, NULL, 'system:role:edit',         NULL, 0, 0, 0, 3, 1, 0),
-    (313, 1, 212, 'system_role_remove',        '角色删除', 'BUTTON', NULL, NULL, 'system:role:remove',       NULL, 0, 0, 0, 4, 1, 0),
+    (313, 1, 212, 'system_role_delete',        '角色删除', 'BUTTON', NULL, NULL, 'system:role:delete',       NULL, 0, 0, 0, 4, 1, 0),
     (314, 1, 212, 'system_role_export',        '角色导出', 'BUTTON', NULL, NULL, 'system:role:export',       NULL, 0, 0, 0, 5, 1, 0),
     (315, 1, 212, 'system_role_change_status', '角色状态', 'BUTTON', NULL, NULL, 'system:role:changeStatus', NULL, 0, 0, 0, 6, 1, 0),
     (316, 1, 212, 'system_role_data_scope',    '角色授权', 'BUTTON', NULL, NULL, 'system:role:dataScope',    NULL, 0, 0, 0, 7, 1, 0),
