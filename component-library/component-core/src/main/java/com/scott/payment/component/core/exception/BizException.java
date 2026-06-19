@@ -21,11 +21,22 @@ public class BizException extends RuntimeException {
      */
     private final String code;
 
+    /**
+     * 创建旧版业务异常。
+     *
+     * @param code    错误码
+     * @param message 错误消息
+     */
     public BizException(String code, String message) {
         super(message);
         this.code = code;
     }
 
+    /**
+     * 获取业务错误码。
+     *
+     * @return 业务错误码
+     */
     public String getCode() {
         return code;
     }

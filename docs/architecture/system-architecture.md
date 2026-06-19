@@ -1,4 +1,4 @@
-# Global Payment Architecture 架构设计说明
+# 系统架构设计说明
 
 ## 1. 架构目标
 

@@ -9,6 +9,7 @@ import com.scott.payment.openapi.config.PaymentClientProperties;
 import com.scott.payment.openapi.converter.OpenApiRequestConverter;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.service.PaymentService;
+import com.scott.payment.openapi.support.OpenApiRequestContext;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.stereotype.Service;
 
@@ -57,6 +58,11 @@ public class PaymentServiceImpl implements PaymentService {
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
     /**
+     * OpenAPI 请求上下文访问器。
+     */
+    private final OpenApiRequestContext requestContext;
+
+    /**
      * 创建开放接口收单支付服务实现。
      *
      * @param converter               OpenAPI 请求转换器
@@ -67,11 +73,13 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentServiceImpl(OpenApiRequestConverter converter,
                               PaymentInternalClient paymentInternalClient,
                               PaymentClientProperties paymentClientProperties,
-                              OpenApiKeyMaterialFactory keyMaterialFactory) {
+                              OpenApiKeyMaterialFactory keyMaterialFactory,
+                              OpenApiRequestContext requestContext) {
         this.converter = converter;
         this.paymentInternalClient = paymentInternalClient;
         this.paymentClientProperties = paymentClientProperties;
         this.keyMaterialFactory = keyMaterialFactory;
+        this.requestContext = requestContext;
     }
 
     /**
@@ -116,7 +124,7 @@ public class PaymentServiceImpl implements PaymentService {
      */
     private PaymentCreateClientRequestDTO toPaymentClientRequest(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         PaymentCreateClientRequestDTO clientRequestDTO = new PaymentCreateClientRequestDTO();
-        clientRequestDTO.setMerchantId(requestDTO.getMerchantInfo().getMerchantId());
+        clientRequestDTO.setMerchantId(requestContext.getRequiredMerchantId());
         clientRequestDTO.setMerchantOrderNo(requestDTO.getOrderInfo().getTradeNo());
         clientRequestDTO.setAmount(requestDTO.getOrderInfo().getAmount());
         clientRequestDTO.setCurrency(requestDTO.getOrderInfo().getCurrency());

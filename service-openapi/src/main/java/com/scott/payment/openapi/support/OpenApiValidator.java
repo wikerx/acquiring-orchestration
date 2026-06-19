@@ -25,6 +25,11 @@ public class OpenApiValidator {
      */
     private final Validator validator;
 
+    /**
+     * 创建开放接口 DTO 校验器。
+     *
+     * @param validator Bean Validation 校验器
+     */
     public OpenApiValidator(Validator validator) {
         this.validator = validator;
     }

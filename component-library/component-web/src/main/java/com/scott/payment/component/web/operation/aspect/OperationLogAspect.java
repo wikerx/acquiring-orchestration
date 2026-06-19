@@ -166,7 +166,7 @@ public class OperationLogAspect {
             record.setStatus(failure == null ? SUCCESS_STATUS : FAILED_STATUS);
             fillFailure(record, failure);
             recorder.record(record);
-        } catch (Exception exception) {
+        } catch (RuntimeException exception) {
             log.warn("管理类系统操作日志采集失败，方法：{}，原因：{}", methodName(point), exception.getMessage());
         }
     }

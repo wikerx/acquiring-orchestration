@@ -27,6 +27,11 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
      */
     private final OpenApiRequestHeaderExtractor headerExtractor;
 
+    /**
+     * 创建开放接口请求头拦截器。
+     *
+     * @param headerExtractor 请求头提取器
+     */
     public OpenApiHeaderInterceptor(OpenApiRequestHeaderExtractor headerExtractor) {
         this.headerExtractor = headerExtractor;
     }

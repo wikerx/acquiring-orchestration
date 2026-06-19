@@ -10,10 +10,10 @@ import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.jdbc.Sql;
 
 import java.util.List;
@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("mysql-test")
 @SpringBootTest(classes = OpenApiApplication.class)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class MerchantOnboardingFlowTests {
 
     /**
@@ -60,7 +61,6 @@ class MerchantOnboardingFlowTests {
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
-    @Autowired
     MerchantOnboardingFlowTests(MerchantSecurityService merchantSecurityService,
                                 JdbcTemplate jdbcTemplate,
                                 OpenApiKeyMaterialFactory keyMaterialFactory) {

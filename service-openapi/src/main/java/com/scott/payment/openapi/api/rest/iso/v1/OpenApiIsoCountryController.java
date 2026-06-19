@@ -3,8 +3,8 @@ package com.scott.payment.openapi.api.rest.iso.v1;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
+import com.scott.payment.openapi.application.iso.OpenApiIsoDictionaryApplicationService;
 import com.scott.payment.openapi.dto.body.iso.IsoCountryQueryRequestDTO;
-import com.scott.payment.openapi.service.OpenApiIsoDictionaryService;
 import com.scott.payment.openapi.vo.iso.IsoCountryVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,15 +33,15 @@ public class OpenApiIsoCountryController {
     /**
      * 商户 OpenAPI ISO 字典查询服务。
      */
-    private final OpenApiIsoDictionaryService isoDictionaryService;
+    private final OpenApiIsoDictionaryApplicationService isoDictionaryApplicationService;
 
     /**
      * 创建商户 OpenAPI ISO 国家地区查询控制器。
      *
-     * @param isoDictionaryService 商户 OpenAPI ISO 字典查询服务
+     * @param isoDictionaryApplicationService 商户 OpenAPI ISO 字典应用服务
      */
-    public OpenApiIsoCountryController(OpenApiIsoDictionaryService isoDictionaryService) {
-        this.isoDictionaryService = isoDictionaryService;
+    public OpenApiIsoCountryController(OpenApiIsoDictionaryApplicationService isoDictionaryApplicationService) {
+        this.isoDictionaryApplicationService = isoDictionaryApplicationService;
     }
 
     /**
@@ -57,6 +57,6 @@ public class OpenApiIsoCountryController {
     public CommonResult<List<IsoCountryVO>> queryCountries(HttpServletRequest request,
                                                            @RequestBody String encryptedData,
                                                            IsoCountryQueryRequestDTO requestDTO) {
-        return success(isoDictionaryService.queryCountries(requestDTO));
+        return success(isoDictionaryApplicationService.queryCountries(requestDTO));
     }
 }

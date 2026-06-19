@@ -48,6 +48,13 @@ public class OpenApiRequestHeaderExtractor {
      */
     private final OpenApiJwtReplayProtectionService replayProtectionService;
 
+    /**
+     * 创建开放接口请求头提取器。
+     *
+     * @param merchantJwtVerifier    商户 JWT 验签器
+     * @param merchantKeyProvider    商户密钥提供器
+     * @param replayProtectionService JWT 防重放服务
+     */
     public OpenApiRequestHeaderExtractor(MerchantJwtVerifier merchantJwtVerifier,
                                          MerchantKeyProvider merchantKeyProvider,
                                          OpenApiJwtReplayProtectionService replayProtectionService) {

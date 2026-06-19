@@ -32,6 +32,12 @@ public class OpenApiPayloadDecoder {
      */
     private final OpenApiPayloadKeyProvider payloadKeyProvider;
 
+    /**
+     * 创建开放接口密文解码器。
+     *
+     * @param payloadCrypto       OpenAPI 报文加解密工具
+     * @param payloadKeyProvider  平台私钥提供器
+     */
     public OpenApiPayloadDecoder(OpenApiPayloadCrypto payloadCrypto, OpenApiPayloadKeyProvider payloadKeyProvider) {
         this.payloadCrypto = payloadCrypto;
         this.payloadKeyProvider = payloadKeyProvider;
@@ -73,7 +79,7 @@ public class OpenApiPayloadDecoder {
     private Object parsePlainText(String plainText, Class<?> dataReceiver) {
         try {
             return JsonUtils.parseObject(plainText, dataReceiver);
-        } catch (Exception exception) {
+        } catch (RuntimeException exception) {
             throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID);
         }
     }

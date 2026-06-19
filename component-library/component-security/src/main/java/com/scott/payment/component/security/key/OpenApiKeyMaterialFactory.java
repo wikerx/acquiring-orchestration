@@ -7,6 +7,7 @@ import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -197,7 +198,7 @@ public class OpenApiKeyMaterialFactory {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest).substring(0, 16);
-        } catch (Exception exception) {
+        } catch (NoSuchAlgorithmException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "fingerprint can not be calculated");
         }
     }

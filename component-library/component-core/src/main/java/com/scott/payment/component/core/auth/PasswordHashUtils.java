@@ -5,6 +5,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.Base64;
 
@@ -77,7 +78,7 @@ public final class PasswordHashUtils {
             PBEKeySpec keySpec = new PBEKeySpec(rawPassword.toCharArray(), salt, ITERATION_COUNT, KEY_LENGTH);
             byte[] hash = SecretKeyFactory.getInstance(ALGORITHM).generateSecret(keySpec).getEncoded();
             return Base64.getUrlEncoder().withoutPadding().encodeToString(hash);
-        } catch (Exception exception) {
+        } catch (IllegalArgumentException | GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "password can not be hashed");
         }
     }

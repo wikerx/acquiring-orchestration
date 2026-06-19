@@ -7,7 +7,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -46,18 +45,19 @@ public class PaymentOrderShardingAlgorithm {
     }
 
     /**
-     * 根据默认配置和 Date 类型交易时间计算季度分表表名。
+     * 根据默认配置和时间戳类型交易时间计算季度分表表名。
+     * <p>
+     * 该重载用于兼容仍以时间戳对象传参的旧代码，内部会立即转成 {@link LocalDateTime} 继续路由。
      *
      * @param logicalTableName    逻辑表名
      * @param transactionDateTime 交易时间
      * @return 物理表名
      */
-    public String tableName(String logicalTableName, Date transactionDateTime) {
+    public String tableName(String logicalTableName, Instant transactionDateTime) {
         if (transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time is required");
         }
-        Instant instant = transactionDateTime.toInstant();
-        return tableName(logicalTableName, LocalDateTime.ofInstant(instant, DATABASE_ZONE_ID));
+        return tableName(logicalTableName, LocalDateTime.ofInstant(transactionDateTime, DATABASE_ZONE_ID));
     }
 
     /**
@@ -89,7 +89,9 @@ public class PaymentOrderShardingAlgorithm {
     }
 
     /**
-     * 根据指定 Nacos 分表配置和 Date 类型交易时间计算季度分表表名。
+     * 根据指定 Nacos 分表配置和时间戳类型交易时间计算季度分表表名。
+     * <p>
+     * 该重载只负责兼容旧入参类型，真正的季度路由仍统一走 {@link LocalDateTime} 语义。
      *
      * @param properties          Nacos sharding-{env}.yaml 映射后的分表配置
      * @param logicalTableName    逻辑表名
@@ -98,12 +100,12 @@ public class PaymentOrderShardingAlgorithm {
      */
     public String tableName(PaymentQuarterShardingProperties properties,
                             String logicalTableName,
-                            Date transactionDateTime) {
+                            Instant transactionDateTime) {
         if (transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time is required");
         }
         ZoneId zoneId = ZoneId.of(properties.getDatabaseTimezone());
-        return tableName(properties, logicalTableName, LocalDateTime.ofInstant(transactionDateTime.toInstant(), zoneId));
+        return tableName(properties, logicalTableName, LocalDateTime.ofInstant(transactionDateTime, zoneId));
     }
 
     /**

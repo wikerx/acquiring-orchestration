@@ -13,11 +13,11 @@ import com.scott.payment.openapi.vo.iso.IsoCountryVO;
 import com.scott.payment.openapi.vo.iso.IsoCurrencyVO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -45,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("mysql-test")
 @SpringBootTest(classes = OpenApiApplication.class)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class MerchantOpenApiIsoDictionaryTests {
 
     /**
@@ -90,7 +91,6 @@ class MerchantOpenApiIsoDictionaryTests {
      * @param payloadCrypto           OpenAPI 报文加解密工具
      * @param keyMaterialFactory      OpenAPI 密钥材料工具
      */
-    @Autowired
     MerchantOpenApiIsoDictionaryTests(MockMvc mockMvc,
                                       MerchantSecurityService merchantSecurityService,
                                       OpenApiPayloadCrypto payloadCrypto,

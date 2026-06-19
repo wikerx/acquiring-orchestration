@@ -23,11 +23,22 @@ public class ServiceException extends RuntimeException {
      */
     private final String code;
 
+    /**
+     * 创建服务内部业务异常。
+     *
+     * @param code    错误码
+     * @param message 错误消息
+     */
     public ServiceException(String code, String message) {
         super(message);
         this.code = code;
     }
 
+    /**
+     * 根据标准结果码创建服务异常。
+     *
+     * @param result 标准结果码定义
+     */
     public ServiceException(IResult result) {
         this(result.getCode(), result.getMessage());
     }

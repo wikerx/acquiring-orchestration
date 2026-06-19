@@ -13,12 +13,12 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -45,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("mysql-test")
 @SpringBootTest(classes = OpenApiApplication.class)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
+@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class MerchantOpenApiEndToEndTests {
 
     /**
@@ -87,7 +88,6 @@ class MerchantOpenApiEndToEndTests {
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
-    @Autowired
     MerchantOpenApiEndToEndTests(MockMvc mockMvc,
                                  MerchantSecurityService merchantSecurityService,
                                  OpenApiPayloadCrypto payloadCrypto,

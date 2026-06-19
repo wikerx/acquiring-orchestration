@@ -6,9 +6,9 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestConstructor;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Slf4j
 @ActiveProfiles("mysql-test")
 @SpringBootTest(classes = OpenApiApplication.class)
+@TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class IsoDictionaryServiceTests {
 
     /**
@@ -39,7 +40,6 @@ class IsoDictionaryServiceTests {
      *
      * @param isoDictionaryService ISO 字典公共服务
      */
-    @Autowired
     IsoDictionaryServiceTests(IsoDictionaryService isoDictionaryService) {
         this.isoDictionaryService = isoDictionaryService;
     }

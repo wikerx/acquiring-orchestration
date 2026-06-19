@@ -6,6 +6,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
@@ -73,7 +74,7 @@ public class HmacSha256Signer {
             Mac mac = Mac.getInstance(HMAC_SHA256);
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_SHA256));
             return mac.doFinal(content.getBytes(StandardCharsets.UTF_8));
-        } catch (Exception exception) {
+        } catch (GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "HMAC-SHA256 signature can not be calculated");
         }
     }

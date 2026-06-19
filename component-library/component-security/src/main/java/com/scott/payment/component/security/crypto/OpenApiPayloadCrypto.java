@@ -13,6 +13,7 @@ import javax.crypto.spec.OAEPParameterSpec;
 import javax.crypto.spec.PSource;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -209,7 +210,7 @@ public class OpenApiPayloadCrypto {
         try {
             byte[] encoded = Base64.getDecoder().decode(normalizePem(publicKeyBase64));
             return KeyFactory.getInstance(RSA_ALGORITHM).generatePublic(new X509EncodedKeySpec(encoded));
-        } catch (Exception exception) {
+        } catch (IllegalArgumentException | GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi public key can not be parsed");
         }
     }
@@ -224,7 +225,7 @@ public class OpenApiPayloadCrypto {
         try {
             byte[] encoded = Base64.getDecoder().decode(normalizePem(privateKeyBase64));
             return KeyFactory.getInstance(RSA_ALGORITHM).generatePrivate(new PKCS8EncodedKeySpec(encoded));
-        } catch (Exception exception) {
+        } catch (IllegalArgumentException | GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi private key can not be parsed");
         }
     }
@@ -242,7 +243,7 @@ public class OpenApiPayloadCrypto {
             KeyPairGenerator generator = KeyPairGenerator.getInstance(RSA_ALGORITHM);
             generator.initialize(keySize, secureRandom);
             return generator.generateKeyPair();
-        } catch (Exception exception) {
+        } catch (GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi rsa key pair can not be generated");
         }
     }
@@ -296,7 +297,7 @@ public class OpenApiPayloadCrypto {
             String headerJson = new String(base64UrlDecode(protectedHeader), StandardCharsets.UTF_8);
             return JsonUtils.parseObject(headerJson, new TypeReference<Map<String, String>>() {
             });
-        } catch (Exception exception) {
+        } catch (RuntimeException exception) {
             throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data.header");
         }
     }
@@ -332,7 +333,7 @@ public class OpenApiPayloadCrypto {
             cipher.init(mode, keySpec, new GCMParameterSpec(GCM_TAG_BITS, iv));
             cipher.updateAAD(protectedHeader.getBytes(StandardCharsets.US_ASCII));
             return cipher.doFinal(input);
-        } catch (Exception exception) {
+        } catch (GeneralSecurityException exception) {
             throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data");
         }
     }
@@ -355,7 +356,7 @@ public class OpenApiPayloadCrypto {
                     PSource.PSpecified.DEFAULT);
             cipher.init(mode, key, oaepParameterSpec);
             return cipher.doFinal(input);
-        } catch (Exception exception) {
+        } catch (GeneralSecurityException exception) {
             throw new ApiException(ApiResultEnum.ENCRYPTED_DATA_INVALID, "data.key");
         }
     }

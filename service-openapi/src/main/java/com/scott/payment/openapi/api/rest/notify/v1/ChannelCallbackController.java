@@ -28,7 +28,7 @@ public class ChannelCallbackController {
      * @return 回调受理结果
      */
     @PostMapping("/{channelCode}")
-    public ApiResult<String> receive(@PathVariable String channelCode) {
+    public ApiResult<String> receive(@PathVariable("channelCode") String channelCode) {
         return success(channelCode + " accepted");
     }
 }

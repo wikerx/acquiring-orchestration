@@ -38,6 +38,13 @@ public class LocalOpenApiPayloadKeyProvider implements OpenApiPayloadKeyProvider
      */
     private final KeyPair volatileKeyPair;
 
+    /**
+     * 创建本地 OpenAPI 报文加密密钥提供器。
+     *
+     * @param payloadCrypto     OpenAPI 加解密工具
+     * @param privateKeyBase64  平台私钥配置
+     * @param publicKeyBase64   平台公钥配置
+     */
     public LocalOpenApiPayloadKeyProvider(OpenApiPayloadCrypto payloadCrypto,
                                           @Value("${payment.openapi.crypto.private-key-pkcs8-base64:}") String privateKeyBase64,
                                           @Value("${payment.openapi.crypto.public-key-x509-base64:}") String publicKeyBase64) {

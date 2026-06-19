@@ -11,8 +11,8 @@ import com.scott.payment.component.core.exception.ApiException;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Collection;
-import java.util.Date;
 
 /**
  * @author : scott
@@ -105,7 +105,7 @@ public class MerchantJwtVerifier {
         }
         try {
             return JWTUtil.parseToken(token);
-        } catch (Exception exception) {
+        } catch (RuntimeException exception) {
             throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
         }
     }
@@ -162,8 +162,8 @@ public class MerchantJwtVerifier {
     }
 
     private long toEpochSeconds(Object value, ApiResultEnum errorCode) {
-        if (value instanceof Date date) {
-            return date.getTime() / 1000L;
+        if (value instanceof Instant instant) {
+            return instant.getEpochSecond();
         }
         if (value instanceof Number number) {
             long timestamp = number.longValue();

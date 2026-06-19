@@ -50,6 +50,13 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
     private final InternalAuthChecker authChecker;
     private final List<String> whitelistPatterns;
 
+    /**
+     * 创建内部管理接口鉴权拦截器。
+     *
+     * @param appCode           应用编码
+     * @param authChecker       内部鉴权检查器
+     * @param whitelistPatterns 白名单路径
+     */
     public InternalAuthInterceptor(String appCode, InternalAuthChecker authChecker, List<String> whitelistPatterns) {
         this.appCode = appCode;
         this.authChecker = authChecker;

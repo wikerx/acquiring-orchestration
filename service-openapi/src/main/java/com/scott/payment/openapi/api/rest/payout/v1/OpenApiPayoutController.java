@@ -3,8 +3,8 @@ package com.scott.payment.openapi.api.rest.payout.v1;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
+import com.scott.payment.openapi.application.payout.OpenApiPayoutApplicationService;
 import com.scott.payment.openapi.dto.body.PayoutCreateRequestDTO;
-import com.scott.payment.openapi.service.PayoutService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,15 +31,15 @@ public class OpenApiPayoutController {
     /**
      * 开放接口代付业务服务，负责创建代付交易并承接后续状态流转。
      */
-    private final PayoutService payoutService;
+    private final OpenApiPayoutApplicationService payoutApplicationService;
 
     /**
      * 创建开放接口代付控制器。
      *
-     * @param payoutService 开放接口代付业务服务
+     * @param payoutApplicationService 开放接口代付应用服务
      */
-    public OpenApiPayoutController(PayoutService payoutService) {
-        this.payoutService = payoutService;
+    public OpenApiPayoutController(OpenApiPayoutApplicationService payoutApplicationService) {
+        this.payoutApplicationService = payoutApplicationService;
     }
 
     /**
@@ -55,6 +55,6 @@ public class OpenApiPayoutController {
     public CommonResult<String> createPayout(HttpServletRequest request,
                                              @RequestBody String encryptedData,
                                              PayoutCreateRequestDTO requestDTO) {
-        return success(payoutService.createPayout(encryptedData, requestDTO));
+        return success(payoutApplicationService.createPayout(encryptedData, requestDTO));
     }
 }

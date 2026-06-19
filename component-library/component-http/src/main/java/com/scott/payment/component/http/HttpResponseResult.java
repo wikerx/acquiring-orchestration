@@ -31,9 +31,18 @@ public class HttpResponseResult implements Serializable {
      */
     private String body;
 
+    /**
+     * 创建空的 HTTP 响应结果对象。
+     */
     public HttpResponseResult() {
     }
 
+    /**
+     * 创建 HTTP 响应结果对象。
+     *
+     * @param status HTTP 状态码
+     * @param body   响应体原文
+     */
     public HttpResponseResult(int status, String body) {
         this.status = status;
         this.body = body;

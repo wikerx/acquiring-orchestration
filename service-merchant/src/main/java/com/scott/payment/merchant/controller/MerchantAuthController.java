@@ -1,17 +1,16 @@
 package com.scott.payment.merchant.controller;
 
 import com.scott.payment.component.core.model.CommonResult;
-import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
-import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import com.scott.payment.merchant.application.auth.MerchantAuthApplicationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,17 +36,17 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 public class MerchantAuthController {
 
     /**
-     * 登录权限服务。
+     * 商户认证应用服务。
      */
-    private final SystemAuthService systemAuthService;
+    private final MerchantAuthApplicationService merchantAuthApplicationService;
 
     /**
      * 创建商户管理系统登录权限接口。
      *
-     * @param systemAuthService 登录权限服务
+     * @param merchantAuthApplicationService 商户认证应用服务
      */
-    public MerchantAuthController(SystemAuthService systemAuthService) {
-        this.systemAuthService = systemAuthService;
+    public MerchantAuthController(MerchantAuthApplicationService merchantAuthApplicationService) {
+        this.merchantAuthApplicationService = merchantAuthApplicationService;
     }
 
     /**
@@ -61,7 +60,7 @@ public class MerchantAuthController {
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.CREATE,
             operation = "注册商户系统账号", recordRequest = false, recordResponse = false)
     public CommonResult<AuthAccountDTO> register(@Valid @RequestBody AuthRegisterRequest request) {
-        return success(systemAuthService.register(AuthConstants.APP_MERCHANT, request));
+        return success(merchantAuthApplicationService.register(request));
     }
 
     /**
@@ -74,11 +73,7 @@ public class MerchantAuthController {
     @PostMapping("/verify-code/send")
     public CommonResult<AuthVerifyCodeSendResponse> sendVerifyCode(@Valid @RequestBody AuthVerifyCodeSendRequest request,
                                                                    HttpServletRequest servletRequest) {
-        return success(systemAuthService.sendLoginVerifyCode(
-                AuthConstants.APP_MERCHANT,
-                request,
-                clientIp(servletRequest)
-        ));
+        return success(merchantAuthApplicationService.sendVerifyCode(request, servletRequest));
     }
 
     /**
@@ -91,12 +86,7 @@ public class MerchantAuthController {
     @PostMapping("/login")
     public CommonResult<AuthLoginResponse> login(@Valid @RequestBody AuthLoginRequest request,
                                                  HttpServletRequest servletRequest) {
-        return success(systemAuthService.login(
-                AuthConstants.APP_MERCHANT,
-                request,
-                clientIp(servletRequest),
-                servletRequest.getHeader("User-Agent")
-        ));
+        return success(merchantAuthApplicationService.login(request, servletRequest));
     }
 
     /**
@@ -108,7 +98,7 @@ public class MerchantAuthController {
     @GetMapping("/me")
     @RequiresPermission("merchant:dashboard:view")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
-        return success(systemAuthService.currentUser(AuthConstants.APP_MERCHANT, authorization));
+        return success(merchantAuthApplicationService.currentUser(authorization));
     }
 
     /**
@@ -122,21 +112,7 @@ public class MerchantAuthController {
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.UPDATE,
             operation = "商户系统账号退出登录", recordRequest = false, recordResponse = false)
     public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {
-        systemAuthService.logout(AuthConstants.APP_MERCHANT, authorization);
+        merchantAuthApplicationService.logout(authorization);
         return success();
-    }
-
-    /**
-     * 获取客户端 IP。
-     *
-     * @param request Servlet 请求
-     * @return 客户端 IP
-     */
-    private String clientIp(HttpServletRequest request) {
-        String forwardedFor = request.getHeader("X-Forwarded-For");
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

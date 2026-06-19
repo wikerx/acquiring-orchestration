@@ -23,16 +23,31 @@ public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
 
     private final SystemAuthService systemAuthService;
 
+    /**
+     * 创建商户后台鉴权拦截配置。
+     *
+     * @param systemAuthService 系统鉴权服务
+     */
     public MerchantAuthWebMvcConfig(SystemAuthService systemAuthService) {
         this.systemAuthService = systemAuthService;
     }
 
+    /**
+     * 为商户后台接口注册统一鉴权拦截器。
+     *
+     * @param registry 拦截器注册器
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new InternalAuthInterceptor(AuthConstants.APP_MERCHANT, systemAuthService, whitelist()))
                 .addPathPatterns("/merchant/**");
     }
 
+    /**
+     * 定义无需登录即可访问的商户后台白名单路径。
+     *
+     * @return 白名单路径集合
+     */
     private List<String> whitelist() {
         return List.of(
                 "/merchant/auth/login",

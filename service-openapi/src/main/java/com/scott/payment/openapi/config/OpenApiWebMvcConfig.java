@@ -31,6 +31,12 @@ public class OpenApiWebMvcConfig implements WebMvcConfigurer {
      */
     private final OpenApiRequestArgumentResolver requestArgumentResolver;
 
+    /**
+     * 创建开放接口 Web MVC 配置。
+     *
+     * @param headerInterceptor      请求头拦截器
+     * @param requestArgumentResolver 参数解析器
+     */
     public OpenApiWebMvcConfig(OpenApiHeaderInterceptor headerInterceptor,
                                OpenApiRequestArgumentResolver requestArgumentResolver) {
         this.headerInterceptor = headerInterceptor;
