@@ -8,6 +8,8 @@ import com.scott.payment.admin.dto.SysDictTypeQueryRequest;
 import com.scott.payment.admin.dto.SysDictTypeSaveRequest;
 import com.scott.payment.component.core.model.PageResult;
 
+import java.util.List;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -38,6 +40,14 @@ public interface AdminDictService {
     PageResult<SysDictTypeDTO> pageDictTypes(SysDictTypeQueryRequest request);
 
     /**
+     * 按条件查询导出用字典类型列表。
+     *
+     * @param request 查询条件
+     * @return 字典类型列表
+     */
+    List<SysDictTypeDTO> listDictTypes(SysDictTypeQueryRequest request);
+
+    /**
      * 软删除字典类型。
      *
      * @param dictType 字典类型编码
@@ -59,6 +69,14 @@ public interface AdminDictService {
      * @return 字典数据列表
      */
     PageResult<SysDictDataDTO> pageDictData(SysDictDataQueryRequest request);
+
+    /**
+     * 按条件查询导出用字典数据列表。
+     *
+     * @param request 查询条件
+     * @return 字典数据列表
+     */
+    List<SysDictDataDTO> listDictData(SysDictDataQueryRequest request);
 
     /**
      * 按主键查询字典数据详情。

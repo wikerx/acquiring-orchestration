@@ -105,20 +105,45 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         JobRunLogQueryRequest query = request == null ? new JobRunLogQueryRequest() : request;
         Page<SysJobRunLogDO> page = sysJobRunLogMapper.selectPage(
                 new Page<>(query.safePageNo(), query.safePageSize()),
-                new LambdaQueryWrapper<SysJobRunLogDO>()
-                        .eq(query.getJobId() != null, SysJobRunLogDO::getJobId, query.getJobId())
-                        .eq(StringUtils.hasText(query.getJobCode()), SysJobRunLogDO::getJobCode, query.getJobCode())
-                        .eq(StringUtils.hasText(query.getRunStatus()), SysJobRunLogDO::getRunStatus, query.getRunStatus())
-                        .eq(StringUtils.hasText(query.getTriggerType()), SysJobRunLogDO::getTriggerType, query.getTriggerType())
-                        .eq(StringUtils.hasText(query.getExecutorNode()), SysJobRunLogDO::getExecutorNode, query.getExecutorNode())
-                        .orderByDesc(SysJobRunLogDO::getCreateTime)
-                        .orderByDesc(SysJobRunLogDO::getId)
+                buildQueryWrapper(query)
         );
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
     @Override
+    public void removeLog(Long id) {
+        sysJobRunLogMapper.deleteById(id);
+    }
+
+    @Override
+    public int cleanLogs(JobRunLogQueryRequest request) {
+        return sysJobRunLogMapper.delete(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
+    }
+
+    @Override
+    public List<SysJobRunLogDO> listLogs(JobRunLogQueryRequest request) {
+        return sysJobRunLogMapper.selectList(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
+    }
+
+    @Override
     public List<SysJobRunLogDO> selectTimeoutCandidates() {
         return sysJobRunLogMapper.selectTimeoutCandidates();
+    }
+
+    /**
+     * 构造运行日志查询条件。
+     *
+     * @param query 查询条件
+     * @return 查询包装器
+     */
+    private LambdaQueryWrapper<SysJobRunLogDO> buildQueryWrapper(JobRunLogQueryRequest query) {
+        return new LambdaQueryWrapper<SysJobRunLogDO>()
+                .eq(query.getJobId() != null, SysJobRunLogDO::getJobId, query.getJobId())
+                .eq(StringUtils.hasText(query.getJobCode()), SysJobRunLogDO::getJobCode, query.getJobCode())
+                .eq(StringUtils.hasText(query.getRunStatus()), SysJobRunLogDO::getRunStatus, query.getRunStatus())
+                .eq(StringUtils.hasText(query.getTriggerType()), SysJobRunLogDO::getTriggerType, query.getTriggerType())
+                .eq(StringUtils.hasText(query.getExecutorNode()), SysJobRunLogDO::getExecutorNode, query.getExecutorNode())
+                .orderByDesc(SysJobRunLogDO::getCreateTime)
+                .orderByDesc(SysJobRunLogDO::getId);
     }
 }

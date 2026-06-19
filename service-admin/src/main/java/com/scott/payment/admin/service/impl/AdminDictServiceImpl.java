@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * @author : scott
@@ -119,6 +120,15 @@ public class AdminDictServiceImpl implements AdminDictService {
         );
     }
 
+    @Override
+    public List<SysDictTypeDTO> listDictTypes(SysDictTypeQueryRequest request) {
+        SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
+        return dictTypeMapper.selectList(buildDictTypeQueryWrapper(query))
+                .stream()
+                .map(DictConverter.INSTANCE::toTypeDTO)
+                .toList();
+    }
+
     /**
      * 软删除字典类型。
      *
@@ -183,6 +193,15 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getSize(),
                 page.getRecords().stream().map(DictConverter.INSTANCE::toDataDTO).toList()
         );
+    }
+
+    @Override
+    public List<SysDictDataDTO> listDictData(SysDictDataQueryRequest request) {
+        SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
+        return dictDataMapper.selectList(buildDictDataQueryWrapper(query))
+                .stream()
+                .map(DictConverter.INSTANCE::toDataDTO)
+                .toList();
     }
 
     /**

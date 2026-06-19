@@ -1,6 +1,8 @@
 package com.scott.payment.admin.converter;
 
 import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
+import com.scott.payment.admin.dto.export.JobRunLogExportRow;
+import com.scott.payment.admin.dto.monitor.JobRunLogResponse;
 import com.scott.payment.admin.dto.monitor.JobTaskSaveRequest;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -36,4 +38,14 @@ public interface JobSchedulerConverter {
      */
     @Mapping(target = "operator", source = "operator")
     JobTaskRemoteSaveRequest toRemoteSaveRequest(JobTaskSaveRequest request, String operator);
+
+    /**
+     * 运行日志响应 DTO 转导出行对象。
+     *
+     * @param response 运行日志响应 DTO
+     * @return 导出行对象
+     */
+    @Mapping(target = "triggerType", ignore = true)
+    @Mapping(target = "runStatus", ignore = true)
+    JobRunLogExportRow toRunLogExportRow(JobRunLogResponse response);
 }

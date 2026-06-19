@@ -73,6 +73,29 @@ public interface JobRunLogService {
     PageResult<SysJobRunLogDO> pageLogs(JobRunLogQueryRequest request);
 
     /**
+     * 按主键删除单条执行日志。
+     *
+     * @param id 日志主键
+     */
+    void removeLog(Long id);
+
+    /**
+     * 按条件清空执行日志。
+     *
+     * @param request 查询条件
+     * @return 清理数量
+     */
+    int cleanLogs(JobRunLogQueryRequest request);
+
+    /**
+     * 按条件查询执行日志列表，供导出使用。
+     *
+     * @param request 查询条件
+     * @return 执行日志列表
+     */
+    List<SysJobRunLogDO> listLogs(JobRunLogQueryRequest request);
+
+    /**
      * 查询超时候选日志。
      *
      * @return 超时候选日志列表

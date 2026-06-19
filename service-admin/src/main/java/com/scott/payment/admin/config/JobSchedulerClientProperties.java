@@ -43,6 +43,16 @@ public class JobSchedulerClientProperties {
     private String runLogSearchUrl = "http://service-job/internal/job/logs/search";
 
     /**
+     * 执行日志列表查询接口地址。
+     */
+    private String runLogListUrl = "http://service-job/internal/job/logs/list";
+
+    /**
+     * 执行日志清空接口地址。
+     */
+    private String runLogCleanUrl = "http://service-job/internal/job/logs/clean";
+
+    /**
      * 执行节点查询接口地址。
      */
     private String nodeListUrl = "http://service-job/internal/job/nodes";

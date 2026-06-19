@@ -8,9 +8,20 @@ import com.scott.payment.admin.dto.SysUserAccountStatusRequest;
 import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
 import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
 import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
+import com.scott.payment.admin.dto.export.SysUserAccountExportRow;
+import com.scott.payment.admin.converter.UserExportConverter;
+import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
+import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.admin.service.AdminUserService;
 import com.scott.payment.component.core.model.PageResult;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * @author : scott
@@ -30,14 +41,23 @@ public class AdminUserApplicationService {
      * 后台用户领域服务。
      */
     private final AdminUserService adminUserService;
+    private final ExcelExportService excelExportService;
+    private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
      * 创建后台用户应用服务。
      *
      * @param adminUserService 后台用户领域服务
      */
-    public AdminUserApplicationService(AdminUserService adminUserService) {
+    public AdminUserApplicationService(AdminUserService adminUserService,
+                                       ExcelExportService excelExportService,
+                                       ExcelI18nMessageResolver excelI18nMessageResolver,
+                                       ExcelLocaleResolver excelLocaleResolver) {
         this.adminUserService = adminUserService;
+        this.excelExportService = excelExportService;
+        this.excelI18nMessageResolver = excelI18nMessageResolver;
+        this.excelLocaleResolver = excelLocaleResolver;
     }
 
     /**
@@ -48,6 +68,37 @@ public class AdminUserApplicationService {
      */
     public PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request) {
         return adminUserService.pageUsers(request);
+    }
+
+    /**
+     * 导出后台用户列表。
+     *
+     * @param request 查询条件
+     * @param operator 导出人
+     * @param response HTTP 响应
+     */
+    public void exportUsers(SysUserAccountQueryRequest request,
+                            String operator,
+                            HttpServletResponse response) {
+        Locale locale = excelLocaleResolver.resolveCurrentLocale();
+        List<SysUserAccountExportRow> rows = adminUserService.listUsers(request).stream()
+                .map(UserExportConverter.INSTANCE::toExportRow)
+                .peek(row -> fillUserExportDisplayValue(row, locale))
+                .toList();
+        excelExportService.export(
+                ExcelExportRequest.<SysUserAccountExportRow>builder()
+                        .fileName("用户列表_" + timestampSuffix())
+                        .sheetName("用户列表")
+                        .titleKey("excel.user.title")
+                        .operator(operator)
+                        .exportTime(LocalDateTime.now())
+                        .locale(locale)
+                        .querySummary(buildUserQuerySummary(request, locale))
+                        .rowClass(SysUserAccountExportRow.class)
+                        .dataList(rows)
+                        .build(),
+                response
+        );
     }
 
     /**
@@ -105,5 +156,80 @@ public class AdminUserApplicationService {
      */
     public void grantRoles(SysUserRoleGrantRequest request) {
         adminUserService.grantRoles(request);
+    }
+
+    /**
+     * 删除后台用户。
+     *
+     * @param accountIds 账号主键列表
+     */
+    public void removeUsers(List<Long> accountIds) {
+        adminUserService.removeUsers(accountIds);
+    }
+
+    /**
+     * 填充用户导出显示文案。
+     *
+     * @param row 导出行对象
+     * @param locale 当前语言
+     */
+    private void fillUserExportDisplayValue(SysUserAccountExportRow row, Locale locale) {
+        row.setStatus(resolveStatusText("1".equals(String.valueOf(row.getStatus())), locale));
+        row.setLocked(resolveBooleanText("1".equals(String.valueOf(row.getLocked())), locale));
+    }
+
+    /**
+     * 构造用户查询摘要。
+     *
+     * @param request 查询条件
+     * @param locale 当前语言
+     * @return 查询摘要
+     */
+    private String buildUserQuerySummary(SysUserAccountQueryRequest request, Locale locale) {
+        if (request == null) {
+            return excelI18nMessageResolver.resolve("excel.common.noCondition", locale);
+        }
+        StringBuilder builder = new StringBuilder();
+        if (request.getLoginAccount() != null && !request.getLoginAccount().isBlank()) {
+            builder.append("登录账号=").append(request.getLoginAccount().trim());
+        }
+        if (request.getStatus() != null) {
+            if (!builder.isEmpty()) {
+                builder.append("，");
+            }
+            builder.append("状态=").append(resolveStatusText(request.getStatus() == 1, locale));
+        }
+        return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
+    }
+
+    /**
+     * 生成导出文件时间后缀。
+     *
+     * @return 时间后缀
+     */
+    private String timestampSuffix() {
+        return java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").format(LocalDateTime.now());
+    }
+
+    /**
+     * 解析启停状态文案。
+     *
+     * @param enabled 是否启用
+     * @param locale 当前语言
+     * @return 状态文案
+     */
+    private String resolveStatusText(boolean enabled, Locale locale) {
+        return excelI18nMessageResolver.resolve(enabled ? "excel.common.enabled" : "excel.common.disabled", locale);
+    }
+
+    /**
+     * 解析是/否文案。
+     *
+     * @param value 布尔值
+     * @param locale 当前语言
+     * @return 文案
+     */
+    private String resolveBooleanText(boolean value, Locale locale) {
+        return excelI18nMessageResolver.resolve(value ? "excel.common.yes" : "excel.common.no", locale);
     }
 }

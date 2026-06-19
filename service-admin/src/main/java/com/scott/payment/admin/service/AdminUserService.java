@@ -10,6 +10,8 @@ import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
 import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.component.core.model.PageResult;
 
+import java.util.List;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -30,6 +32,14 @@ public interface AdminUserService {
      * @return 用户分页结果
      */
     PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request);
+
+    /**
+     * 按条件查询导出用后台用户列表。
+     *
+     * @param request 查询条件
+     * @return 用户列表
+     */
+    List<SysUserAccountDTO> listUsers(SysUserAccountQueryRequest request);
 
     /**
      * 新增后台用户。
@@ -75,4 +85,11 @@ public interface AdminUserService {
      * @param request 角色授权请求
      */
     void grantRoles(SysUserRoleGrantRequest request);
+
+    /**
+     * 逻辑删除后台用户。
+     *
+     * @param accountIds 账号主键列表
+     */
+    void removeUsers(List<Long> accountIds);
 }

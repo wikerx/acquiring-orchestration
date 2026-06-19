@@ -9,6 +9,7 @@ import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -129,8 +130,9 @@ public class AdminConfigController {
     @PostMapping("/export")
     @RequiresPermission("system:config:export")
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.EXPORT, operation = "导出系统参数配置")
-    public CommonResult<PageResult<SysConfigDTO>> exportConfigs(@RequestBody(required = false) SysConfigQueryRequest request) {
-        return success(adminConfigApplicationService.pageConfigs(request));
+    public void exportConfigs(@RequestBody(required = false) SysConfigQueryRequest request,
+                              HttpServletResponse response) {
+        adminConfigApplicationService.exportConfigs(request, currentOperatorName(), response);
     }
 
     /**
@@ -143,5 +145,22 @@ public class AdminConfigController {
     @OperationLog(moduleName = "系统配置", businessType = OperationTypeConstants.UPDATE, operation = "刷新系统参数缓存")
     public CommonResult<Void> refreshCache() {
         return success();
+    }
+
+    /**
+     * 获取当前操作人名称，用于补齐导出文件元信息。
+     *
+     * @return 操作人名称
+     */
+    private String currentOperatorName() {
+        com.scott.payment.component.core.auth.InternalAuthAccount account =
+                com.scott.payment.component.core.auth.InternalAuthContextHolder.get();
+        if (account == null) {
+            return "admin";
+        }
+        if (account.getRealName() != null && !account.getRealName().isBlank()) {
+            return account.getRealName();
+        }
+        return account.getLoginAccount();
     }
 }

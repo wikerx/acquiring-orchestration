@@ -6,9 +6,9 @@ import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
@@ -65,8 +65,8 @@ public class AdminBaseRegionCurrencyController {
     @GetMapping("/export")
     @RequiresPermission("base:countryCurrency:export")
     @OperationLog(moduleName = "地区币种配置", businessType = OperationTypeConstants.EXPORT, operation = "导出地区币种配置")
-    public CommonResult<List<Map<String, Object>>> export() {
-        return success(adminBaseRegionCurrencyApplicationService.exportRegionCurrencies());
+    public void export(HttpServletResponse response) {
+        adminBaseRegionCurrencyApplicationService.exportRegionCurrencies(currentOperatorName(), response);
     }
 
     /** 新增国家/地区默认币种关联。 */
@@ -101,5 +101,22 @@ public class AdminBaseRegionCurrencyController {
     public CommonResult<Void> changeStatus(@PathVariable("id") Long id,
                                            @RequestBody Map<String, Integer> body) {
         return adminBaseRegionCurrencyApplicationService.updateStatus(id, body);
+    }
+
+    /**
+     * 获取当前操作人名称，用于补齐导出元信息。
+     *
+     * @return 操作人名称
+     */
+    private String currentOperatorName() {
+        com.scott.payment.component.core.auth.InternalAuthAccount account =
+                com.scott.payment.component.core.auth.InternalAuthContextHolder.get();
+        if (account == null) {
+            return "admin";
+        }
+        if (account.getRealName() != null && !account.getRealName().isBlank()) {
+            return account.getRealName();
+        }
+        return account.getLoginAccount();
     }
 }

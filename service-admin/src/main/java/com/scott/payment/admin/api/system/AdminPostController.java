@@ -7,6 +7,7 @@ import com.scott.payment.component.db.auth.entity.SysPostDO;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -93,14 +94,12 @@ public class AdminPostController {
 
     /**
      * 导出岗位列表。
-     *
-     * @return 岗位列表
      */
     @GetMapping("/export")
     @RequiresPermission("system:post:export")
     @OperationLog(moduleName = "岗位管理", businessType = OperationTypeConstants.EXPORT, operation = "导出岗位")
-    public CommonResult<List<SysPostDO>> export() {
-        return success(adminPostApplicationService.exportPosts());
+    public void export(HttpServletResponse response) {
+        adminPostApplicationService.exportPosts(currentOperatorName(), response);
     }
 
     /**
@@ -142,5 +141,22 @@ public class AdminPostController {
     public CommonResult<Void> remove(@PathVariable("id") Long id) {
         adminPostApplicationService.removePost(id);
         return success();
+    }
+
+    /**
+     * 获取当前操作人名称，用于写入导出文件元信息。
+     *
+     * @return 操作人名称
+     */
+    private String currentOperatorName() {
+        com.scott.payment.component.core.auth.InternalAuthAccount account =
+                com.scott.payment.component.core.auth.InternalAuthContextHolder.get();
+        if (account == null) {
+            return "admin";
+        }
+        if (account.getRealName() != null && !account.getRealName().isBlank()) {
+            return account.getRealName();
+        }
+        return account.getLoginAccount();
     }
 }

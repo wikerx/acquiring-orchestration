@@ -1,8 +1,10 @@
 package com.scott.payment.admin.converter;
 
 import com.scott.payment.admin.dto.SysDeptDTO;
+import com.scott.payment.admin.dto.export.SysDeptExportRow;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
 import org.mapstruct.factory.Mappers;
 
@@ -38,6 +40,16 @@ public interface DeptConverter {
      * @return 部门树节点
      */
     SysDeptDTO toDTO(SysDeptDO dept);
+
+    /**
+     * 部门实体转导出行对象。
+     *
+     * @param dept 部门实体
+     * @return 导出行对象
+     */
+    @Mapping(target = "parentName", ignore = true)
+    @Mapping(target = "status", ignore = true)
+    SysDeptExportRow toExportRow(SysDeptDO dept);
 
     /**
      * 批量转换并构建树形结构。

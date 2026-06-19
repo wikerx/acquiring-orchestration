@@ -2,17 +2,25 @@ package com.scott.payment.admin.application.base;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.dto.export.IsoCurrencyExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
+import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
@@ -30,6 +38,11 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  */
 @Service
 public class AdminBaseCurrencyApplicationService {
+
+    /**
+     * 导出文件时间戳格式。
+     */
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     /**
      * 默认启用状态。
@@ -50,14 +63,24 @@ public class AdminBaseCurrencyApplicationService {
      * 币种数据访问组件。
      */
     private final IsoCurrencyMapper isoCurrencyMapper;
+    private final ExcelExportService excelExportService;
+    private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
      * 创建币种基础资料应用服务。
      *
      * @param isoCurrencyMapper 币种 Mapper
+     * @param excelExportService Excel 导出服务
      */
-    public AdminBaseCurrencyApplicationService(IsoCurrencyMapper isoCurrencyMapper) {
+    public AdminBaseCurrencyApplicationService(IsoCurrencyMapper isoCurrencyMapper,
+                                               ExcelExportService excelExportService,
+                                               ExcelI18nMessageResolver excelI18nMessageResolver,
+                                               ExcelLocaleResolver excelLocaleResolver) {
         this.isoCurrencyMapper = isoCurrencyMapper;
+        this.excelExportService = excelExportService;
+        this.excelI18nMessageResolver = excelI18nMessageResolver;
+        this.excelLocaleResolver = excelLocaleResolver;
     }
 
     /**
@@ -101,10 +124,28 @@ public class AdminBaseCurrencyApplicationService {
      *
      * @return 币种列表
      */
-    public List<IsoCurrencyDO> exportCurrencies() {
-        return isoCurrencyMapper.selectList(new LambdaQueryWrapper<IsoCurrencyDO>()
-                .eq(IsoCurrencyDO::getDeleted, AuthConstants.NOT_DELETED)
-                .orderByAsc(IsoCurrencyDO::getAlpha3Code));
+    public void exportCurrencies(String operator, HttpServletResponse response) {
+        Locale locale = excelLocaleResolver.resolveCurrentLocale();
+        List<IsoCurrencyExportRow> rows = isoCurrencyMapper.selectList(new LambdaQueryWrapper<IsoCurrencyDO>()
+                        .eq(IsoCurrencyDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .orderByAsc(IsoCurrencyDO::getAlpha3Code))
+                .stream()
+                .map(currency -> toExportRow(currency, locale))
+                .toList();
+        excelExportService.export(
+                ExcelExportRequest.<IsoCurrencyExportRow>builder()
+                        .fileName("币种列表_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName("币种列表")
+                        .titleKey("excel.currency.title")
+                        .operator(operator)
+                        .exportTime(LocalDateTime.now())
+                        .locale(locale)
+                        .querySummary(excelI18nMessageResolver.resolve("excel.common.noCondition", locale))
+                        .rowClass(IsoCurrencyExportRow.class)
+                        .dataList(rows)
+                        .build(),
+                response
+        );
     }
 
     /**
@@ -209,5 +250,28 @@ public class AdminBaseCurrencyApplicationService {
         if (input.getStatus() != null) {
             currency.setStatus(input.getStatus());
         }
+    }
+
+    /**
+     * 将币种实体转换为导出行对象。
+     *
+     * @param currency 币种实体
+     * @param locale 当前语言
+     * @return 导出行对象
+     */
+    private IsoCurrencyExportRow toExportRow(IsoCurrencyDO currency, Locale locale) {
+        IsoCurrencyExportRow row = new IsoCurrencyExportRow();
+        row.setAlpha3Code(currency.getAlpha3Code());
+        row.setNumericCode(currency.getNumericCode());
+        row.setChineseName(currency.getChineseName());
+        row.setEnglishName(currency.getEnglishName());
+        row.setCurrencySymbol(currency.getCurrencySymbol());
+        row.setFractionDigits(currency.getFractionDigits());
+        row.setStatus(excelI18nMessageResolver.resolve(
+                currency.getStatus() != null && currency.getStatus() == 1 ? "excel.common.enabled" : "excel.common.disabled",
+                locale
+        ));
+        row.setCreatedAt(currency.getCreatedAt());
+        return row;
     }
 }

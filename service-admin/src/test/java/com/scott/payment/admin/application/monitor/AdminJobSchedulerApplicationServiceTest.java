@@ -4,6 +4,9 @@ import com.scott.payment.admin.client.job.JobSchedulerInternalClient;
 import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
 import com.scott.payment.admin.dto.monitor.JobTaskResponse;
 import com.scott.payment.admin.dto.monitor.JobTaskSaveRequest;
+import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
+import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,11 +30,25 @@ class AdminJobSchedulerApplicationServiceTest {
     @Mock
     private JobSchedulerInternalClient jobSchedulerInternalClient;
 
+    @Mock
+    private ExcelExportService excelExportService;
+
+    @Mock
+    private ExcelI18nMessageResolver excelI18nMessageResolver;
+
+    @Mock
+    private ExcelLocaleResolver excelLocaleResolver;
+
     private AdminJobSchedulerApplicationService adminJobSchedulerApplicationService;
 
     @BeforeEach
     void setUp() {
-        adminJobSchedulerApplicationService = new AdminJobSchedulerApplicationService(jobSchedulerInternalClient);
+        adminJobSchedulerApplicationService = new AdminJobSchedulerApplicationService(
+                jobSchedulerInternalClient,
+                excelExportService,
+                excelI18nMessageResolver,
+                excelLocaleResolver
+        );
     }
 
     @Test

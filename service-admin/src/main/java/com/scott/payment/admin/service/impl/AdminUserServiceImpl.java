@@ -124,6 +124,34 @@ public class AdminUserServiceImpl implements AdminUserService {
         );
     }
 
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public List<SysUserAccountDTO> listUsers(SysUserAccountQueryRequest request) {
+        SysUserAccountQueryRequest query = request == null ? new SysUserAccountQueryRequest() : request;
+        SysAppDO app = getAdminApp();
+        List<SysAccountDO> accounts = sysAccountMapper.selectList(
+                Wrappers.<SysAccountDO>lambdaQuery()
+                        .eq(SysAccountDO::getAppId, app.getId())
+                        .eq(SysAccountDO::getDeleted, NOT_DELETED)
+                        .likeRight(StringUtils.hasText(query.getLoginAccount()), SysAccountDO::getLoginAccount, query.getLoginAccount())
+                        .likeRight(StringUtils.hasText(query.getMobile()), SysAccountDO::getMobile, query.getMobile())
+                        .likeRight(StringUtils.hasText(query.getEmail()), SysAccountDO::getEmail, query.getEmail())
+                        .eq(query.getStatus() != null, SysAccountDO::getStatus, query.getStatus())
+                        .orderByDesc(SysAccountDO::getUpdatedAt)
+        );
+        if (accounts.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<Long, SysUserDO> userMap = sysUserMapper.selectList(
+                Wrappers.<SysUserDO>lambdaQuery()
+                        .in(SysUserDO::getId, accounts.stream().map(SysAccountDO::getUserId).toList())
+                        .eq(SysUserDO::getDeleted, NOT_DELETED)
+        ).stream().collect(Collectors.toMap(SysUserDO::getId, Function.identity(), (left, right) -> left));
+        return accounts.stream()
+                .map(account -> toDTO(account, userMap.get(account.getUserId())))
+                .toList();
+    }
+
     /**
      * 新增后台用户，并为新账号绑定默认管理员角色。
      *
@@ -322,6 +350,38 @@ public class AdminUserServiceImpl implements AdminUserService {
             sysAccountRoleMapper.insert(relation);
         }
         logoutSessions(app.getId(), account.getId(), now);
+    }
+
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void removeUsers(List<Long> accountIds) {
+        List<Long> normalizedIds = normalizeIds(accountIds);
+        if (normalizedIds.isEmpty()) {
+            return;
+        }
+        SysAppDO app = getAdminApp();
+        LocalDateTime now = LocalDateTime.now();
+        for (Long accountId : normalizedIds) {
+            SysAccountDO account = getAccount(app.getId(), accountId);
+            SysUserDO user = getUser(account.getUserId());
+            account.setDeleted(account.getId());
+            account.setUpdatedAt(now);
+            sysAccountMapper.updateById(account);
+
+            user.setDeleted(user.getId());
+            user.setUpdatedAt(now);
+            sysUserMapper.updateById(user);
+
+            sysAccountRoleMapper.update(
+                    Wrappers.<SysAccountRoleDO>lambdaUpdate()
+                            .set(SysAccountRoleDO::getDeleted, account.getId())
+                            .eq(SysAccountRoleDO::getAppId, app.getId())
+                            .eq(SysAccountRoleDO::getAccountId, account.getId())
+                            .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
+            );
+            logoutSessions(app.getId(), account.getId(), now);
+        }
     }
 
     /**

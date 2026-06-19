@@ -92,6 +92,29 @@ public interface JobSchedulerInternalClient {
     PageResult<JobRunLogResponse> pageRunLogs(JobRunLogQueryRequest request);
 
     /**
+     * 按条件查询执行日志列表。
+     *
+     * @param request 查询条件
+     * @return 执行日志列表
+     */
+    List<JobRunLogResponse> listRunLogs(JobRunLogQueryRequest request);
+
+    /**
+     * 删除单条执行日志。
+     *
+     * @param id 日志主键
+     */
+    void removeRunLog(Long id);
+
+    /**
+     * 按条件清空执行日志。
+     *
+     * @param request 查询条件
+     * @return 删除数量
+     */
+    int cleanRunLogs(JobRunLogQueryRequest request);
+
+    /**
      * 查询执行节点列表。
      *
      * @return 执行节点列表

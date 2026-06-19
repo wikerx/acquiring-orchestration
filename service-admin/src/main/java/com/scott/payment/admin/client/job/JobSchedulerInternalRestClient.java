@@ -187,6 +187,39 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
     }
 
     @Override
+    public List<JobRunLogResponse> listRunLogs(JobRunLogQueryRequest request) {
+        String responseBody = doPost(jobSchedulerClientProperties.getRunLogListUrl(), request);
+        CommonResult<List<JobRunLogResponse>> result = JsonUtils.parseObject(
+                responseBody,
+                new TypeReference<CommonResult<List<JobRunLogResponse>>>() {
+                }
+        );
+        return unwrapData(result);
+    }
+
+    @Override
+    public void removeRunLog(Long id) {
+        String responseBody = doDelete(jobSchedulerClientProperties.getTaskBaseUrl().replace("/tasks", "/logs") + "/" + id);
+        CommonResult<Void> result = JsonUtils.parseObject(
+                responseBody,
+                new TypeReference<CommonResult<Void>>() {
+                }
+        );
+        unwrap(result);
+    }
+
+    @Override
+    public int cleanRunLogs(JobRunLogQueryRequest request) {
+        String responseBody = doPost(jobSchedulerClientProperties.getRunLogCleanUrl(), request);
+        CommonResult<Integer> result = JsonUtils.parseObject(
+                responseBody,
+                new TypeReference<CommonResult<Integer>>() {
+                }
+        );
+        return unwrapData(result);
+    }
+
+    @Override
     public List<JobExecutorNodeResponse> listNodes() {
         String responseBody = doGet(jobSchedulerClientProperties.getNodeListUrl());
         CommonResult<List<JobExecutorNodeResponse>> result = JsonUtils.parseObject(

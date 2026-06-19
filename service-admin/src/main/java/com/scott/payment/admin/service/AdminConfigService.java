@@ -5,6 +5,8 @@ import com.scott.payment.admin.dto.SysConfigQueryRequest;
 import com.scott.payment.admin.dto.SysConfigSaveRequest;
 import com.scott.payment.component.core.model.PageResult;
 
+import java.util.List;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -41,6 +43,14 @@ public interface AdminConfigService {
      * @return 系统参数配置列表
      */
     PageResult<SysConfigDTO> pageConfigs(SysConfigQueryRequest request);
+
+    /**
+     * 按条件查询导出用系统参数列表。
+     *
+     * @param request 查询条件
+     * @return 系统参数列表
+     */
+    List<SysConfigDTO> listConfigs(SysConfigQueryRequest request);
 
     /**
      * 软删除指定配置。

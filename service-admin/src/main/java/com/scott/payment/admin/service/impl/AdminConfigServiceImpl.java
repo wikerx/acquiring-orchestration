@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * @author : scott
@@ -116,6 +117,15 @@ public class AdminConfigServiceImpl implements AdminConfigService {
                 page.getSize(),
                 page.getRecords().stream().map(ConfigConverter.INSTANCE::toDTO).toList()
         );
+    }
+
+    @Override
+    public List<SysConfigDTO> listConfigs(SysConfigQueryRequest request) {
+        SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
+        return sysConfigMapper.selectList(buildConfigQueryWrapper(query))
+                .stream()
+                .map(ConfigConverter.INSTANCE::toDTO)
+                .toList();
     }
 
     /**

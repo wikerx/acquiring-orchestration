@@ -1,8 +1,10 @@
 package com.scott.payment.admin.converter;
 
 import com.scott.payment.admin.dto.SysConfigDTO;
+import com.scott.payment.admin.dto.export.SysConfigExportRow;
 import com.scott.payment.admin.entity.SysConfigDO;
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
 /**
@@ -32,4 +34,13 @@ public interface ConfigConverter {
      * @return 配置 DTO
      */
     SysConfigDTO toDTO(SysConfigDO entity);
+
+    /**
+     * 配置 DTO 转导出行对象。
+     *
+     * @param dto 配置 DTO
+     * @return 导出行对象
+     */
+    @Mapping(target = "status", ignore = true)
+    SysConfigExportRow toExportRow(SysConfigDTO dto);
 }

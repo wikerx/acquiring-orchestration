@@ -15,6 +15,7 @@
 
     <modules>
         <module>component-core</module>
+        <module>component-excel</module>
         <module>component-web</module>
         <module>component-security</module>
         <module>component-http</module>

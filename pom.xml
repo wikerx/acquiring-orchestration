@@ -39,6 +39,7 @@
         <fastjson2-spring.version>2.0.61</fastjson2-spring.version>
         <hutool.version>5.8.46</hutool.version>
         <mapstruct.version>1.6.3</mapstruct.version>
+        <easyexcel.version>4.0.3</easyexcel.version>
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-resources-plugin.version>3.5.0</maven-resources-plugin.version>
         <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
@@ -134,6 +135,11 @@
                 <groupId>org.mapstruct</groupId>
                 <artifactId>mapstruct-processor</artifactId>
                 <version>${mapstruct.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>easyexcel</artifactId>
+                <version>${easyexcel.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

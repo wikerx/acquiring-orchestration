@@ -2,20 +2,28 @@ package com.scott.payment.admin.application.base;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.dto.export.RegionCurrencyExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
+import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
@@ -36,6 +44,11 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 public class AdminBaseRegionCurrencyApplicationService {
 
     /**
+     * 导出文件时间戳格式。
+     */
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
+    /**
      * 币种启用状态。
      */
     private static final int ENABLED_STATUS = 1;
@@ -49,17 +62,27 @@ public class AdminBaseRegionCurrencyApplicationService {
      * 币种 Mapper。
      */
     private final IsoCurrencyMapper isoCurrencyMapper;
+    private final ExcelExportService excelExportService;
+    private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
      * 创建地区币种配置应用服务。
      *
      * @param isoCountryMapper  国家地区 Mapper
      * @param isoCurrencyMapper 币种 Mapper
+     * @param excelExportService Excel 导出服务
      */
     public AdminBaseRegionCurrencyApplicationService(IsoCountryMapper isoCountryMapper,
-                                                     IsoCurrencyMapper isoCurrencyMapper) {
+                                                     IsoCurrencyMapper isoCurrencyMapper,
+                                                     ExcelExportService excelExportService,
+                                                     ExcelI18nMessageResolver excelI18nMessageResolver,
+                                                     ExcelLocaleResolver excelLocaleResolver) {
         this.isoCountryMapper = isoCountryMapper;
         this.isoCurrencyMapper = isoCurrencyMapper;
+        this.excelExportService = excelExportService;
+        this.excelI18nMessageResolver = excelI18nMessageResolver;
+        this.excelLocaleResolver = excelLocaleResolver;
     }
 
     /**
@@ -113,14 +136,29 @@ public class AdminBaseRegionCurrencyApplicationService {
      *
      * @return 全量映射列表
      */
-    public List<Map<String, Object>> exportRegionCurrencies() {
+    public void exportRegionCurrencies(String operator, HttpServletResponse response) {
+        Locale locale = excelLocaleResolver.resolveCurrentLocale();
         Map<String, IsoCurrencyDO> currencyMap = currencyMap();
-        return isoCountryMapper.selectList(new LambdaQueryWrapper<IsoCountryDO>()
+        List<RegionCurrencyExportRow> rows = isoCountryMapper.selectList(new LambdaQueryWrapper<IsoCountryDO>()
                         .eq(IsoCountryDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(IsoCountryDO::getAlpha2Code))
                 .stream()
-                .map(country -> toRegionCurrencyRow(country, currencyMap))
+                .map(country -> toRegionCurrencyExportRow(country, currencyMap, locale))
                 .toList();
+        excelExportService.export(
+                ExcelExportRequest.<RegionCurrencyExportRow>builder()
+                        .fileName("地区币种配置_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName("地区币种配置")
+                        .titleKey("excel.regionCurrency.title")
+                        .operator(operator)
+                        .exportTime(LocalDateTime.now())
+                        .locale(locale)
+                        .querySummary(excelI18nMessageResolver.resolve("excel.common.noCondition", locale))
+                        .rowClass(RegionCurrencyExportRow.class)
+                        .dataList(rows)
+                        .build(),
+                response
+        );
     }
 
     /**
@@ -238,6 +276,32 @@ public class AdminBaseRegionCurrencyApplicationService {
         row.put("currencyName", currency != null ? currency.getChineseName() : "-");
         row.put("currencySymbol", currency != null ? currency.getCurrencySymbol() : "");
         row.put("status", country.getStatus());
+        return row;
+    }
+
+    /**
+     * 将地区币种映射转换为导出行对象，避免前端再自行拼装展示值。
+     *
+     * @param country 国家地区实体
+     * @param currencyMap 币种映射
+     * @param locale 当前语言
+     * @return 导出行对象
+     */
+    private RegionCurrencyExportRow toRegionCurrencyExportRow(IsoCountryDO country,
+                                                              Map<String, IsoCurrencyDO> currencyMap,
+                                                              Locale locale) {
+        RegionCurrencyExportRow row = new RegionCurrencyExportRow();
+        IsoCurrencyDO currency = currencyMap.get(country.getCurrencyAlpha3Code());
+        row.setAlpha2Code(country.getAlpha2Code());
+        row.setCountryName(country.getChineseName());
+        row.setContinentName(country.getContinentName());
+        row.setCurrencyAlpha3Code(country.getCurrencyAlpha3Code());
+        row.setCurrencyName(currency != null ? currency.getChineseName() : "-");
+        row.setCurrencySymbol(currency != null ? currency.getCurrencySymbol() : "");
+        row.setStatus(excelI18nMessageResolver.resolve(
+                country.getStatus() != null && country.getStatus() == 1 ? "excel.common.enabled" : "excel.common.disabled",
+                locale
+        ));
         return row;
     }
 }

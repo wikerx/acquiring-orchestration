@@ -8,6 +8,8 @@ import com.scott.payment.job.entity.SysJobRunLogDO;
 import com.scott.payment.job.service.JobRunLogService;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -48,5 +50,36 @@ public class JobRunLogApplicationService {
                         .map(JobSchedulerConverter.INSTANCE::toRunLogResponse)
                         .toList()
         );
+    }
+
+    /**
+     * 按主键删除单条执行日志。
+     *
+     * @param id 日志主键
+     */
+    public void removeLog(Long id) {
+        jobRunLogService.removeLog(id);
+    }
+
+    /**
+     * 按条件清空执行日志。
+     *
+     * @param request 查询条件
+     * @return 删除数量
+     */
+    public int cleanLogs(JobRunLogQueryRequest request) {
+        return jobRunLogService.cleanLogs(request);
+    }
+
+    /**
+     * 按条件查询执行日志列表，供导出使用。
+     *
+     * @param request 查询条件
+     * @return 日志响应列表
+     */
+    public List<JobRunLogResponse> listLogs(JobRunLogQueryRequest request) {
+        return jobRunLogService.listLogs(request).stream()
+                .map(JobSchedulerConverter.INSTANCE::toRunLogResponse)
+                .toList();
     }
 }

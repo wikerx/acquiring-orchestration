@@ -7,9 +7,9 @@ import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
@@ -66,8 +66,8 @@ public class AdminBaseCurrencyController {
     @GetMapping("/export")
     @RequiresPermission("base:currency:export")
     @OperationLog(moduleName = "币种管理", businessType = OperationTypeConstants.EXPORT, operation = "导出币种")
-    public CommonResult<List<IsoCurrencyDO>> export() {
-        return success(adminBaseCurrencyApplicationService.exportCurrencies());
+    public void export(HttpServletResponse response) {
+        adminBaseCurrencyApplicationService.exportCurrencies(currentOperatorName(), response);
     }
 
     /** 新增币种。 */
@@ -101,5 +101,22 @@ public class AdminBaseCurrencyController {
     public CommonResult<Void> remove(@PathVariable("id") Long id) {
         adminBaseCurrencyApplicationService.removeCurrency(id);
         return success(null);
+    }
+
+    /**
+     * 获取当前操作人名称，用于写入导出元信息。
+     *
+     * @return 操作人名称
+     */
+    private String currentOperatorName() {
+        com.scott.payment.component.core.auth.InternalAuthAccount account =
+                com.scott.payment.component.core.auth.InternalAuthContextHolder.get();
+        if (account == null) {
+            return "admin";
+        }
+        if (account.getRealName() != null && !account.getRealName().isBlank()) {
+            return account.getRealName();
+        }
+        return account.getLoginAccount();
     }
 }

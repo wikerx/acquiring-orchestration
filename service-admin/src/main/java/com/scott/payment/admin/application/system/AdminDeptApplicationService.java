@@ -1,11 +1,22 @@
 package com.scott.payment.admin.application.system;
 
 import com.scott.payment.admin.dto.SysDeptDTO;
+import com.scott.payment.admin.dto.export.SysDeptExportRow;
 import com.scott.payment.admin.service.AdminDeptService;
+import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
+import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -19,15 +30,30 @@ import java.util.List;
 @Service
 public class AdminDeptApplicationService {
 
+    /**
+     * 导出文件时间戳格式。
+     */
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+
     private final AdminDeptService adminDeptService;
+    private final ExcelExportService excelExportService;
+    private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
      * 创建后台部门应用服务。
      *
      * @param adminDeptService 部门领域服务
+     * @param excelExportService Excel 导出服务
      */
-    public AdminDeptApplicationService(AdminDeptService adminDeptService) {
+    public AdminDeptApplicationService(AdminDeptService adminDeptService,
+                                       ExcelExportService excelExportService,
+                                       ExcelI18nMessageResolver excelI18nMessageResolver,
+                                       ExcelLocaleResolver excelLocaleResolver) {
         this.adminDeptService = adminDeptService;
+        this.excelExportService = excelExportService;
+        this.excelI18nMessageResolver = excelI18nMessageResolver;
+        this.excelLocaleResolver = excelLocaleResolver;
     }
 
     /**
@@ -54,8 +80,30 @@ public class AdminDeptApplicationService {
      *
      * @return 部门列表
      */
-    public List<SysDeptDO> exportDepts() {
-        return adminDeptService.exportDepts();
+    public void exportDepts(String operator, HttpServletResponse response) {
+        Locale locale = excelLocaleResolver.resolveCurrentLocale();
+        List<SysDeptDO> departments = adminDeptService.exportDepts();
+        Map<Long, String> deptNameMap = new LinkedHashMap<>();
+        for (SysDeptDO dept : departments) {
+            deptNameMap.put(dept.getId(), dept.getDeptName());
+        }
+        List<SysDeptExportRow> rows = departments.stream()
+                .map(dept -> toExportRow(dept, deptNameMap, locale))
+                .toList();
+        excelExportService.export(
+                ExcelExportRequest.<SysDeptExportRow>builder()
+                        .fileName("部门列表_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName("部门列表")
+                        .titleKey("excel.dept.title")
+                        .operator(operator)
+                        .exportTime(LocalDateTime.now())
+                        .locale(locale)
+                        .querySummary(excelI18nMessageResolver.resolve("excel.common.noCondition", locale))
+                        .rowClass(SysDeptExportRow.class)
+                        .dataList(rows)
+                        .build(),
+                response
+        );
     }
 
     /**
@@ -86,5 +134,30 @@ public class AdminDeptApplicationService {
      */
     public void removeDept(Long id) {
         adminDeptService.removeDept(id);
+    }
+
+    /**
+     * 将部门实体转换为导出行，补齐上级部门名称和状态文案。
+     *
+     * @param dept 当前部门实体
+     * @param deptNameMap 部门名称索引
+     * @param locale 当前语言
+     * @return 导出行对象
+     */
+    private SysDeptExportRow toExportRow(SysDeptDO dept, Map<Long, String> deptNameMap, Locale locale) {
+        SysDeptExportRow row = new SysDeptExportRow();
+        row.setDeptName(dept.getDeptName());
+        row.setParentName(dept.getParentId() == null || dept.getParentId() == 0
+                ? "-"
+                : deptNameMap.getOrDefault(dept.getParentId(), "-"));
+        row.setSortNo(dept.getSortNo());
+        row.setLeader(dept.getLeader());
+        row.setPhone(dept.getPhone());
+        row.setEmail(dept.getEmail());
+        row.setStatus(excelI18nMessageResolver.resolve(
+                dept.getStatus() != null && dept.getStatus() == 1 ? "excel.common.enabled" : "excel.common.disabled",
+                locale
+        ));
+        return row;
     }
 }

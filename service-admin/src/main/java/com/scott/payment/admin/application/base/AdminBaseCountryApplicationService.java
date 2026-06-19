@@ -2,17 +2,25 @@ package com.scott.payment.admin.application.base;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.dto.export.IsoCountryExportRow;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
+import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
@@ -30,6 +38,11 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  */
 @Service
 public class AdminBaseCountryApplicationService {
+
+    /**
+     * 导出文件时间戳格式。
+     */
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     /**
      * 默认启用状态。
@@ -50,14 +63,24 @@ public class AdminBaseCountryApplicationService {
      * 国家地区数据访问组件。
      */
     private final IsoCountryMapper isoCountryMapper;
+    private final ExcelExportService excelExportService;
+    private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
      * 创建国家地区基础资料应用服务。
      *
      * @param isoCountryMapper 国家地区 Mapper
+     * @param excelExportService Excel 导出服务
      */
-    public AdminBaseCountryApplicationService(IsoCountryMapper isoCountryMapper) {
+    public AdminBaseCountryApplicationService(IsoCountryMapper isoCountryMapper,
+                                              ExcelExportService excelExportService,
+                                              ExcelI18nMessageResolver excelI18nMessageResolver,
+                                              ExcelLocaleResolver excelLocaleResolver) {
         this.isoCountryMapper = isoCountryMapper;
+        this.excelExportService = excelExportService;
+        this.excelI18nMessageResolver = excelI18nMessageResolver;
+        this.excelLocaleResolver = excelLocaleResolver;
     }
 
     /**
@@ -104,10 +127,28 @@ public class AdminBaseCountryApplicationService {
      *
      * @return 国家地区列表
      */
-    public List<IsoCountryDO> exportCountries() {
-        return isoCountryMapper.selectList(new LambdaQueryWrapper<IsoCountryDO>()
-                .eq(IsoCountryDO::getDeleted, AuthConstants.NOT_DELETED)
-                .orderByAsc(IsoCountryDO::getAlpha2Code));
+    public void exportCountries(String operator, HttpServletResponse response) {
+        Locale locale = excelLocaleResolver.resolveCurrentLocale();
+        List<IsoCountryExportRow> rows = isoCountryMapper.selectList(new LambdaQueryWrapper<IsoCountryDO>()
+                        .eq(IsoCountryDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .orderByAsc(IsoCountryDO::getAlpha2Code))
+                .stream()
+                .map(country -> toExportRow(country, locale))
+                .toList();
+        excelExportService.export(
+                ExcelExportRequest.<IsoCountryExportRow>builder()
+                        .fileName("国家地区_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName("国家地区")
+                        .titleKey("excel.country.title")
+                        .operator(operator)
+                        .exportTime(LocalDateTime.now())
+                        .locale(locale)
+                        .querySummary(excelI18nMessageResolver.resolve("excel.common.noCondition", locale))
+                        .rowClass(IsoCountryExportRow.class)
+                        .dataList(rows)
+                        .build(),
+                response
+        );
     }
 
     /**
@@ -227,5 +268,28 @@ public class AdminBaseCountryApplicationService {
         if (input.getStatus() != null) {
             country.setStatus(input.getStatus());
         }
+    }
+
+    /**
+     * 将国家地区实体转换为导出行对象。
+     *
+     * @param country 国家地区实体
+     * @param locale 当前语言
+     * @return 导出行对象
+     */
+    private IsoCountryExportRow toExportRow(IsoCountryDO country, Locale locale) {
+        IsoCountryExportRow row = new IsoCountryExportRow();
+        row.setAlpha2Code(country.getAlpha2Code());
+        row.setAlpha3Code(country.getAlpha3Code());
+        row.setChineseName(country.getChineseName());
+        row.setEnglishName(country.getEnglishName());
+        row.setContinentName(country.getContinentName());
+        row.setCurrencyAlpha3Code(country.getCurrencyAlpha3Code());
+        row.setStatus(excelI18nMessageResolver.resolve(
+                country.getStatus() != null && country.getStatus() == 1 ? "excel.common.enabled" : "excel.common.disabled",
+                locale
+        ));
+        row.setCreatedAt(country.getCreatedAt());
+        return row;
     }
 }

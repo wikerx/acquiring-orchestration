@@ -12,6 +12,7 @@ import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -114,8 +115,9 @@ public class AdminDictController {
     @PostMapping("/types/export")
     @RequiresPermission("system:dict:export")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.EXPORT, operation = "导出字典类型列表")
-    public CommonResult<PageResult<SysDictTypeDTO>> exportDictTypes(@RequestBody(required = false) SysDictTypeQueryRequest request) {
-        return success(adminDictApplicationService.pageDictTypes(request));
+    public void exportDictTypes(@RequestBody(required = false) SysDictTypeQueryRequest request,
+                                HttpServletResponse response) {
+        adminDictApplicationService.exportDictTypes(request, currentOperatorName(), response);
     }
 
     /**
@@ -271,8 +273,9 @@ public class AdminDictController {
     @PostMapping("/data/export")
     @RequiresPermission("system:dictData:export")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.EXPORT, operation = "导出字典数据列表")
-    public CommonResult<PageResult<SysDictDataDTO>> exportDictData(@RequestBody(required = false) SysDictDataQueryRequest request) {
-        return success(adminDictApplicationService.pageDictData(request));
+    public void exportDictData(@RequestBody(required = false) SysDictDataQueryRequest request,
+                               HttpServletResponse response) {
+        adminDictApplicationService.exportDictData(request, currentOperatorName(), response);
     }
 
     /**
@@ -283,5 +286,22 @@ public class AdminDictController {
      */
     private String decodePathSegment(String value) {
         return java.net.URLDecoder.decode(value, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 获取当前操作人名称，用于写入 Excel 导出元信息。
+     *
+     * @return 操作人名称
+     */
+    private String currentOperatorName() {
+        com.scott.payment.component.core.auth.InternalAuthAccount account =
+                com.scott.payment.component.core.auth.InternalAuthContextHolder.get();
+        if (account == null) {
+            return "admin";
+        }
+        if (account.getRealName() != null && !account.getRealName().isBlank()) {
+            return account.getRealName();
+        }
+        return account.getLoginAccount();
     }
 }
