@@ -26,12 +26,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMenuServiceImpl
- * @date : 2026-06-07 00:00
- * @description : 管理后台菜单服务实现
- * @status : create
+ * 后台菜单领域服务实现。
+ *
+ * <p>负责菜单树组装、父子层级校验、菜单编码唯一性校验和菜单状态维护。</p>
  */
 @Service
 public class AdminMenuServiceImpl implements AdminMenuService {
@@ -44,11 +41,23 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     private final SysAppMapper sysAppMapper;
     private final SysMenuMapper sysMenuMapper;
 
+    /**
+     * 创建后台菜单服务实现。
+     *
+     * @param sysAppMapper  应用 Mapper
+     * @param sysMenuMapper 菜单 Mapper
+     */
     public AdminMenuServiceImpl(SysAppMapper sysAppMapper, SysMenuMapper sysMenuMapper) {
         this.sysAppMapper = sysAppMapper;
         this.sysMenuMapper = sysMenuMapper;
     }
 
+    /**
+     * 查询后台菜单树，并根据查询条件过滤返回节点。
+     *
+     * @param request 查询条件
+     * @return 菜单树
+     */
     @Override
     public List<SysMenuDTO> treeMenus(SysMenuQueryRequest request) {
         SysMenuQueryRequest query = request == null ? new SysMenuQueryRequest() : request;
@@ -74,6 +83,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return buildTree(menus);
     }
 
+    /**
+     * 新增后台菜单。
+     *
+     * @param request 新增请求
+     * @return 菜单详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO createMenu(SysMenuCreateRequest request) {
@@ -95,6 +110,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return toDTO(menu);
     }
 
+    /**
+     * 更新后台菜单。
+     *
+     * @param request 更新请求
+     * @return 菜单详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO updateMenu(SysMenuUpdateRequest request) {
@@ -112,6 +133,11 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return toDTO(menu);
     }
 
+    /**
+     * 更新后台菜单状态。
+     *
+     * @param request 状态请求
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(SysMenuStatusRequest request) {
@@ -121,6 +147,11 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         sysMenuMapper.updateById(menu);
     }
 
+    /**
+     * 查询 admin 应用，确保菜单始终挂载在管理后台应用之下。
+     *
+     * @return admin 应用实体
+     */
     private SysAppDO getAdminApp() {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()
@@ -134,6 +165,13 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return app;
     }
 
+    /**
+     * 查询指定菜单，避免跨应用或已删除菜单被误操作。
+     *
+     * @param appId  应用主键
+     * @param menuId 菜单主键
+     * @return 菜单实体
+     */
     private SysMenuDO getMenu(Long appId, Long menuId) {
         SysMenuDO menu = sysMenuMapper.selectOne(
                 Wrappers.<SysMenuDO>lambdaQuery()
@@ -148,6 +186,13 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return menu;
     }
 
+    /**
+     * 校验父菜单是否合法，避免自引用或形成循环层级。
+     *
+     * @param appId         应用主键
+     * @param parentId      父菜单主键
+     * @param currentMenuId 当前菜单主键，新增时为空
+     */
     private void validateParent(Long appId, Long parentId, Long currentMenuId) {
         if (parentId == null || parentId == ROOT_PARENT_ID) {
             return;
@@ -165,6 +210,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         }
     }
 
+    /**
+     * 校验菜单编码在当前应用内唯一。
+     *
+     * @param appId    应用主键
+     * @param menuCode 菜单编码
+     */
     private void assertMenuCodeNotExists(Long appId, String menuCode) {
         Long count = sysMenuMapper.selectCount(
                 Wrappers.<SysMenuDO>lambdaQuery()
@@ -177,6 +228,21 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         }
     }
 
+    /**
+     * 将可编辑字段统一写回菜单实体，避免新增和编辑逻辑散落。
+     *
+     * @param menu         菜单实体
+     * @param routePath    路由地址
+     * @param componentPath 组件地址
+     * @param permissionCode 权限标识
+     * @param icon         图标
+     * @param redirect     重定向地址
+     * @param visible      是否显示
+     * @param keepAlive    是否缓存
+     * @param externalLink 是否外链
+     * @param sortNo       排序号
+     * @param status       状态
+     */
     private void applyEditableFields(SysMenuDO menu, String routePath, String componentPath, String permissionCode,
                                      String icon, String redirect, Integer visible, Integer keepAlive,
                                      Integer externalLink, Integer sortNo, Integer status) {
@@ -192,6 +258,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         menu.setStatus(status == null ? AuthConstants.ENABLED : validStatus(status));
     }
 
+    /**
+     * 校验菜单类型是否合法。
+     *
+     * @param menuType 菜单类型
+     * @return 规范化后的菜单类型
+     */
     private String validMenuType(String menuType) {
         String normalized = normalizeRequired(menuType);
         if (MENU_TYPES.contains(normalized)) {
@@ -200,6 +272,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "menu type is invalid");
     }
 
+    /**
+     * 校验开关类状态值是否合法。
+     *
+     * @param status 状态值
+     * @return 合法状态值
+     */
     private Integer validStatus(Integer status) {
         if (status == AuthConstants.ENABLED || status == AuthConstants.DISABLED) {
             return status;
@@ -207,6 +285,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "status is invalid");
     }
 
+    /**
+     * 去除首尾空格并校验必填字符串。
+     *
+     * @param value 原始值
+     * @return 规范化后的非空字符串
+     */
     private String normalizeRequired(String value) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "required field is blank");
@@ -214,6 +298,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return value.trim();
     }
 
+    /**
+     * 去除首尾空格，空白字符串统一归一为 null。
+     *
+     * @param value 原始值
+     * @return 规范化后的可空字符串
+     */
     private String normalize(String value) {
         if (!StringUtils.hasText(value)) {
             return null;

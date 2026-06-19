@@ -10,6 +10,11 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class AdminOpenApiSecurityConfig {
 
+    /**
+     * 注册 OpenAPI 密钥材料工厂，供后台商户管理场景生成与轮换密钥。
+     *
+     * @return 密钥材料工厂
+     */
     @Bean
     public OpenApiKeyMaterialFactory openApiKeyMaterialFactory() {
         return new OpenApiKeyMaterialFactory();

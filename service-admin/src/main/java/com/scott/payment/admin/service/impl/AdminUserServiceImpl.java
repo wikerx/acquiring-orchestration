@@ -64,6 +64,16 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final SysAccountRoleMapper sysAccountRoleMapper;
     private final SysLoginSessionMapper sysLoginSessionMapper;
 
+    /**
+     * 创建后台用户服务实现。
+     *
+     * @param sysAppMapper          应用 Mapper
+     * @param sysAccountMapper      账号 Mapper
+     * @param sysUserMapper         用户 Mapper
+     * @param sysRoleMapper         角色 Mapper
+     * @param sysAccountRoleMapper  账号角色 Mapper
+     * @param sysLoginSessionMapper 登录会话 Mapper
+     */
     public AdminUserServiceImpl(SysAppMapper sysAppMapper,
                                 SysAccountMapper sysAccountMapper,
                                 SysUserMapper sysUserMapper,
@@ -78,12 +88,18 @@ public class AdminUserServiceImpl implements AdminUserService {
         this.sysLoginSessionMapper = sysLoginSessionMapper;
     }
 
+    /**
+     * 分页查询后台用户，并批量聚合用户主数据避免 N+1 查询。
+     *
+     * @param request 查询条件
+     * @return 用户分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request) {
         SysUserAccountQueryRequest query = request == null ? new SysUserAccountQueryRequest() : request;
         SysAppDO app = getAdminApp();
-//        1. 分页查询账号信息
+        // 先查询账号分页，再按 userId 批量回填用户资料，避免列表场景出现 N+1 查询。
         Page<SysAccountDO> page = sysAccountMapper.selectPage(
                 new Page<>(query.safePageNo(), query.safePageSize()),
                 Wrappers.<SysAccountDO>lambdaQuery()
@@ -95,9 +111,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .eq(query.getStatus() != null, SysAccountDO::getStatus, query.getStatus())
                         .orderByDesc(SysAccountDO::getUpdatedAt)
         );
-//        2. 批量加载关联用户信息，避免 N+1 查询
         Map<Long, SysUserDO> userMap = loadUsers(page);
-//        3. 转换成 DTO，返回分页结果
         return PageResult.of(
                 page.getTotal(),
                 page.getCurrent(),
@@ -106,6 +120,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         );
     }
 
+    /**
+     * 新增后台用户，并为新账号绑定默认管理员角色。
+     *
+     * @param request 新增请求
+     * @return 用户详情
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -153,6 +173,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         return toDTO(account, user);
     }
 
+    /**
+     * 更新后台用户基础信息。
+     *
+     * @param request 更新请求
+     * @return 用户详情
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -184,6 +210,11 @@ public class AdminUserServiceImpl implements AdminUserService {
         return toDTO(account, user);
     }
 
+    /**
+     * 更新后台用户状态。
+     *
+     * @param request 状态请求
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -204,6 +235,11 @@ public class AdminUserServiceImpl implements AdminUserService {
         }
     }
 
+    /**
+     * 重置后台用户密码，并强制注销已有会话。
+     *
+     * @param request 重置密码请求
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -226,6 +262,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         logoutSessions(app.getId(), account.getId(), now);
     }
 
+    /**
+     * 查询后台用户角色授权。
+     *
+     * @param accountId 账号主键
+     * @return 角色授权结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public SysUserRoleAuthDTO userRoles(Long accountId) {
@@ -238,6 +280,11 @@ public class AdminUserServiceImpl implements AdminUserService {
         return dto;
     }
 
+    /**
+     * 保存后台用户角色授权，并使旧会话失效以便权限即时生效。
+     *
+     * @param request 角色授权请求
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -274,7 +321,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
-     * 获取后台管理系统对应的应用信息
+     * 获取后台管理系统对应的应用信息。
      */
     private SysAppDO getAdminApp() {
         SysAppDO app = sysAppMapper.selectOne(
@@ -289,6 +336,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         return app;
     }
 
+    /**
+     * 校验登录账号唯一性。
+     *
+     * @param appId        应用主键
+     * @param loginAccount 登录账号
+     */
     private void assertAccountNotExists(Long appId, String loginAccount) {
         Long count = sysAccountMapper.selectCount(
                 Wrappers.<SysAccountDO>lambdaQuery()
@@ -301,6 +354,13 @@ public class AdminUserServiceImpl implements AdminUserService {
         }
     }
 
+    /**
+     * 查询后台账号实体。
+     *
+     * @param appId     应用主键
+     * @param accountId 账号主键
+     * @return 账号实体
+     */
     private SysAccountDO getAccount(Long appId, Long accountId) {
         SysAccountDO account = sysAccountMapper.selectOne(
                 Wrappers.<SysAccountDO>lambdaQuery()

@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.converter.OperLogConverter;
 import com.scott.payment.admin.dto.SysOperLogDTO;
 import com.scott.payment.admin.dto.SysOperLogQueryRequest;
 import com.scott.payment.admin.dto.SysOperLogRecordRequest;
@@ -16,13 +17,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminOperLogServiceImpl
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 管理后台操作日志服务实现
- * @status : create
+ * 后台操作日志领域服务实现。
  */
 @Service
 public class AdminOperLogServiceImpl implements AdminOperLogService {
@@ -104,7 +99,7 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(this::toOperLogDTO).toList()
+                page.getRecords().stream().map(OperLogConverter.INSTANCE::toDTO).toList()
         );
     }
 
@@ -126,33 +121,6 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
                 .ge(query.getOperatedStartAt() != null, SysOperLogDO::getOperatedAt, query.getOperatedStartAt())
                 .le(query.getOperatedEndAt() != null, SysOperLogDO::getOperatedAt, query.getOperatedEndAt())
                 .orderByDesc(SysOperLogDO::getOperatedAt);
-    }
-
-    /**
-     * 转换操作日志 DTO。
-     *
-     * @param entity 操作日志实体
-     * @return 操作日志 DTO
-     */
-    private SysOperLogDTO toOperLogDTO(SysOperLogDO entity) {
-        SysOperLogDTO dto = new SysOperLogDTO();
-        dto.setId(entity.getId());
-        dto.setTraceId(entity.getTraceId());
-        dto.setRequestId(entity.getRequestId());
-        dto.setMerchantId(entity.getMerchantId());
-        dto.setModuleName(entity.getModuleName());
-        dto.setBusinessType(entity.getBusinessType());
-        dto.setRequestMethod(entity.getRequestMethod());
-        dto.setOperatorId(entity.getOperatorId());
-        dto.setOperatorName(entity.getOperatorName());
-        dto.setOperUrl(entity.getOperUrl());
-        dto.setOperIp(entity.getOperIp());
-        dto.setCostTime(entity.getCostTime());
-        dto.setStatus(entity.getStatus());
-        dto.setErrorCode(entity.getErrorCode());
-        dto.setErrorMsg(entity.getErrorMsg());
-        dto.setOperatedAt(entity.getOperatedAt());
-        return dto;
     }
 
     /**

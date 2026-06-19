@@ -57,6 +57,15 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
+    /**
+     * 创建管理后台商户信息服务实现。
+     *
+     * @param merchantInfoMapper        商户基础资料 Mapper
+     * @param jwtKeyMapper              商户 JWT 密钥 Mapper
+     * @param platformPayloadKeyMapper  平台请求体密钥 Mapper
+     * @param responseKeyMapper         商户响应密钥 Mapper
+     * @param keyMaterialFactory        密钥材料工厂
+     */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
                                         BasePlatformPayloadKeyMapper platformPayloadKeyMapper,
@@ -69,6 +78,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.keyMaterialFactory = keyMaterialFactory;
     }
 
+    /**
+     * 分页查询商户基础资料。
+     *
+     * @param request 查询条件
+     * @return 商户分页结果
+     */
     @Override
     public PageResult<AdminMerchantInfoDTO> pageMerchants(AdminMerchantQueryRequest request) {
         AdminMerchantQueryRequest query = request == null ? new AdminMerchantQueryRequest() : request;
@@ -89,11 +104,23 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), records);
     }
 
+    /**
+     * 查询单个商户详情。
+     *
+     * @param id 商户主键
+     * @return 商户详情
+     */
     @Override
     public AdminMerchantInfoDTO getMerchant(Long id) {
         return toDTO(requireMerchantById(id));
     }
 
+    /**
+     * 新增商户资料。
+     *
+     * @param request 保存请求
+     * @return 商户详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO createMerchant(AdminMerchantSaveRequest request) {
@@ -113,6 +140,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return toDTO(row);
     }
 
+    /**
+     * 更新商户资料。
+     *
+     * @param id      商户主键
+     * @param request 保存请求
+     * @return 商户详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchant(Long id, AdminMerchantSaveRequest request) {
@@ -127,6 +161,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return toDTO(row);
     }
 
+    /**
+     * 更新商户状态。
+     *
+     * @param id             商户主键
+     * @param merchantStatus 商户状态
+     * @return 商户详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateStatus(Long id, Integer merchantStatus) {
@@ -138,6 +179,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return toDTO(row);
     }
 
+    /**
+     * 一次性初始化商户的 JWT、平台请求体和响应密钥材料。
+     *
+     * @param merchantId 商户号
+     * @return 一次性安全材料
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO provisionSecurityMaterial(String merchantId) {
@@ -159,6 +206,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 查询商户当前全部密钥概览。
+     *
+     * @param merchantId 商户号
+     * @return 密钥集合
+     */
     @Override
     public AdminMerchantKeyBundleDTO getMerchantKeys(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
@@ -184,6 +237,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return bundle;
     }
 
+    /**
+     * 轮换商户 JWT 对称密钥。
+     *
+     * @param merchantId 商户号
+     * @return 最新安全材料
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateJwtKey(String merchantId) {
@@ -198,6 +257,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 轮换平台请求体加密密钥。
+     *
+     * @param merchantId 商户号
+     * @return 最新安全材料
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotatePlatformPayloadKey(String merchantId) {
@@ -209,6 +274,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 轮换商户响应密钥对。
+     *
+     * @param merchantId 商户号
+     * @return 最新安全材料
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateMerchantResponseKey(String merchantId) {
@@ -221,6 +292,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 更新商户自维护的响应公钥材料。
+     *
+     * @param merchantId 商户号
+     * @param request    公钥更新请求
+     * @return 商户详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchantResponseKey(String merchantId, AdminMerchantResponseKeyRequest request) {

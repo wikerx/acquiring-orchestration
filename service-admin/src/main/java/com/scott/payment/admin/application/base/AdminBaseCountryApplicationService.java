@@ -1,0 +1,205 @@
+package com.scott.payment.admin.application.base;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.db.iso.entity.IsoCountryDO;
+import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import static com.scott.payment.component.core.model.CommonResult.success;
+
+/**
+ * 国家地区基础资料应用服务。
+ */
+@Service
+public class AdminBaseCountryApplicationService {
+
+    private final IsoCountryMapper isoCountryMapper;
+
+    /**
+     * 创建国家地区基础资料应用服务。
+     *
+     * @param isoCountryMapper 国家地区 Mapper
+     */
+    public AdminBaseCountryApplicationService(IsoCountryMapper isoCountryMapper) {
+        this.isoCountryMapper = isoCountryMapper;
+    }
+
+    /**
+     * 分页查询国家地区基础资料。
+     *
+     * @param pageNo        页码
+     * @param pageSize      每页大小
+     * @param keyword       关键字
+     * @param continentCode 大洲编码
+     * @param status        状态
+     * @return 分页结果
+     */
+    public PageResult<IsoCountryDO> pageCountries(int pageNo, int pageSize, String keyword,
+                                                  String continentCode, Integer status) {
+        LambdaQueryWrapper<IsoCountryDO> queryWrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(keyword)) {
+            queryWrapper.and(wrapper -> wrapper
+                    .like(IsoCountryDO::getAlpha2Code, keyword.trim())
+                    .or().like(IsoCountryDO::getAlpha3Code, keyword.trim())
+                    .or().like(IsoCountryDO::getEnglishName, keyword.trim())
+                    .or().like(IsoCountryDO::getChineseName, keyword.trim()));
+        }
+        queryWrapper.eq(StringUtils.hasText(continentCode), IsoCountryDO::getContinentCode, continentCode);
+        queryWrapper.eq(status != null, IsoCountryDO::getStatus, status);
+        queryWrapper.eq(IsoCountryDO::getDeleted, AuthConstants.NOT_DELETED);
+        queryWrapper.orderByAsc(IsoCountryDO::getAlpha2Code);
+
+        Page<IsoCountryDO> page = isoCountryMapper.selectPage(new Page<>(pageNo, pageSize), queryWrapper);
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
+    }
+
+    /**
+     * 查询单个国家地区详情。
+     *
+     * @param id 主键
+     * @return 国家地区详情
+     */
+    public IsoCountryDO getCountry(Long id) {
+        return isoCountryMapper.selectById(id);
+    }
+
+    /**
+     * 导出全部国家地区资料。
+     *
+     * @return 国家地区列表
+     */
+    public List<IsoCountryDO> exportCountries() {
+        return isoCountryMapper.selectList(new LambdaQueryWrapper<IsoCountryDO>()
+                .eq(IsoCountryDO::getDeleted, AuthConstants.NOT_DELETED)
+                .orderByAsc(IsoCountryDO::getAlpha2Code));
+    }
+
+    /**
+     * 新增国家地区资料。
+     *
+     * @param country 国家地区实体
+     * @return 保存后的实体
+     */
+    public IsoCountryDO createCountry(IsoCountryDO country) {
+        country.setId(null);
+        country.setCreatedAt(LocalDateTime.now());
+        country.setUpdatedAt(LocalDateTime.now());
+        country.setDeleted(0);
+        if (country.getStatus() == null) {
+            country.setStatus(1);
+        }
+        isoCountryMapper.insert(country);
+        return country;
+    }
+
+    /**
+     * 更新国家地区资料。
+     *
+     * @param id    主键
+     * @param input 更新输入
+     * @return 更新结果
+     */
+    public CommonResult<IsoCountryDO> updateCountry(Long id, IsoCountryDO input) {
+        IsoCountryDO country = isoCountryMapper.selectById(id);
+        if (country == null) {
+            return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "country not found");
+        }
+        mergeCountry(country, input);
+        country.setUpdatedAt(LocalDateTime.now());
+        isoCountryMapper.updateById(country);
+        return success(country);
+    }
+
+    /**
+     * 更新国家地区状态。
+     *
+     * @param id   主键
+     * @param body 状态请求体
+     * @return 更新结果
+     */
+    public CommonResult<IsoCountryDO> updateStatus(Long id, Map<String, Integer> body) {
+        IsoCountryDO country = isoCountryMapper.selectById(id);
+        if (country == null) {
+            return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "country not found");
+        }
+        country.setStatus(body.get("status"));
+        country.setUpdatedAt(LocalDateTime.now());
+        isoCountryMapper.updateById(country);
+        return success(country);
+    }
+
+    /**
+     * 逻辑删除国家地区资料。
+     *
+     * @param id 主键
+     */
+    public void removeCountry(Long id) {
+        IsoCountryDO country = isoCountryMapper.selectById(id);
+        if (country != null) {
+            country.setDeleted(1);
+            country.setUpdatedAt(LocalDateTime.now());
+            isoCountryMapper.updateById(country);
+        }
+    }
+
+    /**
+     * 用非空字段合并更新内容，避免覆盖前端未提交的字段。
+     *
+     * @param country 当前持久化实体
+     * @param input   本次更新输入
+     */
+    private void mergeCountry(IsoCountryDO country, IsoCountryDO input) {
+        if (input.getContinentCode() != null) {
+            country.setContinentCode(input.getContinentCode());
+        }
+        if (input.getContinentName() != null) {
+            country.setContinentName(input.getContinentName());
+        }
+        if (input.getAlpha2Code() != null) {
+            country.setAlpha2Code(input.getAlpha2Code());
+        }
+        if (input.getAlpha3Code() != null) {
+            country.setAlpha3Code(input.getAlpha3Code());
+        }
+        if (input.getNumericCode() != null) {
+            country.setNumericCode(input.getNumericCode());
+        }
+        if (input.getEnglishName() != null) {
+            country.setEnglishName(input.getEnglishName());
+        }
+        if (input.getShortEnglishName() != null) {
+            country.setShortEnglishName(input.getShortEnglishName());
+        }
+        if (input.getChineseName() != null) {
+            country.setChineseName(input.getChineseName());
+        }
+        if (input.getFlagEmoji() != null) {
+            country.setFlagEmoji(input.getFlagEmoji());
+        }
+        if (input.getPrimaryLanguageCode() != null) {
+            country.setPrimaryLanguageCode(input.getPrimaryLanguageCode());
+        }
+        if (input.getPrimaryLanguageEnglish() != null) {
+            country.setPrimaryLanguageEnglish(input.getPrimaryLanguageEnglish());
+        }
+        if (input.getPrimaryLanguageChinese() != null) {
+            country.setPrimaryLanguageChinese(input.getPrimaryLanguageChinese());
+        }
+        if (input.getCurrencyAlpha3Code() != null) {
+            country.setCurrencyAlpha3Code(input.getCurrencyAlpha3Code());
+        }
+        if (input.getStatus() != null) {
+            country.setStatus(input.getStatus());
+        }
+    }
+}

@@ -5,13 +5,7 @@ import com.scott.payment.admin.dto.SysLoginLogQueryRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminLoginLogService
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理后台登录日志服务
- * @status : create
+ * 后台登录日志领域服务。
  */
 public interface AdminLoginLogService {
 

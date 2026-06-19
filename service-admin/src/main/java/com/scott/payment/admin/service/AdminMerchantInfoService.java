@@ -13,25 +13,94 @@ import com.scott.payment.component.core.model.PageResult;
  */
 public interface AdminMerchantInfoService {
 
+    /**
+     * 分页查询商户资料。
+     *
+     * @param request 查询条件
+     * @return 商户分页结果
+     */
     PageResult<AdminMerchantInfoDTO> pageMerchants(AdminMerchantQueryRequest request);
 
+    /**
+     * 查询单个商户详情。
+     *
+     * @param id 商户主键
+     * @return 商户详情
+     */
     AdminMerchantInfoDTO getMerchant(Long id);
 
+    /**
+     * 新增商户资料。
+     *
+     * @param request 保存请求
+     * @return 商户详情
+     */
     AdminMerchantInfoDTO createMerchant(AdminMerchantSaveRequest request);
 
+    /**
+     * 更新商户资料。
+     *
+     * @param id      商户主键
+     * @param request 保存请求
+     * @return 商户详情
+     */
     AdminMerchantInfoDTO updateMerchant(Long id, AdminMerchantSaveRequest request);
 
+    /**
+     * 更新商户状态。
+     *
+     * @param id             商户主键
+     * @param merchantStatus 商户状态
+     * @return 商户详情
+     */
     AdminMerchantInfoDTO updateStatus(Long id, Integer merchantStatus);
 
+    /**
+     * 初始化商户安全材料。
+     *
+     * @param merchantId 商户号
+     * @return 安全材料
+     */
     AdminMerchantSecurityMaterialDTO provisionSecurityMaterial(String merchantId);
 
+    /**
+     * 查询商户密钥概览。
+     *
+     * @param merchantId 商户号
+     * @return 密钥集合
+     */
     AdminMerchantKeyBundleDTO getMerchantKeys(String merchantId);
 
+    /**
+     * 轮换商户 JWT 密钥。
+     *
+     * @param merchantId 商户号
+     * @return 最新安全材料
+     */
     AdminMerchantSecurityMaterialDTO rotateJwtKey(String merchantId);
 
+    /**
+     * 轮换平台请求体密钥。
+     *
+     * @param merchantId 商户号
+     * @return 最新安全材料
+     */
     AdminMerchantSecurityMaterialDTO rotatePlatformPayloadKey(String merchantId);
 
+    /**
+     * 轮换商户响应密钥。
+     *
+     * @param merchantId 商户号
+     * @return 最新安全材料
+     */
     AdminMerchantSecurityMaterialDTO rotateMerchantResponseKey(String merchantId);
 
+    /**
+     * 更新商户响应公钥。
+     *
+     * @param merchantId 商户号
+     * @param request    公钥更新请求
+     * @return 商户详情
+     */
     AdminMerchantInfoDTO updateMerchantResponseKey(String merchantId, AdminMerchantResponseKeyRequest request);
 }

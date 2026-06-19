@@ -9,20 +9,38 @@ import com.scott.payment.admin.dto.SysMenuUpdateRequest;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMenuService
- * @date : 2026-06-07 00:00
- * @description : 管理后台菜单服务
- * @status : create
+ * 后台菜单领域服务。
  */
 public interface AdminMenuService {
 
+    /**
+     * 查询后台菜单树。
+     *
+     * @param request 查询条件
+     * @return 菜单树
+     */
     List<SysMenuDTO> treeMenus(SysMenuQueryRequest request);
 
+    /**
+     * 新增后台菜单。
+     *
+     * @param request 新增请求
+     * @return 菜单详情
+     */
     SysMenuDTO createMenu(SysMenuCreateRequest request);
 
+    /**
+     * 编辑后台菜单。
+     *
+     * @param request 更新请求
+     * @return 菜单详情
+     */
     SysMenuDTO updateMenu(SysMenuUpdateRequest request);
 
+    /**
+     * 更新后台菜单状态。
+     *
+     * @param request 状态请求
+     */
     void updateStatus(SysMenuStatusRequest request);
 }

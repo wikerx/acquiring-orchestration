@@ -1,0 +1,187 @@
+package com.scott.payment.admin.application.base;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.auth.constant.AuthConstants;
+import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
+import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import static com.scott.payment.component.core.model.CommonResult.success;
+
+/**
+ * 币种基础资料应用服务。
+ */
+@Service
+public class AdminBaseCurrencyApplicationService {
+
+    private final IsoCurrencyMapper isoCurrencyMapper;
+
+    /**
+     * 创建币种基础资料应用服务。
+     *
+     * @param isoCurrencyMapper 币种 Mapper
+     */
+    public AdminBaseCurrencyApplicationService(IsoCurrencyMapper isoCurrencyMapper) {
+        this.isoCurrencyMapper = isoCurrencyMapper;
+    }
+
+    /**
+     * 分页查询币种基础资料。
+     *
+     * @param pageNo   页码
+     * @param pageSize 每页大小
+     * @param keyword  关键字
+     * @param status   状态
+     * @return 分页结果
+     */
+    public PageResult<IsoCurrencyDO> pageCurrencies(int pageNo, int pageSize, String keyword, Integer status) {
+        LambdaQueryWrapper<IsoCurrencyDO> queryWrapper = new LambdaQueryWrapper<>();
+        if (StringUtils.hasText(keyword)) {
+            queryWrapper.and(wrapper -> wrapper
+                    .like(IsoCurrencyDO::getAlpha3Code, keyword.trim())
+                    .or().like(IsoCurrencyDO::getNumericCode, keyword.trim())
+                    .or().like(IsoCurrencyDO::getEnglishName, keyword.trim())
+                    .or().like(IsoCurrencyDO::getChineseName, keyword.trim()));
+        }
+        queryWrapper.eq(status != null, IsoCurrencyDO::getStatus, status);
+        queryWrapper.eq(IsoCurrencyDO::getDeleted, AuthConstants.NOT_DELETED);
+        queryWrapper.orderByAsc(IsoCurrencyDO::getAlpha3Code);
+
+        Page<IsoCurrencyDO> page = isoCurrencyMapper.selectPage(new Page<>(pageNo, pageSize), queryWrapper);
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
+    }
+
+    /**
+     * 查询单个币种详情。
+     *
+     * @param id 主键
+     * @return 币种详情
+     */
+    public IsoCurrencyDO getCurrency(Long id) {
+        return isoCurrencyMapper.selectById(id);
+    }
+
+    /**
+     * 导出全部币种资料。
+     *
+     * @return 币种列表
+     */
+    public List<IsoCurrencyDO> exportCurrencies() {
+        return isoCurrencyMapper.selectList(new LambdaQueryWrapper<IsoCurrencyDO>()
+                .eq(IsoCurrencyDO::getDeleted, AuthConstants.NOT_DELETED)
+                .orderByAsc(IsoCurrencyDO::getAlpha3Code));
+    }
+
+    /**
+     * 新增币种资料。
+     *
+     * @param currency 币种实体
+     * @return 保存后的实体
+     */
+    public IsoCurrencyDO createCurrency(IsoCurrencyDO currency) {
+        currency.setId(null);
+        currency.setCreatedAt(LocalDateTime.now());
+        currency.setUpdatedAt(LocalDateTime.now());
+        currency.setDeleted(0);
+        if (currency.getStatus() == null) {
+            currency.setStatus(1);
+        }
+        isoCurrencyMapper.insert(currency);
+        return currency;
+    }
+
+    /**
+     * 更新币种资料。
+     *
+     * @param id    主键
+     * @param input 更新输入
+     * @return 更新结果
+     */
+    public CommonResult<IsoCurrencyDO> updateCurrency(Long id, IsoCurrencyDO input) {
+        IsoCurrencyDO currency = isoCurrencyMapper.selectById(id);
+        if (currency == null) {
+            return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "currency not found");
+        }
+        mergeCurrency(currency, input);
+        currency.setUpdatedAt(LocalDateTime.now());
+        isoCurrencyMapper.updateById(currency);
+        return success(currency);
+    }
+
+    /**
+     * 更新币种状态。
+     *
+     * @param id   主键
+     * @param body 状态请求体
+     * @return 更新结果
+     */
+    public CommonResult<IsoCurrencyDO> updateStatus(Long id, Map<String, Integer> body) {
+        IsoCurrencyDO currency = isoCurrencyMapper.selectById(id);
+        if (currency == null) {
+            return CommonResult.error(ApiResultEnum.NOT_FOUND.getCode(), "currency not found");
+        }
+        currency.setStatus(body.get("status"));
+        currency.setUpdatedAt(LocalDateTime.now());
+        isoCurrencyMapper.updateById(currency);
+        return success(currency);
+    }
+
+    /**
+     * 逻辑删除币种资料。
+     *
+     * @param id 主键
+     */
+    public void removeCurrency(Long id) {
+        IsoCurrencyDO currency = isoCurrencyMapper.selectById(id);
+        if (currency != null) {
+            currency.setDeleted(1);
+            currency.setUpdatedAt(LocalDateTime.now());
+            isoCurrencyMapper.updateById(currency);
+        }
+    }
+
+    /**
+     * 用非空字段合并币种更新内容。
+     *
+     * @param currency 当前持久化实体
+     * @param input    本次更新输入
+     */
+    private void mergeCurrency(IsoCurrencyDO currency, IsoCurrencyDO input) {
+        if (input.getAlpha3Code() != null) {
+            currency.setAlpha3Code(input.getAlpha3Code());
+        }
+        if (input.getNumericCode() != null) {
+            currency.setNumericCode(input.getNumericCode());
+        }
+        if (input.getEnglishName() != null) {
+            currency.setEnglishName(input.getEnglishName());
+        }
+        if (input.getChineseName() != null) {
+            currency.setChineseName(input.getChineseName());
+        }
+        if (input.getCurrencySymbol() != null) {
+            currency.setCurrencySymbol(input.getCurrencySymbol());
+        }
+        if (input.getFractionDigits() != null) {
+            currency.setFractionDigits(input.getFractionDigits());
+        }
+        if (input.getMinorUnitMultiplier() != null) {
+            currency.setMinorUnitMultiplier(input.getMinorUnitMultiplier());
+        }
+        if (input.getMinimumAmount() != null) {
+            currency.setMinimumAmount(input.getMinimumAmount());
+        }
+        if (input.getStatus() != null) {
+            currency.setStatus(input.getStatus());
+        }
+    }
+}

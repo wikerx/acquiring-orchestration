@@ -4,13 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysDictTypeSaveRequest
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 字典类型保存请求
- * @status : create
+ * 字典类型保存请求。
+ *
+ * <p>用于后台字典主表的新增和更新，不包含字典项列表。</p>
  */
 @Data
 public class SysDictTypeSaveRequest {

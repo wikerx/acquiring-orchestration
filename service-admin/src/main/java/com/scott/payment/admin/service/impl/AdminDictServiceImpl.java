@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.converter.DictConverter;
 import com.scott.payment.admin.dto.SysDictDataDTO;
 import com.scott.payment.admin.dto.SysDictDataQueryRequest;
 import com.scott.payment.admin.dto.SysDictDataSaveRequest;
@@ -23,13 +24,9 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDictServiceImpl
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 管理后台数据字典服务实现
- * @status : create
+ * 管理后台数据字典领域服务实现。
+ *
+ * <p>该类只负责字典主表和字典项的持久化规则，不承担权限控制或页面交互逻辑。</p>
  */
 @Service
 public class AdminDictServiceImpl implements AdminDictService {
@@ -54,22 +51,9 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     private static final String DEFAULT_LOCALE = "zh-CN";
 
-    /**
-     * 字典类型 Mapper。
-     */
     private final SysDictTypeMapper dictTypeMapper;
-
-    /**
-     * 字典数据 Mapper。
-     */
     private final SysDictDataMapper dictDataMapper;
 
-    /**
-     * 创建数据字典服务实现。
-     *
-     * @param dictTypeMapper 字典类型 Mapper
-     * @param dictDataMapper 字典数据 Mapper
-     */
     public AdminDictServiceImpl(SysDictTypeMapper dictTypeMapper, SysDictDataMapper dictDataMapper) {
         this.dictTypeMapper = dictTypeMapper;
         this.dictDataMapper = dictDataMapper;
@@ -84,7 +68,7 @@ public class AdminDictServiceImpl implements AdminDictService {
     @Override
     public SysDictTypeDTO saveDictType(SysDictTypeSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
-        SysDictTypeDO entity = findDictType(request.getDictType());
+        SysDictTypeDO entity = findDictTypeOrThrowWhenBlank(request.getDictType());
         if (entity == null) {
             entity = new SysDictTypeDO();
             entity.setDictType(request.getDictType());
@@ -98,7 +82,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         } else {
             dictTypeMapper.updateById(entity);
         }
-        return toDictTypeDTO(entity);
+        return DictConverter.INSTANCE.toTypeDTO(entity);
     }
 
     /**
@@ -118,7 +102,7 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(this::toDictTypeDTO).toList()
+                page.getRecords().stream().map(DictConverter.INSTANCE::toTypeDTO).toList()
         );
     }
 
@@ -129,7 +113,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     @Override
     public void deleteDictType(String dictType) {
-        SysDictTypeDO entity = findDictType(dictType);
+        SysDictTypeDO entity = findDictTypeOrThrowWhenBlank(dictType);
         if (entity == null) {
             return;
         }
@@ -148,7 +132,7 @@ public class AdminDictServiceImpl implements AdminDictService {
     public SysDictDataDTO saveDictData(SysDictDataSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         String locale = defaultIfBlank(request.getLocale(), DEFAULT_LOCALE);
-        SysDictDataDO entity = findDictData(request.getDictType(), request.getDictValue(), locale);
+        SysDictDataDO entity = findDictDataOrThrowWhenBlank(request.getDictType(), request.getDictValue(), locale);
         if (entity == null) {
             entity = new SysDictDataDO();
             entity.setDictType(request.getDictType());
@@ -164,7 +148,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         } else {
             dictDataMapper.updateById(entity);
         }
-        return toDictDataDTO(entity);
+        return DictConverter.INSTANCE.toDataDTO(entity);
     }
 
     /**
@@ -184,8 +168,36 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(this::toDictDataDTO).toList()
+                page.getRecords().stream().map(DictConverter.INSTANCE::toDataDTO).toList()
         );
+    }
+
+    /**
+     * 按主键查询字典数据详情。
+     *
+     * @param id 字典数据主键
+     * @return 字典数据详情
+     */
+    @Override
+    public SysDictDataDTO getDictDataById(Long id) {
+        SysDictDataDO entity = findDictDataById(id);
+        return DictConverter.INSTANCE.toDataDTO(entity);
+    }
+
+    /**
+     * 按主键更新字典数据。
+     *
+     * @param id      字典数据主键
+     * @param request 字典数据保存请求
+     * @return 更新后的字典数据
+     */
+    @Override
+    public SysDictDataDTO updateDictDataById(Long id, SysDictDataSaveRequest request) {
+        SysDictDataDO entity = findDictDataById(id);
+        LocalDateTime now = LocalDateTime.now();
+        fillDictData(entity, request, defaultIfBlank(request.getLocale(), entity.getLocale()), now);
+        dictDataMapper.updateById(entity);
+        return DictConverter.INSTANCE.toDataDTO(entity);
     }
 
     /**
@@ -232,10 +244,23 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     @Override
     public void deleteDictData(String dictType, String dictValue, String locale) {
-        SysDictDataDO entity = findDictData(dictType, dictValue, defaultIfBlank(locale, DEFAULT_LOCALE));
+        SysDictDataDO entity = findDictDataOrThrowWhenBlank(dictType, dictValue, defaultIfBlank(locale, DEFAULT_LOCALE));
         if (entity == null) {
             return;
         }
+        entity.setDeleted(entity.getId());
+        entity.setUpdatedAt(LocalDateTime.now());
+        dictDataMapper.updateById(entity);
+    }
+
+    /**
+     * 按主键删除字典数据。
+     *
+     * @param id 字典数据主键
+     */
+    @Override
+    public void deleteDictDataById(Long id) {
+        SysDictDataDO entity = findDictDataById(id);
         entity.setDeleted(entity.getId());
         entity.setUpdatedAt(LocalDateTime.now());
         dictDataMapper.updateById(entity);
@@ -247,7 +272,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param dictType 字典类型编码
      * @return 字典类型实体
      */
-    private SysDictTypeDO findDictType(String dictType) {
+    private SysDictTypeDO findDictTypeOrThrowWhenBlank(String dictType) {
         if (!StringUtils.hasText(dictType)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), ApiResultEnum.PARAM_MISSING.getMessage() + ":dictType");
         }
@@ -267,7 +292,7 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param locale    语言区域
      * @return 字典数据实体
      */
-    private SysDictDataDO findDictData(String dictType, String dictValue, String locale) {
+    private SysDictDataDO findDictDataOrThrowWhenBlank(String dictType, String dictValue, String locale) {
         if (!StringUtils.hasText(dictType) || !StringUtils.hasText(dictValue)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), ApiResultEnum.PARAM_MISSING.getMessage() + ":dictType/dictValue");
         }
@@ -279,6 +304,28 @@ public class AdminDictServiceImpl implements AdminDictService {
                         .eq(SysDictDataDO::getDeleted, NOT_DELETED)
                         .last("LIMIT 1")
         );
+    }
+
+    /**
+     * 按主键查询未删除字典数据。
+     *
+     * @param id 字典数据主键
+     * @return 字典数据实体
+     */
+    private SysDictDataDO findDictDataById(Long id) {
+        if (id == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), ApiResultEnum.PARAM_MISSING.getMessage() + ":id");
+        }
+        SysDictDataDO entity = dictDataMapper.selectOne(
+                Wrappers.<SysDictDataDO>lambdaQuery()
+                        .eq(SysDictDataDO::getId, id)
+                        .eq(SysDictDataDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (entity == null) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), ApiResultEnum.NOT_FOUND.getMessage() + ":dictData");
+        }
+        return entity;
     }
 
     /**
@@ -319,52 +366,6 @@ public class AdminDictServiceImpl implements AdminDictService {
         entity.setRemark(request.getRemark());
         entity.setUpdatedBy(request.getOperator());
         entity.setUpdatedAt(now);
-    }
-
-    /**
-     * 转换字典类型 DTO。
-     *
-     * @param entity 字典类型实体
-     * @return 字典类型 DTO
-     */
-    private SysDictTypeDTO toDictTypeDTO(SysDictTypeDO entity) {
-        SysDictTypeDTO dto = new SysDictTypeDTO();
-        dto.setId(entity.getId());
-        dto.setDictName(entity.getDictName());
-        dto.setDictType(entity.getDictType());
-        dto.setBizDomain(entity.getBizDomain());
-        dto.setSystemBuiltin(entity.getSystemBuiltin());
-        dto.setEditable(entity.getEditable());
-        dto.setStatus(entity.getStatus());
-        dto.setRemark(entity.getRemark());
-        dto.setCreatedAt(entity.getCreatedAt());
-        dto.setUpdatedAt(entity.getUpdatedAt());
-        return dto;
-    }
-
-    /**
-     * 转换字典数据 DTO。
-     *
-     * @param entity 字典数据实体
-     * @return 字典数据 DTO
-     */
-    private SysDictDataDTO toDictDataDTO(SysDictDataDO entity) {
-        SysDictDataDTO dto = new SysDictDataDTO();
-        dto.setId(entity.getId());
-        dto.setDictType(entity.getDictType());
-        dto.setDictLabel(entity.getDictLabel());
-        dto.setDictValue(entity.getDictValue());
-        dto.setParentValue(entity.getParentValue());
-        dto.setLocale(entity.getLocale());
-        dto.setDictSort(entity.getDictSort());
-        dto.setListClass(entity.getListClass());
-        dto.setExtraJson(entity.getExtraJson());
-        dto.setIsDefault(entity.getIsDefault());
-        dto.setStatus(entity.getStatus());
-        dto.setRemark(entity.getRemark());
-        dto.setCreatedAt(entity.getCreatedAt());
-        dto.setUpdatedAt(entity.getUpdatedAt());
-        return dto;
     }
 
     /**

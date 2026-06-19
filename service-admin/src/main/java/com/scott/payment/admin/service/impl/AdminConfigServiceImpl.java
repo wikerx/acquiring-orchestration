@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.scott.payment.admin.converter.ConfigConverter;
 import com.scott.payment.admin.dto.SysConfigDTO;
 import com.scott.payment.admin.dto.SysConfigQueryRequest;
 import com.scott.payment.admin.dto.SysConfigSaveRequest;
@@ -18,13 +19,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminConfigServiceImpl
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 管理后台系统参数配置服务实现
- * @status : create
+ * 后台系统参数配置领域服务实现。
  */
 @Service
 public class AdminConfigServiceImpl implements AdminConfigService {
@@ -76,7 +71,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         } else {
             sysConfigMapper.updateById(entity);
         }
-        return toConfigDTO(entity);
+        return ConfigConverter.INSTANCE.toDTO(entity);
     }
 
     /**
@@ -91,7 +86,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         if (entity == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), ApiResultEnum.NOT_FOUND.getMessage() + ":" + configKey);
         }
-        return toConfigDTO(entity);
+        return ConfigConverter.INSTANCE.toDTO(entity);
     }
 
     /**
@@ -111,7 +106,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(this::toConfigDTO).toList()
+                page.getRecords().stream().map(ConfigConverter.INSTANCE::toDTO).toList()
         );
     }
 
@@ -184,32 +179,6 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         entity.setRemark(request.getRemark());
         entity.setUpdatedBy(request.getOperator());
         entity.setUpdatedAt(now);
-    }
-
-    /**
-     * 将配置实体转换为响应 DTO。
-     *
-     * @param entity 配置实体
-     * @return 配置响应 DTO
-     */
-    private SysConfigDTO toConfigDTO(SysConfigDO entity) {
-        SysConfigDTO dto = new SysConfigDTO();
-        dto.setId(entity.getId());
-        dto.setConfigName(entity.getConfigName());
-        dto.setConfigKey(entity.getConfigKey());
-        dto.setConfigValue(entity.getConfigValue());
-        dto.setValueType(entity.getValueType());
-        dto.setConfigGroup(entity.getConfigGroup());
-        dto.setSystemBuiltin(entity.getSystemBuiltin());
-        dto.setVisible(entity.getVisible());
-        dto.setEncrypted(entity.getEncrypted());
-        dto.setStatus(entity.getStatus());
-        dto.setRemark(entity.getRemark());
-        dto.setCreatedBy(entity.getCreatedBy());
-        dto.setUpdatedBy(entity.getUpdatedBy());
-        dto.setCreatedAt(entity.getCreatedAt());
-        dto.setUpdatedAt(entity.getUpdatedAt());
-        return dto;
     }
 
     /**

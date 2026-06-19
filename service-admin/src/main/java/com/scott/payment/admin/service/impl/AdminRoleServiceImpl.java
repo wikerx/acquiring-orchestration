@@ -73,6 +73,17 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     private final SysMenuMapper sysMenuMapper;
     private final SysPermissionMapper sysPermissionMapper;
 
+    /**
+     * 创建后台角色服务实现。
+     *
+     * @param sysAppMapper             应用 Mapper
+     * @param sysRoleMapper            角色 Mapper
+     * @param sysRoleMenuMapper        角色菜单 Mapper
+     * @param sysRolePermissionMapper  角色权限 Mapper
+     * @param sysAccountRoleMapper     账号角色 Mapper
+     * @param sysMenuMapper            菜单 Mapper
+     * @param sysPermissionMapper      权限 Mapper
+     */
     public AdminRoleServiceImpl(SysAppMapper sysAppMapper,
                                 SysRoleMapper sysRoleMapper,
                                 SysRoleMenuMapper sysRoleMenuMapper,
@@ -89,6 +100,12 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         this.sysPermissionMapper = sysPermissionMapper;
     }
 
+    /**
+     * 分页查询后台角色，并聚合菜单与权限数量用于列表展示。
+     *
+     * @param request 查询条件
+     * @return 角色分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<SysRoleDTO> pageRoles(SysRoleQueryRequest request) {
@@ -117,6 +134,12 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         );
     }
 
+    /**
+     * 新增后台角色。
+     *
+     * @param request 新增请求
+     * @return 角色详情
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -140,6 +163,12 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return toDTO(role, Collections.emptyMap(), Collections.emptyMap());
     }
 
+    /**
+     * 更新后台角色。
+     *
+     * @param request 更新请求
+     * @return 角色详情
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -167,6 +196,11 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return toDTO(role, countRoleMenus(role.getId()), countRolePermissions(role.getId()));
     }
 
+    /**
+     * 更新后台角色状态。
+     *
+     * @param request 状态请求
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -178,6 +212,11 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         sysRoleMapper.updateById(role);
     }
 
+    /**
+     * 删除后台角色，并同步逻辑删除菜单授权与权限授权关系。
+     *
+     * @param roleId 角色主键
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -205,6 +244,12 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         softDeleteRolePermissions(app.getId(), role.getId());
     }
 
+    /**
+     * 查询角色菜单授权树。
+     *
+     * @param roleId 角色主键
+     * @return 菜单授权信息
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public SysRoleMenuAuthDTO roleMenus(Long roleId) {
@@ -224,6 +269,11 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
+    /**
+     * 保存角色菜单授权。
+     *
+     * @param request 菜单授权请求
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -245,6 +295,12 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         });
     }
 
+    /**
+     * 查询角色权限授权。
+     *
+     * @param roleId 角色主键
+     * @return 权限授权信息
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public SysRolePermissionAuthDTO rolePermissions(Long roleId) {
@@ -283,6 +339,11 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
+    /**
+     * 保存角色权限授权。
+     *
+     * @param request 权限授权请求
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -307,6 +368,11 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         });
     }
 
+    /**
+     * 查询 admin 应用实体，保证角色数据作用域固定在管理后台。
+     *
+     * @return admin 应用实体
+     */
     private SysAppDO getAdminApp() {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()
@@ -320,6 +386,12 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return app;
     }
 
+    /**
+     * 校验角色编码唯一性，避免同一应用下出现重复角色标识。
+     *
+     * @param appId    应用主键
+     * @param roleCode 角色编码
+     */
     private void assertRoleCodeNotExists(Long appId, String roleCode) {
         Long count = sysRoleMapper.selectCount(
                 Wrappers.<SysRoleDO>lambdaQuery()
@@ -332,6 +404,13 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         }
     }
 
+    /**
+     * 查询指定角色，并限制为当前 admin 应用下的有效角色。
+     *
+     * @param appId  应用主键
+     * @param roleId 角色主键
+     * @return 角色实体
+     */
     private SysRoleDO getRole(Long appId, Long roleId) {
         SysRoleDO role = sysRoleMapper.selectOne(
                 Wrappers.<SysRoleDO>lambdaQuery()

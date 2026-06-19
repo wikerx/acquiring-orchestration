@@ -6,13 +6,7 @@ import com.scott.payment.admin.dto.SysConfigSaveRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminConfigService
- * @date : 2026-06-05 00:00
- * @email : scott_x@163.com
- * @description : 管理后台系统参数配置服务
- * @status : create
+ * 后台系统参数配置领域服务。
  */
 public interface AdminConfigService {
 

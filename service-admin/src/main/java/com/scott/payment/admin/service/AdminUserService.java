@@ -11,26 +11,60 @@ import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserService
- * @date : 2026-06-06 00:00
- * @description : 管理后台用户服务
- * @status : create
+ * 后台用户领域服务。
  */
 public interface AdminUserService {
 
+    /**
+     * 分页查询后台用户。
+     *
+     * @param request 查询条件
+     * @return 用户分页结果
+     */
     PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request);
 
+    /**
+     * 新增后台用户。
+     *
+     * @param request 新增请求
+     * @return 用户详情
+     */
     SysUserAccountDTO createUser(SysUserAccountCreateRequest request);
 
+    /**
+     * 更新后台用户。
+     *
+     * @param request 更新请求
+     * @return 用户详情
+     */
     SysUserAccountDTO updateUser(SysUserAccountUpdateRequest request);
 
+    /**
+     * 更新后台用户状态。
+     *
+     * @param request 状态请求
+     */
     void updateStatus(SysUserAccountStatusRequest request);
 
+    /**
+     * 重置后台用户密码。
+     *
+     * @param request 重置密码请求
+     */
     void resetPassword(SysUserAccountResetPasswordRequest request);
 
+    /**
+     * 查询后台用户角色授权。
+     *
+     * @param accountId 账号主键
+     * @return 角色授权信息
+     */
     SysUserRoleAuthDTO userRoles(Long accountId);
 
+    /**
+     * 保存后台用户角色授权。
+     *
+     * @param request 角色授权请求
+     */
     void grantRoles(SysUserRoleGrantRequest request);
 }

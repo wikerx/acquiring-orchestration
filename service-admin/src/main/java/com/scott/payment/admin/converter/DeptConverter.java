@@ -3,7 +3,7 @@ package com.scott.payment.admin.converter;
 import com.scott.payment.admin.dto.SysDeptDTO;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
+import org.mapstruct.ReportingPolicy;
 import org.mapstruct.factory.Mappers;
 
 import java.util.ArrayList;
@@ -12,15 +12,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : DeptConverter
- * @date : 2026-06-12 22:00
- * @email : scott_x@163.com
- * @description : 部门实体与 DTO 转换器
- * @status : create
+ * 部门实体与 DTO 转换器。
  */
-@Mapper
+@Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface DeptConverter {
 
     DeptConverter INSTANCE = Mappers.getMapper(DeptConverter.class);

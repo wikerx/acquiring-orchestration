@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.converter.LoginLogConverter;
 import com.scott.payment.admin.dto.SysLoginLogDTO;
 import com.scott.payment.admin.dto.SysLoginLogQueryRequest;
 import com.scott.payment.admin.service.AdminLoginLogService;
@@ -13,13 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminLoginLogServiceImpl
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理后台登录日志服务实现
- * @status : create
+ * 后台登录日志领域服务实现。
  */
 @Service
 public class AdminLoginLogServiceImpl implements AdminLoginLogService {
@@ -55,7 +50,7 @@ public class AdminLoginLogServiceImpl implements AdminLoginLogService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(this::toLoginLogDTO).toList()
+                page.getRecords().stream().map(LoginLogConverter.INSTANCE::toDTO).toList()
         );
     }
 
@@ -77,25 +72,4 @@ public class AdminLoginLogServiceImpl implements AdminLoginLogService {
                 .orderByDesc(SysLoginLogDO::getLoginAt);
     }
 
-    /**
-     * 转换登录日志 DTO。
-     *
-     * @param entity 登录日志实体
-     * @return 登录日志 DTO
-     */
-    private SysLoginLogDTO toLoginLogDTO(SysLoginLogDO entity) {
-        SysLoginLogDTO dto = new SysLoginLogDTO();
-        dto.setId(entity.getId());
-        dto.setAppId(entity.getAppId());
-        dto.setAccountId(entity.getAccountId());
-        dto.setUserId(entity.getUserId());
-        dto.setMerchantId(entity.getMerchantId());
-        dto.setLoginAccount(entity.getLoginAccount());
-        dto.setLoginIp(entity.getLoginIp());
-        dto.setUserAgent(entity.getUserAgent());
-        dto.setLoginStatus(entity.getLoginStatus());
-        dto.setFailReason(entity.getFailReason());
-        dto.setLoginAt(entity.getLoginAt());
-        return dto;
-    }
 }
