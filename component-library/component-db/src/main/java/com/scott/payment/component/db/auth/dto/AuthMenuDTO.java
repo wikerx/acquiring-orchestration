@@ -74,6 +74,12 @@ public class AuthMenuDTO implements Serializable {
     private Integer sortNo;
 
     /**
+     * 是否为新窗口外链。
+     * 0 表示系统内承载，1 表示新窗口打开。
+     */
+    private Integer externalLink;
+
+    /**
      * 子菜单列表。
      */
     private List<AuthMenuDTO> children = new ArrayList<>();

@@ -1,11 +1,72 @@
-# RocketMQ 配置：用于交易异步事件、通知重试、对账补偿等消息链路。
+# RocketMQ 配置：用于交易异步事件、通知重试、对账补偿和管理类操作日志异步链路。
 rocketmq:
-  # NameServer 地址，dev 默认本机。
+  # NameServer 地址，dev 默认本机；如果服务运行在 Docker 网络内，需要改成容器可达地址。
   name-server: ${ROCKETMQ_NAME_SERVER:127.0.0.1:9876}
   producer:
-    # 生产者分组按服务名隔离。
-    group: ${spring.application.name}-producer
+    # 本地开发统一生产者分组。
+    group: ${ROCKETMQ_PRODUCER_GROUP:acquiring-orchestration-producer}
     # 发送超时时间，单位毫秒。
     send-message-timeout: 3000
     # 同步发送失败重试次数。
     retry-times-when-send-failed: 2
+    # 异步发送失败重试次数。
+    retry-times-when-send-async-failed: 2
+
+acquiring:
+  mq:
+    initializer:
+      # 是否启用声明式 RocketMQ 资源初始化器。
+      enabled: true
+      # 初始化失败是否阻断服务启动。
+      fail-fast: false
+      # 是否在应用启动时执行资源检查。
+      scan-on-startup: true
+      # 资源缺失时是否自动创建。
+      auto-create: true
+      # 资源已存在时是否按声明配置更新。
+      update-if-exists: false
+      # Topic 默认读队列数。
+      default-read-queue-nums: 4
+      # Topic 默认写队列数。
+      default-write-queue-nums: 4
+      # Topic 默认权限，6 = 可读 + 可写。
+      default-topic-perm: 6
+      resources:
+        - name: acquiring_admin_operation_log_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
+        - name: acquiring_merchant_operation_log_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
+        - name: acquiring-admin-operation-log-consumer-dev
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        - name: acquiring-merchant-operation-log-consumer-dev
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+  operation-log:
+    mq:
+      # 管理类系统操作日志 MQ 链路总开关。
+      enabled: true
+      # 管理后台操作日志 Topic。
+      admin-topic: acquiring_admin_operation_log_topic
+      # 商户管理系统操作日志 Topic。
+      merchant-topic: acquiring_merchant_operation_log_topic
+      # 操作日志生产者分组。
+      producer-group: acquiring-operation-log-producer
+      # 管理后台操作日志消费者分组。
+      admin-consumer-group: acquiring-admin-operation-log-consumer-dev
+      # 商户管理系统操作日志消费者分组。
+      merchant-consumer-group: acquiring-merchant-operation-log-consumer-dev
+      # 单条消息发送超时时间，单位毫秒。
+      send-timeout-ms: 3000
+      # 操作日志消息最大文本长度，超出后会在发送前截断。
+      max-message-length: 8192
+      # 是否启用敏感字段脱敏标记。
+      mask-sensitive-data: true

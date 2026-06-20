@@ -65,11 +65,16 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
             return;
         }
         LocalDateTime now = LocalDateTime.now();
+        LocalDateTime operatedAt = request.getOperatedAt() == null ? now : request.getOperatedAt();
         SysOperLogDO entity = new SysOperLogDO();
         entity.setTraceId(request.getTraceId());
         entity.setRequestId(request.getRequestId());
+        entity.setMessageId(request.getMessageId());
+        entity.setIdempotentKey(request.getIdempotentKey());
+        entity.setSystemCode(request.getSystemCode());
         entity.setMerchantId(request.getMerchantId());
         entity.setModuleName(request.getModuleName());
+        entity.setOperationName(request.getOperationName());
         entity.setBusinessType(request.getBusinessType());
         entity.setMethodName(request.getMethodName());
         entity.setRequestMethod(request.getRequestMethod());
@@ -79,13 +84,15 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
         entity.setOperUrl(request.getOperUrl());
         entity.setOperIp(request.getOperIp());
         entity.setOperLocation(request.getOperLocation());
+        entity.setStoreId(request.getStoreId());
+        entity.setUserAgent(request.getUserAgent());
         entity.setRequestParam(request.getRequestParam());
         entity.setResponseResult(request.getResponseResult());
         entity.setCostTime(request.getCostTime());
         entity.setStatus(defaultIfNull(request.getStatus(), SUCCESS_STATUS));
         entity.setErrorCode(request.getErrorCode());
         entity.setErrorMsg(request.getErrorMsg());
-        entity.setOperatedAt(now);
+        entity.setOperatedAt(operatedAt);
         entity.setCreatedAt(now);
         operLogMapper.insert(entity);
     }

@@ -35,6 +35,11 @@ public class OperationLogRecord {
     private String moduleName;
 
     /**
+     * 操作名称。
+     */
+    private String operationName;
+
+    /**
      * 操作业务类型。
      */
     private Integer businessType;
@@ -78,6 +83,16 @@ public class OperationLogRecord {
      * 操作地点，当前版本通常由上游网关或前端传入。
      */
     private String operLocation;
+
+    /**
+     * 店铺号，商户管理端存在门店维度时使用。
+     */
+    private String storeId;
+
+    /**
+     * 浏览器 User-Agent。
+     */
+    private String userAgent;
 
     /**
      * 脱敏后的请求参数。

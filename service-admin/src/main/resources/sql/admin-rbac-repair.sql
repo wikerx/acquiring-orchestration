@@ -149,7 +149,10 @@ INSERT INTO sys_permission (
 SELECT 1, m.id, code.permission_code, code.permission_name, 'BUTTON', code.resource_method, code.resource_path, 1, 0
 FROM sys_menu m
 JOIN (
-    SELECT 'monitor:job:query' AS permission_code, '任务详情' AS permission_name, 'POST' AS resource_method, '/admin/monitor/job/search' AS resource_path
+    SELECT 'monitor:datasource:view' AS permission_code, '数据源监控查看' AS permission_name, NULL AS resource_method, NULL AS resource_path
+    UNION ALL SELECT 'monitor:rocketmq:view', 'RocketMQ 控制台查看', NULL, NULL
+    UNION ALL SELECT 'monitor:nacos:view', 'Nacos 控制台查看', NULL, NULL
+    UNION ALL SELECT 'monitor:job:query' AS permission_code, '任务详情' AS permission_name, 'POST' AS resource_method, '/admin/monitor/job/search' AS resource_path
     UNION ALL SELECT 'monitor:job:add', '任务新增', 'POST', '/admin/monitor/job'
     UNION ALL SELECT 'monitor:job:edit', '任务修改', 'PUT', '/admin/monitor/job/*'
     UNION ALL SELECT 'monitor:job:remove', '任务删除', 'DELETE', '/admin/monitor/job/*'
@@ -165,7 +168,10 @@ JOIN (
 ) code
 WHERE m.app_id = 1
   AND (
-      (m.menu_code = 'monitor_job' AND code.permission_code LIKE 'monitor:job:%')
+      (m.menu_code = 'monitor_datasource' AND code.permission_code = 'monitor:datasource:view')
+      OR (m.menu_code = 'monitor_rocketmq' AND code.permission_code = 'monitor:rocketmq:view')
+      OR (m.menu_code = 'monitor_nacos' AND code.permission_code = 'monitor:nacos:view')
+      OR (m.menu_code = 'monitor_job' AND code.permission_code LIKE 'monitor:job:%')
       OR (m.menu_code = 'monitor_job_log' AND code.permission_code LIKE 'monitor:jobLog:%')
       OR (m.menu_code = 'monitor_job_node' AND code.permission_code LIKE 'monitor:jobNode:%')
   )

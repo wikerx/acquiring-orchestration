@@ -2,6 +2,8 @@ package com.scott.payment.admin.dto;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -25,6 +27,21 @@ public class SysOperLogRecordRequest {
     private String requestId;
 
     /**
+     * MQ 消息唯一标识。
+     */
+    private String messageId;
+
+    /**
+     * 消费幂等键。
+     */
+    private String idempotentKey;
+
+    /**
+     * 系统编码。
+     */
+    private String systemCode;
+
+    /**
      * 商户号，后台操作涉及商户时记录。
      */
     private String merchantId;
@@ -33,6 +50,11 @@ public class SysOperLogRecordRequest {
      * 模块名称。
      */
     private String moduleName;
+
+    /**
+     * 操作名称。
+     */
+    private String operationName;
 
     /**
      * 业务类型。
@@ -80,6 +102,16 @@ public class SysOperLogRecordRequest {
     private String operLocation;
 
     /**
+     * 店铺号。
+     */
+    private String storeId;
+
+    /**
+     * 浏览器 User-Agent。
+     */
+    private String userAgent;
+
+    /**
      * 脱敏后的请求参数。
      */
     private String requestParam;
@@ -108,4 +140,9 @@ public class SysOperLogRecordRequest {
      * 错误信息。
      */
     private String errorMsg;
+
+    /**
+     * 原始操作时间，优先使用消息生产时刻，避免异步消费后把审计时间覆盖为落库时间。
+     */
+    private LocalDateTime operatedAt;
 }

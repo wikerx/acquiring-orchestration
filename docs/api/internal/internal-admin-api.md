@@ -168,7 +168,7 @@
 ### 1.9 安全注意事项
 
 1. 内部接口只能用于管理后台、内部服务或受控网络环境。
-2. 操作日志接口的 `requestParam`、`responseResult` 必须由调用方先脱敏。
+2. 操作日志接口的 `requestParam`、`responseResult` 必须由调用方先脱敏，或由统一操作日志 AOP 自动完成脱敏后再入 MQ。
 3. 禁止在操作日志中记录卡号、CVV、JWT、token、merchantKey、私钥、密码等敏感明文。
 4. `sys_config` 不建议保存密钥、数据库密码、私钥等高敏感配置；这类数据应走 KMS/HSM 或专门密钥表。
 
@@ -212,7 +212,7 @@
 | 字典数据 | 查询字典数据列表 | POST | `/admin/system/dicts/data/search` |
 | 字典数据 | 删除字典数据 | DELETE | `/admin/system/dicts/data/{dictType}/{dictValue}` |
 | 登录日志 | 查询登录日志列表 | POST | `/admin/system/login-logs/search` |
-| 操作日志 | 写入操作日志 | POST | `/admin/system/oper-logs` |
+| 操作日志 | 写入操作日志（内部兼容入口） | POST | `/admin/system/oper-logs` |
 | 操作日志 | 查询操作日志列表 | POST | `/admin/system/oper-logs/search` |
 
 ## 3. 健康检查

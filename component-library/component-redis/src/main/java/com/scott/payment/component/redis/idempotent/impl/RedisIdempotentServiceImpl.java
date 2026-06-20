@@ -1,7 +1,8 @@
 package com.scott.payment.component.redis.idempotent.impl;
 
 import com.scott.payment.component.redis.idempotent.IdempotentService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -17,8 +18,8 @@ import java.time.Duration;
  * @description : Redis 幂等控制服务实现
  * @status : create
  */
+@Slf4j
 @Service
-@ConditionalOnBean(StringRedisTemplate.class)
 public class RedisIdempotentServiceImpl implements IdempotentService {
 
     /**
@@ -32,12 +33,17 @@ public class RedisIdempotentServiceImpl implements IdempotentService {
     private final StringRedisTemplate stringRedisTemplate;
 
     /**
+     * 降级告警是否已经输出，避免日志刷屏。
+     */
+    private volatile boolean warningLogged;
+
+    /**
      * 创建 Redis 幂等控制服务。
      *
-     * @param stringRedisTemplate Spring 字符串 Redis 模板
+     * @param stringRedisTemplateProvider Spring 字符串 Redis 模板提供器
      */
-    public RedisIdempotentServiceImpl(StringRedisTemplate stringRedisTemplate) {
-        this.stringRedisTemplate = stringRedisTemplate;
+    public RedisIdempotentServiceImpl(ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider) {
+        this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
     }
 
     /**
@@ -55,7 +61,27 @@ public class RedisIdempotentServiceImpl implements IdempotentService {
         if (ttlSeconds <= 0) {
             return false;
         }
+        if (stringRedisTemplate == null) {
+            logWarningIfNecessary();
+            return true;
+        }
         return Boolean.TRUE.equals(stringRedisTemplate.opsForValue()
                 .setIfAbsent(idempotentKey, IDEMPOTENT_VALUE, Duration.ofSeconds(ttlSeconds)));
+    }
+
+    /**
+     * Redis 未装配时输出一次性降级告警。
+     */
+    private void logWarningIfNecessary() {
+        if (warningLogged) {
+            return;
+        }
+        synchronized (this) {
+            if (warningLogged) {
+                return;
+            }
+            log.warn("StringRedisTemplate 未装配，IdempotentService 已降级为放行模式，当前不会执行真实的 Redis 幂等控制。");
+            warningLogged = true;
+        }
     }
 }

@@ -1180,6 +1180,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         dto.setPermissionCode(menuDO.getPermissionCode());
         dto.setIcon(menuDO.getIcon());
         dto.setSortNo(menuDO.getSortNo());
+        dto.setExternalLink(menuDO.getExternalLink());
         return dto;
     }
 

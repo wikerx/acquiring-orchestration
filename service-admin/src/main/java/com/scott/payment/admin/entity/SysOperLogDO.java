@@ -37,6 +37,21 @@ public class SysOperLogDO {
     private String requestId;
 
     /**
+     * MQ 消息唯一标识。
+     */
+    private String messageId;
+
+    /**
+     * 消费幂等键。
+     */
+    private String idempotentKey;
+
+    /**
+     * 系统编码，区分 ADMIN / MERCHANT。
+     */
+    private String systemCode;
+
+    /**
      * 商户号，后台操作涉及商户时记录。
      */
     private String merchantId;
@@ -45,6 +60,11 @@ public class SysOperLogDO {
      * 模块名称，如商户管理、费率管理、系统配置。
      */
     private String moduleName;
+
+    /**
+     * 操作名称。
+     */
+    private String operationName;
 
     /**
      * 业务类型：1新增，2修改，3删除，4查询，5导出，6审核，7冻结，8解冻。
@@ -90,6 +110,16 @@ public class SysOperLogDO {
      * 操作地点。
      */
     private String operLocation;
+
+    /**
+     * 店铺号。
+     */
+    private String storeId;
+
+    /**
+     * 浏览器 User-Agent。
+     */
+    private String userAgent;
 
     /**
      * 脱敏后的请求参数，禁止记录密钥、卡号、CVV、JWT 明文。

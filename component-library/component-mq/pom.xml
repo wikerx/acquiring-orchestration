@@ -22,9 +22,17 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.scott.payment</groupId>
+            <artifactId>component-web</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.apache.rocketmq</groupId>
             <artifactId>rocketmq-spring-boot-starter</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-tools</artifactId>
+        </dependency>
     </dependencies>
 </project>
-

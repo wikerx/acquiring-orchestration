@@ -32,6 +32,21 @@ public class SysOperLogDTO {
     private String requestId;
 
     /**
+     * MQ 消息唯一标识。
+     */
+    private String messageId;
+
+    /**
+     * 消费幂等键。
+     */
+    private String idempotentKey;
+
+    /**
+     * 系统编码。
+     */
+    private String systemCode;
+
+    /**
      * 商户号。
      */
     private String merchantId;
@@ -40,6 +55,11 @@ public class SysOperLogDTO {
      * 模块名称。
      */
     private String moduleName;
+
+    /**
+     * 操作名称。
+     */
+    private String operationName;
 
     /**
      * 业务类型。
@@ -70,6 +90,16 @@ public class SysOperLogDTO {
      * 操作IP。
      */
     private String operIp;
+
+    /**
+     * 店铺号。
+     */
+    private String storeId;
+
+    /**
+     * 浏览器 User-Agent。
+     */
+    private String userAgent;
 
     /**
      * 执行时长，单位毫秒。

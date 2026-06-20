@@ -21,6 +21,16 @@ public final class MqTopic {
      */
     public static final String PAYOUT_EVENT = "payout-event";
 
+    /**
+     * 后台管理系统操作日志 Topic。
+     */
+    public static final String ADMIN_OPERATION_LOG = "acquiring_admin_operation_log_topic";
+
+    /**
+     * 商户管理系统操作日志 Topic。
+     */
+    public static final String MERCHANT_OPERATION_LOG = "acquiring_merchant_operation_log_topic";
+
     private MqTopic() {
     }
 }

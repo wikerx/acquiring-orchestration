@@ -3,8 +3,9 @@ package com.scott.payment.component.mq.producer.impl;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -22,22 +23,22 @@ import java.util.UUID;
  * @description : RocketMQ 消息发送服务实现
  * @status : create
  */
+@Slf4j
 @Service
-@ConditionalOnBean(RocketMQTemplate.class)
 public class RocketMqProducer implements MqProducer {
 
     /**
      * RocketMQ Spring 模板。
      */
-    private final RocketMQTemplate rocketMQTemplate;
+    private final ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
 
     /**
      * 创建 RocketMQ 消息发送服务。
      *
-     * @param rocketMQTemplate RocketMQ Spring 模板
+     * @param rocketMQTemplateProvider RocketMQ Spring 模板提供器
      */
-    public RocketMqProducer(RocketMQTemplate rocketMQTemplate) {
-        this.rocketMQTemplate = rocketMQTemplate;
+    public RocketMqProducer(ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider) {
+        this.rocketMQTemplateProvider = rocketMQTemplateProvider;
     }
 
     /**
@@ -52,6 +53,14 @@ public class RocketMqProducer implements MqProducer {
         Objects.requireNonNull(message, "mq message can not be null");
         if (!StringUtils.hasText(topic)) {
             throw new IllegalArgumentException("rocketmq topic can not be blank");
+        }
+        RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
+        if (rocketMQTemplate == null) {
+            log.warn("RocketMQTemplate未就绪，消息发送已跳过，topic：{}，tag：{}，messageId：{}",
+                    topic,
+                    tag,
+                    message.getMessageId());
+            return;
         }
         fillMessageMetadata(message);
         String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;

@@ -72,8 +72,12 @@ CREATE TABLE IF NOT EXISTS sys_oper_log (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     trace_id VARCHAR(64) NULL COMMENT '链路追踪ID',
     request_id VARCHAR(64) NULL COMMENT '请求ID',
+    message_id VARCHAR(64) NULL COMMENT 'MQ消息唯一标识',
+    idempotent_key VARCHAR(255) NULL COMMENT '消费幂等键',
+    system_code VARCHAR(32) NULL COMMENT '系统编码，区分 ADMIN 和 MERCHANT',
     merchant_id VARCHAR(32) NULL COMMENT '商户号，后台操作涉及商户时记录',
     module_name VARCHAR(100) NULL COMMENT '模块名称，如商户管理、费率管理、系统配置',
+    operation_name VARCHAR(100) NULL COMMENT '操作名称',
     business_type TINYINT NULL COMMENT '业务类型：1新增，2修改，3删除，4查询，5导出，6审核，7冻结，8解冻',
     method_name VARCHAR(255) NULL COMMENT '后端方法名称',
     request_method VARCHAR(20) NULL COMMENT '请求方式：GET、POST、PUT、DELETE',
@@ -83,6 +87,8 @@ CREATE TABLE IF NOT EXISTS sys_oper_log (
     oper_url VARCHAR(500) NULL COMMENT '请求URL',
     oper_ip VARCHAR(45) NULL COMMENT '操作IP，支持IPv4/IPv6',
     oper_location VARCHAR(255) NULL COMMENT '操作地点',
+    store_id VARCHAR(64) NULL COMMENT '店铺号',
+    user_agent VARCHAR(512) NULL COMMENT '浏览器User-Agent',
     request_param TEXT NULL COMMENT '脱敏后的请求参数，禁止记录密钥、卡号、CVV、JWT明文',
     response_result TEXT NULL COMMENT '脱敏后的响应结果',
     cost_time BIGINT NULL COMMENT '执行时长，单位毫秒',
@@ -92,8 +98,10 @@ CREATE TABLE IF NOT EXISTS sys_oper_log (
     operated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '操作时间',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),
+    UNIQUE KEY uk_sys_oper_idempotent_key (idempotent_key),
     KEY idx_sys_oper_trace_id (trace_id),
     KEY idx_sys_oper_request_id (request_id),
+    KEY idx_sys_oper_message_id (message_id),
     KEY idx_sys_oper_merchant_time (merchant_id, operated_at),
     KEY idx_sys_oper_operator_time (operator_id, operated_at),
     KEY idx_sys_oper_time_status (operated_at, status),
@@ -1082,15 +1090,18 @@ CREATE TABLE IF NOT EXISTS sys_post (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='岗位管理表';
 
 -- ===================== 系统监控菜单 =====================
-INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, external_link, sort_no, status, deleted)
 VALUES
-    (220, 1, 0, 'system_monitor', '系统监控', 'CATALOG', '/monitor', NULL, NULL, 'Monitor', 1, 80, 1, 0),
-    (221, 1, 220, 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 81, 1, 0),
-    (222, 1, 220, 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 82, 1, 0),
-    (223, 1, 220, 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 83, 1, 0),
-    (224, 1, 220, 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 84, 1, 0),
-    (225, 1, 220, 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 85, 1, 0),
-    (226, 1, 220, 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 86, 1, 0);
+    (220, 1, 0, 'system_monitor', '系统监控', 'CATALOG', '/monitor', NULL, NULL, 'Monitor', 1, 0, 80, 1, 0),
+    (221, 1, 220, 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 0, 81, 1, 0),
+    (222, 1, 220, 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 0, 82, 1, 0),
+    (223, 1, 220, 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 0, 83, 1, 0),
+    (224, 1, 220, 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 0, 84, 1, 0),
+    (225, 1, 220, 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 0, 85, 1, 0),
+    (226, 1, 220, 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 0, 86, 1, 0),
+    (227, 1, 220, 'monitor_datasource', '数据源监控', 'LINK', 'http://localhost:8080/druid', NULL, 'monitor:datasource:view', 'DataLine', 1, 0, 87, 1, 0),
+    (228, 1, 220, 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 1, 88, 1, 0),
+    (229, 1, 220, 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 1, 89, 1, 0);
 
 -- ===================== 部门/岗位/字典/参数/日志权限（挂载到正确的 menu_id） =====================
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
@@ -1118,6 +1129,9 @@ VALUES
     (652, 1, 224, 'monitor:job:start', '任务启用', 'BUTTON', 'PUT', '/admin/monitor/job/**/status', 1, 0),
     (653, 1, 224, 'monitor:job:stop', '任务停用', 'BUTTON', 'PUT', '/admin/monitor/job/**/status', 1, 0),
     (654, 1, 225, 'monitor:jobLog:query', '任务日志详情', 'BUTTON', 'POST', '/admin/monitor/job-log/search', 1, 0),
+    (655, 1, 227, 'monitor:datasource:view', '数据源监控查看', 'MENU', NULL, NULL, 1, 0),
+    (656, 1, 228, 'monitor:rocketmq:view', 'RocketMQ 控制台查看', 'MENU', NULL, NULL, 1, 0),
+    (657, 1, 229, 'monitor:nacos:view', 'Nacos 控制台查看', 'MENU', NULL, NULL, 1, 0),
     (658, 1, 226, 'monitor:jobNode:query', '任务节点详情', 'BUTTON', 'GET', '/admin/monitor/job-node/list', 1, 0),
     (659, 1, 226, 'monitor:jobNode:refresh', '任务节点刷新', 'BUTTON', 'GET', '/admin/monitor/job-node/list', 1, 0);
 
@@ -1139,7 +1153,7 @@ INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT 1, 1, id, 0 FROM sys_permission WHERE id BETWEEN 632 AND 659 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
-SELECT 1, 1, id, 0 FROM sys_menu WHERE id BETWEEN 389 AND 401 AND deleted = 0;
+SELECT 1, 1, id, 0 FROM sys_menu WHERE (id BETWEEN 227 AND 229 OR id BETWEEN 389 AND 401) AND deleted = 0;
 
 -- =============================================================================
 -- 国际化字典种子数据 (sys_dict_type + sys_dict_data)

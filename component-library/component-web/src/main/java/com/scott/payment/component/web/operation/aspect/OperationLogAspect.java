@@ -1,11 +1,13 @@
 package com.scott.payment.component.web.operation.aspect;
 
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
-import com.scott.payment.component.web.operation.service.OperationLogRecorder;
+import com.scott.payment.component.web.operation.service.OperationLogPublisher;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -73,6 +75,16 @@ public class OperationLogAspect {
     private static final String HEADER_OPERATOR_LOCATION = "X-Operator-Location";
 
     /**
+     * 店铺号请求头。
+     */
+    private static final String HEADER_STORE_ID = "X-Store-Id";
+
+    /**
+     * 浏览器 User-Agent 请求头。
+     */
+    private static final String HEADER_USER_AGENT = "User-Agent";
+
+    /**
      * 日志字段最大保存长度，避免大对象请求拖慢日志表。
      */
     private static final int MAX_LOG_TEXT_LENGTH = 4000;
@@ -90,15 +102,15 @@ public class OperationLogAspect {
     /**
      * 操作日志记录器提供器。没有业务服务提供记录器时，切面只跳过记录，不影响业务启动。
      */
-    private final ObjectProvider<OperationLogRecorder> recorderProvider;
+    private final ObjectProvider<OperationLogPublisher> publisherProvider;
 
     /**
      * 创建管理类系统操作日志切面。
      *
-     * @param recorderProvider 操作日志记录器提供器
+     * @param publisherProvider 操作日志发布器提供器
      */
-    public OperationLogAspect(ObjectProvider<OperationLogRecorder> recorderProvider) {
-        this.recorderProvider = recorderProvider;
+    public OperationLogAspect(ObjectProvider<OperationLogPublisher> publisherProvider) {
+        this.publisherProvider = publisherProvider;
     }
 
     /**
@@ -140,8 +152,8 @@ public class OperationLogAspect {
                                     Object result,
                                     Throwable failure,
                                     long costTime) {
-        OperationLogRecorder recorder = recorderProvider.getIfAvailable();
-        if (recorder == null) {
+        OperationLogPublisher publisher = publisherProvider.getIfAvailable();
+        if (publisher == null) {
             return;
         }
         try {
@@ -151,21 +163,24 @@ public class OperationLogAspect {
             record.setRequestId(header(request, HEADER_REQUEST_ID));
             record.setMerchantId(header(request, HEADER_MERCHANT_ID));
             record.setModuleName(operation.moduleName());
+            record.setOperationName(operation.operation());
             record.setBusinessType(operation.businessType());
             record.setMethodName(methodName(point));
             record.setRequestMethod(request == null ? null : request.getMethod());
             record.setOperatorType(resolveOperatorType(request, operation.operatorType()));
-            record.setOperatorId(header(request, HEADER_OPERATOR_ID));
-            record.setOperatorName(header(request, HEADER_OPERATOR_NAME));
+            record.setOperatorId(resolveOperatorId(request));
+            record.setOperatorName(resolveOperatorName(request));
             record.setOperUrl(request == null ? null : request.getRequestURI());
             record.setOperIp(clientIp(request));
             record.setOperLocation(header(request, HEADER_OPERATOR_LOCATION));
+            record.setStoreId(resolveStoreId(request));
+            record.setUserAgent(header(request, HEADER_USER_AGENT));
             record.setRequestParam(operation.recordRequest() ? serializeForLog(point.getArgs()) : null);
             record.setResponseResult(operation.recordResponse() ? serializeForLog(result) : null);
             record.setCostTime(costTime);
             record.setStatus(failure == null ? SUCCESS_STATUS : FAILED_STATUS);
             fillFailure(record, failure);
-            recorder.record(record);
+            publisher.publish(record);
         } catch (RuntimeException exception) {
             log.warn("管理类系统操作日志采集失败，方法：{}，原因：{}", methodName(point), exception.getMessage());
         }
@@ -223,6 +238,10 @@ public class OperationLogAspect {
     private Integer resolveOperatorType(HttpServletRequest request, int defaultOperator) {
         String operatorType = header(request, HEADER_OPERATOR_TYPE);
         if (operatorType == null || operatorType.isBlank()) {
+            InternalAuthAccount account = InternalAuthContextHolder.get();
+            if (account != null && account.getMerchantId() != null && !account.getMerchantId().isBlank()) {
+                return 2;
+            }
             return defaultOperator;
         }
         try {
@@ -230,6 +249,59 @@ public class OperationLogAspect {
         } catch (NumberFormatException exception) {
             return defaultOperator;
         }
+    }
+
+    /**
+     * 解析操作人ID，优先使用请求头，缺失时退回内部登录上下文。
+     *
+     * @param request 请求对象
+     * @return 操作人ID
+     */
+    private String resolveOperatorId(HttpServletRequest request) {
+        String operatorId = header(request, HEADER_OPERATOR_ID);
+        if (operatorId != null && !operatorId.isBlank()) {
+            return operatorId;
+        }
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        if (account == null || account.getAccountId() == null) {
+            return null;
+        }
+        return String.valueOf(account.getAccountId());
+    }
+
+    /**
+     * 解析操作人名称，优先使用请求头，缺失时退回内部登录上下文中的姓名或登录账号。
+     *
+     * @param request 请求对象
+     * @return 操作人名称
+     */
+    private String resolveOperatorName(HttpServletRequest request) {
+        String operatorName = header(request, HEADER_OPERATOR_NAME);
+        if (operatorName != null && !operatorName.isBlank()) {
+            return operatorName;
+        }
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        if (account == null) {
+            return null;
+        }
+        if (account.getRealName() != null && !account.getRealName().isBlank()) {
+            return account.getRealName();
+        }
+        return account.getLoginAccount();
+    }
+
+    /**
+     * 解析店铺号，优先使用请求头，缺失时继续沿用空值，避免误把账号信息写入店铺字段。
+     *
+     * @param request 请求对象
+     * @return 店铺号
+     */
+    private String resolveStoreId(HttpServletRequest request) {
+        String storeId = header(request, HEADER_STORE_ID);
+        if (storeId != null && !storeId.isBlank()) {
+            return storeId;
+        }
+        return null;
     }
 
     /**
