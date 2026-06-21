@@ -214,6 +214,7 @@
 | 登录日志 | 查询登录日志列表 | POST | `/admin/system/login-logs/search` |
 | 操作日志 | 写入操作日志（内部兼容入口） | POST | `/admin/system/oper-logs` |
 | 操作日志 | 查询操作日志列表 | POST | `/admin/system/oper-logs/search` |
+| 系统监控 | 查询数据源监控快照 | GET | `/admin/monitor/datasource` |
 
 ## 3. 健康检查
 

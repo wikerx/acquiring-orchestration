@@ -6,13 +6,46 @@ global-payment:
     database-timezone: Asia/Shanghai
     # 全局默认分表字段。参与分表的表必须在写入和查询时传入该字段。
     sharding-column: transaction_date_time
-    # 参与分表的逻辑表清单。后续新增分表表，只需要在这里追加一个 table rule。
+
+    table-maintenance:
+      # 是否启用分表物理表治理能力。关闭后只保留规则展示，不执行预建表。
+      enabled: true
+      # 是否检查并预创建当前季度物理表。
+      pre-create-current-quarter: true
+      # 是否检查并预创建下一季度物理表。
+      pre-create-next-quarter: true
+      # 目标表已存在时是否对比模板表结构。
+      compare-schema-if-exists: true
+      # DDL 必须走主库，禁止在 slave 分组或只读库上执行建表。
+      ddl-data-source: master
+      # 创建物理表后是否设置 AUTO_INCREMENT 起始值。
+      set-auto-increment-start-value: true
+      # 自增序号宽度，yyyyQQ 后拼接 12 位自增序号。
+      auto-increment-sequence-width: 12
+      # 是否允许基于模板表 CREATE TABLE target LIKE template。
+      allow-create-from-template-table: true
+      # 第一版禁止自动 ALTER 已存在表结构，结构不一致只登记告警。
+      allow-alter-existing-table: false
+
+    id-generator:
+      # 使用 MySQL 自增主键，并通过 AUTO_INCREMENT 起始值形成 yyyyQQ 前缀。
+      mode: mysql-auto-increment-prefix
+      prefix-format: yyyyQQ
+      sequence-width: 12
+      start-sequence: 1
+      max-sequence: 999999999999
+
+    # 参与分表的逻辑表清单。key 仅用于配置归类，物理表名必须使用 logical-table 生成。
     tables:
-      transaction:
+      test-transaction:
         # 是否启用当前逻辑表分表。建表未完成前可以先置为 false。
         enabled: true
         # 逻辑表名，代码调用分表算法时传入该名称。
-        logical-table: transaction
+        logical-table: test_transaction
+        # 模板表名，物理表通过 CREATE TABLE target LIKE template 复制结构。
+        template-table: test_transaction
+        # 物理表主键字段，用于 AUTO_INCREMENT 起始值校验。
+        id-column: id
         # 该表实际用于路由的分表字段。
         sharding-column: transaction_date_time
         # 起始表：dev 当前从 2026 年第 1 季度开始。
@@ -21,30 +54,47 @@ global-payment:
         # 结束表：后续追加分表时扩展 end-year/end-quarter。
         end-year: 2035
         end-quarter: 4
-        # 物理表命名格式，对应 transaction_2026_q1、transaction_2026_q2。
-        table-name-format: "%s_%d_q%d"
+        # 物理表命名格式，对应 test_transaction_202601、test_transaction_202602。
+        table-name-format: "%s_%d%02d"
         # 物理表所在数据源。当前分表表默认建在 master 写库。
         actual-data-source: master
-        description: 交易流水主表，按交易时间季度分表。
-      payment-order:
+        description: 测试交易主表，按交易时间季度分表。
+      test-transaction-info:
         enabled: true
-        logical-table: payment_order
+        logical-table: test_transaction_info
+        template-table: test_transaction_info
+        id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
         start-quarter: 1
         end-year: 2035
         end-quarter: 4
-        table-name-format: "%s_%d_q%d"
+        table-name-format: "%s_%d%02d"
         actual-data-source: master
-        description: 收单支付订单表，按交易时间季度分表。
-      payout-order:
+        description: 测试交易信息表，按交易时间季度分表。
+      test-transaction-merge-info:
         enabled: true
-        logical-table: payout_order
+        logical-table: test_transaction_merge_info
+        template-table: test_transaction_merge_info
+        id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
         start-quarter: 1
         end-year: 2035
         end-quarter: 4
-        table-name-format: "%s_%d_q%d"
+        table-name-format: "%s_%d%02d"
         actual-data-source: master
-        description: 代付订单表，按交易时间季度分表。
+        description: 测试交易附属信息表，按交易时间季度分表。
+      test-transaction-status-info:
+        enabled: true
+        logical-table: test_transaction_status_info
+        template-table: test_transaction_status_info
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 测试交易状态信息表，按交易时间季度分表。

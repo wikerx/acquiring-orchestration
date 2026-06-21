@@ -5,7 +5,7 @@
 -- 3. URL 仅使用本地开发示例地址，生产环境请改为实际配置地址，不要直接照搬。
 -- 4. external_link = 0 表示系统内 iframe 承载；external_link = 1 表示新窗口打开。
 -- 5. 运行时以 sys_menu.route_path 为唯一地址来源，不依赖 yml / Nacos 中的外部监控地址配置。
--- 6. 如需调整外部监控访问地址，请通过菜单管理或数据库修复脚本更新 sys_menu，而不是修改公共配置。
+-- 6. 当前“数据源监控”已调整为系统内页面；RocketMQ / Nacos 控制台仍通过菜单管理或数据库修复脚本维护外部地址。
 
 -- 第一步：查询“系统监控”目录 ID。
 SELECT id, menu_code, menu_name
@@ -17,7 +17,7 @@ WHERE app_id = 1
 -- 假设系统监控目录 ID 为 220。
 -- 如果你的环境不同，请把 220 替换为查询结果。
 
--- 第二步：幂等新增系统监控外链菜单。
+-- 第二步：幂等新增系统监控菜单。
 INSERT INTO sys_menu (
     app_id,
     parent_id,
@@ -39,9 +39,9 @@ SELECT 1,
        220,
        seed.menu_code,
        seed.menu_name,
-       'LINK',
+       seed.menu_type,
        seed.route_path,
-       NULL,
+       seed.component_path,
        seed.permission_code,
        seed.icon,
        1,
@@ -53,7 +53,9 @@ SELECT 1,
 FROM (
     SELECT 'monitor_datasource' AS menu_code,
            '数据源监控' AS menu_name,
-           'http://localhost:8080/druid' AS route_path,
+           'MENU' AS menu_type,
+           '/monitor/datasource' AS route_path,
+           'monitor/datasource/index' AS component_path,
            'monitor:datasource:view' AS permission_code,
            'DataLine' AS icon,
            0 AS external_link,
@@ -61,7 +63,9 @@ FROM (
     UNION ALL
     SELECT 'monitor_rocketmq',
            'RocketMQ 控制台',
+           'LINK',
            'http://localhost:8088',
+           NULL,
            'monitor:rocketmq:view',
            'Connection',
            1,
@@ -69,7 +73,9 @@ FROM (
     UNION ALL
     SELECT 'monitor_nacos',
            'Nacos 控制台',
+           'LINK',
            'http://localhost:8848/nacos',
+           NULL,
            'monitor:nacos:view',
            'Monitor',
            1,
@@ -82,6 +88,16 @@ WHERE NOT EXISTS (
       AND menu.deleted = 0
       AND (menu.menu_code = seed.menu_code OR menu.permission_code = seed.permission_code)
 );
+
+-- 已存在菜单的环境可执行以下修正，将“数据源监控”从旧的 druid 外链占位切换为系统内页面。
+UPDATE sys_menu
+SET menu_type = 'MENU',
+    route_path = '/monitor/datasource',
+    component_path = 'monitor/datasource/index',
+    external_link = 0
+WHERE app_id = 1
+  AND deleted = 0
+  AND menu_code = 'monitor_datasource';
 
 -- 第三步：幂等补齐菜单权限。
 INSERT INTO sys_permission (
@@ -107,6 +123,7 @@ SELECT 1,
 FROM sys_menu menu
 JOIN (
     SELECT 'monitor_datasource' AS menu_code, 'monitor:datasource:view' AS permission_code, '数据源监控查看' AS permission_name
+    UNION ALL SELECT 'monitor_datasource', 'monitor:datasource:export', '数据源监控导出'
     UNION ALL
     SELECT 'monitor_rocketmq', 'monitor:rocketmq:view', 'RocketMQ 控制台查看'
     UNION ALL
@@ -146,7 +163,7 @@ SELECT 1, 1, permission.id, 0
 FROM sys_permission permission
 WHERE permission.app_id = 1
   AND permission.deleted = 0
-  AND permission.permission_code IN ('monitor:datasource:view', 'monitor:rocketmq:view', 'monitor:nacos:view')
+  AND permission.permission_code IN ('monitor:datasource:view', 'monitor:datasource:export', 'monitor:rocketmq:view', 'monitor:nacos:view')
   AND NOT EXISTS (
       SELECT 1
       FROM sys_role_permission role_permission

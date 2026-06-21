@@ -12,7 +12,38 @@ WHERE app_id = 1
   AND deleted = 0
   AND role_code IN ('CODE_TEST', 'ROLE_TETST');
 
--- 2. Normalize catalog/menu metadata used by dynamic routes.
+-- 2. Remove virtual security-center menu entries that do not have real admin features.
+UPDATE sys_permission
+SET status = 0,
+    deleted = id,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND deleted = 0
+  AND (
+      permission_code LIKE 'admin:security%'
+      OR permission_code LIKE 'admin:login-session%'
+      OR permission_code LIKE 'admin:jwt-key%'
+      OR permission_code LIKE 'admin:api-access%'
+      OR permission_code LIKE 'admin:operation-audit%'
+      OR permission_code LIKE 'security:%'
+  );
+
+UPDATE sys_menu
+SET visible = 0,
+    status = 0,
+    deleted = id,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND deleted = 0
+  AND (
+      menu_code LIKE 'admin_security%'
+      OR menu_code LIKE 'security%'
+      OR route_path = '/security'
+      OR route_path LIKE '/security/%'
+      OR component_path LIKE 'security/%'
+  );
+
+-- 3. Normalize catalog/menu metadata used by dynamic routes.
 UPDATE sys_menu
 SET permission_code = NULL,
     component_path = NULL,
@@ -20,9 +51,154 @@ SET permission_code = NULL,
 WHERE app_id = 1
   AND deleted = 0
   AND menu_type = 'CATALOG'
-  AND menu_code IN ('system', 'monitor', 'merchant', 'base', 'permission', 'security');
+  AND menu_code IN ('system', 'monitor', 'merchant', 'base', 'permission');
 
--- 3. Ensure each visible menu permission_code exists in sys_permission.
+-- 4. Restore the admin dashboard menu after historical RBAC cleanup scripts hid legacy rows.
+INSERT INTO sys_menu (
+    id,
+    app_id,
+    parent_id,
+    menu_code,
+    menu_name,
+    menu_type,
+    route_path,
+    component_path,
+    permission_code,
+    icon,
+    visible,
+    sort_no,
+    status,
+    deleted
+)
+SELECT 200, 1, 0, 'admin_home_catalog_v3', '首页', 'CATALOG', '/', NULL, NULL, 'House', 1, 1, 1, 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_menu m WHERE m.app_id = 1 AND m.id = 200
+);
+
+INSERT INTO sys_menu (
+    id,
+    app_id,
+    parent_id,
+    menu_code,
+    menu_name,
+    menu_type,
+    route_path,
+    component_path,
+    permission_code,
+    icon,
+    visible,
+    sort_no,
+    status,
+    deleted
+)
+SELECT 201, 1, 200, 'admin_dashboard_v3', '工作台', 'MENU', '/dashboard', 'dashboard', 'dashboard:view', 'House', 1, 2, 1, 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_menu m WHERE m.app_id = 1 AND m.id = 201
+);
+
+UPDATE sys_menu
+SET menu_name = '首页',
+    menu_type = 'CATALOG',
+    route_path = '/',
+    component_path = NULL,
+    permission_code = NULL,
+    icon = 'House',
+    visible = 1,
+    sort_no = 1,
+    status = 1,
+    deleted = 0,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND id = 200;
+
+UPDATE sys_menu
+SET parent_id = 200,
+    menu_name = '工作台',
+    menu_type = 'MENU',
+    route_path = '/dashboard',
+    component_path = 'dashboard',
+    permission_code = 'dashboard:view',
+    icon = 'House',
+    visible = 1,
+    sort_no = 2,
+    status = 1,
+    deleted = 0,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND id = 201;
+
+UPDATE sys_menu
+SET visible = 0,
+    status = 0,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND id = 1
+  AND deleted = 0;
+
+INSERT INTO sys_permission (
+    id,
+    app_id,
+    menu_id,
+    permission_code,
+    permission_name,
+    permission_type,
+    resource_method,
+    resource_path,
+    status,
+    deleted
+)
+SELECT 200, 1, 201, 'dashboard:view', '工作台查看', 'MENU', 'GET', '/admin/auth/me', 1, 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_permission p WHERE p.app_id = 1 AND p.id = 200
+);
+
+UPDATE sys_permission
+SET menu_id = 201,
+    permission_code = 'dashboard:view',
+    permission_name = '工作台查看',
+    permission_type = 'MENU',
+    resource_method = 'GET',
+    resource_path = '/admin/auth/me',
+    status = 1,
+    deleted = 0,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND id = 200;
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT 1, r.id, m.id, 0
+FROM sys_role r
+JOIN sys_menu m ON m.app_id = r.app_id AND m.id IN (200, 201)
+WHERE r.app_id = 1
+  AND r.status = 1
+  AND r.deleted = 0
+  AND m.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM sys_role_menu rm
+      WHERE rm.app_id = r.app_id
+        AND rm.role_id = r.id
+        AND rm.menu_id = m.id
+        AND rm.deleted = 0
+  );
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT 1, r.id, p.id, 0
+FROM sys_role r
+JOIN sys_permission p ON p.app_id = r.app_id AND p.permission_code = 'dashboard:view' AND p.deleted = 0
+WHERE r.app_id = 1
+  AND r.status = 1
+  AND r.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM sys_role_permission rp
+      WHERE rp.app_id = r.app_id
+        AND rp.role_id = r.id
+        AND rp.permission_id = p.id
+        AND rp.deleted = 0
+  );
+
+-- 5. Ensure each visible menu permission_code exists in sys_permission.
 INSERT INTO sys_permission (
     app_id,
     menu_id,
@@ -56,7 +232,7 @@ WHERE m.app_id = 1
   AND m.permission_code <> ''
   AND p.id IS NULL;
 
--- 4. Ensure system monitor API/button permissions exist.
+-- 6. Ensure system monitor API/button permissions exist.
 INSERT INTO sys_permission (
     app_id,
     menu_id,
@@ -135,6 +311,16 @@ WHERE m.app_id = 1
       WHERE p.app_id = 1 AND p.permission_code = code.permission_code AND p.deleted = 0
   );
 
+UPDATE sys_menu
+SET menu_type = 'MENU',
+    route_path = '/monitor/datasource',
+    component_path = 'monitor/datasource/index',
+    external_link = 0,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND menu_code = 'monitor_datasource'
+  AND deleted = 0;
+
 INSERT INTO sys_permission (
     app_id,
     menu_id,
@@ -150,6 +336,7 @@ SELECT 1, m.id, code.permission_code, code.permission_name, 'BUTTON', code.resou
 FROM sys_menu m
 JOIN (
     SELECT 'monitor:datasource:view' AS permission_code, '数据源监控查看' AS permission_name, NULL AS resource_method, NULL AS resource_path
+    UNION ALL SELECT 'monitor:datasource:export', '数据源监控导出', 'GET', '/admin/monitor/datasource/export'
     UNION ALL SELECT 'monitor:rocketmq:view', 'RocketMQ 控制台查看', NULL, NULL
     UNION ALL SELECT 'monitor:nacos:view', 'Nacos 控制台查看', NULL, NULL
     UNION ALL SELECT 'monitor:job:query' AS permission_code, '任务详情' AS permission_name, 'POST' AS resource_method, '/admin/monitor/job/search' AS resource_path
@@ -168,7 +355,7 @@ JOIN (
 ) code
 WHERE m.app_id = 1
   AND (
-      (m.menu_code = 'monitor_datasource' AND code.permission_code = 'monitor:datasource:view')
+      (m.menu_code = 'monitor_datasource' AND code.permission_code IN ('monitor:datasource:view', 'monitor:datasource:export'))
       OR (m.menu_code = 'monitor_rocketmq' AND code.permission_code = 'monitor:rocketmq:view')
       OR (m.menu_code = 'monitor_nacos' AND code.permission_code = 'monitor:nacos:view')
       OR (m.menu_code = 'monitor_job' AND code.permission_code LIKE 'monitor:job:%')
@@ -221,12 +408,14 @@ JOIN (
     UNION ALL SELECT 'monitor_job_log_query', '日志详情', 'monitor:jobLog:query', 1
     UNION ALL SELECT 'monitor_job_node_query', '节点详情', 'monitor:jobNode:query', 1
     UNION ALL SELECT 'monitor_job_node_refresh', '节点刷新', 'monitor:jobNode:refresh', 2
+    UNION ALL SELECT 'monitor_datasource_export', '数据源监控导出', 'monitor:datasource:export', 1
 ) code
 WHERE m.app_id = 1
   AND (
       (m.menu_code = 'monitor_job' AND code.permission_code LIKE 'monitor:job:%')
       OR (m.menu_code = 'monitor_job_log' AND code.permission_code LIKE 'monitor:jobLog:%')
       OR (m.menu_code = 'monitor_job_node' AND code.permission_code LIKE 'monitor:jobNode:%')
+      OR (m.menu_code = 'monitor_datasource' AND code.permission_code = 'monitor:datasource:export')
   )
   AND m.deleted = 0
   AND NOT EXISTS (
@@ -263,6 +452,7 @@ SET p.resource_method = CASE p.permission_code
         WHEN 'monitor:jobLog:query' THEN 'POST'
         WHEN 'monitor:jobNode:query' THEN 'GET'
         WHEN 'monitor:jobNode:refresh' THEN 'GET'
+        WHEN 'monitor:datasource:export' THEN 'GET'
         ELSE p.resource_method
     END,
     p.resource_path = CASE p.permission_code
@@ -288,6 +478,7 @@ SET p.resource_method = CASE p.permission_code
         WHEN 'monitor:jobLog:query' THEN '/admin/monitor/job-log/search'
         WHEN 'monitor:jobNode:query' THEN '/admin/monitor/job-node/list'
         WHEN 'monitor:jobNode:refresh' THEN '/admin/monitor/job-node/list'
+        WHEN 'monitor:datasource:export' THEN '/admin/monitor/datasource/export'
         ELSE p.resource_path
     END,
     p.status = 1
@@ -315,7 +506,8 @@ WHERE p.app_id = 1
       'monitor:job:stop',
       'monitor:jobLog:query',
       'monitor:jobNode:query',
-      'monitor:jobNode:refresh'
+      'monitor:jobNode:refresh',
+      'monitor:datasource:export'
   );
 
 -- 6. Migrate historical legacy permission codes to current canonical RBAC codes.

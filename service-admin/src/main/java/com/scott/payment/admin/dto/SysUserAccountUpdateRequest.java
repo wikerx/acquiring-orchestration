@@ -6,17 +6,12 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserAccountUpdateRequest
- * @date : 2026-06-07 00:00
- * @email : scott_x@163.com
- * @description : 管理后台用户编辑请求 DTO
- * @status : create
+ * 管理后台用户编辑请求 DTO。
  *
- * <p>用于更新后台用户基础资料和状态，不包含登录账号与密码等受限字段变更。</p>
+ * <p>用于更新用户资料、账号状态、部门和岗位关系，不包含登录账号与密码等受限字段。</p>
  */
 @Data
 public class SysUserAccountUpdateRequest implements Serializable {
@@ -28,6 +23,10 @@ public class SysUserAccountUpdateRequest implements Serializable {
 
     @Size(max = 100, message = "realName length must be less than 100")
     private String realName;
+
+    private Long deptId;
+
+    private List<Long> postIds;
 
     @Size(max = 30, message = "mobile length must be less than 30")
     private String mobile;

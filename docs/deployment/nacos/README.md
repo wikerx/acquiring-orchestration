@@ -85,10 +85,10 @@ service-openapi/src/test/java/com/scott/payment/openapi/MerchantOpenApiEndToEndT
 分表统一按季度分表。所有需要分表的业务表都必须传入交易时间字段 `transaction_date_time`，表名格式为：
 
 ```text
-{logical_table}_{yyyy}_q{quarter}
+{logical_table}_{yyyy}{QQ}
 ```
 
-示例：`transaction_date_time = 2026-05-29 10:30:00` 时，`transaction` 表路由到 `transaction_2026_q2`。
+其中 `QQ` 表示季度编号，`Q1 -> 01`、`Q2 -> 02`、`Q3 -> 03`、`Q4 -> 04`。示例：`transaction_date_time = 2026-05-29 10:30:00` 时，`test_transaction` 表路由到 `test_transaction_202602`。
 
 分表起始表和结束表在 `sharding-{env}.yaml` 中配置，每个环境独立维护：
 
@@ -101,20 +101,24 @@ global-payment:
     tables:
       transaction:
         enabled: true
-        logical-table: transaction
+        logical-table: test_transaction
+        template-table: test_transaction
+        id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
         start-quarter: 1
         end-year: 2035
         end-quarter: 4
-        table-name-format: "%s_%d_q%d"
+        table-name-format: "%s_%d%02d"
         actual-data-source: master
 ```
 
 字段说明：
 
 - `enabled`：控制当前逻辑表是否参与分表。
+- `template-table`：物理表建表模板，自动预建表通过 `CREATE TABLE target LIKE template` 复制结构。
+- `id-column`：物理表自增主键字段，当前默认 `id`。
 - `start-year` / `start-quarter`：当前环境的起始物理表。
 - `end-year` / `end-quarter`：当前环境已经准备好的最后一张物理表，后续追加表时扩展这里。
-- `table-name-format`：物理表命名规则，默认生成 `transaction_2026_q1` 这种表名。
+- `table-name-format`：物理表命名规则，默认生成 `test_transaction_202602` 这种表名；禁止使用旧格式 `%s_%d_q%d`。
 - `actual-data-source`：物理表所在数据源，当前默认在 `master`。

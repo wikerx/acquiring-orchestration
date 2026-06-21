@@ -39,7 +39,7 @@ channel-library
 service-gateway
 service-admin
 service-merchant
-service-checkout
+service-checkout        # Hosted Checkout 收银台服务
 service-openapi
 service-payment
 service-payout

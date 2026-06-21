@@ -3,23 +3,22 @@ package com.scott.payment.admin.dto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserAccountDTO
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理后台用户账号响应 DTO
- * @status : create
+ * 管理后台用户账号响应 DTO。
  *
- * <p>用于用户列表与详情展示，承载账号标识、联系人信息、状态和最近登录摘要。</p>
+ * <p>用于用户列表、详情和导出场景，聚合账号、自然人资料、部门和岗位摘要。</p>
  */
 @Data
 public class SysUserAccountDTO {
 
     private Long accountId;
     private Long userId;
+    private Long deptId;
+    private String deptName;
+    private List<Long> postIds;
+    private List<String> postNames;
     private String loginAccount;
     private String realName;
     private String mobile;

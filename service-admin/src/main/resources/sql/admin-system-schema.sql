@@ -663,12 +663,7 @@ VALUES
     (161, 1, 160, 'admin_permission_app', '应用管理', 'MENU', '/permission/app', 'permission/app/index', 'admin:app:view', 'Grid', 1, 41, 1, 0),
     (162, 1, 160, 'admin_permission_resource', '资源权限', 'MENU', '/permission/resource', 'permission/resource/index', 'admin:permission:view', 'Key', 1, 42, 1, 0),
     (163, 1, 160, 'admin_permission_data_scope', '数据权限', 'MENU', '/permission/data-scope', 'permission/data-scope/index', 'admin:data-scope:view', 'Connection', 1, 43, 1, 0),
-    (164, 1, 160, 'admin_permission_role_grant', '角色授权', 'MENU', '/permission/role-grant', 'permission/role-grant/index', 'admin:role-grant:view', 'Unlock', 1, 44, 1, 0),
-    (180, 1, 0, 'admin_security_center', '安全中心', 'CATALOG', '/security', NULL, 'admin:security:view', 'Lock', 1, 50, 1, 0),
-    (181, 1, 180, 'admin_security_login_session', '登录会话', 'MENU', '/security/login-session', 'security/login-session/index', 'admin:login-session:view', 'Monitor', 1, 51, 1, 0),
-    (182, 1, 180, 'admin_security_jwt_key', 'JWT密钥管理', 'MENU', '/security/jwt-key', 'security/jwt-key/index', 'admin:jwt-key:view', 'Key', 1, 52, 1, 0),
-    (183, 1, 180, 'admin_security_api_access', 'API访问控制', 'MENU', '/security/api-access', 'security/api-access/index', 'admin:api-access:view', 'Monitor', 1, 53, 1, 0),
-    (184, 1, 180, 'admin_security_operation_audit', '操作审计', 'MENU', '/security/operation-audit', 'security/operation-audit/index', 'admin:operation-audit:view', 'DocumentChecked', 1, 54, 1, 0);
+    (164, 1, 160, 'admin_permission_role_grant', '角色授权', 'MENU', '/permission/role-grant', 'permission/role-grant/index', 'admin:role-grant:view', 'Unlock', 1, 44, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -694,12 +689,7 @@ VALUES
     (161, 1, 161, 'admin:app:view', '应用管理查看', 'MENU', 'GET', '/permission/app', 1, 0),
     (162, 1, 162, 'admin:permission:view', '资源权限查看', 'MENU', 'GET', '/permission/resource', 1, 0),
     (163, 1, 163, 'admin:data-scope:view', '数据权限查看', 'MENU', 'GET', '/permission/data-scope', 1, 0),
-    (164, 1, 164, 'admin:role-grant:view', '角色授权查看', 'MENU', 'GET', '/permission/role-grant', 1, 0),
-    (180, 1, 180, 'admin:security:view', '安全中心目录查看', 'MENU', 'GET', '/security/**', 1, 0),
-    (181, 1, 181, 'admin:login-session:view', '登录会话查看', 'MENU', 'GET', '/security/login-session', 1, 0),
-    (182, 1, 182, 'admin:jwt-key:view', 'JWT密钥管理查看', 'MENU', 'GET', '/security/jwt-key', 1, 0),
-    (183, 1, 183, 'admin:api-access:view', 'API访问控制查看', 'MENU', 'GET', '/security/api-access', 1, 0),
-    (184, 1, 184, 'admin:operation-audit:view', '操作审计查看', 'MENU', 'GET', '/security/operation-audit', 1, 0);
+    (164, 1, 164, 'admin:role-grant:view', '角色授权查看', 'MENU', 'GET', '/permission/role-grant', 1, 0);
 
 UPDATE sys_menu
 SET visible = 0, updated_at = CURRENT_TIMESTAMP(3)
@@ -732,10 +722,7 @@ VALUES
     (243, 1, 240, 'admin_base_region_currency_v3', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:countryCurrency:list', 'Connection', 1, 33, 1, 0),
     (250, 1, 0, 'admin_permission_catalog_v3', '权限中心', 'CATALOG', '/permission', NULL, NULL, 'Key', 1, 40, 1, 0),
     (251, 1, 250, 'admin_permission_app_v3', '应用权限', 'MENU', '/permission/app', 'permission/app', 'permission:app:list', 'Key', 1, 41, 1, 0),
-    (252, 1, 250, 'admin_permission_data_scope_v3', '数据权限', 'MENU', '/permission/data-scope', 'permission/data-scope', 'permission:data-scope:list', 'Connection', 1, 42, 1, 0),
-    (260, 1, 0, 'admin_security_catalog_v3', '安全中心', 'CATALOG', '/security', NULL, NULL, 'Lock', 1, 50, 1, 0),
-    (261, 1, 260, 'admin_security_session_v3', '会话管理', 'MENU', '/security/session', 'security/session', 'security:session:list', 'Monitor', 1, 51, 1, 0),
-    (262, 1, 260, 'admin_security_api_security_v3', '密钥与 API 安全', 'MENU', '/security/api-security', 'security/api-security', 'security:jwt-key:list', 'Lock', 1, 52, 1, 0);
+    (252, 1, 250, 'admin_permission_data_scope_v3', '数据权限', 'MENU', '/permission/data-scope', 'permission/data-scope', 'permission:data-scope:list', 'Connection', 1, 42, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -827,16 +814,7 @@ VALUES
     (531, 1, 252, 'permission:data-scope:list', '数据权限查询', 'MENU', 'GET', '/permission/data-scope', 1, 0),
     (532, 1, 252, 'permission:data-scope:add', '数据权限新增', 'BUTTON', '*', '/admin/permissions/data-scopes/**', 1, 0),
     (533, 1, 252, 'permission:data-scope:edit', '数据权限编辑', 'BUTTON', '*', '/admin/permissions/data-scopes/**', 1, 0),
-    (534, 1, 252, 'permission:data-scope:delete', '数据权限删除', 'BUTTON', '*', '/admin/permissions/data-scopes/**', 1, 0),
-    (601, 1, 261, 'security:session:list', '会话查询', 'MENU', 'GET', '/security/session', 1, 0),
-    (602, 1, 261, 'security:session:kickout', '会话踢出', 'BUTTON', '*', '/admin/security/sessions/**/kickout', 1, 0),
-    (611, 1, 262, 'security:jwt-key:list', 'JWT 密钥查询', 'MENU', 'GET', '/security/api-security', 1, 0),
-    (612, 1, 262, 'security:jwt-key:rotate', 'JWT 密钥轮换', 'BUTTON', '*', '/admin/security/jwt-keys/**/rotate', 1, 0),
-    (621, 1, 262, 'security:api-access:list', 'API 访问控制查询', 'BUTTON', '*', '/admin/security/api-access/**', 1, 0),
-    (622, 1, 262, 'security:api-access:add', 'API 访问控制新增', 'BUTTON', '*', '/admin/security/api-access/**', 1, 0),
-    (623, 1, 262, 'security:api-access:edit', 'API 访问控制编辑', 'BUTTON', '*', '/admin/security/api-access/**', 1, 0),
-    (624, 1, 262, 'security:api-access:delete', 'API 访问控制删除', 'BUTTON', '*', '/admin/security/api-access/**', 1, 0),
-    (631, 1, 262, 'security:audit:list', '安全审计查询', 'BUTTON', '*', '/admin/security/audit/**', 1, 0);
+    (534, 1, 252, 'permission:data-scope:delete', '数据权限删除', 'BUTTON', '*', '/admin/permissions/data-scopes/**', 1, 0);
 
 UPDATE sys_menu
 SET visible = 0,
@@ -1099,7 +1077,7 @@ VALUES
     (224, 1, 220, 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 0, 84, 1, 0),
     (225, 1, 220, 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 0, 85, 1, 0),
     (226, 1, 220, 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 0, 86, 1, 0),
-    (227, 1, 220, 'monitor_datasource', '数据源监控', 'LINK', 'http://localhost:8080/druid', NULL, 'monitor:datasource:view', 'DataLine', 1, 0, 87, 1, 0),
+    (227, 1, 220, 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 0, 87, 1, 0),
     (228, 1, 220, 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 1, 88, 1, 0),
     (229, 1, 220, 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 1, 89, 1, 0);
 
@@ -1130,6 +1108,7 @@ VALUES
     (653, 1, 224, 'monitor:job:stop', '任务停用', 'BUTTON', 'PUT', '/admin/monitor/job/**/status', 1, 0),
     (654, 1, 225, 'monitor:jobLog:query', '任务日志详情', 'BUTTON', 'POST', '/admin/monitor/job-log/search', 1, 0),
     (655, 1, 227, 'monitor:datasource:view', '数据源监控查看', 'MENU', NULL, NULL, 1, 0),
+    (660, 1, 227, 'monitor:datasource:export', '数据源监控导出', 'BUTTON', 'GET', '/admin/monitor/datasource/export', 1, 0),
     (656, 1, 228, 'monitor:rocketmq:view', 'RocketMQ 控制台查看', 'MENU', NULL, NULL, 1, 0),
     (657, 1, 229, 'monitor:nacos:view', 'Nacos 控制台查看', 'MENU', NULL, NULL, 1, 0),
     (658, 1, 226, 'monitor:jobNode:query', '任务节点详情', 'BUTTON', 'GET', '/admin/monitor/job-node/list', 1, 0),
@@ -1146,14 +1125,15 @@ VALUES
     (395, 1, 224, 'monitor_job_stop', '任务停用', 'BUTTON', NULL, NULL, 'monitor:job:stop', NULL, 0, 7, 1, 0),
     (396, 1, 225, 'monitor_job_log_query', '日志详情', 'BUTTON', NULL, NULL, 'monitor:jobLog:query', NULL, 0, 1, 1, 0),
     (400, 1, 226, 'monitor_job_node_query', '节点详情', 'BUTTON', NULL, NULL, 'monitor:jobNode:query', NULL, 0, 1, 1, 0),
-    (401, 1, 226, 'monitor_job_node_refresh', '节点刷新', 'BUTTON', NULL, NULL, 'monitor:jobNode:refresh', NULL, 0, 2, 1, 0);
+    (401, 1, 226, 'monitor_job_node_refresh', '节点刷新', 'BUTTON', NULL, NULL, 'monitor:jobNode:refresh', NULL, 0, 2, 1, 0),
+    (402, 1, 227, 'monitor_datasource_export', '数据源监控导出', 'BUTTON', NULL, NULL, 'monitor:datasource:export', NULL, 0, 1, 1, 0);
 
 -- 将新权限授予 admin 角色（role_id=1）
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
-SELECT 1, 1, id, 0 FROM sys_permission WHERE id BETWEEN 632 AND 659 AND deleted = 0;
+SELECT 1, 1, id, 0 FROM sys_permission WHERE id BETWEEN 632 AND 660 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
-SELECT 1, 1, id, 0 FROM sys_menu WHERE (id BETWEEN 227 AND 229 OR id BETWEEN 389 AND 401) AND deleted = 0;
+SELECT 1, 1, id, 0 FROM sys_menu WHERE (id BETWEEN 227 AND 229 OR id BETWEEN 389 AND 402) AND deleted = 0;
 
 -- =============================================================================
 -- 国际化字典种子数据 (sys_dict_type + sys_dict_data)

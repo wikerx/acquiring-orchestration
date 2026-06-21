@@ -91,7 +91,7 @@ packages/shared/src
 
 1. 将 `admin-system` 完全切换到 `packages/shared` 的统一请求封装；
 2. 统一 `admin-system` / `merchant-portal` 的 Session 持久化和鉴权处理；
-3. 为 `cashier` 预留收银会话、支付方式、下单提交的共享模型。
+3. 为 Hosted Checkout 预留收银会话、支付方式、下单提交的共享模型。
 
 ### 第四阶段：核心域沉淀
 

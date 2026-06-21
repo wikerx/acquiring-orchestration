@@ -8,13 +8,9 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserDO
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 用户主体数据库实体
- * @status : create
+ * 用户主体数据库实体。
+ *
+ * <p>承载后台用户和商户用户共用的自然人资料，账号登录凭据由 {@code sys_account} 独立维护。</p>
  */
 @Data
 @TableName("sys_user")
@@ -35,6 +31,11 @@ public class SysUserDO {
      * 真实姓名。
      */
     private String realName;
+
+    /**
+     * 所属部门ID，用于后台用户数据权限和组织架构展示。
+     */
+    private Long deptId;
 
     /**
      * 昵称。

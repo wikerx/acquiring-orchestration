@@ -111,6 +111,16 @@ return success();                       // 无业务 data，仅表示操作成�
 3. 金额使用最小货币单位整数或高精度 decimal，禁止使用浮点数。
 4. 状态字段使用明确枚举值，禁止魔法数字散落在代码中。
 5. 涉及交易、资金、对账的表必须保留审计字段。
+6. 表示具体时间点的字段必须使用 `DATETIME(3)`，默认当前时间使用 `CURRENT_TIMESTAMP(3)`，自动更新时间使用 `ON UPDATE CURRENT_TIMESTAMP(3)`。
+7. `DATE`、`TIME`、只表示业务日期的字段、外部渠道原始字符串时间字段不要强行改为 `DATETIME(3)`。
+8. 后端时间字段优先使用 `LocalDateTime`，不要为了页面展示不显示毫秒而改成 `String`、`Date` 或 `Timestamp`。
+
+## 前端时间展示
+
+1. Admin 管理系统日期时间统一展示为 `yyyy-MM-dd HH:mm:ss`，页面不展示毫秒。
+2. 前端优先复用 `formatDateTime` 或 `BaseDateTime`，不要在页面内重复实现时间格式化函数。
+3. 禁止使用 `substring` 截断接口返回时间，禁止要求后端接口去掉毫秒。
+4. 日期范围查询组件保持原有行为，不因展示格式治理改变查询入参。
 
 ## 测试
 

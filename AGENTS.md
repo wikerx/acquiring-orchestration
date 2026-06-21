@@ -33,7 +33,7 @@
 * `service-gateway`：网关服务。
 * `service-admin`：管理后台服务。
 * `service-merchant`：商户后台服务。
-* `service-checkout`：收银台服务。
+* `service-checkout`：Hosted Checkout 收银台服务。
 * `service-openapi`：商户开放接口入口服务。
 * `service-payment`：收单支付核心服务。
 * `service-payout`：代付核心服务。
@@ -484,6 +484,44 @@ messageId + consumerGroup
 * 汇率使用场景：交易、结算、查询、清分
 
 汇率至少保留 8 位以上小数精度，结算汇总展示再按币种规则处理。
+
+---
+
+## 时间字段与页面展示规范
+
+表示“具体时间点”的数据库字段必须使用 `DATETIME(3)`，默认当前时间使用 `CURRENT_TIMESTAMP(3)`，自动更新时间使用 `ON UPDATE CURRENT_TIMESTAMP(3)`。
+
+标准字段示例：
+
+```sql
+`create_time` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+`update_time` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间'
+```
+
+业务时间字段也应保留毫秒精度，例如 `transaction_date_time`、`operation_time`、`start_time`、`end_time`、`last_check_time`、`created_time`、`event_time`。分表模板表、分表物理表、分表治理表、任务调度表、执行日志表、操作日志表都必须遵守该规则。
+
+不要把以下字段强行改成 `DATETIME(3)`：
+
+* `DATE` 类型字段
+* `TIME` 类型字段
+* 只表示业务日期的字段，例如 `settlement_date`、`business_date`、`effective_date`
+* 外部渠道原始字符串时间字段
+
+判断原则：表示“某一天”的字段使用 `DATE`，表示“某个具体时刻”的字段使用 `DATETIME(3)`。
+
+Java 后端时间字段优先使用 `LocalDateTime`。不要为了前端不显示毫秒而改成 `String`、`Date` 或 `Timestamp`，也不要降低数据库或接口精度。
+
+Admin 管理系统页面展示日期时间时统一格式化为 `yyyy-MM-dd HH:mm:ss`，页面不展示毫秒。前端必须复用已有时间格式化工具或 `BaseDateTime` 组件，禁止每个页面单独写时间格式化函数，禁止通过 `substring` 截断时间，禁止要求后端接口去掉毫秒。
+
+新增或修改 SQL 草案时必须遵守：
+
+```text
+DATETIME -> DATETIME(3)
+CURRENT_TIMESTAMP -> CURRENT_TIMESTAMP(3)
+ON UPDATE CURRENT_TIMESTAMP -> ON UPDATE CURRENT_TIMESTAMP(3)
+```
+
+如果发现已有表中存在应为 `DATETIME(3)` 的 `DATETIME` 字段，只能生成 `docs/sql/datetime3-migration.sql` 迁移草案，不允许直接执行数据库变更。执行前必须人工确认字段默认值、索引、业务影响和数据兼容性。
 
 ---
 

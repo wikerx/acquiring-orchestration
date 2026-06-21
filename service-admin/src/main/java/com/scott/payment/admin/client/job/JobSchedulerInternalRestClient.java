@@ -2,6 +2,7 @@ package com.scott.payment.admin.client.job;
 
 import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
+import com.scott.payment.admin.client.job.dto.ShardingTablePreCreateRemoteRequest;
 import com.scott.payment.admin.config.JobSchedulerClientProperties;
 import com.scott.payment.admin.dto.monitor.JobExecutorNodeResponse;
 import com.scott.payment.admin.dto.monitor.JobHandlerOptionResponse;
@@ -10,6 +11,7 @@ import com.scott.payment.admin.dto.monitor.JobRunLogQueryRequest;
 import com.scott.payment.admin.dto.monitor.JobRunLogResponse;
 import com.scott.payment.admin.dto.monitor.JobTaskQueryRequest;
 import com.scott.payment.admin.dto.monitor.JobTaskResponse;
+import com.scott.payment.admin.dto.monitor.ShardingTablePreCreateResultResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -225,6 +227,28 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         CommonResult<List<JobExecutorNodeResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<List<JobExecutorNodeResponse>>>() {
+                }
+        );
+        return unwrapData(result);
+    }
+
+    @Override
+    public ShardingTablePreCreateResultResponse dryRunShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
+        String responseBody = doPost(jobSchedulerClientProperties.getShardingTableCreateDryRunUrl(), request);
+        CommonResult<ShardingTablePreCreateResultResponse> result = JsonUtils.parseObject(
+                responseBody,
+                new TypeReference<CommonResult<ShardingTablePreCreateResultResponse>>() {
+                }
+        );
+        return unwrapData(result);
+    }
+
+    @Override
+    public ShardingTablePreCreateResultResponse executeShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
+        String responseBody = doPost(jobSchedulerClientProperties.getShardingTableCreateExecuteUrl(), request);
+        CommonResult<ShardingTablePreCreateResultResponse> result = JsonUtils.parseObject(
+                responseBody,
+                new TypeReference<CommonResult<ShardingTablePreCreateResultResponse>>() {
                 }
         );
         return unwrapData(result);

@@ -40,6 +40,13 @@
 - 查看、复制、下载完整密钥必须挂在独立敏感权限之下，例如 `merchant:material:view`。
 - 平台私钥不得返回给前端，也不得在页面明文展示。
 
+### 2.5 时间展示
+
+- Admin 页面日期时间统一展示为 `yyyy-MM-dd HH:mm:ss`，不展示毫秒。
+- 表格列、详情页、弹窗中的时间字段优先使用 `BaseDateTime` 或项目统一 `formatDateTime`。
+- 不要在页面内重复实现时间格式化函数，不要用 `substring` 截断接口返回时间。
+- 日期范围查询组件保持原有入参与交互，不因展示格式治理改变查询语义。
+
 ## 3. 后端规范
 
 ### 3.1 Controller 风格
@@ -98,6 +105,9 @@
 - 破坏性脚本必须先准备备份表。
 - 优先使用带保护条件的幂等 SQL，例如 `ON DUPLICATE KEY UPDATE` 或条件 `UPDATE`。
 - 在扫描报告和回滚方案审阅完成前，不要执行 `DROP TABLE`、`DROP COLUMN` 或大范围 `DELETE`。
+- 表示具体时间点的字段统一使用 `DATETIME(3)`，默认当前时间使用 `CURRENT_TIMESTAMP(3)`，自动更新时间使用 `ON UPDATE CURRENT_TIMESTAMP(3)`。
+- `DATE`、`TIME`、只表示业务日期的字段、外部渠道原始字符串时间字段不要强行改为 `DATETIME(3)`。
+- 已有表需要统一时间精度时，只生成迁移 SQL 草案并人工确认，不直接执行数据库变更。
 
 ## 6. 验证要求
 

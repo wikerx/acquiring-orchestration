@@ -24,22 +24,13 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserApplicationService
- * @date : 2026-06-19 20:40
- * @email : scott_x@163.com
- * @description : 管理后台用户管理应用服务
- * @status : create
+ * 管理后台用户管理应用服务。
  *
- * <p>当前应用层只负责收敛控制器入口，具体用户、角色、密码和状态规则仍由领域服务承载。</p>
+ * <p>负责收敛控制器入口、导出编排和展示文案转换，具体用户、角色、密码和状态规则由领域服务承载。</p>
  */
 @Service
 public class AdminUserApplicationService {
 
-    /**
-     * 后台用户领域服务。
-     */
     private final AdminUserService adminUserService;
     private final ExcelExportService excelExportService;
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
@@ -48,7 +39,10 @@ public class AdminUserApplicationService {
     /**
      * 创建后台用户应用服务。
      *
-     * @param adminUserService 后台用户领域服务
+     * @param adminUserService         后台用户领域服务
+     * @param excelExportService       Excel 导出服务
+     * @param excelI18nMessageResolver Excel 文案解析器
+     * @param excelLocaleResolver      Excel 语言解析器
      */
     public AdminUserApplicationService(AdminUserService adminUserService,
                                        ExcelExportService excelExportService,
@@ -82,13 +76,14 @@ public class AdminUserApplicationService {
                             HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<SysUserAccountExportRow> rows = adminUserService.listUsers(request).stream()
-                .map(UserExportConverter.INSTANCE::toExportRow)
+                .map(dto -> toExportRow(dto, locale))
                 .peek(row -> fillUserExportDisplayValue(row, locale))
                 .toList();
+        String exportTitle = excelI18nMessageResolver.resolve("excel.user.title", locale);
         excelExportService.export(
                 ExcelExportRequest.<SysUserAccountExportRow>builder()
-                        .fileName("用户列表_" + timestampSuffix())
-                        .sheetName("用户列表")
+                        .fileName(exportTitle + "_" + timestampSuffix())
+                        .sheetName(exportTitle)
                         .titleKey("excel.user.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())
@@ -174,8 +169,23 @@ public class AdminUserApplicationService {
      * @param locale 当前语言
      */
     private void fillUserExportDisplayValue(SysUserAccountExportRow row, Locale locale) {
+        row.setDeptName(blankToPlaceholder(row.getDeptName()));
+        row.setPostNamesText(blankToPlaceholder(row.getPostNamesText()));
         row.setStatus(resolveStatusText("1".equals(String.valueOf(row.getStatus())), locale));
         row.setLocked(resolveBooleanText("1".equals(String.valueOf(row.getLocked())), locale));
+    }
+
+    /**
+     * 转换用户导出行，并按当前语言拼接岗位名称。
+     *
+     * @param dto    用户 DTO
+     * @param locale 当前语言
+     * @return 导出行对象
+     */
+    private SysUserAccountExportRow toExportRow(SysUserAccountDTO dto, Locale locale) {
+        SysUserAccountExportRow row = UserExportConverter.INSTANCE.toExportRow(dto);
+        row.setPostNamesText(joinPostNames(dto.getPostNames(), locale));
+        return row;
     }
 
     /**
@@ -191,13 +201,17 @@ public class AdminUserApplicationService {
         }
         StringBuilder builder = new StringBuilder();
         if (request.getLoginAccount() != null && !request.getLoginAccount().isBlank()) {
-            builder.append("登录账号=").append(request.getLoginAccount().trim());
+            builder.append(excelI18nMessageResolver.resolve("excel.user.loginAccount", locale))
+                    .append("=")
+                    .append(request.getLoginAccount().trim());
         }
         if (request.getStatus() != null) {
             if (!builder.isEmpty()) {
-                builder.append("，");
+                builder.append(locale.getLanguage().equals(Locale.CHINESE.getLanguage()) ? "，" : ", ");
             }
-            builder.append("状态=").append(resolveStatusText(request.getStatus() == 1, locale));
+            builder.append(excelI18nMessageResolver.resolve("excel.user.status", locale))
+                    .append("=")
+                    .append(resolveStatusText(request.getStatus() == 1, locale));
         }
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
@@ -231,5 +245,29 @@ public class AdminUserApplicationService {
      */
     private String resolveBooleanText(boolean value, Locale locale) {
         return excelI18nMessageResolver.resolve(value ? "excel.common.yes" : "excel.common.no", locale);
+    }
+
+    /**
+     * 按语言拼接岗位名称。
+     *
+     * @param postNames 岗位名称集合
+     * @param locale    当前语言
+     * @return 岗位名称展示值
+     */
+    private String joinPostNames(List<String> postNames, Locale locale) {
+        if (postNames == null || postNames.isEmpty()) {
+            return null;
+        }
+        return String.join(locale.getLanguage().equals(Locale.CHINESE.getLanguage()) ? "、" : ", ", postNames);
+    }
+
+    /**
+     * 空展示值统一转为占位符，避免导出表格出现空白单元格。
+     *
+     * @param value 原始展示值
+     * @return 展示值或占位符
+     */
+    private String blankToPlaceholder(String value) {
+        return value == null || value.isBlank() ? "-" : value;
     }
 }

@@ -19,6 +19,17 @@
 11. 不要修改 SQL、YAML、POM，除非任务明确要求。
 12. 修改资金、状态、幂等、回调、加密相关代码前，必须先说明风险和验证方式。
 
+## 时间字段与页面展示规范
+
+1. 表示具体时间点的数据库字段统一使用 `DATETIME(3)`。
+2. 默认当前时间统一使用 `CURRENT_TIMESTAMP(3)`。
+3. 自动更新时间统一使用 `ON UPDATE CURRENT_TIMESTAMP(3)`。
+4. `DATE`、`TIME`、只表示业务日期的字段、外部渠道原始字符串时间字段不要强行改为 `DATETIME(3)`。
+5. 后端 Java 时间字段优先使用 `LocalDateTime`，不要为了页面不显示毫秒改成 `String`、`Date` 或 `Timestamp`。
+6. Admin 页面日期时间统一展示为 `yyyy-MM-dd HH:mm:ss`，不显示毫秒。
+7. 前端必须复用已有 `formatDateTime` 或 `BaseDateTime`，禁止页面内重复写格式化函数，禁止用 `substring` 截断时间。
+8. 已有表需要统一时间精度时，只生成 `docs/sql/datetime3-migration.sql` 草案，不直接执行数据库变更。
+
 ## 输出要求
 
 修改前说明：
@@ -38,4 +49,3 @@
 - 是否影响配置
 - 是否影响 MQ / 定时任务
 - 建议测试
-

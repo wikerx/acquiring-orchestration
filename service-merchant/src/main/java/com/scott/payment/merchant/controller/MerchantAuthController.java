@@ -11,6 +11,7 @@ import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import com.scott.payment.merchant.application.auth.MerchantAuthApplicationService;
+import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -74,6 +75,16 @@ public class MerchantAuthController {
     public CommonResult<AuthVerifyCodeSendResponse> sendVerifyCode(@Valid @RequestBody AuthVerifyCodeSendRequest request,
                                                                    HttpServletRequest servletRequest) {
         return success(merchantAuthApplicationService.sendVerifyCode(request, servletRequest));
+    }
+
+    /**
+     * 查询商户登录页本地开发默认凭据。
+     *
+     * @return 默认商户号、账号和本地初始密码
+     */
+    @GetMapping("/default-login-credential")
+    public CommonResult<MerchantDefaultLoginCredentialDTO> defaultLoginCredential() {
+        return success(merchantAuthApplicationService.defaultLoginCredential());
     }
 
     /**

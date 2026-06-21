@@ -1,5 +1,7 @@
 package com.scott.payment.merchant.application.auth;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
@@ -7,8 +9,16 @@ import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
+import com.scott.payment.component.db.auth.entity.SysAccountDO;
+import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
+import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 /**
@@ -19,18 +29,34 @@ import org.springframework.stereotype.Service;
 @Service
 public class MerchantAuthApplicationService {
 
+    private static final String DEFAULT_LOGIN_ACCOUNT = "merchant";
+    private static final String DEFAULT_LOGIN_PASSWORD = "Merchant@123456";
+
     /**
      * 商户鉴权能力。
      */
     private final SystemAuthService systemAuthService;
 
+    private final SysAppMapper sysAppMapper;
+    private final SysAccountMapper sysAccountMapper;
+    private final Environment environment;
+
     /**
      * 创建商户门户认证应用服务。
      *
      * @param systemAuthService 商户鉴权能力
+     * @param sysAppMapper      应用 Mapper
+     * @param sysAccountMapper  登录账号 Mapper
+     * @param environment       Spring 环境
      */
-    public MerchantAuthApplicationService(SystemAuthService systemAuthService) {
+    public MerchantAuthApplicationService(SystemAuthService systemAuthService,
+                                          SysAppMapper sysAppMapper,
+                                          SysAccountMapper sysAccountMapper,
+                                          Environment environment) {
         this.systemAuthService = systemAuthService;
+        this.sysAppMapper = sysAppMapper;
+        this.sysAccountMapper = sysAccountMapper;
+        this.environment = environment;
     }
 
     /**
@@ -56,6 +82,42 @@ public class MerchantAuthApplicationService {
                 request,
                 clientIp(servletRequest)
         );
+    }
+
+    /**
+     * 查询商户门户登录页本地开发默认凭据。
+     *
+     * <p>密码来自明确的本地种子账号初始密码，不从数据库哈希反推，也不暴露任意账号密码。</p>
+     *
+     * @return 默认登录凭据，未初始化种子账号时返回空字段
+     */
+    @DS(DataSourceName.SLAVE)
+    public MerchantDefaultLoginCredentialDTO defaultLoginCredential() {
+        MerchantDefaultLoginCredentialDTO credential = new MerchantDefaultLoginCredentialDTO();
+        if (!environment.acceptsProfiles(Profiles.of("dev", "test", "sample", "local"))) {
+            return credential;
+        }
+        SysAppDO merchantApp = sysAppMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
+                .eq(SysAppDO::getAppCode, AuthConstants.APP_MERCHANT)
+                .eq(SysAppDO::getStatus, AuthConstants.ENABLED)
+                .eq(SysAppDO::getDeleted, AuthConstants.NOT_DELETED)
+                .last("LIMIT 1"));
+        if (merchantApp == null) {
+            return credential;
+        }
+        SysAccountDO account = sysAccountMapper.selectOne(Wrappers.<SysAccountDO>lambdaQuery()
+                .eq(SysAccountDO::getAppId, merchantApp.getId())
+                .eq(SysAccountDO::getLoginAccount, DEFAULT_LOGIN_ACCOUNT)
+                .eq(SysAccountDO::getStatus, AuthConstants.ENABLED)
+                .eq(SysAccountDO::getDeleted, AuthConstants.NOT_DELETED)
+                .last("LIMIT 1"));
+        if (account == null) {
+            return credential;
+        }
+        credential.setMerchantId(account.getMerchantId());
+        credential.setLoginAccount(account.getLoginAccount());
+        credential.setPassword(DEFAULT_LOGIN_PASSWORD);
+        return credential;
     }
 
     /**

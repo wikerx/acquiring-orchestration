@@ -1,6 +1,7 @@
 package com.scott.payment.admin.client.job;
 
 import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
+import com.scott.payment.admin.client.job.dto.ShardingTablePreCreateRemoteRequest;
 import com.scott.payment.admin.dto.monitor.JobExecutorNodeResponse;
 import com.scott.payment.admin.dto.monitor.JobHandlerOptionResponse;
 import com.scott.payment.admin.dto.monitor.JobManualTriggerRequest;
@@ -8,6 +9,7 @@ import com.scott.payment.admin.dto.monitor.JobRunLogQueryRequest;
 import com.scott.payment.admin.dto.monitor.JobRunLogResponse;
 import com.scott.payment.admin.dto.monitor.JobTaskQueryRequest;
 import com.scott.payment.admin.dto.monitor.JobTaskResponse;
+import com.scott.payment.admin.dto.monitor.ShardingTablePreCreateResultResponse;
 import com.scott.payment.component.core.model.PageResult;
 
 import java.util.List;
@@ -120,4 +122,20 @@ public interface JobSchedulerInternalClient {
      * @return 执行节点列表
      */
     List<JobExecutorNodeResponse> listNodes();
+
+    /**
+     * 预演分表物理表预创建。
+     *
+     * @param request 预创建请求
+     * @return 预演结果
+     */
+    ShardingTablePreCreateResultResponse dryRunShardingTableCreate(ShardingTablePreCreateRemoteRequest request);
+
+    /**
+     * 立即创建缺失的分表物理表。
+     *
+     * @param request 建表请求
+     * @return 建表结果
+     */
+    ShardingTablePreCreateResultResponse executeShardingTableCreate(ShardingTablePreCreateRemoteRequest request);
 }

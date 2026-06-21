@@ -56,4 +56,14 @@ public class JobSchedulerClientProperties {
      * 执行节点查询接口地址。
      */
     private String nodeListUrl = "http://service-job/internal/job/nodes";
+
+    /**
+     * 分表物理表预创建预演接口地址。
+     */
+    private String shardingTableCreateDryRunUrl = "http://service-job/internal/job/sharding/table-create/dry-run";
+
+    /**
+     * 分表物理表立即创建接口地址。
+     */
+    private String shardingTableCreateExecuteUrl = "http://service-job/internal/job/sharding/table-create/execute";
 }

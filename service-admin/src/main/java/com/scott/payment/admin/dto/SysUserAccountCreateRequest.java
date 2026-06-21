@@ -6,17 +6,12 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysUserAccountCreateRequest
- * @date : 2026-06-07 00:00
- * @email : scott_x@163.com
- * @description : 管理后台用户新增请求 DTO
- * @status : create
+ * 管理后台用户新增请求 DTO。
  *
- * <p>用于新增后台用户账号，承载登录账号、登录密码和基础联系人信息。</p>
+ * <p>承载账号初始化、自然人资料、部门和岗位关系，角色授权仍由独立授权接口处理。</p>
  */
 @Data
 public class SysUserAccountCreateRequest implements Serializable {
@@ -34,6 +29,10 @@ public class SysUserAccountCreateRequest implements Serializable {
     @NotBlank(message = "realName")
     @Size(max = 100, message = "realName length must be less than 100")
     private String realName;
+
+    private Long deptId;
+
+    private List<Long> postIds;
 
     @Size(max = 30, message = "mobile length must be less than 30")
     private String mobile;

@@ -21,15 +21,21 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.entity.SysDeptDO;
 import com.scott.payment.component.db.auth.entity.SysLoginSessionDO;
+import com.scott.payment.component.db.auth.entity.SysPostDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
+import com.scott.payment.component.db.auth.entity.SysUserPostDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
+import com.scott.payment.component.db.auth.mapper.SysDeptMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
+import com.scott.payment.component.db.auth.mapper.SysPostMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
+import com.scott.payment.component.db.auth.mapper.SysUserPostMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,15 +51,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserServiceImpl
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 管理后台用户领域服务实现
- * @status : create
+ * 管理后台用户领域服务实现。
  *
- * <p>负责后台用户维护、状态变更、密码重置和角色授权等核心领域规则，
+ * <p>负责后台用户维护、部门岗位关系、状态变更、密码重置和角色授权等领域规则，
  * 不承担控制器协议适配和页面交互逻辑。</p>
  */
 @Service
@@ -64,16 +64,22 @@ public class AdminUserServiceImpl implements AdminUserService {
     private final SysAppMapper sysAppMapper;
     private final SysAccountMapper sysAccountMapper;
     private final SysUserMapper sysUserMapper;
+    private final SysDeptMapper sysDeptMapper;
+    private final SysPostMapper sysPostMapper;
+    private final SysUserPostMapper sysUserPostMapper;
     private final SysRoleMapper sysRoleMapper;
     private final SysAccountRoleMapper sysAccountRoleMapper;
     private final SysLoginSessionMapper sysLoginSessionMapper;
 
     /**
-     * 创建后台用户服务实现。
+     * 创建后台用户服务实现，显式注入用户、组织、角色和会话相关数据访问接口。
      *
      * @param sysAppMapper          应用 Mapper
      * @param sysAccountMapper      账号 Mapper
      * @param sysUserMapper         用户 Mapper
+     * @param sysDeptMapper         部门 Mapper
+     * @param sysPostMapper         岗位 Mapper
+     * @param sysUserPostMapper     用户岗位关联 Mapper
      * @param sysRoleMapper         角色 Mapper
      * @param sysAccountRoleMapper  账号角色 Mapper
      * @param sysLoginSessionMapper 登录会话 Mapper
@@ -81,12 +87,18 @@ public class AdminUserServiceImpl implements AdminUserService {
     public AdminUserServiceImpl(SysAppMapper sysAppMapper,
                                 SysAccountMapper sysAccountMapper,
                                 SysUserMapper sysUserMapper,
+                                SysDeptMapper sysDeptMapper,
+                                SysPostMapper sysPostMapper,
+                                SysUserPostMapper sysUserPostMapper,
                                 SysRoleMapper sysRoleMapper,
                                 SysAccountRoleMapper sysAccountRoleMapper,
                                 SysLoginSessionMapper sysLoginSessionMapper) {
         this.sysAppMapper = sysAppMapper;
         this.sysAccountMapper = sysAccountMapper;
         this.sysUserMapper = sysUserMapper;
+        this.sysDeptMapper = sysDeptMapper;
+        this.sysPostMapper = sysPostMapper;
+        this.sysUserPostMapper = sysUserPostMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.sysAccountRoleMapper = sysAccountRoleMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
@@ -103,6 +115,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     public PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request) {
         SysUserAccountQueryRequest query = request == null ? new SysUserAccountQueryRequest() : request;
         SysAppDO app = getAdminApp();
+        List<Long> filteredUserIds = loadUserIdsByDept(query.getDeptId());
+        if (query.getDeptId() != null && filteredUserIds.isEmpty()) {
+            return PageResult.of(0, query.safePageNo(), query.safePageSize(), Collections.emptyList());
+        }
         // 先查询账号分页，再按 userId 批量回填用户资料，避免列表场景出现 N+1 查询。
         Page<SysAccountDO> page = sysAccountMapper.selectPage(
                 new Page<>(query.safePageNo(), query.safePageSize()),
@@ -113,14 +129,20 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .likeRight(StringUtils.hasText(query.getMobile()), SysAccountDO::getMobile, query.getMobile())
                         .likeRight(StringUtils.hasText(query.getEmail()), SysAccountDO::getEmail, query.getEmail())
                         .eq(query.getStatus() != null, SysAccountDO::getStatus, query.getStatus())
+                        .in(query.getDeptId() != null, SysAccountDO::getUserId, filteredUserIds)
                         .orderByDesc(SysAccountDO::getUpdatedAt)
         );
         Map<Long, SysUserDO> userMap = loadUsers(page);
+        List<Long> userIds = page.getRecords().stream().map(SysAccountDO::getUserId).toList();
+        Map<Long, String> deptNameMap = loadDeptNameMap(userMap.values().stream().map(SysUserDO::getDeptId).toList());
+        Map<Long, List<SysPostDO>> postMap = loadUserPostMap(userIds);
         return PageResult.of(
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(account -> toDTO(account, userMap.get(account.getUserId()))).toList()
+                page.getRecords().stream()
+                        .map(account -> toDTO(account, userMap.get(account.getUserId()), deptNameMap, postMap))
+                        .toList()
         );
     }
 
@@ -129,6 +151,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     public List<SysUserAccountDTO> listUsers(SysUserAccountQueryRequest request) {
         SysUserAccountQueryRequest query = request == null ? new SysUserAccountQueryRequest() : request;
         SysAppDO app = getAdminApp();
+        List<Long> filteredUserIds = loadUserIdsByDept(query.getDeptId());
+        if (query.getDeptId() != null && filteredUserIds.isEmpty()) {
+            return Collections.emptyList();
+        }
         List<SysAccountDO> accounts = sysAccountMapper.selectList(
                 Wrappers.<SysAccountDO>lambdaQuery()
                         .eq(SysAccountDO::getAppId, app.getId())
@@ -137,6 +163,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .likeRight(StringUtils.hasText(query.getMobile()), SysAccountDO::getMobile, query.getMobile())
                         .likeRight(StringUtils.hasText(query.getEmail()), SysAccountDO::getEmail, query.getEmail())
                         .eq(query.getStatus() != null, SysAccountDO::getStatus, query.getStatus())
+                        .in(query.getDeptId() != null, SysAccountDO::getUserId, filteredUserIds)
                         .orderByDesc(SysAccountDO::getUpdatedAt)
         );
         if (accounts.isEmpty()) {
@@ -147,8 +174,10 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .in(SysUserDO::getId, accounts.stream().map(SysAccountDO::getUserId).toList())
                         .eq(SysUserDO::getDeleted, NOT_DELETED)
         ).stream().collect(Collectors.toMap(SysUserDO::getId, Function.identity(), (left, right) -> left));
+        Map<Long, String> deptNameMap = loadDeptNameMap(userMap.values().stream().map(SysUserDO::getDeptId).toList());
+        Map<Long, List<SysPostDO>> postMap = loadUserPostMap(accounts.stream().map(SysAccountDO::getUserId).toList());
         return accounts.stream()
-                .map(account -> toDTO(account, userMap.get(account.getUserId())))
+                .map(account -> toDTO(account, userMap.get(account.getUserId()), deptNameMap, postMap))
                 .toList();
     }
 
@@ -169,6 +198,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         SysUserDO user = new SysUserDO();
         user.setUserType(AuthConstants.USER_TYPE_PLATFORM);
         user.setRealName(normalize(request.getRealName()));
+        user.setDeptId(validateDept(app.getId(), request.getDeptId()));
         user.setMobile(normalize(request.getMobile()));
         user.setEmail(normalize(request.getEmail()));
         user.setCountryCode("CN");
@@ -202,7 +232,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         sysAccountMapper.insert(account);
 
         bindDefaultRole(app, account, now);
-        return toDTO(account, user);
+        bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
+        return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())), loadUserPostMap(List.of(user.getId())));
     }
 
     /**
@@ -225,6 +256,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         String email = request.getEmail() == null ? account.getEmail() : normalize(request.getEmail());
 
         user.setRealName(realName);
+        user.setDeptId(validateDept(app.getId(), request.getDeptId()));
         user.setMobile(mobile);
         user.setEmail(email);
         user.setStatus(status);
@@ -239,7 +271,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         if (status == AuthConstants.DISABLED) {
             logoutSessions(app.getId(), account.getId(), now);
         }
-        return toDTO(account, user);
+        bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
+        return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())), loadUserPostMap(List.of(user.getId())));
     }
 
     /**
@@ -380,12 +413,18 @@ public class AdminUserServiceImpl implements AdminUserService {
                             .eq(SysAccountRoleDO::getAccountId, account.getId())
                             .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
             );
+            sysUserPostMapper.delete(
+                    Wrappers.<SysUserPostDO>lambdaQuery()
+                            .eq(SysUserPostDO::getUserId, user.getId())
+            );
             logoutSessions(app.getId(), account.getId(), now);
         }
     }
 
     /**
      * 获取后台管理系统对应的应用信息。
+     *
+     * @return 后台应用实体
      */
     private SysAppDO getAdminApp() {
         SysAppDO app = sysAppMapper.selectOne(
@@ -439,6 +478,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         return account;
     }
 
+    /**
+     * 查询用户主体实体。
+     *
+     * @param userId 用户主体主键
+     * @return 用户主体实体
+     */
     private SysUserDO getUser(Long userId) {
         SysUserDO user = sysUserMapper.selectOne(
                 Wrappers.<SysUserDO>lambdaQuery()
@@ -452,6 +497,13 @@ public class AdminUserServiceImpl implements AdminUserService {
         return user;
     }
 
+    /**
+     * 为新建账号绑定默认后台角色。
+     *
+     * @param app     后台应用
+     * @param account 账号实体
+     * @param now     当前业务时间
+     */
     private void bindDefaultRole(SysAppDO app, SysAccountDO account, LocalDateTime now) {
         SysRoleDO role = sysRoleMapper.selectOne(
                 Wrappers.<SysRoleDO>lambdaQuery()
@@ -472,6 +524,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         sysAccountRoleMapper.insert(relation);
     }
 
+    /**
+     * 加载后台已启用角色列表。
+     *
+     * @param appId 应用主键
+     * @return 已启用角色列表
+     */
     private List<SysRoleDO> loadEnabledRoles(Long appId) {
         return sysRoleMapper.selectList(
                 Wrappers.<SysRoleDO>lambdaQuery()
@@ -483,6 +541,13 @@ public class AdminUserServiceImpl implements AdminUserService {
         );
     }
 
+    /**
+     * 加载账号当前已授权角色主键。
+     *
+     * @param appId     应用主键
+     * @param accountId 账号主键
+     * @return 已授权角色主键集合
+     */
     private List<Long> loadCheckedRoleIds(Long appId, Long accountId) {
         return sysAccountRoleMapper.selectList(
                 Wrappers.<SysAccountRoleDO>lambdaQuery()
@@ -493,6 +558,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         ).stream().map(SysAccountRoleDO::getRoleId).toList();
     }
 
+    /**
+     * 校验角色主键均属于当前后台应用且处于启用状态。
+     *
+     * @param appId   应用主键
+     * @param roleIds 角色主键集合
+     */
     private void validateRoleIds(Long appId, List<Long> roleIds) {
         if (roleIds.isEmpty()) {
             return;
@@ -509,6 +580,83 @@ public class AdminUserServiceImpl implements AdminUserService {
         }
     }
 
+    /**
+     * 校验部门存在且启用，允许用户暂不归属部门。
+     *
+     * @param appId  应用主键
+     * @param deptId 部门主键
+     * @return 合法部门主键
+     */
+    private Long validateDept(Long appId, Long deptId) {
+        if (deptId == null) {
+            return null;
+        }
+        SysDeptDO dept = sysDeptMapper.selectOne(
+                Wrappers.<SysDeptDO>lambdaQuery()
+                        .eq(SysDeptDO::getId, deptId)
+                        .eq(SysDeptDO::getAppId, appId)
+                        .eq(SysDeptDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysDeptDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (dept == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "department not found or disabled");
+        }
+        return deptId;
+    }
+
+    /**
+     * 校验并重建用户岗位关联。
+     *
+     * @param appId   应用主键
+     * @param userId  用户主键
+     * @param postIds 岗位主键列表
+     * @param now     当前时间
+     */
+    private void bindUserPosts(Long appId, Long userId, List<Long> postIds, LocalDateTime now) {
+        List<Long> normalizedPostIds = normalizeIds(postIds);
+        validatePostIds(appId, normalizedPostIds);
+        sysUserPostMapper.delete(
+                Wrappers.<SysUserPostDO>lambdaQuery()
+                        .eq(SysUserPostDO::getUserId, userId)
+        );
+        for (Long postId : normalizedPostIds) {
+            SysUserPostDO relation = new SysUserPostDO();
+            relation.setUserId(userId);
+            relation.setPostId(postId);
+            relation.setCreateTime(now);
+            sysUserPostMapper.insert(relation);
+        }
+    }
+
+    /**
+     * 校验岗位存在且启用。
+     *
+     * @param appId   应用主键
+     * @param postIds 岗位主键列表
+     */
+    private void validatePostIds(Long appId, List<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return;
+        }
+        Long count = sysPostMapper.selectCount(
+                Wrappers.<SysPostDO>lambdaQuery()
+                        .eq(SysPostDO::getAppId, appId)
+                        .eq(SysPostDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysPostDO::getDeleted, NOT_DELETED)
+                        .in(SysPostDO::getId, postIds)
+        );
+        if (count == null || count != postIds.size()) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "post ids contain invalid or disabled post");
+        }
+    }
+
+    /**
+     * 校验用户状态只允许启用或停用。
+     *
+     * @param status 用户状态
+     * @return 合法状态
+     */
     private Integer validStatus(Integer status) {
         if (status == AuthConstants.ENABLED || status == AuthConstants.DISABLED) {
             return status;
@@ -516,6 +664,13 @@ public class AdminUserServiceImpl implements AdminUserService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "status is invalid");
     }
 
+    /**
+     * 注销账号当前有效会话，用于密码、状态和授权变更后触发权限即时刷新。
+     *
+     * @param appId     应用主键
+     * @param accountId 账号主键
+     * @param now       当前业务时间
+     */
     private void logoutSessions(Long appId, Long accountId, LocalDateTime now) {
         sysLoginSessionMapper.update(
                 Wrappers.<SysLoginSessionDO>lambdaUpdate()
@@ -528,6 +683,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         );
     }
 
+    /**
+     * 去除用户输入两端空格，空白字符串统一转换为 null。
+     *
+     * @param value 用户输入
+     * @return 规范化后的字符串
+     */
     private String normalize(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -535,6 +696,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         return value.trim();
     }
 
+    /**
+     * 规范化主键集合，过滤空值和非正数并去重。
+     *
+     * @param ids 原始主键集合
+     * @return 规范化主键集合
+     */
     private List<Long> normalizeIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
@@ -546,7 +713,10 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
-     * 根据分页账号列表，批量加载对应的用户信息
+     * 根据分页账号列表，批量加载对应的用户信息。
+     *
+     * @param page 账号分页结果
+     * @return 用户主键到用户实体的映射
      */
     private Map<Long, SysUserDO> loadUsers(Page<SysAccountDO> page) {
         if (page.getRecords().isEmpty()) {
@@ -559,14 +729,95 @@ public class AdminUserServiceImpl implements AdminUserService {
         ).stream().collect(Collectors.toMap(SysUserDO::getId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 按部门查询用户主键集合，用于用户列表部门筛选。
+     *
+     * @param deptId 部门主键
+     * @return 用户主键集合
+     */
+    private List<Long> loadUserIdsByDept(Long deptId) {
+        if (deptId == null) {
+            return Collections.emptyList();
+        }
+        return sysUserMapper.selectList(
+                Wrappers.<SysUserDO>lambdaQuery()
+                        .select(SysUserDO::getId)
+                        .eq(SysUserDO::getDeptId, deptId)
+                        .eq(SysUserDO::getDeleted, NOT_DELETED)
+        ).stream().map(SysUserDO::getId).toList();
+    }
 
     /**
-     * 账号+用户信息转换为前端 DTO
+     * 批量加载部门名称。
+     *
+     * @param deptIds 部门主键集合
+     * @return 部门主键到名称的映射
      */
-    private SysUserAccountDTO toDTO(SysAccountDO account, SysUserDO user) {
+    private Map<Long, String> loadDeptNameMap(List<Long> deptIds) {
+        List<Long> normalizedDeptIds = normalizeIds(deptIds);
+        if (normalizedDeptIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        return sysDeptMapper.selectList(
+                Wrappers.<SysDeptDO>lambdaQuery()
+                        .select(SysDeptDO::getId, SysDeptDO::getDeptName)
+                        .in(SysDeptDO::getId, normalizedDeptIds)
+                        .eq(SysDeptDO::getDeleted, NOT_DELETED)
+        ).stream().collect(Collectors.toMap(SysDeptDO::getId, SysDeptDO::getDeptName, (left, right) -> left));
+    }
+
+    /**
+     * 批量加载用户岗位关系和岗位摘要。
+     *
+     * @param userIds 用户主键集合
+     * @return 用户主键到岗位列表的映射
+     */
+    private Map<Long, List<SysPostDO>> loadUserPostMap(List<Long> userIds) {
+        List<Long> normalizedUserIds = normalizeIds(userIds);
+        if (normalizedUserIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<SysUserPostDO> relations = sysUserPostMapper.selectList(
+                Wrappers.<SysUserPostDO>lambdaQuery()
+                        .in(SysUserPostDO::getUserId, normalizedUserIds)
+        );
+        if (relations.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, SysPostDO> postMap = sysPostMapper.selectList(
+                Wrappers.<SysPostDO>lambdaQuery()
+                        .in(SysPostDO::getId, relations.stream().map(SysUserPostDO::getPostId).toList())
+                        .eq(SysPostDO::getDeleted, NOT_DELETED)
+        ).stream().collect(Collectors.toMap(SysPostDO::getId, Function.identity(), (left, right) -> left));
+        return relations.stream()
+                .filter(relation -> postMap.containsKey(relation.getPostId()))
+                .collect(Collectors.groupingBy(
+                        SysUserPostDO::getUserId,
+                        Collectors.mapping(relation -> postMap.get(relation.getPostId()), Collectors.toList())
+                ));
+    }
+
+    /**
+     * 账号和用户资料转换为前端 DTO。
+     *
+     * @param account     账号实体
+     * @param user        用户主体实体
+     * @param deptNameMap 部门名称映射
+     * @param postMap     用户岗位映射
+     * @return 用户账号 DTO
+     */
+    private SysUserAccountDTO toDTO(SysAccountDO account,
+                                    SysUserDO user,
+                                    Map<Long, String> deptNameMap,
+                                    Map<Long, List<SysPostDO>> postMap) {
         SysUserAccountDTO dto = new SysUserAccountDTO();
         dto.setAccountId(account.getId());
         dto.setUserId(account.getUserId());
+        dto.setDeptId(user == null ? null : user.getDeptId());
+        dto.setDeptName(user == null ? null : deptNameMap.get(user.getDeptId()));
+        List<SysPostDO> posts = postMap.getOrDefault(account.getUserId(), Collections.emptyList());
+        dto.setPostIds(posts.stream().map(SysPostDO::getId).toList());
+        dto.setPostNames(posts.stream().map(SysPostDO::getPostName).toList());
         dto.setLoginAccount(account.getLoginAccount());
         dto.setRealName(user == null ? null : user.getRealName());
         dto.setMobile(account.getMobile());

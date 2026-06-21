@@ -11,13 +11,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentOrderShardingAlgorithm
- * @date : 2026-05-28 10:28
- * @email : scott_x@163.com
- * @description : 支付订单季度分表算法
- * @status : create
+ * 支付订单季度分表算法。
+ *
+ * <p>该算法只负责按 {@code transaction_date_time} 计算物理表名和配置范围内的物理表清单。
+ * 表名格式统一为 {@code logical_table_yyyyQQ}，其中 QQ 是季度编号，不是月份。</p>
  */
 public class PaymentOrderShardingAlgorithm {
 
@@ -36,9 +33,9 @@ public class PaymentOrderShardingAlgorithm {
      * <p>
      * 所有需要分表的业务表必须传入 transaction_date_time，禁止使用订单号或商户号猜测路由。
      *
-     * @param logicalTableName    逻辑表名，例如 transaction、payment_order、payout_order
+     * @param logicalTableName    逻辑表名，例如 test_transaction、test_transaction_info
      * @param transactionDateTime 交易时间，数据库统一按 UTC+8 保存和路由
-     * @return 物理表名，例如 transaction_2026_q2
+     * @return 物理表名，例如 test_transaction_202602
      */
     public String tableName(String logicalTableName, LocalDateTime transactionDateTime) {
         return tableName(DEFAULT_PROPERTIES, logicalTableName, transactionDateTime);
@@ -139,9 +136,12 @@ public class PaymentOrderShardingAlgorithm {
      * @return true 表示该表参与季度分表
      */
     public boolean containsShardingTable(PaymentQuarterShardingProperties properties, String logicalTableName) {
-        return properties != null
-                && properties.getTables() != null
-                && properties.getTables().containsKey(logicalTableName);
+        if (properties == null || properties.getTables() == null || logicalTableName == null) {
+            return false;
+        }
+        return properties.getTables().containsKey(logicalTableName)
+                || properties.getTables().values().stream()
+                .anyMatch(rule -> logicalTableName.equals(rule.getLogicalTable()));
     }
 
     private int quarter(LocalDateTime transactionDateTime) {
@@ -150,9 +150,10 @@ public class PaymentOrderShardingAlgorithm {
 
     private static PaymentQuarterShardingProperties buildDefaultProperties() {
         PaymentQuarterShardingProperties properties = new PaymentQuarterShardingProperties();
-        addDefaultRule(properties, "transaction", "交易流水主表");
-        addDefaultRule(properties, "payment_order", "收单支付订单表");
-        addDefaultRule(properties, "payout_order", "代付订单表");
+        addDefaultRule(properties, "test_transaction", "测试交易主表");
+        addDefaultRule(properties, "test_transaction_info", "测试交易信息表");
+        addDefaultRule(properties, "test_transaction_merge_info", "测试交易附属信息表");
+        addDefaultRule(properties, "test_transaction_status_info", "测试交易状态信息表");
         return properties;
     }
 
@@ -183,6 +184,12 @@ public class PaymentOrderShardingAlgorithm {
         }
         Map<String, PaymentQuarterShardingProperties.TableRule> tables = properties.getTables();
         PaymentQuarterShardingProperties.TableRule tableRule = tables.get(logicalTableName);
+        if (tableRule == null) {
+            tableRule = tables.values().stream()
+                    .filter(rule -> logicalTableName.equals(rule.getLogicalTable()))
+                    .findFirst()
+                    .orElse(null);
+        }
         if (tableRule == null || Boolean.FALSE.equals(tableRule.getEnabled())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "logicalTableName is not configured for sharding");
@@ -191,7 +198,7 @@ public class PaymentOrderShardingAlgorithm {
             tableRule.setLogicalTable(logicalTableName);
         }
         if (tableRule.getTableNameFormat() == null || tableRule.getTableNameFormat().trim().isEmpty()) {
-            tableRule.setTableNameFormat("%s_%d_q%d");
+            tableRule.setTableNameFormat("%s_%d%02d");
         }
         return tableRule;
     }

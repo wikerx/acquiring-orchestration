@@ -2,7 +2,7 @@
 
 ## 1. 架构目标
 
-本项目用于构建一套基于 Spring Cloud 的全球支付系统架构，覆盖管理后台、商户系统、收银台、收单交易、代付交易、渠道适配库、定时任务、Redis、RocketMQ、MySQL 主从数据源以及交易核心表分表能力。
+本项目用于构建一套基于 Spring Cloud 的全球支付系统架构，覆盖管理后台、商户系统、Hosted Checkout 收银台、收单交易、代付交易、渠道适配库、定时任务、Redis、RocketMQ、MySQL 主从数据源以及交易核心表分表能力。
 
 核心设计原则：
 
@@ -416,7 +416,7 @@ component-job -> component-core
 
 1. 后台管理系统 API 接入；
 2. 商户系统 API 接入；
-3. 收银台 API 接入；
+3. Hosted Checkout API 接入；
 4. 商户开放 API 接入；
 5. 渠道回调 API 接入；
 6. 内部 API 与外部 API 路由区分；
@@ -515,7 +515,7 @@ service-merchant
 
 ### 5.4 service-checkout
 
-定位：收银台接口服务。
+定位：Hosted Checkout 收银台接口服务。
 
 职责：
 
@@ -619,7 +619,7 @@ channel callback -> service-gateway -> service-openapi -> service-payment/servic
 
 1. 创建支付订单；
 2. 支付订单状态机；
-3. 收银台支付确认；
+3. Hosted Checkout 支付确认；
 4. 支付结果处理；
 5. 退款申请；
 6. 退款状态处理；
