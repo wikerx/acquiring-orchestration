@@ -69,6 +69,11 @@ public class AuthMenuDTO implements Serializable {
     private String icon;
 
     /**
+     * 是否显示。
+     */
+    private Integer visible;
+
+    /**
      * 排序号。
      */
     private Integer sortNo;

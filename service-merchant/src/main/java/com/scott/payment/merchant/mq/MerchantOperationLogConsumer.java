@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.mq;
 
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.OperationLogMessage;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
@@ -33,7 +34,7 @@ import org.springframework.stereotype.Component;
         consumerGroup = MerchantOperationLogMqConstants.MERCHANT_OPERATION_LOG_CONSUMER_GROUP,
         messageModel = MessageModel.CLUSTERING
 )
-public class MerchantOperationLogConsumer implements RocketMQListener<OperationLogMessage> {
+public class MerchantOperationLogConsumer implements RocketMQListener<String> {
 
     /**
      * 商户管理系统操作日志领域服务。
@@ -68,11 +69,13 @@ public class MerchantOperationLogConsumer implements RocketMQListener<OperationL
     /**
      * 消费商户操作日志消息。
      *
-     * @param message 操作日志消息
+     * @param payload 操作日志消息 JSON 字符串
      */
     @Override
-    public void onMessage(OperationLogMessage message) {
+    public void onMessage(String payload) {
+        OperationLogMessage message = JsonUtils.parseObject(payload, OperationLogMessage.class);
         if (message == null) {
+            log.warn("商户操作日志消息体为空或无法解析，payload：{}", payload);
             return;
         }
         String idempotentKey = "operation-log:consume:merchant:" + message.getIdempotentKey();

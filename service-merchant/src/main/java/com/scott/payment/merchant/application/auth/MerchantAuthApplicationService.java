@@ -11,8 +11,10 @@ import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
@@ -29,7 +31,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class MerchantAuthApplicationService {
 
-    private static final String DEFAULT_LOGIN_ACCOUNT = "merchant";
+    private static final String DEFAULT_LOGIN_ACCOUNT = "admin";
     private static final String DEFAULT_LOGIN_PASSWORD = "Merchant@123456";
 
     /**
@@ -39,6 +41,7 @@ public class MerchantAuthApplicationService {
 
     private final SysAppMapper sysAppMapper;
     private final SysAccountMapper sysAccountMapper;
+    private final SysMerchantUserMapper sysMerchantUserMapper;
     private final Environment environment;
 
     /**
@@ -47,15 +50,18 @@ public class MerchantAuthApplicationService {
      * @param systemAuthService 商户鉴权能力
      * @param sysAppMapper      应用 Mapper
      * @param sysAccountMapper  登录账号 Mapper
+     * @param sysMerchantUserMapper 商户端用户 Mapper
      * @param environment       Spring 环境
      */
     public MerchantAuthApplicationService(SystemAuthService systemAuthService,
                                           SysAppMapper sysAppMapper,
                                           SysAccountMapper sysAccountMapper,
+                                          SysMerchantUserMapper sysMerchantUserMapper,
                                           Environment environment) {
         this.systemAuthService = systemAuthService;
         this.sysAppMapper = sysAppMapper;
         this.sysAccountMapper = sysAccountMapper;
+        this.sysMerchantUserMapper = sysMerchantUserMapper;
         this.environment = environment;
     }
 
@@ -105,17 +111,26 @@ public class MerchantAuthApplicationService {
         if (merchantApp == null) {
             return credential;
         }
-        SysAccountDO account = sysAccountMapper.selectOne(Wrappers.<SysAccountDO>lambdaQuery()
-                .eq(SysAccountDO::getAppId, merchantApp.getId())
-                .eq(SysAccountDO::getLoginAccount, DEFAULT_LOGIN_ACCOUNT)
-                .eq(SysAccountDO::getStatus, AuthConstants.ENABLED)
-                .eq(SysAccountDO::getDeleted, AuthConstants.NOT_DELETED)
+        SysMerchantUserDO merchantUser = sysMerchantUserMapper.selectOne(Wrappers.<SysMerchantUserDO>lambdaQuery()
+                .eq(SysMerchantUserDO::getLoginAccount, DEFAULT_LOGIN_ACCOUNT)
+                .eq(SysMerchantUserDO::getStatus, AuthConstants.ENABLED)
+                .eq(SysMerchantUserDO::getDeleted, AuthConstants.NOT_DELETED)
+                .orderByAsc(SysMerchantUserDO::getMerchantId)
                 .last("LIMIT 1"));
-        if (account == null) {
+        if (merchantUser == null || merchantUser.getAccountId() == null) {
             return credential;
         }
-        credential.setMerchantId(account.getMerchantId());
-        credential.setLoginAccount(account.getLoginAccount());
+        SysAccountDO account = sysAccountMapper.selectById(merchantUser.getAccountId());
+        if (account == null
+                || !merchantApp.getId().equals(account.getAppId())
+                || account.getStatus() == null
+                || account.getStatus() != AuthConstants.ENABLED
+                || account.getDeleted() == null
+                || account.getDeleted() != AuthConstants.NOT_DELETED) {
+            return credential;
+        }
+        credential.setMerchantId(merchantUser.getMerchantId());
+        credential.setLoginAccount(merchantUser.getLoginAccount());
         credential.setPassword(DEFAULT_LOGIN_PASSWORD);
         return credential;
     }

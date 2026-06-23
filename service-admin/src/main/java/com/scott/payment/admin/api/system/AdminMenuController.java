@@ -99,4 +99,5 @@ public class AdminMenuController {
         adminMenuApplicationService.updateStatus(request);
         return success();
     }
+
 }

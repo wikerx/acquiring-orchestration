@@ -29,6 +29,11 @@ public class GatewayRouteConfig {
     private static final String SERVICE_ADMIN_URI = "lb://service-admin";
 
     /**
+     * 收银台服务注册名，付款人收银台页面通过 gateway 读取公开展示配置。
+     */
+    private static final String SERVICE_CHECKOUT_URI = "lb://service-checkout";
+
+    /**
      * 商户收单 API 路径，形如 /api/rest/payment/v1/authorization。
      */
     private static final String PAYMENT_OPENAPI_PATH = "/api/rest/payment/**";
@@ -52,6 +57,11 @@ public class GatewayRouteConfig {
      * 管理后台内部 API 路径，形如 /admin/auth/login、/admin/system/configs/search。
      */
     private static final String ADMIN_API_PATH = "/admin/**";
+
+    /**
+     * 收银台公开 API 路径，形如 /checkout/config/countries。
+     */
+    private static final String CHECKOUT_API_PATH = "/checkout/**";
 
     /**
      * 网关本地兜底路径，用于输出统一 JSON 错误响应。
@@ -88,6 +98,7 @@ public class GatewayRouteConfig {
                 .route("channel-callback-openapi", route -> route.path(CHANNEL_CALLBACK_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("openapi-support", route -> route.path(OPENAPI_SUPPORT_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("admin-api", route -> route.path(ADMIN_API_PATH).uri(SERVICE_ADMIN_URI))
+                .route("checkout-api", route -> route.path(CHECKOUT_API_PATH).uri(SERVICE_CHECKOUT_URI))
                 .route("gateway-unmatched-path", route -> route.order(Ordered.LOWEST_PRECEDENCE)
                         .path(ANY_PATH)
                         .and()

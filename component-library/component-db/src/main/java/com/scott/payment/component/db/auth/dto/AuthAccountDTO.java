@@ -32,6 +32,11 @@ public class AuthAccountDTO implements Serializable {
     private Long userId;
 
     /**
+     * 商户端用户ID，仅商户系统登录时返回。
+     */
+    private Long merchantUserId;
+
+    /**
      * 应用编码。
      */
     private String appCode;
@@ -50,6 +55,11 @@ public class AuthAccountDTO implements Serializable {
      * 商户号。
      */
     private String merchantId;
+
+    /**
+     * 是否商户管理员，仅商户系统登录时有业务含义。
+     */
+    private Boolean merchantAdmin;
 
     /**
      * 账号状态。

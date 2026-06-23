@@ -716,6 +716,7 @@ VALUES
     (216, 1, 210, 'admin_system_log_v3', '日志管理', 'MENU', '/system/log', 'system/log', 'system:login-log:list', 'DocumentChecked', 1, 16, 1, 0),
     (230, 1, 0, 'admin_merchant_catalog_v3', '商户管理', 'CATALOG', '/merchant', NULL, NULL, 'Shop', 1, 20, 1, 0),
     (231, 1, 230, 'admin_merchant_info_v3', '商户信息', 'MENU', '/merchant/info', 'merchant/info', 'merchant:info:list', 'Shop', 1, 21, 1, 0),
+    (232, 1, 230, 'admin_merchant_menu_grant_v3', '商户菜单授权', 'MENU', '/merchant/menu-grant', 'merchant/menu-grant', 'merchant:menu-grant:list', 'Menu', 1, 22, 1, 0),
     (240, 1, 0, 'admin_base_catalog_v3', '基础数据', 'CATALOG', '/base', NULL, NULL, 'DataLine', 1, 30, 1, 0),
     (241, 1, 240, 'admin_base_country_v3', '国家/地区', 'MENU', '/base/country', 'base/country', 'base:country:list', 'Location', 1, 31, 1, 0),
     (242, 1, 240, 'admin_base_currency_v3', '币种管理', 'MENU', '/base/currency', 'base/currency', 'base:currency:list', 'Coin', 1, 32, 1, 0),
@@ -724,9 +725,40 @@ VALUES
     (251, 1, 250, 'admin_permission_app_v3', '应用权限', 'MENU', '/permission/app', 'permission/app', 'permission:app:list', 'Key', 1, 41, 1, 0),
     (252, 1, 250, 'admin_permission_data_scope_v3', '数据权限', 'MENU', '/permission/data-scope', 'permission/data-scope', 'permission:data-scope:list', 'Connection', 1, 42, 1, 0);
 
+INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+VALUES
+    (500, 2, 0, 'merchant_system_catalog_v1', '系统管理', 'CATALOG', '/system', NULL, NULL, 'Setting', 1, 90, 1, 0),
+    (501, 2, 500, 'merchant_system_dept_v1', '组织架构', 'MENU', '/system/dept', 'system/dept', 'merchant:system:dept:list', 'OfficeBuilding', 1, 91, 1, 0),
+    (502, 2, 500, 'merchant_system_post_v1', '岗位管理', 'MENU', '/system/post', 'system/post', 'merchant:system:post:list', 'Postcard', 1, 92, 1, 0),
+    (503, 2, 500, 'merchant_system_account_v1', '员工账号', 'MENU', '/system/account', 'system/account', 'merchant:system:account:list', 'User', 1, 93, 1, 0),
+    (504, 2, 500, 'merchant_system_role_v1', '角色管理', 'MENU', '/system/role', 'system/role', 'merchant:system:role:list', 'Lock', 1, 94, 1, 0),
+    (505, 2, 500, 'merchant_system_role_auth_v1', '角色授权', 'MENU', '/system/role-auth', 'system/role-auth', 'merchant:system:role:grantMenu', 'Unlock', 1, 95, 1, 0);
+
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
     (200, 1, 201, 'dashboard:view', '工作台查看', 'MENU', 'GET', '/admin/auth/me', 1, 0),
+    (201, 1, 232, 'merchant:menu-grant:list', '商户菜单授权查询', 'MENU', 'GET', '/admin/merchant-menu-grants/*', 1, 0),
+    (202, 1, 232, 'merchant:menu-grant:save', '商户菜单授权保存', 'BUTTON', 'POST', '/admin/merchant-menu-grants/*', 1, 0),
+    (500, 2, 501, 'merchant:system:dept:list', '组织架构查询', 'MENU', 'GET', '/merchant/system/depts*', 1, 0),
+    (501, 2, 501, 'merchant:system:dept:add', '组织架构新增', 'BUTTON', 'POST', '/merchant/system/depts', 1, 0),
+    (502, 2, 501, 'merchant:system:dept:edit', '组织架构编辑', 'BUTTON', 'PUT', '/merchant/system/depts/*', 1, 0),
+    (503, 2, 501, 'merchant:system:dept:delete', '组织架构删除', 'BUTTON', 'DELETE', '/merchant/system/depts/*', 1, 0),
+    (504, 2, 502, 'merchant:system:post:list', '岗位查询', 'MENU', 'GET', '/merchant/system/posts', 1, 0),
+    (505, 2, 502, 'merchant:system:post:add', '岗位新增', 'BUTTON', 'POST', '/merchant/system/posts', 1, 0),
+    (506, 2, 502, 'merchant:system:post:edit', '岗位编辑', 'BUTTON', 'PUT', '/merchant/system/posts/*', 1, 0),
+    (507, 2, 502, 'merchant:system:post:delete', '岗位删除', 'BUTTON', 'DELETE', '/merchant/system/posts/*', 1, 0),
+    (508, 2, 503, 'merchant:system:account:list', '员工账号查询', 'MENU', 'GET', '/merchant/system/accounts', 1, 0),
+    (509, 2, 503, 'merchant:system:account:add', '员工账号新增', 'BUTTON', 'POST', '/merchant/system/accounts', 1, 0),
+    (510, 2, 503, 'merchant:system:account:edit', '员工账号编辑', 'BUTTON', 'PUT', '/merchant/system/accounts/*', 1, 0),
+    (511, 2, 503, 'merchant:system:account:delete', '员工账号删除', 'BUTTON', 'DELETE', '/merchant/system/accounts/*', 1, 0),
+    (512, 2, 503, 'merchant:system:account:status', '员工账号状态', 'BUTTON', 'PUT', '/merchant/system/accounts/*/status', 1, 0),
+    (513, 2, 503, 'merchant:system:account:assignRole', '员工分配角色', 'BUTTON', 'POST', '/merchant/system/accounts/*/roles', 1, 0),
+    (514, 2, 504, 'merchant:system:role:list', '角色查询', 'MENU', 'GET', '/merchant/system/roles', 1, 0),
+    (515, 2, 504, 'merchant:system:role:add', '角色新增', 'BUTTON', 'POST', '/merchant/system/roles', 1, 0),
+    (516, 2, 504, 'merchant:system:role:edit', '角色编辑', 'BUTTON', 'PUT', '/merchant/system/roles/*', 1, 0),
+    (517, 2, 504, 'merchant:system:role:delete', '角色删除', 'BUTTON', 'DELETE', '/merchant/system/roles/*', 1, 0),
+    (518, 2, 505, 'merchant:system:role:grantMenu', '角色菜单授权', 'MENU', '*', '/merchant/system/roles/*/menus', 1, 0),
+    (519, 2, 505, 'merchant:system:role:grantPermission', '角色资源授权', 'BUTTON', '*', '/merchant/system/roles/*/permissions', 1, 0),
     (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'POST', '/admin/system/users/search', 1, 0),
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),

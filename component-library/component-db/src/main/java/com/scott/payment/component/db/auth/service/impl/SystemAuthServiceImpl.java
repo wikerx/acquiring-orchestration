@@ -21,6 +21,10 @@ import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysLoginLogDO;
 import com.scott.payment.component.db.auth.entity.SysLoginSessionDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantMenuGrantDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantPermissionGrantDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantUserRoleDO;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
 import com.scott.payment.component.db.auth.entity.SysPermissionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
@@ -34,6 +38,10 @@ import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginLogMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantMenuGrantMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantPermissionGrantMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantUserRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
@@ -43,6 +51,7 @@ import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.constant.DataSourceName;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.AntPathMatcher;
@@ -52,6 +61,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -134,6 +144,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private final SysRolePermissionMapper sysRolePermissionMapper;
     private final SysMenuMapper sysMenuMapper;
     private final SysPermissionMapper sysPermissionMapper;
+    private final SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper;
+    private final SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper;
+    private final SysMerchantUserMapper sysMerchantUserMapper;
+    private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
     private final SysLoginLogMapper sysLoginLogMapper;
     private final SysLoginSessionMapper sysLoginSessionMapper;
     private final SysVerifyCodeMapper sysVerifyCodeMapper;
@@ -151,6 +165,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param sysRolePermissionMapper 角色权限 Mapper
      * @param sysMenuMapper           菜单 Mapper
      * @param sysPermissionMapper     权限 Mapper
+     * @param sysMerchantMenuGrantMapper 商户菜单授权 Mapper
+     * @param sysMerchantPermissionGrantMapper 商户权限授权 Mapper
+     * @param sysMerchantUserMapper   商户端登录用户 Mapper
+     * @param sysMerchantUserRoleMapper 商户端用户角色 Mapper
      * @param sysLoginLogMapper       登录日志 Mapper
      * @param sysLoginSessionMapper   登录会话 Mapper
      * @param sysVerifyCodeMapper     动态验证码 Mapper
@@ -165,6 +183,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                  SysRolePermissionMapper sysRolePermissionMapper,
                                  SysMenuMapper sysMenuMapper,
                                  SysPermissionMapper sysPermissionMapper,
+                                 SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper,
+                                 SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper,
+                                 SysMerchantUserMapper sysMerchantUserMapper,
+                                 SysMerchantUserRoleMapper sysMerchantUserRoleMapper,
                                  SysLoginLogMapper sysLoginLogMapper,
                                  SysLoginSessionMapper sysLoginSessionMapper,
                                  SysVerifyCodeMapper sysVerifyCodeMapper,
@@ -178,6 +200,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.sysRolePermissionMapper = sysRolePermissionMapper;
         this.sysMenuMapper = sysMenuMapper;
         this.sysPermissionMapper = sysPermissionMapper;
+        this.sysMerchantMenuGrantMapper = sysMerchantMenuGrantMapper;
+        this.sysMerchantPermissionGrantMapper = sysMerchantPermissionGrantMapper;
+        this.sysMerchantUserMapper = sysMerchantUserMapper;
+        this.sysMerchantUserRoleMapper = sysMerchantUserRoleMapper;
         this.sysLoginLogMapper = sysLoginLogMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
         this.sysVerifyCodeMapper = sysVerifyCodeMapper;
@@ -229,7 +255,8 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "verify code scene is invalid");
         }
         SysAppDO app = getEnabledApp(appCode);
-        SysAccountDO account = findAccount(app.getId(), request.getLoginAccount());
+        validateMerchantLogin(appCode, request.getMerchantId());
+        SysAccountDO account = findLoginAccount(app, request.getLoginAccount(), request.getMerchantId());
         if (account == null || account.getStatus() == null || account.getStatus() != AuthConstants.ENABLED) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account disabled or not found");
         }
@@ -279,7 +306,8 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     @Transactional(rollbackFor = Exception.class)
     public AuthLoginResponse login(String appCode, AuthLoginRequest request, String clientIp, String userAgent) {
         SysAppDO app = getEnabledApp(appCode);
-        SysAccountDO account = findAccount(app.getId(), request.getLoginAccount());
+        validateMerchantLogin(appCode, request.getMerchantId());
+        SysAccountDO account = findLoginAccount(app, request.getLoginAccount(), request.getMerchantId());
         if (account == null || account.getStatus() == null || account.getStatus() != AuthConstants.ENABLED) {
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "account disabled or not found");
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account disabled or not found");
@@ -365,8 +393,8 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         SysLoginSessionDO session = getActiveSession(app.getId(), authorization);
         SysAccountDO account = getEnabledAccount(session.getAccountId());
         SysUserDO user = getEnabledUser(session.getUserId());
-        List<String> roleCodes = queryRoleCodes(app.getId(), account.getId());
-        List<String> permissionCodes = queryPermissionCodes(app.getId(), account.getId());
+        List<String> roleCodes = queryRoleCodes(app, account);
+        List<String> permissionCodes = queryPermissionCodes(app, account);
         String requiredPermission = StringUtils.hasText(permissionCode)
                 ? permissionCode
                 : findRequiredPermission(app.getId(), requestMethod, requestPath);
@@ -441,6 +469,29 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param now     当前时间
      */
     private void bindRole(SysAppDO app, SysAccountDO account, SysRoleDO role, LocalDateTime now) {
+        if (AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
+            SysMerchantUserDO merchantUser = new SysMerchantUserDO();
+            merchantUser.setMerchantInfoId(getMerchantInfoId(account.getMerchantId()));
+            merchantUser.setMerchantId(account.getMerchantId());
+            merchantUser.setUserId(account.getUserId());
+            merchantUser.setAccountId(account.getId());
+            merchantUser.setLoginAccount(account.getLoginAccount());
+            merchantUser.setStatus(AuthConstants.ENABLED);
+            merchantUser.setCreatedAt(now);
+            merchantUser.setUpdatedAt(now);
+            merchantUser.setDeleted(AuthConstants.NOT_DELETED);
+            sysMerchantUserMapper.insert(merchantUser);
+
+            SysMerchantUserRoleDO relation = new SysMerchantUserRoleDO();
+            relation.setAppId(app.getId());
+            relation.setMerchantInfoId(merchantUser.getMerchantInfoId());
+            relation.setMerchantUserId(merchantUser.getId());
+            relation.setRoleId(role.getId());
+            relation.setCreatedAt(now);
+            relation.setDeleted(AuthConstants.NOT_DELETED);
+            sysMerchantUserRoleMapper.insert(relation);
+            return;
+        }
         SysAccountRoleDO relation = new SysAccountRoleDO();
         relation.setAppId(app.getId());
         relation.setAccountId(account.getId());
@@ -448,6 +499,26 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         relation.setCreatedAt(now);
         relation.setDeleted(AuthConstants.NOT_DELETED);
         sysAccountRoleMapper.insert(relation);
+    }
+
+    /**
+     * 查询商户主表ID。
+     *
+     * @param merchantId 商户号
+     * @return 商户主表ID
+     */
+    private Long getMerchantInfoId(String merchantId) {
+        BaseMerchantInfoDO merchantInfo = baseMerchantInfoMapper.selectOne(
+                Wrappers.<BaseMerchantInfoDO>lambdaQuery()
+                        .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
+                        .eq(BaseMerchantInfoDO::getMerchantStatus, AuthConstants.ENABLED)
+                        .eq(BaseMerchantInfoDO::getDeleted, 0)
+                        .last("LIMIT 1")
+        );
+        if (merchantInfo == null) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
+        }
+        return merchantInfo.getId();
     }
 
     /**
@@ -641,13 +712,38 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
+     * 校验商户系统登录必须明确商户号。
+     *
+     * @param appCode    应用编码
+     * @param merchantId 商户号
+     */
+    private void validateMerchantLogin(String appCode, String merchantId) {
+        if (!AuthConstants.APP_MERCHANT.equals(appCode)) {
+            return;
+        }
+        if (!StringUtils.hasText(merchantId)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchantId is required");
+        }
+        BaseMerchantInfoDO merchantInfo = baseMerchantInfoMapper.selectOne(
+                Wrappers.<BaseMerchantInfoDO>lambdaQuery()
+                        .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
+                        .eq(BaseMerchantInfoDO::getMerchantStatus, AuthConstants.ENABLED)
+                        .eq(BaseMerchantInfoDO::getDeleted, 0)
+                        .last("LIMIT 1")
+        );
+        if (merchantInfo == null) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
+        }
+    }
+
+    /**
      * 断言账号不存在。
      *
      * @param appId        系统应用ID
      * @param loginAccount 登录账号
      */
     private void assertAccountNotExists(Long appId, String loginAccount) {
-        SysAccountDO exists = findAccount(appId, loginAccount);
+        SysAccountDO exists = findAccount(appId, loginAccount, null);
         if (exists != null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "loginAccount already exists");
         }
@@ -658,17 +754,70 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      *
      * @param appId        系统应用ID
      * @param loginAccount 登录账号
+     * @param merchantId   商户号，商户系统登录时必传
      * @return 登录账号实体
      */
-    private SysAccountDO findAccount(Long appId, String loginAccount) {
+    private SysAccountDO findAccount(Long appId, String loginAccount, String merchantId) {
         if (!StringUtils.hasText(loginAccount)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "loginAccount is required");
         }
         return sysAccountMapper.selectOne(
                 Wrappers.<SysAccountDO>lambdaQuery()
                         .eq(SysAccountDO::getAppId, appId)
+                        .eq(StringUtils.hasText(merchantId), SysAccountDO::getMerchantId, merchantId)
                         .eq(SysAccountDO::getLoginAccount, loginAccount)
                         .eq(SysAccountDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+    }
+
+    /**
+     * 查询登录账号。
+     *
+     * <p>商户系统先按商户端用户表解析 {@code merchantId + loginAccount}，再回到 sys_account 校验密码；
+     * 管理后台继续直接使用 sys_account。</p>
+     *
+     * @param app          系统应用
+     * @param loginAccount 登录输入账号
+     * @param merchantId   商户号
+     * @return 登录账号实体
+     */
+    private SysAccountDO findLoginAccount(SysAppDO app, String loginAccount, String merchantId) {
+        if (!AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
+            return findAccount(app.getId(), loginAccount, null);
+        }
+        SysMerchantUserDO merchantUser = findMerchantUser(merchantId, loginAccount);
+        if (merchantUser == null || merchantUser.getAccountId() == null) {
+            return null;
+        }
+        SysAccountDO account = sysAccountMapper.selectById(merchantUser.getAccountId());
+        if (account == null
+                || !Objects.equals(account.getAppId(), app.getId())
+                || !merchantId.equals(account.getMerchantId())
+                || account.getDeleted() == null
+                || account.getDeleted() != AuthConstants.NOT_DELETED) {
+            return null;
+        }
+        return account;
+    }
+
+    /**
+     * 查询启用商户端用户。
+     *
+     * @param merchantId    商户号
+     * @param loginAccount  商户端登录账号
+     * @return 商户端用户，未找到返回 null
+     */
+    private SysMerchantUserDO findMerchantUser(String merchantId, String loginAccount) {
+        if (!StringUtils.hasText(loginAccount)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "loginAccount is required");
+        }
+        return sysMerchantUserMapper.selectOne(
+                Wrappers.<SysMerchantUserDO>lambdaQuery()
+                        .eq(SysMerchantUserDO::getMerchantId, merchantId)
+                        .eq(SysMerchantUserDO::getLoginAccount, loginAccount)
+                        .eq(SysMerchantUserDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysMerchantUserDO::getDeleted, AuthConstants.NOT_DELETED)
                         .last("LIMIT 1")
         );
     }
@@ -719,6 +868,27 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "user is invalid");
         }
         return user;
+    }
+
+    /**
+     * 获取当前账号对应的启用商户端用户。
+     *
+     * @param account 登录账号
+     * @return 商户端用户
+     */
+    private SysMerchantUserDO getEnabledMerchantUser(SysAccountDO account) {
+        SysMerchantUserDO merchantUser = sysMerchantUserMapper.selectOne(
+                Wrappers.<SysMerchantUserDO>lambdaQuery()
+                        .eq(SysMerchantUserDO::getAccountId, account.getId())
+                        .eq(SysMerchantUserDO::getMerchantId, account.getMerchantId())
+                        .eq(SysMerchantUserDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysMerchantUserDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (merchantUser == null) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant user is invalid");
+        }
+        return merchantUser;
     }
 
     /**
@@ -869,9 +1039,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         response.setExpiresIn(AuthConstants.DEFAULT_TOKEN_TTL_SECONDS);
         response.setExpireAt(expireAt);
         response.setAccount(toAccountDTO(app, user, account));
-        response.setMenus(queryMenuTree(app.getId(), account.getId()));
-        response.setRoles(queryRoleCodes(app.getId(), account.getId()));
-        response.setPermissions(queryPermissionCodes(app.getId(), account.getId()));
+        response.setMenus(queryMenuTree(app, account));
+        response.setRoles(queryRoleCodes(app, account));
+        response.setPermissions(queryPermissionCodes(app, account));
         return response;
     }
 
@@ -892,6 +1062,13 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         dto.setRealName(user.getRealName());
         dto.setMerchantId(account.getMerchantId());
         dto.setStatus(account.getStatus());
+        if (AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
+            SysMerchantUserDO merchantUser = getEnabledMerchantUser(account);
+            dto.setMerchantUserId(merchantUser.getId());
+            dto.setLoginAccount(merchantUser.getLoginAccount());
+            dto.setRealName(StringUtils.hasText(merchantUser.getRealName()) ? merchantUser.getRealName() : user.getRealName());
+            dto.setMerchantAdmin(isMerchantSuperAdmin(app, account, queryRoleIds(app, account)));
+        }
         return dto;
     }
 
@@ -916,14 +1093,42 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
+     * 查询当前登录账号在指定应用下的有效角色ID。
+     *
+     * <p>商户系统以商户端用户为授权主体，角色来自 sys_merchant_user_role；
+     * 管理后台继续沿用 sys_account_role。</p>
+     *
+     * @param app     系统应用
+     * @param account 登录账号
+     * @return 角色ID集合
+     */
+    private List<Long> queryRoleIds(SysAppDO app, SysAccountDO account) {
+        if (!AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
+            return queryRoleIds(app.getId(), account.getId());
+        }
+        SysMerchantUserDO merchantUser = getEnabledMerchantUser(account);
+        return sysMerchantUserRoleMapper.selectList(
+                        Wrappers.<SysMerchantUserRoleDO>lambdaQuery()
+                                .eq(SysMerchantUserRoleDO::getAppId, app.getId())
+                                .eq(SysMerchantUserRoleDO::getMerchantUserId, merchantUser.getId())
+                                .eq(SysMerchantUserRoleDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysMerchantUserRoleDO::getRoleId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
+    /**
      * 查询账号角色编码。
      *
      * @param appId     系统应用ID
      * @param accountId 账号ID
      * @return 角色编码集合
      */
-    private List<String> queryRoleCodes(Long appId, Long accountId) {
-        List<Long> roleIds = queryRoleIds(appId, accountId);
+    private List<String> queryRoleCodes(SysAppDO app, SysAccountDO account) {
+        Long appId = app.getId();
+        List<Long> roleIds = queryRoleIds(app, account);
         if (roleIds.isEmpty()) {
             return List.of();
         }
@@ -948,20 +1153,13 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param accountId 账号ID
      * @return 菜单树
      */
-    private List<AuthMenuDTO> queryMenuTree(Long appId, Long accountId) {
-        List<Long> roleIds = queryRoleIds(appId, accountId);
+    private List<AuthMenuDTO> queryMenuTree(SysAppDO app, SysAccountDO account) {
+        Long appId = app.getId();
+        List<Long> roleIds = queryRoleIds(app, account);
         if (roleIds.isEmpty()) {
             return List.of();
         }
-        Set<Long> menuIds = sysRoleMenuMapper.selectList(
-                        Wrappers.<SysRoleMenuDO>lambdaQuery()
-                                .eq(SysRoleMenuDO::getAppId, appId)
-                                .in(SysRoleMenuDO::getRoleId, roleIds)
-                                .eq(SysRoleMenuDO::getDeleted, AuthConstants.NOT_DELETED)
-                ).stream()
-                .map(SysRoleMenuDO::getMenuId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        Set<Long> menuIds = resolveEffectiveMenuIds(app, account, roleIds);
         if (menuIds.isEmpty()) {
             return List.of();
         }
@@ -981,21 +1179,244 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
+     * 查询账号最终可见菜单ID。
+     *
+     * <p>商户系统需要把角色菜单限制在平台给商户开放的菜单范围内。已有环境可能尚未初始化平台授权，
+     * 因此未配置授权记录时保持历史角色授权结果，避免升级后商户端菜单突然清空。</p>
+     *
+     * @param app     系统应用
+     * @param account 登录账号
+     * @param roleIds 角色ID集合
+     * @return 最终菜单ID集合
+     */
+    private Set<Long> resolveEffectiveMenuIds(SysAppDO app, SysAccountDO account, List<Long> roleIds) {
+        Set<Long> roleMenuIds = sysRoleMenuMapper.selectList(
+                        Wrappers.<SysRoleMenuDO>lambdaQuery()
+                                .eq(SysRoleMenuDO::getAppId, app.getId())
+                                .in(SysRoleMenuDO::getRoleId, roleIds)
+                                .eq(SysRoleMenuDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysRoleMenuDO::getMenuId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!AuthConstants.APP_MERCHANT.equals(app.getAppCode()) || !StringUtils.hasText(account.getMerchantId())) {
+            return roleMenuIds;
+        }
+        Set<Long> platformMenuIds = queryMerchantGrantMenuIds(app.getId(), account.getMerchantId());
+        if (platformMenuIds.isEmpty()) {
+            return roleMenuIds;
+        }
+        if (isMerchantSuperAdmin(app, account, roleIds)) {
+            return platformMenuIds;
+        }
+        roleMenuIds.retainAll(platformMenuIds);
+        return roleMenuIds;
+    }
+
+    /**
      * 查询权限编码集合。
      *
      * @param appId     系统应用ID
      * @param accountId 账号ID
      * @return 权限编码集合
      */
-    private List<String> queryPermissionCodes(Long appId, Long accountId) {
-        List<Long> roleIds = queryRoleIds(appId, accountId);
+    private List<String> queryPermissionCodes(SysAppDO app, SysAccountDO account) {
+        Long appId = app.getId();
+        List<Long> roleIds = queryRoleIds(app, account);
         if (roleIds.isEmpty()) {
             return List.of();
         }
         Set<String> permissionCodes = new java.util.TreeSet<>();
-        permissionCodes.addAll(queryMenuPermissionCodes(appId, roleIds));
-        permissionCodes.addAll(queryApiPermissionCodes(appId, roleIds));
+        if (isMerchantSuperAdmin(app, account, roleIds)) {
+            List<String> platformCodes = queryMerchantGrantPermissionCodes(appId, account.getMerchantId());
+            if (!platformCodes.isEmpty()) {
+                permissionCodes.addAll(platformCodes);
+                permissionCodes.addAll(queryMerchantGrantMenuPermissionCodes(appId, account.getMerchantId()));
+                return List.copyOf(permissionCodes);
+            }
+        }
+        List<String> roleMenuCodes = queryMenuPermissionCodes(appId, roleIds);
+        List<String> roleApiCodes = queryApiPermissionCodes(appId, roleIds);
+        if (AuthConstants.APP_MERCHANT.equals(app.getAppCode()) && StringUtils.hasText(account.getMerchantId())) {
+            List<String> platformMenuCodes = queryMerchantGrantMenuPermissionCodes(appId, account.getMerchantId());
+            if (!platformMenuCodes.isEmpty()) {
+                roleMenuCodes = intersectCodes(roleMenuCodes, platformMenuCodes);
+            }
+            List<String> platformApiCodes = queryMerchantGrantPermissionCodes(appId, account.getMerchantId());
+            if (!platformApiCodes.isEmpty()) {
+                roleApiCodes = intersectCodes(roleApiCodes, platformApiCodes);
+            }
+        }
+        permissionCodes.addAll(roleMenuCodes);
+        permissionCodes.addAll(roleApiCodes);
         return List.copyOf(permissionCodes);
+    }
+
+    /**
+     * 查询平台给商户开放的菜单ID集合。
+     *
+     * @param appId      应用ID
+     * @param merchantId 商户号
+     * @return 菜单ID集合
+     */
+    private Set<Long> queryMerchantGrantMenuIds(Long appId, String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return Collections.emptySet();
+        }
+        try {
+            return sysMerchantMenuGrantMapper.selectList(
+                            Wrappers.<SysMerchantMenuGrantDO>lambdaQuery()
+                                    .eq(SysMerchantMenuGrantDO::getAppId, appId)
+                                    .eq(SysMerchantMenuGrantDO::getMerchantId, merchantId)
+                                    .eq(SysMerchantMenuGrantDO::getStatus, AuthConstants.ENABLED)
+                                    .eq(SysMerchantMenuGrantDO::getDeleted, AuthConstants.NOT_DELETED)
+                    ).stream()
+                    .map(SysMerchantMenuGrantDO::getMenuId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+        } catch (BadSqlGrammarException ex) {
+            if (isMissingMerchantGrantTable(ex)) {
+                return Collections.emptySet();
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * 查询平台给商户开放的资源权限ID集合。
+     *
+     * @param appId      应用ID
+     * @param merchantId 商户号
+     * @return 权限ID集合
+     */
+    private Set<Long> queryMerchantGrantPermissionIds(Long appId, String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return Collections.emptySet();
+        }
+        try {
+            return sysMerchantPermissionGrantMapper.selectList(
+                            Wrappers.<SysMerchantPermissionGrantDO>lambdaQuery()
+                                    .eq(SysMerchantPermissionGrantDO::getAppId, appId)
+                                    .eq(SysMerchantPermissionGrantDO::getMerchantId, merchantId)
+                                    .eq(SysMerchantPermissionGrantDO::getStatus, AuthConstants.ENABLED)
+                                    .eq(SysMerchantPermissionGrantDO::getDeleted, AuthConstants.NOT_DELETED)
+                    ).stream()
+                    .map(SysMerchantPermissionGrantDO::getPermissionId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+        } catch (BadSqlGrammarException ex) {
+            if (isMissingMerchantGrantTable(ex)) {
+                return Collections.emptySet();
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * 判断是否为商户授权迁移表尚未创建导致的查询异常。
+     *
+     * @param ex SQL 语法异常
+     * @return true 表示可按“未配置平台授权”兼容处理
+     */
+    private boolean isMissingMerchantGrantTable(BadSqlGrammarException ex) {
+        String message = ex.getMostSpecificCause() == null ? ex.getMessage() : ex.getMostSpecificCause().getMessage();
+        return message != null
+                && (message.contains("sys_merchant_menu_grant") || message.contains("sys_merchant_permission_grant"))
+                && (message.contains("doesn't exist") || message.contains("does not exist"));
+    }
+
+    /**
+     * 判断当前商户账号是否为商户超级管理员。
+     *
+     * @param app     系统应用
+     * @param account 登录账号
+     * @param roleIds 角色ID集合
+     * @return true 表示商户超级管理员
+     */
+    private boolean isMerchantSuperAdmin(SysAppDO app, SysAccountDO account, List<Long> roleIds) {
+        if (!AuthConstants.APP_MERCHANT.equals(app.getAppCode()) || !StringUtils.hasText(account.getMerchantId()) || roleIds.isEmpty()) {
+            return false;
+        }
+        Set<String> roleCodes = sysRoleMapper.selectList(
+                        Wrappers.<SysRoleDO>lambdaQuery()
+                                .eq(SysRoleDO::getAppId, app.getId())
+                                .in(SysRoleDO::getId, roleIds)
+                                .eq(SysRoleDO::getStatus, AuthConstants.ENABLED)
+                                .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysRoleDO::getRoleCode)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+        return roleCodes.contains(AuthConstants.DEFAULT_MERCHANT_ROLE)
+                || roleCodes.contains(AuthConstants.DEFAULT_MERCHANT_ROLE + "_" + account.getMerchantId());
+    }
+
+    /**
+     * 查询平台给商户开放菜单自身携带的权限编码。
+     *
+     * @param appId      应用ID
+     * @param merchantId 商户号
+     * @return 菜单权限编码
+     */
+    private List<String> queryMerchantGrantMenuPermissionCodes(Long appId, String merchantId) {
+        Set<Long> menuIds = queryMerchantGrantMenuIds(appId, merchantId);
+        if (menuIds.isEmpty()) {
+            return List.of();
+        }
+        return sysMenuMapper.selectList(
+                        Wrappers.<SysMenuDO>lambdaQuery()
+                                .eq(SysMenuDO::getAppId, appId)
+                                .in(SysMenuDO::getId, menuIds)
+                                .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
+                                .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysMenuDO::getPermissionCode)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    /**
+     * 查询平台给商户开放的资源权限编码。
+     *
+     * @param appId      应用ID
+     * @param merchantId 商户号
+     * @return 权限编码集合
+     */
+    private List<String> queryMerchantGrantPermissionCodes(Long appId, String merchantId) {
+        Set<Long> permissionIds = queryMerchantGrantPermissionIds(appId, merchantId);
+        if (permissionIds.isEmpty()) {
+            return List.of();
+        }
+        return sysPermissionMapper.selectList(
+                        Wrappers.<SysPermissionDO>lambdaQuery()
+                                .eq(SysPermissionDO::getAppId, appId)
+                                .in(SysPermissionDO::getId, permissionIds)
+                                .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
+                                .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysPermissionDO::getPermissionCode)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    /**
+     * 对权限编码取交集。
+     *
+     * @param roleCodes     角色权限编码
+     * @param platformCodes 平台授权权限编码
+     * @return 交集编码
+     */
+    private List<String> intersectCodes(List<String> roleCodes, List<String> platformCodes) {
+        Set<String> platformSet = Set.copyOf(platformCodes);
+        return roleCodes.stream()
+                .filter(platformSet::contains)
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     /**

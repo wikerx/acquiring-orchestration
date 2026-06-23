@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.converter.MenuConverter;
 import com.scott.payment.admin.dto.SysMenuCreateRequest;
+import com.scott.payment.admin.dto.SysMenuDeleteRequest;
 import com.scott.payment.admin.dto.SysMenuDTO;
 import com.scott.payment.admin.dto.SysMenuQueryRequest;
 import com.scott.payment.admin.dto.SysMenuStatusRequest;
@@ -13,8 +14,14 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysMenuDO;
+import com.scott.payment.component.db.auth.entity.SysPermissionDO;
+import com.scott.payment.component.db.auth.entity.SysRoleMenuDO;
+import com.scott.payment.component.db.auth.entity.SysRolePermissionDO;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
+import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
+import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
+import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -23,6 +30,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -47,16 +55,29 @@ public class AdminMenuServiceImpl implements AdminMenuService {
 
     private final SysAppMapper sysAppMapper;
     private final SysMenuMapper sysMenuMapper;
+    private final SysPermissionMapper sysPermissionMapper;
+    private final SysRoleMenuMapper sysRoleMenuMapper;
+    private final SysRolePermissionMapper sysRolePermissionMapper;
 
     /**
      * 创建后台菜单服务实现。
      *
      * @param sysAppMapper  应用 Mapper
      * @param sysMenuMapper 菜单 Mapper
+     * @param sysPermissionMapper 权限 Mapper
+     * @param sysRoleMenuMapper 角色菜单 Mapper
+     * @param sysRolePermissionMapper 角色权限 Mapper
      */
-    public AdminMenuServiceImpl(SysAppMapper sysAppMapper, SysMenuMapper sysMenuMapper) {
+    public AdminMenuServiceImpl(SysAppMapper sysAppMapper,
+                                SysMenuMapper sysMenuMapper,
+                                SysPermissionMapper sysPermissionMapper,
+                                SysRoleMenuMapper sysRoleMenuMapper,
+                                SysRolePermissionMapper sysRolePermissionMapper) {
         this.sysAppMapper = sysAppMapper;
         this.sysMenuMapper = sysMenuMapper;
+        this.sysPermissionMapper = sysPermissionMapper;
+        this.sysRoleMenuMapper = sysRoleMenuMapper;
+        this.sysRolePermissionMapper = sysRolePermissionMapper;
     }
 
     /**
@@ -67,8 +88,13 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      */
     @Override
     public List<SysMenuDTO> treeMenus(SysMenuQueryRequest request) {
+        return treeMenus(AuthConstants.APP_ADMIN, request);
+    }
+
+    @Override
+    public List<SysMenuDTO> treeMenus(String appCode, SysMenuQueryRequest request) {
         SysMenuQueryRequest query = request == null ? new SysMenuQueryRequest() : request;
-        SysAppDO app = getAdminApp();
+        SysAppDO app = getApp(appCode);
         boolean defaultVisibleMenus = query.getStatus() == null && query.getVisible() == null;
         Integer statusFilter = query.getStatus();
         Integer visibleFilter = query.getVisible();
@@ -99,7 +125,13 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO createMenu(SysMenuCreateRequest request) {
-        SysAppDO app = getAdminApp();
+        return createMenu(AuthConstants.APP_ADMIN, request);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SysMenuDTO createMenu(String appCode, SysMenuCreateRequest request) {
+        SysAppDO app = getApp(appCode);
         validateParent(app.getId(), request.getParentId(), null);
         assertMenuCodeNotExists(app.getId(), normalizeRequired(request.getMenuCode()));
 
@@ -114,6 +146,9 @@ public class AdminMenuServiceImpl implements AdminMenuService {
                 request.getExternalLink(), request.getSortNo(), request.getStatus());
         menu.setDeleted(NOT_DELETED);
         sysMenuMapper.insert(menu);
+        if (AuthConstants.APP_MERCHANT.equals(appCode)) {
+            syncPermission(app.getId(), menu);
+        }
         return toDTO(menu);
     }
 
@@ -126,7 +161,13 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO updateMenu(SysMenuUpdateRequest request) {
-        SysAppDO app = getAdminApp();
+        return updateMenu(AuthConstants.APP_ADMIN, request);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SysMenuDTO updateMenu(String appCode, SysMenuUpdateRequest request) {
+        SysAppDO app = getApp(appCode);
         SysMenuDO menu = getMenu(app.getId(), request.getMenuId());
         validateParent(app.getId(), request.getParentId(), menu.getId());
 
@@ -137,6 +178,9 @@ public class AdminMenuServiceImpl implements AdminMenuService {
                 request.getIcon(), request.getRedirect(), request.getVisible(), request.getKeepAlive(),
                 request.getExternalLink(), request.getSortNo(), request.getStatus());
         sysMenuMapper.updateById(menu);
+        if (AuthConstants.APP_MERCHANT.equals(appCode)) {
+            syncPermission(app.getId(), menu);
+        }
         return toDTO(menu);
     }
 
@@ -148,10 +192,46 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(SysMenuStatusRequest request) {
-        SysAppDO app = getAdminApp();
+        updateStatus(AuthConstants.APP_ADMIN, request);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateStatus(String appCode, SysMenuStatusRequest request) {
+        SysAppDO app = getApp(appCode);
         SysMenuDO menu = getMenu(app.getId(), request.getMenuId());
         menu.setStatus(validStatus(request.getStatus()));
         sysMenuMapper.updateById(menu);
+        if (AuthConstants.APP_MERCHANT.equals(appCode)) {
+            syncPermission(app.getId(), menu);
+        }
+    }
+
+    /**
+     * 逻辑删除指定应用菜单。
+     *
+     * @param appCode 应用编码
+     * @param request 删除请求
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMenu(String appCode, SysMenuDeleteRequest request) {
+        SysAppDO app = getApp(appCode);
+        SysMenuDO menu = getMenu(app.getId(), request.getMenuId());
+        Long childCount = sysMenuMapper.selectCount(
+                Wrappers.<SysMenuDO>lambdaQuery()
+                        .eq(SysMenuDO::getAppId, app.getId())
+                        .eq(SysMenuDO::getParentId, menu.getId())
+                        .eq(SysMenuDO::getDeleted, NOT_DELETED)
+        );
+        if (childCount != null && childCount > 0) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "menu has child nodes");
+        }
+        menu.setStatus(AuthConstants.DISABLED);
+        menu.setDeleted(menu.getId());
+        sysMenuMapper.updateById(menu);
+        softDeleteRoleMenus(app.getId(), menu.getId());
+        softDeleteMenuPermissions(app.getId(), menu.getId());
     }
 
     /**
@@ -159,15 +239,15 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      *
      * @return admin 应用实体
      */
-    private SysAppDO getAdminApp() {
+    private SysAppDO getApp(String appCode) {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()
-                        .eq(SysAppDO::getAppCode, AuthConstants.APP_ADMIN)
+                        .eq(SysAppDO::getAppCode, appCode)
                         .eq(SysAppDO::getDeleted, NOT_DELETED)
                         .last("LIMIT 1")
         );
         if (app == null) {
-            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "ADMIN app not found");
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), appCode + " app not found");
         }
         return app;
     }
@@ -316,6 +396,104 @@ public class AdminMenuServiceImpl implements AdminMenuService {
             return null;
         }
         return value.trim();
+    }
+
+    private void syncPermission(Long appId, SysMenuDO menu) {
+        String permissionCode = normalize(menu.getPermissionCode());
+        SysPermissionDO existing = sysPermissionMapper.selectOne(
+                Wrappers.<SysPermissionDO>lambdaQuery()
+                        .eq(SysPermissionDO::getAppId, appId)
+                        .eq(SysPermissionDO::getMenuId, menu.getId())
+                        .eq(SysPermissionDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (!StringUtils.hasText(permissionCode)) {
+            if (existing != null) {
+                existing.setDeleted(existing.getId());
+                existing.setStatus(AuthConstants.DISABLED);
+                sysPermissionMapper.updateById(existing);
+            }
+            return;
+        }
+        SysPermissionDO sameCode = sysPermissionMapper.selectOne(
+                Wrappers.<SysPermissionDO>lambdaQuery()
+                        .eq(SysPermissionDO::getAppId, appId)
+                        .eq(SysPermissionDO::getPermissionCode, permissionCode)
+                        .eq(SysPermissionDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        if (sameCode != null && !sameCode.getId().equals(existing == null ? null : existing.getId())
+                && !Objects.equals(sameCode.getMenuId(), menu.getId())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "permission code already exists");
+        }
+        SysPermissionDO permission = existing == null ? sameCode : existing;
+        if (permission == null) {
+            permission = new SysPermissionDO();
+            permission.setAppId(appId);
+            permission.setMenuId(menu.getId());
+            permission.setPermissionCode(permissionCode);
+            applyPermissionFields(permission, menu);
+            permission.setDeleted(NOT_DELETED);
+            sysPermissionMapper.insert(permission);
+            return;
+        }
+        permission.setMenuId(menu.getId());
+        permission.setPermissionCode(permissionCode);
+        applyPermissionFields(permission, menu);
+        sysPermissionMapper.updateById(permission);
+    }
+
+    private void applyPermissionFields(SysPermissionDO permission, SysMenuDO menu) {
+        permission.setPermissionName(menu.getMenuName());
+        permission.setPermissionType("BUTTON".equals(menu.getMenuType()) ? "BUTTON" : "MENU");
+        permission.setResourceMethod(defaultResourceMethod(menu.getMenuType()));
+        permission.setResourcePath(normalize(menu.getRoutePath()));
+        permission.setStatus(validStatus(menu.getStatus()));
+    }
+
+    private String defaultResourceMethod(String menuType) {
+        return "BUTTON".equals(menuType) ? "*" : "GET";
+    }
+
+    private void softDeleteRoleMenus(Long appId, Long menuId) {
+        List<SysRoleMenuDO> grants = sysRoleMenuMapper.selectList(
+                Wrappers.<SysRoleMenuDO>lambdaQuery()
+                        .eq(SysRoleMenuDO::getAppId, appId)
+                        .eq(SysRoleMenuDO::getMenuId, menuId)
+                        .eq(SysRoleMenuDO::getDeleted, NOT_DELETED)
+        );
+        grants.forEach(grant -> {
+            grant.setDeleted(grant.getId());
+            sysRoleMenuMapper.updateById(grant);
+        });
+    }
+
+    private void softDeleteMenuPermissions(Long appId, Long menuId) {
+        List<SysPermissionDO> permissions = sysPermissionMapper.selectList(
+                Wrappers.<SysPermissionDO>lambdaQuery()
+                        .eq(SysPermissionDO::getAppId, appId)
+                        .eq(SysPermissionDO::getMenuId, menuId)
+                        .eq(SysPermissionDO::getDeleted, NOT_DELETED)
+        );
+        permissions.forEach(permission -> {
+            softDeleteRolePermissions(appId, permission.getId());
+            permission.setStatus(AuthConstants.DISABLED);
+            permission.setDeleted(permission.getId());
+            sysPermissionMapper.updateById(permission);
+        });
+    }
+
+    private void softDeleteRolePermissions(Long appId, Long permissionId) {
+        List<SysRolePermissionDO> grants = sysRolePermissionMapper.selectList(
+                Wrappers.<SysRolePermissionDO>lambdaQuery()
+                        .eq(SysRolePermissionDO::getAppId, appId)
+                        .eq(SysRolePermissionDO::getPermissionId, permissionId)
+                        .eq(SysRolePermissionDO::getDeleted, NOT_DELETED)
+        );
+        grants.forEach(grant -> {
+            grant.setDeleted(grant.getId());
+            sysRolePermissionMapper.updateById(grant);
+        });
     }
 
     private List<SysMenuDTO> buildTree(List<SysMenuDO> menus) {

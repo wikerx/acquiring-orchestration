@@ -9,8 +9,10 @@ import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
+import com.scott.payment.component.db.auth.mapper.SysMerchantUserMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.merchant.dto.MerchantDefaultLoginCredentialDTO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,6 +42,9 @@ class MerchantAuthApplicationServiceTest {
     private SysAccountMapper sysAccountMapper;
 
     @Mock
+    private SysMerchantUserMapper sysMerchantUserMapper;
+
+    @Mock
     private Environment environment;
 
     @Mock
@@ -49,7 +54,13 @@ class MerchantAuthApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        merchantAuthApplicationService = new MerchantAuthApplicationService(systemAuthService, sysAppMapper, sysAccountMapper, environment);
+        merchantAuthApplicationService = new MerchantAuthApplicationService(
+                systemAuthService,
+                sysAppMapper,
+                sysAccountMapper,
+                sysMerchantUserMapper,
+                environment
+        );
     }
 
     @Test
@@ -98,17 +109,25 @@ class MerchantAuthApplicationServiceTest {
     void shouldReturnDefaultLoginCredentialFromSeedAccount() {
         SysAppDO app = new SysAppDO();
         app.setId(2L);
+        SysMerchantUserDO merchantUser = new SysMerchantUserDO();
+        merchantUser.setMerchantId("200045");
+        merchantUser.setLoginAccount("admin");
+        merchantUser.setAccountId(10L);
         SysAccountDO account = new SysAccountDO();
+        account.setAppId(2L);
         account.setMerchantId("200045");
-        account.setLoginAccount("merchant");
+        account.setLoginAccount("admin_200045");
+        account.setStatus(AuthConstants.ENABLED);
+        account.setDeleted(AuthConstants.NOT_DELETED);
         when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(true);
         when(sysAppMapper.selectOne(any())).thenReturn(app);
-        when(sysAccountMapper.selectOne(any())).thenReturn(account);
+        when(sysMerchantUserMapper.selectOne(any())).thenReturn(merchantUser);
+        when(sysAccountMapper.selectById(10L)).thenReturn(account);
 
         MerchantDefaultLoginCredentialDTO actual = merchantAuthApplicationService.defaultLoginCredential();
 
         assertThat(actual.getMerchantId()).isEqualTo("200045");
-        assertThat(actual.getLoginAccount()).isEqualTo("merchant");
+        assertThat(actual.getLoginAccount()).isEqualTo("admin");
         assertThat(actual.getPassword()).isEqualTo("Merchant@123456");
     }
 
