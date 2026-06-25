@@ -5,6 +5,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.security.openapi.OpenApiPemUtils;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.Cipher;
@@ -31,13 +32,9 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPayloadCrypto
- * @date : 2026-05-29 21:45
- * @email : scott_x@163.com
- * @description : 支付框架 OpenAPI 报文混合加密工具，使用 RSA-OAEP-SHA256 包裹 AES-256-GCM 会话密钥
- * @status : create
+ * OpenAPI 报文混合加密组件，负责 RSA-OAEP-SHA256 包裹 AES-256-GCM 会话密钥。
+ * <p>
+ * 该组件只处理加解密和 JCA 密钥解析，PEM 展示格式统一委托 {@link OpenApiPemUtils}。
  */
 public class OpenApiPayloadCrypto {
 
@@ -70,31 +67,6 @@ public class OpenApiPayloadCrypto {
      * RSA 密钥算法名称，用于读取 X.509 公钥和 PKCS#8 私钥。
      */
     private static final String RSA_ALGORITHM = "RSA";
-
-    /**
-     * PEM 文本每行字符数，使用 64 字符便于 OpenSSL、PHP、Go 等工具读取。
-     */
-    private static final int PEM_LINE_LENGTH = 64;
-
-    /**
-     * X.509 公钥 PEM 开始标识。
-     */
-    private static final String PUBLIC_KEY_BEGIN = "-----BEGIN PUBLIC KEY-----";
-
-    /**
-     * X.509 公钥 PEM 结束标识。
-     */
-    private static final String PUBLIC_KEY_END = "-----END PUBLIC KEY-----";
-
-    /**
-     * PKCS#8 私钥 PEM 开始标识。
-     */
-    private static final String PRIVATE_KEY_BEGIN = "-----BEGIN PRIVATE KEY-----";
-
-    /**
-     * PKCS#8 私钥 PEM 结束标识。
-     */
-    private static final String PRIVATE_KEY_END = "-----END PRIVATE KEY-----";
 
     /**
      * AES 会话密钥长度，32 字节即 256 bit。
@@ -208,7 +180,7 @@ public class OpenApiPayloadCrypto {
      */
     public PublicKey readPublicKey(String publicKeyBase64) {
         try {
-            byte[] encoded = Base64.getDecoder().decode(normalizePem(publicKeyBase64));
+            byte[] encoded = Base64.getDecoder().decode(OpenApiPemUtils.normalizePem(publicKeyBase64));
             return KeyFactory.getInstance(RSA_ALGORITHM).generatePublic(new X509EncodedKeySpec(encoded));
         } catch (IllegalArgumentException | GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi public key can not be parsed");
@@ -223,7 +195,7 @@ public class OpenApiPayloadCrypto {
      */
     public PrivateKey readPrivateKey(String privateKeyBase64) {
         try {
-            byte[] encoded = Base64.getDecoder().decode(normalizePem(privateKeyBase64));
+            byte[] encoded = Base64.getDecoder().decode(OpenApiPemUtils.normalizePem(privateKeyBase64));
             return KeyFactory.getInstance(RSA_ALGORITHM).generatePrivate(new PKCS8EncodedKeySpec(encoded));
         } catch (IllegalArgumentException | GeneralSecurityException exception) {
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi private key can not be parsed");
@@ -258,7 +230,7 @@ public class OpenApiPayloadCrypto {
      * @return X.509 PEM 公钥
      */
     public String toPublicKeyPem(String publicKeyBase64) {
-        return toPem(publicKeyBase64, PUBLIC_KEY_BEGIN, PUBLIC_KEY_END);
+        return OpenApiPemUtils.toPublicKeyPem(publicKeyBase64);
     }
 
     /**
@@ -268,7 +240,7 @@ public class OpenApiPayloadCrypto {
      * @return PKCS#8 PEM 私钥
      */
     public String toPrivateKeyPem(String privateKeyBase64) {
-        return toPem(privateKeyBase64, PRIVATE_KEY_BEGIN, PRIVATE_KEY_END);
+        return OpenApiPemUtils.toPrivateKeyPem(privateKeyBase64);
     }
 
     /**
@@ -410,38 +382,4 @@ public class OpenApiPayloadCrypto {
         return result;
     }
 
-    /**
-     * 归一化 PEM 或 Base64 密钥文本。
-     *
-     * @param value PEM 或 Base64 密钥文本
-     * @return 去掉 PEM 头尾和空白后的 Base64 文本
-     */
-    private String normalizePem(String value) {
-        if (!StringUtils.hasText(value)) {
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "openapi key can not be blank");
-        }
-        return value
-                .replace("-----BEGIN PUBLIC KEY-----", "")
-                .replace("-----END PUBLIC KEY-----", "")
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replaceAll("\\s", "");
-    }
-
-    /**
-     * 将 DER Base64 文本按 PEM 头尾和 64 字符换行规则封装。
-     *
-     * @param base64 DER Base64 文本
-     * @param begin  PEM 开始标识
-     * @param end    PEM 结束标识
-     * @return PEM 文本
-     */
-    private String toPem(String base64, String begin, String end) {
-        String normalizedBase64 = normalizePem(base64);
-        StringBuilder builder = new StringBuilder(begin).append('\n');
-        for (int index = 0; index < normalizedBase64.length(); index += PEM_LINE_LENGTH) {
-            builder.append(normalizedBase64, index, Math.min(index + PEM_LINE_LENGTH, normalizedBase64.length())).append('\n');
-        }
-        return builder.append(end).toString();
-    }
 }

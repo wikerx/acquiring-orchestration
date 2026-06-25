@@ -1,4 +1,4 @@
-package com.scott.payment.admin.config;
+package com.scott.payment.merchant.config;
 
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
@@ -15,30 +15,30 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 管理后台 OpenAPI 安全配置，提供密钥材料生成和导出参数绑定能力。
+ * 商户系统 OpenAPI 密钥材料配置，提供当前商户接入材料展示、下载和轮换所需组件。
  */
 @Configuration
 @EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)
-public class AdminOpenApiSecurityConfig {
+public class MerchantOpenApiSecurityConfig {
 
     /**
-     * 注册 OpenAPI 密钥材料工厂，供后台商户管理场景生成与轮换密钥。
-     *
-     * @return 密钥材料工厂
-     */
-    @Bean
-    public OpenApiKeyMaterialFactory openApiKeyMaterialFactory() {
-        return new OpenApiKeyMaterialFactory();
-    }
-
-    /**
-     * 注册 OpenAPI 报文加密组件，保留给后台内需要解析或生成 OpenAPI 加密报文的场景。
+     * 注册 OpenAPI 报文加密组件，保留给商户端需要解析或生成 OpenAPI 加密报文的场景。
      *
      * @return OpenAPI 报文加密组件
      */
     @Bean
     public OpenApiPayloadCrypto openApiPayloadCrypto() {
         return new OpenApiPayloadCrypto();
+    }
+
+    /**
+     * 注册 OpenAPI 密钥材料工厂，供商户侧展示密钥指纹。
+     *
+     * @return OpenAPI 密钥材料工厂
+     */
+    @Bean
+    public OpenApiKeyMaterialFactory openApiKeyMaterialFactory() {
+        return new OpenApiKeyMaterialFactory();
     }
 
     /**
@@ -63,7 +63,7 @@ public class AdminOpenApiSecurityConfig {
     }
 
     /**
-     * 注册 OpenAPI 商户密钥材料服务，仅在管理端启用密钥查询、复制、下载和轮换能力。
+     * 注册商户端 OpenAPI 密钥材料服务，仅用于当前商户查看和下载自己的接入材料。
      *
      * @param merchantInfoMapper       商户基础资料 Mapper
      * @param jwtKeyMapper             商户 JWT 密钥 Mapper

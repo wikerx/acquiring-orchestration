@@ -1,26 +1,15 @@
 package com.scott.payment.component.security.key;
 
-import com.scott.payment.component.core.enums.ApiResultEnum;
-import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
+import com.scott.payment.component.security.openapi.OpenApiPemUtils;
 
-import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.Objects;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiKeyMaterialFactory
- * @date : 2026-05-29 22:40
- * @email : scott_x@163.com
- * @description : 支付框架 OpenAPI 商户接入密钥材料生成入口
- * @status : create
+ * OpenAPI 商户密钥材料生成工厂，负责生成 JWT 密钥和 RSA 密钥对的原始材料。
  */
 public class OpenApiKeyMaterialFactory {
 
@@ -35,11 +24,6 @@ public class OpenApiKeyMaterialFactory {
     private static final int DEFAULT_RSA_KEY_SIZE = 2048;
 
     /**
-     * PEM 文本每行字符数，使用 64 字符便于 OpenSSL、PHP、Go 等工具读取。
-     */
-    private static final int PEM_LINE_LENGTH = 64;
-
-    /**
      * OpenAPI JWT 固定算法名称。
      */
     private static final String JWT_ALGORITHM = "HS256";
@@ -48,26 +32,6 @@ public class OpenApiKeyMaterialFactory {
      * OpenAPI JWT 最大有效期，单位秒。
      */
     private static final long JWT_EXPIRES_SECONDS = 180L;
-
-    /**
-     * X.509 公钥 PEM 开始标识。
-     */
-    private static final String PUBLIC_KEY_BEGIN = "-----BEGIN PUBLIC KEY-----";
-
-    /**
-     * X.509 公钥 PEM 结束标识。
-     */
-    private static final String PUBLIC_KEY_END = "-----END PUBLIC KEY-----";
-
-    /**
-     * PKCS#8 私钥 PEM 开始标识。
-     */
-    private static final String PRIVATE_KEY_BEGIN = "-----BEGIN PRIVATE KEY-----";
-
-    /**
-     * PKCS#8 私钥 PEM 结束标识。
-     */
-    private static final String PRIVATE_KEY_END = "-----END PRIVATE KEY-----";
 
     /**
      * 支付框架 OpenAPI 报文混合加密工具，用于生成 RSA 密钥对。
@@ -187,20 +151,15 @@ public class OpenApiKeyMaterialFactory {
     }
 
     /**
-     * 计算密钥或密文的安全指纹，方便日志和排查时确认材料是否一致。
+     * 计算密钥材料的 SHA-256 指纹，方便页面展示、审计和排查时确认材料是否一致。
      * <p>
-     * 指纹只取 SHA-256 的前 16 个十六进制字符，不替代真实验签，也不能反推出原始密钥。
+     * 指纹不替代真实验签，也不能反推出原始密钥；业务日志仍不应打印原始密钥。
      *
      * @param value 需要计算指纹的文本
-     * @return 短指纹
+     * @return SHA-256 十六进制指纹
      */
     public String fingerprint(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest).substring(0, 16);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "fingerprint can not be calculated");
-        }
+        return OpenApiPemUtils.sha256Fingerprint(value);
     }
 
     /**
@@ -221,8 +180,8 @@ public class OpenApiKeyMaterialFactory {
                 keySize,
                 publicKeyBase64,
                 privateKeyBase64,
-                toPem(publicKeyBase64, PUBLIC_KEY_BEGIN, PUBLIC_KEY_END),
-                toPem(privateKeyBase64, PRIVATE_KEY_BEGIN, PRIVATE_KEY_END)
+                OpenApiPemUtils.toPublicKeyPem(publicKeyBase64),
+                OpenApiPemUtils.toPrivateKeyPem(privateKeyBase64)
         );
     }
 
@@ -236,22 +195,6 @@ public class OpenApiKeyMaterialFactory {
         byte[] value = new byte[length];
         secureRandom.nextBytes(value);
         return value;
-    }
-
-    /**
-     * 将 Base64 DER 文本转换为 PEM 文本。
-     *
-     * @param base64 DER Base64 文本
-     * @param begin  PEM 开始标识
-     * @param end    PEM 结束标识
-     * @return PEM 文本
-     */
-    private String toPem(String base64, String begin, String end) {
-        StringBuilder builder = new StringBuilder(begin).append('\n');
-        for (int index = 0; index < base64.length(); index += PEM_LINE_LENGTH) {
-            builder.append(base64, index, Math.min(index + PEM_LINE_LENGTH, base64.length())).append('\n');
-        }
-        return builder.append(end).toString();
     }
 
     /**

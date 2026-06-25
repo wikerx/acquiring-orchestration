@@ -322,7 +322,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
             row.setDeleted(NOT_DELETED);
         }
         row.setPublicKeyX509Base64(publicKey);
-        row.setPrivateKeyPkcs8Base64(normalizeOptionalBase64(request.getPrivateKeyPkcs8Base64(), "响应私钥格式不正确"));
+        if (StringUtils.hasText(request.getPrivateKeyPkcs8Base64())) {
+            row.setPrivateKeyPkcs8Base64(normalizeOptionalBase64(request.getPrivateKeyPkcs8Base64(), "响应私钥格式不正确"));
+        }
         row.setAlgorithm(PAYLOAD_ALGORITHM);
         row.setKeySize(DEFAULT_KEY_SIZE);
         row.setEnabled(request.getEnabled() == null ? ENABLED : request.getEnabled());
@@ -513,7 +515,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setAlgorithm(row.getAlgorithm());
         dto.setExpiresSeconds(row.getExpiresSeconds());
         dto.setEnabled(row.getEnabled());
-        dto.setMerchantKey(row.getMerchantKey());
+        dto.setMerchantKey(null);
         dto.setFingerprint(fingerprint(row.getMerchantKey()));
         dto.setStored(StringUtils.hasText(row.getMerchantKey()));
         dto.setEffectiveTime(row.getEffectiveTime());
@@ -531,8 +533,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setAlgorithm(row.getAlgorithm());
         dto.setKeySize(row.getKeySize());
         dto.setEnabled(row.getEnabled());
-        dto.setPublicKeyX509Base64(row.getPublicKeyX509Base64());
-        dto.setPrivateKeyPkcs8Base64(row.getPrivateKeyPkcs8Base64());
+        dto.setPublicKeyX509Base64(null);
+        dto.setPrivateKeyPkcs8Base64(null);
         dto.setFingerprint(fingerprint(row.getPublicKeyX509Base64()));
         dto.setStored(StringUtils.hasText(row.getPrivateKeyPkcs8Base64()));
         dto.setGmtModified(row.getGmtModified());
@@ -548,8 +550,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setAlgorithm(row.getAlgorithm());
         dto.setKeySize(row.getKeySize());
         dto.setEnabled(row.getEnabled());
-        dto.setPublicKeyX509Base64(row.getPublicKeyX509Base64());
-        dto.setPrivateKeyPkcs8Base64(row.getPrivateKeyPkcs8Base64());
+        dto.setPublicKeyX509Base64(null);
+        dto.setPrivateKeyPkcs8Base64(null);
         dto.setFingerprint(fingerprint(row.getPublicKeyX509Base64()));
         dto.setStored(StringUtils.hasText(row.getPrivateKeyPkcs8Base64()));
         dto.setGmtModified(row.getGmtModified());

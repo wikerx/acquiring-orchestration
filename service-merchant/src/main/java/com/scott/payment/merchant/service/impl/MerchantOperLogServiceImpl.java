@@ -1,23 +1,22 @@
 package com.scott.payment.merchant.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.merchant.dto.SysOperLogDTO;
+import com.scott.payment.merchant.dto.SysOperLogQueryRequest;
 import com.scott.payment.merchant.dto.SysOperLogRecordRequest;
 import com.scott.payment.merchant.entity.SysOperLogDO;
 import com.scott.payment.merchant.mapper.SysOperLogMapper;
 import com.scott.payment.merchant.service.MerchantOperLogService;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOperLogServiceImpl
- * @date : 2026-06-20 10:31
- * @email : scott_x@163.com
- * @description : 商户管理系统操作日志领域服务实现
- * @status : create
- *
- * <p>负责消费商户管理端操作日志消息并按商户侧本地审计表结构完成落库。</p>
+ * 商户管理系统操作日志领域服务实现，按商户边界完成审计日志写入和查询。
  */
 @Service
 public class MerchantOperLogServiceImpl implements MerchantOperLogService {
@@ -86,6 +85,57 @@ public class MerchantOperLogServiceImpl implements MerchantOperLogService {
         entity.setOperatedAt(now);
         entity.setCreatedAt(now);
         operLogMapper.insert(entity);
+    }
+
+    /**
+     * 分页查询当前商户可见的操作日志。
+     *
+     * @param request 查询条件
+     * @return 商户操作日志分页结果
+     */
+    @Override
+    public PageResult<SysOperLogDTO> pageOperLogs(SysOperLogQueryRequest request) {
+        SysOperLogQueryRequest query = request == null ? new SysOperLogQueryRequest() : request;
+        Page<SysOperLogDO> page = operLogMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()),
+                buildOperLogQueryWrapper(query)
+        );
+        return PageResult.of(
+                page.getTotal(),
+                page.getCurrent(),
+                page.getSize(),
+                page.getRecords().stream().map(this::toDTO).toList()
+        );
+    }
+
+    private LambdaQueryWrapper<SysOperLogDO> buildOperLogQueryWrapper(SysOperLogQueryRequest query) {
+        return Wrappers.<SysOperLogDO>lambdaQuery()
+                .eq(SysOperLogDO::getMerchantId, query.getMerchantId())
+                .eq(StringUtils.hasText(query.getModuleName()), SysOperLogDO::getModuleName, query.getModuleName())
+                .eq(query.getStatus() != null, SysOperLogDO::getStatus, query.getStatus())
+                .ge(query.getOperatedStartAt() != null, SysOperLogDO::getOperatedAt, query.getOperatedStartAt())
+                .le(query.getOperatedEndAt() != null, SysOperLogDO::getOperatedAt, query.getOperatedEndAt())
+                .orderByDesc(SysOperLogDO::getOperatedAt);
+    }
+
+    private SysOperLogDTO toDTO(SysOperLogDO entity) {
+        SysOperLogDTO dto = new SysOperLogDTO();
+        dto.setId(entity.getId());
+        dto.setTraceId(entity.getTraceId());
+        dto.setMerchantId(entity.getMerchantId());
+        dto.setModuleName(entity.getModuleName());
+        dto.setOperationName(entity.getOperationName());
+        dto.setBusinessType(entity.getBusinessType());
+        dto.setRequestMethod(entity.getRequestMethod());
+        dto.setOperatorName(entity.getOperatorName());
+        dto.setOperUrl(entity.getOperUrl());
+        dto.setOperIp(entity.getOperIp());
+        dto.setCostTime(entity.getCostTime());
+        dto.setStatus(entity.getStatus());
+        dto.setErrorCode(entity.getErrorCode());
+        dto.setErrorMsg(entity.getErrorMsg());
+        dto.setOperatedAt(entity.getOperatedAt());
+        return dto;
     }
 
     /**

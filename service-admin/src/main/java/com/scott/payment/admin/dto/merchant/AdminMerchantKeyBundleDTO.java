@@ -6,15 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantKeyBundleDTO
- * @date : 2026-06-19 22:05
- * @email : scott_x@163.com
- * @description : 管理后台商户 OpenAPI 密钥集合响应 DTO
- * @status : create
- *
- * <p>用于展示某个商户当前可见的全部密钥材料摘要与详情列表。</p>
+ * 管理后台商户 OpenAPI 密钥集合响应 DTO。
+ * <p>
+ * 用于展示某个商户当前密钥摘要列表，不承载密钥原文。
  */
 @Data
 public class AdminMerchantKeyBundleDTO {

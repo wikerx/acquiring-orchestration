@@ -5,16 +5,10 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantKeyMaterialDTO
- * @date : 2026-06-19 22:06
- * @email : scott_x@163.com
- * @description : 管理后台商户 OpenAPI 密钥材料详情 DTO
- * @status : create
- *
- * <p>用于管理后台查看商户 JWT、平台请求体和响应密钥等材料详情，
- * 含敏感字段，返回与展示时应严格控制权限与脱敏策略。</p>
+ * 管理后台商户 OpenAPI 密钥材料摘要 DTO。
+ * <p>
+ * 列表接口只返回状态、算法、指纹和是否已存储，不返回密钥原文。
+ * 查看、复制和下载原文必须走 OpenAPI 对接材料受控接口，以便统一权限校验和审计。
  */
 @Data
 public class AdminMerchantKeyMaterialDTO {
@@ -70,17 +64,17 @@ public class AdminMerchantKeyMaterialDTO {
     private String fingerprint;
 
     /**
-     * 商户对称密钥原文，属于高敏感字段，仅在一次性展示时返回。
+     * 预留字段，列表接口不返回商户对称密钥原文。
      */
     private String merchantKey;
 
     /**
-     * X.509 Base64 编码公钥内容，属于敏感安全材料。
+     * 预留字段，列表接口不返回 X.509 Base64 编码公钥原文。
      */
     private String publicKeyX509Base64;
 
     /**
-     * PKCS8 Base64 编码私钥内容，属于高敏感字段，仅受控场景返回。
+     * 预留字段，列表接口不返回 PKCS8 Base64 编码私钥原文。
      */
     private String privateKeyPkcs8Base64;
 
