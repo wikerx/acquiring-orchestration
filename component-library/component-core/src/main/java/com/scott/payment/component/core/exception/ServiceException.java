@@ -35,12 +35,34 @@ public class ServiceException extends RuntimeException {
     }
 
     /**
+     * 创建带原始异常原因的服务内部业务异常。
+     *
+     * @param code    错误码
+     * @param message 错误消息
+     * @param cause   原始异常原因
+     */
+    public ServiceException(String code, String message, Throwable cause) {
+        super(message, cause);
+        this.code = code;
+    }
+
+    /**
      * 根据标准结果码创建服务异常。
      *
      * @param result 标准结果码定义
      */
     public ServiceException(IResult result) {
         this(result.getCode(), result.getMessage());
+    }
+
+    /**
+     * 根据标准结果码和原始异常原因创建服务异常。
+     *
+     * @param result 标准结果码定义
+     * @param cause  原始异常原因
+     */
+    public ServiceException(IResult result, Throwable cause) {
+        this(result.getCode(), result.getMessage(), cause);
     }
 
     /**

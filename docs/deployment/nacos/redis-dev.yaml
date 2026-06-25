@@ -21,3 +21,26 @@ spring:
         min-idle: 4
         # 获取连接最大等待时间。
         max-wait: 2s
+
+payment:
+  global-id:
+    # 是否启用全系统统一唯一标识生成器自动装配。
+    enabled: true
+    # dev 默认使用 Redis 分布式模式；local 只允许单元测试和离线工具显式覆盖。
+    mode: redis
+    # 编号时间片格式化时区。
+    timezone: Asia/Shanghai
+    # 毫秒内序列固定 6 位。
+    sequence-length: 6
+    # 毫秒内最大序列。
+    max-sequence: 999999
+    # 毫秒序列 Redis Key 前缀，使用 hash tag 保证 Redis Cluster 同槽。
+    seq-key-prefix: "biz:{global_id}:seq:"
+    # 防时间回拨 Redis Key。
+    last-millis-key: "biz:{global_id}:last_millis"
+    # 毫秒序列 Key 保留 2 天。
+    seq-key-expire-seconds: 172800
+    # 序列溢出后最大重试次数。
+    max-retry-times: 3
+    # 序列溢出后短暂等待下一毫秒。
+    retry-sleep-millis: 1

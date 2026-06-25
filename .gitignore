@@ -40,3 +40,6 @@ audit/*secret*.json
 # Generated
 coverage/
 reports/
+!docs/archive/reports/
+docs/archive/reports/*
+!docs/archive/reports/system-base-menu-audit.md
