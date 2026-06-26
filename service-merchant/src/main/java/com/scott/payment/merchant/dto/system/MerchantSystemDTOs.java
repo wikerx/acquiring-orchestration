@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.dto.system;
 
+import com.scott.payment.component.core.model.PageRequest;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -25,6 +26,13 @@ public final class MerchantSystemDTOs {
 
     @Data
     public static class StatusRequest {
+        private Integer status;
+    }
+
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class DeptQueryRequest extends PageRequest {
+        private String keyword;
         private Integer status;
     }
 
@@ -59,6 +67,13 @@ public final class MerchantSystemDTOs {
     }
 
     @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class PostQueryRequest extends PageRequest {
+        private String keyword;
+        private Integer status;
+    }
+
+    @Data
     public static class PostSaveRequest {
         private String postCode;
         private String postName;
@@ -77,6 +92,14 @@ public final class MerchantSystemDTOs {
         private String remark;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
+    }
+
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class AccountQueryRequest extends PageRequest {
+        private String keyword;
+        private Long roleId;
+        private Integer status;
     }
 
     @Data
@@ -114,6 +137,16 @@ public final class MerchantSystemDTOs {
         private List<Long> deptIds = Collections.emptyList();
         private List<Long> postIds = Collections.emptyList();
         private LocalDateTime createdAt;
+    }
+
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class RoleQueryRequest extends PageRequest {
+        private String roleName;
+        private String roleCode;
+        private Integer status;
+        private String createdStartTime;
+        private String createdEndTime;
     }
 
     @Data

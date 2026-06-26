@@ -2,11 +2,13 @@ package com.scott.payment.merchant.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthMenuDTO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
@@ -46,26 +48,33 @@ import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountBaseSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AuthGrantNodeDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.IdsRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.PermissionDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.PostDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.PostQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.PostSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleGrantTreeDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleGrantTreeSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleMenuAuthDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RolePermissionAuthDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleSaveRequest;
 import com.scott.payment.merchant.service.MerchantSystemService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -158,6 +167,24 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
 
     @Override
     @DS(DataSourceName.SLAVE)
+    public PageResult<DeptDTO> pageDepts(DeptQueryRequest request) {
+        DeptQueryRequest query = request == null ? new DeptQueryRequest() : request;
+        String keyword = normalize(query.getKeyword());
+        Page<SysMerchantDeptDO> page = sysMerchantDeptMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
+                Wrappers.<SysMerchantDeptDO>lambdaQuery()
+                        .eq(SysMerchantDeptDO::getMerchantId, currentMerchantId())
+                        .eq(SysMerchantDeptDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .eq(query.getStatus() != null, SysMerchantDeptDO::getStatus, query.getStatus())
+                        .and(StringUtils.hasText(keyword), wrapper -> wrapper
+                                .like(SysMerchantDeptDO::getDeptName, keyword)
+                                .or()
+                                .like(SysMerchantDeptDO::getDeptCode, keyword))
+                        .orderByAsc(SysMerchantDeptDO::getSortNo, SysMerchantDeptDO::getId));
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toDeptDTO).toList());
+    }
+
+    @Override
+    @DS(DataSourceName.SLAVE)
     public List<DeptDTO> deptTree() {
         return buildDeptTree(listDepts());
     }
@@ -234,6 +261,24 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<PostDTO> pagePosts(PostQueryRequest request) {
+        PostQueryRequest query = request == null ? new PostQueryRequest() : request;
+        String keyword = normalize(query.getKeyword());
+        Page<SysMerchantPostDO> page = sysMerchantPostMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
+                Wrappers.<SysMerchantPostDO>lambdaQuery()
+                        .eq(SysMerchantPostDO::getMerchantId, currentMerchantId())
+                        .eq(SysMerchantPostDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .eq(query.getStatus() != null, SysMerchantPostDO::getStatus, query.getStatus())
+                        .and(StringUtils.hasText(keyword), wrapper -> wrapper
+                                .like(SysMerchantPostDO::getPostName, keyword)
+                                .or()
+                                .like(SysMerchantPostDO::getPostCode, keyword))
+                        .orderByAsc(SysMerchantPostDO::getSortNo, SysMerchantPostDO::getId));
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toPostDTO).toList());
+    }
+
+    @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public PostDTO createPost(PostSaveRequest request) {
@@ -294,6 +339,36 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .eq(SysMerchantUserDO::getDeleted, AuthConstants.NOT_DELETED)
                 .orderByAsc(SysMerchantUserDO::getId));
         return users.stream().map(user -> toAccountDTO(app.getId(), user)).toList();
+    }
+
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<AccountDTO> pageAccounts(AccountQueryRequest request) {
+        AccountQueryRequest query = request == null ? new AccountQueryRequest() : request;
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        Set<Long> merchantUserIds = merchantUserIdsByRole(app.getId(), query.getRoleId());
+        if (query.getRoleId() != null && merchantUserIds.isEmpty()) {
+            return PageResult.of(0, query.safePageNo(), query.safePageSize(), Collections.emptyList());
+        }
+        String keyword = normalize(query.getKeyword());
+        Set<Long> accountIdsByKeyword = accountIdsByKeyword(app.getId(), merchantId, keyword);
+        Page<SysMerchantUserDO> page = sysMerchantUserMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
+                Wrappers.<SysMerchantUserDO>lambdaQuery()
+                        .eq(SysMerchantUserDO::getMerchantId, merchantId)
+                        .eq(SysMerchantUserDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .eq(query.getStatus() != null, SysMerchantUserDO::getStatus, query.getStatus())
+                        .in(query.getRoleId() != null, SysMerchantUserDO::getId, merchantUserIds)
+                        .and(StringUtils.hasText(keyword), wrapper -> wrapper
+                                .like(SysMerchantUserDO::getLoginAccount, keyword)
+                                .or()
+                                .like(SysMerchantUserDO::getRealName, keyword)
+                                .or(!accountIdsByKeyword.isEmpty())
+                                .in(!accountIdsByKeyword.isEmpty(), SysMerchantUserDO::getAccountId, accountIdsByKeyword))
+                        .orderByDesc(SysMerchantUserDO::getCreatedAt)
+                        .orderByAsc(SysMerchantUserDO::getId));
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
+                page.getRecords().stream().map(user -> toAccountDTO(app.getId(), user)).toList());
     }
 
     @Override
@@ -463,6 +538,28 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysRoleDO::getSortNo, SysRoleDO::getId))
                 .stream().map(this::toRoleDTO).toList();
+    }
+
+    @Override
+    @DS(DataSourceName.SLAVE)
+    public PageResult<RoleDTO> pageRoles(RoleQueryRequest request) {
+        RoleQueryRequest query = request == null ? new RoleQueryRequest() : request;
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        LocalDateTime startTime = parseQueryDateTime(query.getCreatedStartTime(), false);
+        LocalDateTime endTime = parseQueryDateTime(query.getCreatedEndTime(), true);
+        Page<SysRoleDO> page = sysRoleMapper.selectPage(new Page<>(query.safePageNo(), query.safePageSize()),
+                Wrappers.<SysRoleDO>lambdaQuery()
+                        .eq(SysRoleDO::getAppId, app.getId())
+                        .eq(SysRoleDO::getMerchantId, merchantId)
+                        .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .like(StringUtils.hasText(query.getRoleName()), SysRoleDO::getRoleName, normalize(query.getRoleName()))
+                        .like(StringUtils.hasText(query.getRoleCode()), SysRoleDO::getRoleCode, normalize(query.getRoleCode()))
+                        .eq(query.getStatus() != null, SysRoleDO::getStatus, query.getStatus())
+                        .ge(startTime != null, SysRoleDO::getCreatedAt, startTime)
+                        .le(endTime != null, SysRoleDO::getCreatedAt, endTime)
+                        .orderByAsc(SysRoleDO::getSortNo, SysRoleDO::getId));
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toRoleDTO).toList());
     }
 
     @Override
@@ -709,6 +806,41 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysPermissionDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysPermissionDO::getMenuId, SysPermissionDO::getId))
                 .stream().map(this::toPermissionDTO).toList();
+    }
+
+    private Set<Long> merchantUserIdsByRole(Long appId, Long roleId) {
+        if (roleId == null || roleId <= 0) {
+            return Collections.emptySet();
+        }
+        String merchantId = currentMerchantId();
+        Long roleCount = sysRoleMapper.selectCount(Wrappers.<SysRoleDO>lambdaQuery()
+                .eq(SysRoleDO::getAppId, appId)
+                .eq(SysRoleDO::getMerchantId, merchantId)
+                .eq(SysRoleDO::getId, roleId)
+                .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED));
+        if (roleCount == null || roleCount == 0) {
+            return Collections.emptySet();
+        }
+        return sysMerchantUserRoleMapper.selectList(Wrappers.<SysMerchantUserRoleDO>lambdaQuery()
+                        .eq(SysMerchantUserRoleDO::getAppId, appId)
+                        .eq(SysMerchantUserRoleDO::getRoleId, roleId)
+                        .eq(SysMerchantUserRoleDO::getDeleted, AuthConstants.NOT_DELETED))
+                .stream().map(SysMerchantUserRoleDO::getMerchantUserId).filter(Objects::nonNull).collect(Collectors.toSet());
+    }
+
+    private Set<Long> accountIdsByKeyword(Long appId, String merchantId, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return Collections.emptySet();
+        }
+        return sysAccountMapper.selectList(Wrappers.<SysAccountDO>lambdaQuery()
+                        .eq(SysAccountDO::getAppId, appId)
+                        .eq(SysAccountDO::getMerchantId, merchantId)
+                        .eq(SysAccountDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .and(wrapper -> wrapper
+                                .like(SysAccountDO::getMobile, keyword)
+                                .or()
+                                .like(SysAccountDO::getEmail, keyword)))
+                .stream().map(SysAccountDO::getId).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     private void applyDept(SysMerchantDeptDO dept, DeptSaveRequest request) {
@@ -1356,6 +1488,21 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
 
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private LocalDateTime parseQueryDateTime(String value, boolean endOfDay) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        try {
+            if (normalized.length() == 10) {
+                return LocalDate.parse(normalized).atTime(endOfDay ? LocalTime.MAX : LocalTime.MIN);
+            }
+            return LocalDateTime.parse(normalized.replace(' ', 'T'));
+        } catch (DateTimeParseException ex) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "created time is invalid");
+        }
     }
 
     private String toAccountLoginName(String merchantId, String loginAccount) {

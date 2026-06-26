@@ -4,37 +4,63 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * @author : scott
- * @version : v1.0.0
- * @classname : SensitiveDataMaskUtils
- * @date : 2026-05-28 16:22
- * @email : scott_x@163.com
- * @description : 敏感数据脱敏工具
- * @status : create
+ * 敏感数据脱敏工具，统一收敛日志中密码、token、密钥、卡号、联系方式和证件号的掩码规则。
  */
 public final class SensitiveDataMaskUtils {
 
     /**
-     * 卡号字段脱敏正则，匹配 cardNo 或 pan，并保留前 6 位和后 4 位用于排查与对账。
+     * 密钥类字段统一替换为固定星号，禁止日志中出现任何明文片段。
+     */
+    private static final Pattern SECRET_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:password|oldPassword|newPassword|Authorization|accessToken|token|apiKey|secretKey|privateKey|publicKey|merchantSecret)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * 卡号字段保留前 6 后 4，用于 BIN、尾号和链路排查。
      */
     private static final Pattern CARD_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:cardNo|pan)\"\\s*:\\s*\")([0-9]{6})([0-9]{1,9})([0-9]{4})(\")",
+            "(\"(?:cardNo|pan)\"\\s*:\\s*\")([0-9]{6})([0-9]{1,19})([0-9]{4})(\")",
             Pattern.CASE_INSENSITIVE
     );
 
     /**
-     * 安全码字段脱敏正则，匹配 securityCode、cvv、cvc，日志中统一替换为星号。
+     * 银行账号、IBAN、Swift/BIC 保留少量定位信息，避免完整账号或银行路由信息进入日志。
+     */
+    private static final Pattern ACCOUNT_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:bankAccount|accountNumber|iban|swiftCode|bic)\"\\s*:\\s*\")([A-Za-z0-9]{4})([A-Za-z0-9\\s-]*)([A-Za-z0-9]{4})(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * 手机号保留前 3 后 4。
+     */
+    private static final Pattern MOBILE_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:mobile)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * 邮箱保留首字符和域名。
+     */
+    private static final Pattern EMAIL_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:email)\"\\s*:\\s*\")([^\"\\\\@]*)(@[^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * 证件字段统一隐藏，避免身份证和护照号泄露。
+     */
+    private static final Pattern ID_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:idCard|passportNo)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * 安全码、CAVV 等认证敏感数据统一隐藏。
      */
     private static final Pattern SECURITY_CODE_PATTERN = Pattern.compile(
-            "(\"(?:securityCode|cvv|cvc)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
-            Pattern.CASE_INSENSITIVE
-    );
-
-    /**
-     * 3DS 持卡人认证值脱敏正则，CAVV 属于交易认证敏感数据，日志中统一替换为星号。
-     */
-    private static final Pattern CAVV_PATTERN = Pattern.compile(
-            "(\"(?:cavv)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:securityCode|cvv|cvc|cavv)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -54,9 +80,13 @@ public final class SensitiveDataMaskUtils {
         if (json == null || json.isEmpty()) {
             return json;
         }
-        String masked = maskCardNo(json);
+        String masked = SECRET_FIELD_PATTERN.matcher(json).replaceAll("$1***$3");
+        masked = maskCardNo(masked);
+        masked = maskAccountNumber(masked);
+        masked = maskMobileField(masked);
+        masked = maskEmailField(masked);
         masked = SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
-        return CAVV_PATTERN.matcher(masked).replaceAll("$1***$3");
+        return ID_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
     }
 
     /**
@@ -79,6 +109,55 @@ public final class SensitiveDataMaskUtils {
     }
 
     /**
+     * 对银行账号、IBAN、Swift/BIC 字段执行脱敏。
+     *
+     * @param value 原始文本
+     * @return 脱敏后的文本
+     */
+    public static String maskAccountNumber(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        return ACCOUNT_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
+                matchResult.group(1)
+                        + matchResult.group(2)
+                        + "******"
+                        + matchResult.group(4)
+                        + matchResult.group(5)
+        ));
+    }
+
+    /**
+     * 对单个手机号执行脱敏。
+     *
+     * @param mobile 原始手机号
+     * @return 脱敏后的手机号
+     */
+    public static String maskMobile(String mobile) {
+        if (mobile == null || mobile.length() < 7) {
+            return "***";
+        }
+        return mobile.substring(0, 3) + "****" + mobile.substring(mobile.length() - 4);
+    }
+
+    /**
+     * 对单个邮箱执行脱敏。
+     *
+     * @param email 原始邮箱
+     * @return 脱敏后的邮箱
+     */
+    public static String maskEmail(String email) {
+        if (email == null || email.isEmpty()) {
+            return email;
+        }
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(atIndex);
+    }
+
+    /**
      * 对单个 PAN 卡号执行脱敏。
      * <p>
      * 支付日志只允许保留前 6 位和后 4 位，用于排查 BIN、尾号和链路数据是否一致；中间数字全部使用星号替换。
@@ -91,5 +170,17 @@ public final class SensitiveDataMaskUtils {
             return "******";
         }
         return cardNo.substring(0, 6) + "******" + cardNo.substring(cardNo.length() - 4);
+    }
+
+    private static String maskMobileField(String value) {
+        return MOBILE_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
+                matchResult.group(1) + maskMobile(matchResult.group(2)) + matchResult.group(3)
+        ));
+    }
+
+    private static String maskEmailField(String value) {
+        return EMAIL_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
+                matchResult.group(1) + maskEmail(matchResult.group(2) + matchResult.group(3)) + matchResult.group(4)
+        ));
     }
 }

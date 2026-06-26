@@ -1,28 +1,34 @@
 package com.scott.payment.merchant.controller;
 
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountBaseSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.IdsRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.PermissionDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.PostDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.PostQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.PostSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleGrantTreeDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleGrantTreeSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleMenuAuthDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RolePermissionAuthDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.StatusRequest;
 import com.scott.payment.merchant.service.MerchantSystemService;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -66,6 +72,12 @@ public class MerchantSystemController {
         return success(merchantSystemService.listDepts());
     }
 
+    @GetMapping("/depts/page")
+    @RequiresPermission("merchant:system:dept:list")
+    public CommonResult<PageResult<DeptDTO>> pageDepts(@ModelAttribute DeptQueryRequest request) {
+        return success(merchantSystemService.pageDepts(request));
+    }
+
     @PostMapping("/depts")
     @RequiresPermission("merchant:system:dept:add")
     @OperationLog(moduleName = "商户部门管理", businessType = OperationTypeConstants.CREATE, operation = "新增商户部门")
@@ -94,6 +106,12 @@ public class MerchantSystemController {
         return success(merchantSystemService.listPosts());
     }
 
+    @GetMapping("/posts/page")
+    @RequiresPermission("merchant:system:post:list")
+    public CommonResult<PageResult<PostDTO>> pagePosts(@ModelAttribute PostQueryRequest request) {
+        return success(merchantSystemService.pagePosts(request));
+    }
+
     @PostMapping("/posts")
     @RequiresPermission("merchant:system:post:add")
     @OperationLog(moduleName = "商户岗位管理", businessType = OperationTypeConstants.CREATE, operation = "新增商户岗位")
@@ -120,6 +138,12 @@ public class MerchantSystemController {
     @RequiresPermission("merchant:system:account:list")
     public CommonResult<List<AccountDTO>> accounts() {
         return success(merchantSystemService.listAccounts());
+    }
+
+    @GetMapping("/accounts/page")
+    @RequiresPermission("merchant:system:account:list")
+    public CommonResult<PageResult<AccountDTO>> pageAccounts(@ModelAttribute AccountQueryRequest request) {
+        return success(merchantSystemService.pageAccounts(request));
     }
 
     @PostMapping("/accounts")
@@ -176,6 +200,12 @@ public class MerchantSystemController {
     @RequiresPermission("merchant:system:role:list")
     public CommonResult<List<RoleDTO>> roles() {
         return success(merchantSystemService.listRoles());
+    }
+
+    @GetMapping("/roles/page")
+    @RequiresPermission("merchant:system:role:list")
+    public CommonResult<PageResult<RoleDTO>> pageRoles(@ModelAttribute RoleQueryRequest request) {
+        return success(merchantSystemService.pageRoles(request));
     }
 
     @GetMapping("/roles/{id}")

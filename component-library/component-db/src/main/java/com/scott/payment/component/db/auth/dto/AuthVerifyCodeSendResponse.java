@@ -38,7 +38,7 @@ public class AuthVerifyCodeSendResponse implements Serializable {
     private Integer expireSeconds;
 
     /**
-     * 本地开发联调用验证码。生产环境接入短信/邮件后必须移除。
+     * 调试阶段返回给前端的验证码明文，当前开发、测试、生产环境保持一致。
      */
     private String devCode;
 }

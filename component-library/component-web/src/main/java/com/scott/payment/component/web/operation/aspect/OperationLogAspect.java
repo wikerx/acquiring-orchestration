@@ -158,18 +158,19 @@ public class OperationLogAspect {
         }
         try {
             HttpServletRequest request = currentRequest();
+            InternalAuthAccount account = InternalAuthContextHolder.get();
             OperationLogRecord record = new OperationLogRecord();
             record.setTraceId(header(request, HEADER_TRACE_ID));
             record.setRequestId(header(request, HEADER_REQUEST_ID));
-            record.setMerchantId(header(request, HEADER_MERCHANT_ID));
+            record.setMerchantId(resolveMerchantId(request, account));
             record.setModuleName(operation.moduleName());
             record.setOperationName(operation.operation());
             record.setBusinessType(operation.businessType());
             record.setMethodName(methodName(point));
             record.setRequestMethod(request == null ? null : request.getMethod());
-            record.setOperatorType(resolveOperatorType(request, operation.operatorType()));
-            record.setOperatorId(resolveOperatorId(request));
-            record.setOperatorName(resolveOperatorName(request));
+            record.setOperatorType(resolveOperatorType(request, account, operation.operatorType()));
+            record.setOperatorId(resolveOperatorId(request, account));
+            record.setOperatorName(resolveOperatorName(request, account));
             record.setOperUrl(request == null ? null : request.getRequestURI());
             record.setOperIp(clientIp(request));
             record.setOperLocation(header(request, HEADER_OPERATOR_LOCATION));
@@ -229,19 +230,33 @@ public class OperationLogAspect {
     }
 
     /**
-     * 解析操作人类型，优先使用请求头，缺失或非法时使用注解默认值。
+     * 解析商户号，认证上下文优先，请求头只作为无登录上下文的兼容兜底。
+     *
+     * @param request 请求对象
+     * @param account 当前登录账号上下文
+     * @return 商户号
+     */
+    private String resolveMerchantId(HttpServletRequest request, InternalAuthAccount account) {
+        if (account != null && account.getMerchantId() != null && !account.getMerchantId().isBlank()) {
+            return account.getMerchantId();
+        }
+        return header(request, HEADER_MERCHANT_ID);
+    }
+
+    /**
+     * 解析操作人类型，认证上下文优先，请求头只作为无登录上下文的兼容兜底。
      *
      * @param request         请求对象
+     * @param account         当前登录账号上下文
      * @param defaultOperator 默认操作人类型
      * @return 操作人类型
      */
-    private Integer resolveOperatorType(HttpServletRequest request, int defaultOperator) {
+    private Integer resolveOperatorType(HttpServletRequest request, InternalAuthAccount account, int defaultOperator) {
+        if (account != null) {
+            return account.getMerchantId() != null && !account.getMerchantId().isBlank() ? 2 : defaultOperator;
+        }
         String operatorType = header(request, HEADER_OPERATOR_TYPE);
         if (operatorType == null || operatorType.isBlank()) {
-            InternalAuthAccount account = InternalAuthContextHolder.get();
-            if (account != null && account.getMerchantId() != null && !account.getMerchantId().isBlank()) {
-                return 2;
-            }
             return defaultOperator;
         }
         try {
@@ -252,42 +267,34 @@ public class OperationLogAspect {
     }
 
     /**
-     * 解析操作人ID，优先使用请求头，缺失时退回内部登录上下文。
+     * 解析操作人ID，认证上下文优先，请求头只作为无登录上下文的兼容兜底。
      *
      * @param request 请求对象
+     * @param account 当前登录账号上下文
      * @return 操作人ID
      */
-    private String resolveOperatorId(HttpServletRequest request) {
-        String operatorId = header(request, HEADER_OPERATOR_ID);
-        if (operatorId != null && !operatorId.isBlank()) {
-            return operatorId;
+    private String resolveOperatorId(HttpServletRequest request, InternalAuthAccount account) {
+        if (account != null && account.getAccountId() != null) {
+            return String.valueOf(account.getAccountId());
         }
-        InternalAuthAccount account = InternalAuthContextHolder.get();
-        if (account == null || account.getAccountId() == null) {
-            return null;
-        }
-        return String.valueOf(account.getAccountId());
+        return header(request, HEADER_OPERATOR_ID);
     }
 
     /**
-     * 解析操作人名称，优先使用请求头，缺失时退回内部登录上下文中的姓名或登录账号。
+     * 解析操作人名称，认证上下文优先，请求头只作为无登录上下文的兼容兜底。
      *
      * @param request 请求对象
+     * @param account 当前登录账号上下文
      * @return 操作人名称
      */
-    private String resolveOperatorName(HttpServletRequest request) {
-        String operatorName = header(request, HEADER_OPERATOR_NAME);
-        if (operatorName != null && !operatorName.isBlank()) {
-            return operatorName;
+    private String resolveOperatorName(HttpServletRequest request, InternalAuthAccount account) {
+        if (account != null) {
+            if (account.getRealName() != null && !account.getRealName().isBlank()) {
+                return account.getRealName();
+            }
+            return account.getLoginAccount();
         }
-        InternalAuthAccount account = InternalAuthContextHolder.get();
-        if (account == null) {
-            return null;
-        }
-        if (account.getRealName() != null && !account.getRealName().isBlank()) {
-            return account.getRealName();
-        }
-        return account.getLoginAccount();
+        return header(request, HEADER_OPERATOR_NAME);
     }
 
     /**

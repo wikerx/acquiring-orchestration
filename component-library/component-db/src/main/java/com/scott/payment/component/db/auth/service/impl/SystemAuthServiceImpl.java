@@ -121,6 +121,21 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private static final int VERIFY_CODE_MAX_ATTEMPTS = 5;
 
     /**
+     * 管理端和商户端登录会话闲置超时时间，单位分钟。
+     */
+    private static final long SESSION_IDLE_TIMEOUT_MINUTES = 30L;
+
+    /**
+     * 同一账号同一 IP 的验证码发送统计窗口，单位秒。
+     */
+    private static final int VERIFY_CODE_SEND_LIMIT_WINDOW_SECONDS = 60;
+
+    /**
+     * 同一账号同一 IP 在统计窗口内允许发送验证码的最大次数。
+     */
+    private static final long VERIFY_CODE_SEND_LIMIT_COUNT = 3;
+
+    /**
      * 本地开发验证码发送渠道。
      */
     private static final String VERIFY_CODE_SEND_CHANNEL = "LOCAL_DEV";
@@ -265,6 +280,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+        validateVerifyCodeSendLimit(app.getId(), resolveReceiver(account), clientIp, now);
         String code = generateVerifyCode();
         String salt = PasswordHashUtils.generateSalt();
         SysVerifyCodeDO verifyCode = new SysVerifyCodeDO();
@@ -277,7 +293,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         verifyCode.setExpireAt(now.plusSeconds(VERIFY_CODE_TTL_SECONDS));
         verifyCode.setUsed(AuthConstants.DISABLED);
         verifyCode.setVerifyCount(0);
-        verifyCode.setSendIp(clientIp);
+        verifyCode.setSendIp(normalizeIp(clientIp));
         verifyCode.setSendChannel(VERIFY_CODE_SEND_CHANNEL);
         verifyCode.setSendStatus(AuthConstants.ENABLED);
         verifyCode.setCreatedAt(now);
@@ -320,7 +336,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "merchant mismatch");
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant mismatch");
         }
-        validateLoginVerifyCode(app, account, request);
+        validateLoginVerifyCode(app, account, request, clientIp);
         if (!PasswordHashUtils.matches(request.getPassword(), account.getPasswordSalt(), account.getPasswordHash())) {
             increaseFailedLoginCount(account);
             recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_FAILED, "password mismatch");
@@ -345,7 +361,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @return 当前账号和权限信息
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public AuthLoginResponse currentUser(String appCode, String token) {
         SysAppDO app = getEnabledApp(appCode);
         SysLoginSessionDO session = getActiveSession(app.getId(), token);
@@ -383,7 +399,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @return 当前登录账号上下文
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public InternalAuthAccount check(String appCode,
                                      String authorization,
                                      String requestMethod,
@@ -528,7 +544,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param account 登录账号
      * @param request 登录请求
      */
-    private void validateLoginVerifyCode(SysAppDO app, SysAccountDO account, AuthLoginRequest request) {
+    private void validateLoginVerifyCode(SysAppDO app, SysAccountDO account, AuthLoginRequest request, String clientIp) {
         if (!StringUtils.hasText(request.getVerifyCodeId()) || !StringUtils.hasText(request.getVerifyCode())) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is required");
         }
@@ -541,7 +557,8 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                 || verifyCode.getUsed() == AuthConstants.ENABLED
                 || verifyCode.getExpireAt() == null
                 || verifyCode.getExpireAt().isBefore(LocalDateTime.now())
-                || !resolveReceiver(account).equals(verifyCode.getReceiver())) {
+                || !resolveReceiver(account).equals(verifyCode.getReceiver())
+                || !Objects.equals(normalizeIp(clientIp), normalizeIp(verifyCode.getSendIp()))) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is invalid or expired");
         }
         if (defaultInt(verifyCode.getVerifyCount()) >= VERIFY_CODE_MAX_ATTEMPTS) {
@@ -555,6 +572,38 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         verifyCode.setUsed(AuthConstants.ENABLED);
         verifyCode.setUsedAt(LocalDateTime.now());
         sysVerifyCodeMapper.updateById(verifyCode);
+    }
+
+    /**
+     * 校验登录验证码发送频率，同一账号同一 IP 在短窗口内只能发送有限次数。
+     *
+     * @param appId    系统应用 ID
+     * @param receiver 验证码接收人
+     * @param clientIp 客户端 IP
+     * @param now      当前时间
+     */
+    private void validateVerifyCodeSendLimit(Long appId, String receiver, String clientIp, LocalDateTime now) {
+        Long count = sysVerifyCodeMapper.selectCount(
+                Wrappers.<SysVerifyCodeDO>lambdaQuery()
+                        .eq(SysVerifyCodeDO::getAppId, appId)
+                        .eq(SysVerifyCodeDO::getScene, VERIFY_SCENE_LOGIN)
+                        .eq(SysVerifyCodeDO::getReceiver, receiver)
+                        .eq(SysVerifyCodeDO::getSendIp, normalizeIp(clientIp))
+                        .ge(SysVerifyCodeDO::getCreatedAt, now.minusSeconds(VERIFY_CODE_SEND_LIMIT_WINDOW_SECONDS))
+        );
+        if (count != null && count >= VERIFY_CODE_SEND_LIMIT_COUNT) {
+            throw new ServiceException(ApiResultEnum.TOO_MANY_REQUESTS.getCode(), "verify code send too frequently");
+        }
+    }
+
+    /**
+     * 规范化客户端 IP，避免空值导致限频条件不可预期。
+     *
+     * @param clientIp 客户端 IP
+     * @return 规范化后的 IP
+     */
+    private String normalizeIp(String clientIp) {
+        return StringUtils.hasText(clientIp) ? clientIp.trim() : "-";
     }
 
     /**
@@ -959,18 +1008,49 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private SysLoginSessionDO getActiveSession(Long appId, String token) {
         String tokenHash = LoginTokenUtils.hashToken(extractBearerToken(token));
+        LocalDateTime now = LocalDateTime.now();
         SysLoginSessionDO session = sysLoginSessionMapper.selectOne(
                 Wrappers.<SysLoginSessionDO>lambdaQuery()
                         .eq(SysLoginSessionDO::getAppId, appId)
                         .eq(SysLoginSessionDO::getTokenHash, tokenHash)
                         .eq(SysLoginSessionDO::getLogout, NOT_LOGOUT)
-                        .gt(SysLoginSessionDO::getExpireAt, LocalDateTime.now())
+                        .gt(SysLoginSessionDO::getExpireAt, now)
                         .last("LIMIT 1")
         );
         if (session == null) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "login token is invalid or expired");
         }
+        LocalDateTime lastActiveAt = session.getUpdatedAt() == null ? session.getCreatedAt() : session.getUpdatedAt();
+        if (lastActiveAt == null || lastActiveAt.plusMinutes(SESSION_IDLE_TIMEOUT_MINUTES).isBefore(now)) {
+            expireIdleSession(session, now);
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "login token is idle expired");
+        }
+        touchSession(session, now);
         return session;
+    }
+
+    /**
+     * 将闲置超时的会话标记为退出，避免同一 token 后续继续被查询为在线。
+     *
+     * @param session 登录会话
+     * @param now     当前时间
+     */
+    private void expireIdleSession(SysLoginSessionDO session, LocalDateTime now) {
+        session.setLogout(LOGOUT);
+        session.setLogoutAt(now);
+        session.setUpdatedAt(now);
+        sysLoginSessionMapper.updateById(session);
+    }
+
+    /**
+     * 刷新会话最后活跃时间，用于 30 分钟无操作自动退出判定。
+     *
+     * @param session 登录会话
+     * @param now     当前时间
+     */
+    private void touchSession(SysLoginSessionDO session, LocalDateTime now) {
+        session.setUpdatedAt(now);
+        sysLoginSessionMapper.updateById(session);
     }
 
     /**

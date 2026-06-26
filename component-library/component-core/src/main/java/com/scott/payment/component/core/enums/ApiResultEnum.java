@@ -146,6 +146,11 @@ public enum ApiResultEnum implements IResult {
     METHOD_NOT_ALLOWED("F405", "Method Not Allowed"),
 
     /**
+     * 请求过于频繁。
+     */
+    TOO_MANY_REQUESTS("F429", "Too many requests"),
+
+    /**
      * 商户配置不存在或不可用。
      */
     MERCHANT_CONFIG_NOT_FOUND("F409", "Merchant config not found"),

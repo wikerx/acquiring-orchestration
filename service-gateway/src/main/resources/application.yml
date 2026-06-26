@@ -29,10 +29,37 @@ spring:
             - RemoveResponseHeader=Server
             # 跨域响应头只保留第一份，避免重复写入导致浏览器拒绝。
             - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin RETAIN_FIRST
+            # 安全响应头可由部署层覆盖；网关先提供安全默认值。
+            - name: AddResponseHeader
+              args:
+                name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+            - name: AddResponseHeader
+              args:
+                name: X-Content-Type-Options
+                value: nosniff
+            - name: AddResponseHeader
+              args:
+                name: X-Frame-Options
+                value: SAMEORIGIN
+            - name: AddResponseHeader
+              args:
+                name: Referrer-Policy
+                value: strict-origin-when-cross-origin
+            - name: AddResponseHeader
+              args:
+                name: Permissions-Policy
+                value: "camera=(), microphone=(), geolocation=()"
+            - name: AddResponseHeader
+              args:
+                name: Content-Security-Policy
+                value: "default-src 'self'; frame-ancestors 'self'"
           globalcors:
             cors-configurations:
               "[/api/rest/**]":
-                allowed-origin-patterns: "*"
+                allowed-origin-patterns:
+                  - "http://localhost:*"
+                  - "http://127.0.0.1:*"
                 allowed-methods:
                   - GET
                   - POST
@@ -43,7 +70,9 @@ spring:
                 allow-credentials: false
                 max-age: 1800
               "[/channel/**]":
-                allowed-origin-patterns: "*"
+                allowed-origin-patterns:
+                  - "http://localhost:*"
+                  - "http://127.0.0.1:*"
                 allowed-methods:
                   - POST
                   - OPTIONS
@@ -51,11 +80,43 @@ spring:
                 allow-credentials: false
                 max-age: 1800
               "[/openapi/**]":
-                allowed-origin-patterns: "*"
+                allowed-origin-patterns:
+                  - "http://localhost:*"
+                  - "http://127.0.0.1:*"
                 allowed-methods:
                   - GET
                   - POST
                   - OPTIONS
                 allowed-headers: "*"
+                allow-credentials: false
+                max-age: 1800
+              "[/admin/**]":
+                allowed-origin-patterns:
+                  - "http://localhost:*"
+                  - "http://127.0.0.1:*"
+                allowed-methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                allowed-headers: "*"
+                exposed-headers:
+                  - X-Trace-Id
+                allow-credentials: false
+                max-age: 1800
+              "[/merchant/**]":
+                allowed-origin-patterns:
+                  - "http://localhost:*"
+                  - "http://127.0.0.1:*"
+                allowed-methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - DELETE
+                  - OPTIONS
+                allowed-headers: "*"
+                exposed-headers:
+                  - X-Trace-Id
                 allow-credentials: false
                 max-age: 1800
