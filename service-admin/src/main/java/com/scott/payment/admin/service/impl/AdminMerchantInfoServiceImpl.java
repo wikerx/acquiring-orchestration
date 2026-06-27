@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
+import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantKeyBundleDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantKeyMaterialDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantKeySummaryDTO;
@@ -12,6 +13,10 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
 import com.scott.payment.admin.service.AdminMerchantInfoService;
+import com.scott.payment.admin.entity.base.MccEntities;
+import com.scott.payment.admin.mapper.BaseMccCodeMapper;
+import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
+import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -23,6 +28,10 @@ import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.component.db.iso.entity.IsoCountryDO;
+import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
+import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
+import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.MerchantJwtKey;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.RsaKeyMaterial;
@@ -30,10 +39,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -50,6 +63,8 @@ import java.util.List;
 @Service
 public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
+    private static final String MCC_LEVEL1_VALUE_PREFIX = "L1:";
+    private static final String MCC_LEVEL2_VALUE_PREFIX = "L2:";
     private static final int NOT_DELETED = 0;
     private static final int ENABLED = 1;
     private static final int DISABLED = 0;
@@ -64,6 +79,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     private final BaseMerchantJwtKeyMapper jwtKeyMapper;
     private final BasePlatformPayloadKeyMapper platformPayloadKeyMapper;
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
+    private final BaseMccLevel1Mapper mccLevel1Mapper;
+    private final BaseMccLevel2Mapper mccLevel2Mapper;
+    private final BaseMccCodeMapper mccCodeMapper;
+    private final IsoCountryMapper isoCountryMapper;
+    private final IsoCurrencyMapper isoCurrencyMapper;
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
     /**
@@ -73,18 +93,72 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param jwtKeyMapper              商户 JWT 密钥 Mapper
      * @param platformPayloadKeyMapper  平台请求体密钥 Mapper
      * @param responseKeyMapper         商户响应密钥 Mapper
+     * @param mccLevel1Mapper           MCC 一级分类 Mapper
+     * @param mccLevel2Mapper           MCC 二级分类 Mapper
+     * @param mccCodeMapper             MCC 编码 Mapper
+     * @param isoCountryMapper          国家地区 Mapper
+     * @param isoCurrencyMapper         币种 Mapper
      * @param keyMaterialFactory        密钥材料工厂
      */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
                                         BasePlatformPayloadKeyMapper platformPayloadKeyMapper,
                                         BaseMerchantResponseKeyMapper responseKeyMapper,
+                                        BaseMccLevel1Mapper mccLevel1Mapper,
+                                        BaseMccLevel2Mapper mccLevel2Mapper,
+                                        BaseMccCodeMapper mccCodeMapper,
+                                        IsoCountryMapper isoCountryMapper,
+                                        IsoCurrencyMapper isoCurrencyMapper,
                                         OpenApiKeyMaterialFactory keyMaterialFactory) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
         this.responseKeyMapper = responseKeyMapper;
+        this.mccLevel1Mapper = mccLevel1Mapper;
+        this.mccLevel2Mapper = mccLevel2Mapper;
+        this.mccCodeMapper = mccCodeMapper;
+        this.isoCountryMapper = isoCountryMapper;
+        this.isoCurrencyMapper = isoCurrencyMapper;
         this.keyMaterialFactory = keyMaterialFactory;
+    }
+
+    /**
+     * 查询商户新增和编辑表单选项。
+     *
+     * <p>该接口只读取启用且未删除的 MCC、国家/地区和币种基础数据。MCC 叶子节点 value 为最终保存到
+     * 商户资料的 MCC code；国家和币种 value 使用标准三位字母代码，避免页面保存展示文案。</p>
+     *
+     * @return 商户新增和编辑表单选项
+     */
+    @Override
+    public AdminMerchantFormOptionsDTO getFormOptions() {
+        AdminMerchantFormOptionsDTO result = new AdminMerchantFormOptionsDTO();
+        result.setMccOptions(buildMccOptions());
+        result.setCountries(isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
+                        .eq(IsoCountryDO::getDeleted, NOT_DELETED)
+                        .eq(IsoCountryDO::getStatus, ENABLED)
+                        .orderByAsc(IsoCountryDO::getAlpha3Code))
+                .stream()
+                .map(row -> optionItem(row.getAlpha3Code(),
+                        label(row.getAlpha3Code(), row.getChineseName(), row.getEnglishName()),
+                        row.getChineseName(),
+                        row.getEnglishName(),
+                        null,
+                        null))
+                .toList());
+        result.setCurrencies(isoCurrencyMapper.selectList(Wrappers.<IsoCurrencyDO>lambdaQuery()
+                        .eq(IsoCurrencyDO::getDeleted, NOT_DELETED)
+                        .eq(IsoCurrencyDO::getStatus, ENABLED)
+                        .orderByAsc(IsoCurrencyDO::getAlpha3Code))
+                .stream()
+                .map(row -> optionItem(row.getAlpha3Code(),
+                        currencyLabel(row),
+                        row.getChineseName(),
+                        row.getEnglishName(),
+                        row.getFractionDigits(),
+                        row.getMinimumAmount()))
+                .toList());
+        return result;
     }
 
     /**
@@ -426,6 +500,143 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setRiskLevel(request.getRiskLevel() == null ? DEFAULT_RISK_LEVEL : request.getRiskLevel());
         validateStatus(row.getMerchantStatus());
         validateRiskLevel(row.getRiskLevel());
+    }
+
+    /**
+     * 组装商户资料表单使用的 MCC 三级级联树。
+     *
+     * <p>一级、二级分类 value 使用带前缀的内部定位值，避免与真实四位 MCC code 冲突；叶子节点 value
+     * 使用 MCC code，前端保存时只提交叶子节点。</p>
+     *
+     * @return MCC 级联选项
+     */
+    private List<AdminMerchantFormOptionsDTO.OptionNode> buildMccOptions() {
+        List<MccEntities.BaseMccLevel1DO> level1Rows = mccLevel1Mapper.selectList(Wrappers.<MccEntities.BaseMccLevel1DO>lambdaQuery()
+                .eq(MccEntities.BaseMccLevel1DO::getDeleted, (long) NOT_DELETED)
+                .eq(MccEntities.BaseMccLevel1DO::getStatus, ENABLED)
+                .orderByAsc(MccEntities.BaseMccLevel1DO::getSortNo)
+                .orderByAsc(MccEntities.BaseMccLevel1DO::getLevel1Code));
+        List<MccEntities.BaseMccLevel2DO> level2Rows = mccLevel2Mapper.selectList(Wrappers.<MccEntities.BaseMccLevel2DO>lambdaQuery()
+                .eq(MccEntities.BaseMccLevel2DO::getDeleted, (long) NOT_DELETED)
+                .eq(MccEntities.BaseMccLevel2DO::getStatus, ENABLED)
+                .orderByAsc(MccEntities.BaseMccLevel2DO::getSortNo)
+                .orderByAsc(MccEntities.BaseMccLevel2DO::getLevel2Code));
+        List<MccEntities.BaseMccCodeDO> codeRows = mccCodeMapper.selectList(Wrappers.<MccEntities.BaseMccCodeDO>lambdaQuery()
+                .eq(MccEntities.BaseMccCodeDO::getDeleted, (long) NOT_DELETED)
+                .eq(MccEntities.BaseMccCodeDO::getStatus, ENABLED)
+                .orderByAsc(MccEntities.BaseMccCodeDO::getMccCode));
+
+        Map<Long, AdminMerchantFormOptionsDTO.OptionNode> level1Options = new LinkedHashMap<>();
+        level1Rows.forEach(row -> level1Options.put(row.getId(),
+                optionNode(MCC_LEVEL1_VALUE_PREFIX + row.getId(), label(row.getLevel1Code(), row.getNameCn(), row.getNameEn()), row.getNameCn(), row.getNameEn())));
+
+        Map<Long, AdminMerchantFormOptionsDTO.OptionNode> level2Options = new LinkedHashMap<>();
+        level2Rows.forEach(row -> {
+            AdminMerchantFormOptionsDTO.OptionNode parent = level1Options.get(row.getLevel1Id());
+            if (parent == null) {
+                return;
+            }
+            AdminMerchantFormOptionsDTO.OptionNode node = optionNode(MCC_LEVEL2_VALUE_PREFIX + row.getId(),
+                    label(row.getLevel2Code(), row.getNameCn(), row.getNameEn()),
+                    row.getNameCn(),
+                    row.getNameEn());
+            level2Options.put(row.getId(), node);
+            parent.getChildren().add(node);
+        });
+
+        codeRows.forEach(row -> {
+            AdminMerchantFormOptionsDTO.OptionNode parent = level2Options.get(row.getLevel2Id());
+            if (parent == null) {
+                return;
+            }
+            parent.getChildren().add(optionNode(row.getMccCode(), label(row.getMccCode(), row.getNameCn(), row.getNameEn()), row.getNameCn(), row.getNameEn()));
+        });
+        return new ArrayList<>(level1Options.values());
+    }
+
+    /**
+     * 创建 MCC 级联节点。
+     *
+     * @param value  节点值；父级为内部定位值，叶子节点为 MCC code
+     * @param label  兼容展示标签
+     * @param nameCn 中文名称
+     * @param nameEn 英文名称
+     * @return MCC 级联节点
+     */
+    private AdminMerchantFormOptionsDTO.OptionNode optionNode(String value, String label, String nameCn, String nameEn) {
+        AdminMerchantFormOptionsDTO.OptionNode node = new AdminMerchantFormOptionsDTO.OptionNode();
+        node.setValue(value);
+        node.setLabel(label);
+        node.setNameCn(nameCn);
+        node.setNameEn(nameEn);
+        return node;
+    }
+
+    /**
+     * 创建普通表单下拉选项。
+     *
+     * @param value           标准三位字母代码
+     * @param label           兼容展示标签
+     * @param nameCn          中文名称
+     * @param nameEn          英文名称
+     * @param fractionDigits  币种默认辅币位，仅币种选项有值
+     * @param minimumAmount   币种最小金额单位，仅币种选项有值
+     * @return 表单下拉选项
+     */
+    private AdminMerchantFormOptionsDTO.OptionItem optionItem(String value,
+                                                             String label,
+                                                             String nameCn,
+                                                             String nameEn,
+                                                             Integer fractionDigits,
+                                                             BigDecimal minimumAmount) {
+        AdminMerchantFormOptionsDTO.OptionItem item = new AdminMerchantFormOptionsDTO.OptionItem();
+        item.setValue(value);
+        item.setLabel(label);
+        item.setNameCn(nameCn);
+        item.setNameEn(nameEn);
+        item.setFractionDigits(fractionDigits);
+        item.setMinimumAmount(minimumAmount);
+        return item;
+    }
+
+    /**
+     * 生成兼容展示标签。
+     *
+     * <p>前端会优先根据当前语言使用 nameCn/nameEn 重新生成选中回显；该字段保留给旧调用方或异常兜底。</p>
+     *
+     * @param code   标准代码
+     * @param nameCn 中文名称
+     * @param nameEn 英文名称
+     * @return 兼容展示标签
+     */
+    private String label(String code, String nameCn, String nameEn) {
+        StringBuilder builder = new StringBuilder(code == null ? "" : code);
+        if (StringUtils.hasText(nameCn)) {
+            builder.append(" — ").append(nameCn.trim());
+        }
+        if (StringUtils.hasText(nameEn)) {
+            builder.append(" / ").append(nameEn.trim());
+        }
+        return builder.toString();
+    }
+
+    /**
+     * 生成币种兼容展示标签。
+     *
+     * <p>标签包含默认辅币位和最小金额，便于旧前端或接口调试时直接识别币种金额精度约束。</p>
+     *
+     * @param row 币种数据库实体
+     * @return 币种兼容展示标签
+     */
+    private String currencyLabel(IsoCurrencyDO row) {
+        StringBuilder builder = new StringBuilder(label(row.getAlpha3Code(), row.getChineseName(), row.getEnglishName()));
+        if (row.getFractionDigits() != null) {
+            builder.append("，辅币位：").append(row.getFractionDigits());
+        }
+        if (row.getMinimumAmount() != null) {
+            builder.append("，最小金额：").append(row.getMinimumAmount().stripTrailingZeros().toPlainString());
+        }
+        return builder.toString();
     }
 
     private AdminMerchantInfoDTO toDTO(BaseMerchantInfoDO row) {

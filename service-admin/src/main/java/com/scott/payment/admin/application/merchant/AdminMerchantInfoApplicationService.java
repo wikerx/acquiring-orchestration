@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.merchant;
 
+import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantKeyBundleDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantQueryRequest;
@@ -37,6 +38,15 @@ public class AdminMerchantInfoApplicationService {
      */
     public AdminMerchantInfoApplicationService(AdminMerchantInfoService adminMerchantInfoService) {
         this.adminMerchantInfoService = adminMerchantInfoService;
+    }
+
+    /**
+     * 查询商户新增和编辑表单选项。
+     *
+     * @return 表单选项
+     */
+    public AdminMerchantFormOptionsDTO getFormOptions() {
+        return adminMerchantInfoService.getFormOptions();
     }
 
     /**
