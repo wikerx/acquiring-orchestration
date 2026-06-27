@@ -1,6 +1,7 @@
 package com.scott.payment.admin.service;
 
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
+import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantKeyBundleDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantQueryRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
@@ -20,6 +21,13 @@ import com.scott.payment.component.core.model.PageResult;
  * <p>负责商户基础资料维护、状态管理与 OpenAPI 密钥材料编排等核心领域能力，不处理 HTTP 协议细节。</p>
  */
 public interface AdminMerchantInfoService {
+
+    /**
+     * 查询商户新增和编辑表单选项。
+     *
+     * @return 表单选项
+     */
+    AdminMerchantFormOptionsDTO getFormOptions();
 
     /**
      * 分页查询商户资料。
