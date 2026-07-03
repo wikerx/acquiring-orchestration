@@ -63,7 +63,7 @@ public class ShardingTablePreCreateApplicationService {
     private JobExecuteContext buildContext(ShardingTablePreCreateInternalRequest request,
                                            ShardingTablePreCreateRequest preCreateRequest) {
         JobExecuteContext context = new JobExecuteContext();
-        context.setJobCode("sharding_table_pre_create");
+        context.setJobCode(ShardingTablePreCreateJob.JOB_CODE);
         context.setJobName("分表物理表预创建");
         context.setHandlerCode(ShardingTablePreCreateJob.HANDLER_CODE);
         context.setRunId(MANUAL_RUN_PREFIX + UUID.randomUUID());

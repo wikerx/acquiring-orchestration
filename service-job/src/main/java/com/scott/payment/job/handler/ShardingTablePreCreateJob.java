@@ -14,16 +14,21 @@ import org.springframework.stereotype.Component;
 /**
  * 分表物理表预创建任务处理器。
  *
- * <p>处理器编码为 {@code sharding.table.pre-create}，用于预创建当前季度和下一季度测试物理分表。
+ * <p>处理器编码为 {@code shardingTablePreCreate}，用于预创建当前季度和下一季度测试物理分表。
  * 处理器只做参数解析和应用服务调用，DDL 安全控制由分表治理服务负责。</p>
  */
 @Component
 public class ShardingTablePreCreateJob implements JobHandler {
 
     /**
+     * 调度任务编码，和 sys_job_task.job_code 保持一致。
+     */
+    public static final String JOB_CODE = "SHARDING_TABLE_PRE_CREATE";
+
+    /**
      * 任务处理器编码。
      */
-    public static final String HANDLER_CODE = "sharding.table.pre-create";
+    public static final String HANDLER_CODE = "shardingTablePreCreate";
 
     private final ShardingTablePreCreateService shardingTablePreCreateService;
 

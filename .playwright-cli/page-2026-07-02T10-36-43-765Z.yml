@@ -1,0 +1,60 @@
+- main [ref=e3]:
+  - button "🇨🇳 简体中文" [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: VEXRA BRAND SYSTEM
+      - img "Vexra Merchant" [ref=e11]
+      - generic [ref=e12]:
+        - heading "把交易、结算与商户运营放到一个更清晰的入口里" [level=1] [ref=e13]
+        - paragraph [ref=e14]: Vexra Merchant 是 Vexra 品牌体系下的商户门户，为全球商户提供交易管理、结算可视化与经营支持能力。
+      - generic [ref=e15]:
+        - generic [ref=e16]: 交易可视
+        - generic [ref=e17]: 结算协同
+        - generic [ref=e18]: 全局运营
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - strong [ref=e21]: 24/7
+          - text: 商户访问
+        - generic [ref=e22]:
+          - strong [ref=e23]: Multi
+          - text: 结算币种
+        - generic [ref=e24]:
+          - strong [ref=e25]: Live
+          - text: 订单可视
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - img "Vexra Merchant" [ref=e29]
+        - generic [ref=e30]:
+          - heading "欢迎登录" [level=2] [ref=e31]
+          - generic [ref=e32]: Merchant Portal
+      - paragraph [ref=e33]: 使用商户号、登录账号和密码进入 Vexra Merchant 门户，后续可在此统一查看交易、退款、结算与账户配置。
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - generic [ref=e36]: 商户号
+          - textbox "商户号" [ref=e40]:
+            - /placeholder: 请输入商户号
+            - text: "200045"
+        - generic [ref=e41]:
+          - generic [ref=e42]: 账号
+          - textbox "账号" [ref=e46]:
+            - /placeholder: 请输入登录账号
+            - text: admin
+        - generic [ref=e47]:
+          - generic [ref=e48]: 密码
+          - generic [ref=e51]:
+            - textbox "密码" [ref=e52]:
+              - /placeholder: 请输入登录密码
+              - text: Merchant@123456
+            - img [ref=e55] [cursor=pointer]
+        - generic [ref=e58]:
+          - generic [ref=e59]: 验证码
+          - generic [ref=e61]:
+            - textbox "验证码" [ref=e64]:
+              - /placeholder: 请输入验证码
+            - button "获取验证码" [ref=e65] [cursor=pointer]:
+              - generic [ref=e66]: 获取验证码
+        - button "登录 Merchant Portal" [ref=e67] [cursor=pointer]:
+          - generic [ref=e68]: 登录 Merchant Portal
+      - generic [ref=e69]:
+        - generic [ref=e70]: Merchant ID / Account / Password / Verify Code
+        - generic [ref=e71]: 已加载本地开发默认商户凭据，请先获取验证码再登录。
