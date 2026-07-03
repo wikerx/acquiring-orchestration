@@ -46,6 +46,8 @@ public interface AdminChannelService {
 
     CapabilityResponse updateCapabilityStatus(Long id, Integer status);
 
+    CapabilityResponse updateCapabilitySupport(Long id, Integer support3ds, Integer supportIncrementalAuthorization);
+
     void deleteCapability(Long id);
 
     PageResult<LimitResponse> pageLimits(LimitQuery query);

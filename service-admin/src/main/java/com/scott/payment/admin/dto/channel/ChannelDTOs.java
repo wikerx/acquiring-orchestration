@@ -94,6 +94,7 @@ public final class ChannelDTOs {
         @NotBlank(message = "paymentMethod is required")
         private String paymentMethod;
         private String transactionType;
+        private List<String> transactionTypes = new ArrayList<>();
         private List<String> currencyCodes = new ArrayList<>();
         private List<String> cardBrands = new ArrayList<>();
         private Integer support3ds;
@@ -105,6 +106,12 @@ public final class ChannelDTOs {
     }
 
     @Data
+    public static class CapabilitySupportRequest {
+        private Integer support3ds;
+        private Integer supportIncrementalAuthorization;
+    }
+
+    @Data
     public static class CapabilityResponse {
         private Long id;
         private Long channelId;
@@ -113,6 +120,7 @@ public final class ChannelDTOs {
         private String businessType;
         private String paymentMethod;
         private String transactionType;
+        private List<String> transactionTypes = new ArrayList<>();
         private List<String> currencyCodes = new ArrayList<>();
         private List<String> cardBrands = new ArrayList<>();
         private Integer support3ds;

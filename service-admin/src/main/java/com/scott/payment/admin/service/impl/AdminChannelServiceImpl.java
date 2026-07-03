@@ -47,6 +47,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -68,6 +69,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     private static final String NONE = "NONE";
     private static final String ALL = "ALL";
     private static final String USD = "USD";
+    private static final String TRANSACTION_TYPE_SEPARATOR = ",";
     private static final Pattern CHANNEL_CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{2,64}$");
     private static final Set<String> INCREMENTAL_TRANSACTION_TYPES = Set.of("AUTHORIZATION", "PRE_AUTHORIZATION");
 
@@ -248,6 +250,27 @@ public class AdminChannelServiceImpl implements AdminChannelService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public CapabilityResponse updateCapabilitySupport(Long id, Integer support3ds, Integer supportIncrementalAuthorization) {
+        ChannelPaymentCapabilityDO entity = findCapability(id);
+        if (support3ds != null) {
+            validateStatus(support3ds);
+            entity.setSupport3ds(support3ds);
+        }
+        if (supportIncrementalAuthorization != null) {
+            validateStatus(supportIncrementalAuthorization);
+            if (supportIncrementalAuthorization == ENABLED
+                    && splitTransactionTypes(entity.getBusinessType(), entity.getTransactionType()).stream().noneMatch(INCREMENTAL_TRANSACTION_TYPES::contains)) {
+                throw badRequest("增量授权只允许配置在授权或预授权交易类型下");
+            }
+            entity.setSupportIncrementalAuthorization(supportIncrementalAuthorization);
+        }
+        entity.setUpdateTime(LocalDateTime.now());
+        capabilityMapper.updateById(entity);
+        return toCapabilityResponse(entity, findChannel(entity.getChannelId()));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteCapability(Long id) {
         ChannelPaymentCapabilityDO entity = findCapability(id);
         entity.setDeleted(entity.getId());
@@ -398,11 +421,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         ChannelInfoDO channel = findChannel(request.getChannelId());
         String businessType = normalizeCode(request.getBusinessType());
         String paymentMethod = normalizeCode(request.getPaymentMethod());
-        String transactionType = normalizeTransactionType(businessType, request.getTransactionType());
+        List<String> transactionTypes = normalizeTransactionTypes(businessType, request.getTransactionTypes(), request.getTransactionType());
+        String transactionType = joinTransactionTypes(transactionTypes);
         validateBusinessType(businessType);
         validateChannelSupportsBusiness(channel, businessType);
         validatePaymentMethod(businessType, paymentMethod);
-        if (BUSINESS_ACQUIRING.equals(businessType) && !StringUtils.hasText(transactionType)) {
+        if (BUSINESS_ACQUIRING.equals(businessType) && transactionTypes.isEmpty()) {
             throw badRequest("收单能力必须配置交易类型");
         }
         if (request.getCapabilityStatus() != null) {
@@ -411,7 +435,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         validateStatus(defaultZero(request.getSupport3ds()));
         validateStatus(defaultZero(request.getSupportIncrementalAuthorization()));
         if (defaultZero(request.getSupportIncrementalAuthorization()) == ENABLED
-                && !INCREMENTAL_TRANSACTION_TYPES.contains(transactionType)) {
+                && transactionTypes.stream().noneMatch(INCREMENTAL_TRANSACTION_TYPES::contains)) {
             throw badRequest("增量授权只允许配置在授权或预授权交易类型下");
         }
         List<String> currencies = normalizeCodes(request.getCurrencyCodes());
@@ -433,14 +457,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelPaymentCapabilityDO::getChannelId, request.getChannelId())
                 .eq(ChannelPaymentCapabilityDO::getBusinessType, businessType)
                 .eq(ChannelPaymentCapabilityDO::getPaymentMethod, paymentMethod)
-                .eq(ChannelPaymentCapabilityDO::getTransactionType, transactionType)
                 .ne(id != null, ChannelPaymentCapabilityDO::getId, id));
         if (count > 0) {
-            throw badRequest("同一渠道业务类型、支付方式和交易类型不能重复");
+            throw badRequest("同一渠道、业务类型和支付方式不能重复，请在同一条能力中维护交易类型");
         }
         request.setBusinessType(businessType);
         request.setPaymentMethod(paymentMethod);
         request.setTransactionType(transactionType);
+        request.setTransactionTypes(transactionTypes);
         request.setCurrencyCodes(currencies);
         request.setCardBrands(cardBrands);
         return channel;
@@ -451,7 +475,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         String businessType = normalizeCode(request.getBusinessType());
         validateBusinessType(businessType);
         String paymentMethod = defaultScope(request.getPaymentMethod());
-        String transactionType = defaultScope(request.getTransactionType());
+        String transactionType = ALL;
         String cardBrand = defaultScope(request.getCardBrand());
         String limitType = normalizeCode(request.getLimitType());
         if (request.getLimitAmount() == null || request.getLimitAmount().compareTo(BigDecimal.ZERO) < 0) {
@@ -468,7 +492,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelLimitRuleDO::getChannelId, request.getChannelId())
                 .eq(ChannelLimitRuleDO::getBusinessType, businessType)
                 .eq(ChannelLimitRuleDO::getPaymentMethod, paymentMethod)
-                .eq(ChannelLimitRuleDO::getTransactionType, transactionType)
                 .eq(ChannelLimitRuleDO::getCardBrand, cardBrand)
                 .eq(ChannelLimitRuleDO::getLimitType, limitType)
                 .ne(id != null, ChannelLimitRuleDO::getId, id));
@@ -622,6 +645,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         response.setBusinessType(entity.getBusinessType());
         response.setPaymentMethod(entity.getPaymentMethod());
         response.setTransactionType(entity.getTransactionType());
+        response.setTransactionTypes(splitTransactionTypes(entity.getBusinessType(), entity.getTransactionType()));
         response.setCurrencyCodes(listCapabilityCurrencies(entity.getId()));
         response.setCardBrands(listCapabilityCardBrands(entity.getId()));
         response.setSupport3ds(entity.getSupport3ds());
@@ -686,10 +710,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(query.getChannelId() != null, ChannelPaymentCapabilityDO::getChannelId, query.getChannelId())
                 .eq(StringUtils.hasText(query.getBusinessType()), ChannelPaymentCapabilityDO::getBusinessType, normalizeCode(query.getBusinessType()))
                 .eq(StringUtils.hasText(query.getPaymentMethod()), ChannelPaymentCapabilityDO::getPaymentMethod, normalizeCode(query.getPaymentMethod()))
-                .eq(StringUtils.hasText(query.getTransactionType()), ChannelPaymentCapabilityDO::getTransactionType, normalizeCode(query.getTransactionType()))
                 .eq(query.getCapabilityStatus() != null, ChannelPaymentCapabilityDO::getCapabilityStatus, query.getCapabilityStatus())
                 .orderByAsc(ChannelPaymentCapabilityDO::getSortOrder)
                 .orderByDesc(ChannelPaymentCapabilityDO::getUpdateTime);
+        if (StringUtils.hasText(query.getTransactionType())) {
+            String transactionType = normalizeCode(query.getTransactionType());
+            wrapper.and(condition -> condition
+                    .eq(ChannelPaymentCapabilityDO::getTransactionType, transactionType)
+                    .or().likeRight(ChannelPaymentCapabilityDO::getTransactionType, transactionType + TRANSACTION_TYPE_SEPARATOR)
+                    .or().like(ChannelPaymentCapabilityDO::getTransactionType, TRANSACTION_TYPE_SEPARATOR + transactionType + TRANSACTION_TYPE_SEPARATOR)
+                    .or().likeLeft(ChannelPaymentCapabilityDO::getTransactionType, TRANSACTION_TYPE_SEPARATOR + transactionType));
+        }
         List<Long> capabilityIds = capabilityIdsByCurrencyOrBrand(query);
         if (capabilityIds != null) {
             wrapper.in(capabilityIds.isEmpty(), ChannelPaymentCapabilityDO::getId, -1L)
@@ -704,7 +735,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(query.getChannelId() != null, ChannelLimitRuleDO::getChannelId, query.getChannelId())
                 .eq(StringUtils.hasText(query.getBusinessType()), ChannelLimitRuleDO::getBusinessType, normalizeCode(query.getBusinessType()))
                 .eq(StringUtils.hasText(query.getPaymentMethod()), ChannelLimitRuleDO::getPaymentMethod, normalizeCode(query.getPaymentMethod()))
-                .eq(StringUtils.hasText(query.getTransactionType()), ChannelLimitRuleDO::getTransactionType, normalizeCode(query.getTransactionType()))
                 .eq(StringUtils.hasText(query.getCardBrand()), ChannelLimitRuleDO::getCardBrand, normalizeCode(query.getCardBrand()))
                 .eq(StringUtils.hasText(query.getLimitType()), ChannelLimitRuleDO::getLimitType, normalizeCode(query.getLimitType()))
                 .eq(query.getRuleStatus() != null, ChannelLimitRuleDO::getRuleStatus, query.getRuleStatus())
@@ -973,6 +1003,34 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return normalizeCode(transactionType);
     }
 
+    private List<String> normalizeTransactionTypes(String businessType, List<String> transactionTypes, String transactionType) {
+        if (BUSINESS_PAYOUT.equals(businessType)) {
+            return List.of(NONE);
+        }
+        List<String> values = new ArrayList<>();
+        if (transactionTypes != null) {
+            values.addAll(transactionTypes);
+        }
+        if (values.isEmpty() && StringUtils.hasText(transactionType)) {
+            values.addAll(splitTransactionTypes(businessType, transactionType));
+        }
+        return normalizeCodes(values);
+    }
+
+    private String joinTransactionTypes(List<String> transactionTypes) {
+        return String.join(TRANSACTION_TYPE_SEPARATOR, transactionTypes);
+    }
+
+    private List<String> splitTransactionTypes(String businessType, String transactionType) {
+        if (BUSINESS_PAYOUT.equals(businessType)) {
+            return List.of(NONE);
+        }
+        if (!StringUtils.hasText(transactionType)) {
+            return List.of();
+        }
+        return normalizeCodes(List.of(transactionType.split(TRANSACTION_TYPE_SEPARATOR)));
+    }
+
     private String defaultScope(String value) {
         return StringUtils.hasText(value) ? normalizeCode(value) : ALL;
     }
@@ -987,6 +1045,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
         return values.stream()
                 .filter(StringUtils::hasText)
+                .filter(Objects::nonNull)
                 .map(this::normalizeCode)
                 .distinct()
                 .toList();

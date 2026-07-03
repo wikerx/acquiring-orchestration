@@ -1368,7 +1368,7 @@ CREATE TABLE IF NOT EXISTS channel_payment_capability (
     channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
     business_type VARCHAR(32) NOT NULL COMMENT '业务类型：ACQUIRING/PAYOUT',
     payment_method VARCHAR(64) NOT NULL COMMENT '支付方式',
-    transaction_type VARCHAR(64) NOT NULL DEFAULT 'NONE' COMMENT '交易类型，代付为NONE',
+    transaction_type VARCHAR(512) NOT NULL DEFAULT 'NONE' COMMENT '交易类型列表，多个以英文逗号分隔，代付为NONE',
     support_3ds TINYINT NOT NULL DEFAULT 0 COMMENT '是否支持3DS：0否，1是',
     support_incremental_authorization TINYINT NOT NULL DEFAULT 0 COMMENT '是否支持增量授权：0否，1是',
     capability_status TINYINT NOT NULL DEFAULT 1 COMMENT '能力状态：0停用，1启用',
@@ -1380,7 +1380,7 @@ CREATE TABLE IF NOT EXISTS channel_payment_capability (
     update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_channel_capability_scope (channel_id, business_type, payment_method, transaction_type, deleted),
+    UNIQUE KEY uk_channel_capability_scope (channel_id, business_type, payment_method, deleted),
     KEY idx_channel_capability_channel (channel_id, deleted),
     KEY idx_channel_capability_code (channel_code, deleted),
     KEY idx_channel_capability_method (business_type, payment_method, deleted),
@@ -1430,7 +1430,7 @@ CREATE TABLE IF NOT EXISTS channel_limit_rule (
     channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
     business_type VARCHAR(32) NOT NULL COMMENT '业务类型：ACQUIRING/PAYOUT',
     payment_method VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '支付方式，ALL表示渠道级限额',
-    transaction_type VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '交易类型，ALL表示不限交易类型',
+    transaction_type VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '保留兼容字段，渠道限额不区分交易类型，固定ALL',
     card_brand VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '卡品牌，ALL表示不限卡品牌',
     limit_type VARCHAR(32) NOT NULL COMMENT '限额类型：SINGLE_MIN/SINGLE_MAX/DAILY/WEEKLY/MONTHLY',
     limit_currency VARCHAR(3) NOT NULL DEFAULT 'USD' COMMENT '限额币种，当前固定USD',
@@ -1445,7 +1445,7 @@ CREATE TABLE IF NOT EXISTS channel_limit_rule (
     update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_channel_limit_scope_deleted (channel_id, business_type, payment_method, transaction_type, card_brand, limit_type, deleted),
+    UNIQUE KEY uk_channel_limit_scope_deleted (channel_id, business_type, payment_method, card_brand, limit_type, deleted),
     KEY idx_channel_limit_channel (channel_id, deleted),
     KEY idx_channel_limit_code (channel_code, deleted),
     KEY idx_channel_limit_status (rule_status, deleted)
@@ -1524,6 +1524,9 @@ INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale,
 (3405, 'card_brand', 'Diners Club', 'DINERS_CLUB', 'zh-CN', 6, 'primary', '{"logoKey":"dinersClub","logoKeys":["dinersClub"]}', 0, 1, 0),
 (3406, 'card_brand', 'Discover', 'DISCOVER', 'zh-CN', 7, 'primary', '{"logoKey":"discover","logoKeys":["discover"]}', 0, 1, 0),
 (3407, 'card_brand', 'UnionPay', 'UNIONPAY', 'zh-CN', 8, 'primary', '{"logoKey":"unionPay","logoKeys":["unionPay"]}', 0, 1, 0),
+(3408, 'card_brand', 'Cartes Bancaires', 'CARTES_BANCAIRES', 'zh-CN', 9, 'primary', NULL, 0, 1, 0),
+(3409, 'card_brand', 'eftpos Australia', 'EFTPOS_AUSTRALIA', 'zh-CN', 10, 'primary', NULL, 0, 1, 0),
+(3410, 'card_brand', 'Interac', 'INTERAC', 'zh-CN', 11, 'primary', NULL, 0, 1, 0),
 (3500, 'channel_business_type', '收单', 'ACQUIRING', 'zh-CN', 1, 'primary', NULL, 1, 1, 0),
 (3501, 'channel_business_type', '代付', 'PAYOUT', 'zh-CN', 2, 'primary', NULL, 0, 1, 0),
 (3600, 'channel_interaction_mode', 'API Key', 'API_KEY', 'zh-CN', 1, 'primary', NULL, 1, 1, 0),
@@ -1571,7 +1574,28 @@ INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale,
 (13404, 'card_brand', 'American Express', 'AMEX', 'en-US', 5, 'primary', '{"logoKey":"americanExpress","logoKeys":["americanExpress"]}', 0, 1, 0),
 (13405, 'card_brand', 'Diners Club', 'DINERS_CLUB', 'en-US', 6, 'primary', '{"logoKey":"dinersClub","logoKeys":["dinersClub"]}', 0, 1, 0),
 (13406, 'card_brand', 'Discover', 'DISCOVER', 'en-US', 7, 'primary', '{"logoKey":"discover","logoKeys":["discover"]}', 0, 1, 0),
-(13407, 'card_brand', 'UnionPay', 'UNIONPAY', 'en-US', 8, 'primary', '{"logoKey":"unionPay","logoKeys":["unionPay"]}', 0, 1, 0);
+(13407, 'card_brand', 'UnionPay', 'UNIONPAY', 'en-US', 8, 'primary', '{"logoKey":"unionPay","logoKeys":["unionPay"]}', 0, 1, 0),
+(13408, 'card_brand', 'Cartes Bancaires', 'CARTES_BANCAIRES', 'en-US', 9, 'primary', NULL, 0, 1, 0),
+(13409, 'card_brand', 'eftpos Australia', 'EFTPOS_AUSTRALIA', 'en-US', 10, 'primary', NULL, 0, 1, 0),
+(13410, 'card_brand', 'Interac', 'INTERAC', 'en-US', 11, 'primary', NULL, 0, 1, 0);
+
+UPDATE base_mcc_risk_policy
+SET card_scheme = 'AMEX'
+WHERE card_scheme = 'AMERICAN_EXPRESS'
+  AND deleted = 0;
+
+UPDATE sys_dict_data
+SET dict_type = CONCAT('deprecated_', dict_type),
+    deleted = id
+WHERE dict_type = 'card_scheme'
+  AND deleted = 0;
+
+UPDATE sys_dict_type
+SET dict_type = CONCAT('deprecated_', dict_type),
+    dict_name = CONCAT(dict_name, '（已合并至card_brand）'),
+    deleted = id
+WHERE dict_type = 'card_scheme'
+  AND deleted = 0;
 
 UPDATE sys_menu
 SET menu_name = '渠道管理', menu_type = 'CATALOG', route_path = '/channel', component_path = NULL,

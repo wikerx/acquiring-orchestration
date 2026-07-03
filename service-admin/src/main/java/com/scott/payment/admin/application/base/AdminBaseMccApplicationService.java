@@ -65,7 +65,7 @@ public class AdminBaseMccApplicationService {
     private static final String MCC_CODE = "MCC_CODE";
     private static final String APPLY_SCOPE_ALL = "ALL";
     private static final String APPLY_SCOPE_SPECIFIC = "SPECIFIC";
-    private static final String CARD_SCHEME_DICT = "card_scheme";
+    private static final String CARD_BRAND_DICT = "card_brand";
     private static final String DEFAULT_LOCALE = "zh-CN";
     private static final String FOUR_DIGIT_MCC = "^[0-9]{4}$";
 
@@ -285,7 +285,7 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 新增 MCC 风险策略。card_scheme 不允许保存 ALL，页面“所有卡品牌”会展开为真实卡品牌。
+     * 新增 MCC 风险策略。card_brand 不允许保存 ALL，页面“所有卡品牌”会展开为真实卡品牌。
      */
     @Transactional(rollbackFor = Exception.class)
     public List<MccVO.MccRiskPolicyVO> createPolicies(MccRequests.MccRiskPolicySaveRequest request) {
@@ -384,7 +384,7 @@ public class AdminBaseMccApplicationService {
         result.put("level1", level1Mapper.selectList(baseLevel1Query()).stream().map(row -> option(row.getId(), row.getLevel1Code(), row.getNameCn(), row.getNameEn(), LEVEL1, null)).toList());
         result.put("level2", level2Mapper.selectList(baseLevel2Query()).stream().map(row -> option(row.getId(), row.getLevel2Code(), row.getNameCn(), row.getNameEn(), LEVEL2, row.getLevel1Id())).toList());
         result.put("mccCodes", codeMapper.selectList(baseCodeQuery().orderByAsc(MccEntities.BaseMccCodeDO::getMccCode)).stream().map(row -> option(row.getId(), row.getMccCode(), row.getNameCn(), row.getNameEn(), MCC_CODE, row.getLevel2Id())).toList());
-        result.put("cardSchemes", cardSchemeDictRows().stream().map(row -> option(row.getId(), row.getDictValue(), row.getDictLabel(), row.getDictLabel(), CARD_SCHEME_DICT, null)).toList());
+        result.put("cardSchemes", cardBrandDictRows().stream().map(row -> option(row.getId(), row.getDictValue(), row.getDictLabel(), row.getDictLabel(), CARD_BRAND_DICT, null)).toList());
         result.put("countries", isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
                         .eq(IsoCountryDO::getDeleted, AuthConstants.NOT_DELETED)
                         .eq(IsoCountryDO::getStatus, ENABLED)
@@ -401,12 +401,13 @@ public class AdminBaseMccApplicationService {
         List<MccCodeExportRow> rows = codeMapper.selectList(baseCodeQuery().orderByAsc(MccEntities.BaseMccCodeDO::getMccCode))
                 .stream()
                 .filter(row -> StringUtils.hasText(request == null ? null : request.getMccCode()) ? row.getMccCode().contains(request.getMccCode().trim()) : true)
-                .map(this::toExportRow)
+                .map(row -> toExportRow(row, locale))
                 .toList();
+        String exportTitle = excelI18nMessageResolver.resolve("excel.mcc.title", locale);
         excelExportService.export(
                 ExcelExportRequest.<MccCodeExportRow>builder()
-                        .fileName("MCC编码_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("MCC编码")
+                        .fileName(exportTitle + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(exportTitle)
                         .titleKey("excel.mcc.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())
@@ -533,7 +534,7 @@ public class AdminBaseMccApplicationService {
     }
 
     private List<String> resolveCardSchemes(MccRequests.MccRiskPolicySaveRequest request) {
-        Set<String> allowed = cardSchemeValues();
+        Set<String> allowed = cardBrandValues();
         List<String> schemes = Boolean.TRUE.equals(request.getSelectAllCardSchemes())
                 ? new ArrayList<>(allowed)
                 : request.getCardSchemes() == null ? List.of() : request.getCardSchemes();
@@ -542,11 +543,11 @@ public class AdminBaseMccApplicationService {
             throw badRequest("cardSchemes 不能为空，除非 selectAllCardSchemes = true");
         }
         if (schemes.stream().anyMatch("ALL"::equalsIgnoreCase)) {
-            throw badRequest("card_scheme 不允许使用 ALL");
+            throw badRequest("card_brand 不允许使用 ALL");
         }
         List<String> invalid = schemes.stream().filter(scheme -> !allowed.contains(scheme)).toList();
         if (!invalid.isEmpty()) {
-            throw badRequest("card_scheme 必须是真实卡品牌: " + invalid);
+            throw badRequest("card_brand 必须是真实卡品牌: " + invalid);
         }
         return schemes;
     }
@@ -628,14 +629,14 @@ public class AdminBaseMccApplicationService {
         }
     }
 
-    private Set<String> cardSchemeValues() {
-        List<SysDictDataDO> rows = cardSchemeDictRows();
+    private Set<String> cardBrandValues() {
+        List<SysDictDataDO> rows = cardBrandDictRows();
         return rows.stream().map(SysDictDataDO::getDictValue).filter(StringUtils::hasText).collect(Collectors.toSet());
     }
 
-    private List<SysDictDataDO> cardSchemeDictRows() {
+    private List<SysDictDataDO> cardBrandDictRows() {
         List<SysDictDataDO> rows = dictDataMapper.selectList(Wrappers.<SysDictDataDO>lambdaQuery()
-                .eq(SysDictDataDO::getDictType, CARD_SCHEME_DICT)
+                .eq(SysDictDataDO::getDictType, CARD_BRAND_DICT)
                 .eq(SysDictDataDO::getLocale, DEFAULT_LOCALE)
                 .eq(SysDictDataDO::getStatus, ENABLED)
                 .eq(SysDictDataDO::getDeleted, NOT_DELETED)
@@ -864,14 +865,14 @@ public class AdminBaseMccApplicationService {
 
     private String cardSchemeLabel(String cardScheme) {
         SysDictDataQueryRequest query = new SysDictDataQueryRequest();
-        query.setDictType(CARD_SCHEME_DICT);
+        query.setDictType(CARD_BRAND_DICT);
         query.setDictValue(cardScheme);
         query.setLocale(DEFAULT_LOCALE);
         List<SysDictDataDTO> rows = adminDictService.listDictData(query);
         return rows.isEmpty() ? cardScheme : rows.get(0).getDictLabel();
     }
 
-    private MccCodeExportRow toExportRow(MccEntities.BaseMccCodeDO row) {
+    private MccCodeExportRow toExportRow(MccEntities.BaseMccCodeDO row, Locale locale) {
         MccVO.MccCodeVO code = toCodeVO(row);
         MccCodeExportRow exportRow = new MccCodeExportRow();
         exportRow.setMccCode(code.getMccCode());
@@ -882,7 +883,10 @@ public class AdminBaseMccApplicationService {
         exportRow.setMccType(code.getMccType());
         exportRow.setRiskLevel(code.getRiskLevel());
         exportRow.setDeliveryApplicability(code.getDeliveryApplicability());
-        exportRow.setStatus(Objects.equals(code.getStatus(), ENABLED) ? "启用" : "停用");
+        exportRow.setStatus(excelI18nMessageResolver.resolve(
+                Objects.equals(code.getStatus(), ENABLED) ? "excel.common.enabled" : "excel.common.disabled",
+                locale
+        ));
         exportRow.setSource(code.getSource());
         exportRow.setVersionNo(code.getVersionNo());
         exportRow.setEffectiveTime(code.getEffectiveTime());

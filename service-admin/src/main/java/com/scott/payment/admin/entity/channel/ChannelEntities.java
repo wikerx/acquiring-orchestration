@@ -61,6 +61,7 @@ public final class ChannelEntities {
         private String transactionType;
         @TableField("support_3ds")
         private Integer support3ds;
+        @TableField("support_incremental_authorization")
         private Integer supportIncrementalAuthorization;
         private Integer capabilityStatus;
         private Integer sortOrder;

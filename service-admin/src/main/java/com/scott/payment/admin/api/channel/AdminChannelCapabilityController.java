@@ -4,6 +4,7 @@ import com.scott.payment.admin.application.channel.AdminChannelApplicationServic
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySupportRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.StatusRequest;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
@@ -68,6 +69,18 @@ public class AdminChannelCapabilityController {
     public CommonResult<CapabilityResponse> updateCapabilityStatus(@PathVariable("id") Long id,
                                                                    @Valid @RequestBody StatusRequest request) {
         return success(channelApplicationService.updateCapabilityStatus(id, request.getStatus()));
+    }
+
+    @PutMapping("/{id}/support")
+    @RequiresPermission("channel:capability:edit")
+    @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道支付能力支持项")
+    public CommonResult<CapabilityResponse> updateCapabilitySupport(@PathVariable("id") Long id,
+                                                                    @RequestBody CapabilitySupportRequest request) {
+        return success(channelApplicationService.updateCapabilitySupport(
+                id,
+                request.getSupport3ds(),
+                request.getSupportIncrementalAuthorization()
+        ));
     }
 
     @DeleteMapping("/{id}")

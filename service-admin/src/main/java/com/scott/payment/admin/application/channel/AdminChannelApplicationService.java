@@ -81,6 +81,10 @@ public class AdminChannelApplicationService {
         return adminChannelService.updateCapabilityStatus(id, status);
     }
 
+    public CapabilityResponse updateCapabilitySupport(Long id, Integer support3ds, Integer supportIncrementalAuthorization) {
+        return adminChannelService.updateCapabilitySupport(id, support3ds, supportIncrementalAuthorization);
+    }
+
     public void deleteCapability(Long id) {
         adminChannelService.deleteCapability(id);
     }

@@ -109,7 +109,7 @@ class AdminBaseMccApplicationServiceTest {
 
         assertThatThrownBy(() -> service.createPolicies(request))
                 .isInstanceOf(ServiceException.class)
-                .hasMessageContaining("card_scheme 不允许使用 ALL");
+                .hasMessageContaining("card_brand 不允许使用 ALL");
     }
 
     @Test

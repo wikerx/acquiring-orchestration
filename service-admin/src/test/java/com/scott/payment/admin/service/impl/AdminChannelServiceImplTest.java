@@ -5,10 +5,13 @@ import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelAccessConfigDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCardBrandDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCurrencyDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelInfoDO;
+import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelLimitRuleDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelPaymentCapabilityDO;
 import com.scott.payment.admin.mapper.ChannelAccessConfigMapper;
 import com.scott.payment.admin.mapper.ChannelCapabilityCardBrandMapper;
@@ -24,13 +27,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -77,6 +81,9 @@ class AdminChannelServiceImplTest {
         assertThat(ChannelPaymentCapabilityDO.class.getDeclaredField("support3ds")
                 .getAnnotation(TableField.class)
                 .value()).isEqualTo("support_3ds");
+        assertThat(ChannelPaymentCapabilityDO.class.getDeclaredField("supportIncrementalAuthorization")
+                .getAnnotation(TableField.class)
+                .value()).isEqualTo("support_incremental_authorization");
     }
 
     @Test
@@ -99,6 +106,9 @@ class AdminChannelServiceImplTest {
         CapabilityResponse response = service.createCapability(bankCardCapabilityRequest(List.of("visa", "mastercard")));
 
         assertThat(response.getPaymentMethod()).isEqualTo("BANK_CARD");
+        assertThat(response.getTransactionType()).isEqualTo("PAYMENT,AUTHORIZATION");
+        assertThat(response.getTransactionTypes()).containsExactly("PAYMENT", "AUTHORIZATION");
+        assertThat(response.getSupportIncrementalAuthorization()).isEqualTo(1);
         assertThat(response.getCardBrands()).containsExactly("VISA", "MASTERCARD");
         assertThat(response.getCurrencyCodes()).containsExactly("USD");
         verify(capabilityMapper).insert(any(ChannelPaymentCapabilityDO.class));
@@ -131,6 +141,38 @@ class AdminChannelServiceImplTest {
     }
 
     @Test
+    void shouldUpdateCapabilitySupportIncrementalAuthorization() {
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityCurrencyMapper.selectList(any())).thenReturn(List.of(currency("USD")));
+        when(capabilityCardBrandMapper.selectList(any())).thenReturn(List.of(cardBrand("VISA", 1)));
+
+        CapabilityResponse response = service.updateCapabilitySupport(101L, null, 1);
+
+        assertThat(response.getSupportIncrementalAuthorization()).isEqualTo(1);
+        verify(capabilityMapper).updateById(any(ChannelPaymentCapabilityDO.class));
+    }
+
+    @Test
+    void shouldIgnoreTransactionTypeWhenCreatingLimitRule() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(limitRuleMapper.selectCount(any())).thenReturn(0L);
+        when(limitRuleMapper.insert(any(ChannelLimitRuleDO.class))).thenAnswer(invocation -> {
+            ChannelLimitRuleDO row = invocation.getArgument(0);
+            row.setId(301L);
+            return 1;
+        });
+
+        LimitSaveRequest request = limitRequest();
+        request.setTransactionType("AUTHORIZATION");
+
+        LimitResponse response = service.createLimit(request);
+
+        assertThat(response.getTransactionType()).isEqualTo("ALL");
+        verify(limitRuleMapper).insert(any(ChannelLimitRuleDO.class));
+    }
+
+    @Test
     void shouldReturnOnlyMaskedSensitiveValuesForAccessConfig() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
         when(accessConfigMapper.selectCount(any())).thenReturn(0L);
@@ -159,11 +201,11 @@ class AdminChannelServiceImplTest {
         request.setChannelId(1L);
         request.setBusinessType("acquiring");
         request.setPaymentMethod("bank_card");
-        request.setTransactionType("payment");
+        request.setTransactionTypes(List.of("payment", "authorization"));
         request.setCurrencyCodes(List.of("usd"));
         request.setCardBrands(cardBrands);
         request.setSupport3ds(1);
-        request.setSupportIncrementalAuthorization(0);
+        request.setSupportIncrementalAuthorization(1);
         request.setCapabilityStatus(1);
         request.setSortOrder(1);
         return request;
@@ -185,6 +227,18 @@ class AdminChannelServiceImplTest {
         return request;
     }
 
+    private LimitSaveRequest limitRequest() {
+        LimitSaveRequest request = new LimitSaveRequest();
+        request.setChannelId(1L);
+        request.setBusinessType("acquiring");
+        request.setPaymentMethod("bank_card");
+        request.setCardBrand("visa");
+        request.setLimitType("single_max");
+        request.setLimitAmount(new BigDecimal("100.00"));
+        request.setRuleStatus(1);
+        return request;
+    }
+
     private ChannelInfoDO enabledChannel() {
         ChannelInfoDO row = new ChannelInfoDO();
         row.setId(1L);
@@ -202,6 +256,21 @@ class AdminChannelServiceImplTest {
     private ChannelCapabilityCurrencyDO currency(String code) {
         ChannelCapabilityCurrencyDO row = new ChannelCapabilityCurrencyDO();
         row.setCurrencyCode(code);
+        return row;
+    }
+
+    private ChannelPaymentCapabilityDO enabledCapability() {
+        ChannelPaymentCapabilityDO row = new ChannelPaymentCapabilityDO();
+        row.setId(101L);
+        row.setChannelId(1L);
+        row.setChannelCode("TEST_CHANNEL");
+        row.setBusinessType("ACQUIRING");
+        row.setPaymentMethod("BANK_CARD");
+        row.setTransactionType("PAYMENT,AUTHORIZATION");
+        row.setSupport3ds(1);
+        row.setSupportIncrementalAuthorization(0);
+        row.setCapabilityStatus(1);
+        row.setDeleted(0L);
         return row;
     }
 

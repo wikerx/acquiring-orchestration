@@ -13,6 +13,8 @@ import com.scott.payment.admin.service.AdminDictService;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
+import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 
@@ -40,17 +42,25 @@ public class AdminDictApplicationService {
 
     private final AdminDictService adminDictService;
     private final ExcelExportService excelExportService;
+    private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
      * 创建后台数据字典应用服务。
      *
      * @param adminDictService 数据字典领域服务
-     * @param excelExportService Excel 导出服务
+     * @param excelExportService       Excel 导出服务
+     * @param excelI18nMessageResolver Excel 文案解析器
+     * @param excelLocaleResolver      Excel 语言解析器
      */
     public AdminDictApplicationService(AdminDictService adminDictService,
-                                       ExcelExportService excelExportService) {
+                                       ExcelExportService excelExportService,
+                                       ExcelI18nMessageResolver excelI18nMessageResolver,
+                                       ExcelLocaleResolver excelLocaleResolver) {
         this.adminDictService = adminDictService;
         this.excelExportService = excelExportService;
+        this.excelI18nMessageResolver = excelI18nMessageResolver;
+        this.excelLocaleResolver = excelLocaleResolver;
     }
 
     /**
@@ -83,19 +93,21 @@ public class AdminDictApplicationService {
     public void exportDictTypes(SysDictTypeQueryRequest request,
                                 String operator,
                                 HttpServletResponse response) {
+        Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<SysDictTypeExportRow> rows = adminDictService.listDictTypes(request).stream()
                 .map(DictConverter.INSTANCE::toTypeExportRow)
-                .peek(this::fillDictTypeDisplayValue)
+                .peek(row -> fillDictTypeDisplayValue(row, locale))
                 .toList();
+        String exportTitle = excelI18nMessageResolver.resolve("excel.dict.title", locale);
         excelExportService.export(
                 ExcelExportRequest.<SysDictTypeExportRow>builder()
-                        .fileName("字典类型_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("字典类型")
+                        .fileName(exportTitle + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(exportTitle)
                         .titleKey("excel.dict.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())
-                        .locale(Locale.SIMPLIFIED_CHINESE)
-                        .querySummary(buildDictTypeQuerySummary(request))
+                        .locale(locale)
+                        .querySummary(buildDictTypeQuerySummary(request, locale))
                         .rowClass(SysDictTypeExportRow.class)
                         .dataList(rows)
                         .build(),
@@ -142,19 +154,21 @@ public class AdminDictApplicationService {
     public void exportDictData(SysDictDataQueryRequest request,
                                String operator,
                                HttpServletResponse response) {
+        Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<SysDictDataExportRow> rows = adminDictService.listDictData(request).stream()
                 .map(DictConverter.INSTANCE::toDataExportRow)
-                .peek(this::fillDictDataDisplayValue)
+                .peek(row -> fillDictDataDisplayValue(row, locale))
                 .toList();
+        String exportTitle = excelI18nMessageResolver.resolve("excel.dictData.title", locale);
         excelExportService.export(
                 ExcelExportRequest.<SysDictDataExportRow>builder()
-                        .fileName("字典数据_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("字典数据")
+                        .fileName(exportTitle + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(exportTitle)
                         .titleKey("excel.dictData.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())
-                        .locale(Locale.SIMPLIFIED_CHINESE)
-                        .querySummary(buildDictDataQuerySummary(request))
+                        .locale(locale)
+                        .querySummary(buildDictDataQuerySummary(request, locale))
                         .rowClass(SysDictDataExportRow.class)
                         .dataList(rows)
                         .build(),
@@ -206,79 +220,93 @@ public class AdminDictApplicationService {
     /**
      * 填充字典类型导出展示文案。
      *
-     * @param row 导出行对象
+     * @param row    导出行对象
+     * @param locale 当前语言
      */
-    private void fillDictTypeDisplayValue(SysDictTypeExportRow row) {
-        row.setStatus("1".equals(row.getStatus()) ? "启用" : "停用");
-        row.setSystemBuiltin("1".equals(row.getSystemBuiltin()) ? "是" : "否");
+    private void fillDictTypeDisplayValue(SysDictTypeExportRow row, Locale locale) {
+        row.setStatus(resolveStatusText("1".equals(row.getStatus()), locale));
+        row.setSystemBuiltin(resolveBooleanText("1".equals(row.getSystemBuiltin()), locale));
     }
 
     /**
      * 填充字典数据导出展示文案。
      *
-     * @param row 导出行对象
+     * @param row    导出行对象
+     * @param locale 当前语言
      */
-    private void fillDictDataDisplayValue(SysDictDataExportRow row) {
-        row.setStatus("1".equals(row.getStatus()) ? "启用" : "停用");
-        row.setDefaultFlag("1".equals(row.getDefaultFlag()) ? "是" : "否");
+    private void fillDictDataDisplayValue(SysDictDataExportRow row, Locale locale) {
+        row.setStatus(resolveStatusText("1".equals(row.getStatus()), locale));
+        row.setDefaultFlag(resolveBooleanText("1".equals(row.getDefaultFlag()), locale));
     }
 
     /**
      * 构建字典类型导出摘要。
      *
      * @param request 查询条件
+     * @param locale  当前语言
      * @return 摘要
      */
-    private String buildDictTypeQuerySummary(SysDictTypeQueryRequest request) {
+    private String buildDictTypeQuerySummary(SysDictTypeQueryRequest request, Locale locale) {
         if (request == null) {
-            return "全部数据";
+            return excelI18nMessageResolver.resolve("excel.common.noCondition", locale);
         }
         StringBuilder builder = new StringBuilder();
         if (request.getDictName() != null && !request.getDictName().isBlank()) {
-            builder.append("字典名称=").append(request.getDictName().trim());
+            appendCondition(builder, "excel.dict.dictName", request.getDictName().trim(), locale);
         }
         if (request.getDictType() != null && !request.getDictType().isBlank()) {
-            appendSeparator(builder);
-            builder.append("字典类型=").append(request.getDictType().trim());
+            appendCondition(builder, "excel.dict.dictType", request.getDictType().trim(), locale);
         }
         if (request.getBizDomain() != null && !request.getBizDomain().isBlank()) {
-            appendSeparator(builder);
-            builder.append("业务域=").append(request.getBizDomain().trim());
+            appendCondition(builder, "excel.dict.bizDomain", request.getBizDomain().trim(), locale);
         }
         if (request.getStatus() != null) {
-            appendSeparator(builder);
-            builder.append("状态=").append(request.getStatus() == 1 ? "启用" : "停用");
+            appendCondition(builder, "excel.dict.status", resolveStatusText(request.getStatus() == 1, locale), locale);
         }
-        return builder.isEmpty() ? "全部数据" : builder.toString();
+        return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 
     /**
      * 构建字典数据导出摘要。
      *
      * @param request 查询条件
+     * @param locale  当前语言
      * @return 摘要
      */
-    private String buildDictDataQuerySummary(SysDictDataQueryRequest request) {
+    private String buildDictDataQuerySummary(SysDictDataQueryRequest request, Locale locale) {
         if (request == null) {
-            return "全部数据";
+            return excelI18nMessageResolver.resolve("excel.common.noCondition", locale);
         }
         StringBuilder builder = new StringBuilder();
         if (request.getDictType() != null && !request.getDictType().isBlank()) {
-            builder.append("字典类型=").append(request.getDictType().trim());
+            appendCondition(builder, "excel.dictData.dictType", request.getDictType().trim(), locale);
         }
         if (request.getDictLabel() != null && !request.getDictLabel().isBlank()) {
-            appendSeparator(builder);
-            builder.append("字典标签=").append(request.getDictLabel().trim());
+            appendCondition(builder, "excel.dictData.dictLabel", request.getDictLabel().trim(), locale);
+        }
+        if (request.getDictValue() != null && !request.getDictValue().isBlank()) {
+            appendCondition(builder, "excel.dictData.dictValue", request.getDictValue().trim(), locale);
         }
         if (request.getLocale() != null && !request.getLocale().isBlank()) {
-            appendSeparator(builder);
-            builder.append("语言=").append(request.getLocale().trim());
+            appendCondition(builder, "excel.dictData.locale", request.getLocale().trim(), locale);
         }
         if (request.getStatus() != null) {
-            appendSeparator(builder);
-            builder.append("状态=").append(request.getStatus() == 1 ? "启用" : "停用");
+            appendCondition(builder, "excel.dictData.status", resolveStatusText(request.getStatus() == 1, locale), locale);
         }
-        return builder.isEmpty() ? "全部数据" : builder.toString();
+        return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
+    }
+
+    private void appendCondition(StringBuilder builder, String labelKey, String value, Locale locale) {
+        appendSeparator(builder);
+        builder.append(excelI18nMessageResolver.resolve(labelKey, locale)).append("=").append(value);
+    }
+
+    private String resolveStatusText(boolean enabled, Locale locale) {
+        return excelI18nMessageResolver.resolve(enabled ? "excel.common.enabled" : "excel.common.disabled", locale);
+    }
+
+    private String resolveBooleanText(boolean yes, Locale locale) {
+        return excelI18nMessageResolver.resolve(yes ? "excel.common.yes" : "excel.common.no", locale);
     }
 
     /**
