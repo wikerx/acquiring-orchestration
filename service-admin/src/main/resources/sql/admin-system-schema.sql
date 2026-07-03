@@ -1615,8 +1615,53 @@ VALUES
 (734, 1, 284, 'channel:access:remove', '渠道接入配置删除', 'BUTTON', 'DELETE', '/admin/channel/access-configs/*', 1, 0),
 (735, 1, 284, 'channel:access:status', '渠道接入配置状态', 'BUTTON', 'PUT', '/admin/channel/access-configs/*/status', 1, 0);
 
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_channel_info_v1' parent_code, 'admin_channel_info_detail_v1' menu_code, '渠道信息详情' menu_name, 'channel:info:detail' permission_code, 1 sort_no
+    UNION ALL SELECT 'admin_channel_info_v1', 'admin_channel_info_add_v1', '渠道信息新增', 'channel:info:add', 2
+    UNION ALL SELECT 'admin_channel_info_v1', 'admin_channel_info_edit_v1', '渠道信息修改', 'channel:info:edit', 3
+    UNION ALL SELECT 'admin_channel_info_v1', 'admin_channel_info_remove_v1', '渠道信息删除', 'channel:info:remove', 4
+    UNION ALL SELECT 'admin_channel_info_v1', 'admin_channel_info_status_v1', '渠道信息状态', 'channel:info:status', 5
+    UNION ALL SELECT 'admin_channel_capability_v1', 'admin_channel_capability_detail_v1', '渠道支付能力详情', 'channel:capability:detail', 1
+    UNION ALL SELECT 'admin_channel_capability_v1', 'admin_channel_capability_add_v1', '渠道支付能力新增', 'channel:capability:add', 2
+    UNION ALL SELECT 'admin_channel_capability_v1', 'admin_channel_capability_edit_v1', '渠道支付能力修改', 'channel:capability:edit', 3
+    UNION ALL SELECT 'admin_channel_capability_v1', 'admin_channel_capability_remove_v1', '渠道支付能力删除', 'channel:capability:remove', 4
+    UNION ALL SELECT 'admin_channel_capability_v1', 'admin_channel_capability_status_v1', '渠道支付能力状态', 'channel:capability:status', 5
+    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_detail_v1', '渠道限额详情', 'channel:limit:detail', 1
+    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_add_v1', '渠道限额新增', 'channel:limit:add', 2
+    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_edit_v1', '渠道限额修改', 'channel:limit:edit', 3
+    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_remove_v1', '渠道限额删除', 'channel:limit:remove', 4
+    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_status_v1', '渠道限额状态', 'channel:limit:status', 5
+    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_detail_v1', '渠道接入配置详情', 'channel:access:detail', 1
+    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_add_v1', '渠道接入配置新增', 'channel:access:add', 2
+    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_edit_v1', '渠道接入配置修改', 'channel:access:edit', 3
+    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_remove_v1', '渠道接入配置删除', 'channel:access:remove', 4
+    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_status_v1', '渠道接入配置状态', 'channel:access:status', 5
+) button ON button.parent_code = parent.menu_code
+WHERE parent.app_id = 1
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = 1
+        AND exists_menu.menu_code = button.menu_code
+        AND exists_menu.deleted = 0
+  );
+
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
-SELECT 1, 1, id, 0 FROM sys_menu WHERE id BETWEEN 280 AND 284 AND deleted = 0;
+SELECT 1, 1, id, 0
+FROM sys_menu
+WHERE app_id = 1
+  AND deleted = 0
+  AND (
+      id BETWEEN 280 AND 284
+      OR menu_code LIKE 'admin_channel_%_v1'
+  );
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
-SELECT 1, 1, id, 0 FROM sys_permission WHERE id BETWEEN 700 AND 735 AND deleted = 0;
+SELECT 1, 1, id, 0
+FROM sys_permission
+WHERE app_id = 1
+  AND deleted = 0
+  AND (permission_code = 'channel' OR permission_code LIKE 'channel:%');
