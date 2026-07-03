@@ -1,6 +1,7 @@
 package com.scott.payment.admin.entity.channel;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -32,6 +33,7 @@ public final class ChannelEntities {
         private Integer channelStatus;
         private Integer supportAcquiring;
         private Integer supportPayout;
+        @TableField("support_3ds")
         private Integer support3ds;
         private String defaultRequestUrl;
         private String defaultInteractionMode;
@@ -57,6 +59,7 @@ public final class ChannelEntities {
         private String businessType;
         private String paymentMethod;
         private String transactionType;
+        @TableField("support_3ds")
         private Integer support3ds;
         private Integer supportIncrementalAuthorization;
         private Integer capabilityStatus;

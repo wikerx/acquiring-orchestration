@@ -1,5 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
@@ -66,6 +67,16 @@ class AdminChannelServiceImplTest {
                 accessConfigMapper,
                 dictDataMapper
         );
+    }
+
+    @Test
+    void shouldMapSupport3dsFieldsToDatabaseColumn() throws NoSuchFieldException {
+        assertThat(ChannelInfoDO.class.getDeclaredField("support3ds")
+                .getAnnotation(TableField.class)
+                .value()).isEqualTo("support_3ds");
+        assertThat(ChannelPaymentCapabilityDO.class.getDeclaredField("support3ds")
+                .getAnnotation(TableField.class)
+                .value()).isEqualTo("support_3ds");
     }
 
     @Test
