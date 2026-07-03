@@ -20,6 +20,7 @@ import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantResponseKeyDO;
@@ -71,6 +72,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     private static final int DEFAULT_STATUS = 1;
     private static final int DEFAULT_RISK_LEVEL = 2;
     private static final int DEFAULT_KEY_SIZE = 2048;
+    private static final int MERCHANT_ID_GENERATE_MAX_ATTEMPTS = 5;
+    private static final String MERCHANT_ID_PREFIX = "M";
     private static final String JWT_ALGORITHM = "HS256";
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
     private static final DateTimeFormatter KEY_VERSION_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
@@ -207,11 +210,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO createMerchant(AdminMerchantSaveRequest request) {
-        String merchantId = normalizeMerchantId(request.getMerchantId());
-        BaseMerchantInfoDO existing = selectMerchantByMerchantId(merchantId);
-        if (existing != null) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户号已存在");
-        }
+        String merchantId = generateUniqueMerchantId();
         LocalDateTime now = LocalDateTime.now();
         BaseMerchantInfoDO row = new BaseMerchantInfoDO();
         row.setMerchantId(merchantId);
@@ -486,17 +485,17 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
     private void merge(BaseMerchantInfoDO row, AdminMerchantSaveRequest request) {
         row.setMerchantName(request.getMerchantName().trim());
-        row.setMerchantShortName(trimToNull(request.getMerchantShortName()));
+        row.setMerchantShortName(request.getMerchantShortName().trim());
         row.setMerchantCategoryCode(request.getMerchantCategoryCode().trim());
         row.setCountryCode(trimUpper(request.getCountryCode()));
         row.setRegionCode(trimToNull(request.getRegionCode()));
         row.setCity(trimToNull(request.getCity()));
         row.setAddressLine(trimToNull(request.getAddressLine()));
-        row.setContactEmail(trimToNull(request.getContactEmail()));
+        row.setContactEmail(request.getContactEmail().trim());
         row.setContactPhone(trimToNull(request.getContactPhone()));
         row.setSettlementCurrency(trimUpper(request.getSettlementCurrency()));
         row.setTimezone(request.getTimezone().trim());
-        row.setMerchantStatus(request.getMerchantStatus() == null ? DEFAULT_STATUS : request.getMerchantStatus());
+        row.setMerchantStatus(request.getMerchantStatus());
         row.setRiskLevel(request.getRiskLevel() == null ? DEFAULT_RISK_LEVEL : request.getRiskLevel());
         validateStatus(row.getMerchantStatus());
         validateRiskLevel(row.getRiskLevel());
@@ -793,6 +792,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
                 .eq(BaseMerchantInfoDO::getDeleted, NOT_DELETED)
                 .last("LIMIT 1"));
+    }
+
+    private String generateUniqueMerchantId() {
+        for (int attempt = 0; attempt < MERCHANT_ID_GENERATE_MAX_ATTEMPTS; attempt++) {
+            String merchantId = PaymentOrderNoGenerator.nextOrderNo(MERCHANT_ID_PREFIX);
+            if (selectMerchantByMerchantId(merchantId) == null) {
+                return merchantId;
+            }
+        }
+        throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "商户号生成失败，请稍后重试");
     }
 
     private BaseMerchantJwtKeyDO selectActiveJwtKey(String merchantId) {

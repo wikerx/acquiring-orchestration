@@ -1,10 +1,13 @@
 package com.scott.payment.admin.service.impl;
 
 import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
+import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
+import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.entity.base.MccEntities;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
+import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
@@ -25,6 +28,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -117,6 +122,35 @@ class AdminMerchantInfoServiceImplTest {
                     assertThat(item.getFractionDigits()).isEqualTo(2);
                     assertThat(item.getMinimumAmount()).isEqualByComparingTo("0.01");
                 });
+    }
+
+    @Test
+    void shouldGenerateMerchantIdWhenCreatingMerchant() {
+        when(merchantInfoMapper.selectOne(any())).thenReturn(null);
+        AdminMerchantSaveRequest request = new AdminMerchantSaveRequest();
+        request.setMerchantId("MANUAL-ID");
+        request.setMerchantName("Codex Test Merchant");
+        request.setMerchantShortName("Codex");
+        request.setMerchantCategoryCode("5411");
+        request.setCountryCode("usa");
+        request.setSettlementCurrency("usd");
+        request.setTimezone("Asia/Shanghai");
+        request.setMerchantStatus(1);
+        request.setRiskLevel(2);
+        request.setContactEmail("merchant@example.com");
+
+        AdminMerchantInfoDTO result = service.createMerchant(request);
+
+        assertThat(result.getMerchantId()).startsWith("M");
+        assertThat(result.getMerchantId()).isNotEqualTo("MANUAL-ID");
+        assertThat(result.getCountryCode()).isEqualTo("USA");
+        assertThat(result.getSettlementCurrency()).isEqualTo("USD");
+        verify(merchantInfoMapper).insert(argThat((BaseMerchantInfoDO row) ->
+                row != null
+                        && row.getMerchantId().equals(result.getMerchantId())
+                        && "Codex".equals(row.getMerchantShortName())
+                        && "merchant@example.com".equals(row.getContactEmail())
+        ));
     }
 
     private MccEntities.BaseMccLevel1DO level1() {
