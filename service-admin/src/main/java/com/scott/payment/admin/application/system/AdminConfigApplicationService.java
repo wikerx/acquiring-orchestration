@@ -28,6 +28,15 @@ import java.util.Locale;
  * @description : 管理后台系统参数配置应用服务
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminConfigApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Admin Config Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminConfigApplicationService {
 
@@ -36,9 +45,21 @@ public class AdminConfigApplicationService {
      */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminConfigService adminConfigService;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -63,6 +84,11 @@ public class AdminConfigApplicationService {
      * @param request 保存请求
      * @return 配置详情
      */
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysConfigDTO saveConfig(SysConfigSaveRequest request) {
         return adminConfigService.saveConfig(request);
     }
@@ -72,6 +98,11 @@ public class AdminConfigApplicationService {
      *
      * @param configKey 配置键
      * @return 配置详情
+     */
+    /**
+     * 获取系统管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param configKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public SysConfigDTO getConfigByKey(String configKey) {
         return adminConfigService.getConfigByKey(configKey);
@@ -83,6 +114,11 @@ public class AdminConfigApplicationService {
      * @param request 查询条件
      * @return 配置分页结果
      */
+    /**
+     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public PageResult<SysConfigDTO> pageConfigs(SysConfigQueryRequest request) {
         return adminConfigService.pageConfigs(request);
     }
@@ -93,6 +129,12 @@ public class AdminConfigApplicationService {
      * @param request 查询条件
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportConfigs(SysConfigQueryRequest request,
                               String operator,
@@ -122,6 +164,10 @@ public class AdminConfigApplicationService {
      * 删除系统配置。
      *
      * @param configKey 配置键
+     */
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param configKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void deleteConfig(String configKey) {
         adminConfigService.deleteConfig(configKey);

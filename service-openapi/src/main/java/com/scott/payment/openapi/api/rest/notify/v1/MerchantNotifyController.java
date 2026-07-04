@@ -16,6 +16,15 @@ import static com.scott.payment.component.core.model.ApiResult.success;
  * @description : 商户通知回调控制器
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantNotifyController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIMerchant Notify 管理接口，位于 service-openapi 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/openapi/v1/merchant-notifies")
 public class MerchantNotifyController {
@@ -24,6 +33,10 @@ public class MerchantNotifyController {
      * 重试商户通知。
      *
      * @return 重试受理结果
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/retry")
     public ApiResult<String> retry() {

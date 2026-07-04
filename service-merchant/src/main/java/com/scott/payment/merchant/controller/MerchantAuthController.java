@@ -32,6 +32,15 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @description : 商户管理系统登录注册与权限接口
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantAuthController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Merchant Auth 管理接口，位于 service-merchant 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/merchant/auth")
 public class MerchantAuthController {
@@ -60,6 +69,11 @@ public class MerchantAuthController {
     @RequiresPermission("merchant:account:create")
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.CREATE,
             operation = "注册商户系统账号", recordRequest = false, recordResponse = false)
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<AuthAccountDTO> register(@Valid @RequestBody AuthRegisterRequest request) {
         return success(merchantAuthApplicationService.register(request));
     }
@@ -71,6 +85,12 @@ public class MerchantAuthController {
      * @param servletRequest Servlet 请求
      * @return 验证码发送响应
      */
+    /**
+     * 发送商户管理消息或外部请求，并记录必要的执行结果。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param servletRequest 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/verify-code/send")
     public CommonResult<AuthVerifyCodeSendResponse> sendVerifyCode(@Valid @RequestBody AuthVerifyCodeSendRequest request,
                                                                    HttpServletRequest servletRequest) {
@@ -81,6 +101,10 @@ public class MerchantAuthController {
      * 查询商户登录页本地开发默认凭据。
      *
      * @return 默认商户号、账号和本地初始密码
+     */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/default-login-credential")
     public CommonResult<MerchantDefaultLoginCredentialDTO> defaultLoginCredential() {
@@ -94,6 +118,12 @@ public class MerchantAuthController {
      * @param servletRequest Servlet 请求
      * @return 登录响应
      */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param servletRequest 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/login")
     public CommonResult<AuthLoginResponse> login(@Valid @RequestBody AuthLoginRequest request,
                                                  HttpServletRequest servletRequest) {
@@ -105,6 +135,11 @@ public class MerchantAuthController {
      *
      * @param authorization Authorization 请求头
      * @return 当前登录账号、菜单和权限
+     */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/me")
     @RequiresPermission("merchant:dashboard:view")
@@ -122,6 +157,11 @@ public class MerchantAuthController {
     @RequiresPermission("merchant:dashboard:view")
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.UPDATE,
             operation = "商户系统账号退出登录", recordRequest = false, recordResponse = false)
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {
         merchantAuthApplicationService.logout(authorization);
         return success();

@@ -7,10 +7,13 @@ import org.springframework.stereotype.Component;
 import java.math.BigInteger;
 
 /**
- * 分表物理表 AUTO_INCREMENT 起始值计算器。
- *
- * <p>ID 格式为 yyyyQQ + 固定宽度自增序号，例如 202602000000000001。
- * 不同逻辑表之间允许 ID 重复，因此该类只计算单张物理表的安全范围。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingAutoIncrementValueCalculator
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Auto Increment Value Calculator，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Component
 public class ShardingAutoIncrementValueCalculator {
@@ -23,6 +26,12 @@ public class ShardingAutoIncrementValueCalculator {
      * @param properties 分表配置
      * @param quarter    目标季度
      * @return AUTO_INCREMENT 范围
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param quarter 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingAutoIncrementRange calculate(PaymentQuarterShardingProperties properties, ShardingQuarter quarter) {
         if (quarter == null) {

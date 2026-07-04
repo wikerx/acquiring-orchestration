@@ -33,6 +33,13 @@ public final class HttpClientUtils {
      * @param headers 请求头
      * @return HTTP 响应结果
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param url 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param headers 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static HttpResponseResult get(String url, Map<String, String> headers) {
         return get(url, headers, DEFAULT_TIMEOUT_MILLIS);
     }
@@ -44,6 +51,14 @@ public final class HttpClientUtils {
      * @param headers       请求头
      * @param timeoutMillis 超时时间，单位毫秒
      * @return HTTP 响应结果
+     */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param url 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param headers 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param timeoutMillis 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static HttpResponseResult get(String url, Map<String, String> headers, int timeoutMillis) {
         HttpRequest request = HttpRequest.get(url).timeout(timeoutMillis);
@@ -59,6 +74,14 @@ public final class HttpClientUtils {
      * @param body    请求体对象
      * @return HTTP 响应结果
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param url 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param headers 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static HttpResponseResult postJson(String url, Map<String, String> headers, Object body) {
         return postJson(url, headers, body, DEFAULT_TIMEOUT_MILLIS);
     }
@@ -71,6 +94,15 @@ public final class HttpClientUtils {
      * @param body          请求体对象
      * @param timeoutMillis 超时时间，单位毫秒
      * @return HTTP 响应结果
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param url 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param headers 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param timeoutMillis 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static HttpResponseResult postJson(String url, Map<String, String> headers, Object body, int timeoutMillis) {
         HttpRequest request = HttpRequest.post(url)

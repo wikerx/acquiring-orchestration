@@ -12,7 +12,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 收银台国家地区配置应用服务测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : CheckoutCountryConfigApplicationServiceTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收银台国家地区配置应用服务测试。
+ * @status : create
  */
 class CheckoutCountryConfigApplicationServiceTest {
 

@@ -34,10 +34,22 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>岗位分页、详情和维护请求统一通过
  * {@link AdminPostApplicationService} 编排，Controller 保持为薄入口层。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminPostController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Admin Post 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/admin/system/post")
 public class AdminPostController {
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminPostApplicationService adminPostApplicationService;
 
     /**
@@ -74,6 +86,10 @@ public class AdminPostController {
      *
      * @return 全部启用岗位
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/all")
     @RequiresPermission("system:post:list")
     public CommonResult<List<SysPostDO>> all() {
@@ -86,6 +102,11 @@ public class AdminPostController {
      * @param id 岗位主键 ID
      * @return 岗位实体
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/{id}")
     @RequiresPermission("system:post:query")
     public CommonResult<SysPostDO> detail(@PathVariable("id") Long id) {
@@ -94,6 +115,10 @@ public class AdminPostController {
 
     /**
      * 导出岗位列表。
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @GetMapping("/export")
     @RequiresPermission("system:post:export")
@@ -107,6 +132,11 @@ public class AdminPostController {
      *
      * @param post 岗位实体
      * @return 新增后的岗位
+     */
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param post 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping
     @RequiresPermission("system:post:add")
@@ -122,6 +152,12 @@ public class AdminPostController {
      * @param input 岗位实体
      * @return 更新后的岗位
      */
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PutMapping("/{id}")
     @RequiresPermission("system:post:edit")
     @OperationLog(moduleName = "岗位管理", businessType = OperationTypeConstants.UPDATE, operation = "修改岗位")
@@ -134,6 +170,11 @@ public class AdminPostController {
      *
      * @param id 岗位主键 ID
      * @return 空响应
+     */
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/{id}")
     @RequiresPermission("system:post:remove")

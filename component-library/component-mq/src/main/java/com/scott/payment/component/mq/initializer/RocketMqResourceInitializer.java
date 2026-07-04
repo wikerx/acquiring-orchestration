@@ -17,6 +17,15 @@ import java.util.List;
  * @description : 声明式 RocketMQ 资源初始化器
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RocketMqResourceInitializer
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Rocket Mq Resource Initializer，位于 component-library/component-mq 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Slf4j
 public class RocketMqResourceInitializer {
 
@@ -44,6 +53,9 @@ public class RocketMqResourceInitializer {
 
     /**
      * 执行声明式资源检查与初始化。
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
      */
     public void initialize() {
         if (!properties.isEnabled() || !properties.isScanOnStartup()) {

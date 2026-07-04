@@ -17,6 +17,15 @@ import java.math.BigDecimal;
  * @description : 开放接口请求对象转换器
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiRequestConverter
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIOpen Api Request Converter，位于 service-openapi 的对象转换层，用于定义调用契约和职责边界。
+ * @status : create
+ */
 @Mapper(componentModel = "spring")
 public interface OpenApiRequestConverter {
 

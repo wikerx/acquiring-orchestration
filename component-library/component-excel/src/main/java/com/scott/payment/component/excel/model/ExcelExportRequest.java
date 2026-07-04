@@ -19,6 +19,15 @@ import java.util.Locale;
  * <p>封装统一导出所需的文件名、标题、导出人、查询条件和导出数据，
  * 让业务层只关注数据准备，不直接拼装 EasyExcel 细节。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ExcelExportRequest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Excel Export 请求对象，位于 component-library/component-excel 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Getter
 @Builder
 public class ExcelExportRequest<T> {

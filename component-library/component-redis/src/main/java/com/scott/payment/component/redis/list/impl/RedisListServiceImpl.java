@@ -20,6 +20,15 @@ import java.util.List;
  * @description : Redis List 数据结构服务实现
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisListServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Redis List Service Impl，位于 component-library/component-redis 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 @ConditionalOnBean(RedisTemplate.class)
 public class RedisListServiceImpl implements RedisListService {
@@ -45,6 +54,12 @@ public class RedisListServiceImpl implements RedisListService {
      * @param value 元素值
      * @return 压入后的列表长度
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public long leftPush(String key, Object value) {
         RedisKeySupport.requireKey(key);
@@ -59,6 +74,12 @@ public class RedisListServiceImpl implements RedisListService {
      * @param value 元素值
      * @return 压入后的列表长度
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public long rightPush(String key, Object value) {
         RedisKeySupport.requireKey(key);
@@ -72,6 +93,12 @@ public class RedisListServiceImpl implements RedisListService {
      * @param key    Redis Key
      * @param values 元素集合
      * @return 压入后的列表长度
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param values 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long leftPushAll(String key, Collection<?> values) {
@@ -89,6 +116,12 @@ public class RedisListServiceImpl implements RedisListService {
      * @param key    Redis Key
      * @param values 元素集合
      * @return 压入后的列表长度
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param values 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long rightPushAll(String key, Collection<?> values) {
@@ -108,6 +141,13 @@ public class RedisListServiceImpl implements RedisListService {
      * @param end   结束下标，-1 表示末尾
      * @return 列表元素
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param start 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param end 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<Object> range(String key, long start, long end) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -124,6 +164,12 @@ public class RedisListServiceImpl implements RedisListService {
      * @param index 元素下标
      * @return 元素值；不存在时返回 null
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param index 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Object index(String key, long index) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -137,6 +183,11 @@ public class RedisListServiceImpl implements RedisListService {
      *
      * @param key Redis Key
      * @return 元素值；不存在时返回 null
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public Object leftPop(String key) {
@@ -152,6 +203,11 @@ public class RedisListServiceImpl implements RedisListService {
      * @param key Redis Key
      * @return 元素值；不存在时返回 null
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Object rightPop(String key) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -165,6 +221,11 @@ public class RedisListServiceImpl implements RedisListService {
      *
      * @param key Redis Key
      * @return 列表长度
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long size(String key) {
@@ -182,6 +243,12 @@ public class RedisListServiceImpl implements RedisListService {
      * @param index 元素下标
      * @param value 新值
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param index 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void set(String key, long index, Object value) {
         RedisKeySupport.requireKey(key);
@@ -195,6 +262,13 @@ public class RedisListServiceImpl implements RedisListService {
      * @param count 删除数量，0 表示全部匹配元素
      * @param value 元素值
      * @return 删除数量
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param count 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long remove(String key, long count, Object value) {
@@ -211,6 +285,12 @@ public class RedisListServiceImpl implements RedisListService {
      * @param key Redis Key
      * @param ttl 过期时间
      * @return 是否设置成功
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param ttl 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public boolean expire(String key, Duration ttl) {

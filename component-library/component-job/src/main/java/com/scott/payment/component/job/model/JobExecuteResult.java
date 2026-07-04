@@ -11,7 +11,15 @@ import lombok.Data;
  * @description : 调度中心任务执行结果对象
  * @status : create
  */
-
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobExecuteResult
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Job Execute Result，位于 component-library/component-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 public class JobExecuteResult {
 
@@ -51,6 +59,11 @@ public class JobExecuteResult {
      * @param message 成功说明
      * @return 成功任务执行结果
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param message 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static JobExecuteResult success(String message) {
         JobExecuteResult result = new JobExecuteResult();
         result.setSuccess(true);
@@ -64,6 +77,10 @@ public class JobExecuteResult {
      *
      * @return 成功任务执行结果
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static JobExecuteResult success() {
         return success("success");
     }
@@ -74,6 +91,12 @@ public class JobExecuteResult {
      * @param message 成功说明
      * @param data    附加数据
      * @return 成功任务执行结果
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param message 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param data 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static JobExecuteResult success(String message, Object data) {
         JobExecuteResult result = success(message);
@@ -86,6 +109,11 @@ public class JobExecuteResult {
      *
      * @param message 受理说明
      * @return 已受理结果
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param message 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static JobExecuteResult accepted(String message) {
         JobExecuteResult result = new JobExecuteResult();
@@ -101,6 +129,12 @@ public class JobExecuteResult {
      * @param errorCode    错误码
      * @param errorMessage 错误详情
      * @return 失败结果
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param errorCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param errorMessage 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static JobExecuteResult failed(String errorCode, String errorMessage) {
         JobExecuteResult result = new JobExecuteResult();

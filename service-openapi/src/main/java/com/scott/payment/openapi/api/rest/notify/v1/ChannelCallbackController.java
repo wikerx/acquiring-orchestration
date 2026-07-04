@@ -17,6 +17,15 @@ import static com.scott.payment.component.core.model.ApiResult.success;
  * @description : 渠道回调入口控制器
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ChannelCallbackController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIChannel Callback 管理接口，位于 service-openapi 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/channel/v1/callbacks")
 public class ChannelCallbackController {
@@ -26,6 +35,11 @@ public class ChannelCallbackController {
      *
      * @param channelCode 渠道编码
      * @return 回调受理结果
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param channelCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/{channelCode}")
     public ApiResult<String> receive(@PathVariable("channelCode") String channelCode) {

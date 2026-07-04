@@ -23,23 +23,65 @@ import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 /**
- * OpenAPI 商户密钥材料统一服务，负责查询密钥状态并生成复制文本、PEM 文件和 SDK 接入包。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiMerchantKeyMaterialService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : OpenAPI 商户密钥材料统一服务，负责查询密钥状态并生成复制文本、PEM 文件和 SDK 接入包。
+ * @status : create
  */
 public class OpenApiMerchantKeyMaterialService {
 
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int NOT_DELETED = 0;
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int ENABLED = 1;
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int COPY_EXPIRE_SECONDS = 60;
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String JWT_ALGORITHM = "HS256";
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
     private static final DateTimeFormatter KEY_VERSION_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    /**
+     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMerchantInfoMapper merchantInfoMapper;
+    /**
+     * 商户 OpenAPI敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final BaseMerchantJwtKeyMapper jwtKeyMapper;
+    /**
+     * 商户 OpenAPI敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final BasePlatformPayloadKeyMapper platformPayloadKeyMapper;
+    /**
+     * 商户 OpenAPI敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
+    /**
+     * 商户 OpenAPI敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
+    /**
+     * 商户 OpenAPI敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final OpenApiKeyExportService keyExportService;
+    /**
+     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final OpenApiMerchantKeyExportProperties exportProperties;
 
     /**
@@ -75,6 +117,11 @@ public class OpenApiMerchantKeyMaterialService {
      * @param merchantId 商户号
      * @return 密钥材料展示视图
      */
+    /**
+     * 查询商户 OpenAPI列表或分页数据，供页面筛选和展示使用。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public OpenApiMerchantKeyMaterialVO queryMaterial(String merchantId) {
         MaterialSnapshot snapshot = loadSnapshot(merchantId);
         OpenApiMerchantKeyMaterialVO vo = new OpenApiMerchantKeyMaterialVO();
@@ -101,6 +148,12 @@ public class OpenApiMerchantKeyMaterialService {
      * @param request    导出请求
      * @return 可复制文本
      */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public OpenApiKeyCopyResponse copy(String merchantId, OpenApiKeyExportRequest request) {
         OpenApiKeyType keyType = requireKeyType(request);
         OpenApiKeyExportFormat format = request.getExportFormat() == null ? OpenApiKeyExportFormat.TEXT : request.getExportFormat();
@@ -118,6 +171,13 @@ public class OpenApiMerchantKeyMaterialService {
      * @param keyType    密钥材料类型
      * @param format     下载格式
      * @return 下载文件
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param keyType 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param format 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public OpenApiKeyDownloadFile download(String merchantId, OpenApiKeyType keyType, OpenApiKeyExportFormat format) {
         MaterialSnapshot snapshot = loadSnapshot(merchantId);
@@ -169,6 +229,12 @@ public class OpenApiMerchantKeyMaterialService {
      * @param keyType    轮换类型
      * @return 最新密钥材料概要
      */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param keyType 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Transactional(rollbackFor = Exception.class)
     public OpenApiMerchantKeyMaterialVO rotate(String merchantId, OpenApiKeyType keyType) {
         BaseMerchantInfoDO merchant = selectMerchant(merchantId);
@@ -198,6 +264,11 @@ public class OpenApiMerchantKeyMaterialService {
      *
      * @param merchantId 商户号
      * @return 最新密钥材料概要
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Transactional(rollbackFor = Exception.class)
     public OpenApiMerchantKeyMaterialVO ensureMerchantResponsePrivateKey(String merchantId) {

@@ -11,7 +11,15 @@ import lombok.Data;
  * @description : 管理后台调用调度中心时使用的任务保存请求对象
  * @status : create
  */
-
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobTaskRemoteSaveRequest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Job Task Remote Save 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 public class JobTaskRemoteSaveRequest {
 

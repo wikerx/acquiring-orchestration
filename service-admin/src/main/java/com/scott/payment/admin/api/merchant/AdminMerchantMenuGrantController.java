@@ -18,12 +18,21 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台商户菜单授权接口。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantMenuGrantController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Admin Merchant Menu Grant 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/admin/merchant-menu-grants")
 public class AdminMerchantMenuGrantController {
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminMerchantMenuGrantApplicationService adminMerchantMenuGrantApplicationService;
 
     /**
@@ -40,6 +49,11 @@ public class AdminMerchantMenuGrantController {
      *
      * @param merchantId 商户号
      * @return 授权信息
+     */
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/{merchantId}")
     @RequiresPermission("merchant:menu-grant:list")
@@ -58,6 +72,12 @@ public class AdminMerchantMenuGrantController {
     @RequiresPermission("merchant:menu-grant:save")
     @OperationLog(moduleName = "商户菜单授权", businessType = OperationTypeConstants.UPDATE,
             operation = "保存商户菜单授权", recordRequest = false, recordResponse = false)
+    /**
+     * 创建或保存商户管理数据，保持请求校验、默认值和审计字段一致。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<Void> saveGrant(@PathVariable("merchantId") String merchantId,
                                         @Valid @RequestBody AdminMerchantMenuGrantSaveRequest request) {
         adminMerchantMenuGrantApplicationService.saveGrant(merchantId, request);

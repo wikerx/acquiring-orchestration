@@ -51,24 +51,57 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 管理后台用户领域服务实现。
- *
- * <p>负责后台用户维护、部门岗位关系、状态变更、密码重置和角色授权等领域规则，
- * 不承担控制器协议适配和页面交互逻辑。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminUserServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin User Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminUserServiceImpl implements AdminUserService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long NOT_DELETED = 0L;
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysUserMapper sysUserMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysDeptMapper sysDeptMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysPostMapper sysPostMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysUserPostMapper sysUserPostMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRoleMapper sysRoleMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAccountRoleMapper sysAccountRoleMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysLoginSessionMapper sysLoginSessionMapper;
 
     /**
@@ -110,6 +143,11 @@ public class AdminUserServiceImpl implements AdminUserService {
      * @param request 查询条件
      * @return 用户分页结果
      */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request) {
@@ -146,6 +184,11 @@ public class AdminUserServiceImpl implements AdminUserService {
         );
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<SysUserAccountDTO> listUsers(SysUserAccountQueryRequest request) {
@@ -186,6 +229,11 @@ public class AdminUserServiceImpl implements AdminUserService {
      *
      * @param request 新增请求
      * @return 用户详情
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -242,6 +290,11 @@ public class AdminUserServiceImpl implements AdminUserService {
      * @param request 更新请求
      * @return 用户详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -280,6 +333,10 @@ public class AdminUserServiceImpl implements AdminUserService {
      *
      * @param request 状态请求
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -304,6 +361,10 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 重置后台用户密码，并强制注销已有会话。
      *
      * @param request 重置密码请求
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -333,6 +394,11 @@ public class AdminUserServiceImpl implements AdminUserService {
      * @param accountId 账号主键
      * @return 角色授权结果
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param accountId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public SysUserRoleAuthDTO userRoles(Long accountId) {
@@ -349,6 +415,10 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 保存后台用户角色授权，并使旧会话失效以便权限即时生效。
      *
      * @param request 角色授权请求
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -385,6 +455,10 @@ public class AdminUserServiceImpl implements AdminUserService {
         logoutSessions(app.getId(), account.getId(), now);
     }
 
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param accountIds 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)

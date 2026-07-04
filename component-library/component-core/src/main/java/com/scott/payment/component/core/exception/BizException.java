@@ -37,6 +37,10 @@ public class BizException extends RuntimeException {
      *
      * @return 业务错误码
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String getCode() {
         return code;
     }

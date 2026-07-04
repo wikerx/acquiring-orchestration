@@ -29,6 +29,10 @@ public final class TraceContext {
      *
      * @param traceId 链路追踪号
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param traceId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     public static void setTraceId(String traceId) {
         TRACE_ID.set(traceId);
     }
@@ -38,12 +42,19 @@ public final class TraceContext {
      *
      * @return 链路追踪号，未设置时返回 null
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static String getTraceId() {
         return TRACE_ID.get();
     }
 
     /**
      * 清理当前线程链路追踪号，避免线程池复用时串号。
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
      */
     public static void clear() {
         TRACE_ID.remove();

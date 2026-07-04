@@ -48,37 +48,106 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * MCC 管理后台应用服务。
- *
- * <p>MCC 最终模型为 base_mcc_level1 -> base_mcc_level2 -> base_mcc_code。
- * MCC Code 本身是叶子节点，避免形成额外中间层导致分类口径和页面层级不一致。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseMccApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 基础数据Admin Base Mcc Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminBaseMccApplicationService {
 
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int ENABLED = 1;
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DISABLED = 0;
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String LEVEL1 = "LEVEL1";
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String LEVEL2 = "LEVEL2";
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String MCC_CODE = "MCC_CODE";
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String APPLY_SCOPE_ALL = "ALL";
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String APPLY_SCOPE_SPECIFIC = "SPECIFIC";
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String CARD_BRAND_DICT = "card_brand";
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String DEFAULT_LOCALE = "zh-CN";
+    /**
+     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String FOUR_DIGIT_MCC = "^[0-9]{4}$";
 
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMccLevel1Mapper level1Mapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMccLevel2Mapper level2Mapper;
+    /**
+     * 基础数据编码或编号字段，用于业务识别、查询和幂等关联。
+     */
     private final BaseMccCodeMapper codeMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMccRiskPolicyMapper riskPolicyMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysDictDataMapper dictDataMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminDictService adminDictService;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final IsoCountryMapper isoCountryMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMerchantInfoMapper merchantInfoMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -113,6 +182,11 @@ public class AdminBaseMccApplicationService {
      *
      * <p>搜索命中 MCC Code 时会保留对应二级和一级分类，保证页面仍展示完整树路径。</p>
      */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public List<MccVO.MccTreeNodeVO> tree(MccRequests.MccTreeQueryRequest request) {
         MccRequests.MccTreeQueryRequest query = request == null ? new MccRequests.MccTreeQueryRequest() : request;
         List<MccEntities.BaseMccLevel1DO> level1Rows = level1Mapper.selectList(baseLevel1Query());
@@ -139,6 +213,11 @@ public class AdminBaseMccApplicationService {
     /**
      * 新增或编辑 MCC 一级、二级分类。
      */
+    /**
+     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccTreeNodeVO saveCategory(MccRequests.MccCategorySaveRequest request) {
         String nodeType = normalizeRequired(request.getNodeType(), "nodeType is required");
@@ -151,6 +230,10 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 删除 MCC 分类。存在下级分类或 MCC Code 时不允许删除。
+     */
+    /**
+     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteCategory(MccRequests.MccDeleteRequest request) {
@@ -178,6 +261,10 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 更新分类或 MCC 编码状态。
+     */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(MccRequests.MccStatusUpdateRequest request) {
@@ -207,6 +294,11 @@ public class AdminBaseMccApplicationService {
     /**
      * 新增 MCC 编码。
      */
+    /**
+     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccCodeVO createCode(MccRequests.MccCodeSaveRequest request) {
         validateCodeRequest(request, true);
@@ -224,6 +316,11 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 编辑 MCC 编码。编码本身创建后不允许修改，避免破坏风险策略和商户资料引用。
+     */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccCodeVO updateCode(MccRequests.MccCodeSaveRequest request) {
@@ -244,12 +341,21 @@ public class AdminBaseMccApplicationService {
     /**
      * 查询 MCC 编码详情。
      */
+    /**
+     * 获取基础数据明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public MccVO.MccCodeVO getCode(Long id) {
         return toCodeVO(getCodeById(id));
     }
 
     /**
      * 删除 MCC 编码。存在风险策略或商户资料引用时不允许删除。
+     */
+    /**
+     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteCode(MccRequests.MccDeleteRequest request) {
@@ -274,6 +380,11 @@ public class AdminBaseMccApplicationService {
     /**
      * 分页查询 MCC 风险策略。
      */
+    /**
+     * 查询基础数据列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public PageResult<MccVO.MccRiskPolicyVO> pagePolicies(MccRequests.MccRiskPolicyQueryRequest request) {
         MccRequests.MccRiskPolicyQueryRequest query = request == null ? new MccRequests.MccRiskPolicyQueryRequest() : request;
         Page<MccEntities.BaseMccRiskPolicyDO> page = riskPolicyMapper.selectPage(
@@ -286,6 +397,11 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 新增 MCC 风险策略。card_brand 不允许保存 ALL，页面“所有卡品牌”会展开为真实卡品牌。
+     */
+    /**
+     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Transactional(rollbackFor = Exception.class)
     public List<MccVO.MccRiskPolicyVO> createPolicies(MccRequests.MccRiskPolicySaveRequest request) {
@@ -309,6 +425,11 @@ public class AdminBaseMccApplicationService {
     /**
      * 编辑单条 MCC 风险策略。
      */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccRiskPolicyVO updatePolicy(MccRequests.MccRiskPolicySaveRequest request) {
         if (request.getId() == null) {
@@ -331,12 +452,21 @@ public class AdminBaseMccApplicationService {
     /**
      * 查询风险策略详情。
      */
+    /**
+     * 获取基础数据明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public MccVO.MccRiskPolicyVO getPolicyDetail(Long id) {
         return toPolicyVO(getPolicy(id));
     }
 
     /**
      * 更新风险策略状态。
+     */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Transactional(rollbackFor = Exception.class)
     public void updatePolicyStatus(MccRequests.MccStatusUpdateRequest request) {
@@ -351,6 +481,10 @@ public class AdminBaseMccApplicationService {
     /**
      * 删除风险策略。
      */
+    /**
+     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Transactional(rollbackFor = Exception.class)
     public void deletePolicy(MccRequests.MccDeleteRequest request) {
         MccEntities.BaseMccRiskPolicyDO row = getPolicy(request.getId());
@@ -363,6 +497,10 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 查询 MCC 概览统计。
+     */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public MccVO.MccOverviewVO overview() {
         MccVO.MccOverviewVO overview = new MccVO.MccOverviewVO();
@@ -378,6 +516,10 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 查询页面下拉选项。
+     */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public Map<String, Object> options() {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -395,6 +537,12 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 导出 MCC 编码。
+     */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportCodes(MccRequests.MccTreeQueryRequest request, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();

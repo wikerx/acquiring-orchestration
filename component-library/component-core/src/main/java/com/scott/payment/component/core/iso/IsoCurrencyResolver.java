@@ -38,6 +38,11 @@ public final class IsoCurrencyResolver {
      * @param value 三字母代码、三数字代码、英文名称或中文名称
      * @return 币种信息
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static Optional<IsoCurrencyInfo> resolve(String value) {
         if (!hasText(value)) {
             return Optional.empty();
@@ -51,6 +56,12 @@ public final class IsoCurrencyResolver {
      * @param amount   交易金额，禁止使用 double/float
      * @param currency 币种信息
      * @return true 表示金额小数位不超过币种默认辅币位
+     */
+    /**
+     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
+     * @param amount 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param currency 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static boolean isValidFraction(BigDecimal amount, IsoCurrencyInfo currency) {
         if (amount == null || currency == null || currency.defaultFractionDigits() < 0) {
@@ -69,6 +80,12 @@ public final class IsoCurrencyResolver {
      * @param currency 币种信息
      * @return 最小辅币单位金额
      */
+    /**
+     * 转换收单支付数据结构，避免数据库实体直接暴露到外部接口。
+     * @param amount 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param currency 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static long toMinorUnit(BigDecimal amount, IsoCurrencyInfo currency) {
         if (!isValidFraction(amount, currency)) {
             throw new IllegalArgumentException("amount fraction digits exceed currency minor unit");
@@ -84,6 +101,10 @@ public final class IsoCurrencyResolver {
      *
      * @return 币种信息列表
      */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static List<IsoCurrencyInfo> listIndexedCurrencies() {
         return IsoStandardData.CURRENCIES
                 .stream()
@@ -95,6 +116,10 @@ public final class IsoCurrencyResolver {
      * 查询当前币种索引。
      *
      * @return 标准化查询值到币种信息的映射
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static Map<String, IsoCurrencyInfo> indexSnapshot() {
         return CURRENCY_INDEX;

@@ -8,11 +8,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 支付系统季度分表配置模型。
- *
- * <p>该配置绑定 Nacos {@code sharding-{env}.yaml} 中的
- * {@code global-payment.sharding} 节点，描述季度分表规则、物理表维护策略
- * 和 AUTO_INCREMENT 前缀规则。第一版治理能力只读取并校验配置，不把测试分表接入真实交易写入链路。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentQuarterShardingProperties
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Payment Quarter Sharding 配置属性，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 @Component

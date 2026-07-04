@@ -15,6 +15,15 @@ import org.springframework.core.Ordered;
  * @description : 网关路由配置，统一声明外部请求可以进入系统的路径规则
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : GatewayRouteConfig
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Gateway Route 配置，位于 service-gateway 的配置层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Configuration
 public class GatewayRouteConfig {
 
@@ -99,6 +108,11 @@ public class GatewayRouteConfig {
      *
      * @param builder Spring Cloud Gateway 路由构建器
      * @return 网关路由集合
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param builder 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     public RouteLocator openApiRoutes(RouteLocatorBuilder builder) {

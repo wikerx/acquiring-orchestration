@@ -6,7 +6,13 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantUserQueryRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * 管理端商户用户只读查询服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantUserService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 管理端商户用户只读查询服务。
+ * @status : create
  */
 public interface AdminMerchantUserService {
 

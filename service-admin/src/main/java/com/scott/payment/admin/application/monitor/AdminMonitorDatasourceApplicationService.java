@@ -41,10 +41,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 数据源监控应用服务。
- *
- * <p>负责聚合动态数据源运行状态、读写分组关系和分表配置快照，
- * 为管理后台提供贴合当前 Hikari + dynamic-datasource + 分表架构的监控视图。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMonitorDatasourceApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 监控治理Admin Monitor Datasource Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminMonitorDatasourceApplicationService {
@@ -136,6 +139,10 @@ public class AdminMonitorDatasourceApplicationService {
      *
      * @return 数据源监控响应
      */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public DataSourceMonitorResponse snapshot() {
         DataSourceMonitorResponse response = new DataSourceMonitorResponse();
         Map<String, DataSource> runtimeDataSources = runtimeDataSources();
@@ -157,6 +164,11 @@ public class AdminMonitorDatasourceApplicationService {
      *
      * @param operator 操作人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportSnapshot(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();

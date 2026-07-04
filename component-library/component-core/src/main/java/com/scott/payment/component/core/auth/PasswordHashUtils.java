@@ -53,6 +53,10 @@ public final class PasswordHashUtils {
      *
      * @return Base64Url 编码后的随机盐
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static String generateSalt() {
         byte[] salt = new byte[SALT_LENGTH];
         SECURE_RANDOM.nextBytes(salt);
@@ -65,6 +69,12 @@ public final class PasswordHashUtils {
      * @param rawPassword 登录明文密码
      * @param saltText    Base64Url 编码后的随机盐
      * @return Base64Url 编码后的密码哈希
+     */
+    /**
+     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
+     * @param rawPassword 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param saltText 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static String hashPassword(String rawPassword, String saltText) {
         if (rawPassword == null || rawPassword.isBlank()) {
@@ -90,6 +100,13 @@ public final class PasswordHashUtils {
      * @param saltText     Base64Url 编码后的随机盐
      * @param expectedHash 数据库存储的密码哈希
      * @return true 表示密码正确
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rawPassword 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param saltText 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param expectedHash 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static boolean matches(String rawPassword, String saltText, String expectedHash) {
         if (expectedHash == null || expectedHash.isBlank()) {

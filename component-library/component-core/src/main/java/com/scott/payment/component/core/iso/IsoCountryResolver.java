@@ -52,6 +52,11 @@ public final class IsoCountryResolver {
      * @param value 国家代码、数字码、英文名、中文名或常用别名
      * @return 国家地区信息
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static Optional<IsoCountryInfo> resolve(String value) {
         if (!hasText(value)) {
             return Optional.empty();
@@ -66,6 +71,12 @@ public final class IsoCountryResolver {
      * @param supportedLocales 系统支持的 Locale 列表
      * @return 命中的 Locale；没有命中时返回空
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param acceptLanguage 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param supportedLocales 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static Optional<Locale> matchBrowserLocale(String acceptLanguage, Collection<Locale> supportedLocales) {
         if (!hasText(acceptLanguage) || supportedLocales == null || supportedLocales.isEmpty()) {
             return Optional.empty();
@@ -79,6 +90,11 @@ public final class IsoCountryResolver {
      *
      * @param acceptLanguage 浏览器 Accept-Language 头
      * @return 国家地区信息；仅语言无地区时返回空
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param acceptLanguage 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static Optional<IsoCountryInfo> resolveCountryFromBrowserLanguage(String acceptLanguage) {
         if (!hasText(acceptLanguage)) {
@@ -99,6 +115,10 @@ public final class IsoCountryResolver {
      *
      * @return 国家地区信息列表
      */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static List<IsoCountryInfo> listIndexedCountries() {
         return IsoStandardData.COUNTRIES
                 .stream()
@@ -110,6 +130,10 @@ public final class IsoCountryResolver {
      * 查询当前国家索引快照。
      *
      * @return 标准化查询值到国家地区信息的映射
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static Map<String, IsoCountryInfo> indexSnapshot() {
         return COUNTRY_INDEX;

@@ -37,24 +37,51 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 管理后台渠道服务测试，覆盖渠道能力卡品牌绑定和限额规则校验。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminChannelServiceImplTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Channel Service Impl Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @ExtendWith(MockitoExtension.class)
 class AdminChannelServiceImplTest {
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ChannelInfoMapper channelInfoMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ChannelPaymentCapabilityMapper capabilityMapper;
+    /**
+     * 收单支付币种字段，通常使用 ISO 4217 三位字母代码，不能为空时由上层校验。
+     */
     @Mock
     private ChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ChannelLimitRuleMapper limitRuleMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private SysDictDataMapper dictDataMapper;
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private AdminChannelServiceImpl service;
 
     @BeforeEach

@@ -38,6 +38,15 @@ import java.util.Locale;
  * <p>统一处理响应头、导出标题、表头国际化、列宽样式和空数据导出，
  * 让业务代码只负责准备导出 DTO 数据。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ExcelExportServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Excel Export Service Impl，位于 component-library/component-excel 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class ExcelExportServiceImpl implements ExcelExportService {
 
@@ -46,8 +55,17 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      */
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelI18nMessageResolver messageResolver;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelExportMetadataResolver metadataResolver;
+    /**
+     * 收单支付金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     private final ExcelStyleStrategyFactory styleStrategyFactory;
 
     /**
@@ -65,6 +83,11 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         this.styleStrategyFactory = styleStrategyFactory;
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public <T> void export(ExcelExportRequest<T> request, HttpServletResponse response) {
         Locale locale = resolveLocale(request);

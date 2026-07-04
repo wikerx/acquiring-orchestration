@@ -17,7 +17,13 @@ import java.net.URI;
 import java.util.regex.Pattern;
 
 /**
- * service-payout REST 客户端，支持 Nacos 服务名负载均衡和本地直连。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PayoutInternalRestClient
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIPayout Internal Rest Client，位于 service-openapi 的外部调用层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class PayoutInternalRestClient implements PayoutInternalClient {
@@ -77,6 +83,11 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
      *
      * @param requestDTO 创建代付内部请求
      * @return 创建代付内部响应
+     */
+    /**
+     * 创建或保存商户 OpenAPI数据，保持请求校验、默认值和审计字段一致。
+     * @param requestDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PayoutCreateClientResponseDTO createPayout(PayoutCreateClientRequestDTO requestDTO) {

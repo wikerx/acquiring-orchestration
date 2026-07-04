@@ -17,14 +17,37 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @description : 调度中心执行节点上下文
  * @status : create
  */
-
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobNodeContext
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Job Node Context，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Component
 public class JobNodeContext {
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final String appName;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final String configuredHost;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final int port;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final Registration registration;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final JobSchedulerProperties jobSchedulerProperties;
     private final AtomicInteger runningCount = new AtomicInteger();
 
@@ -54,6 +77,10 @@ public class JobNodeContext {
      *
      * @return 节点唯一标识
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String nodeId() {
         return appName + "@" + host() + ":" + port;
     }
@@ -63,6 +90,10 @@ public class JobNodeContext {
      *
      * @return 服务名称
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String appName() {
         return appName;
     }
@@ -71,6 +102,10 @@ public class JobNodeContext {
      * 返回当前主机地址。
      *
      * @return 主机地址
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String host() {
         if (configuredHost != null && !configuredHost.isBlank()) {
@@ -91,6 +126,10 @@ public class JobNodeContext {
      *
      * @return 端口
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public int port() {
         return port;
     }
@@ -100,6 +139,10 @@ public class JobNodeContext {
      *
      * @return 实例 ID
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String instanceId() {
         return registration == null ? nodeId() : registration.getInstanceId();
     }
@@ -107,12 +150,18 @@ public class JobNodeContext {
     /**
      * 进入执行中的任务数量加一。
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     */
     public void incrementRunningCount() {
         runningCount.incrementAndGet();
     }
 
     /**
      * 执行结束的任务数量减一。
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
      */
     public void decrementRunningCount() {
         runningCount.updateAndGet(value -> Math.max(value - 1, 0));
@@ -123,6 +172,10 @@ public class JobNodeContext {
      *
      * @return 当前运行任务数
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public int runningCount() {
         return runningCount.get();
     }
@@ -132,6 +185,10 @@ public class JobNodeContext {
      *
      * @return 最大并发配置
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public int maxConcurrentCount() {
         return 16;
     }
@@ -140,6 +197,10 @@ public class JobNodeContext {
      * 返回节点离线判定秒数。
      *
      * @return 离线判定秒数
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public int offlineSeconds() {
         return jobSchedulerProperties.getNodeOfflineSeconds();

@@ -36,32 +36,93 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 汇率源拉取服务实现。
- *
- * <p>负责拉取任务编排、重复数据跳过、业务汇率自动生成、日志记录和汇率源最近拉取状态更新。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ExchangeRateFetchServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 汇率管理Exchange Rate Fetch Service Impl，位于 service-job 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
 
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int ENABLED = 1;
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String BOC = "BOC";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String AUTO = "AUTO";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String RATE_STATUS_ENABLED = "ENABLED";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String RATE_STATUS_EXPIRED = "EXPIRED";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String SUCCESS = "SUCCESS";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String FAILED = "FAILED";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PARTIAL_SUCCESS = "PARTIAL_SUCCESS";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String ALL = "ALL";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String UP = "UP";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String NONE = "NONE";
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String BP = "BP";
 
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExchangeJobRateSourceMapper sourceMapper;
+    /**
+     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     private final ExchangeJobRawRateMapper rawRateMapper;
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExchangeJobRateRuleMapper ruleMapper;
+    /**
+     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     private final ExchangeJobBusinessRateMapper businessRateMapper;
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExchangeRateFetchLogMapper fetchLogMapper;
+    /**
+     * 汇率管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     */
     private final ExchangeRateProviderRegistry providerRegistry;
 
     /**
@@ -97,6 +158,12 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
      * @param request 拉取请求，允许为空，默认使用 BOC
      * @param context 任务执行上下文，可为空
      * @return 拉取结果统计
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)

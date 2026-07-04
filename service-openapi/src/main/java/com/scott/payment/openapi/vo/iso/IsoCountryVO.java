@@ -13,6 +13,15 @@ import java.io.Serializable;
  * @description : 商户 OpenAPI 国家地区响应参数
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : IsoCountryVO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIIso Country 视图对象，位于 service-openapi 的页面视图层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 public class IsoCountryVO implements Serializable {
 

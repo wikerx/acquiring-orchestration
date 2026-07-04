@@ -24,6 +24,37 @@ CREATE TABLE IF NOT EXISTS sys_config (
     KEY idx_sys_config_name (config_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='系统参数配置表';
 
+INSERT INTO sys_config (
+    config_name,
+    config_key,
+    config_value,
+    value_type,
+    config_group,
+    system_builtin,
+    visible,
+    encrypted,
+    status,
+    remark,
+    created_by,
+    updated_by,
+    deleted
+) VALUES
+    ('网关 Gateway Base 地址', 'platform.gateway.base-url', 'http://127.0.0.1:8000', 1, 'platform_url', 1, 1, 0, 1, '邮件模板变量：${gatewayBaseUrl}', 'system', 'system', 0),
+    ('收银台前端 Base 地址', 'platform.checkout.frontend-base-url', 'http://127.0.0.1:5175', 1, 'platform_url', 1, 1, 0, 1, '邮件模板变量：${checkoutBaseUrl}', 'system', 'system', 0),
+    ('商户系统 Base 地址', 'platform.merchant.frontend-base-url', 'http://127.0.0.1:5174', 1, 'platform_url', 1, 1, 0, 1, '邮件模板变量：${merchantSystemBaseUrl}', 'system', 'system', 0),
+    ('管理系统 Base 地址', 'platform.admin.frontend-base-url', 'http://127.0.0.1:5173', 1, 'platform_url', 1, 1, 0, 1, '邮件模板变量：${adminSystemBaseUrl}', 'system', 'system', 0)
+ON DUPLICATE KEY UPDATE
+    config_name = VALUES(config_name),
+    value_type = VALUES(value_type),
+    config_group = VALUES(config_group),
+    system_builtin = VALUES(system_builtin),
+    visible = VALUES(visible),
+    encrypted = VALUES(encrypted),
+    status = VALUES(status),
+    remark = VALUES(remark),
+    updated_by = VALUES(updated_by),
+    updated_at = CURRENT_TIMESTAMP(3);
+
 CREATE TABLE IF NOT EXISTS sys_dict_type (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     dict_name VARCHAR(100) NOT NULL COMMENT '字典名称，如商户状态、风险等级',
@@ -1516,6 +1547,12 @@ INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale,
 (3803, 'channel_limit_type', '周限额', 'WEEKLY', 'zh-CN', 4, 'primary', NULL, 0, 1, 0),
 (3804, 'channel_limit_type', '月限额', 'MONTHLY', 'zh-CN', 5, 'primary', NULL, 0, 1, 0);
 
+INSERT INTO sys_dict_data (dict_type, dict_label, dict_value, locale, dict_sort, list_class, extra_json, is_default, status, deleted)
+SELECT 'card_brand', '未知', 'UNKNOWN', 'zh-CN', 99, 'info', NULL, 0, 1, 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_dict_data WHERE dict_type = 'card_brand' AND dict_value = 'UNKNOWN' AND locale = 'zh-CN' AND deleted = 0
+);
+
 INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale, dict_sort, list_class, extra_json, is_default, status, deleted) VALUES
 (13000, 'acquiring_payment_method', 'Bank Card', 'BANK_CARD', 'en-US', 1, 'primary', '{"logoKey":"bankCard","logoKeys":["visa","mastercard","jcb","maestro"]}', 1, 1, 0),
 (13001, 'acquiring_payment_method', 'PayPal', 'PAYPAL', 'en-US', 2, 'primary', '{"logoKey":"paypal","logoKeys":["paypal"]}', 0, 1, 0),
@@ -1553,6 +1590,12 @@ INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale,
 (13408, 'card_brand', 'Cartes Bancaires', 'CARTES_BANCAIRES', 'en-US', 9, 'primary', NULL, 0, 1, 0),
 (13409, 'card_brand', 'eftpos Australia', 'EFTPOS_AUSTRALIA', 'en-US', 10, 'primary', NULL, 0, 1, 0),
 (13410, 'card_brand', 'Interac', 'INTERAC', 'en-US', 11, 'primary', NULL, 0, 1, 0);
+
+INSERT INTO sys_dict_data (dict_type, dict_label, dict_value, locale, dict_sort, list_class, extra_json, is_default, status, deleted)
+SELECT 'card_brand', 'Unknown', 'UNKNOWN', 'en-US', 99, 'info', NULL, 0, 1, 0
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_dict_data WHERE dict_type = 'card_brand' AND dict_value = 'UNKNOWN' AND locale = 'en-US' AND deleted = 0
+);
 
 UPDATE base_mcc_risk_policy
 SET card_scheme = 'AMEX'
@@ -2352,3 +2395,454 @@ FROM sys_permission permission
 WHERE permission.app_id = 1
   AND permission.deleted = 0
   AND permission.status = 1;
+
+-- ===================== 全球 IP 库管理（查询） =====================
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ip_library_split_model (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+    ip_type VARCHAR(8) NOT NULL COMMENT 'IP 类型：IPV4、IPV6',
+    shard_no TINYINT NOT NULL COMMENT '分片编号：1-8',
+    table_name VARCHAR(64) NOT NULL COMMENT 'IP 库物理分表名称',
+    range_start DECIMAL(39,0) NOT NULL COMMENT '分片起始 IP 数值',
+    range_end DECIMAL(39,0) NOT NULL COMMENT '分片截止 IP 数值',
+    data_version VARCHAR(32) NOT NULL COMMENT '当前生效数据版本',
+    active_flag TINYINT NOT NULL DEFAULT 1 COMMENT '是否生效：1是，0否',
+    row_count BIGINT NOT NULL DEFAULT 0 COMMENT '当前分片数据量',
+    load_status VARCHAR(32) NOT NULL DEFAULT 'READY' COMMENT '分片数据状态：READY、LOADING、FAILED',
+    start_time DATETIME(3) NULL COMMENT '开始处理时间',
+    end_time DATETIME(3) NULL COMMENT '处理完毕时间',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_ip_shard_version (ip_type, shard_no, data_version),
+    KEY idx_ip_route (ip_type, active_flag, range_start, range_end),
+    KEY idx_ip_table_active (table_name, active_flag)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IP库分片路由配置表';
+
+CREATE TABLE IF NOT EXISTS ip_library_v4_data_01 (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+    ip_type VARCHAR(8) NOT NULL DEFAULT 'IPV4' COMMENT 'IP 类型：IPV4、IPV6',
+    ip_number_start BIGINT UNSIGNED NOT NULL COMMENT 'IP Number 开始值',
+    ip_number_end BIGINT UNSIGNED NOT NULL COMMENT 'IP Number 截止值',
+    country_alpha2 VARCHAR(2) NOT NULL COMMENT '国家简称 ISO Alpha-2',
+    country_alpha3 VARCHAR(3) NOT NULL COMMENT '国家三位字母码 ISO Alpha-3',
+    country_numeric VARCHAR(3) NOT NULL COMMENT '国家数字码 ISO Numeric',
+    country_name VARCHAR(128) NOT NULL COMMENT '国家英文全称',
+    state_province VARCHAR(128) NULL COMMENT '归属州/省',
+    city VARCHAR(128) NULL COMMENT '归属城市',
+    data_version VARCHAR(32) NOT NULL COMMENT '数据版本',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '录入时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    create_by VARCHAR(64) NULL COMMENT '操作人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
+    PRIMARY KEY (id),
+    KEY idx_ip_start (ip_number_start),
+    KEY idx_ip_range (ip_number_start, ip_number_end),
+    KEY idx_ip_lookup (data_version, deleted, ip_number_start, ip_number_end),
+    KEY idx_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='全球 IPV4 库分表 01';
+
+CREATE TABLE IF NOT EXISTS ip_library_v4_data_02 LIKE ip_library_v4_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v4_data_03 LIKE ip_library_v4_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v4_data_04 LIKE ip_library_v4_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v4_data_05 LIKE ip_library_v4_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v4_data_06 LIKE ip_library_v4_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v4_data_07 LIKE ip_library_v4_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v4_data_08 LIKE ip_library_v4_data_01;
+
+CREATE TABLE IF NOT EXISTS ip_library_v6_data_01 (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '自增主键',
+    ip_type VARCHAR(8) NOT NULL DEFAULT 'IPV6' COMMENT 'IP 类型：IPV4、IPV6',
+    ip_number_start DECIMAL(39,0) NOT NULL COMMENT 'IP Number 开始值',
+    ip_number_end DECIMAL(39,0) NOT NULL COMMENT 'IP Number 截止值',
+    country_alpha2 VARCHAR(2) NOT NULL COMMENT '国家简称 ISO Alpha-2',
+    country_alpha3 VARCHAR(3) NOT NULL COMMENT '国家三位字母码 ISO Alpha-3',
+    country_numeric VARCHAR(3) NOT NULL COMMENT '国家数字码 ISO Numeric',
+    country_name VARCHAR(128) NOT NULL COMMENT '国家英文全称',
+    state_province VARCHAR(128) NULL COMMENT '归属州/省',
+    city VARCHAR(128) NULL COMMENT '归属城市',
+    data_version VARCHAR(32) NOT NULL COMMENT '数据版本',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '录入时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    create_by VARCHAR(64) NULL COMMENT '操作人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0未删除，1已删除',
+    PRIMARY KEY (id),
+    KEY idx_ip_start (ip_number_start),
+    KEY idx_ip_range (ip_number_start, ip_number_end),
+    KEY idx_ip_lookup (data_version, deleted, ip_number_start, ip_number_end),
+    KEY idx_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='全球 IPV6 库分表 01';
+
+CREATE TABLE IF NOT EXISTS ip_library_v6_data_02 LIKE ip_library_v6_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v6_data_03 LIKE ip_library_v6_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v6_data_04 LIKE ip_library_v6_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v6_data_05 LIKE ip_library_v6_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v6_data_06 LIKE ip_library_v6_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v6_data_07 LIKE ip_library_v6_data_01;
+CREATE TABLE IF NOT EXISTS ip_library_v6_data_08 LIKE ip_library_v6_data_01;
+
+INSERT INTO ip_library_split_model (ip_type, shard_no, table_name, range_start, range_end, data_version, active_flag, row_count, load_status)
+VALUES
+('IPV4', 1, 'ip_library_v4_data_01', 0, 536870911, 'DEFAULT', 1, 0, 'READY'),
+('IPV4', 2, 'ip_library_v4_data_02', 536870912, 1073741823, 'DEFAULT', 1, 0, 'READY'),
+('IPV4', 3, 'ip_library_v4_data_03', 1073741824, 1610612735, 'DEFAULT', 1, 0, 'READY'),
+('IPV4', 4, 'ip_library_v4_data_04', 1610612736, 2147483647, 'DEFAULT', 1, 0, 'READY'),
+('IPV4', 5, 'ip_library_v4_data_05', 2147483648, 2684354559, 'DEFAULT', 1, 0, 'READY'),
+('IPV4', 6, 'ip_library_v4_data_06', 2684354560, 3221225471, 'DEFAULT', 1, 0, 'READY'),
+('IPV4', 7, 'ip_library_v4_data_07', 3221225472, 3758096383, 'DEFAULT', 1, 0, 'READY'),
+('IPV4', 8, 'ip_library_v4_data_08', 3758096384, 4294967295, 'DEFAULT', 1, 0, 'READY'),
+('IPV6', 1, 'ip_library_v6_data_01', 0, 42535295865117307932921825928971026431, 'DEFAULT', 1, 0, 'READY'),
+('IPV6', 2, 'ip_library_v6_data_02', 42535295865117307932921825928971026432, 85070591730234615865843651857942052863, 'DEFAULT', 1, 0, 'READY'),
+('IPV6', 3, 'ip_library_v6_data_03', 85070591730234615865843651857942052864, 127605887595351923798765477786913079295, 'DEFAULT', 1, 0, 'READY'),
+('IPV6', 4, 'ip_library_v6_data_04', 127605887595351923798765477786913079296, 170141183460469231731687303715884105727, 'DEFAULT', 1, 0, 'READY'),
+('IPV6', 5, 'ip_library_v6_data_05', 170141183460469231731687303715884105728, 212676479325586539664609129644855132159, 'DEFAULT', 1, 0, 'READY'),
+('IPV6', 6, 'ip_library_v6_data_06', 212676479325586539664609129644855132160, 255211775190703847597530955573826158591, 'DEFAULT', 1, 0, 'READY'),
+('IPV6', 7, 'ip_library_v6_data_07', 255211775190703847597530955573826158592, 297747071055821155530452781502797185023, 'DEFAULT', 1, 0, 'READY'),
+('IPV6', 8, 'ip_library_v6_data_08', 297747071055821155530452781502797185024, 340282366920938463463374607431768211455, 'DEFAULT', 1, 0, 'READY')
+ON DUPLICATE KEY UPDATE table_name = VALUES(table_name), range_start = VALUES(range_start), range_end = VALUES(range_end), active_flag = VALUES(active_flag), update_time = CURRENT_TIMESTAMP(3);
+
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, parent.id, 'base_ip_library', '全球IP库管理', 'MENU', '/base/ip-library', 'base/ip-library', 'base:ip-library:list', 'Connection', 1, 35, 1, 0
+FROM sys_menu parent
+WHERE parent.app_id = 1 AND parent.menu_code = 'base' AND parent.deleted = 0
+  AND NOT EXISTS (SELECT 1 FROM sys_menu exists_menu WHERE exists_menu.app_id = 1 AND exists_menu.menu_code = 'base_ip_library' AND exists_menu.deleted = 0);
+
+UPDATE sys_menu menu
+JOIN sys_menu parent ON parent.app_id = menu.app_id AND parent.menu_code = 'base' AND parent.deleted = 0
+SET menu.parent_id = parent.id,
+    menu.menu_name = '全球IP库管理',
+    menu.menu_type = 'MENU',
+    menu.route_path = '/base/ip-library',
+    menu.component_path = 'base/ip-library',
+    menu.permission_code = 'base:ip-library:list',
+    menu.icon = 'Connection',
+    menu.visible = 1,
+    menu.sort_no = 35,
+    menu.status = 1,
+    menu.updated_at = CURRENT_TIMESTAMP(3)
+WHERE menu.app_id = 1 AND menu.menu_code = 'base_ip_library' AND menu.deleted = 0;
+
+INSERT INTO sys_permission (app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+SELECT 1, menu.id, 'base:ip-library:list', '全球IP库查询', 'MENU', 'POST', '/admin/base/ip-library/**', 1, 0
+FROM sys_menu menu
+WHERE menu.app_id = 1 AND menu.menu_code = 'base_ip_library' AND menu.deleted = 0
+  AND NOT EXISTS (SELECT 1 FROM sys_permission p WHERE p.app_id = 1 AND p.permission_code = 'base:ip-library:list' AND p.deleted = 0);
+
+UPDATE sys_permission permission
+JOIN sys_menu menu ON menu.app_id = permission.app_id AND menu.menu_code = 'base_ip_library' AND menu.deleted = 0
+SET permission.menu_id = menu.id,
+    permission.permission_name = '全球IP库查询',
+    permission.permission_type = 'MENU',
+    permission.resource_method = 'POST',
+    permission.resource_path = '/admin/base/ip-library/**',
+    permission.status = 1,
+    permission.updated_at = CURRENT_TIMESTAMP(3)
+WHERE permission.app_id = 1 AND permission.permission_code = 'base:ip-library:list' AND permission.deleted = 0;
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT menu.app_id, 1, menu.id, 0
+FROM sys_menu menu
+WHERE menu.app_id = 1 AND menu.menu_code = 'base_ip_library' AND menu.deleted = 0 AND menu.status = 1;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT permission.app_id, 1, permission.id, 0
+FROM sys_permission permission
+WHERE permission.app_id = 1 AND permission.permission_code = 'base:ip-library:list' AND permission.deleted = 0 AND permission.status = 1;
+
+CREATE TABLE IF NOT EXISTS base_card_bin_range (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    legacy_pk_id BIGINT NULL COMMENT '旧表card_bin_type_info.pk_id，用于初始化数据追溯',
+    card_bin_start BIGINT UNSIGNED NOT NULL COMMENT '卡BIN开始值，统一按11位数字存储，不足位右侧补0',
+    card_bin_end BIGINT UNSIGNED NOT NULL COMMENT '卡BIN结束值，统一按11位数字存储，不足位右侧补9',
+    bin_length TINYINT UNSIGNED NOT NULL DEFAULT 11 COMMENT 'BIN精度长度：6、7、8、9、10、11',
+    card_brand VARCHAR(64) NOT NULL DEFAULT 'UNKNOWN' COMMENT '卡品牌：复用系统已有卡品牌字典',
+    card_sub_brand VARCHAR(128) NULL COMMENT '卡子品牌/产品名称',
+    card_type VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN' COMMENT '卡类型：CREDIT、DEBIT、PREPAID、CHARGE、COMMERCIAL、UNKNOWN',
+    card_level VARCHAR(64) NULL COMMENT '卡等级',
+    issuer_country_name VARCHAR(128) NULL COMMENT '发卡行国家全称',
+    issuer_country_alpha2 CHAR(2) NULL COMMENT '发卡行国家ISO Alpha-2',
+    issuer_country_alpha3 CHAR(3) NULL COMMENT '发卡行国家ISO Alpha-3',
+    issuer_country_numeric CHAR(3) NULL COMMENT '发卡行国家ISO Numeric',
+    issuer_bank VARCHAR(256) NULL COMMENT '隶属发卡行',
+    issuer_web_url VARCHAR(512) NULL COMMENT '发卡行网页访问URL',
+    issuer_telephone VARCHAR(64) NULL COMMENT '发卡行联系电话',
+    data_source VARCHAR(64) NOT NULL DEFAULT 'MANUAL' COMMENT '数据来源',
+    source_batch_no VARCHAR(64) NULL COMMENT '来源批次号',
+    source_priority TINYINT NOT NULL DEFAULT 50 COMMENT '来源优先级，数值越大优先级越高',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0禁用，1启用，2待确认，3已过期',
+    remark VARCHAR(512) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '修改人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_card_bin_legacy_deleted (data_source, legacy_pk_id, deleted),
+    KEY idx_card_bin_range_status (deleted, status, card_bin_start, card_bin_end),
+    KEY idx_card_bin_start (card_bin_start),
+    KEY idx_card_bin_end (card_bin_end),
+    KEY idx_card_bin_brand_country (card_brand, issuer_country_alpha2, deleted),
+    KEY idx_card_bin_type (card_type, deleted),
+    KEY idx_card_bin_country (issuer_country_alpha2, deleted),
+    KEY idx_card_bin_bank (issuer_bank),
+    KEY idx_card_bin_source_batch (source_batch_no, deleted),
+    KEY idx_card_bin_update_time (update_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础卡BIN区间表';
+
+CREATE TABLE IF NOT EXISTS base_card_bin_import_batch (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    batch_no VARCHAR(64) NOT NULL COMMENT '批次号',
+    import_type VARCHAR(32) NOT NULL DEFAULT 'DB_INIT' COMMENT '导入类型：DB_INIT、EXCEL、CSV、API',
+    data_source VARCHAR(64) NOT NULL DEFAULT 'LEGACY_DB' COMMENT '数据来源',
+    file_name VARCHAR(255) NULL COMMENT '文件名称，数据库初始化导入可为空',
+    total_count INT NOT NULL DEFAULT 0 COMMENT '总条数',
+    success_count INT NOT NULL DEFAULT 0 COMMENT '成功条数',
+    failed_count INT NOT NULL DEFAULT 0 COMMENT '失败条数',
+    conflict_count INT NOT NULL DEFAULT 0 COMMENT '冲突条数',
+    duplicate_count INT NOT NULL DEFAULT 0 COMMENT '重复条数',
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '状态：0处理中，1成功，2部分成功，3失败',
+    error_message VARCHAR(1024) NULL COMMENT '错误信息',
+    remark VARCHAR(512) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '修改时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_card_bin_batch_no (batch_no),
+    KEY idx_card_bin_batch_source (data_source),
+    KEY idx_card_bin_batch_status (status),
+    KEY idx_card_bin_batch_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础卡BIN导入批次表';
+
+INSERT IGNORE INTO sys_dict_type (id, dict_name, dict_type, biz_domain, system_builtin, editable, status, deleted) VALUES
+(39, '卡类型', 'base_card_type', 'base', 1, 1, 1, 0),
+(40, '卡BIN状态', 'base_card_bin_status', 'base', 1, 1, 1, 0),
+(41, '卡BIN数据来源', 'base_card_bin_data_source', 'base', 1, 1, 1, 0);
+
+INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale, dict_sort, list_class, extra_json, is_default, status, deleted) VALUES
+(3900, 'base_card_type', '信用卡', 'CREDIT', 'zh-CN', 1, 'primary', NULL, 0, 1, 0),
+(3901, 'base_card_type', '借记卡', 'DEBIT', 'zh-CN', 2, 'success', NULL, 0, 1, 0),
+(3902, 'base_card_type', '预付卡', 'PREPAID', 'zh-CN', 3, 'warning', NULL, 0, 1, 0),
+(3903, 'base_card_type', '签账卡', 'CHARGE', 'zh-CN', 4, 'primary', NULL, 0, 1, 0),
+(3904, 'base_card_type', '商务卡', 'COMMERCIAL', 'zh-CN', 5, 'primary', NULL, 0, 1, 0),
+(3905, 'base_card_type', '未知', 'UNKNOWN', 'zh-CN', 99, 'info', NULL, 1, 1, 0),
+(4000, 'base_card_bin_status', '禁用', '0', 'zh-CN', 1, 'info', NULL, 0, 1, 0),
+(4001, 'base_card_bin_status', '启用', '1', 'zh-CN', 2, 'success', NULL, 1, 1, 0),
+(4002, 'base_card_bin_status', '待确认', '2', 'zh-CN', 3, 'warning', NULL, 0, 1, 0),
+(4003, 'base_card_bin_status', '已过期', '3', 'zh-CN', 4, 'danger', NULL, 0, 1, 0),
+(4100, 'base_card_bin_data_source', '手工维护', 'MANUAL', 'zh-CN', 1, 'primary', NULL, 1, 1, 0),
+(4101, 'base_card_bin_data_source', '旧库导入', 'LEGACY_DB', 'zh-CN', 2, 'success', NULL, 0, 1, 0),
+(4102, 'base_card_bin_data_source', 'Visa', 'VISA', 'zh-CN', 3, 'primary', NULL, 0, 1, 0),
+(4103, 'base_card_bin_data_source', 'Mastercard', 'MASTERCARD', 'zh-CN', 4, 'primary', NULL, 0, 1, 0),
+(4104, 'base_card_bin_data_source', '渠道返回', 'CHANNEL', 'zh-CN', 5, 'warning', NULL, 0, 1, 0),
+(4105, 'base_card_bin_data_source', '第三方数据', 'THIRD_PARTY', 'zh-CN', 6, 'info', NULL, 0, 1, 0),
+(13900, 'base_card_type', 'Credit Card', 'CREDIT', 'en-US', 1, 'primary', NULL, 0, 1, 0),
+(13901, 'base_card_type', 'Debit Card', 'DEBIT', 'en-US', 2, 'success', NULL, 0, 1, 0),
+(13902, 'base_card_type', 'Prepaid Card', 'PREPAID', 'en-US', 3, 'warning', NULL, 0, 1, 0),
+(13903, 'base_card_type', 'Charge Card', 'CHARGE', 'en-US', 4, 'primary', NULL, 0, 1, 0),
+(13904, 'base_card_type', 'Commercial Card', 'COMMERCIAL', 'en-US', 5, 'primary', NULL, 0, 1, 0),
+(13905, 'base_card_type', 'Unknown', 'UNKNOWN', 'en-US', 99, 'info', NULL, 1, 1, 0),
+(14000, 'base_card_bin_status', 'Disabled', '0', 'en-US', 1, 'info', NULL, 0, 1, 0),
+(14001, 'base_card_bin_status', 'Enabled', '1', 'en-US', 2, 'success', NULL, 1, 1, 0),
+(14002, 'base_card_bin_status', 'Pending Review', '2', 'en-US', 3, 'warning', NULL, 0, 1, 0),
+(14003, 'base_card_bin_status', 'Expired', '3', 'en-US', 4, 'danger', NULL, 0, 1, 0),
+(14100, 'base_card_bin_data_source', 'Manual', 'MANUAL', 'en-US', 1, 'primary', NULL, 1, 1, 0),
+(14101, 'base_card_bin_data_source', 'Legacy DB', 'LEGACY_DB', 'en-US', 2, 'success', NULL, 0, 1, 0),
+(14102, 'base_card_bin_data_source', 'Visa', 'VISA', 'en-US', 3, 'primary', NULL, 0, 1, 0),
+(14103, 'base_card_bin_data_source', 'Mastercard', 'MASTERCARD', 'en-US', 4, 'primary', NULL, 0, 1, 0),
+(14104, 'base_card_bin_data_source', 'Channel', 'CHANNEL', 'en-US', 5, 'warning', NULL, 0, 1, 0),
+(14105, 'base_card_bin_data_source', 'Third Party', 'THIRD_PARTY', 'en-US', 6, 'info', NULL, 0, 1, 0);
+
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, parent.id, 'base_card_bin', '卡BIN库管理', 'MENU', '/base/card-bin', 'base/cardBin/index', 'base:cardBin:list', 'CreditCard', 1, 36, 1, 0
+FROM sys_menu parent
+WHERE parent.app_id = 1 AND parent.menu_code = 'base' AND parent.deleted = 0
+  AND NOT EXISTS (SELECT 1 FROM sys_menu exists_menu WHERE exists_menu.app_id = 1 AND exists_menu.menu_code = 'base_card_bin' AND exists_menu.deleted = 0);
+
+UPDATE sys_menu menu
+JOIN sys_menu parent ON parent.app_id = menu.app_id AND parent.menu_code = 'base' AND parent.deleted = 0
+SET menu.parent_id = parent.id,
+    menu.menu_name = '卡BIN库管理',
+    menu.menu_type = 'MENU',
+    menu.route_path = '/base/card-bin',
+    menu.component_path = 'base/cardBin/index',
+    menu.permission_code = 'base:cardBin:list',
+    menu.icon = 'CreditCard',
+    menu.visible = 1,
+    menu.sort_no = 36,
+    menu.status = 1,
+    menu.updated_at = CURRENT_TIMESTAMP(3)
+WHERE menu.app_id = 1 AND menu.menu_code = 'base_card_bin' AND menu.deleted = 0;
+
+INSERT INTO sys_permission (app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+SELECT 1, menu.id, perm.permission_code, perm.permission_name, perm.permission_type, perm.resource_method, perm.resource_path, 1, 0
+FROM sys_menu menu
+JOIN (
+    SELECT 'base:cardBin:list' AS permission_code, '卡BIN库查询' AS permission_name, 'MENU' AS permission_type, 'POST' AS resource_method, '/admin/base/card-bin/page' AS resource_path
+    UNION ALL SELECT 'base:cardBin:query', '卡BIN库详情', 'BUTTON', 'GET', '/admin/base/card-bin/*'
+    UNION ALL SELECT 'base:cardBin:add', '卡BIN库新增', 'BUTTON', 'POST', '/admin/base/card-bin'
+    UNION ALL SELECT 'base:cardBin:edit', '卡BIN库修改', 'BUTTON', 'PUT', '/admin/base/card-bin/*'
+    UNION ALL SELECT 'base:cardBin:remove', '卡BIN库删除', 'BUTTON', 'DELETE', '/admin/base/card-bin/*'
+    UNION ALL SELECT 'base:cardBin:status', '卡BIN库状态', 'BUTTON', 'PUT', '/admin/base/card-bin/*/status'
+    UNION ALL SELECT 'base:cardBin:match', '卡BIN匹配测试', 'BUTTON', 'POST', '/admin/base/card-bin/match'
+    UNION ALL SELECT 'base:cardBin:export', '卡BIN库导出', 'BUTTON', 'POST', '/admin/base/card-bin/export'
+    UNION ALL SELECT 'base:cardBin:init', '卡BIN旧库初始化', 'BUTTON', 'POST', '/admin/base/card-bin/init-from-legacy-db'
+) perm
+WHERE menu.app_id = 1 AND menu.menu_code = 'base_card_bin' AND menu.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM sys_permission exists_permission
+      WHERE exists_permission.app_id = 1
+        AND exists_permission.permission_code = perm.permission_code
+        AND exists_permission.deleted = 0
+  );
+
+UPDATE sys_permission permission
+JOIN sys_menu menu ON menu.app_id = permission.app_id AND menu.menu_code = 'base_card_bin' AND menu.deleted = 0
+SET permission.menu_id = menu.id,
+    permission.status = 1,
+    permission.updated_at = CURRENT_TIMESTAMP(3)
+WHERE permission.app_id = 1
+  AND permission.permission_code LIKE 'base:cardBin:%'
+  AND permission.deleted = 0;
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT menu.app_id, 1, menu.id, 0
+FROM sys_menu menu
+WHERE menu.app_id = 1 AND menu.menu_code = 'base_card_bin' AND menu.deleted = 0 AND menu.status = 1;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT permission.app_id, 1, permission.id, 0
+FROM sys_permission permission
+WHERE permission.app_id = 1 AND permission.permission_code LIKE 'base:cardBin:%' AND permission.deleted = 0 AND permission.status = 1;
+
+SET @card_bin_batch_no = CONCAT('INIT_DB_IMPORT_', DATE_FORMAT(NOW(3), '%Y%m%d%H%i%s%f'));
+SET @card_bin_legacy_exists = (
+    SELECT COUNT(1)
+    FROM information_schema.tables
+    WHERE table_schema = DATABASE()
+      AND table_name = 'card_bin_type_info'
+);
+
+SET @card_bin_insert_batch_sql = IF(@card_bin_legacy_exists > 0,
+    'INSERT INTO base_card_bin_import_batch (
+        batch_no, import_type, data_source, file_name, total_count, success_count, failed_count,
+        conflict_count, duplicate_count, status, remark, create_by, create_time, update_time
+     )
+     VALUES (@card_bin_batch_no, ''DB_INIT'', ''LEGACY_DB'', NULL, 0, 0, 0, 0, 0, 0, ''从旧表 card_bin_type_info 初始化导入'', ''system'', NOW(3), NOW(3))',
+    'SELECT 1'
+);
+PREPARE stmt FROM @card_bin_insert_batch_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @card_bin_import_sql = IF(@card_bin_legacy_exists > 0,
+    'INSERT INTO base_card_bin_range (
+        legacy_pk_id, card_bin_start, card_bin_end, bin_length, card_brand, card_sub_brand, card_type, card_level,
+        issuer_country_name, issuer_country_alpha2, issuer_country_alpha3, issuer_country_numeric,
+        issuer_bank, issuer_web_url, issuer_telephone, data_source, source_batch_no, source_priority,
+        effective_time, expire_time, status, remark, create_by, update_by, create_time, update_time, deleted
+     )
+     SELECT
+        t.pk_id,
+        t.card_bin_start,
+        t.card_bin_end,
+        CASE
+            WHEN MOD(t.card_bin_start, 100000) = 0 AND MOD(t.card_bin_end, 100000) = 99999 AND FLOOR(t.card_bin_start / 100000) = FLOOR(t.card_bin_end / 100000) THEN 6
+            WHEN MOD(t.card_bin_start, 10000) = 0 AND MOD(t.card_bin_end, 10000) = 9999 AND FLOOR(t.card_bin_start / 10000) = FLOOR(t.card_bin_end / 10000) THEN 7
+            WHEN MOD(t.card_bin_start, 1000) = 0 AND MOD(t.card_bin_end, 1000) = 999 AND FLOOR(t.card_bin_start / 1000) = FLOOR(t.card_bin_end / 1000) THEN 8
+            WHEN MOD(t.card_bin_start, 100) = 0 AND MOD(t.card_bin_end, 100) = 99 AND FLOOR(t.card_bin_start / 100) = FLOOR(t.card_bin_end / 100) THEN 9
+            WHEN MOD(t.card_bin_start, 10) = 0 AND MOD(t.card_bin_end, 10) = 9 AND FLOOR(t.card_bin_start / 10) = FLOOR(t.card_bin_end / 10) THEN 10
+            ELSE 11
+        END,
+        COALESCE(NULLIF(UPPER(TRIM(t.card_brand)), ''''), ''UNKNOWN''),
+        NULLIF(TRIM(t.card_sub_brand), ''''),
+        CASE UPPER(TRIM(t.credit_debit))
+            WHEN ''CREDIT'' THEN ''CREDIT''
+            WHEN ''DEBIT'' THEN ''DEBIT''
+            WHEN ''PREPAID'' THEN ''PREPAID''
+            WHEN ''CHARGE'' THEN ''CHARGE''
+            WHEN ''COMMERCIAL'' THEN ''COMMERCIAL''
+            ELSE ''UNKNOWN''
+        END,
+        NULL,
+        NULLIF(TRIM(t.issuer_country_name), ''''),
+        NULLIF(UPPER(TRIM(t.issuer_country_code_ii)), ''''),
+        NULLIF(UPPER(TRIM(t.issuer_country_code)), ''''),
+        NULLIF(TRIM(t.issuer_country_number), ''''),
+        NULLIF(TRIM(t.issuer_bank), ''''),
+        NULLIF(TRIM(t.issuer_web_url), ''''),
+        NULLIF(TRIM(t.issuer_telephone), ''''),
+        ''LEGACY_DB'',
+        @card_bin_batch_no,
+        50,
+        NULL,
+        NULL,
+        1,
+        ''旧表card_bin_type_info初始化导入'',
+        ''system'',
+        ''system'',
+        COALESCE(t.gmt_create, NOW(3)),
+        COALESCE(t.gmt_modified, NOW(3)),
+        0
+      FROM card_bin_type_info t
+      WHERE t.card_bin_start IS NOT NULL
+        AND t.card_bin_end IS NOT NULL
+        AND t.card_bin_start <= t.card_bin_end
+        AND NOT EXISTS (
+            SELECT 1
+            FROM base_card_bin_range r
+            WHERE r.data_source = ''LEGACY_DB''
+              AND r.legacy_pk_id = t.pk_id
+              AND r.deleted = 0
+        )',
+    'SELECT 1'
+);
+PREPARE stmt FROM @card_bin_import_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @card_bin_update_batch_sql = IF(@card_bin_legacy_exists > 0,
+    'UPDATE base_card_bin_import_batch batch
+     SET
+        total_count = (SELECT COUNT(1) FROM card_bin_type_info),
+        success_count = (SELECT COUNT(1) FROM base_card_bin_range WHERE source_batch_no = @card_bin_batch_no),
+        failed_count = (
+            SELECT COUNT(1)
+            FROM card_bin_type_info
+            WHERE card_bin_start IS NULL OR card_bin_end IS NULL OR card_bin_start > card_bin_end
+        ),
+        duplicate_count = (
+            SELECT COUNT(1)
+            FROM card_bin_type_info t
+            WHERE EXISTS (
+                SELECT 1
+                FROM base_card_bin_range r
+                WHERE r.data_source = ''LEGACY_DB''
+                  AND r.legacy_pk_id = t.pk_id
+                  AND r.source_batch_no <> @card_bin_batch_no
+                  AND r.deleted = 0
+            )
+        ),
+        update_time = NOW(3)
+     WHERE batch.batch_no = @card_bin_batch_no',
+    'SELECT 1'
+);
+PREPARE stmt FROM @card_bin_update_batch_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE base_card_bin_import_batch
+SET status = CASE
+    WHEN success_count = 0 AND total_count > 0 THEN 3
+    WHEN failed_count > 0 OR duplicate_count > 0 THEN 2
+    ELSE 1
+END
+WHERE batch_no = @card_bin_batch_no
+  AND @card_bin_legacy_exists > 0;

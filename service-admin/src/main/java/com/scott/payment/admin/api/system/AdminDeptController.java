@@ -33,10 +33,22 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>部门树、详情和维护请求统一通过
  * {@link AdminDeptApplicationService} 编排，Controller 保持为薄入口层。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDeptController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Admin Dept 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/admin/system/dept")
 public class AdminDeptController {
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminDeptApplicationService adminDeptApplicationService;
 
     /**
@@ -53,6 +65,10 @@ public class AdminDeptController {
      *
      * @return 部门树形列表
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/tree")
     @RequiresPermission("system:dept:list")
     public CommonResult<List<SysDeptDTO>> tree() {
@@ -65,6 +81,11 @@ public class AdminDeptController {
      * @param id 部门主键 ID
      * @return 部门详情
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/{id}")
     @RequiresPermission("system:dept:query")
     public CommonResult<SysDeptDO> detail(@PathVariable("id") Long id) {
@@ -73,6 +94,10 @@ public class AdminDeptController {
 
     /**
      * 导出部门树。
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @GetMapping("/export")
     @RequiresPermission("system:dept:export")
@@ -86,6 +111,11 @@ public class AdminDeptController {
      *
      * @param dept 部门实体
      * @return 新增后的部门
+     */
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param dept 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping
     @RequiresPermission("system:dept:add")
@@ -101,6 +131,12 @@ public class AdminDeptController {
      * @param input 部门实体
      * @return 更新后的部门
      */
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PutMapping("/{id}")
     @RequiresPermission("system:dept:edit")
     @OperationLog(moduleName = "部门管理", businessType = OperationTypeConstants.UPDATE, operation = "修改部门")
@@ -113,6 +149,11 @@ public class AdminDeptController {
      *
      * @param id 部门主键 ID
      * @return 空响应
+     */
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/{id}")
     @RequiresPermission("system:dept:remove")

@@ -49,38 +49,99 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * 管理后台渠道管理服务实现。
- *
- * <p>该服务只维护渠道基础数据、能力和限额，不执行真实渠道调用，也不承载支付交易状态机。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminChannelServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Channel Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminChannelServiceImpl implements AdminChannelService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int ENABLED = 1;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DISABLED = 0;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String BUSINESS_PAYOUT = "PAYOUT";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PAYMENT_BANK_CARD = "BANK_CARD";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String NONE = "NONE";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String ALL = "ALL";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String USD = "USD";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String LIMIT_DAILY = "DAILY";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String LIMIT_WEEKLY = "WEEKLY";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String LIMIT_MONTHLY = "MONTHLY";
     private static final BigDecimal MIN_LIMIT_AMOUNT = new BigDecimal("0.01");
     private static final BigDecimal WEEKLY_LIMIT_MULTIPLIER = new BigDecimal("7");
     private static final BigDecimal MONTHLY_LIMIT_MULTIPLIER = new BigDecimal("4");
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String TRANSACTION_TYPE_SEPARATOR = ",";
     private static final Pattern CHANNEL_CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{2,64}$");
     private static final Pattern HTTP_URL_PATTERN = Pattern.compile("^https?://.+", Pattern.CASE_INSENSITIVE);
     private static final Set<String> INCREMENTAL_TRANSACTION_TYPES = Set.of("AUTHORIZATION", "PRE_AUTHORIZATION");
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ChannelInfoMapper channelInfoMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ChannelPaymentCapabilityMapper capabilityMapper;
+    /**
+     * 收单支付币种字段，通常使用 ISO 4217 三位字母代码，不能为空时由上层校验。
+     */
     private final ChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ChannelLimitRuleMapper limitRuleMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysDictDataMapper dictDataMapper;
 
     public AdminChannelServiceImpl(ChannelInfoMapper channelInfoMapper,
@@ -97,6 +158,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         this.dictDataMapper = dictDataMapper;
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<ChannelInfoResponse> pageChannels(ChannelInfoQuery request) {
         ChannelInfoQuery query = request == null ? new ChannelInfoQuery() : request;
@@ -119,6 +185,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 page.getRecords().stream().map(this::toChannelResponse).toList());
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<ChannelOption> listChannelOptions() {
         return channelInfoMapper.selectList(Wrappers.<ChannelInfoDO>lambdaQuery()
@@ -140,11 +210,21 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .toList();
     }
 
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public ChannelInfoResponse getChannel(Long id) {
         return toChannelResponse(findChannel(id));
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ChannelInfoResponse createChannel(ChannelInfoSaveRequest request) {
@@ -157,6 +237,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toChannelResponse(entity);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ChannelInfoResponse updateChannel(Long id, ChannelInfoSaveRequest request) {
@@ -167,6 +253,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toChannelResponse(entity);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ChannelInfoResponse updateChannelStatus(Long id, Integer status) {
@@ -178,6 +270,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toChannelResponse(entity);
     }
 
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteChannel(Long id) {
@@ -190,6 +286,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         channelInfoMapper.updateById(entity);
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<CapabilityResponse> pageCapabilities(CapabilityQuery request) {
         CapabilityQuery query = request == null ? new CapabilityQuery() : request;
@@ -202,12 +303,22 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 page.getRecords().stream().map(row -> toCapabilityResponse(row, channelMap.get(row.getChannelId()))).toList());
     }
 
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public CapabilityResponse getCapability(Long id) {
         ChannelPaymentCapabilityDO entity = findCapability(id);
         return toCapabilityResponse(entity, findChannel(entity.getChannelId()));
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CapabilityResponse createCapability(CapabilitySaveRequest request) {
@@ -222,6 +333,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toCapabilityResponse(entity, channel);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CapabilityResponse updateCapability(Long id, CapabilitySaveRequest request) {
@@ -234,6 +351,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toCapabilityResponse(entity, channel);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CapabilityResponse updateCapabilityStatus(Long id, Integer status) {
@@ -249,6 +372,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toCapabilityResponse(entity, findChannel(entity.getChannelId()));
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param support3ds 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param supportIncrementalAuthorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CapabilityResponse updateCapabilitySupport(Long id, Integer support3ds, Integer supportIncrementalAuthorization) {
@@ -274,6 +404,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toCapabilityResponse(entity, findChannel(entity.getChannelId()));
     }
 
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteCapability(Long id) {
@@ -284,6 +418,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         softDeleteCapabilityChildren(id);
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<LimitResponse> pageLimits(LimitQuery request) {
         LimitQuery query = request == null ? new LimitQuery() : request;
@@ -296,12 +435,22 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 page.getRecords().stream().map(row -> toLimitResponse(row, channelMap.get(row.getChannelId()))).toList());
     }
 
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public LimitResponse getLimit(Long id) {
         ChannelLimitRuleDO entity = findLimit(id);
         return toLimitResponse(entity, findChannel(entity.getChannelId()));
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public LimitResponse createLimit(LimitSaveRequest request) {
@@ -314,6 +463,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toLimitResponse(entity, channel);
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<LimitResponse> createLimits(LimitBatchSaveRequest request) {
@@ -326,6 +480,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return responses;
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<LimitResponse> saveLimitDimension(LimitBatchSaveRequest request) {
@@ -344,6 +503,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return responses;
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public LimitResponse updateLimit(Long id, LimitSaveRequest request) {
@@ -354,6 +519,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toLimitResponse(entity, channel);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public LimitResponse updateLimitStatus(Long id, Integer status) {
@@ -366,6 +537,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return toLimitResponse(entity, findChannel(entity.getChannelId()));
     }
 
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteLimit(Long id) {

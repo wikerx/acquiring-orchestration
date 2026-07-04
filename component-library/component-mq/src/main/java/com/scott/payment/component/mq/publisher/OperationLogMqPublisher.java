@@ -27,6 +27,15 @@ import java.util.UUID;
  * <p>该发布器只负责把组件层采集好的日志记录转换为 MQ 消息并发送，
  * 不承担业务落库和消费幂等判断职责。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OperationLogMqPublisher
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Operation Log Mq Publisher，位于 component-library/component-mq 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Slf4j
 @Component
 @ConditionalOnBean(OperationLogSystemCode.class)

@@ -85,37 +85,113 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 商户系统基础管理领域服务实现。
- *
- * <p>所有数据访问都从当前登录上下文获取商户号，避免前端传参造成跨商户越权。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantSystemServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Merchant System Service Impl，位于 service-merchant 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class MerchantSystemServiceImpl implements MerchantSystemService {
 
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long ROOT_PARENT_ID = 0L;
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String ROLE_TYPE_CUSTOM = "CUSTOM";
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String DATA_SCOPE_ALL = "ALL";
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String DATA_SCOPE_SELF = "SELF";
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String DATA_SCOPE_CUSTOM = "CUSTOM";
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String ACCOUNT_LOGIN_SEPARATOR = "_";
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysUserMapper sysUserMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRoleMapper sysRoleMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRoleMenuMapper sysRoleMenuMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRolePermissionMapper sysRolePermissionMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMenuMapper sysMenuMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysPermissionMapper sysPermissionMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantDeptMapper sysMerchantDeptMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantPostMapper sysMerchantPostMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantAccountDeptMapper sysMerchantAccountDeptMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantAccountPostMapper sysMerchantAccountPostMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantUserMapper sysMerchantUserMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
 
     public MerchantSystemServiceImpl(BaseMerchantInfoMapper baseMerchantInfoMapper,
@@ -154,6 +230,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         this.sysMerchantUserRoleMapper = sysMerchantUserRoleMapper;
     }
 
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<DeptDTO> listDepts() {
@@ -165,6 +245,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(this::toDeptDTO).toList();
     }
 
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<DeptDTO> pageDepts(DeptQueryRequest request) {
@@ -183,12 +268,21 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toDeptDTO).toList());
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<DeptDTO> deptTree() {
         return buildDeptTree(listDepts());
     }
 
+    /**
+     * 创建或保存商户管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -209,6 +303,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toDeptDTO(dept);
     }
 
+    /**
+     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -224,6 +324,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toDeptDTO(dept);
     }
 
+    /**
+     * 删除商户管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -249,6 +353,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantDeptMapper.updateById(dept);
     }
 
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<PostDTO> listPosts() {
@@ -260,6 +368,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(this::toPostDTO).toList();
     }
 
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<PostDTO> pagePosts(PostQueryRequest request) {
@@ -278,6 +391,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toPostDTO).toList());
     }
 
+    /**
+     * 创建或保存商户管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -297,6 +415,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toPostDTO(post);
     }
 
+    /**
+     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -311,6 +435,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toPostDTO(post);
     }
 
+    /**
+     * 删除商户管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -329,6 +457,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantPostMapper.updateById(post);
     }
 
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<AccountDTO> listAccounts() {
@@ -341,6 +473,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return users.stream().map(user -> toAccountDTO(app.getId(), user)).toList();
     }
 
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<AccountDTO> pageAccounts(AccountQueryRequest request) {
@@ -371,6 +508,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 page.getRecords().stream().map(user -> toAccountDTO(app.getId(), user)).toList());
     }
 
+    /**
+     * 创建或保存商户管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -421,6 +563,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toAccountDTO(app.getId(), account);
     }
 
+    /**
+     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -436,6 +584,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toAccountDTO(app.getId(), account);
     }
 
+    /**
+     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -454,6 +608,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toAccountDTO(app.getId(), account);
     }
 
+    /**
+     * 删除商户管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -476,6 +634,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantUserMapper.updateById(merchantUser);
     }
 
+    /**
+     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -496,6 +659,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantUserMapper.updateById(merchantUser);
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -507,6 +675,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         replaceAccountRoles(app.getId(), merchantId, merchantUser, request.getIds());
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -517,6 +690,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         replaceAccountDepts(merchantId, id, request.getIds());
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -527,6 +705,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         replaceAccountPosts(merchantId, id, request.getIds());
     }
 
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<RoleDTO> listRoles() {
@@ -540,6 +722,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(this::toRoleDTO).toList();
     }
 
+    /**
+     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<RoleDTO> pageRoles(RoleQueryRequest request) {
@@ -562,6 +749,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toRoleDTO).toList());
     }
 
+    /**
+     * 获取商户管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RoleDTO getRole(Long id) {
@@ -570,6 +762,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toRoleDTO(getRole(app.getId(), merchantId, id));
     }
 
+    /**
+     * 创建或保存商户管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -598,6 +795,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toRoleDTO(role);
     }
 
+    /**
+     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -625,6 +828,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toRoleDTO(role);
     }
 
+    /**
+     * 删除商户管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -648,6 +855,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysRoleMapper.updateById(role);
     }
 
+    /**
+     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -661,6 +873,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysRoleMapper.updateById(role);
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RoleGrantTreeDTO roleGrantTreeTemplate() {
@@ -671,6 +887,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RoleGrantTreeDTO roleGrantTree(Long id) {
@@ -694,6 +915,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -706,6 +932,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 request == null ? null : request.getPermissionIds());
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RoleMenuAuthDTO roleMenus(Long id) {
@@ -723,6 +954,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -748,6 +984,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RolePermissionAuthDTO rolePermissions(Long id) {
@@ -765,6 +1006,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -790,6 +1036,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<PermissionDTO> grantedPermissions() {

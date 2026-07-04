@@ -4,7 +4,13 @@ import com.scott.payment.payout.api.internal.dto.PayoutCreateCommandDTO;
 import com.scott.payment.payout.api.internal.dto.PayoutCreateResultDTO;
 
 /**
- * 代付交易服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PayoutTransactionService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 代付交易服务。
+ * @status : create
  */
 public interface PayoutTransactionService {
 

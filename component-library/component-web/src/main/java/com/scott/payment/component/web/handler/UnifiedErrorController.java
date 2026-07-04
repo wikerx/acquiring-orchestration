@@ -19,6 +19,15 @@ import jakarta.servlet.http.HttpServletRequest;
  * @description : 统一兜底错误响应控制器
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : UnifiedErrorController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Unified Error 管理接口，位于 component-library/component-web 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 public class UnifiedErrorController implements ErrorController {
 
@@ -27,6 +36,11 @@ public class UnifiedErrorController implements ErrorController {
      *
      * @param request HTTP 请求
      * @return 统一 JSON 错误响应
+     */
+    /**
+     * 处理收单支付业务流程，维护关键状态和异常边界。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @RequestMapping("${server.error.path:${error.path:/error}}")
     public CommonResult<Void> handleError(HttpServletRequest request) {

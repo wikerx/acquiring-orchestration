@@ -9,10 +9,13 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 本地全局唯一标识生成器。
- *
- * <p>该实现仅保证单 JVM 内唯一，不保证多 JVM、多实例、分布式环境全局唯一。
- * 禁止用于生产支付资金链路。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : LocalGlobalIdGenerator
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 本地全局唯一标识生成器。 <p>该实现仅保证单 JVM 内唯一，不保证多 JVM、多实例、分布式环境全局唯一。 禁止用于生产支付资金链路。</p>
+ * @status : create
  */
 public class LocalGlobalIdGenerator implements GlobalIdGenerator {
 
@@ -30,6 +33,10 @@ public class LocalGlobalIdGenerator implements GlobalIdGenerator {
      * 生成全系统统一唯一标识。
      *
      * @return 22 位纯数字唯一标识
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public synchronized String nextId() {

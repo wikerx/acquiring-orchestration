@@ -16,7 +16,13 @@ import com.scott.payment.admin.dto.email.EmailDTOs.EmailTemplateSaveRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
- * 管理后台邮件管理服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminEmailService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Email 服务契约，位于 service-admin 的服务契约层，用于定义调用契约和职责边界。
+ * @status : create
  */
 public interface AdminEmailService {
 

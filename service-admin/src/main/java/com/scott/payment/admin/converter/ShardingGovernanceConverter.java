@@ -11,9 +11,13 @@ import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
 /**
- * 分表治理对象转换器。
- *
- * <p>负责治理表实体、后台响应 DTO 和 service-job 远程请求之间的转换。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingGovernanceConverter
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Governance Converter，位于 service-admin 的对象转换层，用于定义调用契约和职责边界。
+ * @status : create
  */
 @Mapper
 public interface ShardingGovernanceConverter {

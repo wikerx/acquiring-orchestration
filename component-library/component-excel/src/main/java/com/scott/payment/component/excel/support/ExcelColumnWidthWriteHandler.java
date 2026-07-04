@@ -48,6 +48,15 @@ public class ExcelColumnWidthWriteHandler extends AbstractColumnWidthStyleStrate
         }
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param writeSheetHolder 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param cellDataList 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param cell 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param head 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param relativeRowIndex 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param isHead 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     protected void setColumnWidth(WriteSheetHolder writeSheetHolder,
                                   List<WriteCellData<?>> cellDataList,

@@ -61,32 +61,107 @@ import java.util.Map;
  * <p>负责商户基础资料维护、商户状态切换以及 OpenAPI 密钥材料初始化与轮换等核心领域规则，
  * 不承担控制器协议适配和权限控制逻辑。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantInfoServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Merchant Info Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String MCC_LEVEL1_VALUE_PREFIX = "L1:";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String MCC_LEVEL2_VALUE_PREFIX = "L2:";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int NOT_DELETED = 0;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int ENABLED = 1;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DISABLED = 0;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DEFAULT_STATUS = 1;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DEFAULT_RISK_LEVEL = 2;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DEFAULT_KEY_SIZE = 2048;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int MERCHANT_ID_GENERATE_MAX_ATTEMPTS = 5;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String MERCHANT_ID_PREFIX = "M";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String JWT_ALGORITHM = "HS256";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
     private static final DateTimeFormatter KEY_VERSION_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMerchantInfoMapper merchantInfoMapper;
+    /**
+     * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final BaseMerchantJwtKeyMapper jwtKeyMapper;
+    /**
+     * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final BasePlatformPayloadKeyMapper platformPayloadKeyMapper;
+    /**
+     * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMccLevel1Mapper mccLevel1Mapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMccLevel2Mapper mccLevel2Mapper;
+    /**
+     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     */
     private final BaseMccCodeMapper mccCodeMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final IsoCountryMapper isoCountryMapper;
+    /**
+     * 收单支付币种字段，通常使用 ISO 4217 三位字母代码，不能为空时由上层校验。
+     */
     private final IsoCurrencyMapper isoCurrencyMapper;
+    /**
+     * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
     /**
@@ -133,6 +208,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @return 商户新增和编辑表单选项
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public AdminMerchantFormOptionsDTO getFormOptions() {
         AdminMerchantFormOptionsDTO result = new AdminMerchantFormOptionsDTO();
@@ -170,6 +249,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param request 查询条件
      * @return 商户分页结果
      */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<AdminMerchantInfoDTO> pageMerchants(AdminMerchantQueryRequest request) {
         AdminMerchantQueryRequest query = request == null ? new AdminMerchantQueryRequest() : request;
@@ -196,6 +280,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param id 商户主键
      * @return 商户详情
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public AdminMerchantInfoDTO getMerchant(Long id) {
         return toDTO(requireMerchantById(id));
@@ -206,6 +295,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @param request 保存请求
      * @return 商户详情
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -229,6 +323,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param request 保存请求
      * @return 商户详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchant(Long id, AdminMerchantSaveRequest request) {
@@ -250,6 +350,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantStatus 商户状态
      * @return 商户详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param merchantStatus 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateStatus(Long id, Integer merchantStatus) {
@@ -266,6 +372,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @param merchantId 商户号
      * @return 一次性安全材料
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -293,6 +404,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @param merchantId 商户号
      * @return 密钥集合
+     */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public AdminMerchantKeyBundleDTO getMerchantKeys(String merchantId) {
@@ -325,6 +441,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantId 商户号
      * @return 最新安全材料
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateJwtKey(String merchantId) {
@@ -345,6 +466,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantId 商户号
      * @return 最新安全材料
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotatePlatformPayloadKey(String merchantId) {
@@ -361,6 +487,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @param merchantId 商户号
      * @return 最新安全材料
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -380,6 +511,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantId 商户号
      * @param request    公钥更新请求
      * @return 商户详情
+     */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)

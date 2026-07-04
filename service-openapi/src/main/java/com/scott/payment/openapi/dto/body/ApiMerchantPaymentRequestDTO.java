@@ -23,6 +23,15 @@ import jakarta.validation.constraints.Pattern;
  * @description : 开放接口收单支付授权统一请求参数
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ApiMerchantPaymentRequestDTO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIApi Merchant Payment Request 数据传输对象，位于 service-openapi 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 @NoArgsConstructor
 public class ApiMerchantPaymentRequestDTO implements Serializable {
@@ -247,6 +256,10 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
          *
          * @return true 表示子商户名称信息满足接口要求
          */
+        /**
+         * 判断商户 OpenAPI条件是否满足，供业务分支或权限控制使用。
+         * @return 处理后的业务结果或页面展示数据。
+         */
         @JSONField(serialize = false)
         @AssertTrue(message = "Must fill in one of merchantInfo.subMerchantInfo.subName or merchantInfo.subMerchantInfo.subCompanyName", groups = {Authorization.class})
         public boolean isSubNameOrCompanyNameValid() {
@@ -366,6 +379,10 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
          * 校验持卡人姓名总长度，避免渠道侧因 firstName + lastName 超长拒绝交易。
          *
          * @return true 表示姓名总长度满足限制
+         */
+        /**
+         * 判断商户 OpenAPI条件是否满足，供业务分支或权限控制使用。
+         * @return 处理后的业务结果或页面展示数据。
          */
         @AssertTrue(message = "The total length of billingCardHolderInfo.firstName and billingCardHolderInfo.lastName cannot exceed 64 characters", groups = {Authorization.class})
         @JSONField(serialize = false)

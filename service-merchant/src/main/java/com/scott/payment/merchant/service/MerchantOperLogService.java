@@ -6,7 +6,13 @@ import com.scott.payment.merchant.dto.SysOperLogQueryRequest;
 import com.scott.payment.merchant.dto.SysOperLogRecordRequest;
 
 /**
- * 商户管理系统操作日志领域服务，负责写入审计日志并按商户边界查询已脱敏记录。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantOperLogService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理系统操作日志领域服务，负责写入审计日志并按商户边界查询已脱敏记录。
+ * @status : create
  */
 public interface MerchantOperLogService {
 

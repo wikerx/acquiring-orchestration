@@ -8,9 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 用户主体数据库实体。
- *
- * <p>承载后台用户和商户用户共用的自然人资料，账号登录凭据由 {@code sys_account} 独立维护。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysUserDO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Sys User 数据库实体，位于 component-library/component-db 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 @TableName("sys_user")

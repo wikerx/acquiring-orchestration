@@ -8,17 +8,32 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 /**
- * 分表物理表 DDL 服务。
- *
- * <p>该服务强制走 master 数据源，只允许创建缺失物理表和设置新表 AUTO_INCREMENT。
- * 已存在表结构不一致时只返回检查结果，不执行自动 ALTER。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTableDdlService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Table Ddl 服务契约，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class ShardingTableDdlService {
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final JdbcTemplate jdbcTemplate;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingPhysicalTableNameResolver tableNameResolver;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingAutoIncrementValueCalculator autoIncrementValueCalculator;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingTableSchemaInspector schemaInspector;
 
     /**
@@ -48,6 +63,13 @@ public class ShardingTableDdlService {
      * @param rule       单表分表规则
      * @param quarter    目标季度
      * @return 创建后或已存在目标表的检查结果
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param quarter 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @DS(DataSourceName.MASTER)
     public ShardingTableInspectionResult createPhysicalTableIfAbsent(PaymentQuarterShardingProperties properties,

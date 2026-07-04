@@ -8,7 +8,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 中国银行汇率 HTML 解析测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : BocExchangeRateHtmlParserTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 中国银行汇率 HTML 解析测试。
+ * @status : create
  */
 class BocExchangeRateHtmlParserTest {
 

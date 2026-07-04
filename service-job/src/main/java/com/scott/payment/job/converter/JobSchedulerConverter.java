@@ -20,7 +20,15 @@ import org.mapstruct.factory.Mappers;
  * @description : 任务调度对象转换器
  * @status : create
  */
-
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobSchedulerConverter
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Job Scheduler Converter，位于 service-job 的对象转换层，用于定义调用契约和职责边界。
+ * @status : create
+ */
 @Mapper
 public interface JobSchedulerConverter {
 

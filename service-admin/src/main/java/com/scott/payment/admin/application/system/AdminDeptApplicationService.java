@@ -27,6 +27,15 @@ import java.util.Map;
  * @description : 管理后台部门管理应用服务
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDeptApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Admin Dept Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminDeptApplicationService {
 
@@ -35,9 +44,21 @@ public class AdminDeptApplicationService {
      */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminDeptService adminDeptService;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -61,6 +82,10 @@ public class AdminDeptApplicationService {
      *
      * @return 树形部门列表
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public List<SysDeptDTO> tree() {
         return adminDeptService.tree();
     }
@@ -71,6 +96,11 @@ public class AdminDeptApplicationService {
      * @param id 部门主键
      * @return 部门详情
      */
+    /**
+     * 获取系统管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysDeptDO getDept(Long id) {
         return adminDeptService.getDept(id);
     }
@@ -79,6 +109,11 @@ public class AdminDeptApplicationService {
      * 导出全部部门资料。
      *
      * @return 部门列表
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportDepts(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -112,6 +147,11 @@ public class AdminDeptApplicationService {
      * @param dept 部门实体
      * @return 保存后的部门
      */
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param dept 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysDeptDO createDept(SysDeptDO dept) {
         return adminDeptService.createDept(dept);
     }
@@ -123,6 +163,12 @@ public class AdminDeptApplicationService {
      * @param input 更新输入
      * @return 更新后的部门
      */
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysDeptDO updateDept(Long id, SysDeptDO input) {
         return adminDeptService.updateDept(id, input);
     }
@@ -131,6 +177,10 @@ public class AdminDeptApplicationService {
      * 逻辑删除部门。
      *
      * @param id 部门主键
+     */
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void removeDept(Long id) {
         adminDeptService.removeDept(id);

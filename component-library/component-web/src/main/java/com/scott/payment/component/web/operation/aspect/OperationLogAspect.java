@@ -33,6 +33,15 @@ import java.util.Objects;
  * @description : 管理类系统操作日志 AOP 自动采集切面
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OperationLogAspect
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Operation Log Aspect，位于 component-library/component-web 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Slf4j
 @Aspect
 @Order(100)
@@ -120,6 +129,13 @@ public class OperationLogAspect {
      * @param operation 操作日志注解
      * @return 原方法返回值
      * @throws Throwable 原方法抛出的异常
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param point 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operation 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     * @throws Exception 当下游调用、数据访问或业务校验失败时抛出。
      */
     @Around("@annotation(operation)")
     public Object around(ProceedingJoinPoint point, OperationLog operation) throws Throwable {

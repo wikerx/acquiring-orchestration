@@ -41,17 +41,44 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 系统认证服务测试，覆盖管理端和商户端共用的登录会话闲置超时规则。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SystemAuthServiceImplTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统认证服务测试，覆盖管理端和商户端共用的登录会话闲置超时规则。
+ * @status : create
  */
 class SystemAuthServiceImplTest {
 
+    /**
+     * 系统管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String RAW_TOKEN = "token-for-test";
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private SysAppMapper sysAppMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private SysUserMapper sysUserMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private SysAccountMapper sysAccountMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private SysAccountRoleMapper sysAccountRoleMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private SysLoginSessionMapper sysLoginSessionMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private SystemAuthServiceImpl systemAuthService;
 
     /**

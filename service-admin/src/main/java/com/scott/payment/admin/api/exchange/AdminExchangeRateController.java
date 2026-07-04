@@ -36,14 +36,21 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台汇率记录、规则、业务汇率和使用快照接口。
- *
- * <p>负责管理端 HTTP 映射、权限校验和操作日志；金额、汇率精度、规则校验与状态处理下沉到应用服务和领域服务。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminExchangeRateController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 汇率管理Admin Exchange Rate 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/admin/exchange")
 public class AdminExchangeRateController {
 
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminExchangeRateApplicationService applicationService;
 
     public AdminExchangeRateController(AdminExchangeRateApplicationService applicationService) {
@@ -82,6 +89,11 @@ public class AdminExchangeRateController {
      * @param id 原始汇率主键
      * @return 原始汇率详情
      */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/raw-rates/{id}")
     @RequiresPermission("exchange:raw-rate:detail")
     public CommonResult<RawRateResponse> getRawRate(@PathVariable("id") Long id) {
@@ -93,6 +105,11 @@ public class AdminExchangeRateController {
      *
      * @param request 原始汇率保存请求
      * @return 新增后的原始汇率详情
+     */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/raw-rates")
     @RequiresPermission("exchange:raw-rate:add")
@@ -107,6 +124,12 @@ public class AdminExchangeRateController {
      * @param id      原始汇率主键
      * @param request 作废请求，必须提供作废原因
      * @return 作废后的原始汇率详情
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/raw-rates/{id}/void")
     @RequiresPermission("exchange:raw-rate:void")
@@ -148,6 +171,11 @@ public class AdminExchangeRateController {
      * @param id 规则主键
      * @return 汇率规则详情
      */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/rules/{id}")
     @RequiresPermission("exchange:rule:detail")
     public CommonResult<RuleResponse> getRule(@PathVariable("id") Long id) {
@@ -159,6 +187,11 @@ public class AdminExchangeRateController {
      *
      * @param request 规则保存请求
      * @return 新增后的规则详情
+     */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/rules")
     @RequiresPermission("exchange:rule:add")
@@ -174,6 +207,12 @@ public class AdminExchangeRateController {
      * @param request 规则保存请求
      * @return 修改后的规则详情
      */
+    /**
+     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PutMapping("/rules/{id}")
     @RequiresPermission("exchange:rule:edit")
     @OperationLog(moduleName = "汇率规则配置", businessType = OperationTypeConstants.UPDATE, operation = "修改汇率规则")
@@ -188,6 +227,12 @@ public class AdminExchangeRateController {
      * @param id      规则主键
      * @param request 状态请求，1 表示启用，0 表示停用
      * @return 切换状态后的规则详情
+     */
+    /**
+     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/rules/{id}/status")
     @RequiresPermission("exchange:rule:status")
@@ -229,6 +274,11 @@ public class AdminExchangeRateController {
      * @param id 业务汇率主键
      * @return 业务汇率详情
      */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/business-rates/{id}")
     @RequiresPermission("exchange:business-rate:detail")
     public CommonResult<BusinessRateResponse> getBusinessRate(@PathVariable("id") Long id) {
@@ -240,6 +290,11 @@ public class AdminExchangeRateController {
      *
      * @param request 业务汇率保存请求
      * @return 新增后的业务汇率详情
+     */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/business-rates")
     @RequiresPermission("exchange:business-rate:add")
@@ -254,6 +309,11 @@ public class AdminExchangeRateController {
      * @param request 批量保存请求
      * @return 新增后的业务汇率列表
      */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/business-rates/batch")
     @RequiresPermission("exchange:business-rate:batch")
     @OperationLog(moduleName = "业务汇率管理", businessType = OperationTypeConstants.CREATE, operation = "批量录入业务汇率")
@@ -266,6 +326,11 @@ public class AdminExchangeRateController {
      *
      * @param request 业务汇率生成请求
      * @return 生成后的业务汇率详情
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/business-rates/generate")
     @RequiresPermission("exchange:business-rate:generate")
@@ -280,6 +345,12 @@ public class AdminExchangeRateController {
      * @param id      业务汇率主键
      * @param request 状态请求，1 表示启用，0 表示停用
      * @return 切换状态后的业务汇率详情
+     */
+    /**
+     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/business-rates/{id}/status")
     @RequiresPermission("exchange:business-rate:status")
@@ -320,6 +391,11 @@ public class AdminExchangeRateController {
      *
      * @param id 快照主键
      * @return 使用快照详情
+     */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/usage-snapshots/{id}")
     @RequiresPermission("exchange:usage-snapshot:detail")

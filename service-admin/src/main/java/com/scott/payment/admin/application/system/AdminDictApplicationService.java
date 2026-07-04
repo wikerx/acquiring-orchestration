@@ -32,6 +32,15 @@ import java.util.Locale;
  * @description : 管理后台数据字典应用服务
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDictApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Admin Dict Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminDictApplicationService {
 
@@ -40,9 +49,21 @@ public class AdminDictApplicationService {
      */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminDictService adminDictService;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -69,6 +90,11 @@ public class AdminDictApplicationService {
      * @param request 保存请求
      * @return 字典类型详情
      */
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysDictTypeDTO saveDictType(SysDictTypeSaveRequest request) {
         return adminDictService.saveDictType(request);
     }
@@ -78,6 +104,11 @@ public class AdminDictApplicationService {
      *
      * @param request 查询条件
      * @return 分页结果
+     */
+    /**
+     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<SysDictTypeDTO> pageDictTypes(SysDictTypeQueryRequest request) {
         return adminDictService.pageDictTypes(request);
@@ -89,6 +120,12 @@ public class AdminDictApplicationService {
      * @param request 查询条件
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportDictTypes(SysDictTypeQueryRequest request,
                                 String operator,
@@ -120,6 +157,10 @@ public class AdminDictApplicationService {
      *
      * @param dictType 字典类型编码
      */
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     public void deleteDictType(String dictType) {
         adminDictService.deleteDictType(dictType);
     }
@@ -129,6 +170,11 @@ public class AdminDictApplicationService {
      *
      * @param request 保存请求
      * @return 字典数据详情
+     */
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public SysDictDataDTO saveDictData(SysDictDataSaveRequest request) {
         return adminDictService.saveDictData(request);
@@ -140,6 +186,11 @@ public class AdminDictApplicationService {
      * @param request 查询条件
      * @return 分页结果
      */
+    /**
+     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public PageResult<SysDictDataDTO> pageDictData(SysDictDataQueryRequest request) {
         return adminDictService.pageDictData(request);
     }
@@ -150,6 +201,12 @@ public class AdminDictApplicationService {
      * @param request 查询条件
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportDictData(SysDictDataQueryRequest request,
                                String operator,
@@ -182,6 +239,11 @@ public class AdminDictApplicationService {
      * @param id 字典数据主键
      * @return 字典数据详情
      */
+    /**
+     * 获取系统管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysDictDataDTO getDictDataById(Long id) {
         return adminDictService.getDictDataById(id);
     }
@@ -192,6 +254,12 @@ public class AdminDictApplicationService {
      * @param id      字典数据主键
      * @param request 保存请求
      * @return 更新后的字典数据
+     */
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public SysDictDataDTO updateDictDataById(Long id, SysDictDataSaveRequest request) {
         return adminDictService.updateDictDataById(id, request);
@@ -204,6 +272,12 @@ public class AdminDictApplicationService {
      * @param dictValue 字典值
      * @param locale    语言区域
      */
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param dictValue 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param locale 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     public void deleteDictData(String dictType, String dictValue, String locale) {
         adminDictService.deleteDictData(dictType, dictValue, locale);
     }
@@ -212,6 +286,10 @@ public class AdminDictApplicationService {
      * 按主键删除字典数据。
      *
      * @param id 字典数据主键
+     */
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void deleteDictDataById(Long id) {
         adminDictService.deleteDictDataById(id);

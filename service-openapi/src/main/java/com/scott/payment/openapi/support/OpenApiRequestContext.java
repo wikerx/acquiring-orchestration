@@ -10,9 +10,13 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * OpenAPI 请求上下文访问器。
- * <p>
- * 统一读取当前线程绑定请求中的开放接口请求头上下文，避免业务服务直接依赖 Servlet 细节。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiRequestContext
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIOpen Api Request Context，位于 service-openapi 的支撑组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Component
 public class OpenApiRequestContext {
@@ -21,6 +25,10 @@ public class OpenApiRequestContext {
      * 获取当前请求中的开放接口请求头上下文。
      *
      * @return 开放接口请求头对象
+     */
+    /**
+     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public OpenApiRequestHeaderDTO getRequiredHeader() {
         HttpServletRequest request = currentRequest();
@@ -35,6 +43,10 @@ public class OpenApiRequestContext {
      * 获取当前请求中的商户号。
      *
      * @return 商户号
+     */
+    /**
+     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String getRequiredMerchantId() {
         String merchantId = getRequiredHeader().getMerchantId();

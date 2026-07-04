@@ -16,7 +16,13 @@ import com.scott.payment.component.core.model.PageResult;
 import java.util.List;
 
 /**
- * 管理后台渠道管理服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminChannelService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Channel 服务契约，位于 service-admin 的服务契约层，用于定义调用契约和职责边界。
+ * @status : create
  */
 public interface AdminChannelService {
 

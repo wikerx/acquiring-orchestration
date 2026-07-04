@@ -46,8 +46,17 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
      */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
+    /**
+     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     */
     private final String appCode;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final InternalAuthChecker authChecker;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final List<String> whitelistPatterns;
 
     /**
@@ -71,6 +80,14 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
      * @param handler  处理器
      * @return true 表示放行
      * @throws IOException 写响应失败
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param handler 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     * @throws Exception 当下游调用、数据访问或业务校验失败时抛出。
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
@@ -112,6 +129,13 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
      * @param response HTTP 响应
      * @param handler  处理器
      * @param ex       请求异常
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param handler 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param ex 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {

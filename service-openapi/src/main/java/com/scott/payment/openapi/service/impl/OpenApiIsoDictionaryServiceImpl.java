@@ -24,6 +24,15 @@ import java.util.function.BiPredicate;
  * @description : 商户 OpenAPI ISO 国家地区与币种查询服务实现
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiIsoDictionaryServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIOpen Api Iso Dictionary Service Impl，位于 service-openapi 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryService {
 
@@ -47,6 +56,11 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
      * @param requestDTO 商户查询条件；全部字段为空时返回全部启用国家地区
      * @return 国家地区响应列表
      */
+    /**
+     * 查询商户 OpenAPI列表或分页数据，供页面筛选和展示使用。
+     * @param requestDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<IsoCountryVO> queryCountries(IsoCountryQueryRequestDTO requestDTO) {
         List<IsoCountryInfo> countryList = listCountriesByRequest(requestDTO);
@@ -58,6 +72,11 @@ public class OpenApiIsoDictionaryServiceImpl implements OpenApiIsoDictionaryServ
      *
      * @param requestDTO 商户查询条件；全部字段为空时返回全部启用币种
      * @return 币种响应列表
+     */
+    /**
+     * 查询商户 OpenAPI列表或分页数据，供页面筛选和展示使用。
+     * @param requestDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<IsoCurrencyVO> queryCurrencies(IsoCurrencyQueryRequestDTO requestDTO) {

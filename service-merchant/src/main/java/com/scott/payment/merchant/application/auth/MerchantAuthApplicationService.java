@@ -24,14 +24,24 @@ import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Service;
 
 /**
- * 商户门户认证应用服务。
- * <p>
- * 当前负责收敛商户门户认证入口的应用层编排，后续可继续在这里汇总设备指纹、风控校验和审计补充。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantAuthApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Merchant Auth Application 服务契约，位于 service-merchant 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class MerchantAuthApplicationService {
 
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String DEFAULT_LOGIN_ACCOUNT = "admin";
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String DEFAULT_LOGIN_PASSWORD = "Merchant@123456";
 
     /**
@@ -39,9 +49,21 @@ public class MerchantAuthApplicationService {
      */
     private final SystemAuthService systemAuthService;
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantUserMapper sysMerchantUserMapper;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final Environment environment;
 
     /**
@@ -71,6 +93,11 @@ public class MerchantAuthApplicationService {
      * @param request 注册请求
      * @return 注册后的账号信息
      */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public AuthAccountDTO register(AuthRegisterRequest request) {
         return systemAuthService.register(AuthConstants.APP_MERCHANT, request);
     }
@@ -81,6 +108,12 @@ public class MerchantAuthApplicationService {
      * @param request        验证码发送请求
      * @param servletRequest Servlet 请求
      * @return 验证码发送响应
+     */
+    /**
+     * 发送商户管理消息或外部请求，并记录必要的执行结果。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param servletRequest 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public AuthVerifyCodeSendResponse sendVerifyCode(AuthVerifyCodeSendRequest request, HttpServletRequest servletRequest) {
         return systemAuthService.sendLoginVerifyCode(
@@ -96,6 +129,10 @@ public class MerchantAuthApplicationService {
      * <p>密码来自明确的本地种子账号初始密码，不从数据库哈希反推，也不暴露任意账号密码。</p>
      *
      * @return 默认登录凭据，未初始化种子账号时返回空字段
+     */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @DS(DataSourceName.SLAVE)
     public MerchantDefaultLoginCredentialDTO defaultLoginCredential() {
@@ -142,6 +179,12 @@ public class MerchantAuthApplicationService {
      * @param servletRequest Servlet 请求
      * @return 登录响应
      */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param servletRequest 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public AuthLoginResponse login(AuthLoginRequest request, HttpServletRequest servletRequest) {
         return systemAuthService.login(
                 AuthConstants.APP_MERCHANT,
@@ -157,6 +200,11 @@ public class MerchantAuthApplicationService {
      * @param authorization Authorization 请求头
      * @return 当前登录账号、菜单和权限
      */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public AuthLoginResponse currentUser(String authorization) {
         return systemAuthService.currentUser(AuthConstants.APP_MERCHANT, authorization);
     }
@@ -165,6 +213,10 @@ public class MerchantAuthApplicationService {
      * 退出商户登录。
      *
      * @param authorization Authorization 请求头
+     */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void logout(String authorization) {
         systemAuthService.logout(AuthConstants.APP_MERCHANT, authorization);

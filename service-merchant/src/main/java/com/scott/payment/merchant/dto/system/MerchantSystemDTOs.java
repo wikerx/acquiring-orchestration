@@ -10,9 +10,13 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * 商户系统基础管理 DTO 集合。
- *
- * <p>当前用于商户端部门、岗位、员工账号、角色和授权接口，所有写操作都由后端登录上下文补齐商户号。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantSystemDTOs
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Merchant System  DTO 集合，位于 service-merchant 的接口传输层，用于说明职责边界、数据语义和关键业务约束。
+ * @status : create
  */
 public final class MerchantSystemDTOs {
 
@@ -26,42 +30,114 @@ public final class MerchantSystemDTOs {
 
     @Data
     public static class StatusRequest {
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
     }
 
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class DeptQueryRequest extends PageRequest {
+        /**
+         * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+         */
         private String keyword;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
     }
 
     @Data
     public static class DeptSaveRequest {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long parentId = 0L;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String deptCode;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String deptName;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long leaderAccountId;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String phone;
+        /**
+         * 商户管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
+         */
         private String email;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private Integer sortNo = 0;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status = 1;
+        /**
+         * 商户管理备注字段，用于记录人工说明，不参与核心状态流转。
+         */
         private String remark;
     }
 
     @Data
     public static class DeptDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long deptId;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long parentId;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String deptCode;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String deptName;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long leaderAccountId;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String phone;
+        /**
+         * 商户管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
+         */
         private String email;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private Integer sortNo;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
+        /**
+         * 商户管理备注字段，用于记录人工说明，不参与核心状态流转。
+         */
         private String remark;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private LocalDateTime createdAt;
+        /**
+         * 商户管理时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
+         */
         private LocalDateTime updatedAt;
         private List<DeptDTO> children = new ArrayList<>();
     }
@@ -69,46 +145,118 @@ public final class MerchantSystemDTOs {
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class PostQueryRequest extends PageRequest {
+        /**
+         * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+         */
         private String keyword;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
     }
 
     @Data
     public static class PostSaveRequest {
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String postCode;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String postName;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private Integer sortNo = 0;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status = 1;
+        /**
+         * 商户管理备注字段，用于记录人工说明，不参与核心状态流转。
+         */
         private String remark;
     }
 
     @Data
     public static class PostDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long postId;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String postCode;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String postName;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private Integer sortNo;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
+        /**
+         * 商户管理备注字段，用于记录人工说明，不参与核心状态流转。
+         */
         private String remark;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private LocalDateTime createdAt;
+        /**
+         * 商户管理时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
+         */
         private LocalDateTime updatedAt;
     }
 
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class AccountQueryRequest extends PageRequest {
+        /**
+         * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+         */
         private String keyword;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long roleId;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
     }
 
     @Data
     public static class AccountBaseSaveRequest {
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String loginAccount;
+        /**
+         * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+         */
         private String password;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String realName;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String mobile;
+        /**
+         * 商户管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
+         */
         private String email;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status = 1;
     }
 
@@ -122,61 +270,166 @@ public final class MerchantSystemDTOs {
 
     @Data
     public static class AccountDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long accountId;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long userId;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long merchantUserId;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String loginAccount;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String realName;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String mobile;
+        /**
+         * 商户管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
+         */
         private String email;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private Integer locked;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private LocalDateTime lastLoginAt;
         private List<Long> roleIds = Collections.emptyList();
         private List<String> roleNames = Collections.emptyList();
         private List<Long> deptIds = Collections.emptyList();
         private List<Long> postIds = Collections.emptyList();
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private LocalDateTime createdAt;
     }
 
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class RoleQueryRequest extends PageRequest {
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String roleName;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String roleCode;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
+        /**
+         * 商户管理时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
+         */
         private String createdStartTime;
+        /**
+         * 商户管理时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
+         */
         private String createdEndTime;
     }
 
     @Data
     public static class RoleSaveRequest {
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String roleCode;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String roleName;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String dataScope;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String description;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status = 1;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private Integer sortNo = 100;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private List<Long> menuIds;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private List<Long> permissionIds;
     }
 
     @Data
     public static class RoleDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long roleId;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String roleCode;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String roleName;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String roleType;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String dataScope;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String description;
+        /**
+         * 商户管理状态字段，取值需与数据字典或枚举约定保持一致。
+         */
         private Integer status;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private Integer sortNo;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private LocalDateTime createdAt;
+        /**
+         * 商户管理时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
+         */
         private LocalDateTime updatedAt;
     }
 
     @Data
     public static class RoleMenuAuthDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long roleId;
         private List<Long> checkedMenuIds = Collections.emptyList();
         private List<com.scott.payment.component.db.auth.dto.AuthMenuDTO> menus = Collections.emptyList();
@@ -184,6 +437,9 @@ public final class MerchantSystemDTOs {
 
     @Data
     public static class RolePermissionAuthDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long roleId;
         private List<Long> checkedPermissionIds = Collections.emptyList();
         private List<PermissionDTO> permissions = Collections.emptyList();
@@ -197,7 +453,13 @@ public final class MerchantSystemDTOs {
 
     @Data
     public static class RoleGrantTreeDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long roleId;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private RoleDTO role;
         private List<Long> checkedMenuIds = Collections.emptyList();
         private List<Long> checkedPermissionIds = Collections.emptyList();
@@ -206,24 +468,66 @@ public final class MerchantSystemDTOs {
 
     @Data
     public static class AuthGrantNodeDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private String id;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long nodeId;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long menuId;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long permissionId;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String nodeType;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String name;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String code;
         private List<AuthGrantNodeDTO> children = new ArrayList<>();
     }
 
     @Data
     public static class PermissionDTO {
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long permissionId;
+        /**
+         * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+         */
         private Long menuId;
+        /**
+         * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+         */
         private String permissionCode;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String permissionName;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String permissionType;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String resourceMethod;
+        /**
+         * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private String resourcePath;
     }
 }

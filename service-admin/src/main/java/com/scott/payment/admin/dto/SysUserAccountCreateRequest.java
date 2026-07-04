@@ -9,34 +9,62 @@ import java.io.Serializable;
 import java.util.List;
 
 /**
- * 管理后台用户新增请求 DTO。
- *
- * <p>承载账号初始化、自然人资料、部门和岗位关系，角色授权仍由独立授权接口处理。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysUserAccountCreateRequest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Sys User Account Create 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 public class SysUserAccountCreateRequest implements Serializable {
 
+    /**
+     * 系统管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @NotBlank(message = "loginAccount")
     @Size(max = 100, message = "loginAccount length must be less than 100")
     private String loginAccount;
 
+    /**
+     * 系统管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     @NotBlank(message = "password")
     @Size(min = 8, max = 64, message = "password length must be between 8 and 64")
     private String password;
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @NotBlank(message = "realName")
     @Size(max = 100, message = "realName length must be less than 100")
     private String realName;
 
+    /**
+     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     */
     private Long deptId;
 
+    /**
+     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     */
     private List<Long> postIds;
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Size(max = 30, message = "mobile length must be less than 30")
     private String mobile;
 
+    /**
+     * 系统管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
+     */
     @Email(message = "email format does not match")
     @Size(max = 150, message = "email length must be less than 150")
     private String email;

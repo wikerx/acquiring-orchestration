@@ -16,10 +16,13 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台数据源监控入口层。
- *
- * <p>该控制器只负责暴露“系统监控 / 数据源监控”页面需要的查询接口，
- * 具体的数据源快照聚合、分组分析和分表规则整理由应用服务层完成。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MonitorDatasourceController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 监控治理Monitor Datasource 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/admin/monitor/datasource")
@@ -48,6 +51,10 @@ public class MonitorDatasourceController {
      *
      * @return 数据源监控快照
      */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping
     @RequiresPermission("monitor:datasource:view")
     public CommonResult<DataSourceMonitorResponse> snapshot() {
@@ -60,6 +67,10 @@ public class MonitorDatasourceController {
      * <p>该导出仅包含运行时数据源、连接池和分表配置快照，不读取业务分表数据。</p>
      *
      * @param response HTTP 响应
+     */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @GetMapping("/export")
     @RequiresPermission("monitor:datasource:export")

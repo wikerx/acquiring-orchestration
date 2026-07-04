@@ -5,7 +5,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
 /**
- * 全系统统一唯一标识生成常量，约束编号长度、时间格式、序列长度和默认时区。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : GlobalIdConstants
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Global Id Constants，位于 component-library/component-core 的业务组件层，用于说明职责边界、数据语义和关键业务约束。
+ * @status : create
  */
 public final class GlobalIdConstants {
 

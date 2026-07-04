@@ -6,10 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 数据源监控页面响应模型。
- *
- * <p>用于聚合动态数据源运行状态、主从分组关系和分表规则快照，
- * 供管理后台“系统监控 / 数据源监控”页面直接渲染。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DataSourceMonitorResponse
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 监控治理Data Source Monitor 响应对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 public class DataSourceMonitorResponse {

@@ -11,6 +11,15 @@ import lombok.Getter;
  * @description : 商户风险等级枚举，数据库使用数字码存储，避免固定状态字段使用字符串造成索引和比较成本浪费
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantRiskLevelEnum
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIMerchant Risk Level 枚举，位于 service-openapi 的业务组件层，用于收敛页面、接口或业务流程中的固定取值。
+ * @status : create
+ */
 @Getter
 public enum MerchantRiskLevelEnum {
 

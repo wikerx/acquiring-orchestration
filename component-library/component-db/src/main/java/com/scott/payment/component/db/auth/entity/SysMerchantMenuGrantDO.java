@@ -8,9 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 商户菜单授权数据库实体。
- *
- * <p>记录平台给商户开放的商户端菜单范围，是商户内部角色菜单授权的上限。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysMerchantMenuGrantDO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Sys Merchant Menu Grant 数据库实体，位于 component-library/component-db 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 @TableName("sys_merchant_menu_grant")

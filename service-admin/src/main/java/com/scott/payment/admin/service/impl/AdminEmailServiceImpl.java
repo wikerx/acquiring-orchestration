@@ -5,6 +5,7 @@ import com.alibaba.fastjson2.JSONArray;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.constant.SystemConfigKeys;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailAccountQuery;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailAccountResponse;
 import com.scott.payment.admin.dto.email.EmailDTOs.EmailAccountSaveRequest;
@@ -24,6 +25,7 @@ import com.scott.payment.admin.entity.email.EmailEntities.EmailTemplateDO;
 import com.scott.payment.admin.mapper.EmailAccountMapper;
 import com.scott.payment.admin.mapper.EmailSendRecordMapper;
 import com.scott.payment.admin.mapper.EmailTemplateMapper;
+import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.admin.service.AdminEmailService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
@@ -58,45 +60,120 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 管理后台邮件管理服务实现。
- *
- * <p>负责发件账户、邮件模板、发送记录和 SMTP 同步发送。SMTP 密码仅以 AES-GCM 密文保存，编辑时为空表示沿用原密文。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminEmailServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Email Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminEmailServiceImpl implements AdminEmailService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int ENABLED = 1;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DISABLED = 0;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int YES = 1;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int NO = 0;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int VERIFY_UNVERIFIED = 0;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int VERIFY_SUCCESS = 1;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int VERIFY_FAILED = 2;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int SEND_SENDING = 1;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int SEND_SUCCESS = 2;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int SEND_FAILED = 3;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String COMMON_SCENE = "COMMON";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String SCOPE_SYSTEM = "SYSTEM";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String SCOPE_MERCHANT = "MERCHANT";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String SMTP_PROVIDER = "SMTP";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String DEFAULT_LOCALE = "zh-CN";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String CONTENT_HTML = "HTML";
     private static final Pattern TEMPLATE_VARIABLE_PATTERN = Pattern.compile("\\$\\{([A-Za-z][A-Za-z0-9_]*)}");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final EmailAccountMapper accountMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final EmailTemplateMapper templateMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final EmailSendRecordMapper recordMapper;
+    /**
+     * 系统参数配置服务，用于邮件模板注入平台访问地址等公共变量。
+     */
+    private final AdminConfigService adminConfigService;
 
     public AdminEmailServiceImpl(EmailAccountMapper accountMapper,
                                  EmailTemplateMapper templateMapper,
-                                 EmailSendRecordMapper recordMapper) {
+                                 EmailSendRecordMapper recordMapper,
+                                 AdminConfigService adminConfigService) {
         this.accountMapper = accountMapper;
         this.templateMapper = templateMapper;
         this.recordMapper = recordMapper;
+        this.adminConfigService = adminConfigService;
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<EmailAccountResponse> pageAccounts(EmailAccountQuery query) {
         EmailAccountQuery safeQuery = query == null ? new EmailAccountQuery() : query;
@@ -107,11 +184,21 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toAccountResponse).toList());
     }
 
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailAccountResponse getAccount(Long id) {
         return toAccountResponse(requireAccount(id));
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EmailAccountResponse createAccount(EmailAccountSaveRequest request) {
@@ -130,6 +217,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toAccountResponse(row);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EmailAccountResponse updateAccount(Long id, EmailAccountSaveRequest request) {
@@ -142,6 +235,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toAccountResponse(row);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailAccountResponse updateAccountStatus(Long id, Integer status) {
         EmailAccountDO row = requireAccount(id);
@@ -152,6 +251,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toAccountResponse(row);
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EmailAccountResponse setDefaultAccount(Long id) {
@@ -164,6 +268,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toAccountResponse(row);
     }
 
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void deleteAccount(Long id) {
         EmailAccountDO row = requireAccount(id);
@@ -174,6 +282,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         accountMapper.updateById(row);
     }
 
+    /**
+     * 发送收单支付消息或外部请求，并记录必要的执行结果。
+     * @param accountId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailSendResult sendTestEmail(Long accountId, EmailAccountTestRequest request) {
         EmailAccountDO account = requireAccount(accountId);
@@ -212,6 +326,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return result;
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<EmailTemplateResponse> pageTemplates(EmailTemplateQuery query) {
         EmailTemplateQuery safeQuery = query == null ? new EmailTemplateQuery() : query;
@@ -222,11 +341,21 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toTemplateResponse).toList());
     }
 
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailTemplateResponse getTemplate(Long id) {
         return toTemplateResponse(requireTemplate(id));
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailTemplateResponse createTemplate(EmailTemplateSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
@@ -242,6 +371,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toTemplateResponse(row);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailTemplateResponse updateTemplate(Long id, EmailTemplateSaveRequest request) {
         EmailTemplateDO row = requireTemplate(id);
@@ -256,6 +391,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toTemplateResponse(row);
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailTemplateResponse copyTemplate(Long id) {
         EmailTemplateDO source = requireTemplate(id);
@@ -283,6 +423,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toTemplateResponse(row);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailTemplateResponse updateTemplateStatus(Long id, Integer status) {
         EmailTemplateDO row = requireTemplate(id);
@@ -293,6 +439,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toTemplateResponse(row);
     }
 
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void deleteTemplate(Long id) {
         EmailTemplateDO row = requireTemplate(id);
@@ -302,19 +452,30 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         templateMapper.updateById(row);
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailTemplatePreviewResponse previewTemplate(EmailTemplatePreviewRequest request) {
-        Set<String> missing = missingVariables(request.getSubjectTemplate() + request.getContentTemplate(), request.getVariables());
+        Map<String, Object> variables = enrichSystemVariables(request.getVariables());
+        Set<String> missing = missingVariables(request.getSubjectTemplate() + request.getContentTemplate(), variables);
         EmailTemplatePreviewResponse response = new EmailTemplatePreviewResponse();
         response.getMissingVariables().addAll(missing);
         if (missing.isEmpty()) {
-            response.setSubject(render(request.getSubjectTemplate(), request.getVariables()));
-            response.setContent(render(request.getContentTemplate(), request.getVariables()));
-            response.setMaskedContent(maskSensitiveContent(request.getContentTemplate(), request.getVariables(), parseStringList(request.getSensitiveVariableNames())));
+            response.setSubject(render(request.getSubjectTemplate(), variables));
+            response.setContent(render(request.getContentTemplate(), variables));
+            response.setMaskedContent(maskSensitiveContent(request.getContentTemplate(), variables, parseStringList(request.getSensitiveVariableNames())));
         }
         return response;
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<EmailRecordResponse> pageRecords(EmailRecordQuery query) {
         EmailRecordQuery safeQuery = query == null ? new EmailRecordQuery() : query;
@@ -325,15 +486,25 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toRecordResponse).toList());
     }
 
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailRecordResponse getRecord(Long id) {
         return toRecordResponse(requireRecord(id));
     }
 
+    /**
+     * 发送收单支付消息或外部请求，并记录必要的执行结果。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailSendResult sendByTemplate(EmailSendRequest request) {
         EmailTemplateDO template = requireEnabledTemplate(request.getTemplateCode(), defaultIfBlank(request.getLocale(), DEFAULT_LOCALE));
-        Map<String, Object> variables = request.getVariables() == null ? new LinkedHashMap<>() : request.getVariables();
+        Map<String, Object> variables = enrichSystemVariables(request.getVariables());
         Set<String> missing = missingVariables(template.getSubjectTemplate() + template.getContentTemplate(), variables);
         EmailAccountDO account = selectAccount(request.getAppCode(), request.getMerchantId(), defaultIfBlank(request.getSceneCode(), template.getSceneCode()));
         EmailSendRecordDO record = buildRecord(request, template, account);
@@ -354,6 +525,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return doSend(record, account, content, CONTENT_HTML.equalsIgnoreCase(template.getContentType()));
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public EmailSendResult resend(Long id) {
         EmailSendRecordDO source = requireRecord(id);
@@ -635,6 +811,27 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         Set<String> required = extractVariables(template);
         required.removeIf(key -> variables != null && variables.containsKey(key) && variables.get(key) != null);
         return required;
+    }
+
+    /**
+     * 为邮件模板补充平台公共访问地址变量，业务传入变量优先，避免开户和订单邮件硬编码域名。
+     *
+     * @param variables 业务变量
+     * @return 合并后的变量
+     */
+    private Map<String, Object> enrichSystemVariables(Map<String, Object> variables) {
+        Map<String, Object> enriched = new LinkedHashMap<>();
+        Map<String, String> configValues = adminConfigService.enabledConfigValues(Set.copyOf(SystemConfigKeys.EMAIL_BASE_URL_VARIABLE_KEYS.values()));
+        SystemConfigKeys.EMAIL_BASE_URL_VARIABLE_KEYS.forEach((variableName, configKey) -> {
+            String value = configValues.get(configKey);
+            if (StringUtils.hasText(value)) {
+                enriched.put(variableName, value);
+            }
+        });
+        if (variables != null) {
+            enriched.putAll(variables);
+        }
+        return enriched;
     }
 
     private Set<String> extractVariables(String template) {

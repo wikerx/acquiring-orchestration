@@ -24,16 +24,32 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 管理后台用户管理应用服务。
- *
- * <p>负责收敛控制器入口、导出编排和展示文案转换，具体用户、角色、密码和状态规则由领域服务承载。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminUserApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Admin User Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminUserApplicationService {
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminUserService adminUserService;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -60,6 +76,11 @@ public class AdminUserApplicationService {
      * @param request 查询条件
      * @return 分页结果
      */
+    /**
+     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public PageResult<SysUserAccountDTO> pageUsers(SysUserAccountQueryRequest request) {
         return adminUserService.pageUsers(request);
     }
@@ -70,6 +91,12 @@ public class AdminUserApplicationService {
      * @param request 查询条件
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportUsers(SysUserAccountQueryRequest request,
                             String operator,
@@ -102,6 +129,11 @@ public class AdminUserApplicationService {
      * @param request 新增请求
      * @return 新增后的用户
      */
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysUserAccountDTO createUser(SysUserAccountCreateRequest request) {
         return adminUserService.createUser(request);
     }
@@ -112,6 +144,11 @@ public class AdminUserApplicationService {
      * @param request 更新请求
      * @return 更新后的用户
      */
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysUserAccountDTO updateUser(SysUserAccountUpdateRequest request) {
         return adminUserService.updateUser(request);
     }
@@ -121,6 +158,10 @@ public class AdminUserApplicationService {
      *
      * @param request 状态变更请求
      */
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     public void updateStatus(SysUserAccountStatusRequest request) {
         adminUserService.updateStatus(request);
     }
@@ -129,6 +170,10 @@ public class AdminUserApplicationService {
      * 重置后台用户密码。
      *
      * @param request 重置密码请求
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void resetPassword(SysUserAccountResetPasswordRequest request) {
         adminUserService.resetPassword(request);
@@ -140,6 +185,11 @@ public class AdminUserApplicationService {
      * @param accountId 用户账号ID
      * @return 角色授权信息
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param accountId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SysUserRoleAuthDTO userRoles(Long accountId) {
         return adminUserService.userRoles(accountId);
     }
@@ -149,6 +199,10 @@ public class AdminUserApplicationService {
      *
      * @param request 角色分配请求
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     public void grantRoles(SysUserRoleGrantRequest request) {
         adminUserService.grantRoles(request);
     }
@@ -157,6 +211,10 @@ public class AdminUserApplicationService {
      * 删除后台用户。
      *
      * @param accountIds 账号主键列表
+     */
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param accountIds 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void removeUsers(List<Long> accountIds) {
         adminUserService.removeUsers(accountIds);

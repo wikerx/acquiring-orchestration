@@ -33,36 +33,76 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 /**
- * MCC 管理后台应用服务测试。
- *
- * <p>重点覆盖卡品牌 ALL 禁入、所有卡品牌展开、范围字段校验和分类删除保护，避免风险策略基础数据被错误写入。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseMccApplicationServiceTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 基础数据Admin Base Mcc Application Service Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @ExtendWith(MockitoExtension.class)
 class AdminBaseMccApplicationServiceTest {
 
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private BaseMccLevel1Mapper level1Mapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private BaseMccLevel2Mapper level2Mapper;
+    /**
+     * 基础数据编码或编号字段，用于业务识别、查询和幂等关联。
+     */
     @Mock
     private BaseMccCodeMapper codeMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private BaseMccRiskPolicyMapper riskPolicyMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private SysDictDataMapper dictDataMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private AdminDictService adminDictService;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private IsoCountryMapper isoCountryMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private BaseMerchantInfoMapper merchantInfoMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ExcelExportService excelExportService;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ExcelLocaleResolver excelLocaleResolver;
 
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private AdminBaseMccApplicationService service;
 
     @BeforeEach

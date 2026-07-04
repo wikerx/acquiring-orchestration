@@ -45,18 +45,51 @@ import java.util.Set;
  * <p>负责菜单树组装、父子层级校验、菜单编码唯一性校验和菜单状态维护，
  * 不承担控制器协议适配或页面交互逻辑。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMenuServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Menu Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminMenuServiceImpl implements AdminMenuService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long ROOT_PARENT_ID = 0L;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DEFAULT_SORT_NO = 100;
     private static final Set<String> MENU_TYPES = Set.of("CATALOG", "MENU", "BUTTON", "LINK");
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMenuMapper sysMenuMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysPermissionMapper sysPermissionMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRoleMenuMapper sysRoleMenuMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRolePermissionMapper sysRolePermissionMapper;
 
     /**
@@ -86,11 +119,22 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      * @param request 查询条件
      * @return 菜单树
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<SysMenuDTO> treeMenus(SysMenuQueryRequest request) {
         return treeMenus(AuthConstants.APP_ADMIN, request);
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<SysMenuDTO> treeMenus(String appCode, SysMenuQueryRequest request) {
         SysMenuQueryRequest query = request == null ? new SysMenuQueryRequest() : request;
@@ -122,12 +166,23 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      * @param request 新增请求
      * @return 菜单详情
      */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO createMenu(SysMenuCreateRequest request) {
         return createMenu(AuthConstants.APP_ADMIN, request);
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO createMenu(String appCode, SysMenuCreateRequest request) {
@@ -158,12 +213,23 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      * @param request 更新请求
      * @return 菜单详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO updateMenu(SysMenuUpdateRequest request) {
         return updateMenu(AuthConstants.APP_ADMIN, request);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO updateMenu(String appCode, SysMenuUpdateRequest request) {
@@ -189,12 +255,21 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      *
      * @param request 状态请求
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(SysMenuStatusRequest request) {
         updateStatus(AuthConstants.APP_ADMIN, request);
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(String appCode, SysMenuStatusRequest request) {
@@ -212,6 +287,11 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      *
      * @param appCode 应用编码
      * @param request 删除请求
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)

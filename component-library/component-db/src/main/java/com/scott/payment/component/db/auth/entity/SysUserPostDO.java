@@ -8,9 +8,13 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 用户岗位关联数据库实体。
- *
- * <p>维护自然人用户与岗位的多对多关系，仅用于组织岗位展示和筛选，不替代账号角色授权。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysUserPostDO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Sys User Post 数据库实体，位于 component-library/component-db 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 @TableName("sys_user_post")

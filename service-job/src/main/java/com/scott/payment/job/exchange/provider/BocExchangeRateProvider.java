@@ -17,15 +17,25 @@ import java.time.Duration;
 import java.util.List;
 
 /**
- * 中国银行外汇牌价 Provider。
- *
- * <p>负责请求中行页面并交给解析器转换为系统统一原始汇率结构。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : BocExchangeRateProvider
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 汇率管理Boc Exchange Rate Provider，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Component
 public class BocExchangeRateProvider implements ExchangeRateProvider {
 
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     public static final String SOURCE_CODE = "BOC";
 
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BocExchangeRateHtmlParser parser;
 
     /**
@@ -42,6 +52,10 @@ public class BocExchangeRateProvider implements ExchangeRateProvider {
      *
      * @return 固定返回 BOC
      */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public String sourceCode() {
         return SOURCE_CODE;
@@ -52,6 +66,11 @@ public class BocExchangeRateProvider implements ExchangeRateProvider {
      *
      * @param source 汇率源配置，必须包含 requestUrl 和超时时间
      * @return 原始报价列表
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param source 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<RawRateItem> fetch(ExchangeRateSourceDO source) {

@@ -7,9 +7,13 @@ import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
 
 /**
- * 后台用户导出对象转换器。
- *
- * <p>只负责 DTO 与导出行之间的字段映射，语言相关展示文案由应用服务按当前 locale 填充。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : UserExportConverter
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付User Export Converter，位于 service-admin 的对象转换层，用于定义调用契约和职责边界。
+ * @status : create
  */
 @Mapper
 public interface UserExportConverter {

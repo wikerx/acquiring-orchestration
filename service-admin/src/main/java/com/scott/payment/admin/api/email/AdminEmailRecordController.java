@@ -19,12 +19,21 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台邮件发送记录接口。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminEmailRecordController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 邮件管理Admin Email Record 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/admin/email/records")
 public class AdminEmailRecordController {
 
+    /**
+     * 邮件管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
+     */
     private final AdminEmailApplicationService emailApplicationService;
 
     public AdminEmailRecordController(AdminEmailApplicationService emailApplicationService) {
@@ -37,12 +46,22 @@ public class AdminEmailRecordController {
         return success(emailApplicationService.pageRecords(query));
     }
 
+    /**
+     * 获取邮件管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/{id}")
     @RequiresPermission("email:record:detail")
     public CommonResult<EmailRecordResponse> getRecord(@PathVariable("id") Long id) {
         return success(emailApplicationService.getRecord(id));
     }
 
+    /**
+     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/{id}/resend")
     @RequiresPermission("email:record:resend")
     @OperationLog(moduleName = "邮件发送记录", businessType = OperationTypeConstants.UPDATE, operation = "重新发送邮件")

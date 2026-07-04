@@ -32,10 +32,22 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>菜单树查询、菜单维护和状态切换均通过
  * {@link AdminMenuApplicationService} 编排，Controller 仅负责 HTTP 入口职责。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMenuController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Admin Menu 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/admin/system/menus")
 public class AdminMenuController {
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminMenuApplicationService adminMenuApplicationService;
 
     /**
@@ -66,6 +78,11 @@ public class AdminMenuController {
      * @param request 新增请求
      * @return 新增后的菜单
      */
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/create")
     @RequiresPermission("system:menu:add")
     @OperationLog(moduleName = "菜单管理", businessType = OperationTypeConstants.CREATE, operation = "新增后台菜单")
@@ -79,6 +96,11 @@ public class AdminMenuController {
      * @param request 更新请求
      * @return 更新后的菜单
      */
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/update")
     @RequiresPermission("system:menu:edit")
     @OperationLog(moduleName = "菜单管理", businessType = OperationTypeConstants.UPDATE, operation = "编辑后台菜单")
@@ -91,6 +113,11 @@ public class AdminMenuController {
      *
      * @param request 状态更新请求
      * @return 空响应
+     */
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/status")
     @RequiresPermission("system:menu:edit")

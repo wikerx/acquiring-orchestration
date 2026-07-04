@@ -4,7 +4,13 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * OpenAPI 商户接入材料导出配置，统一控制 SDK 包中写入的非密钥类运行参数。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiMerchantKeyExportProperties
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIOpen Api Merchant Key Export 配置属性，位于 component-library/component-security 的安全组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 @ConfigurationProperties(prefix = "acquiring.openapi.merchant-key-export")

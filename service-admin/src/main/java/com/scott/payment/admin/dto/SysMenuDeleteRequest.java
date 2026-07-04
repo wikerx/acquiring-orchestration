@@ -6,15 +6,25 @@ import lombok.Data;
 import java.io.Serializable;
 
 /**
- * 菜单删除请求 DTO。
- *
- * <p>用于逻辑删除指定菜单，删除前由服务层校验子菜单、权限资源和授权关系。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysMenuDeleteRequest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Sys Menu Delete 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 public class SysMenuDeleteRequest implements Serializable {
 
+    /**
+     * 系统管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     */
     @NotNull(message = "菜单ID不能为空")
     private Long menuId;
 }

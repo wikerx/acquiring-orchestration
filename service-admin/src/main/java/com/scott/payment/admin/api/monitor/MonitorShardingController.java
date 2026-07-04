@@ -28,14 +28,21 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台分表治理入口层。
- *
- * <p>该控制器只负责权限控制、参数接收和统一响应，分表规则聚合与建表动作由应用服务协调。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MonitorShardingController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 监控治理Monitor Sharding 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/admin/monitor/sharding")
 public class MonitorShardingController {
 
+    /**
+     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminShardingGovernanceApplicationService adminShardingGovernanceApplicationService;
 
     /**
@@ -52,6 +59,10 @@ public class MonitorShardingController {
      *
      * @return 分表规则列表
      */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/rules")
     @RequiresPermission("monitor:sharding:rule:list")
     public CommonResult<List<ShardingRuleResponse>> rules() {
@@ -63,6 +74,11 @@ public class MonitorShardingController {
      *
      * @param logicalTable 逻辑表或规则 key
      * @return 分表规则详情
+     */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @param logicalTable 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/rules/{logicalTable}")
     @RequiresPermission("monitor:sharding:rule:query")
@@ -88,6 +104,11 @@ public class MonitorShardingController {
      *
      * @param id 物理表登记主键
      * @return 物理表详情
+     */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/physical-tables/{id}")
     @RequiresPermission("monitor:sharding:physical:query")
@@ -146,6 +167,11 @@ public class MonitorShardingController {
      * @param id 建表日志主键
      * @return 建表日志详情
      */
+    /**
+     * 创建或保存监控治理数据，保持请求校验、默认值和审计字段一致。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/table-create/logs/{id}")
     @RequiresPermission("monitor:sharding:task:query")
     public CommonResult<ShardingTableCreateLogResponse> createLog(@PathVariable("id") Long id) {
@@ -182,6 +208,10 @@ public class MonitorShardingController {
      * 查询分表 ID 规则说明。
      *
      * @return ID 规则说明
+     */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/id-rule")
     @RequiresPermission("monitor:sharding:idRule:query")

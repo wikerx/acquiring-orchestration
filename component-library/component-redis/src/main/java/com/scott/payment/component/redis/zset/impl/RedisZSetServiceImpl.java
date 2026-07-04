@@ -21,6 +21,15 @@ import java.util.Set;
  * @description : Redis ZSet 有序集合服务实现
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisZSetServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Redis ZSet Service Impl，位于 component-library/component-redis 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 @ConditionalOnBean(RedisTemplate.class)
 public class RedisZSetServiceImpl implements RedisZSetService {
@@ -47,6 +56,13 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param score 分数
      * @return 是否新增成功
      */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param score 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public boolean add(String key, Object value, double score) {
         RedisKeySupport.requireKey(key);
@@ -61,6 +77,14 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param score 分数
      * @param ttl   过期时间
      * @return 是否新增成功
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param score 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param ttl 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public boolean add(String key, Object value, double score, Duration ttl) {
@@ -78,6 +102,12 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param key    Redis Key
      * @param tuples 元素与分数集合
      * @return 新增数量
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param tuples 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long add(String key, Collection<ZSetOperations.TypedTuple<Object>> tuples) {
@@ -97,6 +127,13 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param end   结束排名
      * @return 元素集合
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param start 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param end 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Set<Object> range(String key, long start, long end) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -113,6 +150,13 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param minScore 最小分数
      * @param maxScore 最大分数
      * @return 元素集合
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param minScore 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param maxScore 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public Set<Object> rangeByScore(String key, double minScore, double maxScore) {
@@ -133,6 +177,15 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param count    查询数量
      * @return 元素集合
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param minScore 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param maxScore 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param offset 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param count 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Set<Object> rangeByScore(String key, double minScore, double maxScore, long offset, long count) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -149,6 +202,12 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param value 元素值
      * @return 分数；不存在时返回 null
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Double score(String key, Object value) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -162,6 +221,11 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      *
      * @param key Redis Key
      * @return 集合大小
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long size(String key) {
@@ -180,6 +244,13 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param maxScore 最大分数
      * @return 元素数量
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param minScore 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param maxScore 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public long count(String key, double minScore, double maxScore) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -196,6 +267,12 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param value 元素值
      * @return 排名；不存在时返回 null
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Long rank(String key, Object value) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -210,6 +287,12 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param key   Redis Key
      * @param value 元素值
      * @return 排名；不存在时返回 null
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public Long reverseRank(String key, Object value) {
@@ -227,6 +310,13 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param delta 分数增量
      * @return 增加后的分数
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param delta 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Double incrementScore(String key, Object value, double delta) {
         RedisKeySupport.requireKey(key);
@@ -239,6 +329,12 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param key    Redis Key
      * @param values 元素值
      * @return 移除数量
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param values 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long remove(String key, Object... values) {
@@ -257,6 +353,13 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param end   结束排名
      * @return 移除数量
      */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param start 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param end 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public long removeRange(String key, long start, long end) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -273,6 +376,13 @@ public class RedisZSetServiceImpl implements RedisZSetService {
      * @param minScore 最小分数
      * @param maxScore 最大分数
      * @return 移除数量
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param minScore 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param maxScore 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long removeRangeByScore(String key, double minScore, double maxScore) {

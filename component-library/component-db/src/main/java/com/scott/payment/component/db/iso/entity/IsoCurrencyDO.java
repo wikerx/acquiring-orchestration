@@ -17,6 +17,15 @@ import java.time.LocalDateTime;
  * @description : ISO 4217 币种基础字典数据库实体
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : IsoCurrencyDO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Iso Currency 数据库实体，位于 component-library/component-db 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 @TableName("base_iso_currency")
 public class IsoCurrencyDO {

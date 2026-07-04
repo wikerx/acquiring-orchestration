@@ -56,28 +56,77 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 管理端商户用户只读查询服务实现。
- *
- * <p>查询范围固定为 MERCHANT 应用账号，响应字段只包含展示信息和脱敏联系方式。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantUserServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Merchant User Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long ROOT_PARENT_ID = 0L;
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantUserMapper sysMerchantUserMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRoleMapper sysRoleMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRoleMenuMapper sysRoleMenuMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRolePermissionMapper sysRolePermissionMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMenuMapper sysMenuMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysPermissionMapper sysPermissionMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantDeptMapper sysMerchantDeptMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantPostMapper sysMerchantPostMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantAccountDeptMapper sysMerchantAccountDeptMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantAccountPostMapper sysMerchantAccountPostMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
 
     public AdminMerchantUserServiceImpl(SysAppMapper sysAppMapper,
@@ -110,6 +159,11 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<AdminMerchantUserListDTO> pageMerchantUsers(AdminMerchantUserQueryRequest request) {
@@ -146,6 +200,11 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         );
     }
 
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param accountId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public AdminMerchantUserDetailDTO getMerchantUser(Long accountId) {
