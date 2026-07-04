@@ -3,9 +3,6 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessQuery;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessResponse;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
@@ -14,16 +11,15 @@ import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelOption;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
 import com.scott.payment.admin.entity.SysDictDataDO;
-import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelAccessConfigDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCardBrandDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCurrencyDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelInfoDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelLimitRuleDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelPaymentCapabilityDO;
-import com.scott.payment.admin.mapper.ChannelAccessConfigMapper;
 import com.scott.payment.admin.mapper.ChannelCapabilityCardBrandMapper;
 import com.scott.payment.admin.mapper.ChannelCapabilityCurrencyMapper;
 import com.scott.payment.admin.mapper.ChannelInfoMapper;
@@ -31,6 +27,8 @@ import com.scott.payment.admin.mapper.ChannelLimitRuleMapper;
 import com.scott.payment.admin.mapper.ChannelPaymentCapabilityMapper;
 import com.scott.payment.admin.mapper.SysDictDataMapper;
 import com.scott.payment.admin.service.AdminChannelService;
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -39,10 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -55,7 +51,7 @@ import java.util.stream.Collectors;
 /**
  * 管理后台渠道管理服务实现。
  *
- * <p>该服务只维护渠道基础数据、能力、限额和接入配置，不执行真实渠道调用，也不承载支付交易状态机。</p>
+ * <p>该服务只维护渠道基础数据、能力和限额，不执行真实渠道调用，也不承载支付交易状态机。</p>
  */
 @Service
 public class AdminChannelServiceImpl implements AdminChannelService {
@@ -69,8 +65,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     private static final String NONE = "NONE";
     private static final String ALL = "ALL";
     private static final String USD = "USD";
+    private static final String LIMIT_DAILY = "DAILY";
+    private static final String LIMIT_WEEKLY = "WEEKLY";
+    private static final String LIMIT_MONTHLY = "MONTHLY";
+    private static final BigDecimal MIN_LIMIT_AMOUNT = new BigDecimal("0.01");
+    private static final BigDecimal WEEKLY_LIMIT_MULTIPLIER = new BigDecimal("7");
+    private static final BigDecimal MONTHLY_LIMIT_MULTIPLIER = new BigDecimal("4");
     private static final String TRANSACTION_TYPE_SEPARATOR = ",";
     private static final Pattern CHANNEL_CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{2,64}$");
+    private static final Pattern HTTP_URL_PATTERN = Pattern.compile("^https?://.+", Pattern.CASE_INSENSITIVE);
     private static final Set<String> INCREMENTAL_TRANSACTION_TYPES = Set.of("AUTHORIZATION", "PRE_AUTHORIZATION");
 
     private final ChannelInfoMapper channelInfoMapper;
@@ -78,7 +81,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     private final ChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
     private final ChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
     private final ChannelLimitRuleMapper limitRuleMapper;
-    private final ChannelAccessConfigMapper accessConfigMapper;
     private final SysDictDataMapper dictDataMapper;
 
     public AdminChannelServiceImpl(ChannelInfoMapper channelInfoMapper,
@@ -86,14 +88,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                                    ChannelCapabilityCurrencyMapper capabilityCurrencyMapper,
                                    ChannelCapabilityCardBrandMapper capabilityCardBrandMapper,
                                    ChannelLimitRuleMapper limitRuleMapper,
-                                   ChannelAccessConfigMapper accessConfigMapper,
                                    SysDictDataMapper dictDataMapper) {
         this.channelInfoMapper = channelInfoMapper;
         this.capabilityMapper = capabilityMapper;
         this.capabilityCurrencyMapper = capabilityCurrencyMapper;
         this.capabilityCardBrandMapper = capabilityCardBrandMapper;
         this.limitRuleMapper = limitRuleMapper;
-        this.accessConfigMapper = accessConfigMapper;
         this.dictDataMapper = dictDataMapper;
     }
 
@@ -134,6 +134,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                     option.setChannelStatus(channel.getChannelStatus());
                     option.setSupportAcquiring(channel.getSupportAcquiring());
                     option.setSupportPayout(channel.getSupportPayout());
+                    option.setSupport3ds(channel.getSupport3ds());
                     return option;
                 })
                 .toList();
@@ -181,8 +182,8 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteChannel(Long id) {
         ChannelInfoDO entity = findChannel(id);
-        if (hasActiveCapability(id) || hasActiveLimit(id) || hasActiveAccessConfig(id)) {
-            throw badRequest("渠道存在启用中的能力、限额或接入配置，不能删除");
+        if (hasActiveCapability(id) || hasActiveLimit(id)) {
+            throw badRequest("渠道存在启用中的能力或限额，不能删除");
         }
         entity.setDeleted(entity.getId());
         entity.setUpdateTime(LocalDateTime.now());
@@ -254,6 +255,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         ChannelPaymentCapabilityDO entity = findCapability(id);
         if (support3ds != null) {
             validateStatus(support3ds);
+            ChannelInfoDO channel = findChannel(entity.getChannelId());
+            if (support3ds == ENABLED && !channelSupports3ds(channel, entity.getBusinessType())) {
+                throw badRequest("渠道未开启收单3DS能力，不能开启支付能力3DS");
+            }
             entity.setSupport3ds(support3ds);
         }
         if (supportIncrementalAuthorization != null) {
@@ -311,6 +316,36 @@ public class AdminChannelServiceImpl implements AdminChannelService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public List<LimitResponse> createLimits(LimitBatchSaveRequest request) {
+        List<LimitSaveRequest> items = validateLimitBatchItems(request);
+        validateLimitBatchAmountRelations(items);
+        List<LimitResponse> responses = new ArrayList<>();
+        for (LimitSaveRequest item : items) {
+            responses.add(createLimit(item));
+        }
+        return responses;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<LimitResponse> saveLimitDimension(LimitBatchSaveRequest request) {
+        List<LimitSaveRequest> items = validateLimitBatchItems(request);
+        validateSameLimitDimension(items);
+        validateLimitBatchAmountRelations(items);
+        List<LimitResponse> responses = new ArrayList<>();
+        for (LimitSaveRequest item : items) {
+            ChannelLimitRuleDO existing = findLimitByScope(item);
+            if (existing == null) {
+                responses.add(createLimit(item));
+            } else {
+                responses.add(updateLimit(existing.getId(), item));
+            }
+        }
+        return responses;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public LimitResponse updateLimit(Long id, LimitSaveRequest request) {
         ChannelLimitRuleDO entity = findLimit(id);
         ChannelInfoDO channel = validateLimitRequest(request, id);
@@ -325,6 +360,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         ChannelLimitRuleDO entity = findLimit(id);
         validateStatus(status);
         entity.setRuleStatus(status);
+        entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
         limitRuleMapper.updateById(entity);
         return toLimitResponse(entity, findChannel(entity.getChannelId()));
@@ -335,68 +371,9 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     public void deleteLimit(Long id) {
         ChannelLimitRuleDO entity = findLimit(id);
         entity.setDeleted(entity.getId());
+        entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
         limitRuleMapper.updateById(entity);
-    }
-
-    @Override
-    public PageResult<AccessResponse> pageAccessConfigs(AccessQuery request) {
-        AccessQuery query = request == null ? new AccessQuery() : request;
-        Page<ChannelAccessConfigDO> page = accessConfigMapper.selectPage(
-                new Page<>(query.safePageNo(), query.safePageSize()),
-                buildAccessQuery(query)
-        );
-        Map<Long, ChannelInfoDO> channelMap = channelMap(page.getRecords().stream().map(ChannelAccessConfigDO::getChannelId).toList());
-        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
-                page.getRecords().stream().map(row -> toAccessResponse(row, channelMap.get(row.getChannelId()))).toList());
-    }
-
-    @Override
-    public AccessResponse getAccessConfig(Long id) {
-        ChannelAccessConfigDO entity = findAccess(id);
-        return toAccessResponse(entity, findChannel(entity.getChannelId()));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public AccessResponse createAccessConfig(AccessSaveRequest request) {
-        ChannelInfoDO channel = validateAccessRequest(request, null);
-        ChannelAccessConfigDO entity = new ChannelAccessConfigDO();
-        fillAccess(entity, request, channel, LocalDateTime.now(), true);
-        entity.setCreateTime(entity.getUpdateTime());
-        entity.setDeleted(NOT_DELETED);
-        accessConfigMapper.insert(entity);
-        return toAccessResponse(entity, channel);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public AccessResponse updateAccessConfig(Long id, AccessSaveRequest request) {
-        ChannelAccessConfigDO entity = findAccess(id);
-        ChannelInfoDO channel = validateAccessRequest(request, id);
-        fillAccess(entity, request, channel, LocalDateTime.now(), false);
-        accessConfigMapper.updateById(entity);
-        return toAccessResponse(entity, channel);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public AccessResponse updateAccessConfigStatus(Long id, Integer status) {
-        ChannelAccessConfigDO entity = findAccess(id);
-        validateStatus(status);
-        entity.setConfigStatus(status);
-        entity.setUpdateTime(LocalDateTime.now());
-        accessConfigMapper.updateById(entity);
-        return toAccessResponse(entity, findChannel(entity.getChannelId()));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteAccessConfig(Long id) {
-        ChannelAccessConfigDO entity = findAccess(id);
-        entity.setDeleted(entity.getId());
-        entity.setUpdateTime(LocalDateTime.now());
-        accessConfigMapper.updateById(entity);
     }
 
     private void validateChannelRequest(ChannelInfoSaveRequest request, Long id) {
@@ -408,12 +385,19 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         validateStatus(request.getSupportAcquiring());
         validateStatus(request.getSupportPayout());
         validateStatus(request.getSupport3ds());
+        if (defaultZero(request.getSupportAcquiring()) != ENABLED) {
+            request.setSupport3ds(DISABLED);
+        }
         Long count = channelInfoMapper.selectCount(Wrappers.<ChannelInfoDO>lambdaQuery()
                 .eq(ChannelInfoDO::getDeleted, NOT_DELETED)
                 .eq(ChannelInfoDO::getChannelCode, code)
                 .ne(id != null, ChannelInfoDO::getId, id));
         if (count > 0) {
             throw badRequest("渠道编码已存在");
+        }
+        if (StringUtils.hasText(request.getDefaultRequestUrl())
+                && !HTTP_URL_PATTERN.matcher(trim(request.getDefaultRequestUrl())).matches()) {
+            throw badRequest("默认请求地址必须以 http:// 或 https:// 开头");
         }
     }
 
@@ -426,6 +410,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         validateBusinessType(businessType);
         validateChannelSupportsBusiness(channel, businessType);
         validatePaymentMethod(businessType, paymentMethod);
+        if (!channelSupports3ds(channel, businessType)) {
+            request.setSupport3ds(DISABLED);
+        } else if (defaultZero(request.getSupport3ds()) == ENABLED) {
+            validateStatus(request.getSupport3ds());
+        }
         if (BUSINESS_ACQUIRING.equals(businessType) && transactionTypes.isEmpty()) {
             throw badRequest("收单能力必须配置交易类型");
         }
@@ -475,64 +464,178 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         String businessType = normalizeCode(request.getBusinessType());
         validateBusinessType(businessType);
         String paymentMethod = defaultScope(request.getPaymentMethod());
-        String transactionType = ALL;
         String cardBrand = defaultScope(request.getCardBrand());
         String limitType = normalizeCode(request.getLimitType());
-        if (request.getLimitAmount() == null || request.getLimitAmount().compareTo(BigDecimal.ZERO) < 0) {
-            throw badRequest("限额金额必须大于等于0");
-        }
-        if (request.getEffectiveStartTime() != null && request.getEffectiveEndTime() != null
-                && request.getEffectiveEndTime().isBefore(request.getEffectiveStartTime())) {
-            throw badRequest("生效结束时间不能早于生效开始时间");
+        validateChannelSupportsLimitBusiness(channel, businessType, request.getRuleStatus());
+        validateLimitPaymentScope(request.getChannelId(), businessType, paymentMethod, cardBrand);
+        assertDictValue("channel_limit_type", limitType, true);
+        if (request.getLimitAmount() == null || request.getLimitAmount().compareTo(MIN_LIMIT_AMOUNT) < 0) {
+            throw badRequest("限额金额必须大于等于0.01");
         }
         validateStatus(request.getRuleStatus());
         Long count = limitRuleMapper.selectCount(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
                 .eq(ChannelLimitRuleDO::getDeleted, NOT_DELETED)
-                .eq(ChannelLimitRuleDO::getRuleStatus, ENABLED)
                 .eq(ChannelLimitRuleDO::getChannelId, request.getChannelId())
                 .eq(ChannelLimitRuleDO::getBusinessType, businessType)
                 .eq(ChannelLimitRuleDO::getPaymentMethod, paymentMethod)
                 .eq(ChannelLimitRuleDO::getCardBrand, cardBrand)
                 .eq(ChannelLimitRuleDO::getLimitType, limitType)
                 .ne(id != null, ChannelLimitRuleDO::getId, id));
-        if (request.getRuleStatus() == ENABLED && count > 0) {
-            throw badRequest("同一限额作用范围下已存在启用规则");
+        if (count > 0) {
+            throw badRequest("同一渠道、业务类型、支付方式/卡品牌和限额类型不能重复");
         }
         request.setBusinessType(businessType);
         request.setPaymentMethod(paymentMethod);
-        request.setTransactionType(transactionType);
         request.setCardBrand(cardBrand);
         request.setLimitType(limitType);
+        validateLimitAmountRelations(request, id);
         return channel;
     }
 
-    private ChannelInfoDO validateAccessRequest(AccessSaveRequest request, Long id) {
-        ChannelInfoDO channel = findChannel(request.getChannelId());
-        String envMode = normalizeCode(request.getEnvMode());
-        String interactionMode = normalizeCode(request.getInteractionMode());
-        if (!Set.of("TEST", "PROD").contains(envMode)) {
-            throw badRequest("环境必须为 TEST 或 PROD");
+    private List<LimitSaveRequest> validateLimitBatchItems(LimitBatchSaveRequest request) {
+        List<LimitSaveRequest> items = request == null ? List.of() : request.getItems();
+        if (items == null || items.isEmpty()) {
+            throw badRequest("限额规则不能为空");
         }
-        validateStatus(request.getConfigStatus());
-        if (interactionMode.contains("API") && id == null
-                && (!StringUtils.hasText(request.getApiKey()) || !StringUtils.hasText(request.getApiSecret()))) {
-            throw badRequest("API 类交互方式必须填写 API Key 和 API Secret");
+        return items;
+    }
+
+    private void validateSameLimitDimension(List<LimitSaveRequest> items) {
+        LimitSaveRequest first = items.get(0);
+        String businessType = normalizeCode(first.getBusinessType());
+        String paymentMethod = defaultScope(first.getPaymentMethod());
+        String cardBrand = defaultScope(first.getCardBrand());
+        for (LimitSaveRequest item : items) {
+            if (!Objects.equals(first.getChannelId(), item.getChannelId())
+                    || !businessType.equals(normalizeCode(item.getBusinessType()))
+                    || !paymentMethod.equals(defaultScope(item.getPaymentMethod()))
+                    || !cardBrand.equals(defaultScope(item.getCardBrand()))) {
+                throw badRequest("维度编辑只能提交同一渠道、业务类型、支付方式和卡品牌下的限额");
+            }
         }
-        if ((interactionMode.contains("CERT") || interactionMode.contains("TLS"))
-                && !StringUtils.hasText(request.getClientCertPath()) && id == null) {
-            throw badRequest("证书类交互方式必须填写客户端证书路径");
+    }
+
+    private void validateLimitBatchAmountRelations(List<LimitSaveRequest> items) {
+        Map<LimitScope, Map<String, BigDecimal>> limitAmountsByScope = new LinkedHashMap<>();
+        for (LimitSaveRequest item : items) {
+            LimitScope scope = limitScope(item);
+            Map<String, BigDecimal> amounts = limitAmountsByScope.computeIfAbsent(
+                    scope,
+                    currentScope -> existingLimitAmounts(currentScope, null)
+            );
+            if (StringUtils.hasText(item.getLimitType()) && item.getLimitAmount() != null) {
+                amounts.put(normalizeCode(item.getLimitType()), item.getLimitAmount());
+            }
         }
-        Long count = accessConfigMapper.selectCount(Wrappers.<ChannelAccessConfigDO>lambdaQuery()
-                .eq(ChannelAccessConfigDO::getDeleted, NOT_DELETED)
-                .eq(ChannelAccessConfigDO::getChannelId, request.getChannelId())
-                .eq(ChannelAccessConfigDO::getEnvMode, envMode)
-                .ne(id != null, ChannelAccessConfigDO::getId, id));
-        if (count > 0) {
-            throw badRequest("同一渠道同一环境只能配置一条接入配置");
+        limitAmountsByScope.values().forEach(this::validateLimitAmountRelations);
+    }
+
+    private void validateLimitAmountRelations(LimitSaveRequest request, Long id) {
+        Map<String, BigDecimal> amounts = existingLimitAmounts(limitScope(request), id);
+        amounts.put(request.getLimitType(), request.getLimitAmount());
+        validateLimitAmountRelations(amounts);
+    }
+
+    private void validateLimitAmountRelations(Map<String, BigDecimal> amounts) {
+        BigDecimal daily = amounts.get(LIMIT_DAILY);
+        BigDecimal weekly = amounts.get(LIMIT_WEEKLY);
+        BigDecimal monthly = amounts.get(LIMIT_MONTHLY);
+        if (daily != null && weekly != null && weekly.compareTo(daily.multiply(WEEKLY_LIMIT_MULTIPLIER)) > 0) {
+            throw badRequest("周限额不能超过日限额的7倍");
         }
-        request.setEnvMode(envMode);
-        request.setInteractionMode(interactionMode);
-        return channel;
+        if (weekly != null && monthly != null && monthly.compareTo(weekly.multiply(MONTHLY_LIMIT_MULTIPLIER)) > 0) {
+            throw badRequest("月限额不能超过周限额的4倍");
+        }
+    }
+
+    private Map<String, BigDecimal> existingLimitAmounts(LimitScope scope, Long excludeId) {
+        if (scope.channelId() == null || !StringUtils.hasText(scope.businessType())) {
+            return new LinkedHashMap<>();
+        }
+        List<ChannelLimitRuleDO> rows = limitRuleMapper.selectList(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
+                .eq(ChannelLimitRuleDO::getDeleted, NOT_DELETED)
+                .eq(ChannelLimitRuleDO::getChannelId, scope.channelId())
+                .eq(ChannelLimitRuleDO::getBusinessType, scope.businessType())
+                .eq(ChannelLimitRuleDO::getPaymentMethod, scope.paymentMethod())
+                .eq(ChannelLimitRuleDO::getCardBrand, scope.cardBrand())
+                .ne(excludeId != null, ChannelLimitRuleDO::getId, excludeId));
+        Map<String, BigDecimal> amounts = new LinkedHashMap<>();
+        if (rows == null) {
+            return amounts;
+        }
+        for (ChannelLimitRuleDO row : rows) {
+            if (StringUtils.hasText(row.getLimitType()) && row.getLimitAmount() != null) {
+                amounts.put(row.getLimitType(), row.getLimitAmount());
+            }
+        }
+        return amounts;
+    }
+
+    private LimitScope limitScope(LimitSaveRequest request) {
+        return new LimitScope(
+                request.getChannelId(),
+                normalizeCode(request.getBusinessType()),
+                defaultScope(request.getPaymentMethod()),
+                defaultScope(request.getCardBrand())
+        );
+    }
+
+    private ChannelLimitRuleDO findLimitByScope(LimitSaveRequest request) {
+        return limitRuleMapper.selectOne(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
+                .eq(ChannelLimitRuleDO::getDeleted, NOT_DELETED)
+                .eq(ChannelLimitRuleDO::getChannelId, request.getChannelId())
+                .eq(ChannelLimitRuleDO::getBusinessType, normalizeCode(request.getBusinessType()))
+                .eq(ChannelLimitRuleDO::getPaymentMethod, defaultScope(request.getPaymentMethod()))
+                .eq(ChannelLimitRuleDO::getCardBrand, defaultScope(request.getCardBrand()))
+                .eq(ChannelLimitRuleDO::getLimitType, normalizeCode(request.getLimitType())));
+    }
+
+    private void validateChannelSupportsLimitBusiness(ChannelInfoDO channel, String businessType, Integer ruleStatus) {
+        if (BUSINESS_ACQUIRING.equals(businessType) && defaultZero(channel.getSupportAcquiring()) != ENABLED) {
+            throw badRequest("渠道未开启收单能力");
+        }
+        if (BUSINESS_PAYOUT.equals(businessType) && defaultZero(channel.getSupportPayout()) != ENABLED) {
+            throw badRequest("渠道未开启代付能力");
+        }
+        if (defaultZero(ruleStatus) == ENABLED && defaultZero(channel.getChannelStatus()) != ENABLED) {
+            throw badRequest("渠道停用时不能启用限额规则");
+        }
+    }
+
+    private void validateLimitPaymentScope(Long channelId, String businessType, String paymentMethod, String cardBrand) {
+        if (ALL.equals(paymentMethod)) {
+            if (!ALL.equals(cardBrand)) {
+                throw badRequest("渠道级限额不能绑定卡品牌");
+            }
+            if (!hasEnabledCapability(channelId, businessType, null)) {
+                throw badRequest("该渠道业务类型下不存在启用中的支付能力");
+            }
+            return;
+        }
+
+        validatePaymentMethod(businessType, paymentMethod);
+        ChannelPaymentCapabilityDO capability = findEnabledCapability(channelId, businessType, paymentMethod);
+        if (capability == null) {
+            throw badRequest("该渠道支付方式不存在启用中的支付能力");
+        }
+        if (!PAYMENT_BANK_CARD.equals(paymentMethod)) {
+            if (!ALL.equals(cardBrand)) {
+                throw badRequest("非银行卡支付方式不能绑定卡品牌");
+            }
+            return;
+        }
+        if (ALL.equals(cardBrand)) {
+            return;
+        }
+        assertDictValue("card_brand", cardBrand, true);
+        Long count = capabilityCardBrandMapper.selectCount(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
+                .eq(ChannelCapabilityCardBrandDO::getDeleted, NOT_DELETED)
+                .eq(ChannelCapabilityCardBrandDO::getCapabilityId, capability.getId())
+                .eq(ChannelCapabilityCardBrandDO::getCardBrand, cardBrand)
+                .eq(ChannelCapabilityCardBrandDO::getBrandStatus, ENABLED));
+        if (count <= 0) {
+            throw badRequest("该银行卡支付能力未绑定启用的卡品牌：" + cardBrand);
+        }
     }
 
     private void fillChannel(ChannelInfoDO entity, ChannelInfoSaveRequest request, LocalDateTime now) {
@@ -566,51 +669,21 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     private void fillLimit(ChannelLimitRuleDO entity, LimitSaveRequest request, ChannelInfoDO channel, LocalDateTime now) {
+        String operatorName = currentOperatorName();
         entity.setChannelId(channel.getId());
         entity.setChannelCode(channel.getChannelCode());
         entity.setBusinessType(request.getBusinessType());
         entity.setPaymentMethod(request.getPaymentMethod());
-        entity.setTransactionType(request.getTransactionType());
         entity.setCardBrand(request.getCardBrand());
         entity.setLimitType(request.getLimitType());
         entity.setLimitCurrency(USD);
         entity.setLimitAmount(request.getLimitAmount());
-        entity.setEffectiveStartTime(request.getEffectiveStartTime());
-        entity.setEffectiveEndTime(request.getEffectiveEndTime());
         entity.setRuleStatus(request.getRuleStatus());
         entity.setRemark(trimToNull(request.getRemark()));
-        entity.setUpdateTime(now);
-    }
-
-    private void fillAccess(ChannelAccessConfigDO entity, AccessSaveRequest request, ChannelInfoDO channel,
-                            LocalDateTime now, boolean create) {
-        entity.setChannelId(channel.getId());
-        entity.setChannelCode(channel.getChannelCode());
-        entity.setEnvMode(request.getEnvMode());
-        entity.setBaseUrl(trim(request.getBaseUrl()));
-        entity.setCallbackUrl(trimToNull(request.getCallbackUrl()));
-        entity.setInteractionMode(request.getInteractionMode());
-        entity.setChannelMerchantNo(trimToNull(request.getChannelMerchantNo()));
-        if (StringUtils.hasText(request.getApiKey())) {
-            entity.setApiKeyCipher(cipher(request.getApiKey()));
-        } else if (create) {
-            entity.setApiKeyCipher(null);
+        if (!StringUtils.hasText(entity.getCreateBy())) {
+            entity.setCreateBy(operatorName);
         }
-        if (StringUtils.hasText(request.getApiSecret())) {
-            entity.setApiSecretCipher(cipher(request.getApiSecret()));
-        } else if (create) {
-            entity.setApiSecretCipher(null);
-        }
-        entity.setClientCertPath(trimToNull(request.getClientCertPath()));
-        if (StringUtils.hasText(request.getClientCertPassword())) {
-            entity.setClientCertPasswordCipher(cipher(request.getClientCertPassword()));
-        } else if (create) {
-            entity.setClientCertPasswordCipher(null);
-        }
-        entity.setServerCertPath(trimToNull(request.getServerCertPath()));
-        entity.setExtraConfigJson(trimToNull(request.getExtraConfigJson()));
-        entity.setConfigStatus(request.getConfigStatus());
-        entity.setRemark(trimToNull(request.getRemark()));
+        entity.setUpdateBy(operatorName);
         entity.setUpdateTime(now);
     }
 
@@ -666,39 +739,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         response.setChannelName(channelName(channel));
         response.setBusinessType(entity.getBusinessType());
         response.setPaymentMethod(entity.getPaymentMethod());
-        response.setTransactionType(entity.getTransactionType());
         response.setCardBrand(entity.getCardBrand());
         response.setLimitType(entity.getLimitType());
         response.setLimitCurrency(entity.getLimitCurrency());
         response.setLimitAmount(entity.getLimitAmount());
-        response.setEffectiveStartTime(entity.getEffectiveStartTime());
-        response.setEffectiveEndTime(entity.getEffectiveEndTime());
         response.setRuleStatus(entity.getRuleStatus());
         response.setRemark(entity.getRemark());
-        response.setCreateTime(entity.getCreateTime());
-        response.setUpdateTime(entity.getUpdateTime());
-        return response;
-    }
-
-    private AccessResponse toAccessResponse(ChannelAccessConfigDO entity, ChannelInfoDO channel) {
-        AccessResponse response = new AccessResponse();
-        response.setId(entity.getId());
-        response.setChannelId(entity.getChannelId());
-        response.setChannelCode(entity.getChannelCode());
-        response.setChannelName(channelName(channel));
-        response.setEnvMode(entity.getEnvMode());
-        response.setBaseUrl(entity.getBaseUrl());
-        response.setCallbackUrl(entity.getCallbackUrl());
-        response.setInteractionMode(entity.getInteractionMode());
-        response.setChannelMerchantNo(entity.getChannelMerchantNo());
-        response.setApiKeyMasked(maskCipher(entity.getApiKeyCipher()));
-        response.setApiSecretMasked(maskCipher(entity.getApiSecretCipher()));
-        response.setClientCertPath(entity.getClientCertPath());
-        response.setClientCertPasswordMasked(maskCipher(entity.getClientCertPasswordCipher()));
-        response.setServerCertPath(entity.getServerCertPath());
-        response.setExtraConfigJson(entity.getExtraConfigJson());
-        response.setConfigStatus(entity.getConfigStatus());
-        response.setRemark(entity.getRemark());
+        response.setCreateBy(entity.getCreateBy());
+        response.setUpdateBy(entity.getUpdateBy());
         response.setCreateTime(entity.getCreateTime());
         response.setUpdateTime(entity.getUpdateTime());
         return response;
@@ -739,16 +787,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(StringUtils.hasText(query.getLimitType()), ChannelLimitRuleDO::getLimitType, normalizeCode(query.getLimitType()))
                 .eq(query.getRuleStatus() != null, ChannelLimitRuleDO::getRuleStatus, query.getRuleStatus())
                 .orderByDesc(ChannelLimitRuleDO::getUpdateTime);
-    }
-
-    private LambdaQueryWrapper<ChannelAccessConfigDO> buildAccessQuery(AccessQuery query) {
-        return Wrappers.<ChannelAccessConfigDO>lambdaQuery()
-                .eq(ChannelAccessConfigDO::getDeleted, NOT_DELETED)
-                .eq(query.getChannelId() != null, ChannelAccessConfigDO::getChannelId, query.getChannelId())
-                .eq(StringUtils.hasText(query.getEnvMode()), ChannelAccessConfigDO::getEnvMode, normalizeCode(query.getEnvMode()))
-                .eq(StringUtils.hasText(query.getInteractionMode()), ChannelAccessConfigDO::getInteractionMode, normalizeCode(query.getInteractionMode()))
-                .eq(query.getConfigStatus() != null, ChannelAccessConfigDO::getConfigStatus, query.getConfigStatus())
-                .orderByDesc(ChannelAccessConfigDO::getUpdateTime);
     }
 
     private List<Long> capabilityIdsByCurrencyOrBrand(CapabilityQuery query) {
@@ -913,16 +951,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return entity;
     }
 
-    private ChannelAccessConfigDO findAccess(Long id) {
-        ChannelAccessConfigDO entity = accessConfigMapper.selectOne(Wrappers.<ChannelAccessConfigDO>lambdaQuery()
-                .eq(ChannelAccessConfigDO::getDeleted, NOT_DELETED)
-                .eq(ChannelAccessConfigDO::getId, id));
-        if (entity == null) {
-            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "渠道接入配置不存在");
-        }
-        return entity;
-    }
-
     private boolean hasActiveCapability(Long channelId) {
         return capabilityMapper.selectCount(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -930,18 +958,29 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)) > 0;
     }
 
+    private boolean hasEnabledCapability(Long channelId, String businessType, String paymentMethod) {
+        return capabilityMapper.selectCount(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
+                .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
+                .eq(ChannelPaymentCapabilityDO::getChannelId, channelId)
+                .eq(ChannelPaymentCapabilityDO::getBusinessType, businessType)
+                .eq(StringUtils.hasText(paymentMethod), ChannelPaymentCapabilityDO::getPaymentMethod, paymentMethod)
+                .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)) > 0;
+    }
+
+    private ChannelPaymentCapabilityDO findEnabledCapability(Long channelId, String businessType, String paymentMethod) {
+        return capabilityMapper.selectOne(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
+                .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
+                .eq(ChannelPaymentCapabilityDO::getChannelId, channelId)
+                .eq(ChannelPaymentCapabilityDO::getBusinessType, businessType)
+                .eq(ChannelPaymentCapabilityDO::getPaymentMethod, paymentMethod)
+                .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED));
+    }
+
     private boolean hasActiveLimit(Long channelId) {
         return limitRuleMapper.selectCount(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
                 .eq(ChannelLimitRuleDO::getDeleted, NOT_DELETED)
                 .eq(ChannelLimitRuleDO::getChannelId, channelId)
                 .eq(ChannelLimitRuleDO::getRuleStatus, ENABLED)) > 0;
-    }
-
-    private boolean hasActiveAccessConfig(Long channelId) {
-        return accessConfigMapper.selectCount(Wrappers.<ChannelAccessConfigDO>lambdaQuery()
-                .eq(ChannelAccessConfigDO::getDeleted, NOT_DELETED)
-                .eq(ChannelAccessConfigDO::getChannelId, channelId)
-                .eq(ChannelAccessConfigDO::getConfigStatus, ENABLED)) > 0;
     }
 
     private void validateChannelSupportsBusiness(ChannelInfoDO channel, String businessType) {
@@ -954,6 +993,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         if (defaultZero(channel.getChannelStatus()) != ENABLED) {
             throw badRequest("渠道停用时不能启用能力或规则");
         }
+    }
+
+    private boolean channelSupports3ds(ChannelInfoDO channel, String businessType) {
+        return BUSINESS_ACQUIRING.equals(businessType)
+                && defaultZero(channel.getSupportAcquiring()) == ENABLED
+                && defaultZero(channel.getSupport3ds()) == ENABLED;
     }
 
     private void validatePaymentMethod(String businessType, String paymentMethod) {
@@ -1070,32 +1115,21 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return StringUtils.hasText(channel.getChannelCnName()) ? channel.getChannelCnName() : channel.getChannelEnName();
     }
 
-    private String cipher(String value) {
-        return Base64.getEncoder().encodeToString(trim(value).getBytes(StandardCharsets.UTF_8));
+    private String currentOperatorName() {
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        if (account == null) {
+            return "system";
+        }
+        if (StringUtils.hasText(account.getRealName())) {
+            return account.getRealName();
+        }
+        if (StringUtils.hasText(account.getLoginAccount())) {
+            return account.getLoginAccount();
+        }
+        return "system";
     }
 
-    private String plain(String cipher) {
-        if (!StringUtils.hasText(cipher)) {
-            return "";
-        }
-        try {
-            return new String(Base64.getDecoder().decode(cipher), StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException exception) {
-            return "";
-        }
-    }
-
-    private String maskCipher(String cipher) {
-        String value = plain(cipher);
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        if (value.length() <= 4) {
-            return "****";
-        }
-        int prefix = Math.min(4, value.length() / 2);
-        int suffix = Math.min(4, value.length() - prefix);
-        return value.substring(0, prefix) + "********" + value.substring(value.length() - suffix);
+    private record LimitScope(Long channelId, String businessType, String paymentMethod, String cardBrand) {
     }
 
     private ServiceException badRequest(String message) {

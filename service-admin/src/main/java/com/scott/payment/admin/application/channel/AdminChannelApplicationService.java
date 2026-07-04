@@ -1,8 +1,5 @@
 package com.scott.payment.admin.application.channel;
 
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessQuery;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessResponse;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
@@ -11,6 +8,7 @@ import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelOption;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
 import com.scott.payment.admin.service.AdminChannelService;
@@ -101,6 +99,14 @@ public class AdminChannelApplicationService {
         return adminChannelService.createLimit(request);
     }
 
+    public List<LimitResponse> createLimits(LimitBatchSaveRequest request) {
+        return adminChannelService.createLimits(request);
+    }
+
+    public List<LimitResponse> saveLimitDimension(LimitBatchSaveRequest request) {
+        return adminChannelService.saveLimitDimension(request);
+    }
+
     public LimitResponse updateLimit(Long id, LimitSaveRequest request) {
         return adminChannelService.updateLimit(id, request);
     }
@@ -113,27 +119,4 @@ public class AdminChannelApplicationService {
         adminChannelService.deleteLimit(id);
     }
 
-    public PageResult<AccessResponse> pageAccessConfigs(AccessQuery query) {
-        return adminChannelService.pageAccessConfigs(query);
-    }
-
-    public AccessResponse getAccessConfig(Long id) {
-        return adminChannelService.getAccessConfig(id);
-    }
-
-    public AccessResponse createAccessConfig(AccessSaveRequest request) {
-        return adminChannelService.createAccessConfig(request);
-    }
-
-    public AccessResponse updateAccessConfig(Long id, AccessSaveRequest request) {
-        return adminChannelService.updateAccessConfig(id, request);
-    }
-
-    public AccessResponse updateAccessConfigStatus(Long id, Integer status) {
-        return adminChannelService.updateAccessConfigStatus(id, status);
-    }
-
-    public void deleteAccessConfig(Long id) {
-        adminChannelService.deleteAccessConfig(id);
-    }
 }

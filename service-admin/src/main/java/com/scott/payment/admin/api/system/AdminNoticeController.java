@@ -10,6 +10,9 @@ import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -55,6 +58,18 @@ public class AdminNoticeController {
             @RequestParam(value = "noticeType", required = false) String noticeType,
             @RequestParam(value = "createBy", required = false) String createBy) {
         return success(adminNoticeApplicationService.pageNotices(pageNo, pageSize, noticeTitle, noticeType, createBy));
+    }
+
+    /**
+     * 查询工作台展示的启用公告。
+     *
+     * @param limit 最大条数
+     * @return 启用公告列表
+     */
+    @GetMapping("/latest")
+    @RequiresPermission("dashboard:view")
+    public CommonResult<List<SysNoticeDO>> latest(@RequestParam(value = "limit", defaultValue = "3") int limit) {
+        return success(adminNoticeApplicationService.listDashboardNotices(limit));
     }
 
     /**
@@ -108,5 +123,27 @@ public class AdminNoticeController {
     public CommonResult<Void> remove(@PathVariable("id") Long id) {
         adminNoticeApplicationService.removeNotice(id);
         return success(null);
+    }
+
+    /**
+     * 批量删除通知公告（逻辑删除）。
+     *
+     * @param request 批量删除请求
+     * @return 空响应
+     */
+    @DeleteMapping("/batch")
+    @RequiresPermission("system:notice:remove")
+    @OperationLog(moduleName = "通知公告", businessType = OperationTypeConstants.DELETE, operation = "批量删除通知公告")
+    public CommonResult<Void> removeBatch(@RequestBody NoticeBatchDeleteRequest request) {
+        adminNoticeApplicationService.removeNotices(request == null ? Collections.emptyList() : request.ids());
+        return success(null);
+    }
+
+    /**
+     * 通知公告批量删除请求。
+     *
+     * @param ids 通知公告主键 ID 列表
+     */
+    public record NoticeBatchDeleteRequest(List<Long> ids) {
     }
 }

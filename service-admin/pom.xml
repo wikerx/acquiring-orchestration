@@ -58,6 +58,10 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.scott.payment</groupId>
             <artifactId>component-job</artifactId>
             <version>${project.version}</version>

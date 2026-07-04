@@ -2,6 +2,7 @@ package com.scott.payment.admin.api.channel;
 
 import com.scott.payment.admin.application.channel.AdminChannelApplicationService;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.StatusRequest;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -52,6 +55,20 @@ public class AdminChannelLimitController {
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道限额")
     public CommonResult<LimitResponse> createLimit(@Valid @RequestBody LimitSaveRequest request) {
         return success(channelApplicationService.createLimit(request));
+    }
+
+    @PostMapping("/batch")
+    @RequiresPermission("channel:limit:add")
+    @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.CREATE, operation = "批量新增渠道限额")
+    public CommonResult<List<LimitResponse>> createLimits(@Valid @RequestBody LimitBatchSaveRequest request) {
+        return success(channelApplicationService.createLimits(request));
+    }
+
+    @PutMapping("/dimension")
+    @RequiresPermission("channel:limit:edit")
+    @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.UPDATE, operation = "维度编辑渠道限额")
+    public CommonResult<List<LimitResponse>> saveLimitDimension(@Valid @RequestBody LimitBatchSaveRequest request) {
+        return success(channelApplicationService.saveLimitDimension(request));
     }
 
     @PutMapping("/{id}")

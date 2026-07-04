@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 /**
  * 渠道管理数据库实体集合。
  *
- * <p>仅承载管理后台渠道基础资料、支付能力、限额和接入配置维护数据，不承载渠道调用或交易状态机逻辑。</p>
+ * <p>仅承载管理后台渠道基础资料、支付能力和限额维护数据，不承载渠道调用或交易状态机逻辑。</p>
  */
 public final class ChannelEntities {
 
@@ -126,13 +126,10 @@ public final class ChannelEntities {
         private String channelCode;
         private String businessType;
         private String paymentMethod;
-        private String transactionType;
         private String cardBrand;
         private String limitType;
         private String limitCurrency;
         private BigDecimal limitAmount;
-        private LocalDateTime effectiveStartTime;
-        private LocalDateTime effectiveEndTime;
         private Integer ruleStatus;
         private String remark;
         private String createBy;
@@ -142,33 +139,4 @@ public final class ChannelEntities {
         private Long deleted;
     }
 
-    /**
-     * 渠道接入配置数据库实体，敏感字段仅保存密文。
-     */
-    @Data
-    @TableName("channel_access_config")
-    public static class ChannelAccessConfigDO {
-        @TableId(type = IdType.AUTO)
-        private Long id;
-        private Long channelId;
-        private String channelCode;
-        private String envMode;
-        private String baseUrl;
-        private String callbackUrl;
-        private String interactionMode;
-        private String channelMerchantNo;
-        private String apiKeyCipher;
-        private String apiSecretCipher;
-        private String clientCertPath;
-        private String clientCertPasswordCipher;
-        private String serverCertPath;
-        private String extraConfigJson;
-        private Integer configStatus;
-        private String remark;
-        private String createBy;
-        private LocalDateTime createTime;
-        private String updateBy;
-        private LocalDateTime updateTime;
-        private Long deleted;
-    }
 }

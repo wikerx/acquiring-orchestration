@@ -1,8 +1,5 @@
 package com.scott.payment.admin.service;
 
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessQuery;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessResponse;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
@@ -11,6 +8,7 @@ import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelOption;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
 import com.scott.payment.component.core.model.PageResult;
@@ -56,21 +54,14 @@ public interface AdminChannelService {
 
     LimitResponse createLimit(LimitSaveRequest request);
 
+    List<LimitResponse> createLimits(LimitBatchSaveRequest request);
+
+    List<LimitResponse> saveLimitDimension(LimitBatchSaveRequest request);
+
     LimitResponse updateLimit(Long id, LimitSaveRequest request);
 
     LimitResponse updateLimitStatus(Long id, Integer status);
 
     void deleteLimit(Long id);
 
-    PageResult<AccessResponse> pageAccessConfigs(AccessQuery query);
-
-    AccessResponse getAccessConfig(Long id);
-
-    AccessResponse createAccessConfig(AccessSaveRequest request);
-
-    AccessResponse updateAccessConfig(Long id, AccessSaveRequest request);
-
-    AccessResponse updateAccessConfigStatus(Long id, Integer status);
-
-    void deleteAccessConfig(Long id);
 }

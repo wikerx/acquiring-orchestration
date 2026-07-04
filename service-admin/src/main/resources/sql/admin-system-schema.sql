@@ -658,12 +658,7 @@ VALUES
     (140, 1, 0, 'admin_base_center', '基础数据管理', 'CATALOG', '/base', NULL, 'admin:base:view', 'DataLine', 1, 30, 1, 0),
     (141, 1, 140, 'admin_base_country', '国家/地区代码', 'MENU', '/base/country', 'base/country/index', 'admin:iso-country:view', 'Location', 1, 31, 1, 0),
     (142, 1, 140, 'admin_base_currency', '币种代码', 'MENU', '/base/currency', 'base/currency/index', 'admin:iso-currency:view', 'Coin', 1, 32, 1, 0),
-    (143, 1, 140, 'admin_base_region_currency', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency/index', 'admin:region-currency:view', 'Connection', 1, 33, 1, 0),
-    (160, 1, 0, 'admin_permission_center', '权限中心', 'CATALOG', '/permission', NULL, 'admin:permission-center:view', 'Key', 1, 40, 1, 0),
-    (161, 1, 160, 'admin_permission_app', '应用管理', 'MENU', '/permission/app', 'permission/app/index', 'admin:app:view', 'Grid', 1, 41, 1, 0),
-    (162, 1, 160, 'admin_permission_resource', '资源权限', 'MENU', '/permission/resource', 'permission/resource/index', 'admin:permission:view', 'Key', 1, 42, 1, 0),
-    (163, 1, 160, 'admin_permission_data_scope', '数据权限', 'MENU', '/permission/data-scope', 'permission/data-scope/index', 'admin:data-scope:view', 'Connection', 1, 43, 1, 0),
-    (164, 1, 160, 'admin_permission_role_grant', '角色授权', 'MENU', '/permission/role-grant', 'permission/role-grant/index', 'admin:role-grant:view', 'Unlock', 1, 44, 1, 0);
+    (143, 1, 140, 'admin_base_region_currency', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency/index', 'admin:region-currency:view', 'Connection', 1, 33, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -684,12 +679,7 @@ VALUES
     (125, 1, 125, 'admin:merchant-response-key:view', '商户响应公钥查看', 'MENU', 'GET', '/merchant/response-key', 1, 0),
     (126, 1, 126, 'admin:platform-payload-key:view', '平台请求密钥查看', 'MENU', 'GET', '/merchant/platform-payload-key', 1, 0),
     (140, 1, 140, 'admin:base:view', '基础数据目录查看', 'MENU', 'GET', '/base/**', 1, 0),
-    (143, 1, 143, 'admin:region-currency:view', '地区币种配置查看', 'MENU', 'GET', '/base/region-currency', 1, 0),
-    (160, 1, 160, 'admin:permission-center:view', '权限中心目录查看', 'MENU', 'GET', '/permission/**', 1, 0),
-    (161, 1, 161, 'admin:app:view', '应用管理查看', 'MENU', 'GET', '/permission/app', 1, 0),
-    (162, 1, 162, 'admin:permission:view', '资源权限查看', 'MENU', 'GET', '/permission/resource', 1, 0),
-    (163, 1, 163, 'admin:data-scope:view', '数据权限查看', 'MENU', 'GET', '/permission/data-scope', 1, 0),
-    (164, 1, 164, 'admin:role-grant:view', '角色授权查看', 'MENU', 'GET', '/permission/role-grant', 1, 0);
+    (143, 1, 143, 'admin:region-currency:view', '地区币种配置查看', 'MENU', 'GET', '/base/region-currency', 1, 0);
 
 UPDATE sys_menu
 SET visible = 0, updated_at = CURRENT_TIMESTAMP(3)
@@ -720,10 +710,7 @@ VALUES
     (240, 1, 0, 'admin_base_catalog_v3', '基础数据', 'CATALOG', '/base', NULL, NULL, 'DataLine', 1, 30, 1, 0),
     (241, 1, 240, 'admin_base_country_v3', '国家/地区', 'MENU', '/base/country', 'base/country', 'base:country:list', 'Location', 1, 31, 1, 0),
     (242, 1, 240, 'admin_base_currency_v3', '币种管理', 'MENU', '/base/currency', 'base/currency', 'base:currency:list', 'Coin', 1, 32, 1, 0),
-    (243, 1, 240, 'admin_base_region_currency_v3', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:countryCurrency:list', 'Connection', 1, 33, 1, 0),
-    (250, 1, 0, 'admin_permission_catalog_v3', '权限中心', 'CATALOG', '/permission', NULL, NULL, 'Key', 1, 40, 1, 0),
-    (251, 1, 250, 'admin_permission_app_v3', '应用权限', 'MENU', '/permission/app', 'permission/app', 'permission:app:list', 'Key', 1, 41, 1, 0),
-    (252, 1, 250, 'admin_permission_data_scope_v3', '数据权限', 'MENU', '/permission/data-scope', 'permission/data-scope', 'permission:data-scope:list', 'Connection', 1, 42, 1, 0);
+    (243, 1, 240, 'admin_base_region_currency_v3', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:countryCurrency:list', 'Connection', 1, 33, 1, 0);
 
 INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 VALUES
@@ -832,21 +819,7 @@ VALUES
     (421, 1, 243, 'base:countryCurrency:list', '地区币种配置查询', 'MENU', 'GET', '/base/region-currency', 1, 0),
     (422, 1, 243, 'base:countryCurrency:add', '地区币种配置新增', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
     (423, 1, 243, 'base:countryCurrency:edit', '地区币种配置编辑', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
-    (424, 1, 243, 'base:countryCurrency:remove', '地区币种配置删除', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0),
-    (501, 1, 251, 'permission:app:list', '应用权限查询', 'MENU', 'GET', '/permission/app', 1, 0),
-    (502, 1, 251, 'permission:app:add', '应用权限新增', 'BUTTON', '*', '/admin/permissions/apps/**', 1, 0),
-    (503, 1, 251, 'permission:app:edit', '应用权限编辑', 'BUTTON', '*', '/admin/permissions/apps/**', 1, 0),
-    (504, 1, 251, 'permission:app:delete', '应用权限删除', 'BUTTON', '*', '/admin/permissions/apps/**', 1, 0),
-    (511, 1, 251, 'permission:resource:list', '资源权限查询', 'BUTTON', '*', '/admin/permissions/resources/**', 1, 0),
-    (512, 1, 251, 'permission:resource:add', '资源权限新增', 'BUTTON', '*', '/admin/permissions/resources/**', 1, 0),
-    (513, 1, 251, 'permission:resource:edit', '资源权限编辑', 'BUTTON', '*', '/admin/permissions/resources/**', 1, 0),
-    (514, 1, 251, 'permission:resource:delete', '资源权限删除', 'BUTTON', '*', '/admin/permissions/resources/**', 1, 0),
-    (521, 1, 251, 'permission:role-auth:list', '角色授权查询', 'BUTTON', '*', '/admin/permissions/role-auth/**', 1, 0),
-    (522, 1, 251, 'permission:role-auth:edit', '角色授权编辑', 'BUTTON', '*', '/admin/permissions/role-auth/**', 1, 0),
-    (531, 1, 252, 'permission:data-scope:list', '数据权限查询', 'MENU', 'GET', '/permission/data-scope', 1, 0),
-    (532, 1, 252, 'permission:data-scope:add', '数据权限新增', 'BUTTON', '*', '/admin/permissions/data-scopes/**', 1, 0),
-    (533, 1, 252, 'permission:data-scope:edit', '数据权限编辑', 'BUTTON', '*', '/admin/permissions/data-scopes/**', 1, 0),
-    (534, 1, 252, 'permission:data-scope:delete', '数据权限删除', 'BUTTON', '*', '/admin/permissions/data-scopes/**', 1, 0);
+    (424, 1, 243, 'base:countryCurrency:remove', '地区币种配置删除', 'BUTTON', '*', '/admin/base/region-currencies/**', 1, 0);
 
 UPDATE sys_menu
 SET visible = 0,
@@ -1430,13 +1403,10 @@ CREATE TABLE IF NOT EXISTS channel_limit_rule (
     channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
     business_type VARCHAR(32) NOT NULL COMMENT '业务类型：ACQUIRING/PAYOUT',
     payment_method VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '支付方式，ALL表示渠道级限额',
-    transaction_type VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '保留兼容字段，渠道限额不区分交易类型，固定ALL',
     card_brand VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '卡品牌，ALL表示不限卡品牌',
     limit_type VARCHAR(32) NOT NULL COMMENT '限额类型：SINGLE_MIN/SINGLE_MAX/DAILY/WEEKLY/MONTHLY',
     limit_currency VARCHAR(3) NOT NULL DEFAULT 'USD' COMMENT '限额币种，当前固定USD',
     limit_amount DECIMAL(20, 6) NOT NULL COMMENT '限额金额',
-    effective_start_time DATETIME(3) NULL COMMENT '生效开始时间',
-    effective_end_time DATETIME(3) NULL COMMENT '生效结束时间',
     rule_status TINYINT NOT NULL DEFAULT 1 COMMENT '规则状态：0停用，1启用',
     remark VARCHAR(512) NULL COMMENT '备注',
     create_by VARCHAR(64) NULL COMMENT '创建人',
@@ -1451,33 +1421,38 @@ CREATE TABLE IF NOT EXISTS channel_limit_rule (
     KEY idx_channel_limit_status (rule_status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='渠道限额规则表';
 
-CREATE TABLE IF NOT EXISTS channel_access_config (
-    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    channel_id BIGINT NOT NULL COMMENT '渠道ID',
-    channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
-    env_mode VARCHAR(16) NOT NULL COMMENT '环境：TEST/PROD',
-    base_url VARCHAR(512) NOT NULL COMMENT '渠道 API Base URL',
-    callback_url VARCHAR(512) NULL COMMENT '平台提供给渠道的回调地址',
-    interaction_mode VARCHAR(32) NOT NULL COMMENT '交互方式',
-    channel_merchant_no VARCHAR(128) NULL COMMENT '渠道分配的商户号',
-    api_key_cipher TEXT NULL COMMENT 'API Key 密文',
-    api_secret_cipher TEXT NULL COMMENT 'API Secret 密文',
-    client_cert_path VARCHAR(512) NULL COMMENT '客户端证书路径或文件标识',
-    client_cert_password_cipher TEXT NULL COMMENT '客户端证书密码密文',
-    server_cert_path VARCHAR(512) NULL COMMENT '服务端公钥或证书路径',
-    extra_config_json TEXT NULL COMMENT '扩展配置JSON',
-    config_status TINYINT NOT NULL DEFAULT 1 COMMENT '配置状态：0停用，1启用',
-    remark VARCHAR(512) NULL COMMENT '备注',
-    create_by VARCHAR(64) NULL COMMENT '创建人',
-    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
-    update_by VARCHAR(64) NULL COMMENT '更新人',
-    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
-    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_channel_access_env_deleted (channel_id, env_mode, deleted),
-    KEY idx_channel_access_channel (channel_id, deleted),
-    KEY idx_channel_access_status (config_status, deleted)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='渠道接入配置表';
+SET @drop_channel_limit_transaction_type = (
+    SELECT IF(COUNT(*) > 0, 'ALTER TABLE channel_limit_rule DROP COLUMN transaction_type', 'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'channel_limit_rule'
+      AND column_name = 'transaction_type'
+);
+PREPARE stmt FROM @drop_channel_limit_transaction_type;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @drop_channel_limit_effective_start_time = (
+    SELECT IF(COUNT(*) > 0, 'ALTER TABLE channel_limit_rule DROP COLUMN effective_start_time', 'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'channel_limit_rule'
+      AND column_name = 'effective_start_time'
+);
+PREPARE stmt FROM @drop_channel_limit_effective_start_time;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @drop_channel_limit_effective_end_time = (
+    SELECT IF(COUNT(*) > 0, 'ALTER TABLE channel_limit_rule DROP COLUMN effective_end_time', 'SELECT 1')
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'channel_limit_rule'
+      AND column_name = 'effective_end_time'
+);
+PREPARE stmt FROM @drop_channel_limit_effective_end_time;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 INSERT IGNORE INTO sys_dict_type (id, dict_name, dict_type, biz_domain, system_builtin, editable, status, deleted) VALUES
 (30, '收单支付方式', 'acquiring_payment_method', 'channel', 1, 1, 1, 0),
@@ -1584,32 +1559,35 @@ SET card_scheme = 'AMEX'
 WHERE card_scheme = 'AMERICAN_EXPRESS'
   AND deleted = 0;
 
-UPDATE sys_dict_data
-SET dict_type = CONCAT('deprecated_', dict_type),
-    deleted = id
-WHERE dict_type = 'card_scheme'
-  AND deleted = 0;
+DELETE FROM sys_dict_data
+WHERE dict_type IN ('card_scheme', 'deprecated_card_scheme');
 
-UPDATE sys_dict_type
-SET dict_type = CONCAT('deprecated_', dict_type),
-    dict_name = CONCAT(dict_name, '（已合并至card_brand）'),
-    deleted = id
-WHERE dict_type = 'card_scheme'
+DELETE FROM sys_dict_type
+WHERE dict_type IN ('card_scheme', 'deprecated_card_scheme');
+
+UPDATE sys_menu
+SET visible = 0, status = 0,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1 AND menu_code = 'admin_channel' AND deleted = 0;
+
+UPDATE sys_menu
+SET parent_id = 230, updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND menu_code IN ('admin_merchant_menu_manage_v1', 'admin_merchant_menu_grant_v3', 'admin_merchant_user_query_v1')
   AND deleted = 0;
 
 UPDATE sys_menu
-SET menu_name = '渠道管理', menu_type = 'CATALOG', route_path = '/channel', component_path = NULL,
-    permission_code = 'channel', icon = 'Connection', visible = 1, sort_no = 40, status = 1,
-    updated_at = CURRENT_TIMESTAMP(3)
-WHERE app_id = 1 AND menu_code = 'admin_channel' AND deleted = 0;
+SET parent_id = 240, updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND menu_code = 'base_mcc'
+  AND deleted = 0;
 
 INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 VALUES
 (280, 1, 0, 'admin_channel_catalog_v1', '渠道管理', 'CATALOG', '/channel', NULL, 'channel', 'Connection', 1, 40, 1, 0),
 (281, 1, 280, 'admin_channel_info_v1', '渠道信息管理', 'MENU', '/channel/info', 'channel/info', 'channel:info:list', 'Connection', 1, 41, 1, 0),
 (282, 1, 280, 'admin_channel_capability_v1', '渠道支付能力管理', 'MENU', '/channel/capability', 'channel/capability', 'channel:capability:list', 'CreditCard', 1, 42, 1, 0),
-(283, 1, 280, 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1, 0),
-(284, 1, 280, 'admin_channel_access_v1', '渠道接入配置管理', 'MENU', '/channel/access', 'channel/access', 'channel:access:list', 'Lock', 1, 44, 1, 0);
+(283, 1, 280, 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -1632,12 +1610,7 @@ VALUES
 (723, 1, 283, 'channel:limit:edit', '渠道限额修改', 'BUTTON', 'PUT', '/admin/channel/limits/*', 1, 0),
 (724, 1, 283, 'channel:limit:remove', '渠道限额删除', 'BUTTON', 'DELETE', '/admin/channel/limits/*', 1, 0),
 (725, 1, 283, 'channel:limit:status', '渠道限额状态', 'BUTTON', 'PUT', '/admin/channel/limits/*/status', 1, 0),
-(730, 1, 284, 'channel:access:list', '渠道接入配置查询', 'MENU', 'POST', '/admin/channel/access-configs/search', 1, 0),
-(731, 1, 284, 'channel:access:detail', '渠道接入配置详情', 'BUTTON', 'GET', '/admin/channel/access-configs/*', 1, 0),
-(732, 1, 284, 'channel:access:add', '渠道接入配置新增', 'BUTTON', 'POST', '/admin/channel/access-configs', 1, 0),
-(733, 1, 284, 'channel:access:edit', '渠道接入配置修改', 'BUTTON', 'PUT', '/admin/channel/access-configs/*', 1, 0),
-(734, 1, 284, 'channel:access:remove', '渠道接入配置删除', 'BUTTON', 'DELETE', '/admin/channel/access-configs/*', 1, 0),
-(735, 1, 284, 'channel:access:status', '渠道接入配置状态', 'BUTTON', 'PUT', '/admin/channel/access-configs/*/status', 1, 0);
+(726, 1, 283, 'channel:limit:dimensionEdit', '渠道限额维度编辑', 'BUTTON', 'PUT', '/admin/channel/limits/dimension', 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
@@ -1656,13 +1629,9 @@ JOIN (
     UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_detail_v1', '渠道限额详情', 'channel:limit:detail', 1
     UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_add_v1', '渠道限额新增', 'channel:limit:add', 2
     UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_edit_v1', '渠道限额修改', 'channel:limit:edit', 3
-    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_remove_v1', '渠道限额删除', 'channel:limit:remove', 4
-    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_status_v1', '渠道限额状态', 'channel:limit:status', 5
-    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_detail_v1', '渠道接入配置详情', 'channel:access:detail', 1
-    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_add_v1', '渠道接入配置新增', 'channel:access:add', 2
-    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_edit_v1', '渠道接入配置修改', 'channel:access:edit', 3
-    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_remove_v1', '渠道接入配置删除', 'channel:access:remove', 4
-    UNION ALL SELECT 'admin_channel_access_v1', 'admin_channel_access_status_v1', '渠道接入配置状态', 'channel:access:status', 5
+    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_dimension_edit_v1', '渠道限额维度编辑', 'channel:limit:dimensionEdit', 4
+    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_remove_v1', '渠道限额删除', 'channel:limit:remove', 5
+    UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_status_v1', '渠道限额状态', 'channel:limit:status', 6
 ) button ON button.parent_code = parent.menu_code
 WHERE parent.app_id = 1
   AND parent.deleted = 0
@@ -1689,3 +1658,697 @@ FROM sys_permission
 WHERE app_id = 1
   AND deleted = 0
   AND (permission_code = 'channel' OR permission_code LIKE 'channel:%');
+
+CREATE TABLE IF NOT EXISTS msg_email_account (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    account_code VARCHAR(64) NOT NULL COMMENT '账户编码',
+    account_name VARCHAR(100) NOT NULL COMMENT '账户名称',
+    app_code VARCHAR(32) NOT NULL COMMENT '所属系统：ADMIN管理系统，MERCHANT商户系统',
+    scope_type VARCHAR(32) NOT NULL COMMENT '配置范围：SYSTEM系统默认，MERCHANT指定商户',
+    merchant_id VARCHAR(64) NULL COMMENT '商户ID',
+    merchant_no VARCHAR(64) NULL COMMENT '商户号',
+    merchant_name VARCHAR(200) NULL COMMENT '商户名称',
+    scene_code VARCHAR(64) NOT NULL DEFAULT 'COMMON' COMMENT '适用场景',
+    provider_type VARCHAR(32) NOT NULL DEFAULT 'SMTP' COMMENT '邮件服务商类型',
+    from_name VARCHAR(100) NOT NULL COMMENT '发件人名称',
+    from_email VARCHAR(255) NOT NULL COMMENT '发件邮箱',
+    reply_to_email VARCHAR(255) NULL COMMENT '回复邮箱',
+    smtp_host VARCHAR(255) NOT NULL COMMENT 'SMTP服务器地址',
+    smtp_port INT NOT NULL COMMENT 'SMTP端口',
+    encryption_type VARCHAR(32) NOT NULL DEFAULT 'SSL' COMMENT '加密方式：SSL/TLS/STARTTLS/NONE',
+    smtp_auth_required TINYINT NOT NULL DEFAULT 1 COMMENT '是否需要SMTP认证：0否，1是',
+    smtp_username VARCHAR(255) NOT NULL COMMENT 'SMTP账号',
+    smtp_password_cipher TEXT NULL COMMENT 'SMTP密码密文',
+    password_updated_time DATETIME(3) NULL COMMENT '密码更新时间',
+    connect_timeout_ms INT NOT NULL DEFAULT 10000 COMMENT '连接超时时间，单位毫秒',
+    read_timeout_ms INT NOT NULL DEFAULT 30000 COMMENT '读取超时时间，单位毫秒',
+    default_flag TINYINT NOT NULL DEFAULT 0 COMMENT '是否默认账户：0否，1是',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    verify_status TINYINT NOT NULL DEFAULT 0 COMMENT '验证状态：0未验证，1验证成功，2验证失败',
+    last_test_time DATETIME(3) NULL COMMENT '最近测试时间',
+    last_error_message VARCHAR(1000) NULL COMMENT '最近失败原因',
+    minute_limit INT NOT NULL DEFAULT 60 COMMENT '单分钟最大发送数',
+    daily_limit INT NOT NULL DEFAULT 10000 COMMENT '单日最大发送数',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_email_account_code_deleted (account_code, deleted),
+    KEY idx_email_account_route (app_code, scope_type, merchant_id, scene_code, default_flag, status, deleted),
+    KEY idx_email_account_merchant (merchant_id, merchant_no, deleted),
+    KEY idx_email_account_from_email (from_email),
+    KEY idx_email_account_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮件发件账户配置表';
+
+CREATE TABLE IF NOT EXISTS msg_email_template (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    template_code VARCHAR(100) NOT NULL COMMENT '模板编码',
+    template_name VARCHAR(150) NOT NULL COMMENT '模板名称',
+    app_code VARCHAR(32) NOT NULL COMMENT '所属系统：ADMIN管理系统，MERCHANT商户系统，COMMON通用',
+    scene_code VARCHAR(64) NOT NULL COMMENT '模板场景',
+    locale VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '语言',
+    subject_template VARCHAR(500) NOT NULL COMMENT '邮件标题模板',
+    content_type VARCHAR(20) NOT NULL DEFAULT 'HTML' COMMENT '内容类型：HTML/TEXT',
+    content_template LONGTEXT NOT NULL COMMENT '邮件正文模板',
+    variable_schema JSON NULL COMMENT '模板变量定义',
+    sensitive_variable_names JSON NULL COMMENT '敏感变量名称',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    system_builtin TINYINT NOT NULL DEFAULT 0 COMMENT '是否系统内置：0否，1是',
+    version_no INT NOT NULL DEFAULT 1 COMMENT '版本号',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_email_template_code_locale_deleted (template_code, locale, deleted),
+    KEY idx_email_template_app_scene (app_code, scene_code, locale, status, deleted),
+    KEY idx_email_template_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮件模板表';
+
+CREATE TABLE IF NOT EXISTS msg_email_send_record (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    email_no VARCHAR(64) NOT NULL COMMENT '邮件流水号',
+    app_code VARCHAR(32) NOT NULL COMMENT '所属系统',
+    merchant_id VARCHAR(64) NULL COMMENT '商户ID',
+    merchant_no VARCHAR(64) NULL COMMENT '商户号',
+    merchant_name VARCHAR(200) NULL COMMENT '商户名称',
+    scene_code VARCHAR(64) NOT NULL COMMENT '邮件场景',
+    template_code VARCHAR(100) NULL COMMENT '模板编码',
+    template_name VARCHAR(150) NULL COMMENT '模板名称',
+    locale VARCHAR(20) NOT NULL DEFAULT 'zh-CN' COMMENT '语言',
+    account_id BIGINT NULL COMMENT '发件账户ID',
+    account_code VARCHAR(64) NULL COMMENT '发件账户编码',
+    provider_type VARCHAR(32) NULL COMMENT '邮件服务商类型',
+    from_name VARCHAR(100) NULL COMMENT '发件人名称',
+    from_email VARCHAR(255) NULL COMMENT '发件邮箱',
+    reply_to_email VARCHAR(255) NULL COMMENT '回复邮箱',
+    to_emails TEXT NOT NULL COMMENT '收件人邮箱JSON数组',
+    cc_emails TEXT NULL COMMENT '抄送邮箱JSON数组',
+    bcc_emails TEXT NULL COMMENT '密送邮箱JSON数组',
+    subject VARCHAR(500) NOT NULL COMMENT '邮件标题',
+    content_snapshot LONGTEXT NULL COMMENT '邮件正文快照，敏感内容需脱敏',
+    variables_snapshot JSON NULL COMMENT '模板变量快照，敏感变量需脱敏',
+    biz_type VARCHAR(64) NULL COMMENT '业务类型',
+    biz_no VARCHAR(100) NULL COMMENT '业务单号',
+    send_status TINYINT NOT NULL DEFAULT 0 COMMENT '发送状态：0待发送，1发送中，2发送成功，3发送失败，4重试中，5已取消',
+    retry_count INT NOT NULL DEFAULT 0 COMMENT '已重试次数',
+    max_retry_count INT NOT NULL DEFAULT 0 COMMENT '最大重试次数',
+    next_retry_time DATETIME(3) NULL COMMENT '下次重试时间',
+    send_start_time DATETIME(3) NULL COMMENT '发送开始时间',
+    send_end_time DATETIME(3) NULL COMMENT '发送结束时间',
+    send_success_time DATETIME(3) NULL COMMENT '发送成功时间',
+    cost_ms BIGINT NULL COMMENT '发送耗时，单位毫秒',
+    error_code VARCHAR(100) NULL COMMENT '错误编码',
+    error_message VARCHAR(2000) NULL COMMENT '错误信息',
+    operator_id BIGINT NULL COMMENT '操作人ID',
+    operator_name VARCHAR(100) NULL COMMENT '操作人名称',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_email_send_record_no (email_no),
+    KEY idx_email_record_app_scene (app_code, scene_code, send_status, deleted),
+    KEY idx_email_record_merchant (merchant_id, merchant_no, deleted),
+    KEY idx_email_record_template (template_code),
+    KEY idx_email_record_biz (biz_type, biz_no),
+    KEY idx_email_record_create_time (create_time),
+    KEY idx_email_record_send_time (send_success_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮件发送记录表';
+
+INSERT INTO sys_dict_type (id, dict_name, dict_type, biz_domain, system_builtin, editable, status, deleted)
+SELECT item.id, item.dict_name, item.dict_type, 'email', 1, 1, 1, 0
+FROM (
+    SELECT 50 id, '邮件所属系统' dict_name, 'email_app_code' dict_type
+    UNION ALL SELECT 51, '邮件账户范围', 'email_scope_type'
+    UNION ALL SELECT 52, '邮件场景', 'email_scene_code'
+    UNION ALL SELECT 53, '邮件服务商', 'email_provider_type'
+    UNION ALL SELECT 54, 'SMTP加密方式', 'email_encryption_type'
+    UNION ALL SELECT 55, '邮件验证状态', 'email_verify_status'
+    UNION ALL SELECT 56, '邮件发送状态', 'email_send_status'
+    UNION ALL SELECT 57, '邮件内容类型', 'email_content_type'
+) item
+WHERE NOT EXISTS (
+    SELECT 1 FROM sys_dict_type exists_type
+    WHERE exists_type.dict_type = item.dict_type AND exists_type.deleted = 0
+);
+
+INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale, dict_sort, list_class, is_default, status, deleted)
+VALUES
+(5000, 'email_app_code', '管理系统', 'ADMIN', 'zh-CN', 1, 'primary', 1, 1, 0),
+(5001, 'email_app_code', '商户系统', 'MERCHANT', 'zh-CN', 2, 'success', 0, 1, 0),
+(5002, 'email_app_code', '通用', 'COMMON', 'zh-CN', 3, 'info', 0, 1, 0),
+(5010, 'email_scope_type', '系统默认', 'SYSTEM', 'zh-CN', 1, 'primary', 1, 1, 0),
+(5011, 'email_scope_type', '指定商户', 'MERCHANT', 'zh-CN', 2, 'success', 0, 1, 0),
+(5020, 'email_scene_code', '通用', 'COMMON', 'zh-CN', 1, 'primary', 1, 1, 0),
+(5021, 'email_scene_code', '登录验证码', 'LOGIN_OTP', 'zh-CN', 2, 'warning', 0, 1, 0),
+(5022, 'email_scene_code', '找回密码', 'PASSWORD_RESET', 'zh-CN', 3, 'warning', 0, 1, 0),
+(5023, 'email_scene_code', '账号创建通知', 'ACCOUNT_CREATED', 'zh-CN', 4, 'success', 0, 1, 0),
+(5024, 'email_scene_code', '商户开户通知', 'MERCHANT_ONBOARDING', 'zh-CN', 5, 'success', 0, 1, 0),
+(5025, 'email_scene_code', '密钥变更通知', 'API_KEY_CHANGED', 'zh-CN', 6, 'danger', 0, 1, 0),
+(5030, 'email_provider_type', 'SMTP', 'SMTP', 'zh-CN', 1, 'primary', 1, 1, 0),
+(5040, 'email_encryption_type', 'SSL', 'SSL', 'zh-CN', 1, 'primary', 1, 1, 0),
+(5041, 'email_encryption_type', 'TLS', 'TLS', 'zh-CN', 2, 'primary', 0, 1, 0),
+(5042, 'email_encryption_type', 'STARTTLS', 'STARTTLS', 'zh-CN', 3, 'success', 0, 1, 0),
+(5043, 'email_encryption_type', '不加密', 'NONE', 'zh-CN', 4, 'info', 0, 1, 0),
+(5050, 'email_verify_status', '未验证', '0', 'zh-CN', 1, 'info', 1, 1, 0),
+(5051, 'email_verify_status', '验证成功', '1', 'zh-CN', 2, 'success', 0, 1, 0),
+(5052, 'email_verify_status', '验证失败', '2', 'zh-CN', 3, 'danger', 0, 1, 0),
+(5060, 'email_send_status', '待发送', '0', 'zh-CN', 1, 'info', 1, 1, 0),
+(5061, 'email_send_status', '发送中', '1', 'zh-CN', 2, 'warning', 0, 1, 0),
+(5062, 'email_send_status', '发送成功', '2', 'zh-CN', 3, 'success', 0, 1, 0),
+(5063, 'email_send_status', '发送失败', '3', 'zh-CN', 4, 'danger', 0, 1, 0),
+(5064, 'email_send_status', '重试中', '4', 'zh-CN', 5, 'warning', 0, 1, 0),
+(5065, 'email_send_status', '已取消', '5', 'zh-CN', 6, 'info', 0, 1, 0),
+(5070, 'email_content_type', 'HTML', 'HTML', 'zh-CN', 1, 'primary', 1, 1, 0),
+(5071, 'email_content_type', '纯文本', 'TEXT', 'zh-CN', 2, 'info', 0, 1, 0),
+(15000, 'email_app_code', 'Admin', 'ADMIN', 'en-US', 1, 'primary', 1, 1, 0),
+(15001, 'email_app_code', 'Merchant', 'MERCHANT', 'en-US', 2, 'success', 0, 1, 0),
+(15002, 'email_app_code', 'Common', 'COMMON', 'en-US', 3, 'info', 0, 1, 0),
+(15010, 'email_scope_type', 'System Default', 'SYSTEM', 'en-US', 1, 'primary', 1, 1, 0),
+(15011, 'email_scope_type', 'Merchant Account', 'MERCHANT', 'en-US', 2, 'success', 0, 1, 0),
+(15020, 'email_scene_code', 'Common', 'COMMON', 'en-US', 1, 'primary', 1, 1, 0),
+(15021, 'email_scene_code', 'Login OTP', 'LOGIN_OTP', 'en-US', 2, 'warning', 0, 1, 0),
+(15022, 'email_scene_code', 'Password Reset', 'PASSWORD_RESET', 'en-US', 3, 'warning', 0, 1, 0),
+(15023, 'email_scene_code', 'Account Created', 'ACCOUNT_CREATED', 'en-US', 4, 'success', 0, 1, 0),
+(15024, 'email_scene_code', 'Merchant Onboarding', 'MERCHANT_ONBOARDING', 'en-US', 5, 'success', 0, 1, 0),
+(15025, 'email_scene_code', 'API Key Changed', 'API_KEY_CHANGED', 'en-US', 6, 'danger', 0, 1, 0),
+(15030, 'email_provider_type', 'SMTP', 'SMTP', 'en-US', 1, 'primary', 1, 1, 0),
+(15040, 'email_encryption_type', 'SSL', 'SSL', 'en-US', 1, 'primary', 1, 1, 0),
+(15041, 'email_encryption_type', 'TLS', 'TLS', 'en-US', 2, 'primary', 0, 1, 0),
+(15042, 'email_encryption_type', 'STARTTLS', 'STARTTLS', 'en-US', 3, 'success', 0, 1, 0),
+(15043, 'email_encryption_type', 'None', 'NONE', 'en-US', 4, 'info', 0, 1, 0),
+(15050, 'email_verify_status', 'Unverified', '0', 'en-US', 1, 'info', 1, 1, 0),
+(15051, 'email_verify_status', 'Verified', '1', 'en-US', 2, 'success', 0, 1, 0),
+(15052, 'email_verify_status', 'Failed', '2', 'en-US', 3, 'danger', 0, 1, 0),
+(15060, 'email_send_status', 'Pending', '0', 'en-US', 1, 'info', 1, 1, 0),
+(15061, 'email_send_status', 'Sending', '1', 'en-US', 2, 'warning', 0, 1, 0),
+(15062, 'email_send_status', 'Success', '2', 'en-US', 3, 'success', 0, 1, 0),
+(15063, 'email_send_status', 'Failed', '3', 'en-US', 4, 'danger', 0, 1, 0),
+(15064, 'email_send_status', 'Retrying', '4', 'en-US', 5, 'warning', 0, 1, 0),
+(15065, 'email_send_status', 'Cancelled', '5', 'en-US', 6, 'info', 0, 1, 0),
+(15070, 'email_content_type', 'HTML', 'HTML', 'en-US', 1, 'primary', 1, 1, 0),
+(15071, 'email_content_type', 'Text', 'TEXT', 'en-US', 2, 'info', 0, 1, 0);
+
+INSERT INTO msg_email_template (
+    template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
+    content_template, variable_schema, sensitive_variable_names, status, system_builtin, version_no,
+    remark, create_by, update_by, deleted
+)
+SELECT item.template_code, item.template_name, item.app_code, item.scene_code, item.locale, item.subject_template, item.content_type,
+       item.content_template, item.variable_schema, item.sensitive_variable_names, 1, 1, 1,
+       item.remark, 'system', 'system', 0
+FROM (
+    SELECT 'ADMIN_LOGIN_OTP' template_code, '管理系统登录验证码' template_name, 'ADMIN' app_code, 'LOGIN_OTP' scene_code, 'zh-CN' locale,
+           '【${systemName}】登录验证码' subject_template, 'HTML' content_type,
+           '<p>您好，${userName}：</p><p>您正在登录 ${systemName}，本次登录验证码为：</p><p style="font-size: 24px; font-weight: bold;">${verifyCode}</p><p>验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p>如果本次操作不是您本人发起，请立即联系系统管理员。</p><p>${systemName}</p>' content_template,
+           '{"systemName":"Vexra Admin","userName":"张三","verifyCode":"123456","expireMinutes":"5"}' variable_schema,
+           '["verifyCode"]' sensitive_variable_names, '系统内置模板：管理系统登录验证码' remark
+    UNION ALL SELECT 'MERCHANT_LOGIN_OTP', '商户系统登录验证码', 'MERCHANT', 'LOGIN_OTP', 'zh-CN',
+           '【${systemName}】登录验证码', 'HTML',
+           '<p>您好，${userName}：</p><p>您正在登录 ${systemName}，本次登录验证码为：</p><p style="font-size: 24px; font-weight: bold;">${verifyCode}</p><p>验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p>如非本人操作，请及时修改密码或联系平台客服。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","userName":"张三","verifyCode":"123456","expireMinutes":"5"}',
+           '["verifyCode"]', '系统内置模板：商户系统登录验证码'
+    UNION ALL SELECT 'ADMIN_PASSWORD_RESET', '管理系统找回密码', 'ADMIN', 'PASSWORD_RESET', 'zh-CN',
+           '【${systemName}】找回密码验证', 'HTML',
+           '<p>您好，${userName}：</p><p>您正在进行 ${systemName} 找回密码操作。</p><p>验证码为：</p><p style="font-size: 24px; font-weight: bold;">${verifyCode}</p><p>验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p>如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Admin","userName":"张三","verifyCode":"123456","expireMinutes":"5","resetLink":"https://admin.example.com/reset"}',
+           '["verifyCode","resetLink"]', '系统内置模板：管理系统找回密码'
+    UNION ALL SELECT 'MERCHANT_PASSWORD_RESET', '商户系统找回密码', 'MERCHANT', 'PASSWORD_RESET', 'zh-CN',
+           '【${systemName}】找回密码验证', 'HTML',
+           '<p>您好，${userName}：</p><p>您正在进行 ${systemName} 找回密码操作。</p><p>验证码为：</p><p style="font-size: 24px; font-weight: bold;">${verifyCode}</p><p>验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p>如果不是您本人操作，请忽略本邮件。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","userName":"张三","verifyCode":"123456","expireMinutes":"5","resetLink":"https://merchant.example.com/reset"}',
+           '["verifyCode","resetLink"]', '系统内置模板：商户系统找回密码'
+    UNION ALL SELECT 'ADMIN_ACCOUNT_CREATED', '管理系统账号创建通知', 'ADMIN', 'ACCOUNT_CREATED', 'zh-CN',
+           '【${systemName}】账号创建通知', 'HTML',
+           '<p>您好，${userName}：</p><p>您的 ${systemName} 账号已创建成功。</p><p>登录账号：${loginAccount}</p><p>登录地址：${loginUrl}</p><p>如系统生成了初始密码，请在首次登录后立即修改密码。</p><p>如果您未申请该账号，请联系系统管理员。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"admin@example.com","loginUrl":"https://admin.example.com/login","initialPassword":"******"}',
+           '["initialPassword"]', '系统内置模板：管理系统账号创建通知'
+    UNION ALL SELECT 'MERCHANT_ACCOUNT_CREATED', '商户系统账号创建通知', 'MERCHANT', 'ACCOUNT_CREATED', 'zh-CN',
+           '【${systemName}】账号创建通知', 'HTML',
+           '<p>您好，${userName}：</p><p>您的 ${systemName} 账号已创建成功。</p><p>商户名称：${merchantName}</p><p>登录账号：${loginAccount}</p><p>登录地址：${loginUrl}</p><p>请妥善保管账号信息，并在首次登录后及时修改密码。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","userName":"张三","merchantName":"示例商户","loginAccount":"merchant@example.com","loginUrl":"https://merchant.example.com/login","initialPassword":"******"}',
+           '["initialPassword"]', '系统内置模板：商户系统账号创建通知'
+    UNION ALL SELECT 'MERCHANT_ONBOARDING_APPROVED', '商户开户审核成功通知', 'MERCHANT', 'MERCHANT_ONBOARDING', 'zh-CN',
+           '【${systemName}】商户开户审核通过', 'HTML',
+           '<p>您好，${merchantName}：</p><p>您的商户开户申请已审核通过。</p><p>商户号：${merchantNo}</p><p>审核时间：${reviewTime}</p><p>您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p>登录地址：${loginUrl}</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","merchantName":"示例商户","merchantNo":"M10000001","reviewTime":"2026-07-04 10:00:00","loginUrl":"https://merchant.example.com/login"}',
+           '[]', '系统内置模板：商户开户审核成功通知'
+    UNION ALL SELECT 'MERCHANT_ONBOARDING_REJECTED', '商户开户审核失败通知', 'MERCHANT', 'MERCHANT_ONBOARDING', 'zh-CN',
+           '【${systemName}】商户开户审核未通过', 'HTML',
+           '<p>您好，${merchantName}：</p><p>您的商户开户申请暂未通过审核。</p><p>商户号：${merchantNo}</p><p>审核时间：${reviewTime}</p><p>未通过原因：${rejectReason}</p><p>请根据提示补充或修改资料后重新提交。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","merchantName":"示例商户","merchantNo":"M10000001","reviewTime":"2026-07-04 10:00:00","rejectReason":"资料不完整"}',
+           '[]', '系统内置模板：商户开户审核失败通知'
+    UNION ALL SELECT 'API_KEY_CREATED', 'API 密钥生成通知', 'MERCHANT', 'API_KEY_CHANGED', 'zh-CN',
+           '【${systemName}】API 密钥生成通知', 'HTML',
+           '<p>您好，${merchantName}：</p><p>您的商户 API 密钥已生成。</p><p>商户号：${merchantNo}</p><p>密钥名称：${keyName}</p><p>密钥尾号：${keyLast4}</p><p>操作人：${operatorName}</p><p>操作时间：${operationTime}</p><p>为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","merchantName":"示例商户","merchantNo":"M10000001","keyName":"默认 API 密钥","keyLast4":"1234","operatorName":"张三","operationTime":"2026-07-04 10:00:00"}',
+           '[]', '系统内置模板：API 密钥生成通知'
+    UNION ALL SELECT 'API_KEY_RESET', 'API 密钥重置通知', 'MERCHANT', 'API_KEY_CHANGED', 'zh-CN',
+           '【${systemName}】API 密钥重置通知', 'HTML',
+           '<p>您好，${merchantName}：</p><p>您的商户 API 密钥已被重置。</p><p>商户号：${merchantNo}</p><p>密钥名称：${keyName}</p><p>新密钥尾号：${keyLast4}</p><p>操作人：${operatorName}</p><p>操作时间：${operationTime}</p><p>请确认该操作是否由授权人员发起。如非本人或授权人员操作，请立即联系平台客服。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","merchantName":"示例商户","merchantNo":"M10000001","keyName":"默认 API 密钥","keyLast4":"5678","operatorName":"张三","operationTime":"2026-07-04 10:00:00"}',
+           '[]', '系统内置模板：API 密钥重置通知'
+    UNION ALL SELECT 'API_KEY_ENABLED', 'API 密钥启用通知', 'MERCHANT', 'API_KEY_CHANGED', 'zh-CN',
+           '【${systemName}】API 密钥启用通知', 'HTML',
+           '<p>您好，${merchantName}：</p><p>您的商户 API 密钥已启用。</p><p>商户号：${merchantNo}</p><p>密钥名称：${keyName}</p><p>密钥尾号：${keyLast4}</p><p>操作人：${operatorName}</p><p>操作时间：${operationTime}</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","merchantName":"示例商户","merchantNo":"M10000001","keyName":"默认 API 密钥","keyLast4":"1234","operatorName":"张三","operationTime":"2026-07-04 10:00:00"}',
+           '[]', '系统内置模板：API 密钥启用通知'
+    UNION ALL SELECT 'API_KEY_DISABLED', 'API 密钥停用通知', 'MERCHANT', 'API_KEY_CHANGED', 'zh-CN',
+           '【${systemName}】API 密钥停用通知', 'HTML',
+           '<p>您好，${merchantName}：</p><p>您的商户 API 密钥已停用。</p><p>商户号：${merchantNo}</p><p>密钥名称：${keyName}</p><p>密钥尾号：${keyLast4}</p><p>操作人：${operatorName}</p><p>操作时间：${operationTime}</p><p>如果该操作不是您或授权人员发起，请及时联系平台客服。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","merchantName":"示例商户","merchantNo":"M10000001","keyName":"默认 API 密钥","keyLast4":"1234","operatorName":"张三","operationTime":"2026-07-04 10:00:00"}',
+           '[]', '系统内置模板：API 密钥停用通知'
+) item
+WHERE NOT EXISTS (
+    SELECT 1 FROM msg_email_template exists_template
+    WHERE exists_template.template_code = item.template_code
+      AND exists_template.locale = item.locale
+      AND exists_template.deleted = 0
+);
+
+UPDATE msg_email_template
+SET content_template = CASE template_code
+    WHEN 'ADMIN_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如果本次操作不是您本人发起，请立即联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如非本人操作，请及时修改密码或联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">账号创建通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您的 ${systemName} 账号已创建成功。</p><div style="margin:20px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 12px;">如系统生成了初始密码，请在首次登录后立即修改密码。</p><p style="margin:0;color:#b45309;">如果您未申请该账号，请联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">账号创建通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您的 ${systemName} 账号已创建成功。</p><div style="margin:20px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0;">请妥善保管账号信息，并在首次登录后及时修改密码。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ONBOARDING_APPROVED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#065f46;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请已审核通过。</p><div style="margin:20px 0;padding:18px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0;">审核时间：${reviewTime}</p></div><p style="margin:0 0 12px;">您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ONBOARDING_REJECTED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核未通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请暂未通过审核。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">审核时间：${reviewTime}</p><p style="margin:0;">未通过原因：${rejectReason}</p></div><p style="margin:0;">请根据提示补充或修改资料后重新提交。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_CREATED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥生成通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已生成。</p><div style="margin:20px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#7c2d12;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥重置通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已被重置。</p><div style="margin:20px 0;padding:18px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">新密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">请确认该操作是否由授权人员发起。如非本人或授权人员操作，请立即联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_ENABLED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#065f46;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥启用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已启用。</p><div style="margin:20px 0;padding:18px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_DISABLED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥停用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已停用。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">如果该操作不是您或授权人员发起，请及时联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    ELSE content_template
+END,
+update_by = 'system',
+update_time = CURRENT_TIMESTAMP(3)
+WHERE system_builtin = 1
+  AND locale = 'zh-CN'
+  AND template_code IN (
+      'ADMIN_LOGIN_OTP',
+      'MERCHANT_LOGIN_OTP',
+      'ADMIN_PASSWORD_RESET',
+      'MERCHANT_PASSWORD_RESET',
+      'ADMIN_ACCOUNT_CREATED',
+      'MERCHANT_ACCOUNT_CREATED',
+      'MERCHANT_ONBOARDING_APPROVED',
+      'MERCHANT_ONBOARDING_REJECTED',
+      'API_KEY_CREATED',
+      'API_KEY_RESET',
+      'API_KEY_ENABLED',
+      'API_KEY_DISABLED'
+  )
+  AND deleted = 0;
+
+INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+VALUES
+(660, 1, 0, 'admin_email_catalog_v1', '邮件管理', 'CATALOG', '/email', NULL, 'email', 'Message', 1, 50, 1, 0),
+(661, 1, 660, 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1, 0),
+(662, 1, 660, 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1, 0),
+(663, 1, 660, 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1, 0);
+
+INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+VALUES
+(1010, 1, 660, 'email', '邮件管理目录', 'MENU', 'GET', '/email/**', 1, 0),
+(1011, 1, 661, 'email:account:list', '发件账户查询', 'MENU', 'POST', '/admin/email/accounts/search', 1, 0),
+(1012, 1, 661, 'email:account:detail', '发件账户详情', 'BUTTON', 'GET', '/admin/email/accounts/*', 1, 0),
+(1013, 1, 661, 'email:account:add', '发件账户新增', 'BUTTON', 'POST', '/admin/email/accounts', 1, 0),
+(1014, 1, 661, 'email:account:edit', '发件账户修改', 'BUTTON', 'PUT', '/admin/email/accounts/*', 1, 0),
+(1015, 1, 661, 'email:account:remove', '发件账户删除', 'BUTTON', 'DELETE', '/admin/email/accounts/*', 1, 0),
+(1016, 1, 661, 'email:account:status', '发件账户状态', 'BUTTON', 'PUT', '/admin/email/accounts/*/status', 1, 0),
+(1017, 1, 661, 'email:account:default', '发件账户默认', 'BUTTON', 'PUT', '/admin/email/accounts/*/default', 1, 0),
+(1018, 1, 661, 'email:account:test', '发件账户测试发送', 'BUTTON', 'POST', '/admin/email/accounts/*/test', 1, 0),
+(1020, 1, 662, 'email:template:list', '邮件模板查询', 'MENU', 'POST', '/admin/email/templates/search', 1, 0),
+(1021, 1, 662, 'email:template:detail', '邮件模板详情', 'BUTTON', 'GET', '/admin/email/templates/*', 1, 0),
+(1022, 1, 662, 'email:template:add', '邮件模板新增', 'BUTTON', 'POST', '/admin/email/templates', 1, 0),
+(1023, 1, 662, 'email:template:edit', '邮件模板修改', 'BUTTON', 'PUT', '/admin/email/templates/*', 1, 0),
+(1024, 1, 662, 'email:template:remove', '邮件模板删除', 'BUTTON', 'DELETE', '/admin/email/templates/*', 1, 0),
+(1025, 1, 662, 'email:template:status', '邮件模板状态', 'BUTTON', 'PUT', '/admin/email/templates/*/status', 1, 0),
+(1026, 1, 662, 'email:template:copy', '邮件模板复制', 'BUTTON', 'POST', '/admin/email/templates/*/copy', 1, 0),
+(1027, 1, 662, 'email:template:preview', '邮件模板预览', 'BUTTON', 'POST', '/admin/email/templates/preview', 1, 0),
+(1030, 1, 663, 'email:record:list', '邮件发送记录查询', 'MENU', 'POST', '/admin/email/records/search', 1, 0),
+(1031, 1, 663, 'email:record:detail', '邮件发送记录详情', 'BUTTON', 'GET', '/admin/email/records/*', 1, 0),
+(1032, 1, 663, 'email:record:resend', '邮件重新发送', 'BUTTON', 'POST', '/admin/email/records/*/resend', 1, 0);
+
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_email_account_v1' parent_code, 'admin_email_account_detail_v1' menu_code, '发件账户详情' menu_name, 'email:account:detail' permission_code, 1 sort_no
+    UNION ALL SELECT 'admin_email_account_v1', 'admin_email_account_add_v1', '发件账户新增', 'email:account:add', 2
+    UNION ALL SELECT 'admin_email_account_v1', 'admin_email_account_edit_v1', '发件账户修改', 'email:account:edit', 3
+    UNION ALL SELECT 'admin_email_account_v1', 'admin_email_account_remove_v1', '发件账户删除', 'email:account:remove', 4
+    UNION ALL SELECT 'admin_email_account_v1', 'admin_email_account_status_v1', '发件账户状态', 'email:account:status', 5
+    UNION ALL SELECT 'admin_email_account_v1', 'admin_email_account_default_v1', '发件账户默认', 'email:account:default', 6
+    UNION ALL SELECT 'admin_email_account_v1', 'admin_email_account_test_v1', '发件账户测试发送', 'email:account:test', 7
+    UNION ALL SELECT 'admin_email_template_v1', 'admin_email_template_detail_v1', '邮件模板详情', 'email:template:detail', 1
+    UNION ALL SELECT 'admin_email_template_v1', 'admin_email_template_add_v1', '邮件模板新增', 'email:template:add', 2
+    UNION ALL SELECT 'admin_email_template_v1', 'admin_email_template_edit_v1', '邮件模板修改', 'email:template:edit', 3
+    UNION ALL SELECT 'admin_email_template_v1', 'admin_email_template_remove_v1', '邮件模板删除', 'email:template:remove', 4
+    UNION ALL SELECT 'admin_email_template_v1', 'admin_email_template_status_v1', '邮件模板状态', 'email:template:status', 5
+    UNION ALL SELECT 'admin_email_template_v1', 'admin_email_template_copy_v1', '邮件模板复制', 'email:template:copy', 6
+    UNION ALL SELECT 'admin_email_template_v1', 'admin_email_template_preview_v1', '邮件模板预览', 'email:template:preview', 7
+    UNION ALL SELECT 'admin_email_record_v1', 'admin_email_record_detail_v1', '邮件发送记录详情', 'email:record:detail', 1
+    UNION ALL SELECT 'admin_email_record_v1', 'admin_email_record_resend_v1', '邮件重新发送', 'email:record:resend', 2
+) button ON button.parent_code = parent.menu_code
+WHERE parent.app_id = 1
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = 1
+        AND exists_menu.menu_code = button.menu_code
+        AND exists_menu.deleted = 0
+  );
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT 1, 1, id, 0
+FROM sys_menu
+WHERE app_id = 1
+  AND deleted = 0
+  AND (id BETWEEN 660 AND 663 OR menu_code LIKE 'admin_email_%_v1');
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT 1, 1, id, 0
+FROM sys_permission
+WHERE app_id = 1
+  AND deleted = 0
+  AND (permission_code = 'email' OR permission_code LIKE 'email:%');
+
+-- =============================================================================
+-- 管理端菜单最终校准
+-- 保留备份库中的正式菜单树，同时保留后续新增的渠道、汇率、邮件、分表功能。
+-- =============================================================================
+UPDATE sys_menu
+SET visible = 0,
+    status = 0,
+    updated_at = CURRENT_TIMESTAMP(3)
+WHERE app_id = 1
+  AND deleted = 0
+  AND menu_code IN (
+      'home', 'system', 'permission', 'monitor',
+      'admin_dashboard',
+      'admin_system', 'admin_config', 'admin_dict', 'admin_oper_log', 'admin_menu', 'admin_dept', 'admin_post',
+      'admin_login_log', 'admin_merchant_catalog', 'admin_merchant_user', 'admin_merchant_audit',
+      'admin_merchant_key', 'admin_payment_catalog', 'admin_payment_order', 'admin_refund_order',
+      'admin_payout_order', 'admin_settlement', 'admin_channel', 'admin_risk_catalog',
+      'admin_risk_rule', 'admin_risk_blacklist',
+      'admin_system_center', 'admin_system_user', 'admin_system_role', 'admin_system_menu',
+      'admin_system_department', 'admin_system_post', 'admin_system_dict', 'admin_system_config',
+      'admin_system_login_log', 'admin_system_oper_log', 'admin_merchant_center', 'admin_merchant_info_v2',
+      'admin_merchant_user_v2', 'admin_merchant_role_v2', 'admin_merchant_jwt_key',
+      'admin_merchant_response_key', 'admin_platform_payload_key', 'admin_base_center',
+      'admin_base_country', 'admin_base_currency', 'admin_base_region_currency',
+      'admin_permission_center', 'admin_permission_app', 'admin_permission_resource',
+      'admin_permission_data_scope', 'admin_permission_role_grant',
+      'admin_system_user_v3', 'admin_system_role_v3', 'admin_system_menu_v3', 'admin_system_org_v3',
+      'admin_system_config_center_v3', 'admin_system_log_v3',
+      'admin_merchant_catalog_v3', 'admin_merchant_info_v3',
+      'admin_base_catalog_v3', 'admin_base_country_v3', 'admin_base_currency_v3',
+      'admin_base_region_currency_v3'
+  );
+
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, 0, item.menu_code, item.menu_name, item.menu_type, item.route_path, item.component_path, item.permission_code, item.icon, item.visible, item.sort_no, item.status, 0
+FROM (
+    SELECT 'admin_home_catalog_v3' menu_code, '首页' menu_name, 'CATALOG' menu_type, '/' route_path, NULL component_path, NULL permission_code, 'House' icon, 1 visible, 1 sort_no, 1 status
+    UNION ALL SELECT 'system_manage', '系统管理', 'CATALOG', '/system', NULL, NULL, 'Setting', 1, 10, 1
+    UNION ALL SELECT 'merchant_manage', '商户管理', 'CATALOG', '/merchant', NULL, NULL, 'Shop', 1, 20, 1
+    UNION ALL SELECT 'base', '基础数据', 'CATALOG', '/base', NULL, NULL, 'DataLine', 1, 30, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', '渠道管理', 'CATALOG', '/channel', NULL, 'channel', 'OfficeBuilding', 1, 40, 1
+    UNION ALL SELECT 'exchange', '汇率管理', 'CATALOG', '/exchange', NULL, NULL, 'Money', 1, 50, 1
+    UNION ALL SELECT 'admin_email_catalog_v1', '邮件管理', 'CATALOG', '/email', NULL, 'email', 'Message', 1, 60, 1
+    UNION ALL SELECT 'system_monitor', '系统监控', 'CATALOG', '/monitor', NULL, NULL, 'Monitor', 1, 80, 1
+    UNION ALL SELECT 'monitor_sharding', '分表管理', 'CATALOG', '/monitor/sharding', 'monitor/sharding/index', NULL, 'Coin', 1, 85, 1
+) item
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM sys_menu exists_menu
+    WHERE exists_menu.app_id = 1
+      AND exists_menu.menu_code = item.menu_code
+      AND exists_menu.deleted = 0
+);
+
+UPDATE sys_menu menu
+JOIN (
+    SELECT 'admin_home_catalog_v3' menu_code, 0 parent_id, '首页' menu_name, 'CATALOG' menu_type, '/' route_path, NULL component_path, NULL permission_code, 'House' icon, 1 visible, 1 sort_no, 1 status
+    UNION ALL SELECT 'system_manage', 0, '系统管理', 'CATALOG', '/system', NULL, NULL, 'Setting', 1, 10, 1
+    UNION ALL SELECT 'merchant_manage', 0, '商户管理', 'CATALOG', '/merchant', NULL, NULL, 'Shop', 1, 20, 1
+    UNION ALL SELECT 'base', 0, '基础数据', 'CATALOG', '/base', NULL, NULL, 'DataLine', 1, 30, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 0, '渠道管理', 'CATALOG', '/channel', NULL, 'channel', 'OfficeBuilding', 1, 40, 1
+    UNION ALL SELECT 'exchange', 0, '汇率管理', 'CATALOG', '/exchange', NULL, NULL, 'Money', 1, 50, 1
+    UNION ALL SELECT 'admin_email_catalog_v1', 0, '邮件管理', 'CATALOG', '/email', NULL, 'email', 'Message', 1, 60, 1
+    UNION ALL SELECT 'system_monitor', 0, '系统监控', 'CATALOG', '/monitor', NULL, NULL, 'Monitor', 1, 80, 1
+    UNION ALL SELECT 'monitor_sharding', 0, '分表管理', 'CATALOG', '/monitor/sharding', 'monitor/sharding/index', NULL, 'Coin', 1, 85, 1
+) item ON item.menu_code = menu.menu_code
+SET menu.parent_id = item.parent_id,
+    menu.menu_name = item.menu_name,
+    menu.menu_type = item.menu_type,
+    menu.route_path = item.route_path,
+    menu.component_path = item.component_path,
+    menu.permission_code = item.permission_code,
+    menu.icon = item.icon,
+    menu.visible = item.visible,
+    menu.sort_no = item.sort_no,
+    menu.status = item.status,
+    menu.updated_at = CURRENT_TIMESTAMP(3)
+WHERE menu.app_id = 1
+  AND menu.deleted = 0;
+
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, parent.id, item.menu_code, item.menu_name, item.menu_type, item.route_path, item.component_path, item.permission_code, item.icon, item.visible, item.sort_no, item.status, 0
+FROM (
+    SELECT 'system_manage' parent_code, 'system_user' menu_code, '用户管理' menu_name, 'MENU' menu_type, '/system/user' route_path, 'system/user/index' component_path, 'system:user:list' permission_code, 'User' icon, 1 visible, 11 sort_no, 1 status
+    UNION ALL SELECT 'system_manage', 'system_role', '角色管理', 'MENU', '/system/role', 'system/role/index', 'system:role:list', 'UserFilled', 1, 12, 1
+    UNION ALL SELECT 'system_manage', 'system_menu', '菜单管理', 'MENU', '/system/menu', 'system/menu/index', 'system:menu:list', 'Menu', 1, 13, 1
+    UNION ALL SELECT 'system_manage', 'system_dept', '部门管理', 'MENU', '/system/dept', 'system/dept/index', 'system:dept:list', 'OfficeBuilding', 1, 14, 1
+    UNION ALL SELECT 'system_manage', 'system_post', '岗位管理', 'MENU', '/system/post', 'system/post/index', 'system:post:list', 'Postcard', 1, 15, 1
+    UNION ALL SELECT 'system_manage', 'system_dict', '字典管理', 'MENU', '/system/dict', 'system/dict/index', 'system:dict:list', 'Tickets', 1, 16, 1
+    UNION ALL SELECT 'system_manage', 'system_config', '参数设置', 'MENU', '/system/config', 'system/config/index', 'system:config:list', 'Setting', 1, 17, 1
+    UNION ALL SELECT 'system_manage', 'system_notice', '通知公告', 'MENU', '/system/notice', 'system/notice/index', 'system:notice:list', 'Bell', 1, 18, 1
+    UNION ALL SELECT 'system_manage', 'system_log', '日志管理', 'MENU', '/system/log', 'system/log/index', 'system:login-log:list', 'DocumentChecked', 1, 19, 1
+    UNION ALL SELECT 'merchant_manage', 'admin_merchant_menu_manage_v1', '商户系统菜单管理', 'MENU', '/merchant/menu-manage', 'merchant/menu-manage', 'merchant:menu-manage:list', 'Menu', 1, 21, 1
+    UNION ALL SELECT 'merchant_manage', 'admin_merchant_menu_grant_v3', '商户菜单授权', 'MENU', '/merchant/menu-grant', 'merchant/menu-grant', 'merchant:menu-grant:list', 'MagicStick', 1, 22, 1
+    UNION ALL SELECT 'merchant_manage', 'admin_merchant_user_query_v1', '商户用户查询', 'MENU', '/merchant/user-query', 'merchant/user-query', 'admin:merchant:user:list', 'User', 1, 23, 1
+    UNION ALL SELECT 'merchant_manage', 'merchant_info_manage', '商户信息管理', 'MENU', '/merchant/info', 'merchant/info/index', 'merchant:info:list', 'Shop', 1, 41, 1
+    UNION ALL SELECT 'base', 'base_country', '国家/地区', 'MENU', '/base/country', 'base/country', 'base:country:list', 'Location', 1, 31, 1
+    UNION ALL SELECT 'base', 'base_currency', '币种管理', 'MENU', '/base/currency', 'base/currency', 'base:currency:list', 'Coin', 1, 32, 1
+    UNION ALL SELECT 'base', 'base_region_currency', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:countryCurrency:list', 'Connection', 1, 33, 1
+    UNION ALL SELECT 'base', 'base_mcc', 'MCC 管理', 'MENU', '/base/mcc', 'base/mcc', 'base:mcc:view', 'DataLine', 1, 34, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 21, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 22, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 23, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 84, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 85, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 86, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 87, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 88, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 89, 1
+    UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_rule', '分表规则', 'MENU', '/monitor/sharding/rules', 'monitor/sharding/rules/index', 'monitor:sharding:rule:list', 'List', 1, 91, 1
+    UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_physical', '物理表清单', 'MENU', '/monitor/sharding/physical-tables', 'monitor/sharding/physical-tables/index', 'monitor:sharding:physical:list', 'Grid', 1, 92, 1
+    UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_task_log', '建表任务日志', 'MENU', '/monitor/sharding/table-create-logs', 'monitor/sharding/table-create-logs/index', 'monitor:sharding:task:list', 'Document', 1, 93, 1
+    UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_id_rule', 'ID规则说明', 'MENU', '/monitor/sharding/id-rule', 'monitor/sharding/id-rule/index', 'monitor:sharding:idRule:query', 'Key', 1, 94, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_info_v1', '渠道信息管理', 'MENU', '/channel/info', 'channel/info', 'channel:info:list', 'Connection', 1, 41, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_capability_v1', '渠道支付能力管理', 'MENU', '/channel/capability', 'channel/capability', 'channel:capability:list', 'CreditCard', 1, 42, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1
+    UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
+    UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
+    UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
+) item
+JOIN sys_menu parent ON parent.app_id = 1 AND parent.menu_code = item.parent_code AND parent.deleted = 0
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM sys_menu exists_menu
+    WHERE exists_menu.app_id = 1
+      AND exists_menu.menu_code = item.menu_code
+      AND exists_menu.deleted = 0
+);
+
+UPDATE sys_menu menu
+JOIN (
+    SELECT 'system_manage' parent_code, 'system_user' menu_code, '用户管理' menu_name, 'MENU' menu_type, '/system/user' route_path, 'system/user/index' component_path, 'system:user:list' permission_code, 'User' icon, 1 visible, 11 sort_no, 1 status
+    UNION ALL SELECT 'system_manage', 'system_role', '角色管理', 'MENU', '/system/role', 'system/role/index', 'system:role:list', 'UserFilled', 1, 12, 1
+    UNION ALL SELECT 'system_manage', 'system_menu', '菜单管理', 'MENU', '/system/menu', 'system/menu/index', 'system:menu:list', 'Menu', 1, 13, 1
+    UNION ALL SELECT 'system_manage', 'system_dept', '部门管理', 'MENU', '/system/dept', 'system/dept/index', 'system:dept:list', 'OfficeBuilding', 1, 14, 1
+    UNION ALL SELECT 'system_manage', 'system_post', '岗位管理', 'MENU', '/system/post', 'system/post/index', 'system:post:list', 'Postcard', 1, 15, 1
+    UNION ALL SELECT 'system_manage', 'system_dict', '字典管理', 'MENU', '/system/dict', 'system/dict/index', 'system:dict:list', 'Tickets', 1, 16, 1
+    UNION ALL SELECT 'system_manage', 'system_config', '参数设置', 'MENU', '/system/config', 'system/config/index', 'system:config:list', 'Setting', 1, 17, 1
+    UNION ALL SELECT 'system_manage', 'system_notice', '通知公告', 'MENU', '/system/notice', 'system/notice/index', 'system:notice:list', 'Bell', 1, 18, 1
+    UNION ALL SELECT 'system_manage', 'system_log', '日志管理', 'MENU', '/system/log', 'system/log/index', 'system:login-log:list', 'DocumentChecked', 1, 19, 1
+    UNION ALL SELECT 'merchant_manage', 'admin_merchant_menu_manage_v1', '商户系统菜单管理', 'MENU', '/merchant/menu-manage', 'merchant/menu-manage', 'merchant:menu-manage:list', 'Menu', 1, 21, 1
+    UNION ALL SELECT 'merchant_manage', 'admin_merchant_menu_grant_v3', '商户菜单授权', 'MENU', '/merchant/menu-grant', 'merchant/menu-grant', 'merchant:menu-grant:list', 'MagicStick', 1, 22, 1
+    UNION ALL SELECT 'merchant_manage', 'admin_merchant_user_query_v1', '商户用户查询', 'MENU', '/merchant/user-query', 'merchant/user-query', 'admin:merchant:user:list', 'User', 1, 23, 1
+    UNION ALL SELECT 'merchant_manage', 'merchant_info_manage', '商户信息管理', 'MENU', '/merchant/info', 'merchant/info/index', 'merchant:info:list', 'Shop', 1, 41, 1
+    UNION ALL SELECT 'base', 'base_country', '国家/地区', 'MENU', '/base/country', 'base/country', 'base:country:list', 'Location', 1, 31, 1
+    UNION ALL SELECT 'base', 'base_currency', '币种管理', 'MENU', '/base/currency', 'base/currency', 'base:currency:list', 'Coin', 1, 32, 1
+    UNION ALL SELECT 'base', 'base_region_currency', '地区币种配置', 'MENU', '/base/region-currency', 'base/region-currency', 'base:countryCurrency:list', 'Connection', 1, 33, 1
+    UNION ALL SELECT 'base', 'base_mcc', 'MCC 管理', 'MENU', '/base/mcc', 'base/mcc', 'base:mcc:view', 'DataLine', 1, 34, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_online', '在线用户', 'MENU', '/monitor/online', 'monitor/online/index', 'system:online:list', 'User', 1, 21, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_server', '服务监控', 'MENU', '/monitor/server', 'monitor/server/index', 'system:server:list', 'Cpu', 1, 22, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_cache', '缓存监控', 'MENU', '/monitor/cache', 'monitor/cache/index', 'system:cache:list', 'Coin', 1, 23, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job', '任务调度', 'MENU', '/monitor/job', 'monitor/job/index', 'monitor:job:list', 'Clock', 1, 84, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job_log', '任务日志', 'MENU', '/monitor/job-log', 'monitor/job-log/index', 'monitor:jobLog:list', 'Document', 1, 85, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_job_node', '执行节点', 'MENU', '/monitor/job-node', 'monitor/job-node/index', 'monitor:jobNode:list', 'Connection', 1, 86, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_datasource', '数据源监控', 'MENU', '/monitor/datasource', 'monitor/datasource/index', 'monitor:datasource:view', 'DataLine', 1, 87, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_rocketmq', 'RocketMQ 控制台', 'LINK', 'http://localhost:8088', NULL, 'monitor:rocketmq:view', 'Connection', 1, 88, 1
+    UNION ALL SELECT 'system_monitor', 'monitor_nacos', 'Nacos 控制台', 'LINK', 'http://localhost:8848/nacos', NULL, 'monitor:nacos:view', 'Monitor', 1, 89, 1
+    UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_rule', '分表规则', 'MENU', '/monitor/sharding/rules', 'monitor/sharding/rules/index', 'monitor:sharding:rule:list', 'List', 1, 91, 1
+    UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_physical', '物理表清单', 'MENU', '/monitor/sharding/physical-tables', 'monitor/sharding/physical-tables/index', 'monitor:sharding:physical:list', 'Grid', 1, 92, 1
+    UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_task_log', '建表任务日志', 'MENU', '/monitor/sharding/table-create-logs', 'monitor/sharding/table-create-logs/index', 'monitor:sharding:task:list', 'Document', 1, 93, 1
+    UNION ALL SELECT 'monitor_sharding', 'monitor_sharding_id_rule', 'ID规则说明', 'MENU', '/monitor/sharding/id-rule', 'monitor/sharding/id-rule/index', 'monitor:sharding:idRule:query', 'Key', 1, 94, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_info_v1', '渠道信息管理', 'MENU', '/channel/info', 'channel/info', 'channel:info:list', 'Connection', 1, 41, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_capability_v1', '渠道支付能力管理', 'MENU', '/channel/capability', 'channel/capability', 'channel:capability:list', 'CreditCard', 1, 42, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1
+    UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
+    UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
+    UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
+) item ON item.menu_code = menu.menu_code
+JOIN sys_menu parent ON parent.app_id = menu.app_id AND parent.menu_code = item.parent_code AND parent.deleted = 0
+SET menu.parent_id = parent.id,
+    menu.menu_name = item.menu_name,
+    menu.menu_type = item.menu_type,
+    menu.route_path = item.route_path,
+    menu.component_path = item.component_path,
+    menu.permission_code = item.permission_code,
+    menu.icon = item.icon,
+    menu.visible = item.visible,
+    menu.sort_no = item.sort_no,
+    menu.status = item.status,
+    menu.updated_at = CURRENT_TIMESTAMP(3)
+WHERE menu.app_id = 1
+  AND menu.deleted = 0;
+
+UPDATE sys_permission permission
+JOIN (
+    SELECT 'system:user' prefix, 'system_user' menu_code
+    UNION ALL SELECT 'system:role', 'system_role'
+    UNION ALL SELECT 'system:menu', 'system_menu'
+    UNION ALL SELECT 'system:dept', 'system_dept'
+    UNION ALL SELECT 'system:department', 'system_dept'
+    UNION ALL SELECT 'system:org', 'system_dept'
+    UNION ALL SELECT 'system:post', 'system_post'
+    UNION ALL SELECT 'system:dict', 'system_dict'
+    UNION ALL SELECT 'system:dictData', 'system_dict'
+    UNION ALL SELECT 'system:config', 'system_config'
+    UNION ALL SELECT 'system:notice', 'system_notice'
+    UNION ALL SELECT 'system:login-log', 'system_log'
+    UNION ALL SELECT 'system:oper-log', 'system_log'
+    UNION ALL SELECT 'system:log', 'system_log'
+    UNION ALL SELECT 'system:online', 'monitor_online'
+    UNION ALL SELECT 'system:server', 'monitor_server'
+    UNION ALL SELECT 'system:cache', 'monitor_cache'
+    UNION ALL SELECT 'monitor:jobLog', 'monitor_job_log'
+    UNION ALL SELECT 'monitor:jobNode', 'monitor_job_node'
+    UNION ALL SELECT 'monitor:job', 'monitor_job'
+    UNION ALL SELECT 'monitor:datasource', 'monitor_datasource'
+    UNION ALL SELECT 'monitor:rocketmq', 'monitor_rocketmq'
+    UNION ALL SELECT 'monitor:nacos', 'monitor_nacos'
+    UNION ALL SELECT 'monitor:sharding:rule', 'monitor_sharding_rule'
+    UNION ALL SELECT 'monitor:sharding:physical', 'monitor_sharding_physical'
+    UNION ALL SELECT 'monitor:sharding:task', 'monitor_sharding_task_log'
+    UNION ALL SELECT 'monitor:sharding:idRule', 'monitor_sharding_id_rule'
+    UNION ALL SELECT 'merchant:info', 'merchant_info_manage'
+    UNION ALL SELECT 'merchant:account', 'merchant_info_manage'
+    UNION ALL SELECT 'merchant:role', 'merchant_info_manage'
+    UNION ALL SELECT 'merchant:key', 'merchant_info_manage'
+    UNION ALL SELECT 'merchant:response-key', 'merchant_info_manage'
+    UNION ALL SELECT 'merchant:platform-payload-key', 'merchant_info_manage'
+    UNION ALL SELECT 'merchant:operation-log', 'merchant_info_manage'
+    UNION ALL SELECT 'merchant:menu-manage', 'admin_merchant_menu_manage_v1'
+    UNION ALL SELECT 'merchant:menu-grant', 'admin_merchant_menu_grant_v3'
+    UNION ALL SELECT 'admin:merchant:user', 'admin_merchant_user_query_v1'
+    UNION ALL SELECT 'base:countryCurrency', 'base_region_currency'
+    UNION ALL SELECT 'base:country', 'base_country'
+    UNION ALL SELECT 'base:currency', 'base_currency'
+    UNION ALL SELECT 'base:mcc', 'base_mcc'
+    UNION ALL SELECT 'channel:info', 'admin_channel_info_v1'
+    UNION ALL SELECT 'channel:capability', 'admin_channel_capability_v1'
+    UNION ALL SELECT 'channel:limit', 'admin_channel_limit_v1'
+    UNION ALL SELECT 'email:account', 'admin_email_account_v1'
+    UNION ALL SELECT 'email:template', 'admin_email_template_v1'
+    UNION ALL SELECT 'email:record', 'admin_email_record_v1'
+) target ON permission.permission_code = target.prefix OR permission.permission_code LIKE CONCAT(target.prefix, ':%')
+JOIN sys_menu menu ON menu.app_id = permission.app_id AND menu.menu_code = target.menu_code AND menu.deleted = 0
+SET permission.menu_id = menu.id
+WHERE permission.app_id = 1
+  AND permission.deleted = 0;
+
+UPDATE sys_permission permission
+JOIN sys_menu menu ON menu.app_id = permission.app_id AND menu.deleted = 0
+SET permission.menu_id = menu.id
+WHERE permission.app_id = 1
+  AND permission.deleted = 0
+  AND (
+      (permission.permission_code = 'channel' AND menu.menu_code = 'admin_channel_catalog_v1')
+      OR (permission.permission_code = 'email' AND menu.menu_code = 'admin_email_catalog_v1')
+      OR (permission.permission_code = 'dashboard:view' AND menu.menu_code = 'admin_dashboard_v3')
+  );
+
+DELETE role_permission
+FROM sys_role_permission role_permission
+JOIN sys_permission permission
+  ON permission.app_id = role_permission.app_id
+ AND permission.id = role_permission.permission_id
+WHERE permission.app_id = 1
+  AND permission.permission_code IN (
+      'admin:permission-center:view', 'admin:app:view', 'admin:permission:view',
+      'admin:data-scope:view', 'admin:role-grant:view',
+      'permission:app:list', 'permission:app:add', 'permission:app:edit', 'permission:app:delete',
+      'permission:resource:list', 'permission:resource:add', 'permission:resource:edit', 'permission:resource:delete',
+      'permission:role-auth:list', 'permission:role-auth:edit',
+      'permission:data-scope:list', 'permission:data-scope:add', 'permission:data-scope:edit', 'permission:data-scope:delete'
+  );
+
+DELETE role_menu
+FROM sys_role_menu role_menu
+JOIN sys_menu menu
+  ON menu.app_id = role_menu.app_id
+ AND menu.id = role_menu.menu_id
+WHERE menu.app_id = 1
+  AND menu.menu_code IN (
+      'admin_permission_center', 'admin_permission_app', 'admin_permission_resource',
+      'admin_permission_data_scope', 'admin_permission_role_grant',
+      'admin_permission_catalog_v3', 'admin_permission_app_v3', 'admin_permission_data_scope_v3'
+  );
+
+DELETE FROM sys_permission
+WHERE app_id = 1
+  AND permission_code IN (
+      'admin:permission-center:view', 'admin:app:view', 'admin:permission:view',
+      'admin:data-scope:view', 'admin:role-grant:view',
+      'permission:app:list', 'permission:app:add', 'permission:app:edit', 'permission:app:delete',
+      'permission:resource:list', 'permission:resource:add', 'permission:resource:edit', 'permission:resource:delete',
+      'permission:role-auth:list', 'permission:role-auth:edit',
+      'permission:data-scope:list', 'permission:data-scope:add', 'permission:data-scope:edit', 'permission:data-scope:delete'
+  );
+
+DELETE FROM sys_menu
+WHERE app_id = 1
+  AND menu_code IN (
+      'admin_permission_center', 'admin_permission_app', 'admin_permission_resource',
+      'admin_permission_data_scope', 'admin_permission_role_grant',
+      'admin_permission_catalog_v3', 'admin_permission_app_v3', 'admin_permission_data_scope_v3'
+  );
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT menu.app_id, 1, menu.id, 0
+FROM sys_menu menu
+WHERE menu.app_id = 1
+  AND menu.deleted = 0
+  AND menu.status = 1;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT permission.app_id, 1, permission.id, 0
+FROM sys_permission permission
+WHERE permission.app_id = 1
+  AND permission.deleted = 0
+  AND permission.status = 1;

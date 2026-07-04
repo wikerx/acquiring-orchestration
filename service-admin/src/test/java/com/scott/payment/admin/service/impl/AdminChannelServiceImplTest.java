@@ -1,19 +1,17 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessResponse;
-import com.scott.payment.admin.dto.channel.ChannelDTOs.AccessSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
-import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelAccessConfigDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCardBrandDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCurrencyDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelInfoDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelLimitRuleDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelPaymentCapabilityDO;
-import com.scott.payment.admin.mapper.ChannelAccessConfigMapper;
 import com.scott.payment.admin.mapper.ChannelCapabilityCardBrandMapper;
 import com.scott.payment.admin.mapper.ChannelCapabilityCurrencyMapper;
 import com.scott.payment.admin.mapper.ChannelInfoMapper;
@@ -24,6 +22,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 管理后台渠道服务测试，覆盖渠道能力卡品牌绑定和接入配置敏感字段脱敏规则。
+ * 管理后台渠道服务测试，覆盖渠道能力卡品牌绑定和限额规则校验。
  */
 @ExtendWith(MockitoExtension.class)
 class AdminChannelServiceImplTest {
@@ -54,8 +53,6 @@ class AdminChannelServiceImplTest {
     @Mock
     private ChannelLimitRuleMapper limitRuleMapper;
     @Mock
-    private ChannelAccessConfigMapper accessConfigMapper;
-    @Mock
     private SysDictDataMapper dictDataMapper;
 
     private AdminChannelServiceImpl service;
@@ -68,7 +65,6 @@ class AdminChannelServiceImplTest {
                 capabilityCurrencyMapper,
                 capabilityCardBrandMapper,
                 limitRuleMapper,
-                accessConfigMapper,
                 dictDataMapper
         );
     }
@@ -84,6 +80,26 @@ class AdminChannelServiceImplTest {
         assertThat(ChannelPaymentCapabilityDO.class.getDeclaredField("supportIncrementalAuthorization")
                 .getAnnotation(TableField.class)
                 .value()).isEqualTo("support_incremental_authorization");
+    }
+
+    @Test
+    void shouldRejectDuplicateChannelCode() {
+        when(channelInfoMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.createChannel(channelRequest()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("渠道编码已存在");
+    }
+
+    @Test
+    void shouldRejectChannelDefaultRequestUrlWithoutHttpScheme() {
+        when(channelInfoMapper.selectCount(any())).thenReturn(0L);
+        ChannelInfoSaveRequest request = channelRequest();
+        request.setDefaultRequestUrl("ftp://api.channel.test");
+
+        assertThatThrownBy(() -> service.createChannel(request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("默认请求地址必须以 http:// 或 https:// 开头");
     }
 
     @Test
@@ -141,6 +157,17 @@ class AdminChannelServiceImplTest {
     }
 
     @Test
+    void shouldRejectDuplicateCapabilityScope() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.createCapability(bankCardCapabilityRequest(List.of("VISA"))))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("同一渠道、业务类型和支付方式不能重复");
+    }
+
+    @Test
     void shouldUpdateCapabilitySupportIncrementalAuthorization() {
         when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
@@ -154,8 +181,43 @@ class AdminChannelServiceImplTest {
     }
 
     @Test
-    void shouldIgnoreTransactionTypeWhenCreatingLimitRule() {
+    void shouldDefaultCapability3dsDisabledWhenChannelDoesNotSupport3ds() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(channelWithout3ds());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectCount(any())).thenReturn(0L);
+        when(capabilityMapper.insert(any(ChannelPaymentCapabilityDO.class))).thenAnswer(invocation -> {
+            ChannelPaymentCapabilityDO row = invocation.getArgument(0);
+            row.setId(101L);
+            return 1;
+        });
+        when(capabilityCurrencyMapper.selectList(any()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(currency("USD")));
+        when(capabilityCardBrandMapper.selectList(any()))
+                .thenReturn(List.of())
+                .thenReturn(List.of(cardBrand("VISA", 1)));
+
+        CapabilityResponse response = service.createCapability(bankCardCapabilityRequest(List.of("visa")));
+
+        assertThat(response.getSupport3ds()).isZero();
+    }
+
+    @Test
+    void shouldRejectCapability3dsSwitchWhenChannelDoesNotSupport3ds() {
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(channelInfoMapper.selectOne(any())).thenReturn(channelWithout3ds());
+
+        assertThatThrownBy(() -> service.updateCapabilitySupport(101L, 1, null))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("渠道未开启收单3DS能力");
+    }
+
+    @Test
+    void shouldCreateLimitRuleWithoutTransactionType() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
         when(limitRuleMapper.selectCount(any())).thenReturn(0L);
         when(limitRuleMapper.insert(any(ChannelLimitRuleDO.class))).thenAnswer(invocation -> {
             ChannelLimitRuleDO row = invocation.getArgument(0);
@@ -164,36 +226,172 @@ class AdminChannelServiceImplTest {
         });
 
         LimitSaveRequest request = limitRequest();
-        request.setTransactionType("AUTHORIZATION");
 
         LimitResponse response = service.createLimit(request);
 
-        assertThat(response.getTransactionType()).isEqualTo("ALL");
-        verify(limitRuleMapper).insert(any(ChannelLimitRuleDO.class));
+        ArgumentCaptor<ChannelLimitRuleDO> captor = ArgumentCaptor.forClass(ChannelLimitRuleDO.class);
+        verify(limitRuleMapper).insert(captor.capture());
+        assertThat(response.getLimitType()).isEqualTo("SINGLE_MAX");
+        assertThat(captor.getValue().getLimitType()).isEqualTo("SINGLE_MAX");
+        assertThat(captor.getValue().getPaymentMethod()).isEqualTo("BANK_CARD");
+        assertThat(captor.getValue().getCardBrand()).isEqualTo("VISA");
     }
 
     @Test
-    void shouldReturnOnlyMaskedSensitiveValuesForAccessConfig() {
+    void shouldRejectLimitWhenCardBrandIsNotEnabledByCapability() {
         when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
-        when(accessConfigMapper.selectCount(any())).thenReturn(0L);
-        when(accessConfigMapper.insert(any(ChannelAccessConfigDO.class))).thenAnswer(invocation -> {
-            ChannelAccessConfigDO row = invocation.getArgument(0);
-            row.setId(201L);
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(0L);
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.createLimit(limitRequest()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("该银行卡支付能力未绑定启用的卡品牌");
+    }
+
+    @Test
+    void shouldRejectLimitWhenNonCardPaymentBindsCardBrand() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityMapper.selectOne(any())).thenReturn(paypalCapability());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+
+        LimitSaveRequest request = limitRequest();
+        request.setPaymentMethod("PAYPAL");
+        request.setCardBrand("VISA");
+
+        assertThatThrownBy(() -> service.createLimit(request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("非银行卡支付方式不能绑定卡品牌");
+    }
+
+    @Test
+    void shouldRejectLimitAmountLessThanMinimum() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+
+        LimitSaveRequest request = limitRequest();
+        request.setLimitAmount(new BigDecimal("0.00"));
+
+        assertThatThrownBy(() -> service.createLimit(request))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("限额金额必须大于等于0.01");
+    }
+
+    @Test
+    void shouldRejectDuplicateLimitScopeRegardlessOfStatus() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(limitRuleMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.createLimit(limitRequest()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("同一渠道、业务类型、支付方式/卡品牌和限额类型不能重复");
+    }
+
+    @Test
+    void shouldRejectWeeklyLimitGreaterThanSevenTimesDailyLimit() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(limitRuleMapper.selectCount(any())).thenReturn(0L);
+        when(limitRuleMapper.selectList(any())).thenReturn(List.of(existingLimit("DAILY", "100.00")));
+
+        assertThatThrownBy(() -> service.createLimit(limitRequest("weekly", "701.00")))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("周限额不能超过日限额的7倍");
+    }
+
+    @Test
+    void shouldRejectMonthlyLimitGreaterThanFourTimesWeeklyLimit() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(limitRuleMapper.selectCount(any())).thenReturn(0L);
+        when(limitRuleMapper.selectList(any())).thenReturn(List.of(existingLimit("WEEKLY", "700.00")));
+
+        assertThatThrownBy(() -> service.createLimit(limitRequest("monthly", "2800.01")))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("月限额不能超过周限额的4倍");
+    }
+
+    @Test
+    void shouldCreateLimitRulesInBatch() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(limitRuleMapper.selectCount(any())).thenReturn(0L);
+        when(limitRuleMapper.insert(any(ChannelLimitRuleDO.class))).thenAnswer(invocation -> {
+            ChannelLimitRuleDO row = invocation.getArgument(0);
+            row.setId(row.getLimitType().equals("SINGLE_MIN") ? 301L : 302L);
             return 1;
         });
 
-        AccessResponse response = service.createAccessConfig(accessRequest());
+        LimitBatchSaveRequest batch = new LimitBatchSaveRequest();
+        batch.setItems(List.of(
+                limitRequest("single_min", "1.00"),
+                limitRequest("single_max", "100.00")
+        ));
 
-        assertThat(response.getApiKeyMasked()).isEqualTo("key_********1234");
-        assertThat(response.getApiSecretMasked()).isEqualTo("secr********alue");
-        assertThat(response.getClientCertPasswordMasked()).isEqualTo("cert********word");
-        assertThat(response).hasNoNullFieldsOrPropertiesExcept(
-                "callbackUrl",
-                "serverCertPath",
-                "remark",
-                "createTime",
-                "updateTime"
-        );
+        List<LimitResponse> responses = service.createLimits(batch);
+
+        assertThat(responses).hasSize(2);
+        assertThat(responses).extracting(LimitResponse::getLimitType)
+                .containsExactly("SINGLE_MIN", "SINGLE_MAX");
+        verify(limitRuleMapper, times(2)).insert(any(ChannelLimitRuleDO.class));
+    }
+
+    @Test
+    void shouldSaveLimitDimensionByUpdatingExistingAndCreatingMissingRules() {
+        ChannelLimitRuleDO existing = existingLimit("SINGLE_MIN", "1.00");
+        when(limitRuleMapper.selectOne(any()))
+                .thenReturn(existing)
+                .thenReturn(existing)
+                .thenReturn(null);
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(limitRuleMapper.selectCount(any())).thenReturn(0L);
+        when(limitRuleMapper.insert(any(ChannelLimitRuleDO.class))).thenAnswer(invocation -> {
+            ChannelLimitRuleDO row = invocation.getArgument(0);
+            row.setId(302L);
+            return 1;
+        });
+
+        LimitBatchSaveRequest batch = new LimitBatchSaveRequest();
+        batch.setItems(List.of(
+                limitRequest("single_min", "2.00"),
+                limitRequest("single_max", "100.00")
+        ));
+
+        List<LimitResponse> responses = service.saveLimitDimension(batch);
+
+        ArgumentCaptor<ChannelLimitRuleDO> updateCaptor = ArgumentCaptor.forClass(ChannelLimitRuleDO.class);
+        verify(limitRuleMapper).updateById(updateCaptor.capture());
+        assertThat(updateCaptor.getValue().getId()).isEqualTo(301L);
+        assertThat(updateCaptor.getValue().getLimitAmount()).isEqualByComparingTo("2.00");
+        verify(limitRuleMapper).insert(any(ChannelLimitRuleDO.class));
+        assertThat(responses).hasSize(2);
+    }
+
+    @Test
+    void shouldRejectInvalidLimitAmountRelationInBatch() {
+        LimitBatchSaveRequest batch = new LimitBatchSaveRequest();
+        batch.setItems(List.of(
+                limitRequest("daily", "100.00"),
+                limitRequest("weekly", "701.00")
+        ));
+
+        assertThatThrownBy(() -> service.createLimits(batch))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("周限额不能超过日限额的7倍");
     }
 
     private CapabilitySaveRequest bankCardCapabilityRequest(List<String> cardBrands) {
@@ -211,30 +409,30 @@ class AdminChannelServiceImplTest {
         return request;
     }
 
-    private AccessSaveRequest accessRequest() {
-        AccessSaveRequest request = new AccessSaveRequest();
-        request.setChannelId(1L);
-        request.setEnvMode("test");
-        request.setBaseUrl("https://api.channel.test");
-        request.setInteractionMode("api_rest");
-        request.setChannelMerchantNo("MID123");
-        request.setApiKey("key_abcd1234");
-        request.setApiSecret("secret-value");
-        request.setClientCertPath("/certs/client.p12");
-        request.setClientCertPassword("cert-password");
-        request.setExtraConfigJson("{\"timeoutSeconds\":30}");
-        request.setConfigStatus(1);
+    private ChannelInfoSaveRequest channelRequest() {
+        ChannelInfoSaveRequest request = new ChannelInfoSaveRequest();
+        request.setChannelCode("test_channel");
+        request.setChannelCnName("测试渠道");
+        request.setChannelEnName("Test Channel");
+        request.setChannelStatus(1);
+        request.setSupportAcquiring(1);
+        request.setSupportPayout(1);
+        request.setSupport3ds(1);
         return request;
     }
 
     private LimitSaveRequest limitRequest() {
+        return limitRequest("single_max", "100.00");
+    }
+
+    private LimitSaveRequest limitRequest(String limitType, String amount) {
         LimitSaveRequest request = new LimitSaveRequest();
         request.setChannelId(1L);
         request.setBusinessType("acquiring");
         request.setPaymentMethod("bank_card");
         request.setCardBrand("visa");
-        request.setLimitType("single_max");
-        request.setLimitAmount(new BigDecimal("100.00"));
+        request.setLimitType(limitType);
+        request.setLimitAmount(new BigDecimal(amount));
         request.setRuleStatus(1);
         return request;
     }
@@ -250,6 +448,12 @@ class AdminChannelServiceImplTest {
         row.setSupportPayout(1);
         row.setSupport3ds(1);
         row.setDeleted(0L);
+        return row;
+    }
+
+    private ChannelInfoDO channelWithout3ds() {
+        ChannelInfoDO row = enabledChannel();
+        row.setSupport3ds(0);
         return row;
     }
 
@@ -274,10 +478,32 @@ class AdminChannelServiceImplTest {
         return row;
     }
 
+    private ChannelPaymentCapabilityDO paypalCapability() {
+        ChannelPaymentCapabilityDO row = enabledCapability();
+        row.setPaymentMethod("PAYPAL");
+        return row;
+    }
+
     private ChannelCapabilityCardBrandDO cardBrand(String brand, int sortOrder) {
         ChannelCapabilityCardBrandDO row = new ChannelCapabilityCardBrandDO();
         row.setCardBrand(brand);
         row.setSortOrder(sortOrder);
+        return row;
+    }
+
+    private ChannelLimitRuleDO existingLimit(String limitType, String amount) {
+        ChannelLimitRuleDO row = new ChannelLimitRuleDO();
+        row.setId(301L);
+        row.setChannelId(1L);
+        row.setChannelCode("TEST_CHANNEL");
+        row.setBusinessType("ACQUIRING");
+        row.setPaymentMethod("BANK_CARD");
+        row.setCardBrand("VISA");
+        row.setLimitType(limitType);
+        row.setLimitCurrency("USD");
+        row.setLimitAmount(new BigDecimal(amount));
+        row.setRuleStatus(1);
+        row.setDeleted(0L);
         return row;
     }
 }
