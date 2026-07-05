@@ -84,11 +84,8 @@ public class AdminBaseIpLibraryApplicationService {
      */
     public PageResult<IpLibraryDTOs.IpLibraryRecordResponse> page(IpLibraryDTOs.IpLibraryQueryRequest request) {
         IpLibraryDTOs.IpLibraryQueryRequest query = request == null ? new IpLibraryDTOs.IpLibraryQueryRequest() : request;
-        if (!StringUtils.hasText(query.getIpAddress())) {
-            return PageResult.of(0, query.safePageNo(), query.safePageSize(), List.of());
-        }
         String ipType = normalizeIpType(query.getIpType(), query.getIpAddress());
-        String ipNumber = ipToNumber(query.getIpAddress(), ipType);
+        String ipNumber = StringUtils.hasText(query.getIpAddress()) ? ipToNumber(query.getIpAddress(), ipType) : null;
         List<IpLibraryEntities.IpLibrarySplitModelDO> shards = routeShards(ipType, ipNumber);
         if (shards.isEmpty()) {
             return PageResult.of(0, query.safePageNo(), query.safePageSize(), List.of());

@@ -125,13 +125,21 @@ class AdminBaseIpLibraryApplicationServiceTest {
     }
 
     @Test
-    void shouldReturnEmptyPageWhenIpAddressIsBlank() {
+    void shouldPageCurrentIpTypeWhenIpAddressIsBlank() {
+        when(splitModelMapper.selectList(any())).thenReturn(List.of(ipv4Shard()));
+        when(dataMapper.countRows(eq("ip_library_v4_data_01"), eq("DEFAULT"), eq(null)))
+                .thenReturn(1L);
+        when(dataMapper.selectPageRows(eq("ip_library_v4_data_01"), eq("DEFAULT"), eq(null), eq(0L), eq(10)))
+                .thenReturn(List.of(row("16777472", "16778239")));
+
         IpLibraryDTOs.IpLibraryQueryRequest request = new IpLibraryDTOs.IpLibraryQueryRequest();
+        request.setIpType("IPV4");
 
         PageResult<IpLibraryDTOs.IpLibraryRecordResponse> page = service.page(request);
 
-        assertThat(page.getTotal()).isZero();
-        assertThat(page.getRecords()).isEmpty();
+        assertThat(page.getTotal()).isEqualTo(1);
+        assertThat(page.getRecords()).hasSize(1);
+        assertThat(page.getRecords().get(0).getIpType()).isEqualTo("IPV4");
     }
 
     private IpLibraryEntities.IpLibrarySplitModelDO ipv4Shard() {
