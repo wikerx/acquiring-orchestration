@@ -15,7 +15,11 @@ import com.scott.payment.openapi.enums.OpenApiPaymentStatusEnum;
 import com.scott.payment.openapi.service.PaymentService;
 import com.scott.payment.openapi.support.OpenApiRequestContext;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 
@@ -35,6 +39,41 @@ public class PaymentServiceImpl implements PaymentService {
      * 平台收单订单号前缀，用于本地降级模式生成可追踪的模拟订单号。
      */
     private static final String PAYMENT_ORDER_PREFIX = "PA";
+
+    /**
+     * 默认卡交易支付方式，后续可由外部请求或商户产品配置显式传入。
+     */
+    private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
+
+    /**
+     * 默认创建支付交易类型，与当前 /authorization 内部接口保持一致。
+     */
+    private static final String DEFAULT_TRANSACTION_TYPE = "AUTHORIZATION";
+
+    /**
+     * 网关转发客户端 IP 请求头。
+     */
+    private static final String X_FORWARDED_FOR = "X-Forwarded-For";
+
+    /**
+     * 代理转发真实 IP 请求头。
+     */
+    private static final String X_REAL_IP = "X-Real-IP";
+
+    /**
+     * 请求来源请求头。
+     */
+    private static final String ORIGIN = "Origin";
+
+    /**
+     * 请求引用页请求头。
+     */
+    private static final String REFERER = "Referer";
+
+    /**
+     * 浏览器 User-Agent 请求头。
+     */
+    private static final String USER_AGENT = "User-Agent";
 
     /**
      * OpenAPI 请求转换器，负责把外部公共请求 DTO 转换成当前接口响应或内部服务对象。
@@ -119,7 +158,7 @@ public class PaymentServiceImpl implements PaymentService {
     private PaymentCreateVO createLocalPaymentResult(ApiMerchantPaymentRequestDTO requestDTO) {
         PaymentCreateVO vo = converter.toPaymentCreateVO(requestDTO);
         vo.setPaymentOrderNo(PaymentOrderNoGenerator.nextOrderNo(PAYMENT_ORDER_PREFIX));
-        vo.setStatus(OpenApiPaymentStatusEnum.RECEIVED.getCode());
+        vo.setStatus(OpenApiPaymentStatusEnum.PROCESSING.getCode());
         vo.setAmount(toMinorAmount(requestDTO));
         return vo;
     }
@@ -149,14 +188,59 @@ public class PaymentServiceImpl implements PaymentService {
         PaymentCreateClientRequestDTO clientRequestDTO = new PaymentCreateClientRequestDTO();
         clientRequestDTO.setMerchantId(requestContext.getRequiredMerchantId());
         clientRequestDTO.setMerchantOrderNo(requestDTO.getOrderInfo().getTradeNo());
+        clientRequestDTO.setTransactionType(DEFAULT_TRANSACTION_TYPE);
+        clientRequestDTO.setPaymentMethod(DEFAULT_PAYMENT_METHOD);
         clientRequestDTO.setAmount(requestDTO.getOrderInfo().getAmount());
         clientRequestDTO.setCurrency(requestDTO.getOrderInfo().getCurrency());
+        clientRequestDTO.setSourceReference(requestDTO.getOrderInfo().getSourceReference());
         clientRequestDTO.setTransactionDateTime(LocalDateTime.now());
         if (requestDTO.getTransactionInfo() != null) {
             clientRequestDTO.setRequestId(requestDTO.getTransactionInfo().getTransactionId());
+            clientRequestDTO.setCallbackUrl(requestDTO.getTransactionInfo().getCallbackUrl());
         }
         clientRequestDTO.setRequestFingerprint(keyMaterialFactory.fingerprint(encryptedData));
+        clientRequestDTO.setSubMerchantInfo(converter.toPaymentClientSubMerchantInfo(requestDTO.getMerchantInfo().getSubMerchantInfo()));
+        clientRequestDTO.setBillingCardHolderInfo(converter.toPaymentClientBillingCardHolderInfo(requestDTO.getBillingCardHolderInfo()));
+        clientRequestDTO.setCardInfo(converter.toPaymentClientCardInfo(requestDTO.getCardInfo()));
+        clientRequestDTO.setThreeDsInfo(converter.toPaymentClientThreeDsInfo(requestDTO.getThreeDsInfo()));
+        clientRequestDTO.setTransactionInfo(converter.toPaymentClientTransactionInfo(requestDTO.getTransactionInfo()));
+        populateRequestSource(clientRequestDTO);
         return clientRequestDTO;
+    }
+
+    /**
+     * 填充当前 HTTP 请求来源信息，用于风控和 3DS 上下文。
+     *
+     * @param clientRequestDTO 内部创建请求
+     */
+    private void populateRequestSource(PaymentCreateClientRequestDTO clientRequestDTO) {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return;
+        }
+        HttpServletRequest request = attributes.getRequest();
+        clientRequestDTO.setPayerIp(resolveClientIp(request));
+        clientRequestDTO.setUserAgent(request.getHeader(USER_AGENT));
+        String origin = request.getHeader(ORIGIN);
+        clientRequestDTO.setSourceUrl(StringUtils.hasText(origin) ? origin : request.getHeader(REFERER));
+    }
+
+    /**
+     * 解析客户端 IP，优先使用网关转发头。
+     *
+     * @param request 当前 HTTP 请求
+     * @return 客户端 IP
+     */
+    private String resolveClientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader(X_FORWARDED_FOR);
+        if (StringUtils.hasText(forwarded)) {
+            return forwarded.split(",")[0].trim();
+        }
+        String realIp = request.getHeader(X_REAL_IP);
+        if (StringUtils.hasText(realIp)) {
+            return realIp;
+        }
+        return request.getRemoteAddr();
     }
 
     /**
@@ -166,12 +250,6 @@ public class PaymentServiceImpl implements PaymentService {
      * @return OpenAPI 创建响应
      */
     private PaymentCreateVO toPaymentCreateVO(PaymentCreateClientResponseDTO clientResponseDTO) {
-        PaymentCreateVO vo = new PaymentCreateVO();
-        vo.setPaymentOrderNo(clientResponseDTO.getPaymentOrderNo());
-        vo.setMerchantOrderNo(clientResponseDTO.getMerchantOrderNo());
-        vo.setStatus(clientResponseDTO.getStatus());
-        vo.setCurrency(clientResponseDTO.getCurrency());
-        vo.setAmount(clientResponseDTO.getAmount());
-        return vo;
+        return converter.toPaymentCreateVO(clientResponseDTO);
     }
 }

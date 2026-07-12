@@ -11,3 +11,11 @@ spring:
     active: @profiles.active@
   main:
     allow-bean-definition-overriding: true
+
+payment:
+  risk-client:
+    # 本地骨架默认不远程调用 service-risk；生产接入前必须在配置中心开启并替换 Noop 风控。
+    remote-enabled: false
+    evaluate-url: http://service-risk/internal/risk/evaluate/payment
+    internal-caller: service-payment
+    internal-secret: dev-internal-service-secret

@@ -9,9 +9,10 @@ import com.scott.payment.channel.payment.model.PaymentChannelResult;
  * @classname : PaymentChannelAdapter
  * @date : 2026-05-28 10:58
  * @email : scott_x@163.com
- * @description : 收单支付渠道适配器接口
+ * @description : 收单支付旧版渠道适配器接口，位于 payment-channel-library 渠道适配层，保留用于兼容早期调用；新接入渠道应优先使用 PaymentChannelClient SPI。
  * @status : create
  */
+@Deprecated
 public interface PaymentChannelAdapter {
 
     String supportChannelCode();

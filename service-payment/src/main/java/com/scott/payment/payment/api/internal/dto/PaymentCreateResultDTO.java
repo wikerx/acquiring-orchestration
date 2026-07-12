@@ -10,16 +10,7 @@ import java.io.Serializable;
  * @classname : PaymentCreateResultDTO
  * @date : 2026-05-31 21:01
  * @email : scott_x@163.com
- * @description : service-payment 创建收单交易的内部响应参数
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentCreateResultDTO
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Payment Create Result 数据传输对象，位于 service-payment 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : service-payment 创建收单交易的内部响应参数，返回交易生命周期标识、当前交易动作单号和字典交易状态。
  * @status : create
  */
 @Data
@@ -31,9 +22,19 @@ public class PaymentCreateResultDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 平台支付订单号，service-payment 生成并作为系统内交易主标识。
+     * 平台支付订单号，兼容现有 OpenAPI 响应；后续可逐步迁移为 transactionOrderNo。
      */
     private String paymentOrderNo;
+
+    /**
+     * 同一原始交易生命周期的主标识，后续正式表建议使用 transaction_order_no 字段承载。
+     */
+    private String transactionOrderNo;
+
+    /**
+     * 当前交易动作单号，后续正式表建议使用 transaction_no 字段承载。
+     */
+    private String transactionNo;
 
     /**
      * 商户订单号，原样返回给 OpenAPI 和商户。
@@ -41,9 +42,29 @@ public class PaymentCreateResultDTO implements Serializable {
     private String merchantOrderNo;
 
     /**
-     * 交易状态，当前模拟流程默认返回 RECEIVED，表示支付服务已接收。
+     * 交易类型，对齐字典 transaction_type。
+     */
+    private String transactionType;
+
+    /**
+     * 交易状态，对齐字典 transaction_status。
      */
     private String status;
+
+    /**
+     * 内部处理阶段，用于说明当前交易处于风控、路由、渠道请求或等待回调等节点。
+     */
+    private String processStage;
+
+    /**
+     * 失败原因码，仅当 status=FAILED 时返回。
+     */
+    private String failReasonCode;
+
+    /**
+     * 挂起原因码，仅当 status=PENDING 时返回。
+     */
+    private String pendingReasonCode;
 
     /**
      * 交易金额，单位为最小币种单位，例如 USD 分。

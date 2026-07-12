@@ -7,10 +7,16 @@ import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelOption;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingSaveRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 import java.util.List;
@@ -69,5 +75,29 @@ public interface AdminChannelService {
     LimitResponse updateLimitStatus(Long id, Integer status);
 
     void deleteLimit(Long id);
+
+    PageResult<ChannelMidConfigResponse> pageMids(ChannelMidConfigQuery query);
+
+    ChannelMidConfigResponse getMid(Long id);
+
+    ChannelMidConfigResponse createMid(ChannelMidConfigSaveRequest request);
+
+    ChannelMidConfigResponse updateMid(Long id, ChannelMidConfigSaveRequest request);
+
+    ChannelMidConfigResponse updateMidStatus(Long id, Integer status);
+
+    void deleteMid(Long id);
+
+    PageResult<MerchantChannelMidBindingResponse> pageMidBindings(MerchantChannelMidBindingQuery query);
+
+    MerchantChannelMidBindingResponse getMidBinding(Long id);
+
+    MerchantChannelMidBindingResponse createMidBinding(MerchantChannelMidBindingSaveRequest request);
+
+    MerchantChannelMidBindingResponse updateMidBinding(Long id, MerchantChannelMidBindingSaveRequest request);
+
+    MerchantChannelMidBindingResponse updateMidBindingStatus(Long id, Integer status);
+
+    void deleteMidBinding(Long id);
 
 }

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
  * @classname : PaymentAuthorizationApplicationService
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 收单支付Payment Authorization Application 服务契约，位于 service-payment 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 收单授权交易应用服务，位于 service-payment 应用编排层，负责承接内部创建命令并委托交易服务完成受理。
  * @status : create
  */
 @Service
@@ -36,11 +36,6 @@ public class PaymentAuthorizationApplicationService {
      *
      * @param commandDTO 创建交易命令
      * @return 创建交易结果
-     */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param commandDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PaymentCreateResultDTO createAuthorization(PaymentCreateCommandDTO commandDTO) {
         return paymentTransactionService.createAuthorization(commandDTO);

@@ -12,7 +12,7 @@ import java.util.List;
  * @classname : JsonUtils
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
- * @description : 统一 JSON 序列化与反序列化工具
+ * @description : 统一 JSON 序列化与反序列化工具，封装 fastjson2 的基础调用，避免业务代码散落使用多套 JSON 实现。
  * @status : create
  */
 public final class JsonUtils {
@@ -26,11 +26,6 @@ public final class JsonUtils {
      * @param object 待序列化对象
      * @return JSON 字符串
      */
-    /**
-     * 转换收单支付数据结构，避免数据库实体直接暴露到外部接口。
-     * @param object 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String toJsonString(Object object) {
         return JSON.toJSONString(object);
     }
@@ -42,12 +37,6 @@ public final class JsonUtils {
      * @param clazz 目标类型
      * @param <T>   目标泛型
      * @return 目标对象，空字符串返回 null
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param json 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param clazz 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static <T> T parseObject(String json, Class<T> clazz) {
         if (isBlank(json)) {
@@ -64,12 +53,6 @@ public final class JsonUtils {
      * @param <T>           目标泛型
      * @return 目标对象，空字符串返回 null
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param json 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param typeReference 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static <T> T parseObject(String json, TypeReference<T> typeReference) {
         if (isBlank(json)) {
             return null;
@@ -84,12 +67,6 @@ public final class JsonUtils {
      * @param clazz 列表元素类型
      * @param <T>   列表元素泛型
      * @return 目标对象列表，空字符串返回空列表
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param json 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param clazz 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static <T> List<T> parseArray(String json, Class<T> clazz) {
         if (isBlank(json)) {

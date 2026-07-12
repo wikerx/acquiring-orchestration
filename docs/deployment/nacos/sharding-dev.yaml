@@ -98,3 +98,16 @@ global-payment:
         table-name-format: "%s_%d%02d"
         actual-data-source: master
         description: 测试交易状态信息表，按交易时间季度分表。
+      transaction-event-outbox:
+        enabled: true
+        logical-table: transaction_event_outbox
+        template-table: transaction_event_outbox
+        id-column: id
+        sharding-column: event_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 交易本地事务事件表，按事件产生时间季度分表。

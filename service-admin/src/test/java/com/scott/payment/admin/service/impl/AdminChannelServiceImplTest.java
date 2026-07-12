@@ -4,19 +4,29 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilityResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingSaveRequest;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCardBrandDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCurrencyDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelInfoDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelLimitRuleDO;
+import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelMetadataSchemaDO;
+import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelMidConfigDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelPaymentCapabilityDO;
+import com.scott.payment.admin.entity.channel.ChannelEntities.MerchantChannelMidBindingDO;
 import com.scott.payment.admin.mapper.ChannelCapabilityCardBrandMapper;
 import com.scott.payment.admin.mapper.ChannelCapabilityCurrencyMapper;
 import com.scott.payment.admin.mapper.ChannelInfoMapper;
 import com.scott.payment.admin.mapper.ChannelLimitRuleMapper;
+import com.scott.payment.admin.mapper.ChannelMetadataSchemaMapper;
+import com.scott.payment.admin.mapper.ChannelMidConfigMapper;
 import com.scott.payment.admin.mapper.ChannelPaymentCapabilityMapper;
+import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
 import com.scott.payment.admin.mapper.SysDictDataMapper;
 import com.scott.payment.component.core.exception.ServiceException;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +64,11 @@ class AdminChannelServiceImplTest {
     @Mock
     private ChannelInfoMapper channelInfoMapper;
     /**
+     * 渠道 MID 参数模板数据访问对象。
+     */
+    @Mock
+    private ChannelMetadataSchemaMapper metadataSchemaMapper;
+    /**
      * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     @Mock
@@ -74,6 +89,16 @@ class AdminChannelServiceImplTest {
     @Mock
     private ChannelLimitRuleMapper limitRuleMapper;
     /**
+     * 渠道真实 MID 配置数据访问对象，用于验证 MID 配置新增、更新和重复校验。
+     */
+    @Mock
+    private ChannelMidConfigMapper midConfigMapper;
+    /**
+     * 商户与渠道 MID 绑定关系数据访问对象，用于验证绑定新增和重复校验。
+     */
+    @Mock
+    private MerchantChannelMidBindingMapper midBindingMapper;
+    /**
      * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     @Mock
@@ -88,10 +113,13 @@ class AdminChannelServiceImplTest {
     void setUp() {
         service = new AdminChannelServiceImpl(
                 channelInfoMapper,
+                metadataSchemaMapper,
                 capabilityMapper,
                 capabilityCurrencyMapper,
                 capabilityCardBrandMapper,
                 limitRuleMapper,
+                midConfigMapper,
+                midBindingMapper,
                 dictDataMapper
         );
     }
@@ -421,6 +449,128 @@ class AdminChannelServiceImplTest {
                 .hasMessageContaining("周限额不能超过日限额的7倍");
     }
 
+    /**
+     * 新增渠道时如果未传超时时间，应落入统一默认秒数，避免渠道调用没有明确超时边界。
+     */
+    @Test
+    void shouldDefaultChannelTimeoutSecondsWhenCreateChannel() {
+        when(channelInfoMapper.selectCount(any())).thenReturn(0L);
+        when(channelInfoMapper.insert(any(ChannelInfoDO.class))).thenAnswer(invocation -> {
+            ChannelInfoDO row = invocation.getArgument(0);
+            row.setId(1L);
+            return 1;
+        });
+
+        service.createChannel(channelRequest());
+
+        ArgumentCaptor<ChannelInfoDO> captor = ArgumentCaptor.forClass(ChannelInfoDO.class);
+        verify(channelInfoMapper).insert(captor.capture());
+        assertThat(captor.getValue().getConnectTimeoutSeconds()).isEqualTo(10);
+        assertThat(captor.getValue().getReadTimeoutSeconds()).isEqualTo(30);
+    }
+
+    /**
+     * 新增 MID 时应把范围字段归一化为大写，并按渠道模板保存真实 MID 元数据。
+     */
+    @Test
+    void shouldCreateMidConfigWithNormalizedScopes() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
+        when(midConfigMapper.selectCount(any())).thenReturn(0L);
+        when(midConfigMapper.insert(any(ChannelMidConfigDO.class))).thenAnswer(invocation -> {
+            ChannelMidConfigDO row = invocation.getArgument(0);
+            row.setId(501L);
+            return 1;
+        });
+
+        ChannelMidConfigResponse response = service.createMid(midRequest());
+
+        ArgumentCaptor<ChannelMidConfigDO> captor = ArgumentCaptor.forClass(ChannelMidConfigDO.class);
+        verify(midConfigMapper).insert(captor.capture());
+        assertThat(captor.getValue().getChannelCode()).isEqualTo("TEST_CHANNEL");
+        assertThat(captor.getValue().getChannelMid()).isEqualTo("TESTDEVMER031");
+        assertThat(captor.getValue().getBusinessType()).isEqualTo("ACQUIRING");
+        assertThat(captor.getValue().getPaymentMethodScope()).isEqualTo("BANK_CARD");
+        assertThat(captor.getValue().getCardBrandScope()).isEqualTo("VISA,MASTERCARD");
+        assertThat(captor.getValue().getTransactionTypeScope()).isEqualTo("PAYMENT,AUTHORIZATION");
+        assertThat(captor.getValue().getCurrencyScope()).isEqualTo("USD");
+        assertThat(captor.getValue().getAllowedCountryScope()).isEqualTo("ALL");
+        assertThat(captor.getValue().getSettlementCycle()).isEqualTo("T+1");
+        assertThat(response.getChannelMid()).isEqualTo("TESTDEVMER031");
+    }
+
+    /**
+     * MID 名称允许后台不录入，落库时使用渠道 MID 兜底以满足历史非空约束。
+     */
+    @Test
+    void shouldFallbackMidNameToChannelMidWhenBlank() {
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(dictDataMapper.selectCount(any())).thenReturn(1L);
+        when(capabilityMapper.selectList(any())).thenReturn(List.of(enabledCapability()));
+        when(capabilityMapper.selectOne(any())).thenReturn(enabledCapability());
+        when(capabilityCardBrandMapper.selectCount(any())).thenReturn(1L);
+        when(metadataSchemaMapper.selectList(any())).thenReturn(List.of());
+        when(midConfigMapper.selectCount(any())).thenReturn(0L);
+        ChannelMidConfigSaveRequest request = midRequest();
+        request.setMidName(" ");
+
+        service.createMid(request);
+
+        ArgumentCaptor<ChannelMidConfigDO> captor = ArgumentCaptor.forClass(ChannelMidConfigDO.class);
+        verify(midConfigMapper).insert(captor.capture());
+        assertThat(captor.getValue().getMidName()).isEqualTo("TESTDEVMER031");
+    }
+
+    /**
+     * MID 元数据展示应以渠道元数据模板为准：文本类型允许明文展示，敏感类型才脱敏。
+     */
+    @Test
+    void shouldMaskMidMetadataBySchemaTypeInsteadOfFieldName() {
+        ChannelMidConfigDO mid = enabledMid();
+        mid.setMetadataValueJson("{\"merchantSecret\":\"plain-secret\",\"apiPassword\":\"real-password\"}");
+        when(midConfigMapper.selectOne(any())).thenReturn(mid);
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(metadataSchemaMapper.selectList(any())).thenReturn(List.of(
+                metadataSchema("merchantSecret", "商户秘钥", "TEXT", 0),
+                metadataSchema("apiPassword", "API密码", "PASSWORD", 0)
+        ));
+
+        ChannelMidConfigResponse response = service.getMid(501L);
+
+        assertThat(response.getMetadataValueJson()).contains("\"merchantSecret\":\"plain-secret\"");
+        assertThat(response.getMetadataValueJson()).contains("\"apiPassword\":\"***\"");
+    }
+
+    /**
+     * 新增商户 MID 绑定时只保存绑定关系，并从 MID 配置带出渠道冗余字段。
+     */
+    @Test
+    void shouldCreateMerchantMidBindingFromMidConfig() {
+        when(midConfigMapper.selectOne(any())).thenReturn(enabledMid());
+        when(midBindingMapper.selectCount(any())).thenReturn(0L);
+        when(channelInfoMapper.selectOne(any())).thenReturn(enabledChannel());
+        when(midBindingMapper.insert(any(MerchantChannelMidBindingDO.class))).thenAnswer(invocation -> {
+            MerchantChannelMidBindingDO row = invocation.getArgument(0);
+            row.setId(601L);
+            return 1;
+        });
+
+        MerchantChannelMidBindingResponse response = service.createMidBinding(midBindingRequest());
+
+        ArgumentCaptor<MerchantChannelMidBindingDO> captor = ArgumentCaptor.forClass(MerchantChannelMidBindingDO.class);
+        verify(midBindingMapper).insert(captor.capture());
+        assertThat(captor.getValue().getMerchantId()).isEqualTo("200001");
+        assertThat(captor.getValue().getChannelId()).isEqualTo(1L);
+        assertThat(captor.getValue().getChannelCode()).isEqualTo("TEST_CHANNEL");
+        assertThat(captor.getValue().getMidConfigId()).isEqualTo(501L);
+        assertThat(captor.getValue().getChannelMid()).isEqualTo("TESTDEVMER031");
+        assertThat(response.getMidName()).isEqualTo("MPGS TEST MID");
+    }
+
     private CapabilitySaveRequest bankCardCapabilityRequest(List<String> cardBrands) {
         CapabilitySaveRequest request = new CapabilitySaveRequest();
         request.setChannelId(1L);
@@ -445,6 +595,33 @@ class AdminChannelServiceImplTest {
         request.setSupportAcquiring(1);
         request.setSupportPayout(1);
         request.setSupport3ds(1);
+        return request;
+    }
+
+    private ChannelMidConfigSaveRequest midRequest() {
+        ChannelMidConfigSaveRequest request = new ChannelMidConfigSaveRequest();
+        request.setChannelId(1L);
+        request.setChannelMid("");
+        request.setMidName("MPGS TEST MID");
+        request.setBusinessType("acquiring");
+        request.setPaymentMethodScope("bank_card");
+        request.setCardBrandScope("visa,mastercard");
+        request.setTransactionTypeScope("authorization,capture");
+        request.setCurrencyScope("usd");
+        request.setAllowedCountryScope("all");
+        request.setDefaultSettlementCurrency("usd");
+        request.setSettlementCycle("t1");
+        request.setSettlementTimeZone("Asia/Shanghai");
+        request.setMetadataValueJson("{\"merchantId\":\"TESTDEVMER031\"}");
+        request.setMidStatus(1);
+        return request;
+    }
+
+    private MerchantChannelMidBindingSaveRequest midBindingRequest() {
+        MerchantChannelMidBindingSaveRequest request = new MerchantChannelMidBindingSaveRequest();
+        request.setMerchantId("200001");
+        request.setMidConfigId(501L);
+        request.setBindingStatus(1);
         return request;
     }
 
@@ -474,6 +651,33 @@ class AdminChannelServiceImplTest {
         row.setSupportAcquiring(1);
         row.setSupportPayout(1);
         row.setSupport3ds(1);
+        row.setDeleted(0L);
+        return row;
+    }
+
+    private ChannelMidConfigDO enabledMid() {
+        ChannelMidConfigDO row = new ChannelMidConfigDO();
+        row.setId(501L);
+        row.setChannelId(1L);
+        row.setChannelCode("TEST_CHANNEL");
+        row.setChannelMid("TESTDEVMER031");
+        row.setMidName("MPGS TEST MID");
+        row.setBusinessType("ACQUIRING");
+        row.setMidStatus(1);
+        row.setDeleted(0L);
+        return row;
+    }
+
+    private ChannelMetadataSchemaDO metadataSchema(String fieldKey, String fieldLabel, String fieldType, int sensitiveFlag) {
+        ChannelMetadataSchemaDO row = new ChannelMetadataSchemaDO();
+        row.setChannelId(1L);
+        row.setFieldKey(fieldKey);
+        row.setFieldLabel(fieldLabel);
+        row.setFieldType(fieldType);
+        row.setRequiredFlag(0);
+        row.setSensitiveFlag(sensitiveFlag);
+        row.setFieldStatus(1);
+        row.setSortOrder(1);
         row.setDeleted(0L);
         return row;
     }

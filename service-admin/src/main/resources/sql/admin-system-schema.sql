@@ -1336,6 +1336,8 @@ CREATE TABLE IF NOT EXISTS channel_info (
     support_3ds TINYINT NOT NULL DEFAULT 0 COMMENT '是否支持3DS：0否，1是',
     default_request_url VARCHAR(512) NULL COMMENT '默认渠道请求地址',
     default_interaction_mode VARCHAR(32) NULL COMMENT '默认交互方式',
+    connect_timeout_seconds INT NOT NULL DEFAULT 10 COMMENT '连接超时时间，单位秒',
+    read_timeout_seconds INT NOT NULL DEFAULT 30 COMMENT '读取超时时间，单位秒',
     sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
     remark VARCHAR(512) NULL COMMENT '备注',
     create_by VARCHAR(64) NULL COMMENT '创建人',
@@ -1348,6 +1350,88 @@ CREATE TABLE IF NOT EXISTS channel_info (
     KEY idx_channel_info_status (channel_status, deleted),
     KEY idx_channel_info_capability (support_acquiring, support_payout, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='渠道信息表';
+
+CREATE TABLE IF NOT EXISTS channel_metadata_schema (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    channel_id BIGINT NOT NULL COMMENT '渠道ID',
+    channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
+    field_key VARCHAR(64) NOT NULL COMMENT '元数据字段key，如merchantId、username、privateKey',
+    field_label VARCHAR(128) NOT NULL COMMENT '元数据字段展示名称',
+    field_type VARCHAR(32) NOT NULL DEFAULT 'TEXT' COMMENT '字段类型：TEXT/PASSWORD/URL/NUMBER/JSON/TEXTAREA/PRIVATE_KEY/PUBLIC_KEY/CERTIFICATE/SELECT',
+    required_flag TINYINT NOT NULL DEFAULT 1 COMMENT '是否必填：0否，1是',
+    sensitive_flag TINYINT NOT NULL DEFAULT 0 COMMENT '是否敏感：0否，1是',
+    validation_regex VARCHAR(512) NULL COMMENT '格式校验正则表达式',
+    placeholder VARCHAR(255) NULL COMMENT '输入占位说明',
+    default_value VARCHAR(512) NULL COMMENT '默认值，敏感字段不允许配置默认值',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序',
+    field_status TINYINT NOT NULL DEFAULT 1 COMMENT '字段状态：0停用，1启用',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_channel_metadata_key_deleted (channel_id, field_key, deleted),
+    KEY idx_channel_metadata_channel_sort (channel_id, field_status, deleted, sort_order),
+    KEY idx_channel_metadata_code (channel_code, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='渠道MID参数模板表';
+
+CREATE TABLE IF NOT EXISTS channel_mid_config (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    channel_id BIGINT NOT NULL COMMENT '渠道ID',
+    channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
+    channel_mid VARCHAR(128) NOT NULL COMMENT '渠道侧真实MID或商户号',
+    mid_name VARCHAR(128) NOT NULL COMMENT 'MID展示名称',
+    terminal_id VARCHAR(128) NULL COMMENT '渠道终端号',
+    business_type VARCHAR(32) NOT NULL COMMENT '业务类型：ACQUIRING/PAYOUT',
+    payment_method_scope VARCHAR(512) NOT NULL COMMENT '支持支付方式，ALL或逗号分隔',
+    card_brand_scope VARCHAR(512) NOT NULL DEFAULT 'NONE' COMMENT '银行卡品牌范围，非银行卡为NONE，银行卡为ALL或逗号分隔',
+    transaction_type_scope VARCHAR(512) NOT NULL COMMENT '支持交易类型，ALL或逗号分隔',
+    currency_scope VARCHAR(512) NOT NULL COMMENT '支持交易币种，ALL或逗号分隔',
+    allowed_country_scope VARCHAR(512) NOT NULL COMMENT '允许交易国家，ALL或逗号分隔',
+    default_settlement_currency CHAR(3) NOT NULL COMMENT '默认结算币种',
+    settlement_cycle VARCHAR(32) NOT NULL COMMENT '结算周期：T0/T1/T2',
+    settlement_cutoff_time TIME NULL COMMENT '结算日切时间',
+    settlement_time_zone VARCHAR(64) NOT NULL COMMENT '结算时区',
+    mcc VARCHAR(16) NULL COMMENT 'MID MCC',
+    statement_descriptor VARCHAR(128) NULL COMMENT '账单描述',
+    metadata_value_json JSON NULL COMMENT '按渠道元数据模板录入的MID元数据',
+    mid_status TINYINT NOT NULL DEFAULT 1 COMMENT 'MID状态：0停用，1启用',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间，空表示永不过期',
+    remark VARCHAR(512) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_channel_mid_deleted (channel_id, channel_mid, deleted),
+    KEY idx_channel_mid_code_status (channel_code, mid_status, deleted),
+    KEY idx_channel_mid_business (business_type, mid_status, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='渠道MID配置表';
+
+CREATE TABLE IF NOT EXISTS merchant_channel_mid_binding (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_id VARCHAR(64) NOT NULL COMMENT '平台商户号',
+    channel_id BIGINT NOT NULL COMMENT '渠道ID',
+    channel_code VARCHAR(64) NOT NULL COMMENT '渠道编码',
+    mid_config_id BIGINT NOT NULL COMMENT '渠道MID配置ID',
+    channel_mid VARCHAR(128) NOT NULL COMMENT '渠道侧真实MID或商户号',
+    binding_status TINYINT NOT NULL DEFAULT 1 COMMENT '绑定状态：0停用，1启用',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间，空表示永不过期',
+    remark VARCHAR(512) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_merchant_mid_deleted (merchant_id, mid_config_id, deleted),
+    KEY idx_merchant_channel_status (merchant_id, channel_id, binding_status, deleted),
+    KEY idx_binding_mid (mid_config_id, binding_status, deleted)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户渠道MID绑定表';
 
 CREATE TABLE IF NOT EXISTS channel_payment_capability (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -1613,7 +1697,9 @@ VALUES
 (280, 1, 0, 'admin_channel_catalog_v1', '渠道管理', 'CATALOG', '/channel', NULL, 'channel', 'Connection', 1, 40, 1, 0),
 (281, 1, 280, 'admin_channel_info_v1', '渠道信息管理', 'MENU', '/channel/info', 'channel/info', 'channel:info:list', 'Connection', 1, 41, 1, 0),
 (282, 1, 280, 'admin_channel_capability_v1', '渠道支付能力管理', 'MENU', '/channel/capability', 'channel/capability', 'channel:capability:list', 'CreditCard', 1, 42, 1, 0),
-(283, 1, 280, 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1, 0);
+(283, 1, 280, 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1, 0),
+(284, 1, 280, 'admin_channel_mid_v1', '渠道MID配置', 'MENU', '/channel/mid', 'channel/mid', 'channel:mid:list', 'Tickets', 1, 44, 1, 0),
+(285, 1, 280, 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -1636,7 +1722,19 @@ VALUES
 (723, 1, 283, 'channel:limit:edit', '渠道限额修改', 'BUTTON', 'PUT', '/admin/channel/limits/*', 1, 0),
 (724, 1, 283, 'channel:limit:remove', '渠道限额删除', 'BUTTON', 'DELETE', '/admin/channel/limits/*', 1, 0),
 (725, 1, 283, 'channel:limit:status', '渠道限额状态', 'BUTTON', 'PUT', '/admin/channel/limits/*/status', 1, 0),
-(726, 1, 283, 'channel:limit:dimensionEdit', '渠道限额维度编辑', 'BUTTON', 'PUT', '/admin/channel/limits/dimension', 1, 0);
+(726, 1, 283, 'channel:limit:dimensionEdit', '渠道限额维度编辑', 'BUTTON', 'PUT', '/admin/channel/limits/dimension', 1, 0),
+(730, 1, 284, 'channel:mid:list', '渠道MID查询', 'MENU', 'POST', '/admin/channel/mids/search', 1, 0),
+(731, 1, 284, 'channel:mid:detail', '渠道MID详情', 'BUTTON', 'GET', '/admin/channel/mids/*', 1, 0),
+(732, 1, 284, 'channel:mid:add', '渠道MID新增', 'BUTTON', 'POST', '/admin/channel/mids', 1, 0),
+(733, 1, 284, 'channel:mid:edit', '渠道MID修改', 'BUTTON', 'PUT', '/admin/channel/mids/*', 1, 0),
+(734, 1, 284, 'channel:mid:status', '渠道MID状态', 'BUTTON', 'PUT', '/admin/channel/mids/*/status', 1, 0),
+(735, 1, 284, 'channel:mid:remove', '渠道MID删除', 'BUTTON', 'DELETE', '/admin/channel/mids/*', 1, 0),
+(740, 1, 285, 'channel:mid-binding:list', '商户MID绑定查询', 'MENU', 'POST', '/admin/channel/mid-bindings/search', 1, 0),
+(741, 1, 285, 'channel:mid-binding:detail', '商户MID绑定详情', 'BUTTON', 'GET', '/admin/channel/mid-bindings/*', 1, 0),
+(742, 1, 285, 'channel:mid-binding:add', '商户MID绑定新增', 'BUTTON', 'POST', '/admin/channel/mid-bindings', 1, 0),
+(743, 1, 285, 'channel:mid-binding:edit', '商户MID绑定修改', 'BUTTON', 'PUT', '/admin/channel/mid-bindings/*', 1, 0),
+(744, 1, 285, 'channel:mid-binding:status', '商户MID绑定状态', 'BUTTON', 'PUT', '/admin/channel/mid-bindings/*/status', 1, 0),
+(745, 1, 285, 'channel:mid-binding:remove', '商户MID绑定删除', 'BUTTON', 'DELETE', '/admin/channel/mid-bindings/*', 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
@@ -1658,6 +1756,16 @@ JOIN (
     UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_dimension_edit_v1', '渠道限额维度编辑', 'channel:limit:dimensionEdit', 4
     UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_remove_v1', '渠道限额删除', 'channel:limit:remove', 5
     UNION ALL SELECT 'admin_channel_limit_v1', 'admin_channel_limit_status_v1', '渠道限额状态', 'channel:limit:status', 6
+    UNION ALL SELECT 'admin_channel_mid_v1', 'admin_channel_mid_detail_v1', '渠道MID详情', 'channel:mid:detail', 1
+    UNION ALL SELECT 'admin_channel_mid_v1', 'admin_channel_mid_add_v1', '渠道MID新增', 'channel:mid:add', 2
+    UNION ALL SELECT 'admin_channel_mid_v1', 'admin_channel_mid_edit_v1', '渠道MID修改', 'channel:mid:edit', 3
+    UNION ALL SELECT 'admin_channel_mid_v1', 'admin_channel_mid_status_v1', '渠道MID状态', 'channel:mid:status', 4
+    UNION ALL SELECT 'admin_channel_mid_v1', 'admin_channel_mid_remove_v1', '渠道MID删除', 'channel:mid:remove', 5
+    UNION ALL SELECT 'admin_merchant_channel_mid_binding_v1', 'admin_merchant_channel_mid_binding_detail_v1', '商户MID绑定详情', 'channel:mid-binding:detail', 1
+    UNION ALL SELECT 'admin_merchant_channel_mid_binding_v1', 'admin_merchant_channel_mid_binding_add_v1', '商户MID绑定新增', 'channel:mid-binding:add', 2
+    UNION ALL SELECT 'admin_merchant_channel_mid_binding_v1', 'admin_merchant_channel_mid_binding_edit_v1', '商户MID绑定修改', 'channel:mid-binding:edit', 3
+    UNION ALL SELECT 'admin_merchant_channel_mid_binding_v1', 'admin_merchant_channel_mid_binding_status_v1', '商户MID绑定状态', 'channel:mid-binding:status', 4
+    UNION ALL SELECT 'admin_merchant_channel_mid_binding_v1', 'admin_merchant_channel_mid_binding_remove_v1', '商户MID绑定删除', 'channel:mid-binding:remove', 5
 ) button ON button.parent_code = parent.menu_code
 WHERE parent.app_id = 1
   AND parent.deleted = 0
@@ -1684,6 +1792,50 @@ FROM sys_permission
 WHERE app_id = 1
   AND deleted = 0
   AND (permission_code = 'channel' OR permission_code LIKE 'channel:%');
+
+UPDATE sys_permission permission
+JOIN (
+    SELECT 'channel' AS permission_code, '渠道管理目录' AS permission_name, 'MENU' AS permission_type, 'GET' AS resource_method, '/channel/**' AS resource_path
+    UNION ALL SELECT 'channel:info:list', '渠道信息查询', 'MENU', 'POST', '/admin/channel/info/search'
+    UNION ALL SELECT 'channel:info:detail', '渠道信息详情', 'BUTTON', 'GET', '/admin/channel/info/*'
+    UNION ALL SELECT 'channel:info:add', '渠道信息新增', 'BUTTON', 'POST', '/admin/channel/info'
+    UNION ALL SELECT 'channel:info:edit', '渠道信息修改', 'BUTTON', 'PUT', '/admin/channel/info/*'
+    UNION ALL SELECT 'channel:info:remove', '渠道信息删除', 'BUTTON', 'DELETE', '/admin/channel/info/*'
+    UNION ALL SELECT 'channel:info:status', '渠道信息状态', 'BUTTON', 'PUT', '/admin/channel/info/*/status'
+    UNION ALL SELECT 'channel:capability:list', '渠道支付能力查询', 'MENU', 'POST', '/admin/channel/capabilities/search'
+    UNION ALL SELECT 'channel:capability:detail', '渠道支付能力详情', 'BUTTON', 'GET', '/admin/channel/capabilities/*'
+    UNION ALL SELECT 'channel:capability:add', '渠道支付能力新增', 'BUTTON', 'POST', '/admin/channel/capabilities'
+    UNION ALL SELECT 'channel:capability:edit', '渠道支付能力修改', 'BUTTON', 'PUT', '/admin/channel/capabilities/*'
+    UNION ALL SELECT 'channel:capability:remove', '渠道支付能力删除', 'BUTTON', 'DELETE', '/admin/channel/capabilities/*'
+    UNION ALL SELECT 'channel:capability:status', '渠道支付能力状态', 'BUTTON', 'PUT', '/admin/channel/capabilities/*/status'
+    UNION ALL SELECT 'channel:limit:list', '渠道限额查询', 'MENU', 'POST', '/admin/channel/limits/search'
+    UNION ALL SELECT 'channel:limit:detail', '渠道限额详情', 'BUTTON', 'GET', '/admin/channel/limits/*'
+    UNION ALL SELECT 'channel:limit:add', '渠道限额新增', 'BUTTON', 'POST', '/admin/channel/limits'
+    UNION ALL SELECT 'channel:limit:edit', '渠道限额修改', 'BUTTON', 'PUT', '/admin/channel/limits/*'
+    UNION ALL SELECT 'channel:limit:remove', '渠道限额删除', 'BUTTON', 'DELETE', '/admin/channel/limits/*'
+    UNION ALL SELECT 'channel:limit:status', '渠道限额状态', 'BUTTON', 'PUT', '/admin/channel/limits/*/status'
+    UNION ALL SELECT 'channel:limit:dimensionEdit', '渠道限额维度编辑', 'BUTTON', 'PUT', '/admin/channel/limits/dimension'
+    UNION ALL SELECT 'channel:mid:list', '渠道MID查询', 'MENU', 'POST', '/admin/channel/mids/search'
+    UNION ALL SELECT 'channel:mid:detail', '渠道MID详情', 'BUTTON', 'GET', '/admin/channel/mids/*'
+    UNION ALL SELECT 'channel:mid:add', '渠道MID新增', 'BUTTON', 'POST', '/admin/channel/mids'
+    UNION ALL SELECT 'channel:mid:edit', '渠道MID修改', 'BUTTON', 'PUT', '/admin/channel/mids/*'
+    UNION ALL SELECT 'channel:mid:status', '渠道MID状态', 'BUTTON', 'PUT', '/admin/channel/mids/*/status'
+    UNION ALL SELECT 'channel:mid:remove', '渠道MID删除', 'BUTTON', 'DELETE', '/admin/channel/mids/*'
+    UNION ALL SELECT 'channel:mid-binding:list', '商户MID绑定查询', 'MENU', 'POST', '/admin/channel/mid-bindings/search'
+    UNION ALL SELECT 'channel:mid-binding:detail', '商户MID绑定详情', 'BUTTON', 'GET', '/admin/channel/mid-bindings/*'
+    UNION ALL SELECT 'channel:mid-binding:add', '商户MID绑定新增', 'BUTTON', 'POST', '/admin/channel/mid-bindings'
+    UNION ALL SELECT 'channel:mid-binding:edit', '商户MID绑定修改', 'BUTTON', 'PUT', '/admin/channel/mid-bindings/*'
+    UNION ALL SELECT 'channel:mid-binding:status', '商户MID绑定状态', 'BUTTON', 'PUT', '/admin/channel/mid-bindings/*/status'
+    UNION ALL SELECT 'channel:mid-binding:remove', '商户MID绑定删除', 'BUTTON', 'DELETE', '/admin/channel/mid-bindings/*'
+) expected ON expected.permission_code = permission.permission_code
+SET permission.permission_name = expected.permission_name,
+    permission.permission_type = expected.permission_type,
+    permission.resource_method = expected.resource_method,
+    permission.resource_path = expected.resource_path,
+    permission.status = 1,
+    permission.updated_at = CURRENT_TIMESTAMP(3)
+WHERE permission.app_id = 1
+  AND permission.deleted = 0;
 
 CREATE TABLE IF NOT EXISTS msg_email_account (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -2186,6 +2338,8 @@ FROM (
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_info_v1', '渠道信息管理', 'MENU', '/channel/info', 'channel/info', 'channel:info:list', 'Connection', 1, 41, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_capability_v1', '渠道支付能力管理', 'MENU', '/channel/capability', 'channel/capability', 'channel:capability:list', 'CreditCard', 1, 42, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_mid_v1', '渠道MID配置', 'MENU', '/channel/mid', 'channel/mid', 'channel:mid:list', 'Tickets', 1, 44, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
@@ -2234,6 +2388,8 @@ JOIN (
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_info_v1', '渠道信息管理', 'MENU', '/channel/info', 'channel/info', 'channel:info:list', 'Connection', 1, 41, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_capability_v1', '渠道支付能力管理', 'MENU', '/channel/capability', 'channel/capability', 'channel:capability:list', 'CreditCard', 1, 42, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_mid_v1', '渠道MID配置', 'MENU', '/channel/mid', 'channel/mid', 'channel:mid:list', 'Tickets', 1, 44, 1
+    UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
@@ -2299,6 +2455,8 @@ JOIN (
     UNION ALL SELECT 'channel:info', 'admin_channel_info_v1'
     UNION ALL SELECT 'channel:capability', 'admin_channel_capability_v1'
     UNION ALL SELECT 'channel:limit', 'admin_channel_limit_v1'
+    UNION ALL SELECT 'channel:mid-binding', 'admin_merchant_channel_mid_binding_v1'
+    UNION ALL SELECT 'channel:mid', 'admin_channel_mid_v1'
     UNION ALL SELECT 'email:account', 'admin_email_account_v1'
     UNION ALL SELECT 'email:template', 'admin_email_template_v1'
     UNION ALL SELECT 'email:record', 'admin_email_record_v1'

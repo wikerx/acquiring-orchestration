@@ -142,7 +142,7 @@ class MerchantOpenApiEndToEndTests {
                 MERCHANT_ID,
                 clientMaterial.getMerchantKey(),
                 System.currentTimeMillis() / 1000L,
-                SUCCESS_TRADE_NO
+                MerchantOpenApiTestSupport.uniqueJwtId(SUCCESS_TRADE_NO)
         );
         log.info("商户完成JWT请求头封装-authorization摘要：{}",
                 MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory));
@@ -197,7 +197,7 @@ class MerchantOpenApiEndToEndTests {
                 MERCHANT_ID,
                 clientMaterial.getMerchantKey(),
                 System.currentTimeMillis() / 1000L,
-                "202605300004"
+                MerchantOpenApiTestSupport.uniqueJwtId("202605300004")
         );
         String validBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
 
@@ -206,11 +206,13 @@ class MerchantOpenApiEndToEndTests {
                 validBody,
                 ApiResultEnum.AUTHORIZATION_HEADER_MISSING);
         assertOpenApiError("错误merchantKey导致JWT签名失败",
-                MerchantOpenApiTestSupport.createMerchantJwt(MERCHANT_ID, "wrong-merchant-key", System.currentTimeMillis() / 1000L, "bad-key"),
+                MerchantOpenApiTestSupport.createMerchantJwt(MERCHANT_ID, "wrong-merchant-key", System.currentTimeMillis() / 1000L,
+                        MerchantOpenApiTestSupport.uniqueJwtId("bad-key")),
                 validBody,
                 ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID);
         assertOpenApiError("JWT已过期",
-                MerchantOpenApiTestSupport.createMerchantJwt(MERCHANT_ID, clientMaterial.getMerchantKey(), EXPIRED_ISSUED_AT, "expired-jwt"),
+                MerchantOpenApiTestSupport.createMerchantJwt(MERCHANT_ID, clientMaterial.getMerchantKey(), EXPIRED_ISSUED_AT,
+                        MerchantOpenApiTestSupport.uniqueJwtId("expired-jwt")),
                 validBody,
                 ApiResultEnum.AUTHORIZATION_JWT_EXPIRED);
         assertOpenApiError("请求体data被篡改",

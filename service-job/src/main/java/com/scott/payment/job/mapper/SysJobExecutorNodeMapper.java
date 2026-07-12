@@ -46,16 +46,23 @@ public interface SysJobExecutorNodeMapper extends BaseMapper<SysJobExecutorNodeD
     int upsertHeartbeat(@Param("node") SysJobExecutorNodeDO node);
 
     /**
-     * 批量将超时节点标记为离线。
+     * 小批量将超时在线节点标记为离线。
      *
      * @param offlineBefore 超时阈值
+     * @param currentNodeId  当前节点ID，避免当前节点心跳与离线扫描互相竞争
+     * @param limit          单次最大处理行数
      * @return 影响行数
      */
     @Update("""
             UPDATE sys_job_executor_node
-            SET status = 'OFFLINE', update_time = NOW()
+            SET status = 'OFFLINE', update_time = NOW(3)
             WHERE last_heartbeat_time < #{offlineBefore}
-              AND status <> 'OFFLINE'
+              AND status = 'ONLINE'
+              AND node_id <> #{currentNodeId}
+            ORDER BY last_heartbeat_time ASC, id ASC
+            LIMIT #{limit}
             """)
-    int markOffline(@Param("offlineBefore") LocalDateTime offlineBefore);
+    int markOffline(@Param("offlineBefore") LocalDateTime offlineBefore,
+                    @Param("currentNodeId") String currentNodeId,
+                    @Param("limit") int limit);
 }
