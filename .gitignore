@@ -5,10 +5,16 @@ Thumbs.db
 
 # IDE
 .idea/
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
+.vscode/
 *.iml
+
+# Local agent / automation metadata
+.agents/
+.claude/
+.codex-history/
+.github/
+.playwright-cli/
+audit/
 
 # Java / Maven / Gradle
 target/
@@ -40,6 +46,7 @@ audit/*secret*.json
 # Generated
 coverage/
 reports/
+docs/sql/
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md
