@@ -8,20 +8,18 @@ import com.scott.payment.admin.entity.SysShardingPhysicalTableDO;
 import com.scott.payment.admin.entity.SysShardingTableCreateLogDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.factory.Mappers;
 
 /**
- * 分表治理对象转换器。
- *
- * <p>负责治理表实体、后台响应 DTO 和 service-job 远程请求之间的转换。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingGovernanceConverter
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 分表治理对象转换器，位于 service-admin 转换层；负责物理表、建表日志和 service-job 建表请求之间的字段映射。
+ * @status : create
  */
-@Mapper
+@Mapper(componentModel = "spring")
 public interface ShardingGovernanceConverter {
-
-    /**
-     * 转换器单例。
-     */
-    ShardingGovernanceConverter INSTANCE = Mappers.getMapper(ShardingGovernanceConverter.class);
 
     /**
      * 物理表登记实体转后台响应。

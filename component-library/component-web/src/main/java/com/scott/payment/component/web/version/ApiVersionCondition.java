@@ -37,6 +37,11 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      * @param other 其他版本条件
      * @return 合并后的版本条件
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param other 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public ApiVersionCondition combine(ApiVersionCondition other) {
         return other;
@@ -49,6 +54,11 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      *
      * @param request HTTP 请求
      * @return 匹配成功返回当前条件，不匹配返回 null
+     */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public ApiVersionCondition getMatchingCondition(HttpServletRequest request) {
@@ -65,6 +75,12 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      * @param other   其他版本条件
      * @param request HTTP 请求
      * @return 排序结果
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param other 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public int compareTo(ApiVersionCondition other, HttpServletRequest request) {

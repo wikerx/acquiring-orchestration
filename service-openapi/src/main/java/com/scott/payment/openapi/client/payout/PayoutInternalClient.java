@@ -4,7 +4,13 @@ import com.scott.payment.openapi.client.payout.dto.PayoutCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payout.dto.PayoutCreateClientResponseDTO;
 
 /**
- * OpenAPI 调用 service-payout 的内部客户端。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PayoutInternalClient
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : OpenAPI 调用 service-payout 的内部客户端。
+ * @status : create
  */
 public interface PayoutInternalClient {
 

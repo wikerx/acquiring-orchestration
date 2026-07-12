@@ -12,6 +12,15 @@ import org.springframework.stereotype.Component;
  * @description : 开放接口认证处理切面预留类
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AuthorizationAspect
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIAuthorization Aspect，位于 service-openapi 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Slf4j
 @Component
 public class AuthorizationAspect {
@@ -21,6 +30,9 @@ public class AuthorizationAspect {
      * <p>
      * 当前正式链路由 {@code OpenApiRequestArgumentResolver} 完成 JWT、请求体解密、参数校验和防重放处理；
      * 该方法保留给后续 AOP 编排扩展，避免在控制器中重复认证逻辑。
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
      */
     public void verifyMerchantRequest() {
         log.debug("开始开放接口商户请求认证预处理");

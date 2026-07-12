@@ -13,6 +13,8 @@ import com.scott.payment.admin.dto.SysRoleDTO;
 import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
 import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
 import com.scott.payment.admin.service.AdminUserService;
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -23,8 +25,12 @@ import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
 import com.scott.payment.component.db.auth.entity.SysLoginSessionDO;
+import com.scott.payment.component.db.auth.entity.SysMenuDO;
 import com.scott.payment.component.db.auth.entity.SysPostDO;
+import com.scott.payment.component.db.auth.entity.SysPermissionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
+import com.scott.payment.component.db.auth.entity.SysRoleMenuDO;
+import com.scott.payment.component.db.auth.entity.SysRolePermissionDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.entity.SysUserPostDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
@@ -32,8 +38,12 @@ import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysDeptMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
+import com.scott.payment.component.db.auth.mapper.SysMenuMapper;
+import com.scott.payment.component.db.auth.mapper.SysPermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysPostMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
+import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
+import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserPostMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
@@ -44,31 +54,87 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 管理后台用户领域服务实现。
- *
- * <p>负责后台用户维护、部门岗位关系、状态变更、密码重置和角色授权等领域规则，
- * 不承担控制器协议适配和页面交互逻辑。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminUserServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 后台用户领域服务实现，位于 service-admin 服务实现层；负责用户资料、账号状态、岗位绑定和角色授权边界校验。
+ * @status : create
  */
 @Service
 public class AdminUserServiceImpl implements AdminUserService {
 
+    /**
+     * 未删除标识。
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * 系统超级权限编码。
+     */
+    private static final String SUPER_PERMISSION = "*:*:*";
 
+    /**
+     * 应用数据访问接口。
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * 登录账号数据访问接口。
+     */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * 用户主体数据访问接口。
+     */
     private final SysUserMapper sysUserMapper;
+    /**
+     * 部门数据访问接口。
+     */
     private final SysDeptMapper sysDeptMapper;
+    /**
+     * 岗位数据访问接口。
+     */
     private final SysPostMapper sysPostMapper;
+    /**
+     * 用户岗位关联数据访问接口。
+     */
     private final SysUserPostMapper sysUserPostMapper;
+    /**
+     * 角色数据访问接口。
+     */
     private final SysRoleMapper sysRoleMapper;
+    /**
+     * 菜单数据访问接口。
+     */
+    private final SysMenuMapper sysMenuMapper;
+    /**
+     * 账号角色关联数据访问接口。
+     */
     private final SysAccountRoleMapper sysAccountRoleMapper;
+    /**
+     * 角色菜单关联数据访问接口。
+     */
+    private final SysRoleMenuMapper sysRoleMenuMapper;
+    /**
+     * 角色权限关联数据访问接口。
+     */
+    private final SysRolePermissionMapper sysRolePermissionMapper;
+    /**
+     * 权限资源数据访问接口。
+     */
+    private final SysPermissionMapper sysPermissionMapper;
+    /**
+     * 登录会话数据访问接口。
+     */
     private final SysLoginSessionMapper sysLoginSessionMapper;
 
     /**
@@ -81,7 +147,11 @@ public class AdminUserServiceImpl implements AdminUserService {
      * @param sysPostMapper         岗位 Mapper
      * @param sysUserPostMapper     用户岗位关联 Mapper
      * @param sysRoleMapper         角色 Mapper
+     * @param sysMenuMapper         菜单 Mapper
      * @param sysAccountRoleMapper  账号角色 Mapper
+     * @param sysRoleMenuMapper     角色菜单 Mapper
+     * @param sysRolePermissionMapper 角色权限 Mapper
+     * @param sysPermissionMapper   权限 Mapper
      * @param sysLoginSessionMapper 登录会话 Mapper
      */
     public AdminUserServiceImpl(SysAppMapper sysAppMapper,
@@ -91,7 +161,11 @@ public class AdminUserServiceImpl implements AdminUserService {
                                 SysPostMapper sysPostMapper,
                                 SysUserPostMapper sysUserPostMapper,
                                 SysRoleMapper sysRoleMapper,
+                                SysMenuMapper sysMenuMapper,
                                 SysAccountRoleMapper sysAccountRoleMapper,
+                                SysRoleMenuMapper sysRoleMenuMapper,
+                                SysRolePermissionMapper sysRolePermissionMapper,
+                                SysPermissionMapper sysPermissionMapper,
                                 SysLoginSessionMapper sysLoginSessionMapper) {
         this.sysAppMapper = sysAppMapper;
         this.sysAccountMapper = sysAccountMapper;
@@ -100,7 +174,11 @@ public class AdminUserServiceImpl implements AdminUserService {
         this.sysPostMapper = sysPostMapper;
         this.sysUserPostMapper = sysUserPostMapper;
         this.sysRoleMapper = sysRoleMapper;
+        this.sysMenuMapper = sysMenuMapper;
         this.sysAccountRoleMapper = sysAccountRoleMapper;
+        this.sysRoleMenuMapper = sysRoleMenuMapper;
+        this.sysRolePermissionMapper = sysRolePermissionMapper;
+        this.sysPermissionMapper = sysPermissionMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
     }
 
@@ -134,18 +212,26 @@ public class AdminUserServiceImpl implements AdminUserService {
         );
         Map<Long, SysUserDO> userMap = loadUsers(page);
         List<Long> userIds = page.getRecords().stream().map(SysAccountDO::getUserId).toList();
+        List<Long> accountIds = page.getRecords().stream().map(SysAccountDO::getId).toList();
         Map<Long, String> deptNameMap = loadDeptNameMap(userMap.values().stream().map(SysUserDO::getDeptId).toList());
         Map<Long, List<SysPostDO>> postMap = loadUserPostMap(userIds);
+        Map<Long, List<SysRoleDO>> roleMap = loadAccountRoleMap(app.getId(), accountIds);
         return PageResult.of(
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
                 page.getRecords().stream()
-                        .map(account -> toDTO(account, userMap.get(account.getUserId()), deptNameMap, postMap))
+                        .map(account -> toDTO(account, userMap.get(account.getUserId()), deptNameMap, postMap, roleMap))
                         .toList()
         );
     }
 
+    /**
+     * 按条件查询后台用户列表，用于导出。
+     *
+     * @param request 查询条件
+     * @return 用户列表
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<SysUserAccountDTO> listUsers(SysUserAccountQueryRequest request) {
@@ -176,13 +262,14 @@ public class AdminUserServiceImpl implements AdminUserService {
         ).stream().collect(Collectors.toMap(SysUserDO::getId, Function.identity(), (left, right) -> left));
         Map<Long, String> deptNameMap = loadDeptNameMap(userMap.values().stream().map(SysUserDO::getDeptId).toList());
         Map<Long, List<SysPostDO>> postMap = loadUserPostMap(accounts.stream().map(SysAccountDO::getUserId).toList());
+        Map<Long, List<SysRoleDO>> roleMap = loadAccountRoleMap(app.getId(), accounts.stream().map(SysAccountDO::getId).toList());
         return accounts.stream()
-                .map(account -> toDTO(account, userMap.get(account.getUserId()), deptNameMap, postMap))
+                .map(account -> toDTO(account, userMap.get(account.getUserId()), deptNameMap, postMap, roleMap))
                 .toList();
     }
 
     /**
-     * 新增后台用户，并为新账号绑定默认管理员角色。
+     * 新增后台用户。新账号不自动绑定角色，角色必须通过“分配角色”单独授权。
      *
      * @param request 新增请求
      * @return 用户详情
@@ -194,17 +281,21 @@ public class AdminUserServiceImpl implements AdminUserService {
         SysAppDO app = getAdminApp();
         assertAccountNotExists(app.getId(), request.getLoginAccount());
         LocalDateTime now = LocalDateTime.now();
+        Integer status = request.getStatus() == null ? AuthConstants.ENABLED : validStatus(request.getStatus());
+        String email = requireEmail(request.getEmail());
+        String remark = normalize(request.getRemark());
 
         SysUserDO user = new SysUserDO();
         user.setUserType(AuthConstants.USER_TYPE_PLATFORM);
         user.setRealName(normalize(request.getRealName()));
         user.setDeptId(validateDept(app.getId(), request.getDeptId()));
         user.setMobile(normalize(request.getMobile()));
-        user.setEmail(normalize(request.getEmail()));
+        user.setEmail(email);
         user.setCountryCode("CN");
         user.setLanguage("zh-CN");
         user.setTimezone("Asia/Shanghai");
-        user.setStatus(AuthConstants.ENABLED);
+        user.setStatus(status);
+        user.setRemark(remark);
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
         user.setDeleted(NOT_DELETED);
@@ -219,21 +310,22 @@ public class AdminUserServiceImpl implements AdminUserService {
         account.setPasswordHash(PasswordHashUtils.hashPassword(request.getPassword(), salt));
         account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
         account.setMobile(normalize(request.getMobile()));
-        account.setEmail(normalize(request.getEmail()));
+        account.setEmail(email);
         account.setMfaEnabled(AuthConstants.DISABLED);
         account.setPasswordExpired(AuthConstants.DISABLED);
         account.setPasswordUpdatedAt(now);
         account.setFailedLoginCount(0);
         account.setLocked(AuthConstants.DISABLED);
-        account.setStatus(AuthConstants.ENABLED);
+        account.setStatus(status);
+        account.setRemark(remark);
         account.setCreatedAt(now);
         account.setUpdatedAt(now);
         account.setDeleted(NOT_DELETED);
         sysAccountMapper.insert(account);
 
-        bindDefaultRole(app, account, now);
         bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
-        return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())), loadUserPostMap(List.of(user.getId())));
+        return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())),
+                loadUserPostMap(List.of(user.getId())), loadAccountRoleMap(app.getId(), List.of(account.getId())));
     }
 
     /**
@@ -253,26 +345,30 @@ public class AdminUserServiceImpl implements AdminUserService {
         Integer status = request.getStatus() == null ? account.getStatus() : validStatus(request.getStatus());
         String realName = request.getRealName() == null ? user.getRealName() : normalize(request.getRealName());
         String mobile = request.getMobile() == null ? account.getMobile() : normalize(request.getMobile());
-        String email = request.getEmail() == null ? account.getEmail() : normalize(request.getEmail());
+        String email = requireEmail(request.getEmail());
+        String remark = normalize(request.getRemark());
 
         user.setRealName(realName);
         user.setDeptId(validateDept(app.getId(), request.getDeptId()));
         user.setMobile(mobile);
         user.setEmail(email);
         user.setStatus(status);
+        user.setRemark(remark);
         user.setUpdatedAt(now);
         sysUserMapper.updateById(user);
 
         account.setMobile(mobile);
         account.setEmail(email);
         account.setStatus(status);
+        account.setRemark(remark);
         account.setUpdatedAt(now);
         sysAccountMapper.updateById(account);
         if (status == AuthConstants.DISABLED) {
             logoutSessions(app.getId(), account.getId(), now);
         }
         bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
-        return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())), loadUserPostMap(List.of(user.getId())));
+        return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())),
+                loadUserPostMap(List.of(user.getId())), loadAccountRoleMap(app.getId(), List.of(account.getId())));
     }
 
     /**
@@ -338,9 +434,13 @@ public class AdminUserServiceImpl implements AdminUserService {
     public SysUserRoleAuthDTO userRoles(Long accountId) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), accountId);
+        List<SysRoleDO> roles = loadEnabledRoles(app.getId());
+        Set<Long> assignableRoleIds = loadAssignableRoleIds(app.getId(), roles);
         SysUserRoleAuthDTO dto = new SysUserRoleAuthDTO();
         dto.setAccountId(account.getId());
-        dto.setRoles(loadEnabledRoles(app.getId()).stream().map(this::toRoleDTO).toList());
+        dto.setRoles(roles.stream()
+                .map(role -> toRoleDTO(role, assignableRoleIds.contains(role.getId())))
+                .toList());
         dto.setCheckedRoleIds(loadCheckedRoleIds(app.getId(), account.getId()));
         return dto;
     }
@@ -358,6 +458,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
         List<Long> roleIds = normalizeIds(request.getRoleIds());
         validateRoleIds(app.getId(), roleIds);
+        assertAssignableRoles(app.getId(), roleIds);
         LocalDateTime now = LocalDateTime.now();
 
         List<SysAccountRoleDO> oldRelations = sysAccountRoleMapper.selectList(
@@ -366,6 +467,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                         .eq(SysAccountRoleDO::getAccountId, account.getId())
                         .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
         );
+        assertAssignableRoles(app.getId(), oldRelations.stream().map(SysAccountRoleDO::getRoleId).toList());
         oldRelations.forEach(relation -> sysAccountRoleMapper.update(
                 Wrappers.<SysAccountRoleDO>lambdaUpdate()
                         .set(SysAccountRoleDO::getDeleted, relation.getId())
@@ -385,6 +487,10 @@ public class AdminUserServiceImpl implements AdminUserService {
         logoutSessions(app.getId(), account.getId(), now);
     }
 
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param accountIds 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -498,30 +604,168 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
-     * 为新建账号绑定默认后台角色。
+     * 校验当前操作人只能下放自己已经拥有的权限。
      *
-     * @param app     后台应用
-     * @param account 账号实体
-     * @param now     当前业务时间
+     * @param appId   应用主键
+     * @param roleIds 待授权角色ID集合
      */
-    private void bindDefaultRole(SysAppDO app, SysAccountDO account, LocalDateTime now) {
-        SysRoleDO role = sysRoleMapper.selectOne(
-                Wrappers.<SysRoleDO>lambdaQuery()
-                        .eq(SysRoleDO::getAppId, app.getId())
-                        .eq(SysRoleDO::getRoleCode, AuthConstants.DEFAULT_ADMIN_ROLE)
-                        .eq(SysRoleDO::getDeleted, NOT_DELETED)
-                        .last("LIMIT 1")
-        );
-        if (role == null || role.getStatus() == null || role.getStatus() != AuthConstants.ENABLED) {
-            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "default admin role not found");
+    private void assertAssignableRoles(Long appId, List<Long> roleIds) {
+        List<Long> normalizedRoleIds = normalizeIds(roleIds);
+        if (normalizedRoleIds.isEmpty()) {
+            return;
         }
-        SysAccountRoleDO relation = new SysAccountRoleDO();
-        relation.setAppId(app.getId());
-        relation.setAccountId(account.getId());
-        relation.setRoleId(role.getId());
-        relation.setCreatedAt(now);
-        relation.setDeleted(NOT_DELETED);
-        sysAccountRoleMapper.insert(relation);
+        Set<String> operatorPermissions = currentOperatorPermissions();
+        if (operatorPermissions.contains(SUPER_PERMISSION)) {
+            return;
+        }
+        Set<String> requiredPermissions = loadRolePermissionCodes(appId, normalizedRoleIds);
+        if (!operatorPermissions.containsAll(requiredPermissions)) {
+            throw new ServiceException(ApiResultEnum.FORBIDDEN.getCode(), "不能分配超出当前账号权限范围的角色");
+        }
+    }
+
+    /**
+     * 根据当前操作人权限计算可授权角色ID集合。
+     *
+     * @param appId 应用主键
+     * @param roles 候选角色集合
+     * @return 可授权角色ID集合
+     */
+    private Set<Long> loadAssignableRoleIds(Long appId, List<SysRoleDO> roles) {
+        if (roles.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> operatorPermissions = currentOperatorPermissions();
+        if (operatorPermissions.contains(SUPER_PERMISSION)) {
+            return roles.stream().map(SysRoleDO::getId).collect(Collectors.toSet());
+        }
+        Map<Long, Set<String>> rolePermissionMap = loadRolePermissionCodeMap(appId, roles.stream().map(SysRoleDO::getId).toList());
+        return roles.stream()
+                .filter(role -> operatorPermissions.containsAll(rolePermissionMap.getOrDefault(role.getId(), Collections.emptySet())))
+                .map(SysRoleDO::getId)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * 读取当前登录账号拥有的权限编码。
+     *
+     * @return 当前账号权限编码集合
+     */
+    private Set<String> currentOperatorPermissions() {
+        InternalAuthAccount operator = InternalAuthContextHolder.get();
+        if (operator == null || operator.getPermissions() == null) {
+            return Collections.emptySet();
+        }
+        return operator.getPermissions().stream()
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * 查询角色绑定的菜单权限和按钮/API 权限编码。
+     *
+     * @param appId   应用主键
+     * @param roleIds 角色ID集合
+     * @return 角色拥有的权限编码集合
+     */
+    private Set<String> loadRolePermissionCodes(Long appId, List<Long> roleIds) {
+        Map<Long, Set<String>> rolePermissionMap = loadRolePermissionCodeMap(appId, roleIds);
+        return rolePermissionMap.values().stream()
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * 按角色分组查询权限编码，覆盖 sys_role_menu 和 sys_role_permission 两类授权关系。
+     *
+     * @param appId   应用主键
+     * @param roleIds 角色ID集合
+     * @return 角色ID到权限编码集合的映射
+     */
+    private Map<Long, Set<String>> loadRolePermissionCodeMap(Long appId, List<Long> roleIds) {
+        List<Long> normalizedRoleIds = normalizeIds(roleIds);
+        if (normalizedRoleIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, Set<String>> result = new HashMap<>();
+        normalizedRoleIds.forEach(roleId -> result.put(roleId, new HashSet<>()));
+        fillRoleMenuPermissionCodes(appId, normalizedRoleIds, result);
+        fillRoleResourcePermissionCodes(appId, normalizedRoleIds, result);
+        return result;
+    }
+
+    /**
+     * 回填角色绑定菜单上的权限编码。
+     *
+     * @param appId   应用主键
+     * @param roleIds 角色ID集合
+     * @param result  角色权限映射
+     */
+    private void fillRoleMenuPermissionCodes(Long appId, List<Long> roleIds, Map<Long, Set<String>> result) {
+        List<SysRoleMenuDO> roleMenus = sysRoleMenuMapper.selectList(
+                Wrappers.<SysRoleMenuDO>lambdaQuery()
+                        .eq(SysRoleMenuDO::getAppId, appId)
+                        .in(SysRoleMenuDO::getRoleId, roleIds)
+                        .eq(SysRoleMenuDO::getDeleted, NOT_DELETED)
+        );
+        if (roleMenus.isEmpty()) {
+            return;
+        }
+        List<Long> menuIds = roleMenus.stream().map(SysRoleMenuDO::getMenuId).filter(Objects::nonNull).distinct().toList();
+        if (menuIds.isEmpty()) {
+            return;
+        }
+        Map<Long, String> menuPermissionMap = sysMenuMapper.selectList(
+                Wrappers.<SysMenuDO>lambdaQuery()
+                        .eq(SysMenuDO::getAppId, appId)
+                        .in(SysMenuDO::getId, menuIds)
+                        .eq(SysMenuDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysMenuDO::getDeleted, NOT_DELETED)
+        ).stream()
+                .filter(menu -> StringUtils.hasText(menu.getPermissionCode()))
+                .collect(Collectors.toMap(SysMenuDO::getId, SysMenuDO::getPermissionCode, (left, right) -> left));
+        for (SysRoleMenuDO relation : roleMenus) {
+            String permissionCode = menuPermissionMap.get(relation.getMenuId());
+            if (StringUtils.hasText(permissionCode)) {
+                result.computeIfAbsent(relation.getRoleId(), key -> new HashSet<>()).add(permissionCode);
+            }
+        }
+    }
+
+    /**
+     * 回填角色绑定资源权限表上的权限编码。
+     *
+     * @param appId   应用主键
+     * @param roleIds 角色ID集合
+     * @param result  角色权限映射
+     */
+    private void fillRoleResourcePermissionCodes(Long appId, List<Long> roleIds, Map<Long, Set<String>> result) {
+        List<SysRolePermissionDO> rolePermissions = sysRolePermissionMapper.selectList(
+                Wrappers.<SysRolePermissionDO>lambdaQuery()
+                        .eq(SysRolePermissionDO::getAppId, appId)
+                        .in(SysRolePermissionDO::getRoleId, roleIds)
+                        .eq(SysRolePermissionDO::getDeleted, NOT_DELETED)
+        );
+        if (rolePermissions.isEmpty()) {
+            return;
+        }
+        List<Long> permissionIds = rolePermissions.stream().map(SysRolePermissionDO::getPermissionId).filter(Objects::nonNull).distinct().toList();
+        if (permissionIds.isEmpty()) {
+            return;
+        }
+        Map<Long, String> permissionCodeMap = sysPermissionMapper.selectList(
+                Wrappers.<SysPermissionDO>lambdaQuery()
+                        .eq(SysPermissionDO::getAppId, appId)
+                        .in(SysPermissionDO::getId, permissionIds)
+                        .eq(SysPermissionDO::getStatus, AuthConstants.ENABLED)
+                        .eq(SysPermissionDO::getDeleted, NOT_DELETED)
+        ).stream().collect(Collectors.toMap(SysPermissionDO::getId, SysPermissionDO::getPermissionCode, (left, right) -> left));
+        for (SysRolePermissionDO relation : rolePermissions) {
+            String permissionCode = permissionCodeMap.get(relation.getPermissionId());
+            if (StringUtils.hasText(permissionCode)) {
+                result.computeIfAbsent(relation.getRoleId(), key -> new HashSet<>()).add(permissionCode);
+            }
+        }
     }
 
     /**
@@ -665,6 +909,20 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
+     * 规范化并校验后台用户邮箱，避免绕过 Bean Validation 的调用写入空邮箱。
+     *
+     * @param email 原始邮箱
+     * @return 规范化后的邮箱
+     */
+    private String requireEmail(String email) {
+        String normalizedEmail = normalize(email);
+        if (!StringUtils.hasText(normalizedEmail)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "请输入邮箱");
+        }
+        return normalizedEmail;
+    }
+
+    /**
      * 注销账号当前有效会话，用于密码、状态和授权变更后触发权限即时刷新。
      *
      * @param appId     应用主键
@@ -798,18 +1056,59 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
+     * 批量加载账号已绑定角色。
+     *
+     * @param appId      应用主键
+     * @param accountIds 账号ID集合
+     * @return 账号ID到角色列表的映射
+     */
+    private Map<Long, List<SysRoleDO>> loadAccountRoleMap(Long appId, List<Long> accountIds) {
+        List<Long> normalizedAccountIds = normalizeIds(accountIds);
+        if (normalizedAccountIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<SysAccountRoleDO> relations = sysAccountRoleMapper.selectList(
+                Wrappers.<SysAccountRoleDO>lambdaQuery()
+                        .eq(SysAccountRoleDO::getAppId, appId)
+                        .in(SysAccountRoleDO::getAccountId, normalizedAccountIds)
+                        .eq(SysAccountRoleDO::getDeleted, NOT_DELETED)
+        );
+        if (relations.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> roleIds = relations.stream().map(SysAccountRoleDO::getRoleId).filter(Objects::nonNull).distinct().toList();
+        if (roleIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, SysRoleDO> roleMap = sysRoleMapper.selectList(
+                Wrappers.<SysRoleDO>lambdaQuery()
+                        .eq(SysRoleDO::getAppId, appId)
+                        .in(SysRoleDO::getId, roleIds)
+                        .eq(SysRoleDO::getDeleted, NOT_DELETED)
+        ).stream().collect(Collectors.toMap(SysRoleDO::getId, Function.identity(), (left, right) -> left));
+        return relations.stream()
+                .filter(relation -> roleMap.containsKey(relation.getRoleId()))
+                .collect(Collectors.groupingBy(
+                        SysAccountRoleDO::getAccountId,
+                        Collectors.mapping(relation -> roleMap.get(relation.getRoleId()), Collectors.toList())
+                ));
+    }
+
+    /**
      * 账号和用户资料转换为前端 DTO。
      *
      * @param account     账号实体
      * @param user        用户主体实体
      * @param deptNameMap 部门名称映射
      * @param postMap     用户岗位映射
+     * @param roleMap     账号角色映射
      * @return 用户账号 DTO
      */
     private SysUserAccountDTO toDTO(SysAccountDO account,
                                     SysUserDO user,
                                     Map<Long, String> deptNameMap,
-                                    Map<Long, List<SysPostDO>> postMap) {
+                                    Map<Long, List<SysPostDO>> postMap,
+                                    Map<Long, List<SysRoleDO>> roleMap) {
         SysUserAccountDTO dto = new SysUserAccountDTO();
         dto.setAccountId(account.getId());
         dto.setUserId(account.getUserId());
@@ -818,6 +1117,9 @@ public class AdminUserServiceImpl implements AdminUserService {
         List<SysPostDO> posts = postMap.getOrDefault(account.getUserId(), Collections.emptyList());
         dto.setPostIds(posts.stream().map(SysPostDO::getId).toList());
         dto.setPostNames(posts.stream().map(SysPostDO::getPostName).toList());
+        List<SysRoleDO> roles = roleMap.getOrDefault(account.getId(), Collections.emptyList());
+        dto.setRoleIds(roles.stream().map(SysRoleDO::getId).toList());
+        dto.setRoleNames(roles.stream().map(SysRoleDO::getRoleName).toList());
         dto.setLoginAccount(account.getLoginAccount());
         dto.setRealName(user == null ? null : user.getRealName());
         dto.setMobile(account.getMobile());
@@ -827,11 +1129,12 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setLocked(account.getLocked());
         dto.setLastLoginAt(account.getLastLoginAt());
         dto.setLastLoginIp(account.getLastLoginIp());
+        dto.setRemark(account.getRemark());
         dto.setCreatedAt(account.getCreatedAt());
         return dto;
     }
 
-    private SysRoleDTO toRoleDTO(SysRoleDO role) {
+    private SysRoleDTO toRoleDTO(SysRoleDO role, boolean assignable) {
         SysRoleDTO dto = new SysRoleDTO();
         dto.setRoleId(role.getId());
         dto.setRoleCode(role.getRoleCode());
@@ -841,6 +1144,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setDescription(role.getDescription());
         dto.setStatus(role.getStatus());
         dto.setSortNo(role.getSortNo());
+        dto.setAssignable(assignable);
         dto.setCreatedAt(role.getCreatedAt());
         dto.setUpdatedAt(role.getUpdatedAt());
         return dto;

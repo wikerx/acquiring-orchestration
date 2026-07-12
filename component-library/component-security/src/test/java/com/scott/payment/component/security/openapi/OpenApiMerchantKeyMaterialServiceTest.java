@@ -22,15 +22,36 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * OpenAPI 密钥材料导出服务回归测试，覆盖管理端查看/复制各类密钥时的材料分支。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiMerchantKeyMaterialServiceTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : OpenAPI 密钥材料导出服务回归测试，覆盖管理端查看/复制各类密钥时的材料分支。
+ * @status : create
  */
 class OpenApiMerchantKeyMaterialServiceTest {
 
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String MERCHANT_ID = "200046";
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String MERCHANT_NAME = "Scott Test Merchant 200046";
 
+    /**
+     * 商户 OpenAPI敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private BaseMerchantResponseKeyMapper responseKeyMapper;
+    /**
+     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private OpenApiMerchantKeyMaterialService materialService;
+    /**
+     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private OpenApiMerchantOnboardingMaterial material;
 
     @BeforeEach

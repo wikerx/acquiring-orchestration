@@ -15,7 +15,13 @@ import java.util.Set;
 import java.util.stream.IntStream;
 
 /**
- * 收银台国家地区配置应用服务，负责把 ISO 基础字典转换为付款人侧展示配置。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : CheckoutCountryConfigApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Checkout Country Config Application 服务契约，位于 service-checkout 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class CheckoutCountryConfigApplicationService {
@@ -64,6 +70,10 @@ public class CheckoutCountryConfigApplicationService {
      * 查询付款人收银台可展示的国家地区配置。
      *
      * @return 国家地区配置列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public List<CheckoutCountryConfigResponse> listCountries() {
         List<IsoCountryInfo> countries = isoDictionaryService.listCountries();

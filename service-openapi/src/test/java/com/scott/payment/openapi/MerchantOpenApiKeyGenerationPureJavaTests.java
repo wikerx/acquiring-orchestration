@@ -19,6 +19,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @description : 纯 Java 商户 OpenAPI 密钥生成测试，只根据商户号生成商户和平台双方需要的全部安全材料
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantOpenApiKeyGenerationPureJavaTests
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIMerchant Open Api Key Generation Pure Java Tests，位于 service-openapi 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Slf4j
 class MerchantOpenApiKeyGenerationPureJavaTests {
 

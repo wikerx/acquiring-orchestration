@@ -8,7 +8,6 @@ import com.scott.payment.admin.entity.SysDictDataDO;
 import com.scott.payment.admin.entity.SysDictTypeDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.factory.Mappers;
 
 /**
  * @author : scott
@@ -16,19 +15,11 @@ import org.mapstruct.factory.Mappers;
  * @classname : DictConverter
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 数据字典对象转换器
+ * @description : 数据字典对象转换器，位于 service-admin 转换层；负责字典 DO、DTO 与导出行之间的普通字段映射。
  * @status : create
- *
- * <p>负责字典类型、字典项实体与后台响应 DTO 之间的转换，避免应用层直接暴露持久化对象。</p>
  */
-
-@Mapper
+@Mapper(componentModel = "spring")
 public interface DictConverter {
-
-    /**
-     * 转换器单例。
-     */
-    DictConverter INSTANCE = Mappers.getMapper(DictConverter.class);
 
     /**
      * 字典类型实体转响应 DTO。

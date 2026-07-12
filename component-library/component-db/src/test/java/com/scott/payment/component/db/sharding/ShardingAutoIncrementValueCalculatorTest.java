@@ -7,9 +7,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 分表 AUTO_INCREMENT 起始值计算测试。
- *
- * <p>验证 yyyyQQ + 12 位自增序号的边界，避免超过 MySQL BIGINT 有符号范围。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingAutoIncrementValueCalculatorTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 分表 AUTO_INCREMENT 起始值计算测试。 <p>验证 yyyyQQ + 12 位自增序号的边界，避免超过 MySQL BIGINT 有符号范围。</p>
+ * @status : create
  */
 class ShardingAutoIncrementValueCalculatorTest {
 

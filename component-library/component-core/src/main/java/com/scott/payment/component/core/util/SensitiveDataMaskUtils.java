@@ -4,7 +4,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 敏感数据脱敏工具，统一收敛日志中密码、token、密钥、卡号、联系方式和证件号的掩码规则。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SensitiveDataMaskUtils
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sensitive Data Mask 工具，位于 component-library/component-core 的业务组件层，用于说明职责边界、数据语义和关键业务约束。
+ * @status : create
  */
 public final class SensitiveDataMaskUtils {
 
@@ -76,6 +82,11 @@ public final class SensitiveDataMaskUtils {
      * @param json 原始 JSON 文本
      * @return 脱敏后的 JSON 文本
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param json 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static String maskJson(String json) {
         if (json == null || json.isEmpty()) {
             return json;
@@ -94,6 +105,11 @@ public final class SensitiveDataMaskUtils {
      *
      * @param value 原始文本
      * @return 脱敏后的文本
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static String maskCardNo(String value) {
         if (value == null || value.isEmpty()) {
@@ -114,6 +130,11 @@ public final class SensitiveDataMaskUtils {
      * @param value 原始文本
      * @return 脱敏后的文本
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static String maskAccountNumber(String value) {
         if (value == null || value.isEmpty()) {
             return value;
@@ -133,6 +154,11 @@ public final class SensitiveDataMaskUtils {
      * @param mobile 原始手机号
      * @return 脱敏后的手机号
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param mobile 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static String maskMobile(String mobile) {
         if (mobile == null || mobile.length() < 7) {
             return "***";
@@ -145,6 +171,11 @@ public final class SensitiveDataMaskUtils {
      *
      * @param email 原始邮箱
      * @return 脱敏后的邮箱
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param email 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static String maskEmail(String email) {
         if (email == null || email.isEmpty()) {
@@ -164,6 +195,11 @@ public final class SensitiveDataMaskUtils {
      *
      * @param cardNo 原始 PAN 卡号
      * @return 脱敏后的 PAN，入参为空或长度不足时返回固定星号
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param cardNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static String maskPan(String cardNo) {
         if (cardNo == null || cardNo.length() < 10) {

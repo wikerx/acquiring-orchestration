@@ -24,17 +24,37 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 管理后台用户管理应用服务。
- *
- * <p>负责收敛控制器入口、导出编排和展示文案转换，具体用户、角色、密码和状态规则由领域服务承载。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminUserApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 后台用户应用服务，位于 service-admin 应用编排层；负责用户管理接口的查询、导出和领域服务编排。
+ * @status : create
  */
 @Service
 public class AdminUserApplicationService {
 
+    /**
+     * 后台用户领域服务。
+     */
     private final AdminUserService adminUserService;
+    /**
+     * Excel 导出服务。
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * Excel 国际化文案解析器。
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * Excel 语言环境解析器。
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
+    /**
+     * 后台用户导出转换器。
+     */
+    private final UserExportConverter userExportConverter;
 
     /**
      * 创建后台用户应用服务。
@@ -43,15 +63,18 @@ public class AdminUserApplicationService {
      * @param excelExportService       Excel 导出服务
      * @param excelI18nMessageResolver Excel 文案解析器
      * @param excelLocaleResolver      Excel 语言解析器
+     * @param userExportConverter      后台用户导出转换器
      */
     public AdminUserApplicationService(AdminUserService adminUserService,
                                        ExcelExportService excelExportService,
                                        ExcelI18nMessageResolver excelI18nMessageResolver,
-                                       ExcelLocaleResolver excelLocaleResolver) {
+                                       ExcelLocaleResolver excelLocaleResolver,
+                                       UserExportConverter userExportConverter) {
         this.adminUserService = adminUserService;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.userExportConverter = userExportConverter;
     }
 
     /**
@@ -171,6 +194,8 @@ public class AdminUserApplicationService {
     private void fillUserExportDisplayValue(SysUserAccountExportRow row, Locale locale) {
         row.setDeptName(blankToPlaceholder(row.getDeptName()));
         row.setPostNamesText(blankToPlaceholder(row.getPostNamesText()));
+        row.setRoleNamesText(blankToPlaceholder(row.getRoleNamesText()));
+        row.setRemark(blankToPlaceholder(row.getRemark()));
         row.setStatus(resolveStatusText("1".equals(String.valueOf(row.getStatus())), locale));
         row.setLocked(resolveBooleanText("1".equals(String.valueOf(row.getLocked())), locale));
     }
@@ -183,8 +208,9 @@ public class AdminUserApplicationService {
      * @return 导出行对象
      */
     private SysUserAccountExportRow toExportRow(SysUserAccountDTO dto, Locale locale) {
-        SysUserAccountExportRow row = UserExportConverter.INSTANCE.toExportRow(dto);
+        SysUserAccountExportRow row = userExportConverter.toExportRow(dto);
         row.setPostNamesText(joinPostNames(dto.getPostNames(), locale));
+        row.setRoleNamesText(joinPostNames(dto.getRoleNames(), locale));
         return row;
     }
 
@@ -222,7 +248,7 @@ public class AdminUserApplicationService {
      * @return 时间后缀
      */
     private String timestampSuffix() {
-        return java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").format(LocalDateTime.now());
+        return java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now());
     }
 
     /**

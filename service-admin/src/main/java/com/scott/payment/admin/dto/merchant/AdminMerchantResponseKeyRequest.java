@@ -14,6 +14,15 @@ import lombok.Data;
  *
  * <p>用于维护商户自管响应密钥材料，包含响应公钥以及可选的私钥和启用状态。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantResponseKeyRequest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Admin Merchant Response Key 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 public class AdminMerchantResponseKeyRequest {
 

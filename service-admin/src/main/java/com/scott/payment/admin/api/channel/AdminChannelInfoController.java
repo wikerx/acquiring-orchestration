@@ -26,14 +26,21 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台渠道信息接口。
- *
- * <p>负责渠道基础资料的参数接收、权限校验和 HTTP 映射，业务规则由应用服务层处理。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminChannelInfoController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 渠道管理Admin Channel Info 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/admin/channel/info")
 public class AdminChannelInfoController {
 
+    /**
+     * 渠道管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminChannelApplicationService channelApplicationService;
 
     public AdminChannelInfoController(AdminChannelApplicationService channelApplicationService) {
@@ -46,18 +53,32 @@ public class AdminChannelInfoController {
         return success(channelApplicationService.pageChannels(query));
     }
 
+    /**
+     * 执行渠道管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/options")
     @RequiresPermission("channel:info:list")
     public CommonResult<List<ChannelOption>> channelOptions() {
         return success(channelApplicationService.listChannelOptions());
     }
 
+    /**
+     * 获取渠道管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/{id}")
     @RequiresPermission("channel:info:detail")
     public CommonResult<ChannelInfoResponse> getChannel(@PathVariable("id") Long id) {
         return success(channelApplicationService.getChannel(id));
     }
 
+    /**
+     * 创建或保存渠道管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping
     @RequiresPermission("channel:info:add")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道")
@@ -65,6 +86,12 @@ public class AdminChannelInfoController {
         return success(channelApplicationService.createChannel(request));
     }
 
+    /**
+     * 更新渠道管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PutMapping("/{id}")
     @RequiresPermission("channel:info:edit")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道")
@@ -73,6 +100,12 @@ public class AdminChannelInfoController {
         return success(channelApplicationService.updateChannel(id, request));
     }
 
+    /**
+     * 更新渠道管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PutMapping("/{id}/status")
     @RequiresPermission("channel:info:status")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道状态")
@@ -81,6 +114,11 @@ public class AdminChannelInfoController {
         return success(channelApplicationService.updateChannelStatus(id, request.getStatus()));
     }
 
+    /**
+     * 删除渠道管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @DeleteMapping("/{id}")
     @RequiresPermission("channel:info:remove")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.DELETE, operation = "删除渠道")

@@ -21,10 +21,13 @@ import com.scott.payment.component.core.model.PageResult;
 import java.util.List;
 
 /**
- * 管理后台汇率管理服务。
- *
- * <p>定义汇率源、原始汇率、汇率规则、业务汇率和使用快照的管理端业务边界。汇率源币种映射只供任务解析外部源名称，
- * 不作为管理端独立 CRUD 能力暴露。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminExchangeRateService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Exchange Rate 服务契约，位于 service-admin 的服务契约层，用于定义调用契约和职责边界。
+ * @status : create
  */
 public interface AdminExchangeRateService {
 

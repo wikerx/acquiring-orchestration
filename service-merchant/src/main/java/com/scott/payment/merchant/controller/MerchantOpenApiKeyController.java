@@ -39,16 +39,34 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 商户端 OpenAPI 密钥管理接口，仅允许当前登录商户查看、复制和下载自己的接入材料。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantOpenApiKeyController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Merchant Open Api Key 管理接口，位于 service-merchant 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/merchant/openapi/keys")
 public class MerchantOpenApiKeyController {
 
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String OPENAPI_KEY_MODULE_NAME = "商户OpenAPI密钥";
 
+    /**
+     * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final OpenApiMerchantKeyMaterialService keyMaterialService;
+    /**
+     * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final OpenApiKeyAuditService keyAuditService;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final MerchantOperLogService merchantOperLogService;
 
     /**
@@ -71,6 +89,10 @@ public class MerchantOpenApiKeyController {
      *
      * @return 当前商户对接材料概要
      */
+    /**
+     * 获取商户管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping
     @RequiresPermission("merchant:openapi:key:view")
     public CommonResult<OpenApiMerchantKeyMaterialVO> getMaterial() {
@@ -82,6 +104,11 @@ public class MerchantOpenApiKeyController {
      *
      * @param request 复制请求
      * @return 可复制文本
+     */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/copy")
     @RequiresPermission("merchant:openapi:key:copy")
@@ -113,6 +140,11 @@ public class MerchantOpenApiKeyController {
      * @param request 轮换请求
      * @return 轮换后的密钥概要
      */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/rotate")
     @RequiresPermission("merchant:openapi:key:view")
     @OperationLog(moduleName = "商户OpenAPI密钥", businessType = OperationTypeConstants.UPDATE, operation = "轮换OpenAPI密钥")
@@ -139,6 +171,11 @@ public class MerchantOpenApiKeyController {
      *
      * @param request 查询条件
      * @return 当前商户 OpenAPI 密钥操作记录
+     */
+    /**
+     * 获取商户管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/logs")
     @RequiresPermission("merchant:openapi:key:log")

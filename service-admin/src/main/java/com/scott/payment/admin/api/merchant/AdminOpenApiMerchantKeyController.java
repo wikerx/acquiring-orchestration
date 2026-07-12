@@ -40,17 +40,38 @@ import java.util.List;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 管理后台 OpenAPI 商户密钥材料接口，负责运营侧查询、复制、下载和轮换商户接入材料。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminOpenApiMerchantKeyController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Admin Open Api Merchant Key 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/admin/openapi/merchant-keys")
 public class AdminOpenApiMerchantKeyController {
 
+    /**
+     * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String OPENAPI_KEY_MODULE_NAME = "OpenAPI对接材料";
 
+    /**
+     * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final OpenApiMerchantKeyMaterialService keyMaterialService;
+    /**
+     * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     */
     private final OpenApiKeyAuditService keyAuditService;
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminMerchantInfoApplicationService merchantInfoApplicationService;
+    /**
+     * 商户管理编码或编号字段，用于业务识别、查询和幂等关联。
+     */
     private final AdminOperLogApplicationService adminOperLogApplicationService;
 
     /**
@@ -77,6 +98,11 @@ public class AdminOpenApiMerchantKeyController {
      * @param merchantId 商户号
      * @return 对接材料概要
      */
+    /**
+     * 获取商户管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/{merchantId}")
     @RequiresPermission("merchant:material:view")
     public CommonResult<OpenApiMerchantKeyMaterialVO> getMaterial(@PathVariable("merchantId") String merchantId) {
@@ -89,6 +115,12 @@ public class AdminOpenApiMerchantKeyController {
      * @param merchantId 商户号
      * @param request    复制请求
      * @return 可复制文本
+     */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/{merchantId}/copy")
     @RequiresPermission("merchant:material:copy")
@@ -105,6 +137,12 @@ public class AdminOpenApiMerchantKeyController {
      * @param merchantId 商户号
      * @param request    查看请求
      * @return 可查看文本
+     */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/{merchantId}/view")
     @RequiresPermission("merchant:material:copy")
@@ -139,6 +177,12 @@ public class AdminOpenApiMerchantKeyController {
      * @param merchantId 商户号
      * @param request    轮换请求
      * @return 最新一次性安全材料
+     */
+    /**
+     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/{merchantId}/rotate")
     @RequiresPermission("merchant:key:rotate")

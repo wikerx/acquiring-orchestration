@@ -37,18 +37,34 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * 管理后台汇率管理应用服务。
- *
- * <p>负责汇率管理页面用例编排，Controller 只处理 HTTP 映射和权限校验。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminExchangeRateApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 汇率管理Admin Exchange Rate Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminExchangeRateApplicationService {
 
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    /**
+     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     private final AdminExchangeRateService adminExchangeRateService;
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     public AdminExchangeRateApplicationService(AdminExchangeRateService adminExchangeRateService,
@@ -67,6 +83,11 @@ public class AdminExchangeRateApplicationService {
      * @param query 查询条件，允许为空
      * @return 汇率源分页结果
      */
+    /**
+     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public PageResult<SourceResponse> pageSources(SourceQuery query) {
         return adminExchangeRateService.pageSources(query);
     }
@@ -77,6 +98,12 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportSources(SourceQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -92,6 +119,11 @@ public class AdminExchangeRateApplicationService {
      * @param id 汇率源主键
      * @return 汇率源详情
      */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SourceResponse getSource(Long id) {
         return adminExchangeRateService.getSource(id);
     }
@@ -101,6 +133,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 保存请求
      * @return 新增后的汇率源详情
+     */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public SourceResponse createSource(SourceSaveRequest request) {
         return adminExchangeRateService.createSource(request);
@@ -113,6 +150,12 @@ public class AdminExchangeRateApplicationService {
      * @param request 保存请求
      * @return 修改后的汇率源详情
      */
+    /**
+     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SourceResponse updateSource(Long id, SourceSaveRequest request) {
         return adminExchangeRateService.updateSource(id, request);
     }
@@ -124,6 +167,12 @@ public class AdminExchangeRateApplicationService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的汇率源详情
      */
+    /**
+     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public SourceResponse updateSourceStatus(Long id, Integer status) {
         return adminExchangeRateService.updateSourceStatus(id, status);
     }
@@ -132,6 +181,10 @@ public class AdminExchangeRateApplicationService {
      * 删除未被引用的汇率源。
      *
      * @param id 汇率源主键
+     */
+    /**
+     * 删除汇率管理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void deleteSource(Long id) {
         adminExchangeRateService.deleteSource(id);
@@ -143,6 +196,11 @@ public class AdminExchangeRateApplicationService {
      * @param query 查询条件，允许为空
      * @return 原始汇率分页结果
      */
+    /**
+     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public PageResult<RawRateResponse> pageRawRates(RawRateQuery query) {
         return adminExchangeRateService.pageRawRates(query);
     }
@@ -153,6 +211,12 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportRawRates(RawRateQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -168,6 +232,11 @@ public class AdminExchangeRateApplicationService {
      * @param id 原始汇率主键
      * @return 原始汇率详情
      */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public RawRateResponse getRawRate(Long id) {
         return adminExchangeRateService.getRawRate(id);
     }
@@ -177,6 +246,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 原始汇率保存请求
      * @return 新增后的原始汇率详情
+     */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public RawRateResponse createManualRawRate(RawRateSaveRequest request) {
         return adminExchangeRateService.createManualRawRate(request);
@@ -189,6 +263,12 @@ public class AdminExchangeRateApplicationService {
      * @param voidReason 作废原因
      * @return 作废后的原始汇率详情
      */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param voidReason 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public RawRateResponse voidRawRate(Long id, String voidReason) {
         return adminExchangeRateService.voidRawRate(id, voidReason);
     }
@@ -198,6 +278,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param query 查询条件，允许为空
      * @return 汇率规则分页结果
+     */
+    /**
+     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<RuleResponse> pageRules(RuleQuery query) {
         return adminExchangeRateService.pageRules(query);
@@ -209,6 +294,12 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportRules(RuleQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -224,6 +315,11 @@ public class AdminExchangeRateApplicationService {
      * @param id 规则主键
      * @return 汇率规则详情
      */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public RuleResponse getRule(Long id) {
         return adminExchangeRateService.getRule(id);
     }
@@ -233,6 +329,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 规则保存请求
      * @return 新增后的规则详情
+     */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public RuleResponse createRule(RuleSaveRequest request) {
         return adminExchangeRateService.createRule(request);
@@ -245,6 +346,12 @@ public class AdminExchangeRateApplicationService {
      * @param request 规则保存请求
      * @return 修改后的规则详情
      */
+    /**
+     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public RuleResponse updateRule(Long id, RuleSaveRequest request) {
         return adminExchangeRateService.updateRule(id, request);
     }
@@ -256,6 +363,12 @@ public class AdminExchangeRateApplicationService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的规则详情
      */
+    /**
+     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public RuleResponse updateRuleStatus(Long id, Integer status) {
         return adminExchangeRateService.updateRuleStatus(id, status);
     }
@@ -265,6 +378,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param query 查询条件，允许为空
      * @return 业务汇率分页结果
+     */
+    /**
+     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<BusinessRateResponse> pageBusinessRates(BusinessRateQuery query) {
         return adminExchangeRateService.pageBusinessRates(query);
@@ -276,6 +394,12 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportBusinessRates(BusinessRateQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -291,6 +415,11 @@ public class AdminExchangeRateApplicationService {
      * @param id 业务汇率主键
      * @return 业务汇率详情
      */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public BusinessRateResponse getBusinessRate(Long id) {
         return adminExchangeRateService.getBusinessRate(id);
     }
@@ -300,6 +429,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 业务汇率保存请求
      * @return 新增后的业务汇率
+     */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public BusinessRateResponse createManualBusinessRate(BusinessRateSaveRequest request) {
         return adminExchangeRateService.createManualBusinessRate(request);
@@ -311,6 +445,11 @@ public class AdminExchangeRateApplicationService {
      * @param request 批量保存请求
      * @return 新增后的业务汇率列表
      */
+    /**
+     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public List<BusinessRateResponse> createManualBusinessRates(BusinessRateBatchSaveRequest request) {
         return adminExchangeRateService.createManualBusinessRates(request);
     }
@@ -320,6 +459,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 业务汇率生成请求
      * @return 生成后的业务汇率详情
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public BusinessRateResponse generateBusinessRate(GenerateBusinessRateRequest request) {
         return adminExchangeRateService.generateBusinessRate(request);
@@ -332,6 +476,12 @@ public class AdminExchangeRateApplicationService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的业务汇率详情
      */
+    /**
+     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public BusinessRateResponse updateBusinessRateStatus(Long id, Integer status) {
         return adminExchangeRateService.updateBusinessRateStatus(id, status);
     }
@@ -341,6 +491,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param query 查询条件，允许为空
      * @return 汇率使用快照分页结果
+     */
+    /**
+     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<UsageSnapshotResponse> pageUsageSnapshots(UsageSnapshotQuery query) {
         return adminExchangeRateService.pageUsageSnapshots(query);
@@ -352,6 +507,12 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportUsageSnapshots(UsageSnapshotQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -366,6 +527,11 @@ public class AdminExchangeRateApplicationService {
      *
      * @param id 快照主键
      * @return 汇率使用快照详情
+     */
+    /**
+     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public UsageSnapshotResponse getUsageSnapshot(Long id) {
         return adminExchangeRateService.getUsageSnapshot(id);

@@ -17,13 +17,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 中国银行外汇牌价 HTML 解析器。
- *
- * <p>中行页面报价通常为 100 外币兑换人民币，本解析器统一换算为 1 外币兑换人民币。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : BocExchangeRateHtmlParser
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 汇率管理Boc Exchange Rate Html Parser，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Component
 public class BocExchangeRateHtmlParser {
 
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String QUOTE_CURRENCY = "CNY";
     private static final List<DateTimeFormatter> BOC_TIME_FORMATTERS = List.of(
             DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm:ss"),
@@ -38,6 +45,11 @@ public class BocExchangeRateHtmlParser {
      *
      * @param html 页面 HTML
      * @return 原始汇率项目列表
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param html 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public List<RawRateItem> parse(String html) {
         if (!StringUtils.hasText(html)) {

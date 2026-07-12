@@ -4,7 +4,13 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantMenuGrantQueryResponse;
 import com.scott.payment.admin.dto.merchant.AdminMerchantMenuGrantSaveRequest;
 
 /**
- * 管理后台商户菜单授权领域服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantMenuGrantService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Merchant Menu Grant 服务契约，位于 service-admin 的服务契约层，用于定义调用契约和职责边界。
+ * @status : create
  */
 public interface AdminMerchantMenuGrantService {
 

@@ -1,0 +1,459 @@
+package com.scott.payment.admin.support.risk;
+
+import com.scott.payment.admin.dto.risk.RiskDTOs;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+
+import java.math.BigInteger;
+import java.net.IDN;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Arrays;
+import java.util.HexFormat;
+import java.util.Locale;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskListValueNormalizer
+ * @date : 2026-07-05 00:00
+ * @email : scott_x@163.com
+ * @description : 收单风控名单匹配值归一化组件，负责管理端录入值到脱敏值、哈希、区间数值的转换。
+ * @status : create
+ */
+@Component
+public class RiskListValueNormalizer {
+
+    private static final int CARD_BIN_MIN_LENGTH = 6;
+    private static final int CARD_BIN_MAX_LENGTH = 11;
+    private static final int CARD_MIN_LENGTH = 12;
+    private static final int CARD_MAX_LENGTH = 19;
+    private static final String EMAIL_USERNAME_REGEX = "^(?!\\.)(?!.*\\.\\.)(?!.*\\.$)[A-Z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}$";
+    private static final String EMAIL_DOMAIN_REGEX = "^(?=.{1,253}$)(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\\.)+[A-Z]{2,63}$";
+    private static final String POSTAL_CODE_REGEX = "^(?=.{2,20}$)[A-Z0-9]+(?:[ -][A-Z0-9]+)*$";
+
+    private final RiskSensitiveValueCrypto sensitiveValueCrypto;
+
+    /**
+     * 创建名单值归一化组件。
+     *
+     * @param sensitiveValueCrypto 敏感名单值加解密组件
+     */
+    public RiskListValueNormalizer(RiskSensitiveValueCrypto sensitiveValueCrypto) {
+        this.sensitiveValueCrypto = sensitiveValueCrypto;
+    }
+
+    /**
+     * 按风控功能类型归一化名单值。
+     *
+     * @param definition 风控功能定义
+     * @param request    管理端保存请求
+     * @return 可直接写入数据库的字段补充值
+     */
+    public NormalizedValue normalize(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
+        String code = definition.getFunctionCode();
+        if ("cardBin".equals(code)) {
+            return normalizeCardBin(request);
+        }
+        if ("ip".equals(code)) {
+            return normalizeIp(definition, request);
+        }
+        if (isCountryFunction(code)) {
+            return normalizeCountry(request);
+        }
+        if ("cardNo".equals(code) || "card".equals(code)) {
+            return normalizeCard(request);
+        }
+        if ("phone".equals(code)) {
+            return normalizePhone(request);
+        }
+        if ("email".equals(code) && "AML".equalsIgnoreCase(definition.getModuleType())) {
+            return normalizeEmailOrDomain(request);
+        }
+        if ("email".equals(code)) {
+            return normalizeEmail(request);
+        }
+        if ("emailDomain".equals(code)) {
+            return normalizeEmailDomain(request);
+        }
+        if ("emailUsername".equals(code)) {
+            return normalizeEmailUsername(request);
+        }
+        if ("merchant".equals(code)) {
+            return normalizeMerchant(request);
+        }
+        if ("billingAddress".equals(code) || "shippingAddress".equals(code) || "merchantBillingAddress".equals(code)) {
+            return normalizeSimple(requiredPlain(request), false);
+        }
+        if ("billingZip".equals(code) || "shippingZip".equals(code)) {
+            return normalizePostalCode(request);
+        }
+        return normalizeSimple(requiredPlain(request), isSensitiveFunction(code));
+    }
+
+    /**
+     * 解密编辑态可见明文。
+     *
+     * @param cipherText 数据库存储的密文
+     * @return 编辑态明文
+     */
+    public String decryptPlain(String cipherText) {
+        return sensitiveValueCrypto.decrypt(cipherText);
+    }
+
+    private NormalizedValue normalizeCard(RiskDTOs.RiskListSaveRequest request) {
+        String cardNo = digits(requiredPlain(request));
+        if (cardNo.length() < CARD_MIN_LENGTH || cardNo.length() > CARD_MAX_LENGTH) {
+            throw invalid("卡号必须为 12-19 位纯数字");
+        }
+        return NormalizedValue.fixed(SensitiveDataMaskUtils.maskPan(cardNo), sha256(cardNo), sensitiveValueCrypto.encrypt(cardNo));
+    }
+
+    private NormalizedValue normalizeCardBin(RiskDTOs.RiskListSaveRequest request) {
+        String start = digits(defaultIfBlank(request.getMatchValueStart(), request.getMatchValuePlain()));
+        String end = digits(defaultIfBlank(request.getMatchValueEnd(), start));
+        validateCardBin(start, "card BIN start");
+        validateCardBin(end, "card BIN end");
+        if (!start.substring(0, CARD_BIN_MIN_LENGTH).equals(end.substring(0, CARD_BIN_MIN_LENGTH))) {
+            throw invalid("起始BIN和截止BIN前 6 位必须一致");
+        }
+        String normalizedStart = rightPad(start, CARD_BIN_MAX_LENGTH, '0');
+        String normalizedEnd = rightPad(end, CARD_BIN_MAX_LENGTH, '9');
+        BigInteger startNumber = new BigInteger(normalizedStart);
+        BigInteger endNumber = new BigInteger(normalizedEnd);
+        if (startNumber.compareTo(endNumber) > 0) {
+            throw invalid("截止BIN补齐后必须大于等于起始BIN");
+        }
+        String masked = normalizedStart.equals(normalizedEnd) ? normalizedStart : normalizedStart + "-" + normalizedEnd;
+        return NormalizedValue.range(masked, sha256(normalizedStart + "-" + normalizedEnd), normalizedStart, normalizedEnd, startNumber.toString(), endNumber.toString(), null);
+    }
+
+    private NormalizedValue normalizeIp(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
+        String start = defaultIfBlank(request.getMatchValueStart(), request.getMatchValuePlain());
+        String end = request.getMatchValueEnd();
+        if ("BLACK".equalsIgnoreCase(definition.getModuleType())) {
+            if (!StringUtils.hasText(start) || !StringUtils.hasText(end)) {
+                throw invalid("起始IP和截止IP必须输入");
+            }
+        }
+        end = defaultIfBlank(end, start);
+        rejectMultipleRanges(start);
+        rejectMultipleRanges(end);
+        if ("WHITE".equalsIgnoreCase(definition.getModuleType()) && StringUtils.hasText(end) && !start.equals(end)) {
+            throw invalid("IP白名单仅支持单个IP地址");
+        }
+        ParsedIp startIp = parseIp(start);
+        ParsedIp endIp = parseIp(end);
+        if (!startIp.version().equals(endIp.version())) {
+            throw invalid("起始IP和截止IP必须为相同 IP 类型");
+        }
+        if ("BLACK".equalsIgnoreCase(definition.getModuleType()) && differingSegmentCount(startIp.segments(), endIp.segments()) > 1) {
+            throw invalid("IP区间最多只能有一个段位不一致");
+        }
+        if (startIp.number().compareTo(endIp.number()) > 0) {
+            throw invalid("起始IP不能大于截止IP");
+        }
+        String masked = startIp.original().equals(endIp.original()) ? startIp.original() : startIp.original() + "-" + endIp.original();
+        return NormalizedValue.range(masked, sha256(startIp.version() + "-" + startIp.number() + "-" + endIp.number()),
+                startIp.original(), endIp.original(), startIp.number().toString(), endIp.number().toString(), null, startIp.version());
+    }
+
+    private NormalizedValue normalizeCountry(RiskDTOs.RiskListSaveRequest request) {
+        String country = upper(defaultIfBlank(request.getCountryAlpha3(), request.getMatchValuePlain()));
+        if (!StringUtils.hasText(country) || country.length() != 3) {
+            throw invalid("请选择国家/地区");
+        }
+        return NormalizedValue.fixed(country, sha256(country), null);
+    }
+
+    private NormalizedValue normalizePhone(RiskDTOs.RiskListSaveRequest request) {
+        String phone = requiredPlain(request).replaceAll("\\s+", "");
+        return NormalizedValue.fixed(SensitiveDataMaskUtils.maskMobile(phone), sha256(phone), sensitiveValueCrypto.encrypt(phone));
+    }
+
+    private NormalizedValue normalizeEmail(RiskDTOs.RiskListSaveRequest request) {
+        String email = normalizedEmail(requiredPlain(request));
+        return NormalizedValue.fixed(SensitiveDataMaskUtils.maskEmail(email), sha256(email), sensitiveValueCrypto.encrypt(email));
+    }
+
+    private NormalizedValue normalizeEmailOrDomain(RiskDTOs.RiskListSaveRequest request) {
+        String value = requiredPlain(request).trim();
+        if (value.contains("@")) {
+            return normalizeEmail(request);
+        }
+        return normalizeEmailDomain(request);
+    }
+
+    private NormalizedValue normalizeEmailUsername(RiskDTOs.RiskListSaveRequest request) {
+        String username = requiredPlain(request).trim().toLowerCase(Locale.ROOT);
+        if (!username.toUpperCase(Locale.ROOT).matches(EMAIL_USERNAME_REGEX)) {
+            throw invalid("邮箱用户名格式不正确");
+        }
+        return normalizeSimple(username, true);
+    }
+
+    private String normalizedEmail(String rawEmail) {
+        String email = rawEmail.trim().toLowerCase(Locale.ROOT);
+        int atIndex = email.indexOf('@');
+        if (atIndex <= 0 || atIndex != email.lastIndexOf('@') || atIndex == email.length() - 1) {
+            throw invalid("邮箱格式不正确");
+        }
+        String username = email.substring(0, atIndex);
+        String domain = normalizeDomain(email.substring(atIndex + 1));
+        if (!username.toUpperCase(Locale.ROOT).matches(EMAIL_USERNAME_REGEX)) {
+            throw invalid("邮箱格式不正确");
+        }
+        return username + "@" + domain;
+    }
+
+    private NormalizedValue normalizeEmailDomain(RiskDTOs.RiskListSaveRequest request) {
+        String domain = normalizeDomain(requiredPlain(request));
+        return NormalizedValue.fixed(domain, sha256(domain), null);
+    }
+
+    private String normalizeDomain(String rawDomain) {
+        String domain = rawDomain.trim().toLowerCase(Locale.ROOT);
+        while (domain.startsWith("@")) {
+            domain = domain.substring(1);
+        }
+        try {
+            domain = IDN.toASCII(domain).toLowerCase(Locale.ROOT);
+        } catch (IllegalArgumentException exception) {
+            throw invalid("邮箱域名格式不正确");
+        }
+        if (!domain.toUpperCase(Locale.ROOT).matches(EMAIL_DOMAIN_REGEX)) {
+            throw invalid("邮箱域名格式不正确");
+        }
+        return domain;
+    }
+
+    private NormalizedValue normalizeMerchant(RiskDTOs.RiskListSaveRequest request) {
+        String merchantId = defaultIfBlank(request.getMatchValuePlain(), request.getMatchValueMasked());
+        if (!StringUtils.hasText(merchantId)) {
+            throw invalid("请选择白名单商户号");
+        }
+        return NormalizedValue.fixed(merchantId, sha256(merchantId), null);
+    }
+
+    private NormalizedValue normalizePostalCode(RiskDTOs.RiskListSaveRequest request) {
+        String displayValue = requiredPlain(request).trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
+        if (!displayValue.matches(POSTAL_CODE_REGEX)) {
+            throw invalid("邮编格式不正确，仅支持字母、数字、空格和短横线，长度 2-20 位");
+        }
+        String lookupValue = displayValue.replaceAll("[\\s-]", "");
+        return NormalizedValue.fixed(displayValue, sha256(lookupValue), null);
+    }
+
+    private NormalizedValue normalizeSimple(String value, boolean sensitive) {
+        String normalized = value.trim();
+        String masked = sensitive && normalized.length() > 8
+                ? normalized.substring(0, Math.min(3, normalized.length())) + "***" + normalized.substring(normalized.length() - 3)
+                : normalized;
+        return NormalizedValue.fixed(masked, sha256(normalized.toLowerCase(Locale.ROOT)), sensitive ? sensitiveValueCrypto.encrypt(normalized) : null);
+    }
+
+    private boolean isCountryFunction(String code) {
+        return "country".equals(code) || code.endsWith("Country") || code.contains("Country");
+    }
+
+    private boolean isSensitiveFunction(String code) {
+        return code.contains("Fingerprint")
+                || code.contains("Name")
+                || code.contains("Address")
+                || code.contains("Person")
+                || code.contains("enterprise")
+                || code.contains("customer")
+                || code.contains("Customer");
+    }
+
+    private void validateCardBin(String value, String label) {
+        if (value.length() < CARD_BIN_MIN_LENGTH || value.length() > CARD_BIN_MAX_LENGTH) {
+            throw invalid("BIN必须为 6-11 位纯数字");
+        }
+    }
+
+    private ParsedIp parseIp(String ip) {
+        if (!StringUtils.hasText(ip)) {
+            throw invalid("请输入IP地址");
+        }
+        String value = ip.trim();
+        if (value.contains(":")) {
+            return parseIpv6(value);
+        }
+        return parseIpv4(value);
+    }
+
+    private ParsedIp parseIpv4(String value) {
+        String[] parts = value.split("\\.", -1);
+        if (parts.length != 4) {
+            throw invalid("IP地址格式不正确");
+        }
+        int[] segments = new int[4];
+        BigInteger number = BigInteger.ZERO;
+        for (int index = 0; index < parts.length; index++) {
+            String part = parts[index];
+            if (!part.matches("\\d{1,3}")) {
+                throw invalid("IP地址格式不正确");
+            }
+            int segment = Integer.parseInt(part);
+            if (segment < 0 || segment > 255) {
+                throw invalid("IP地址格式不正确");
+            }
+            segments[index] = segment;
+            number = number.shiftLeft(8).add(BigInteger.valueOf(segment));
+        }
+        return new ParsedIp(value, "IPV4", number, segments);
+    }
+
+    private ParsedIp parseIpv6(String value) {
+        if (!value.matches("[0-9a-fA-F:]+")) {
+            throw invalid("IP地址格式不正确");
+        }
+        try {
+            byte[] bytes = InetAddress.getByName(value).getAddress();
+            if (bytes.length != 16) {
+                throw invalid("IP地址格式不正确");
+            }
+            int[] segments = new int[8];
+            for (int index = 0; index < segments.length; index++) {
+                segments[index] = ((bytes[index * 2] & 0xff) << 8) | (bytes[index * 2 + 1] & 0xff);
+            }
+            return new ParsedIp(value, "IPV6", new BigInteger(1, bytes), segments);
+        } catch (UnknownHostException exception) {
+            throw invalid("IP地址格式不正确");
+        }
+    }
+
+    private int differingSegmentCount(int[] startSegments, int[] endSegments) {
+        int count = 0;
+        for (int index = 0; index < startSegments.length; index++) {
+            if (startSegments[index] != endSegments[index]) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void rejectMultipleRanges(String value) {
+        if (value != null && (value.contains(",") || value.contains(";") || value.contains("\n"))) {
+            throw invalid("一次只能录入一个IP区间");
+        }
+    }
+
+    private String requiredPlain(RiskDTOs.RiskListSaveRequest request) {
+        String plain = defaultIfBlank(request.getMatchValuePlain(), request.getMatchValueMasked());
+        if (!StringUtils.hasText(plain)) {
+            throw invalid("请输入匹配值");
+        }
+        return plain;
+    }
+
+    private String digits(String value) {
+        if (!StringUtils.hasText(value)) {
+            throw invalid("请输入数字值");
+        }
+        String digits = value.replaceAll("\\D", "");
+        if (!digits.equals(value.replaceAll("\\s+", ""))) {
+            throw invalid("只允许输入数字");
+        }
+        return digits;
+    }
+
+    private String rightPad(String value, int length, char ch) {
+        if (value.length() >= length) {
+            return value;
+        }
+        return value + String.valueOf(ch).repeat(length - value.length());
+    }
+
+    private String upper(String value) {
+        return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
+    }
+
+    private String defaultIfBlank(String value, String fallback) {
+        return StringUtils.hasText(value) ? value.trim() : fallback;
+    }
+
+    private String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (Exception exception) {
+            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "风控名单值哈希计算失败");
+        }
+    }
+
+    private ServiceException invalid(String message) {
+        return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
+    }
+
+    /**
+     * 归一化后的名单值。
+     */
+    public record NormalizedValue(String matchValueMasked,
+                                  String matchValueHash,
+                                  String matchValueStart,
+                                  String matchValueEnd,
+                                  String matchValueStartNumber,
+                                  String matchValueEndNumber,
+                                  String matchValueCipher,
+                                  String ipVersion) {
+
+        /**
+         * 创建固定值名单归一化结果。
+         *
+         * @param masked 脱敏展示值
+         * @param hash   归一化哈希
+         * @param cipher 敏感值密文，非敏感名单为空
+         * @return 固定值归一化结果
+         */
+        public static NormalizedValue fixed(String masked, String hash, String cipher) {
+            return new NormalizedValue(masked, hash, null, null, null, null, cipher, null);
+        }
+
+        /**
+         * 创建不区分 IP 版本的区间归一化结果。
+         *
+         * @param masked      区间展示值
+         * @param hash        区间归一化哈希
+         * @param start       区间起始展示值
+         * @param end         区间截止展示值
+         * @param startNumber 区间起始数值
+         * @param endNumber   区间截止数值
+         * @param cipher      敏感值密文，非敏感名单为空
+         * @return 区间归一化结果
+         */
+        public static NormalizedValue range(String masked, String hash, String start, String end, String startNumber, String endNumber, String cipher) {
+            return range(masked, hash, start, end, startNumber, endNumber, cipher, null);
+        }
+
+        /**
+         * 创建带 IP 版本的区间归一化结果。
+         *
+         * @param masked      区间展示值
+         * @param hash        区间归一化哈希
+         * @param start       区间起始展示值
+         * @param end         区间截止展示值
+         * @param startNumber 区间起始数值
+         * @param endNumber   区间截止数值
+         * @param cipher      敏感值密文，非敏感名单为空
+         * @param ipVersion   IP 版本：IPV4、IPV6
+         * @return 区间归一化结果
+         */
+        public static NormalizedValue range(String masked, String hash, String start, String end, String startNumber, String endNumber, String cipher, String ipVersion) {
+            return new NormalizedValue(masked, hash, start, end, startNumber, endNumber, cipher, ipVersion);
+        }
+
+    }
+
+    private record ParsedIp(String original, String version, BigInteger number, int[] segments) {
+        private ParsedIp {
+            segments = Arrays.copyOf(segments, segments.length);
+        }
+    }
+}

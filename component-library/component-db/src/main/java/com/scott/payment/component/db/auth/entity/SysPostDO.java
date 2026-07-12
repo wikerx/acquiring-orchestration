@@ -16,6 +16,15 @@ import java.time.LocalDateTime;
  * @description : 岗位数据库实体，对应 sys_post 表
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysPostDO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Sys Post 数据库实体，位于 component-library/component-db 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 @TableName("sys_post")
 public class SysPostDO {

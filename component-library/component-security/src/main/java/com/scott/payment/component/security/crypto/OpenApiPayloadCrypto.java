@@ -32,9 +32,13 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * OpenAPI 报文混合加密组件，负责 RSA-OAEP-SHA256 包裹 AES-256-GCM 会话密钥。
- * <p>
- * 该组件只处理加解密和 JCA 密钥解析，PEM 展示格式统一委托 {@link OpenApiPemUtils}。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiPayloadCrypto
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : OpenAPI 报文混合加密组件，负责 RSA-OAEP-SHA256 包裹 AES-256-GCM 会话密钥。 <p> 该组件只处理加解密和 JCA 密钥解析，PEM 展示格式统一委托 {@link OpenApiPemUtils}。
+ * @status : create
  */
 public class OpenApiPayloadCrypto {
 
@@ -108,6 +112,12 @@ public class OpenApiPayloadCrypto {
      * @param recipientPublicKey 接收方 RSA 公钥，请求时为商户独立平台公钥，响应时为商户响应公钥
      * @return compact 密文报文
      */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param plainText 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param recipientPublicKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String encrypt(String plainText, PublicKey recipientPublicKey) {
         Objects.requireNonNull(plainText, "plainText can not be null");
         Objects.requireNonNull(recipientPublicKey, "recipientPublicKey can not be null");
@@ -135,6 +145,12 @@ public class OpenApiPayloadCrypto {
      * @param compactPayload compact 密文报文
      * @param privateKey     按 merchantId 查询到的平台 RSA 私钥或商户响应 RSA 私钥
      * @return 业务 JSON 明文
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param compactPayload 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param privateKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String decrypt(String compactPayload, PrivateKey privateKey) {
         if (!StringUtils.hasText(compactPayload)) {
@@ -166,6 +182,13 @@ public class OpenApiPayloadCrypto {
      * @param privateKeyResolver 历史按密钥编号查私钥的函数，当前只用于返回调用方已经选定的私钥
      * @return 业务 JSON 明文
      */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param compactPayload 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Function<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param privateKeyResolver 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Deprecated
     public String decrypt(String compactPayload, Function<String, PrivateKey> privateKeyResolver) {
         Objects.requireNonNull(privateKeyResolver, "privateKeyResolver can not be null");
@@ -177,6 +200,11 @@ public class OpenApiPayloadCrypto {
      *
      * @param publicKeyBase64 公钥 Base64 或 PEM 文本
      * @return RSA 公钥
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param publicKeyBase64 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public PublicKey readPublicKey(String publicKeyBase64) {
         try {
@@ -192,6 +220,11 @@ public class OpenApiPayloadCrypto {
      *
      * @param privateKeyBase64 私钥 Base64 或 PEM 文本
      * @return RSA 私钥
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param privateKeyBase64 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public PrivateKey readPrivateKey(String privateKeyBase64) {
         try {
@@ -209,6 +242,11 @@ public class OpenApiPayloadCrypto {
      *
      * @param keySize RSA 密钥长度，当前建议不低于 2048 bit
      * @return RSA 密钥对
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param keySize 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public KeyPair generateRsaKeyPair(int keySize) {
         try {
@@ -229,6 +267,11 @@ public class OpenApiPayloadCrypto {
      * @param publicKeyBase64 X.509 DER Base64 公钥
      * @return X.509 PEM 公钥
      */
+    /**
+     * 转换商户 OpenAPI数据结构，避免数据库实体直接暴露到外部接口。
+     * @param publicKeyBase64 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String toPublicKeyPem(String publicKeyBase64) {
         return OpenApiPemUtils.toPublicKeyPem(publicKeyBase64);
     }
@@ -238,6 +281,11 @@ public class OpenApiPayloadCrypto {
      *
      * @param privateKeyBase64 PKCS#8 DER Base64 私钥
      * @return PKCS#8 PEM 私钥
+     */
+    /**
+     * 转换商户 OpenAPI数据结构，避免数据库实体直接暴露到外部接口。
+     * @param privateKeyBase64 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String toPrivateKeyPem(String privateKeyBase64) {
         return OpenApiPemUtils.toPrivateKeyPem(privateKeyBase64);

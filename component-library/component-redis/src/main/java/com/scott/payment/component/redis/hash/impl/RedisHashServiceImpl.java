@@ -25,6 +25,15 @@ import java.util.stream.Collectors;
  * @description : Redis Hash 数据结构服务实现
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisHashServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Redis Hash Service Impl，位于 component-library/component-redis 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 @ConditionalOnBean(RedisTemplate.class)
 public class RedisHashServiceImpl implements RedisHashService {
@@ -50,6 +59,12 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param hashKey Hash 字段
      * @param value   Hash 值
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param hashKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void put(String key, String hashKey, Object value) {
         RedisKeySupport.requireKey(key);
@@ -66,6 +81,14 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param ttl     过期时间
      * @return 是否设置过期成功
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param hashKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param ttl 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public boolean put(String key, String hashKey, Object value, Duration ttl) {
         put(key, hashKey, value);
@@ -77,6 +100,12 @@ public class RedisHashServiceImpl implements RedisHashService {
      *
      * @param key    Redis Key
      * @param values Hash 字段和值
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param values 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void putAll(String key, Map<String, ?> values) {
@@ -95,6 +124,14 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param ttl    过期时间
      * @return 是否设置过期成功
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param values 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param ttl 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public boolean putAll(String key, Map<String, ?> values, Duration ttl) {
         putAll(key, values);
@@ -107,6 +144,12 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param key     Redis Key
      * @param hashKey Hash 字段
      * @return Hash 字段值；不存在时返回 null
+     */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param hashKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public Object get(String key, String hashKey) {
@@ -124,6 +167,13 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param type    目标类型
      * @param <T>     目标类型泛型
      * @return Hash 字段值；不存在时返回 null
+     */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param hashKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param type 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public <T> T get(String key, String hashKey, Class<T> type) {
@@ -143,6 +193,11 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param key Redis Key
      * @return Hash 字段和值
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Map<String, Object> entries(String key) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -160,6 +215,11 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param key Redis Key
      * @return Hash 字段名集合
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public Set<String> keys(String key) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -176,6 +236,11 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param key Redis Key
      * @return Hash 字段值列表
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<Object> values(String key) {
         if (!RedisKeySupport.hasKey(key)) {
@@ -191,6 +256,12 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param hashKey Hash 字段
      * @return 是否存在
      */
+    /**
+     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param hashKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public boolean hasHashKey(String key, String hashKey) {
         return RedisKeySupport.hasKey(key)
@@ -204,6 +275,12 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param key      Redis Key
      * @param hashKeys Hash 字段
      * @return 删除字段数量
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param hashKeys 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long deleteFields(String key, String... hashKeys) {
@@ -219,6 +296,11 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param key Redis Key
      * @return 是否删除成功
      */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public boolean delete(String key) {
         return RedisKeySupport.hasKey(key) && Boolean.TRUE.equals(redisTemplate.delete(key));
@@ -231,6 +313,13 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param hashKey Hash 字段
      * @param delta   增量
      * @return 递增后的值
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param hashKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param delta 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long increment(String key, String hashKey, long delta) {
@@ -246,6 +335,12 @@ public class RedisHashServiceImpl implements RedisHashService {
      * @param ttl 过期时间
      * @return 是否设置成功
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param ttl 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public boolean expire(String key, Duration ttl) {
         RedisKeySupport.requireKey(key);
@@ -258,6 +353,11 @@ public class RedisHashServiceImpl implements RedisHashService {
      *
      * @param key Redis Key
      * @return 剩余过期秒数；-1 表示不过期；-2 表示 Key 不存在
+     */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long getExpireSeconds(String key) {

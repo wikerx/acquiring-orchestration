@@ -34,10 +34,22 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @description : 管理后台角色管理控制器
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminRoleController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Admin Role 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/admin/system/roles")
 public class AdminRoleController {
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminRoleApplicationService adminRoleApplicationService;
 
     /**
@@ -72,6 +84,11 @@ public class AdminRoleController {
     @RequiresPermission("system:role:add")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.CREATE,
             operation = "新增后台角色", recordRequest = false, recordResponse = false)
+    /**
+     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<SysRoleDTO> createRole(@Valid @RequestBody SysRoleCreateRequest request) {
         return success(adminRoleApplicationService.createRole(request));
     }
@@ -86,6 +103,11 @@ public class AdminRoleController {
     @RequiresPermission("system:role:edit")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "编辑后台角色", recordRequest = false, recordResponse = false)
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<SysRoleDTO> updateRole(@Valid @RequestBody SysRoleUpdateRequest request) {
         return success(adminRoleApplicationService.updateRole(request));
     }
@@ -100,6 +122,11 @@ public class AdminRoleController {
     @RequiresPermission("system:role:edit")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "更新后台角色状态", recordRequest = false, recordResponse = false)
+    /**
+     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<Void> updateStatus(@Valid @RequestBody SysRoleStatusRequest request) {
         adminRoleApplicationService.updateStatus(request);
         return success();
@@ -115,6 +142,11 @@ public class AdminRoleController {
     @RequiresPermission("system:role:delete")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.DELETE,
             operation = "删除后台角色", recordRequest = false, recordResponse = false)
+    /**
+     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<Void> deleteRole(@Valid @RequestBody SysRoleDeleteRequest request) {
         adminRoleApplicationService.deleteRole(request.getRoleId());
         return success();
@@ -130,6 +162,11 @@ public class AdminRoleController {
     @RequiresPermission("system:role:assign-menu")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询角色菜单授权")
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<SysRoleMenuAuthDTO> roleMenus(@Valid @RequestBody SysRoleDeleteRequest request) {
         return success(adminRoleApplicationService.roleMenus(request.getRoleId()));
     }
@@ -144,6 +181,11 @@ public class AdminRoleController {
     @RequiresPermission("system:role:assign-menu")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "保存角色菜单授权", recordRequest = false, recordResponse = false)
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<Void> grantMenus(@Valid @RequestBody SysRoleMenuGrantRequest request) {
         adminRoleApplicationService.grantMenus(request);
         return success();
@@ -159,6 +201,11 @@ public class AdminRoleController {
     @RequiresPermission("system:role:assign-permission")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询角色权限授权")
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<SysRolePermissionAuthDTO> rolePermissions(@Valid @RequestBody SysRoleDeleteRequest request) {
         return success(adminRoleApplicationService.rolePermissions(request.getRoleId()));
     }
@@ -173,6 +220,11 @@ public class AdminRoleController {
     @RequiresPermission("system:role:assign-permission")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "保存角色权限授权", recordRequest = false, recordResponse = false)
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<Void> grantPermissions(@Valid @RequestBody SysRolePermissionGrantRequest request) {
         adminRoleApplicationService.grantPermissions(request);
         return success();

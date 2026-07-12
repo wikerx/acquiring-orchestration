@@ -17,15 +17,25 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 分表物理表预创建应用服务。
- *
- * <p>负责把管理后台内部请求转换为任务执行上下文，确保手动治理入口和定时任务复用同一套建表规则。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTablePreCreateApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Table Pre Create Application 服务契约，位于 service-job 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class ShardingTablePreCreateApplicationService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String MANUAL_RUN_PREFIX = "sharding-manual-";
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingTablePreCreateService shardingTablePreCreateService;
 
     /**
@@ -43,6 +53,12 @@ public class ShardingTablePreCreateApplicationService {
      * @param request 内部请求
      * @param dryRun  是否只预演
      * @return 建表处理结果
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param dryRun 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingTablePreCreateResult preCreate(ShardingTablePreCreateInternalRequest request, boolean dryRun) {
         ShardingTablePreCreateInternalRequest safeRequest = request == null ? new ShardingTablePreCreateInternalRequest() : request;

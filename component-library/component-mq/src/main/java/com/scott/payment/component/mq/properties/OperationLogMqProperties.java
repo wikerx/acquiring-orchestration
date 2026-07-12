@@ -12,6 +12,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @description : 操作日志 RocketMQ 配置属性
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OperationLogMqProperties
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Operation Log Mq 配置属性，位于 component-library/component-mq 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 @ConfigurationProperties(prefix = "acquiring.operation-log.mq")
 public class OperationLogMqProperties {

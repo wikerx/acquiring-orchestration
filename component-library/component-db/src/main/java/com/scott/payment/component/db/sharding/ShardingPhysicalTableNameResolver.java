@@ -7,10 +7,13 @@ import org.springframework.stereotype.Component;
 import java.util.regex.Pattern;
 
 /**
- * 分表物理表名解析器。
- *
- * <p>所有进入 DDL 的表名必须先通过该类校验，只允许字母、数字和下划线，
- * 禁止把未校验的用户输入拼入 SQL。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingPhysicalTableNameResolver
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Physical Table Name Resolver，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Component
 public class ShardingPhysicalTableNameResolver {
@@ -23,6 +26,12 @@ public class ShardingPhysicalTableNameResolver {
      * @param rule    单表分表规则
      * @param quarter 目标季度
      * @return 安全物理表名
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param quarter 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String physicalTableName(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
         if (rule == null) {
@@ -46,6 +55,11 @@ public class ShardingPhysicalTableNameResolver {
      * @param rule 单表分表规则
      * @return 安全模板表名
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String templateTableName(PaymentQuarterShardingProperties.TableRule rule) {
         if (rule == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding table rule is required");
@@ -63,6 +77,11 @@ public class ShardingPhysicalTableNameResolver {
      * @param rule 单表分表规则
      * @return 安全字段名
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String idColumnName(PaymentQuarterShardingProperties.TableRule rule) {
         String idColumn = rule == null ? null : rule.getIdColumn();
         if (idColumn == null || idColumn.isBlank()) {
@@ -77,6 +96,12 @@ public class ShardingPhysicalTableNameResolver {
      * @param value 标识符值
      * @param label 错误提示标签
      * @return 原始标识符
+     */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param label 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String requireSafeIdentifier(String value, String label) {
         if (value == null || value.isBlank()) {

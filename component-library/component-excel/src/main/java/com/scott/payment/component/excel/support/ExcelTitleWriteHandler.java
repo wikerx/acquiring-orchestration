@@ -58,12 +58,19 @@ public class ExcelTitleWriteHandler implements SheetWriteHandler {
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final String title;
+
     private final String operator;
+
     private final LocalDateTime exportTime;
+
     private final String querySummary;
+
     private final int columnSize;
+
     private final ExcelI18nMessageResolver messageResolver;
+
     private final Locale locale;
+
     private boolean initialized;
 
     /**
@@ -93,6 +100,12 @@ public class ExcelTitleWriteHandler implements SheetWriteHandler {
         this.locale = locale;
     }
 
+    /**
+     * 在 sheet 创建后写入标题和导出元信息。
+     *
+     * @param writeWorkbookHolder 当前工作簿上下文
+     * @param writeSheetHolder    当前 sheet 上下文
+     */
     @Override
     public void afterSheetCreate(WriteWorkbookHolder writeWorkbookHolder,
                                  WriteSheetHolder writeSheetHolder) {

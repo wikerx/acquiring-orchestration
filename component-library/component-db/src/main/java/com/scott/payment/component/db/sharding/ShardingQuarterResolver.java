@@ -11,10 +11,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 季度分表时间解析器。
- *
- * <p>所有季度计算均使用 {@code global-payment.sharding.database-timezone}，
- * 避免服务 JVM 时区差异导致物理表路由不一致。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingQuarterResolver
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Quarter Resolver，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Component
 public class ShardingQuarterResolver {
@@ -24,6 +27,11 @@ public class ShardingQuarterResolver {
      *
      * @param properties 分表配置
      * @return 当前季度
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingQuarter currentQuarter(PaymentQuarterShardingProperties properties) {
         ZoneId zoneId = zoneId(properties);
@@ -36,6 +44,11 @@ public class ShardingQuarterResolver {
      *
      * @param transactionDateTime 交易时间
      * @return 所属季度
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingQuarter fromDateTime(LocalDateTime transactionDateTime) {
         if (transactionDateTime == null) {
@@ -50,6 +63,11 @@ public class ShardingQuarterResolver {
      *
      * @param rule 单表分表规则
      * @return 季度列表
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public List<ShardingQuarter> quartersInRange(PaymentQuarterShardingProperties.TableRule rule) {
         ShardingQuarter start = startQuarter(rule);
@@ -73,6 +91,12 @@ public class ShardingQuarterResolver {
      * @param quarter 目标季度
      * @return true 表示在范围内
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param quarter 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public boolean inRange(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
         if (quarter == null) {
             return false;
@@ -85,6 +109,11 @@ public class ShardingQuarterResolver {
      *
      * @param properties 分表配置
      * @return 时区
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public ZoneId zoneId(PaymentQuarterShardingProperties properties) {
         String timezone = properties == null ? null : properties.getDatabaseTimezone();
@@ -104,6 +133,11 @@ public class ShardingQuarterResolver {
      * @param rule 单表分表规则
      * @return 起始季度
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public ShardingQuarter startQuarter(PaymentQuarterShardingProperties.TableRule rule) {
         validateRuleQuarter(rule == null ? null : rule.getStartYear(), rule == null ? null : rule.getStartQuarter(), "start");
         return new ShardingQuarter(rule.getStartYear(), rule.getStartQuarter());
@@ -114,6 +148,11 @@ public class ShardingQuarterResolver {
      *
      * @param rule 单表分表规则
      * @return 结束季度
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingQuarter endQuarter(PaymentQuarterShardingProperties.TableRule rule) {
         validateRuleQuarter(rule == null ? null : rule.getEndYear(), rule == null ? null : rule.getEndQuarter(), "end");

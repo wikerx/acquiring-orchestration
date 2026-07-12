@@ -35,20 +35,48 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * 分表物理表预创建服务实现。
- *
- * <p>该服务只处理分表治理测试表的物理表创建和登记，不接入真实支付交易写入链路。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTablePreCreateServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Table Pre Create Service Impl，位于 service-job 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreateService {
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final PaymentQuarterShardingProperties shardingProperties;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingQuarterResolver quarterResolver;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingPhysicalTableNameResolver tableNameResolver;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingAutoIncrementValueCalculator autoIncrementValueCalculator;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingTableSchemaInspector schemaInspector;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingTableDdlService ddlService;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysShardingPhysicalTableMapper physicalTableMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysShardingTableCreateLogMapper createLogMapper;
 
     /**
@@ -87,6 +115,12 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
      * @param request 任务参数
      * @param context 任务执行上下文
      * @return 预创建结果
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public ShardingTablePreCreateResult preCreate(ShardingTablePreCreateRequest request, JobExecuteContext context) {

@@ -24,12 +24,26 @@ import java.util.Set;
  * @description : 管理后台 Redis 缓存监控应用服务
  * @status : create
  */
-
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMonitorCacheApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 监控治理Admin Monitor Cache Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminMonitorCacheApplicationService {
 
+    /**
+     * 监控治理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int MAX_SCAN_KEYS = 1000;
 
+    /**
+     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final StringRedisTemplate stringRedisTemplate;
 
     /**
@@ -45,6 +59,10 @@ public class AdminMonitorCacheApplicationService {
      * 查询 Redis 运行信息。
      *
      * @return Redis 连接状态与运行信息
+     */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public Map<String, Object> info() {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -74,6 +92,13 @@ public class AdminMonitorCacheApplicationService {
      * @param pageSize   每页大小
      * @return Key 列表与分页摘要
      */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @param keyPattern 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public Map<String, Object> keys(String keyPattern, int pageNo, int pageSize) {
         String pattern = StringUtils.hasText(keyPattern) ? keyPattern.trim() : "*";
         List<String> keys = scanKeys(pattern);
@@ -98,6 +123,11 @@ public class AdminMonitorCacheApplicationService {
      * @param key Redis Key
      * @return Key 详情
      */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public Map<String, Object> value(String key) {
         Map<String, Object> result = toKeyRow(key);
         result.put("value", readValue(key));
@@ -109,6 +139,11 @@ public class AdminMonitorCacheApplicationService {
      *
      * @param key Redis Key
      * @return 是否删除成功
+     */
+    /**
+     * 删除监控治理数据，按业务规则处理引用校验和删除边界。
+     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public boolean delete(String key) {
         if (stringRedisTemplate == null || !StringUtils.hasText(key)) {

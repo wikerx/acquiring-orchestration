@@ -48,6 +48,16 @@ public class ExcelColumnWidthWriteHandler extends AbstractColumnWidthStyleStrate
         }
     }
 
+    /**
+     * 根据列定义和单元格内容动态调整列宽。
+     *
+     * @param writeSheetHolder 当前 sheet 写入上下文
+     * @param cellDataList 单元格写入数据
+     * @param cell 当前单元格
+     * @param head 表头定义
+     * @param relativeRowIndex 相对行号
+     * @param isHead 是否表头
+     */
     @Override
     protected void setColumnWidth(WriteSheetHolder writeSheetHolder,
                                   List<WriteCellData<?>> cellDataList,

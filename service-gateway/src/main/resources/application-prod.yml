@@ -12,8 +12,9 @@ spring:
       discovery:
         server-addr: ${NACOS_SERVER:nacos-prod:8848}
         namespace: ${NACOS_NAMESPACE:prod}
-        username: ${NACOS_USERNAME:nacos}
-        password: ${NACOS_PASSWORD:nacos}
+        # UAT/生产环境不得保留 Nacos 默认账号密码，必须由环境变量、K8s Secret 或 CI/CD Secret 注入。
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
         register-enabled: true
       config:
         server-addr: ${NACOS_SERVER:nacos-prod:8848}

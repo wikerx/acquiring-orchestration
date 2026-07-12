@@ -16,7 +16,13 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * 全系统统一唯一标识生成器自动配置。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisGlobalIdAutoConfiguration
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Redis Global Id Auto Configuration，位于 component-library/component-redis 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @AutoConfiguration
 @EnableConfigurationProperties(RedisGlobalIdProperties.class)
@@ -30,6 +36,12 @@ public class RedisGlobalIdAutoConfiguration {
      * @param environment Spring 环境
      * @return 配置校验标记 Bean
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param environment 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Bean
     public GlobalIdModeGuard globalIdModeGuard(RedisGlobalIdProperties properties, Environment environment) {
         validateMode(properties, environment);
@@ -41,6 +53,11 @@ public class RedisGlobalIdAutoConfiguration {
      *
      * @param stringRedisTemplate Spring 字符串 Redis 模板
      * @return Redis Server Time 提供器
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param stringRedisTemplate 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     @ConditionalOnMissingBean
@@ -57,6 +74,13 @@ public class RedisGlobalIdAutoConfiguration {
      * @param properties              Redis 全局编号配置
      * @return Redis 全局唯一标识生成器
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param stringRedisTemplate 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param redisServerTimeProvider 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Bean
     @ConditionalOnMissingBean(GlobalIdGenerator.class)
     @ConditionalOnProperty(prefix = "payment.global-id", name = "mode", havingValue = "redis", matchIfMissing = true)
@@ -72,6 +96,12 @@ public class RedisGlobalIdAutoConfiguration {
      * @param properties  Redis 全局编号配置
      * @param environment Spring 环境
      * @return 本地全局唯一标识生成器
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param environment 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     @ConditionalOnMissingBean(GlobalIdGenerator.class)

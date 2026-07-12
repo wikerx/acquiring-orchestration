@@ -6,27 +6,91 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 管理后台用户账号响应 DTO。
- *
- * <p>用于用户列表、详情和导出场景，聚合账号、自然人资料、部门和岗位摘要。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysUserAccountDTO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 后台用户账号展示 DTO，位于 service-admin 接口传输层；用于用户列表、详情和导出展示，不返回密码、盐等敏感字段。
+ * @status : create
  */
 @Data
 public class SysUserAccountDTO {
 
+    /**
+     * 账号ID。
+     */
     private Long accountId;
+    /**
+     * 用户主体ID。
+     */
     private Long userId;
+    /**
+     * 所属部门ID。
+     */
     private Long deptId;
+    /**
+     * 所属部门名称。
+     */
     private String deptName;
+    /**
+     * 所属岗位ID集合。
+     */
     private List<Long> postIds;
+    /**
+     * 所属岗位名称集合。
+     */
     private List<String> postNames;
+    /**
+     * 已绑定角色ID集合。
+     */
+    private List<Long> roleIds;
+    /**
+     * 已绑定角色名称集合。
+     */
+    private List<String> roleNames;
+    /**
+     * 登录账号。
+     */
     private String loginAccount;
+    /**
+     * 用户真实姓名。
+     */
     private String realName;
+    /**
+     * 手机号。
+     */
     private String mobile;
+    /**
+     * 邮箱。
+     */
     private String email;
+    /**
+     * 用户类型。
+     */
     private String userType;
+    /**
+     * 账号状态：1启用，0停用。
+     */
     private Integer status;
+    /**
+     * 是否锁定：1锁定，0未锁定。
+     */
     private Integer locked;
+    /**
+     * 最后登录时间。
+     */
     private LocalDateTime lastLoginAt;
+    /**
+     * 最后登录IP。
+     */
     private String lastLoginIp;
+    /**
+     * 备注。
+     */
+    private String remark;
+    /**
+     * 创建时间。
+     */
     private LocalDateTime createdAt;
 }

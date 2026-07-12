@@ -12,14 +12,21 @@ import org.springframework.web.bind.annotation.RestController;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * 分表治理内部接口。
- *
- * <p>该入口仅供管理后台通过内部鉴权链路调用，真实 DDL 执行仍由 service-job 统一编排和记录。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTableInternalController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Table Internal 管理接口，位于 service-job 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/internal/job/sharding")
 public class ShardingTableInternalController {
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingTablePreCreateApplicationService shardingTablePreCreateApplicationService;
 
     /**

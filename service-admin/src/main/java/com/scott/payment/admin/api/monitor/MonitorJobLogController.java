@@ -29,11 +29,22 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @description : 管理后台任务执行日志控制器
  * @status : create
  */
-
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MonitorJobLogController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 监控治理Monitor Job Log 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/admin/monitor/job-log")
 public class MonitorJobLogController {
 
+    /**
+     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminJobSchedulerApplicationService adminJobSchedulerApplicationService;
 
     /**
@@ -77,6 +88,11 @@ public class MonitorJobLogController {
      *
      * @param id 日志主键
      * @return 空响应
+     */
+    /**
+     * 删除监控治理数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/{id}")
     @RequiresPermission("monitor:jobLog:remove")

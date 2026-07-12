@@ -19,6 +19,15 @@ import org.springframework.util.StringUtils;
  * @description : 开放接口密文数据解密与转换器
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiPayloadDecoder
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIOpen Api Payload Decoder，位于 service-openapi 的支撑组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Component
 public class OpenApiPayloadDecoder {
 
@@ -50,6 +59,13 @@ public class OpenApiPayloadDecoder {
      * @param dataReceiver 解密后接收 DTO 类型
      * @param headerDTO    已通过验证的请求头信息
      * @return 解密后的 DTO 对象
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param requestBody 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param dataReceiver 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param headerDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public Object decode(String requestBody, Class<?> dataReceiver, OpenApiRequestHeaderDTO headerDTO) {
         if (!StringUtils.hasText(requestBody)) {

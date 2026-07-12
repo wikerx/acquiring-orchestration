@@ -51,6 +51,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @description : OpenAPI 商户密钥 MySQL 存储、MyBatisPlus 查询和加密接口调用集成测试
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantSecurityDatabaseFlowTests
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIMerchant Security Database Flow Tests，位于 service-openapi 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Slf4j
 @AutoConfigureMockMvc
 @ActiveProfiles("mysql-test")

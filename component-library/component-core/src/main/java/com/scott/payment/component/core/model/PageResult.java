@@ -15,6 +15,15 @@ import java.util.List;
  * @description : 分页响应结果模型
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PageResult
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Page Result，位于 component-library/component-core 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 public class PageResult<T> implements Serializable {
 
@@ -57,6 +66,14 @@ public class PageResult<T> implements Serializable {
      * @param records  当前页记录
      * @param <T>      记录类型
      * @return 分页响应
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param total 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param records 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static <T> PageResult<T> of(long total, long pageNo, long pageSize, List<T> records) {
         PageResult<T> result = new PageResult<>();

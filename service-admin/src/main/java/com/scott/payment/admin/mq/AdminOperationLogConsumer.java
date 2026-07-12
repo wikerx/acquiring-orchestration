@@ -34,6 +34,15 @@ import org.springframework.stereotype.Component;
         consumerGroup = AdminOperationLogMqConstants.ADMIN_OPERATION_LOG_CONSUMER_GROUP,
         messageModel = MessageModel.CLUSTERING
 )
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminOperationLogConsumer
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Operation Log Consumer，位于 service-admin 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 public class AdminOperationLogConsumer implements RocketMQListener<String> {
 
     /**
@@ -50,26 +59,37 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
      * 操作日志 MQ 配置。
      */
     private final OperationLogMqProperties properties;
+    /**
+     * 操作日志 MQ 消息转换器。
+     */
+    private final OperLogMessageConverter operLogMessageConverter;
 
     /**
      * 创建后台操作日志消费者。
      *
      * @param adminOperLogService 操作日志领域服务
-     * @param idempotentService Redis 幂等服务
-     * @param properties 操作日志 MQ 配置
+     * @param idempotentService   Redis 幂等服务
+     * @param properties          操作日志 MQ 配置
+     * @param operLogMessageConverter 操作日志 MQ 消息转换器
      */
     public AdminOperationLogConsumer(AdminOperLogService adminOperLogService,
                                      IdempotentService idempotentService,
-                                     OperationLogMqProperties properties) {
+                                     OperationLogMqProperties properties,
+                                     OperLogMessageConverter operLogMessageConverter) {
         this.adminOperLogService = adminOperLogService;
         this.idempotentService = idempotentService;
         this.properties = properties;
+        this.operLogMessageConverter = operLogMessageConverter;
     }
 
     /**
      * 消费后台操作日志消息。
      *
      * @param payload 操作日志消息 JSON 字符串
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param payload 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void onMessage(String payload) {
@@ -85,7 +105,7 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
                     message.getIdempotentKey());
             return;
         }
-        SysOperLogRecordRequest request = OperLogMessageConverter.INSTANCE.toRecordRequest(message);
+        SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
         adminOperLogService.recordOperLog(request);
     }
 }

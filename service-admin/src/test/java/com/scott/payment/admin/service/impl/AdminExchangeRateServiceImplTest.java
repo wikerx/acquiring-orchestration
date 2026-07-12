@@ -8,7 +8,13 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 管理后台汇率规则计算测试。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminExchangeRateServiceImplTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Exchange Rate Service Impl Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 class AdminExchangeRateServiceImplTest {
 

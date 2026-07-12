@@ -6,9 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 分表物理表预创建任务结果。
- *
- * <p>结果会写入分表建表任务日志，并作为任务中心运行结果返回。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTablePreCreateResult
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Table Pre Create Result，位于 service-job 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 public class ShardingTablePreCreateResult {

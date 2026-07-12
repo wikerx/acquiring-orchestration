@@ -19,6 +19,15 @@ import java.util.Objects;
  * @description : 对外 API 通用响应结果
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : CommonResult
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Common Result，位于 component-library/component-core 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 public class CommonResult<T> implements Serializable {
 
@@ -49,6 +58,11 @@ public class CommonResult<T> implements Serializable {
      * @param <T>  响应数据类型
      * @return 成功响应
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param data 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static <T> CommonResult<T> success(T data) {
         return success(ApiResultEnum.SUCCESS, data);
     }
@@ -60,6 +74,12 @@ public class CommonResult<T> implements Serializable {
      * @param data   响应数据
      * @param <T>    响应数据类型
      * @return 成功响应
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param result 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param data 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static <T> CommonResult<T> success(IResult result, T data) {
         return success(result.getCode(), result.getMessage(), data);
@@ -73,6 +93,13 @@ public class CommonResult<T> implements Serializable {
      * @param data    响应数据
      * @param <T>     响应数据类型
      * @return 成功响应
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param code 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param message 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param data 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static <T> CommonResult<T> success(String code, String message, T data) {
         CommonResult<T> result = new CommonResult<>();
@@ -88,6 +115,10 @@ public class CommonResult<T> implements Serializable {
      * @param <T> 响应数据类型
      * @return 成功响应
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static <T> CommonResult<T> success() {
         CommonResult<T> result = new CommonResult<>();
         result.setCode(ApiResultEnum.SUCCESS.getCode());
@@ -101,6 +132,11 @@ public class CommonResult<T> implements Serializable {
      * @param resultEnum 业务结果枚举
      * @param <T>        响应数据类型
      * @return 成功响应
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param resultEnum 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static <T> CommonResult<T> success(IResult resultEnum) {
         CommonResult<T> result = new CommonResult<>();
@@ -116,6 +152,11 @@ public class CommonResult<T> implements Serializable {
      * @param <T>    新响应数据类型
      * @return 错误响应
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param result 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static <T> CommonResult<T> error(CommonResult<?> result) {
         return error(result.getCode(), result.getMessage());
     }
@@ -126,6 +167,11 @@ public class CommonResult<T> implements Serializable {
      * @param resultEnum 业务结果枚举
      * @param <T>        响应数据类型
      * @return 错误响应
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param resultEnum 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static <T> CommonResult<T> error(IResult resultEnum) {
         return error(resultEnum.getCode(), resultEnum.getMessage());
@@ -138,6 +184,12 @@ public class CommonResult<T> implements Serializable {
      * @param message 错误说明
      * @param <T>     响应数据类型
      * @return 错误响应
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param code 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param message 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static <T> CommonResult<T> error(String code, String message) {
         if (ErrorCode.SUCCESS.equals(code) || ApiResultEnum.SUCCESS.getCode().equals(code)) {
@@ -156,6 +208,11 @@ public class CommonResult<T> implements Serializable {
      * @param <T>       响应数据类型
      * @return 错误响应
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static <T> CommonResult<T> error(BizException exception) {
         return error(exception.getCode(), exception.getMessage());
     }
@@ -167,6 +224,11 @@ public class CommonResult<T> implements Serializable {
      * @param <T>       响应数据类型
      * @return 错误响应
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static <T> CommonResult<T> error(ServiceException exception) {
         return error(exception.getCode(), exception.getMessage());
     }
@@ -177,6 +239,11 @@ public class CommonResult<T> implements Serializable {
      * @param result 响应对象
      * @return true 表示响应成功且存在数据
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param result 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static boolean resultNonNull(CommonResult<?> result) {
         return isSuccess(result) && Objects.nonNull(result.getData());
     }
@@ -186,6 +253,11 @@ public class CommonResult<T> implements Serializable {
      *
      * @param result 响应对象
      * @return true 表示响应码为系统成功码
+     */
+    /**
+     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
+     * @param result 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static boolean isSuccess(CommonResult<?> result) {
         return Objects.nonNull(result)

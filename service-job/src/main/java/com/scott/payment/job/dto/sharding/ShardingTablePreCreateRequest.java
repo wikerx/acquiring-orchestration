@@ -6,9 +6,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 分表物理表预创建任务参数。
- *
- * <p>参数来源于任务中心 JSON 参数。{@code dryRun=true} 时只输出计划和检查结果，不执行 DDL。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTablePreCreateRequest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Table Pre Create 请求对象，位于 service-job 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 public class ShardingTablePreCreateRequest {

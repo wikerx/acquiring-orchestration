@@ -3,6 +3,9 @@ package com.scott.payment.component.db.auth.dto;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * @author : scott
@@ -11,6 +14,15 @@ import java.io.Serializable;
  * @date : 2026-06-06 00:00
  * @email : scott_x@163.com
  * @description : 登录账号基础响应
+ * @status : create
+ */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AuthAccountDTO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Auth Account 数据传输对象，位于 component-library/component-db 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
  * @status : create
  */
 @Data
@@ -50,6 +62,26 @@ public class AuthAccountDTO implements Serializable {
      * 用户姓名。
      */
     private String realName;
+
+    /**
+     * 用户信息表手机号，用于个人中心资料展示。
+     */
+    private String mobile;
+
+    /**
+     * 用户信息表邮箱，用于个人中心资料展示。
+     */
+    private String email;
+
+    /**
+     * 当前账号角色名称集合，仅用于页面展示，权限判断仍使用登录响应 roles 中的角色编码。
+     */
+    private List<String> roleNames = Collections.emptyList();
+
+    /**
+     * 用户主体创建时间。
+     */
+    private LocalDateTime createdAt;
 
     /**
      * 商户号。

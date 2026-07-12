@@ -10,10 +10,13 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * 数据源监控静态配置快照。
- *
- * <p>该模型只用于读取当前环境下的动态数据源配置，帮助监控页展示默认数据源、
- * 严格模式、读写分组策略和静态 JDBC 声明，不参与真实数据源装配流程。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MonitorDynamicDataSourceProperties
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Monitor Dynamic Data Source 配置属性，位于 service-admin 的配置层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 @Component

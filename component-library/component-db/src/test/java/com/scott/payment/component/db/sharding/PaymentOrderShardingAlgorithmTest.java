@@ -10,10 +10,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 季度分表算法测试。
- *
- * <p>验证 {@code transaction_date_time} 路由、yyyyQQ 物理表命名、起止季度范围
- * 以及配置 key 与 logical-table 不一致时的匹配能力。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentOrderShardingAlgorithmTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 季度分表算法测试。 <p>验证 {@code transaction_date_time} 路由、yyyyQQ 物理表命名、起止季度范围 以及配置 key 与 logical-table 不一致时的匹配能力。</p>
+ * @status : create
  */
 class PaymentOrderShardingAlgorithmTest {
 

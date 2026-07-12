@@ -15,7 +15,15 @@ import lombok.NoArgsConstructor;
  * @description : 任务处理器注册描述对象
  * @status : create
  */
-
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobHandlerDescriptor
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Job Handler Descriptor，位于 component-library/component-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 @Builder
 @NoArgsConstructor
@@ -66,6 +74,14 @@ public class JobHandlerDescriptor {
      * @param description 说明
      * @return 处理器描述
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param handlerCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param handlerName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param jobGroup 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param description 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static JobHandlerDescriptor sync(String handlerCode, String handlerName, String jobGroup, String description) {
         return JobHandlerDescriptor.builder()
                 .handlerCode(handlerCode)
@@ -86,6 +102,14 @@ public class JobHandlerDescriptor {
      * @param jobGroup    业务分组
      * @param description 说明
      * @return 处理器描述
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param handlerCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param handlerName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param jobGroup 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param description 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static JobHandlerDescriptor async(String handlerCode, String handlerName, String jobGroup, String description) {
         return JobHandlerDescriptor.builder()

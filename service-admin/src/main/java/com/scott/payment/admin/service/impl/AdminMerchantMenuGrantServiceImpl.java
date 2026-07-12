@@ -38,21 +38,49 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 管理后台商户菜单授权领域服务实现。
- *
- * <p>负责维护平台给单个商户开放的商户端菜单和资源权限范围。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantMenuGrantServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Merchant Menu Grant Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrantService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long ROOT_PARENT_ID = 0L;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String GRANT_SOURCE_ADMIN = "ADMIN";
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMenuMapper sysMenuMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysPermissionMapper sysPermissionMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
 
     /**
@@ -85,6 +113,11 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
      * @param merchantId 商户号
      * @return 授权查询响应
      */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public AdminMerchantMenuGrantQueryResponse queryGrant(String merchantId) {
@@ -110,6 +143,11 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
      *
      * @param merchantId 商户号
      * @param request    保存请求
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @DS(DataSourceName.MASTER)

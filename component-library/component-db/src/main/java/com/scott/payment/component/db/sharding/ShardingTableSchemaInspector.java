@@ -8,15 +8,24 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * 分表物理表结构检查器。
- *
- * <p>该组件只执行只读元数据查询，用于确认模板表、目标表、主键自增字段、
- * 分表字段和 AUTO_INCREMENT 当前值。DDL 操作由 {@link ShardingTableDdlService} 负责。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTableSchemaInspector
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Table Schema Inspector，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Component
 public class ShardingTableSchemaInspector {
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final JdbcTemplate jdbcTemplate;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ShardingPhysicalTableNameResolver tableNameResolver;
 
     /**
@@ -37,6 +46,11 @@ public class ShardingTableSchemaInspector {
      * @param rule 单表分表规则
      * @return 检查结果
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public ShardingTableInspectionResult inspectTemplate(PaymentQuarterShardingProperties.TableRule rule) {
         String templateTable = tableNameResolver.templateTableName(rule);
         String idColumn = tableNameResolver.idColumnName(rule);
@@ -50,6 +64,12 @@ public class ShardingTableSchemaInspector {
      * @param rule          单表分表规则
      * @param physicalTable 目标物理表
      * @return 检查结果
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param physicalTable 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingTableInspectionResult inspectPhysicalTable(PaymentQuarterShardingProperties.TableRule rule,
                                                               String physicalTable) {
@@ -84,6 +104,11 @@ public class ShardingTableSchemaInspector {
      * @param tableName 表名
      * @return true 表示存在
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param tableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public boolean tableExists(String tableName) {
         String safeTableName = tableNameResolver.requireSafeIdentifier(tableName, "table");
         Integer count = jdbcTemplate.queryForObject("""
@@ -100,6 +125,11 @@ public class ShardingTableSchemaInspector {
      *
      * @param tableName 表名
      * @return 当前 AUTO_INCREMENT 值，不存在时返回 null
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param tableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public Long autoIncrementCurrent(String tableName) {
         String safeTableName = tableNameResolver.requireSafeIdentifier(tableName, "table");

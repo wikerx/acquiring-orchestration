@@ -17,6 +17,15 @@ import java.time.LocalDateTime;
  * <p>该消息体仅承载已经脱敏和截断后的审计字段，禁止放入明文卡号、CVV、JWT、
  * 私钥、API Key、完整异常堆栈等敏感信息。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OperationLogMessage
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Operation Log Message，位于 component-library/component-mq 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class OperationLogMessage extends BaseMqMessage {

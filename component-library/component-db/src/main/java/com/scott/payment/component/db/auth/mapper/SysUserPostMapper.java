@@ -5,9 +5,13 @@ import com.scott.payment.component.db.auth.entity.SysUserPostDO;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 用户岗位关联数据访问接口。
- *
- * <p>只负责 {@code sys_user_post} 关系表的基础增删查改，岗位有效性由业务服务校验。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SysUserPostMapper
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理Sys User Post 数据访问 Mapper，位于 component-library/component-db 的数据访问层，用于定义调用契约和职责边界。
+ * @status : create
  */
 @Mapper
 public interface SysUserPostMapper extends BaseMapper<SysUserPostDO> {

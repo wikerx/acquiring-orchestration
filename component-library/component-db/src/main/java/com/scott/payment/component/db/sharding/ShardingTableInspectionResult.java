@@ -3,9 +3,13 @@ package com.scott.payment.component.db.sharding;
 import lombok.Data;
 
 /**
- * 分表物理表结构检查结果。
- *
- * <p>用于 dryRun、建表后复核和管理后台展示，不承载业务交易数据。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ShardingTableInspectionResult
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Sharding Table Inspection Result，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 public class ShardingTableInspectionResult {

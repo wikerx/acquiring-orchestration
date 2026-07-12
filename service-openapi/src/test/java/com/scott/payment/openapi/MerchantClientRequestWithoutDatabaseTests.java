@@ -20,6 +20,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @description : 不连接数据库的商户请求封装测试，使用固定密钥模拟商户加密请求并模拟 OpenAPI 服务端解包
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantClientRequestWithoutDatabaseTests
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIMerchant Client Request Without Database Tests，位于 service-openapi 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Slf4j
 class MerchantClientRequestWithoutDatabaseTests {
 

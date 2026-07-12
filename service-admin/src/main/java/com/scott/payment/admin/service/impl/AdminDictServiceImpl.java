@@ -35,6 +35,15 @@ import java.util.List;
  *
  * <p>该类只负责字典主表和字典项的持久化规则、唯一键约束与软删除处理，不承担权限控制或页面交互逻辑。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminDictServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Dict Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminDictServiceImpl implements AdminDictService {
 
@@ -68,9 +77,24 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     private final SysDictDataMapper dictDataMapper;
 
-    public AdminDictServiceImpl(SysDictTypeMapper dictTypeMapper, SysDictDataMapper dictDataMapper) {
+    /**
+     * 数据字典对象转换器。
+     */
+    private final DictConverter dictConverter;
+
+    /**
+     * 创建数据字典领域服务。
+     *
+     * @param dictTypeMapper 字典类型数据访问组件
+     * @param dictDataMapper 字典项数据访问组件
+     * @param dictConverter  数据字典对象转换器
+     */
+    public AdminDictServiceImpl(SysDictTypeMapper dictTypeMapper,
+                                SysDictDataMapper dictDataMapper,
+                                DictConverter dictConverter) {
         this.dictTypeMapper = dictTypeMapper;
         this.dictDataMapper = dictDataMapper;
+        this.dictConverter = dictConverter;
     }
 
     /**
@@ -78,6 +102,11 @@ public class AdminDictServiceImpl implements AdminDictService {
      *
      * @param request 字典类型保存请求
      * @return 保存后的字典类型
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public SysDictTypeDTO saveDictType(SysDictTypeSaveRequest request) {
@@ -96,7 +125,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         } else {
             dictTypeMapper.updateById(entity);
         }
-        return DictConverter.INSTANCE.toTypeDTO(entity);
+        return dictConverter.toTypeDTO(entity);
     }
 
     /**
@@ -104,6 +133,11 @@ public class AdminDictServiceImpl implements AdminDictService {
      *
      * @param request 查询条件
      * @return 字典类型列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<SysDictTypeDTO> pageDictTypes(SysDictTypeQueryRequest request) {
@@ -116,16 +150,21 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(DictConverter.INSTANCE::toTypeDTO).toList()
+                page.getRecords().stream().map(dictConverter::toTypeDTO).toList()
         );
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<SysDictTypeDTO> listDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
         return dictTypeMapper.selectList(buildDictTypeQueryWrapper(query))
                 .stream()
-                .map(DictConverter.INSTANCE::toTypeDTO)
+                .map(dictConverter::toTypeDTO)
                 .toList();
     }
 
@@ -133,6 +172,10 @@ public class AdminDictServiceImpl implements AdminDictService {
      * 软删除字典类型。
      *
      * @param dictType 字典类型编码
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void deleteDictType(String dictType) {
@@ -150,6 +193,11 @@ public class AdminDictServiceImpl implements AdminDictService {
      *
      * @param request 字典数据保存请求
      * @return 保存后的字典数据
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public SysDictDataDTO saveDictData(SysDictDataSaveRequest request) {
@@ -171,7 +219,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         } else {
             dictDataMapper.updateById(entity);
         }
-        return DictConverter.INSTANCE.toDataDTO(entity);
+        return dictConverter.toDataDTO(entity);
     }
 
     /**
@@ -179,6 +227,11 @@ public class AdminDictServiceImpl implements AdminDictService {
      *
      * @param request 查询条件
      * @return 字典数据列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<SysDictDataDTO> pageDictData(SysDictDataQueryRequest request) {
@@ -191,16 +244,21 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(DictConverter.INSTANCE::toDataDTO).toList()
+                page.getRecords().stream().map(dictConverter::toDataDTO).toList()
         );
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<SysDictDataDTO> listDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
         return dictDataMapper.selectList(buildDictDataQueryWrapper(query))
                 .stream()
-                .map(DictConverter.INSTANCE::toDataDTO)
+                .map(dictConverter::toDataDTO)
                 .toList();
     }
 
@@ -210,10 +268,15 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param id 字典数据主键
      * @return 字典数据详情
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public SysDictDataDTO getDictDataById(Long id) {
         SysDictDataDO entity = findDictDataById(id);
-        return DictConverter.INSTANCE.toDataDTO(entity);
+        return dictConverter.toDataDTO(entity);
     }
 
     /**
@@ -223,13 +286,19 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param request 字典数据保存请求
      * @return 更新后的字典数据
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public SysDictDataDTO updateDictDataById(Long id, SysDictDataSaveRequest request) {
         SysDictDataDO entity = findDictDataById(id);
         LocalDateTime now = LocalDateTime.now();
         fillDictData(entity, request, defaultIfBlank(request.getLocale(), entity.getLocale()), now);
         dictDataMapper.updateById(entity);
-        return DictConverter.INSTANCE.toDataDTO(entity);
+        return dictConverter.toDataDTO(entity);
     }
 
     /**
@@ -274,6 +343,12 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param dictValue 字典键值
      * @param locale    语言区域
      */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param dictValue 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param locale 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void deleteDictData(String dictType, String dictValue, String locale) {
         SysDictDataDO entity = findDictDataOrThrowWhenBlank(dictType, dictValue, defaultIfBlank(locale, DEFAULT_LOCALE));
@@ -289,6 +364,10 @@ public class AdminDictServiceImpl implements AdminDictService {
      * 按主键删除字典数据。
      *
      * @param id 字典数据主键
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void deleteDictDataById(Long id) {

@@ -10,9 +10,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 /**
- * OpenAPI PEM 密钥格式工具，统一处理商户接入材料中的 Base64、PEM 和指纹展示。
- * <p>
- * 该工具只转换同一份原始密钥数据的展示形态，不生成新密钥，也不会在异常信息中带出密钥原文。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiPemUtils
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIOpen Api Pem 工具，位于 component-library/component-security 的安全组件层，用于说明职责边界、数据语义和关键业务约束。
+ * @status : create
  */
 public final class OpenApiPemUtils {
 
@@ -21,9 +25,21 @@ public final class OpenApiPemUtils {
      */
     private static final int PEM_LINE_LENGTH = 64;
 
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PUBLIC_KEY_BEGIN = "-----BEGIN PUBLIC KEY-----";
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PUBLIC_KEY_END = "-----END PUBLIC KEY-----";
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PRIVATE_KEY_BEGIN = "-----BEGIN PRIVATE KEY-----";
+    /**
+     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PRIVATE_KEY_END = "-----END PRIVATE KEY-----";
 
     private OpenApiPemUtils() {
@@ -35,6 +51,11 @@ public final class OpenApiPemUtils {
      * @param x509Base64 X.509 DER Base64 公钥，也允许传入已有 PEM 文本
      * @return PUBLIC KEY PEM 文本
      */
+    /**
+     * 转换商户 OpenAPI数据结构，避免数据库实体直接暴露到外部接口。
+     * @param x509Base64 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static String toPublicKeyPem(String x509Base64) {
         return toPem(x509Base64, PUBLIC_KEY_BEGIN, PUBLIC_KEY_END);
     }
@@ -45,6 +66,11 @@ public final class OpenApiPemUtils {
      * @param pkcs8Base64 PKCS#8 DER Base64 私钥，也允许传入已有 PEM 文本
      * @return PRIVATE KEY PEM 文本
      */
+    /**
+     * 转换商户 OpenAPI数据结构，避免数据库实体直接暴露到外部接口。
+     * @param pkcs8Base64 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static String toPrivateKeyPem(String pkcs8Base64) {
         return toPem(pkcs8Base64, PRIVATE_KEY_BEGIN, PRIVATE_KEY_END);
     }
@@ -54,6 +80,11 @@ public final class OpenApiPemUtils {
      *
      * @param pemOrBase64 PEM 或 Base64 密钥文本
      * @return 去掉 PEM 头尾和空白字符后的 Base64 文本
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param pemOrBase64 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static String normalizePem(String pemOrBase64) {
         if (!StringUtils.hasText(pemOrBase64)) {
@@ -72,6 +103,11 @@ public final class OpenApiPemUtils {
      *
      * @param pemOrBase64 PEM 或 Base64 密钥文本
      * @return SHA-256 十六进制指纹
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param pemOrBase64 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static String sha256Fingerprint(String pemOrBase64) {
         try {

@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
  * @classname : PayoutServiceImpl
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
- * @description : 开放接口代付服务实现
+ * @description : 商户 OpenAPI 代付服务实现，位于 service-openapi 服务层，负责本地降级受理和转调 service-payout。
  * @status : create
  */
 @Service
@@ -30,11 +30,6 @@ public class PayoutServiceImpl implements PayoutService {
      * 平台代付订单号前缀，用于本地降级模式生成模拟单号。
      */
     private static final String PAYOUT_ORDER_PREFIX = "PO";
-
-    /**
-     * 交易已接收状态。
-     */
-    private static final String STATUS_RECEIVED = "RECEIVED";
 
     /**
      * service-payout 内部调用客户端。
@@ -59,9 +54,10 @@ public class PayoutServiceImpl implements PayoutService {
     /**
      * 创建开放接口代付服务实现。
      *
-     * @param payoutInternalClient  service-payout 内部调用客户端
+     * @param payoutInternalClient    service-payout 内部调用客户端
      * @param payoutClientProperties 代付内部调用配置
-     * @param keyMaterialFactory    OpenAPI 密钥材料工具
+     * @param keyMaterialFactory      OpenAPI 密钥材料工具
+     * @param requestContext          OpenAPI 请求上下文访问器
      */
     public PayoutServiceImpl(PayoutInternalClient payoutInternalClient,
                              PayoutClientProperties payoutClientProperties,

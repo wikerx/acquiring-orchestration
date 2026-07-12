@@ -29,27 +29,57 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantAuthApplicationServiceTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Merchant Auth Application Service Test，位于 service-merchant 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @ExtendWith(MockitoExtension.class)
 class MerchantAuthApplicationServiceTest {
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private SystemAuthService systemAuthService;
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private SysAppMapper sysAppMapper;
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private SysAccountMapper sysAccountMapper;
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private SysMerchantUserMapper sysMerchantUserMapper;
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private Environment environment;
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private HttpServletRequest servletRequest;
 
+    /**
+     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private MerchantAuthApplicationService merchantAuthApplicationService;
 
     @BeforeEach

@@ -12,15 +12,25 @@ import com.scott.payment.job.exchange.service.ExchangeRateFetchService;
 import org.springframework.stereotype.Component;
 
 /**
- * 中国银行汇率拉取任务处理器。
- *
- * <p>处理器只负责调度入口和结果转换，汇率源拉取、解析、去重和日志记录由汇率拉取服务完成。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : BocExchangeRateFetchJob
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 汇率管理Boc Exchange Rate Fetch Job，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Component
 public class BocExchangeRateFetchJob implements JobHandler {
 
+    /**
+     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     public static final String HANDLER_CODE = "bocExchangeRateFetchJob";
 
+    /**
+     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     private final ExchangeRateFetchService exchangeRateFetchService;
 
     /**
@@ -37,6 +47,10 @@ public class BocExchangeRateFetchJob implements JobHandler {
      *
      * @return 任务处理器描述
      */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public JobHandlerDescriptor descriptor() {
         return JobHandlerDescriptor.sync(
@@ -52,6 +66,11 @@ public class BocExchangeRateFetchJob implements JobHandler {
      *
      * @param context 任务执行上下文，包含运行 ID 和任务参数
      * @return 调度中心可识别的执行结果
+     */
+    /**
+     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public JobExecuteResult execute(JobExecuteContext context) {

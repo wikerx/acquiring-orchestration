@@ -5,7 +5,13 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 敏感数据脱敏工具测试，覆盖日志中常见凭据、卡号、联系方式和银行账号字段。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SensitiveDataMaskUtilsTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 敏感数据脱敏工具测试，覆盖日志中常见凭据、卡号、联系方式和银行账号字段。
+ * @status : create
  */
 class SensitiveDataMaskUtilsTest {
 

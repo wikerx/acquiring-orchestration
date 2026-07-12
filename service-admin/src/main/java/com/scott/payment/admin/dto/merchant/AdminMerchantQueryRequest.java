@@ -15,6 +15,15 @@ import lombok.EqualsAndHashCode;
  *
  * <p>用于商户管理列表分页检索，支持按关键字、状态、国家和结算币种过滤。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMerchantQueryRequest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户管理Admin Merchant Query 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class AdminMerchantQueryRequest extends PageRequest {

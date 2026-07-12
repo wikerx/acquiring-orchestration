@@ -18,8 +18,9 @@ spring:
       discovery:
         server-addr: ${NACOS_SERVER:nacos-uat:8848}
         namespace: ${NACOS_NAMESPACE:uat}
-        username: ${NACOS_USERNAME:nacos}
-        password: ${NACOS_PASSWORD:nacos}
+        # UAT/生产环境不得保留 Nacos 默认账号密码，必须由环境变量、K8s Secret 或 CI/CD Secret 注入。
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
         register-enabled: true
       config:
         server-addr: ${NACOS_SERVER:nacos-uat:8848}
@@ -36,6 +37,21 @@ logging:
   config: classpath:log-config/logback-spring.xml
 
 openapi:
+  payment-client:
+    # UAT 调用 service-payment /internal/** 的 HMAC-SHA256 共享密钥。
+    # 必须与 service-payment.internal-service.auth.secret 使用同一 Secret，不允许在 yml 中写明文默认值。
+    internal-secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+  payout-client:
+    # UAT 调用 service-payout /internal/** 的 HMAC-SHA256 共享密钥。
+    # 必须与 service-payout.internal-service.auth.secret 使用同一 Secret，不允许在 yml 中写明文默认值。
+    internal-secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+  callback-security:
+    # 商户通知重试维护密钥，只允许内部运维/后台任务调用方持有。
+    # 推荐通过 K8s Secret、CI/CD Secret 或主机环境变量注入：OPENAPI_NOTIFY_RETRY_TOKEN=<32位以上随机高强度密钥>。
+    notify-retry-token: ${OPENAPI_NOTIFY_RETRY_TOKEN}
+    # 渠道回调密钥按渠道编码配置在 Nacos 或环境专属配置中，例如：
+    # channel-secrets:
+    #   stripe: ${OPENAPI_CHANNEL_STRIPE_CALLBACK_SECRET}
   security:
     replay:
       # UAT 按生产形态校验 JWT jti 防重放，Redis 不可用时拒绝 OpenAPI 请求。

@@ -32,22 +32,46 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 汇率拉取服务测试，覆盖原始汇率入库后自动生成业务汇率的任务闭环。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : ExchangeRateFetchServiceImplTest
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 汇率管理Exchange Rate Fetch Service Impl Test，位于 service-job 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @ExtendWith(MockitoExtension.class)
 class ExchangeRateFetchServiceImplTest {
 
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ExchangeJobRateSourceMapper sourceMapper;
+    /**
+     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     @Mock
     private ExchangeJobRawRateMapper rawRateMapper;
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ExchangeJobRateRuleMapper ruleMapper;
+    /**
+     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     @Mock
     private ExchangeJobBusinessRateMapper businessRateMapper;
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     @Mock
     private ExchangeRateFetchLogMapper fetchLogMapper;
 
+    /**
+     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private ExchangeRateFetchServiceImpl service;
 
     @BeforeEach
@@ -185,11 +209,20 @@ class ExchangeRateFetchServiceImplTest {
      */
     private static class SingleUsdProvider implements ExchangeRateProvider {
 
+        /**
+         * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+         * @return 处理后的业务结果或页面展示数据。
+         */
         @Override
         public String sourceCode() {
             return "BOC";
         }
 
+        /**
+         * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
+         * @param source 请求参数或业务处理上下文，不能为空时由上层校验约束。
+         * @return 处理后的业务结果或页面展示数据。
+         */
         @Override
         public List<RawRateItem> fetch(ExchangeRateSourceDO source) {
             RawRateItem item = new RawRateItem();

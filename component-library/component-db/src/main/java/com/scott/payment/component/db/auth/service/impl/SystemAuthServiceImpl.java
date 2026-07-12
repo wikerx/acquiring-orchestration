@@ -77,6 +77,15 @@ import java.util.stream.Collectors;
  * @description : 管理类系统登录注册与权限服务实现
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : SystemAuthServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 系统管理System Auth Service Impl，位于 component-library/component-db 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class SystemAuthServiceImpl implements SystemAuthService {
 
@@ -104,6 +113,30 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * 顶级菜单父ID。
      */
     private static final long ROOT_MENU_PARENT_ID = 0L;
+
+    /**
+     * 已废弃的内风控规则菜单编码。
+     */
+    private static final Set<String> DEPRECATED_RISK_RULE_MENU_CODES = Set.of(
+            "risk_rule_issuer_country",
+            "risk_rule_card_bin"
+    );
+
+    /**
+     * 已废弃的内风控规则路由。
+     */
+    private static final Set<String> DEPRECATED_RISK_RULE_ROUTE_PATHS = Set.of(
+            "/risk/rule/issuer-country",
+            "/risk/rule/card-bin"
+    );
+
+    /**
+     * 已废弃的内风控规则权限前缀。
+     */
+    private static final Set<String> DEPRECATED_RISK_RULE_PERMISSION_PREFIXES = Set.of(
+            "risk:rule:issuerCountry",
+            "risk:rule:cardBin"
+    );
 
     /**
      * 登录验证码场景。
@@ -150,22 +183,73 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysUserMapper sysUserMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRoleMapper sysRoleMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysAccountRoleMapper sysAccountRoleMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRoleMenuMapper sysRoleMenuMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysRolePermissionMapper sysRolePermissionMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMenuMapper sysMenuMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysPermissionMapper sysPermissionMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantUserMapper sysMerchantUserMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysLoginLogMapper sysLoginLogMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysLoginSessionMapper sysLoginSessionMapper;
+    /**
+     * 系统管理编码或编号字段，用于业务识别、查询和幂等关联。
+     */
     private final SysVerifyCodeMapper sysVerifyCodeMapper;
+    /**
+     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
 
     /**
@@ -232,6 +316,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param request 注册请求
      * @return 注册后的账号信息
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -259,6 +349,13 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param request  验证码发送请求
      * @param clientIp 客户端IP
      * @return 验证码发送响应
+     */
+    /**
+     * 发送系统管理消息或外部请求，并记录必要的执行结果。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param clientIp 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -317,6 +414,14 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param userAgent 客户端 User-Agent
      * @return 登录响应
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param clientIp 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param userAgent 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -360,6 +465,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param token   登录 token
      * @return 当前账号和权限信息
      */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param token 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @DS(DataSourceName.MASTER)
     public AuthLoginResponse currentUser(String appCode, String token) {
@@ -375,6 +486,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      *
      * @param appCode 系统应用编码
      * @param token   登录 token
+     */
+    /**
+     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param token 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -397,6 +513,15 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param requestPath   请求路径
      * @param permissionCode 接口显式声明的权限编码
      * @return 当前登录账号上下文
+     */
+    /**
+     * 校验系统管理业务规则，发现不符合要求的数据时抛出业务异常。
+     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param requestMethod 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param requestPath 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param permissionCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -1114,14 +1239,15 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                                  SysAccountDO account,
                                                  String token,
                                                  LocalDateTime expireAt) {
+        List<Long> roleIds = queryRoleIds(app, account);
         AuthLoginResponse response = new AuthLoginResponse();
         response.setAccessToken(token);
         response.setExpiresIn(AuthConstants.DEFAULT_TOKEN_TTL_SECONDS);
         response.setExpireAt(expireAt);
-        response.setAccount(toAccountDTO(app, user, account));
-        response.setMenus(queryMenuTree(app, account));
-        response.setRoles(queryRoleCodes(app, account));
-        response.setPermissions(queryPermissionCodes(app, account));
+        response.setAccount(toAccountDTO(app, user, account, roleIds));
+        response.setMenus(queryMenuTree(app, account, roleIds));
+        response.setRoles(queryRoleCodes(app, roleIds));
+        response.setPermissions(queryPermissionCodes(app, account, roleIds));
         return response;
     }
 
@@ -1131,15 +1257,33 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param app     系统应用
      * @param user    用户主体
      * @param account 登录账号
+     * @param roleIds 当前应用下的有效角色ID集合
      * @return 账号响应
      */
     private AuthAccountDTO toAccountDTO(SysAppDO app, SysUserDO user, SysAccountDO account) {
+        return toAccountDTO(app, user, account, queryRoleIds(app, account));
+    }
+
+    /**
+     * 转换账号响应。
+     *
+     * @param app     系统应用
+     * @param user    用户主体
+     * @param account 登录账号
+     * @param roleIds 当前应用下的有效角色ID集合
+     * @return 账号响应
+     */
+    private AuthAccountDTO toAccountDTO(SysAppDO app, SysUserDO user, SysAccountDO account, List<Long> roleIds) {
         AuthAccountDTO dto = new AuthAccountDTO();
         dto.setAccountId(account.getId());
         dto.setUserId(user.getId());
         dto.setAppCode(app.getAppCode());
         dto.setLoginAccount(account.getLoginAccount());
         dto.setRealName(user.getRealName());
+        dto.setMobile(firstText(user.getMobile(), account.getMobile()));
+        dto.setEmail(firstText(user.getEmail(), account.getEmail()));
+        dto.setRoleNames(queryRoleNames(app, roleIds));
+        dto.setCreatedAt(user.getCreatedAt());
         dto.setMerchantId(account.getMerchantId());
         dto.setStatus(account.getStatus());
         if (AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
@@ -1147,9 +1291,20 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             dto.setMerchantUserId(merchantUser.getId());
             dto.setLoginAccount(merchantUser.getLoginAccount());
             dto.setRealName(StringUtils.hasText(merchantUser.getRealName()) ? merchantUser.getRealName() : user.getRealName());
-            dto.setMerchantAdmin(isMerchantSuperAdmin(app, account, queryRoleIds(app, account)));
+            dto.setMerchantAdmin(isMerchantSuperAdmin(app, account, roleIds));
         }
         return dto;
+    }
+
+    /**
+     * 返回第一个非空文本，用于用户主体资料和登录账号资料之间做兼容兜底。
+     *
+     * @param primary   主来源
+     * @param secondary 兜底来源
+     * @return 非空文本
+     */
+    private String firstText(String primary, String secondary) {
+        return StringUtils.hasText(primary) ? primary : secondary;
     }
 
     /**
@@ -1202,13 +1357,23 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     /**
      * 查询账号角色编码。
      *
-     * @param appId     系统应用ID
-     * @param accountId 账号ID
+     * @param app     系统应用
+     * @param account 登录账号
      * @return 角色编码集合
      */
     private List<String> queryRoleCodes(SysAppDO app, SysAccountDO account) {
+        return queryRoleCodes(app, queryRoleIds(app, account));
+    }
+
+    /**
+     * 查询账号角色编码。
+     *
+     * @param app     系统应用
+     * @param roleIds 角色ID集合
+     * @return 角色编码集合
+     */
+    private List<String> queryRoleCodes(SysAppDO app, List<Long> roleIds) {
         Long appId = app.getId();
-        List<Long> roleIds = queryRoleIds(app, account);
         if (roleIds.isEmpty()) {
             return List.of();
         }
@@ -1227,15 +1392,41 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
+     * 查询账号角色名称。
+     *
+     * @param app     系统应用
+     * @param roleIds 角色ID集合
+     * @return 角色名称集合
+     */
+    private List<String> queryRoleNames(SysAppDO app, List<Long> roleIds) {
+        Long appId = app.getId();
+        if (roleIds.isEmpty()) {
+            return List.of();
+        }
+        return sysRoleMapper.selectList(
+                        Wrappers.<SysRoleDO>lambdaQuery()
+                                .eq(SysRoleDO::getAppId, appId)
+                                .in(SysRoleDO::getId, roleIds)
+                                .eq(SysRoleDO::getStatus, AuthConstants.ENABLED)
+                                .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED)
+                ).stream()
+                .map(SysRoleDO::getRoleName)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    /**
      * 查询菜单树。
      *
-     * @param appId     系统应用ID
-     * @param accountId 账号ID
+     * @param app     系统应用
+     * @param account 登录账号
+     * @param roleIds 角色ID集合
      * @return 菜单树
      */
-    private List<AuthMenuDTO> queryMenuTree(SysAppDO app, SysAccountDO account) {
+    private List<AuthMenuDTO> queryMenuTree(SysAppDO app, SysAccountDO account, List<Long> roleIds) {
         Long appId = app.getId();
-        List<Long> roleIds = queryRoleIds(app, account);
         if (roleIds.isEmpty()) {
             return List.of();
         }
@@ -1253,6 +1444,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                 .eq(SysMenuDO::getDeleted, AuthConstants.NOT_DELETED)
                                 .orderByAsc(SysMenuDO::getSortNo, SysMenuDO::getId)
                 ).stream()
+                .filter(menu -> !isDeprecatedRiskRuleMenu(menu))
                 .map(this::toMenuDTO)
                 .toList();
         return buildMenuTree(nodes);
@@ -1296,13 +1488,24 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     /**
      * 查询权限编码集合。
      *
-     * @param appId     系统应用ID
-     * @param accountId 账号ID
+     * @param app     系统应用
+     * @param account 登录账号
      * @return 权限编码集合
      */
     private List<String> queryPermissionCodes(SysAppDO app, SysAccountDO account) {
+        return queryPermissionCodes(app, account, queryRoleIds(app, account));
+    }
+
+    /**
+     * 查询权限编码集合。
+     *
+     * @param app     系统应用
+     * @param account 登录账号
+     * @param roleIds 角色ID集合
+     * @return 权限编码集合
+     */
+    private List<String> queryPermissionCodes(SysAppDO app, SysAccountDO account, List<Long> roleIds) {
         Long appId = app.getId();
-        List<Long> roleIds = queryRoleIds(app, account);
         if (roleIds.isEmpty()) {
             return List.of();
         }
@@ -1452,6 +1655,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                 ).stream()
                 .map(SysMenuDO::getPermissionCode)
                 .filter(StringUtils::hasText)
+                .filter(code -> !isDeprecatedRiskRulePermission(code))
                 .distinct()
                 .sorted()
                 .toList();
@@ -1478,6 +1682,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                 ).stream()
                 .map(SysPermissionDO::getPermissionCode)
                 .filter(StringUtils::hasText)
+                .filter(code -> !isDeprecatedRiskRulePermission(code))
                 .distinct()
                 .sorted()
                 .toList();
@@ -1531,6 +1736,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                 ).stream()
                 .map(SysMenuDO::getPermissionCode)
                 .filter(StringUtils::hasText)
+                .filter(code -> !isDeprecatedRiskRulePermission(code))
                 .distinct()
                 .sorted()
                 .toList();
@@ -1568,9 +1774,37 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                 ).stream()
                 .map(SysPermissionDO::getPermissionCode)
                 .filter(StringUtils::hasText)
+                .filter(code -> !isDeprecatedRiskRulePermission(code))
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    /**
+     * 判断菜单是否为已废弃的内风控规则功能。旧库或旧角色授权中可能仍存在历史菜单，
+     * 登录态下发前统一拦截，避免前端继续展示不可用入口。
+     *
+     * @param menu 菜单实体
+     * @return true 表示该菜单应从登录态中过滤
+     */
+    private boolean isDeprecatedRiskRuleMenu(SysMenuDO menu) {
+        return DEPRECATED_RISK_RULE_MENU_CODES.contains(menu.getMenuCode())
+                || DEPRECATED_RISK_RULE_ROUTE_PATHS.contains(menu.getRoutePath())
+                || isDeprecatedRiskRulePermission(menu.getPermissionCode());
+    }
+
+    /**
+     * 判断权限编码是否属于已废弃的内风控规则功能。
+     *
+     * @param permissionCode 权限编码
+     * @return true 表示该权限应从登录态中过滤
+     */
+    private boolean isDeprecatedRiskRulePermission(String permissionCode) {
+        if (!StringUtils.hasText(permissionCode)) {
+            return false;
+        }
+        return DEPRECATED_RISK_RULE_PERMISSION_PREFIXES.stream()
+                .anyMatch(prefix -> permissionCode.equals(prefix) || permissionCode.startsWith(prefix + ":"));
     }
 
     /**

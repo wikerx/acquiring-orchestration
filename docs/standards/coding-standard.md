@@ -25,6 +25,21 @@
 - `client`：外部服务调用封装。
 - `common`：通用常量、工具、异常、结果模型。
 
+## 对象转换与 MapStruct
+
+1. 后端对象转换优先使用 MapStruct，适用于 `DO/Entity -> DTO/VO/Response`、`Request -> DTO/DO`、`Query -> DTO`、`List<T>` 和分页记录转换等普通字段映射场景。
+2. 已引入 MapStruct 的模块必须复用现有版本、依赖和注解处理器配置，不重复引入依赖；如涉及 Lombok，必须确认注解处理器配置不破坏现有编译。
+3. MapStruct 转换器统一使用 `@Mapper(componentModel = "spring")`，业务类通过构造器注入；禁止使用 `XxxConverter.INSTANCE` 绕过 Spring 管理。
+4. 转换器命名优先沿用项目现有 `converter` 包和 `XxxConverter` 风格；避免使用 `XxxMapper` 与 MyBatis Mapper 混淆。
+5. 字段名一致时不需要写 `@Mapping`；字段名不一致、需要忽略、不允许自动转换的字段必须显式声明 `@Mapping` 或 `ignore = true`。
+6. 编辑更新场景优先使用 `@MappingTarget` 更新已有对象；禁止覆盖主键、创建人、创建时间等系统字段。局部更新且 null 不应覆盖旧值时，必须配置 `NullValuePropertyMappingStrategy.IGNORE`。
+7. 以下场景必须优先整改为 MapStruct：大量重复手写 `set/get`、同类转换在多个类中重复、核心业务对象使用 `BeanUtils.copyProperties`、使用 JSON 序列化反序列化做对象复制、Controller 中直接拼装 VO、Service 中存在大段无业务含义的字段赋值。
+8. 以下场景不得强行 MapStruct 化：转换中需要查数据库或调用外部服务、依赖当前登录用户权限、包含敏感字段脱敏、包含金额/汇率/费率精度计算、包含状态机或复杂业务规则。此类逻辑可保留在 Service 或 Assembler 中，普通字段复制部分仍可拆给 MapStruct。
+9. 禁止把复杂业务规则堆进 `@Mapping(expression = "...")`；表达式过多时应拆为清晰的辅助方法，并说明业务边界。
+10. 禁止 MapStruct 与 `BeanUtils.copyProperties`、JSON 对象复制在同一类普通转换场景中混乱并存；确需保留动态字段复制、测试构造或第三方对象适配时，必须有明确原因。
+11. 敏感字段不得自动映射到前端 VO/Response，包括 `password`、`salt`、`secretKey`、`privateKey`、`apiKey`、`accessToken`、`refreshToken`、`jwtSecret`、`aesKey`、`rsaPrivateKey`、`certificateContent`、`cvv`、`fullCardNo`、`authorization` 等。确需展示时必须经过脱敏、权限控制和审计。
+12. 替换手写转换或 `BeanUtils.copyProperties` 后，必须核对 null 行为、默认值、日期格式、`BigDecimal` 精度、敏感字段暴露风险，并执行对应模块编译和测试。
+
 ## 类注释
 
 1. 所有顶层 Java 类型必须保留类级 Javadoc，说明作者、版本、类名、创建时间、邮箱、用途和状态。

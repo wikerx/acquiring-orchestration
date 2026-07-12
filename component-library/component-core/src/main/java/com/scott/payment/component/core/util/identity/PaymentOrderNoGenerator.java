@@ -52,6 +52,11 @@ public final class PaymentOrderNoGenerator {
      * @param businessPrefix 业务前缀，例如 PA 表示收单支付，PO 表示代付
      * @return 支付平台内部订单号
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param businessPrefix 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public static String nextOrderNo(String businessPrefix) {
         return nextOrderNo(businessPrefix, Clock.system(PAYMENT_ZONE_ID));
     }
@@ -62,6 +67,12 @@ public final class PaymentOrderNoGenerator {
      * @param businessPrefix 业务前缀，例如 PA 表示收单支付，PO 表示代付
      * @param clock          业务时钟
      * @return 支付平台内部订单号
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param businessPrefix 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param clock 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static String nextOrderNo(String businessPrefix, Clock clock) {
         Objects.requireNonNull(clock, "clock can not be null");

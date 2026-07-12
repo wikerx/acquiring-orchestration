@@ -15,6 +15,15 @@ import static com.scott.payment.component.core.model.ApiResult.success;
  * @description : 收单支付服务健康检查控制器
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentHealthController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Payment Health 管理接口，位于 service-payment 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 public class PaymentHealthController {
 
@@ -22,6 +31,10 @@ public class PaymentHealthController {
      * 收单支付核心服务健康检查入口。
      *
      * @return 当前服务名称
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/payment/health")
     public ApiResult<String> health() {

@@ -14,6 +14,15 @@ import java.util.Queue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RedisGlobalIdGeneratorTests
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Redis Global Id Generator Tests，位于 component-library/component-redis 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 class RedisGlobalIdGeneratorTests {
 
     @Test
@@ -104,6 +113,9 @@ class RedisGlobalIdGeneratorTests {
 
     private static class FixedRedisServerTimeProvider extends RedisServerTimeProvider {
 
+        /**
+         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private final long currentMillis;
 
         FixedRedisServerTimeProvider(long currentMillis) {
@@ -111,6 +123,10 @@ class RedisGlobalIdGeneratorTests {
             this.currentMillis = currentMillis;
         }
 
+        /**
+         * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+         * @return 处理后的业务结果或页面展示数据。
+         */
         @Override
         public long currentTimeMillis() {
             return currentMillis;
@@ -121,8 +137,14 @@ class RedisGlobalIdGeneratorTests {
 
         private final Queue<List<?>> scriptResults = new ArrayDeque<>();
 
+        /**
+         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private RuntimeException failure;
 
+        /**
+         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         */
         private int executeCount;
 
         void addScriptResult(List<?> result) {
@@ -137,6 +159,13 @@ class RedisGlobalIdGeneratorTests {
             return executeCount;
         }
 
+        /**
+         * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+         * @param script 请求参数或业务处理上下文，不能为空时由上层校验约束。
+         * @param keys 请求参数或业务处理上下文，不能为空时由上层校验约束。
+         * @param args 请求参数或业务处理上下文，不能为空时由上层校验约束。
+         * @return 处理后的业务结果或页面展示数据。
+         */
         @Override
         @SuppressWarnings("unchecked")
         public <T> T execute(RedisScript<T> script, List<String> keys, Object... args) {

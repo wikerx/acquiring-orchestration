@@ -5,15 +5,19 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.config.PaymentClientProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -23,6 +27,15 @@ import java.util.regex.Pattern;
  * @date : 2026-05-31 21:15
  * @email : scott_x@163.com
  * @description : service-payment REST 客户端，支持 Nacos 服务名负载均衡和本地 IP 直连
+ * @status : create
+ */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentInternalRestClient
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIPayment Internal Rest Client，位于 service-openapi 的外部调用层，用于承载该模块对应的业务职责和数据流转边界。
  * @status : create
  */
 @Service
@@ -84,13 +97,18 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @param requestDTO 创建交易内部请求
      * @return 创建交易内部响应
      */
+    /**
+     * 创建或保存商户 OpenAPI数据，保持请求校验、默认值和审计字段一致。
+     * @param requestDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
         try {
             String authorizationUrl = paymentClientProperties.getAuthorizationUrl();
             String responseBody = chooseRestTemplate(authorizationUrl).postForObject(
                     authorizationUrl,
-                    requestDTO,
+                    buildSignedEntity(URI.create(authorizationUrl), requestDTO),
                     String.class
             );
             CommonResult<PaymentCreateClientResponseDTO> result = JsonUtils.parseObject(
@@ -124,6 +142,33 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             return directRestTemplate;
         }
         return loadBalancedRestTemplate;
+    }
+
+    /**
+     * 构造带内部服务签名头的请求实体。
+     *
+     * @param uri        内部服务地址
+     * @param requestDTO 创建交易内部请求
+     * @return 带签名头的请求实体
+     */
+    private HttpEntity<PaymentCreateClientRequestDTO> buildSignedEntity(URI uri, PaymentCreateClientRequestDTO requestDTO) {
+        long timestamp = InternalServiceSignature.currentTimeMillis();
+        String nonce = UUID.randomUUID().toString();
+        String caller = paymentClientProperties.getInternalCaller();
+        String signature = InternalServiceSignature.sign(
+                "POST",
+                uri.getPath(),
+                timestamp,
+                nonce,
+                caller,
+                paymentClientProperties.getInternalSecret()
+        );
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(InternalServiceSignature.HEADER_CALLER, caller);
+        headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
+        headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
+        headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
+        return new HttpEntity<>(requestDTO, headers);
     }
 
     /**

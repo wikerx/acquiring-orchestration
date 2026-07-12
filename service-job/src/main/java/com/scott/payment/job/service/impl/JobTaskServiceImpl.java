@@ -33,14 +33,34 @@ import java.util.List;
  * @description : 任务任务服务实现
  * @status : create
  */
-
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JobTaskServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Job Task Service Impl，位于 service-job 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class JobTaskServiceImpl implements JobTaskService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int NOT_DELETED = 0;
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final SysJobTaskMapper sysJobTaskMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final JobTaskTimingService jobTaskTimingService;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final JobHandlerRegistry jobHandlerRegistry;
 
     /**
@@ -58,6 +78,11 @@ public class JobTaskServiceImpl implements JobTaskService {
         this.jobHandlerRegistry = jobHandlerRegistry;
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<SysJobTaskDO> pageTasks(JobTaskQueryRequest request) {
         JobTaskQueryRequest query = request == null ? new JobTaskQueryRequest() : request;
@@ -76,6 +101,11 @@ public class JobTaskServiceImpl implements JobTaskService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public SysJobTaskDO createTask(JobTaskSaveRequest request) {
         validateRequest(request);
@@ -100,6 +130,12 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public SysJobTaskDO updateTask(Long taskId, JobTaskSaveRequest request) {
         validateRequest(request);
@@ -115,6 +151,13 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public SysJobTaskDO changeStatus(Long taskId, String status, String operator) {
         SysJobTaskDO task = getRequiredTask(taskId);
@@ -126,6 +169,11 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void deleteTask(Long taskId, String operator) {
         SysJobTaskDO task = getRequiredTask(taskId);
@@ -136,6 +184,11 @@ public class JobTaskServiceImpl implements JobTaskService {
         sysJobTaskMapper.updateById(task);
     }
 
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public SysJobTaskDO getRequiredTask(Long taskId) {
         SysJobTaskDO task = sysJobTaskMapper.selectById(taskId);
@@ -145,17 +198,36 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param triggerTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param limit 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<SysJobTaskDO> selectDueTasks(LocalDateTime triggerTime, int limit) {
         return sysJobTaskMapper.selectDueTasks(triggerTime, limit);
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param task 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param nodeId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param currentTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public boolean tryAcquireLock(SysJobTaskDO task, String nodeId, LocalDateTime currentTime) {
         LocalDateTime lockUntil = currentTime.plusSeconds(Math.max(task.getTimeoutSeconds(), 30));
         return sysJobTaskMapper.acquireLock(task.getId(), nodeId, lockUntil, task.getVersion()) > 0;
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param lastTriggerTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param nextTriggerTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void markScheduled(Long taskId, LocalDateTime lastTriggerTime, LocalDateTime nextTriggerTime) {
         SysJobTaskDO task = getRequiredTask(taskId);
@@ -165,11 +237,22 @@ public class JobTaskServiceImpl implements JobTaskService {
         sysJobTaskMapper.updateById(task);
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param nodeId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param lockUntil 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void extendLock(Long taskId, String nodeId, LocalDateTime lockUntil) {
         sysJobTaskMapper.extendLock(taskId, nodeId, lockUntil);
     }
 
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param lastRunStatus 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @Override
     public void finishTaskRun(Long taskId, JobRunStatusEnum lastRunStatus) {
         SysJobTaskDO task = getRequiredTask(taskId);

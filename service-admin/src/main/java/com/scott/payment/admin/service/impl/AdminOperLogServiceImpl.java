@@ -27,6 +27,15 @@ import java.time.LocalDateTime;
  *
  * <p>负责后台操作日志写入、默认字段补齐和审计分页查询，不承担控制器协议适配逻辑。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminOperLogServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Oper Log Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminOperLogServiceImpl implements AdminOperLogService {
 
@@ -46,18 +55,29 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
     private final SysOperLogMapper operLogMapper;
 
     /**
+     * 操作日志对象转换器。
+     */
+    private final OperLogConverter operLogConverter;
+
+    /**
      * 创建操作日志服务实现。
      *
      * @param operLogMapper 操作日志 Mapper
+     * @param operLogConverter 操作日志对象转换器
      */
-    public AdminOperLogServiceImpl(SysOperLogMapper operLogMapper) {
+    public AdminOperLogServiceImpl(SysOperLogMapper operLogMapper, OperLogConverter operLogConverter) {
         this.operLogMapper = operLogMapper;
+        this.operLogConverter = operLogConverter;
     }
 
     /**
      * 写入后台操作日志。
      *
      * @param request 操作日志写入请求
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void recordOperLog(SysOperLogRecordRequest request) {
@@ -103,6 +123,11 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
      * @param request 查询条件
      * @return 操作日志列表
      */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<SysOperLogDTO> pageOperLogs(SysOperLogQueryRequest request) {
         SysOperLogQueryRequest query = request == null ? new SysOperLogQueryRequest() : request;
@@ -114,7 +139,7 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(OperLogConverter.INSTANCE::toDTO).toList()
+                page.getRecords().stream().map(operLogConverter::toDTO).toList()
         );
     }
 

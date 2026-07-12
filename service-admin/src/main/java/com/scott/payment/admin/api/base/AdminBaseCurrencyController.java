@@ -26,6 +26,15 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>币种管理接口入口，负责 ISO 4217 币种资料的参数接收、权限校验和 HTTP 映射，
  * 具体业务编排与数据处理由应用服务层完成。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseCurrencyController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 基础数据Admin Base Currency 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @RestController
 @RequestMapping("/admin/base/currencies")
 public class AdminBaseCurrencyController {
@@ -56,6 +65,11 @@ public class AdminBaseCurrencyController {
     }
 
     /** 查询单条币种详情。 */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @GetMapping("/{id}")
     @RequiresPermission("base:currency:query")
     public CommonResult<IsoCurrencyDO> detail(@PathVariable("id") Long id) {
@@ -63,6 +77,10 @@ public class AdminBaseCurrencyController {
     }
 
     /** 导出币种列表。 */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     */
     @GetMapping("/export")
     @RequiresPermission("base:currency:export")
     @OperationLog(moduleName = "币种管理", businessType = OperationTypeConstants.EXPORT, operation = "导出币种")
@@ -71,6 +89,11 @@ public class AdminBaseCurrencyController {
     }
 
     /** 新增币种。 */
+    /**
+     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
+     * @param row 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping
     @RequiresPermission("base:currency:add")
     @OperationLog(moduleName = "币种管理", businessType = OperationTypeConstants.CREATE, operation = "新增币种")
@@ -79,6 +102,12 @@ public class AdminBaseCurrencyController {
     }
 
     /** 修改币种。 */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PutMapping("/{id}")
     @RequiresPermission("base:currency:edit")
     @OperationLog(moduleName = "币种管理", businessType = OperationTypeConstants.UPDATE, operation = "编辑币种")
@@ -87,6 +116,13 @@ public class AdminBaseCurrencyController {
     }
 
     /** 切换币种状态。 */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PutMapping("/{id}/status")
     @RequiresPermission("base:currency:changeStatus")
     @OperationLog(moduleName = "币种管理", businessType = OperationTypeConstants.UPDATE, operation = "切换币种状态")
@@ -95,6 +131,11 @@ public class AdminBaseCurrencyController {
     }
 
     /** 逻辑删除币种。 */
+    /**
+     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @DeleteMapping("/{id}")
     @RequiresPermission("base:currency:remove")
     @OperationLog(moduleName = "币种管理", businessType = OperationTypeConstants.DELETE, operation = "删除币种")

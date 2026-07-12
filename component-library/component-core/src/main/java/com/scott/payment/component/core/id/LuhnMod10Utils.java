@@ -4,7 +4,13 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 
 /**
- * Luhn Mod 10 校验工具，用于统一编号最后一位校验位的计算和验证。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : LuhnMod10Utils
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Luhn Mod10 工具，位于 component-library/component-core 的业务组件层，用于说明职责边界、数据语义和关键业务约束。
+ * @status : create
  */
 public final class LuhnMod10Utils {
 
@@ -16,6 +22,11 @@ public final class LuhnMod10Utils {
      *
      * @param body 不含校验位的 21 位数字字符串
      * @return 校验位，范围 0-9
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static int calculateCheckDigit(String body) {
         if (!isDigits(body) || body.length() != GlobalIdConstants.BODY_LENGTH) {
@@ -42,6 +53,11 @@ public final class LuhnMod10Utils {
      *
      * @param fullNumber 完整数字字符串
      * @return true=校验通过，false=校验失败
+     */
+    /**
+     * 校验收单支付业务规则，发现不符合要求的数据时抛出业务异常。
+     * @param fullNumber 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public static boolean validate(String fullNumber) {
         if (!isDigits(fullNumber) || fullNumber.length() != GlobalIdConstants.ID_LENGTH) {

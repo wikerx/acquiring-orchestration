@@ -24,7 +24,13 @@ import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleSaveRequest;
 import java.util.List;
 
 /**
- * 商户系统基础管理领域服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantSystemService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户系统基础管理领域服务。
+ * @status : create
  */
 public interface MerchantSystemService {
 

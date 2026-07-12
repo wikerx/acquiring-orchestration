@@ -11,10 +11,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 支付订单季度分表算法。
- *
- * <p>该算法只负责按 {@code transaction_date_time} 计算物理表名和配置范围内的物理表清单。
- * 表名格式统一为 {@code logical_table_yyyyQQ}，其中 QQ 是季度编号，不是月份。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentOrderShardingAlgorithm
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 支付订单季度分表算法。 <p>该算法只负责按 {@code transaction_date_time} 计算物理表名和配置范围内的物理表清单。 表名格式统一为 {@code logical_table_yyyyQQ}，其中 QQ 是季度编号，不是月份。</p>
+ * @status : create
  */
 public class PaymentOrderShardingAlgorithm {
 
@@ -37,6 +40,12 @@ public class PaymentOrderShardingAlgorithm {
      * @param transactionDateTime 交易时间，数据库统一按 UTC+8 保存和路由
      * @return 物理表名，例如 test_transaction_202602
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String tableName(String logicalTableName, LocalDateTime transactionDateTime) {
         return tableName(DEFAULT_PROPERTIES, logicalTableName, transactionDateTime);
     }
@@ -49,6 +58,12 @@ public class PaymentOrderShardingAlgorithm {
      * @param logicalTableName    逻辑表名
      * @param transactionDateTime 交易时间
      * @return 物理表名
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String tableName(String logicalTableName, Instant transactionDateTime) {
         if (transactionDateTime == null) {
@@ -64,6 +79,13 @@ public class PaymentOrderShardingAlgorithm {
      * @param logicalTableName    逻辑表名
      * @param transactionDateTime 交易时间，必须是数据库统一时区语义下的时间
      * @return 物理表名
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String tableName(PaymentQuarterShardingProperties properties,
                             String logicalTableName,
@@ -95,6 +117,13 @@ public class PaymentOrderShardingAlgorithm {
      * @param transactionDateTime 交易时间
      * @return 物理表名
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public String tableName(PaymentQuarterShardingProperties properties,
                             String logicalTableName,
                             Instant transactionDateTime) {
@@ -113,6 +142,12 @@ public class PaymentOrderShardingAlgorithm {
      * @param properties       Nacos sharding-{env}.yaml 映射后的分表配置
      * @param logicalTableName 逻辑表名
      * @return 物理表名列表，按时间从早到晚排序
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public List<String> physicalTables(PaymentQuarterShardingProperties properties, String logicalTableName) {
         PaymentQuarterShardingProperties.TableRule tableRule = getTableRule(properties, logicalTableName);
@@ -134,6 +169,12 @@ public class PaymentOrderShardingAlgorithm {
      * @param properties       Nacos sharding-{env}.yaml 映射后的分表配置
      * @param logicalTableName 逻辑表名
      * @return true 表示该表参与季度分表
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public boolean containsShardingTable(PaymentQuarterShardingProperties properties, String logicalTableName) {
         if (properties == null || properties.getTables() == null || logicalTableName == null) {

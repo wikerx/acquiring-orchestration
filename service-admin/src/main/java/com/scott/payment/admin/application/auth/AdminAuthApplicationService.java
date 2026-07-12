@@ -23,6 +23,15 @@ import org.springframework.stereotype.Service;
  * <p>负责管理后台认证相关用例编排，统一收敛注册、验证码发送、登录、当前用户查询和退出登录入口，
  * 便于后续在应用层继续补充设备识别、审计留痕和登录风控扩展。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminAuthApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Auth Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminAuthApplicationService {
 
@@ -46,6 +55,11 @@ public class AdminAuthApplicationService {
      * @param request 注册请求
      * @return 注册后的账号信息
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public AuthAccountDTO register(AuthRegisterRequest request) {
         return systemAuthService.register(AuthConstants.APP_ADMIN, request);
     }
@@ -56,6 +70,12 @@ public class AdminAuthApplicationService {
      * @param request        验证码发送请求
      * @param servletRequest Servlet 请求
      * @return 验证码发送响应
+     */
+    /**
+     * 发送收单支付消息或外部请求，并记录必要的执行结果。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param servletRequest 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public AuthVerifyCodeSendResponse sendVerifyCode(AuthVerifyCodeSendRequest request, HttpServletRequest servletRequest) {
         return systemAuthService.sendLoginVerifyCode(
@@ -72,6 +92,12 @@ public class AdminAuthApplicationService {
      * @param servletRequest Servlet 请求
      * @return 登录响应
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param servletRequest 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public AuthLoginResponse login(AuthLoginRequest request, HttpServletRequest servletRequest) {
         return systemAuthService.login(
                 AuthConstants.APP_ADMIN,
@@ -87,6 +113,11 @@ public class AdminAuthApplicationService {
      * @param authorization Authorization 请求头
      * @return 当前登录账号、菜单和权限
      */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public AuthLoginResponse currentUser(String authorization) {
         return systemAuthService.currentUser(AuthConstants.APP_ADMIN, authorization);
     }
@@ -95,6 +126,10 @@ public class AdminAuthApplicationService {
      * 退出后台登录。
      *
      * @param authorization Authorization 请求头
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void logout(String authorization) {
         systemAuthService.logout(AuthConstants.APP_ADMIN, authorization);

@@ -23,15 +23,21 @@ import java.util.Map;
 import static com.scott.payment.component.core.model.CommonResult.success;
 
 /**
- * MCC 管理后台控制器。
- *
- * <p>提供基础数据 / MCC 管理页面所需的树形管理、风险策略、概览和导出接口。
- * Controller 只承担参数接收、权限校验、操作日志和应用服务调用职责。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseMccController
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 基础数据Admin Base Mcc 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @RestController
 @RequestMapping("/admin/base/mcc")
 public class AdminBaseMccController {
 
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final AdminBaseMccApplicationService adminBaseMccApplicationService;
 
     /**
@@ -67,6 +73,11 @@ public class AdminBaseMccController {
     /**
      * 保存 MCC 分类。
      */
+    /**
+     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/category/add")
     @RequiresPermission("base:mcc:category:add")
     @OperationLog(moduleName = "MCC 管理", businessType = OperationTypeConstants.CREATE, operation = "新增 MCC 分类")
@@ -78,6 +89,11 @@ public class AdminBaseMccController {
     /**
      * 编辑 MCC 分类。
      */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/category/edit")
     @RequiresPermission("base:mcc:category:edit")
     @OperationLog(moduleName = "MCC 管理", businessType = OperationTypeConstants.UPDATE, operation = "编辑 MCC 分类")
@@ -87,6 +103,11 @@ public class AdminBaseMccController {
 
     /**
      * 更新 MCC 分类状态。
+     */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/category/status")
     @RequiresPermission("base:mcc:category:status")
@@ -99,6 +120,11 @@ public class AdminBaseMccController {
     /**
      * 删除 MCC 分类。
      */
+    /**
+     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/category/delete")
     @RequiresPermission("base:mcc:category:delete")
     @OperationLog(moduleName = "MCC 管理", businessType = OperationTypeConstants.DELETE, operation = "删除 MCC 分类")
@@ -109,6 +135,11 @@ public class AdminBaseMccController {
 
     /**
      * 新增 MCC 编码。
+     */
+    /**
+     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/code/add")
     @RequiresPermission("base:mcc:code:add")
@@ -121,6 +152,11 @@ public class AdminBaseMccController {
     /**
      * 编辑 MCC 编码。
      */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/code/edit")
     @RequiresPermission("base:mcc:code:edit")
     @OperationLog(moduleName = "MCC 管理", businessType = OperationTypeConstants.UPDATE, operation = "编辑 MCC 编码")
@@ -131,6 +167,11 @@ public class AdminBaseMccController {
     /**
      * 查询 MCC 编码详情。
      */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/code/detail")
     @RequiresPermission("base:mcc:code:view")
     public CommonResult<MccVO.MccCodeVO> codeDetail(@Valid @RequestBody MccRequests.MccIdRequest request) {
@@ -139,6 +180,11 @@ public class AdminBaseMccController {
 
     /**
      * 更新 MCC 编码状态。
+     */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/code/status")
     @RequiresPermission("base:mcc:code:status")
@@ -151,6 +197,11 @@ public class AdminBaseMccController {
 
     /**
      * 删除 MCC 编码。
+     */
+    /**
+     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/code/delete")
     @RequiresPermission("base:mcc:code:delete")
@@ -184,6 +235,11 @@ public class AdminBaseMccController {
     /**
      * 查询 MCC 风险策略详情。
      */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/policy/detail")
     @RequiresPermission("base:mcc:policy:view")
     public CommonResult<MccVO.MccRiskPolicyVO> policyDetail(@Valid @RequestBody MccRequests.MccIdRequest request) {
@@ -192,6 +248,11 @@ public class AdminBaseMccController {
 
     /**
      * 新增 MCC 风险策略。
+     */
+    /**
+     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/policy/add")
     @RequiresPermission("base:mcc:policy:add")
@@ -204,6 +265,11 @@ public class AdminBaseMccController {
     /**
      * 编辑 MCC 风险策略。
      */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/policy/edit")
     @RequiresPermission("base:mcc:policy:edit")
     @OperationLog(moduleName = "MCC 风险策略", businessType = OperationTypeConstants.UPDATE, operation = "编辑 MCC 风险策略")
@@ -213,6 +279,11 @@ public class AdminBaseMccController {
 
     /**
      * 更新 MCC 风险策略状态。
+     */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/policy/status")
     @RequiresPermission("base:mcc:policy:status")
@@ -225,6 +296,11 @@ public class AdminBaseMccController {
     /**
      * 删除 MCC 风险策略。
      */
+    /**
+     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/policy/delete")
     @RequiresPermission("base:mcc:policy:delete")
     @OperationLog(moduleName = "MCC 风险策略", businessType = OperationTypeConstants.DELETE, operation = "删除 MCC 风险策略")
@@ -236,6 +312,10 @@ public class AdminBaseMccController {
     /**
      * 查询 MCC 概览。
      */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @PostMapping("/overview")
     @RequiresPermission("base:mcc:overview:view")
     public CommonResult<MccVO.MccOverviewVO> overview() {
@@ -244,6 +324,10 @@ public class AdminBaseMccController {
 
     /**
      * 查询 MCC 页面下拉选项。
+     */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/options")
     @RequiresPermission("base:mcc:view")

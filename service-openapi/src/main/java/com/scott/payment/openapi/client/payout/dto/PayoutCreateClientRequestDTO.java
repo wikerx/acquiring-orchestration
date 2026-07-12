@@ -7,7 +7,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
- * OpenAPI 调用 service-payout 创建代付交易的内部请求参数。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PayoutCreateClientRequestDTO
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 商户 OpenAPIPayout Create Client Request 数据传输对象，位于 service-openapi 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Data
 public class PayoutCreateClientRequestDTO implements Serializable {

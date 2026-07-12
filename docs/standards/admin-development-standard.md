@@ -47,6 +47,13 @@
 - 不要在页面内重复实现时间格式化函数，不要用 `substring` 截断接口返回时间。
 - 日期范围查询组件保持原有入参与交互，不因展示格式治理改变查询语义。
 
+### 2.6 导出下载
+
+- 管理端列表导出统一使用 `apps/admin-system/src/utils/download.ts` 中的 `downloadExcel`。
+- 只有密钥、证书、压缩包、导入模板等普通二进制文件允许使用 `downloadBlob`。
+- 前端导出接口不要手写文件名兜底规则，优先使用后端 `Content-Disposition` 返回的文件名。
+- 新增页面的导出按钮文案、成功提示和权限码必须走现有 i18n 与 `v-hasPermi` 机制。
+
 ## 3. 后端规范
 
 ### 3.1 Controller 风格
@@ -73,6 +80,16 @@
 - `merchantResponsePrivateKeyPkcs8Base64` 是商户侧解密平台响应 `data` 的私钥，只能交付商户服务端保存。
 - 查看、复制、下载、更新密钥必须使用独立权限，例如 `merchant:key:manage`。
 - 生成接入材料与查看当前已存密钥应拆成不同接口，避免页面刷新后无法重新进入受控查看流程。
+
+### 3.4 Excel 导出
+
+- 管理系统列表导出统一使用 `component-library/component-excel` 的 `ExcelExportService`。
+- 固定列导出使用 `ExcelExportRequest` 和 `@ExcelExportColumn`；动态列导出使用 `ExcelDynamicExportRequest`。
+- 禁止业务接口自行拼装 Excel、CSV 响应头、文件名和表头样式；导入模板等非列表导出场景除外。
+- 导出文件名统一为 `{导出标题}_{yyyyMMddHHmmss}.xlsx`，导出标题必须来自 Excel 国际化文案或当前功能名称。
+- Excel 内部统一包含标题行、导出元信息行、表头行和数据行；导出时间展示为 `yyyy-MM-dd HH:mm:ss`。
+- 表头、标题、状态、风险等级、决策动作、有效期等展示值必须国际化，不能导出数据库原始值或 `0/1` 这类难以理解的编码。
+- 查询条件摘要应尽量反映当前筛选条件；无筛选条件时使用 `excel.common.noCondition`。
 
 ## 4. 数据库规范
 

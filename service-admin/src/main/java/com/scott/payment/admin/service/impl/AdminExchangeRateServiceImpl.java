@@ -45,28 +45,76 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * 管理后台汇率管理服务实现。
- *
- * <p>该服务维护管理端可见的汇率源、原始报价、汇率规则、业务汇率和使用快照。汇率源币种名称映射只供任务服务解析外部源数据，
- * 不在管理后台作为独立菜单维护，避免与基础数据币种管理重复。</p>
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminExchangeRateServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Exchange Rate Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
 
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int ENABLED = 1;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final int DISABLED = 0;
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String ALL = "ALL";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String AUTO = "AUTO";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String MANUAL = "MANUAL";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String RATE_STATUS_ENABLED = "ENABLED";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String RATE_STATUS_VOIDED = "VOIDED";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String RATE_STATUS_DISABLED = "DISABLED";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String RATE_STATUS_EXPIRED = "EXPIRED";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String UP = "UP";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String DOWN = "DOWN";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String NONE = "NONE";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String BP = "BP";
+    /**
+     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     */
     private static final String PERCENT = "PERCENT";
     private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{2,64}$");
     private static final Pattern CURRENCY_PATTERN = Pattern.compile("^[A-Z]{3}$|^ALL$");
@@ -78,10 +126,25 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     private static final Set<String> ROUNDING_MODES = Set.of("ROUND_HALF_UP", "ROUND_UP", "ROUND_DOWN");
     private static final Set<String> MANUAL_BUSINESS_RATE_STATUSES = Set.of(RATE_STATUS_ENABLED, RATE_STATUS_DISABLED);
 
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExchangeRateSourceMapper sourceMapper;
+    /**
+     * 收单支付金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     private final ExchangeRawRateMapper rawRateMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExchangeRateRuleMapper ruleMapper;
+    /**
+     * 收单支付金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     */
     private final ExchangeBusinessRateMapper businessRateMapper;
+    /**
+     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExchangeRateUsageSnapshotMapper usageSnapshotMapper;
 
     public AdminExchangeRateServiceImpl(ExchangeRateSourceMapper sourceMapper,
@@ -101,6 +164,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 汇率源分页结果
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<SourceResponse> pageSources(SourceQuery request) {
@@ -123,6 +191,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 汇率源列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<SourceResponse> listSources(SourceQuery request) {
@@ -147,6 +220,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 汇率源主键
      * @return 汇率源详情
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public SourceResponse getSource(Long id) {
         return toSourceResponse(findSource(id));
@@ -157,6 +235,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 保存请求
      * @return 新增后的汇率源详情
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -177,6 +260,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param request 保存请求
      * @return 修改后的汇率源详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse updateSource(Long id, SourceSaveRequest request) {
@@ -194,6 +283,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的汇率源详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse updateSourceStatus(Long id, Integer status) {
@@ -209,6 +304,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * 软删除未被原始汇率、规则或业务汇率引用的汇率源。
      *
      * @param id 汇率源主键
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -227,6 +326,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 原始汇率分页结果
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<RawRateResponse> pageRawRates(RawRateQuery request) {
@@ -253,6 +357,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 原始汇率列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<RawRateResponse> listRawRates(RawRateQuery request) {
@@ -281,6 +390,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 原始汇率主键
      * @return 原始汇率详情
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public RawRateResponse getRawRate(Long id) {
         return toRawRateResponse(findRawRate(id));
@@ -291,6 +405,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 原始汇率保存请求
      * @return 新增后的原始汇率详情
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -312,6 +431,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id         原始汇率主键
      * @param voidReason 作废原因
      * @return 作废后的原始汇率详情
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param voidReason 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -339,6 +464,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param request 查询条件，允许为空
      * @return 汇率规则分页结果
      */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public PageResult<RuleResponse> pageRules(RuleQuery request) {
         RuleQuery query = request == null ? new RuleQuery() : request;
@@ -362,6 +492,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 汇率规则列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<RuleResponse> listRules(RuleQuery request) {
@@ -388,6 +523,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 规则主键
      * @return 汇率规则详情
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public RuleResponse getRule(Long id) {
         return toRuleResponse(findRule(id));
@@ -398,6 +538,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 规则保存请求
      * @return 新增后的规则详情
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -418,6 +563,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param request 规则保存请求
      * @return 修改后的规则详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse updateRule(Long id, RuleSaveRequest request) {
@@ -435,6 +586,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的规则详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse updateRuleStatus(Long id, Integer status) {
@@ -451,6 +608,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 业务汇率分页结果
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<BusinessRateResponse> pageBusinessRates(BusinessRateQuery request) {
@@ -474,6 +636,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 业务汇率列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<BusinessRateResponse> listBusinessRates(BusinessRateQuery request) {
@@ -499,6 +666,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 业务汇率主键
      * @return 业务汇率详情
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public BusinessRateResponse getBusinessRate(Long id) {
         return toBusinessRateResponse(findBusinessRate(id));
@@ -509,6 +681,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 业务汇率保存请求
      * @return 新增后的业务汇率
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -523,6 +700,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 批量保存请求
      * @return 新增后的业务汇率列表
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -546,6 +728,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 业务汇率生成请求
      * @return 生成后的业务汇率详情
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -588,6 +775,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的业务汇率详情
      */
+    /**
+     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BusinessRateResponse updateBusinessRateStatus(Long id, Integer status) {
@@ -604,6 +797,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 汇率使用快照分页结果
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<UsageSnapshotResponse> pageUsageSnapshots(UsageSnapshotQuery request) {
@@ -629,6 +827,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 使用快照列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<UsageSnapshotResponse> listUsageSnapshots(UsageSnapshotQuery request) {
@@ -656,6 +859,11 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 快照主键
      * @return 使用快照详情
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public UsageSnapshotResponse getUsageSnapshot(Long id) {
         ExchangeRateUsageSnapshotDO entity = usageSnapshotMapper.selectOne(Wrappers.<ExchangeRateUsageSnapshotDO>lambdaQuery()
@@ -673,6 +881,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param originalRate 原始报价字段值
      * @param rule         汇率规则
      * @return 最终业务汇率
+     */
+    /**
+     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * @param originalRate 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public BigDecimal calculateFinalRate(BigDecimal originalRate, ExchangeRateRuleDO rule) {
         if (originalRate == null || originalRate.compareTo(BigDecimal.ZERO) <= 0) {

@@ -30,6 +30,15 @@ import java.util.stream.Collectors;
  * <p>负责管理后台在线用户监控用例编排，统一处理登录会话分页查询、账户与用户信息补充、
  * 以及强制下线等后台监控动作。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminMonitorOnlineApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 监控治理Admin Monitor Online Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminMonitorOnlineApplicationService {
 
@@ -70,6 +79,12 @@ public class AdminMonitorOnlineApplicationService {
      * @param pageSize 每页大小
      * @return 在线用户分页信息
      */
+    /**
+     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
+     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public Map<String, Object> pageOnlineUsers(int pageNo, int pageSize) {
         LambdaQueryWrapper<SysLoginSessionDO> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(SysLoginSessionDO::getLogout, 0);
@@ -107,6 +122,10 @@ public class AdminMonitorOnlineApplicationService {
      * 强制下线指定登录会话。
      *
      * @param sessionId 会话主键
+     */
+    /**
+     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
+     * @param sessionId 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void forceLogout(Long sessionId) {
         SysLoginSessionDO session = sysLoginSessionMapper.selectById(sessionId);

@@ -9,7 +9,13 @@ import java.util.Base64;
 import java.util.Objects;
 
 /**
- * OpenAPI 商户密钥材料生成工厂，负责生成 JWT 密钥和 RSA 密钥对的原始材料。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiKeyMaterialFactory
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : OpenAPI 商户密钥材料生成工厂，负责生成 JWT 密钥和 RSA 密钥对的原始材料。
+ * @status : create
  */
 public class OpenApiKeyMaterialFactory {
 
@@ -71,6 +77,11 @@ public class OpenApiKeyMaterialFactory {
      * @param merchantId 商户号
      * @return 商户 JWT 签名密钥材料
      */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public MerchantJwtKey generateMerchantJwtKey(String merchantId) {
         byte[] secret = randomBytes(DEFAULT_MERCHANT_KEY_BYTES);
         return new MerchantJwtKey(
@@ -90,6 +101,11 @@ public class OpenApiKeyMaterialFactory {
      * @param merchantId 支付框架颁发的商户号
      * @return 平台请求体解密密钥材料
      */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public RsaKeyMaterial generatePlatformPayloadRsaKey(String merchantId) {
         return generateRsaKeyMaterial(merchantId, "payment-platform-payload", DEFAULT_RSA_KEY_SIZE);
     }
@@ -102,6 +118,11 @@ public class OpenApiKeyMaterialFactory {
      * @param merchantId 支付框架颁发的商户号
      * @return 商户响应加密密钥材料
      */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public RsaKeyMaterial generateMerchantResponseRsaKey(String merchantId) {
         return generateRsaKeyMaterial(merchantId, "merchant-response-payload", DEFAULT_RSA_KEY_SIZE);
     }
@@ -113,6 +134,13 @@ public class OpenApiKeyMaterialFactory {
      * @param platformPayloadKey   平台请求体 RSA 密钥材料
      * @param merchantResponseKey  商户响应 RSA 密钥材料
      * @return 商户对接材料
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param platformPayloadKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param merchantResponseKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public MerchantOpenApiCredential generateMerchantCredential(String merchantId,
                                                                 RsaKeyMaterial platformPayloadKey,
@@ -140,6 +168,11 @@ public class OpenApiKeyMaterialFactory {
      * @param merchantId 商户号
      * @return 本地联调用商户接入材料
      */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public OpenApiMerchantOnboardingMaterial generateDemoOnboardingMaterial(String merchantId) {
         RsaKeyMaterial platformPayloadKey = generatePlatformPayloadRsaKey(merchantId);
         RsaKeyMaterial merchantResponseKey = generateMerchantResponseRsaKey(merchantId);
@@ -157,6 +190,11 @@ public class OpenApiKeyMaterialFactory {
      *
      * @param value 需要计算指纹的文本
      * @return SHA-256 十六进制指纹
+     */
+    /**
+     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
+     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public String fingerprint(String value) {
         return OpenApiPemUtils.sha256Fingerprint(value);

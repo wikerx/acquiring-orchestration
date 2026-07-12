@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.scott.payment.admin.constant.SystemConfigKeys;
 import com.scott.payment.admin.converter.ConfigConverter;
 import com.scott.payment.admin.dto.SysConfigDTO;
 import com.scott.payment.admin.dto.SysConfigQueryRequest;
@@ -17,7 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @author : scott
@@ -29,6 +33,15 @@ import java.util.List;
  * @status : create
  *
  * <p>负责系统参数配置的持久化规则、唯一键校验与软删除处理，不承担接口协议适配或权限控制逻辑。</p>
+ */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminConfigServiceImpl
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Admin Config Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
  */
 @Service
 public class AdminConfigServiceImpl implements AdminConfigService {
@@ -49,12 +62,19 @@ public class AdminConfigServiceImpl implements AdminConfigService {
     private final SysConfigMapper sysConfigMapper;
 
     /**
+     * 系统参数配置对象转换器。
+     */
+    private final ConfigConverter configConverter;
+
+    /**
      * 创建系统参数配置服务实现。
      *
      * @param sysConfigMapper 系统参数配置 Mapper
+     * @param configConverter 系统参数配置对象转换器
      */
-    public AdminConfigServiceImpl(SysConfigMapper sysConfigMapper) {
+    public AdminConfigServiceImpl(SysConfigMapper sysConfigMapper, ConfigConverter configConverter) {
         this.sysConfigMapper = sysConfigMapper;
+        this.configConverter = configConverter;
     }
 
     /**
@@ -62,6 +82,11 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      *
      * @param request 系统参数配置保存请求
      * @return 保存后的配置
+     */
+    /**
+     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public SysConfigDTO saveConfig(SysConfigSaveRequest request) {
@@ -80,7 +105,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         } else {
             sysConfigMapper.updateById(entity);
         }
-        return ConfigConverter.INSTANCE.toDTO(entity);
+        return configConverter.toDTO(entity);
     }
 
     /**
@@ -89,13 +114,42 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @param configKey 参数键名
      * @return 参数配置
      */
+    /**
+     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param configKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public SysConfigDTO getConfigByKey(String configKey) {
         SysConfigDO entity = findActiveConfig(configKey);
         if (entity == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), ApiResultEnum.NOT_FOUND.getMessage() + ":" + configKey);
         }
-        return ConfigConverter.INSTANCE.toDTO(entity);
+        return configConverter.toDTO(entity);
+    }
+
+    /**
+     * 按配置键集合查询启用的未删除配置值。
+     *
+     * @param configKeys 参数键名集合
+     * @return 参数键名与参数值映射
+     */
+    @Override
+    public Map<String, String> enabledConfigValues(Set<String> configKeys) {
+        if (configKeys == null || configKeys.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> values = new LinkedHashMap<>();
+        sysConfigMapper.selectList(Wrappers.<SysConfigDO>lambdaQuery()
+                        .in(SysConfigDO::getConfigKey, configKeys)
+                        .eq(SysConfigDO::getStatus, ENABLED)
+                        .eq(SysConfigDO::getDeleted, NOT_DELETED))
+                .forEach(row -> {
+                    if (StringUtils.hasText(row.getConfigValue())) {
+                        values.put(row.getConfigKey(), row.getConfigValue().trim());
+                    }
+                });
+        return values;
     }
 
     /**
@@ -103,6 +157,11 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      *
      * @param request 查询条件
      * @return 系统参数配置列表
+     */
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<SysConfigDTO> pageConfigs(SysConfigQueryRequest request) {
@@ -115,16 +174,21 @@ public class AdminConfigServiceImpl implements AdminConfigService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(ConfigConverter.INSTANCE::toDTO).toList()
+                page.getRecords().stream().map(configConverter::toDTO).toList()
         );
     }
 
+    /**
+     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
+     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     @Override
     public List<SysConfigDTO> listConfigs(SysConfigQueryRequest request) {
         SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
         return sysConfigMapper.selectList(buildConfigQueryWrapper(query))
                 .stream()
-                .map(ConfigConverter.INSTANCE::toDTO)
+                .map(configConverter::toDTO)
                 .toList();
     }
 
@@ -148,6 +212,10 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * 软删除指定配置。
      *
      * @param configKey 参数键名
+     */
+    /**
+     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
+     * @param configKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void deleteConfig(String configKey) {
@@ -186,6 +254,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @param now     当前时间
      */
     private void fillConfig(SysConfigDO entity, SysConfigSaveRequest request, LocalDateTime now) {
+        assertHttpBaseUrl(request.getConfigKey(), request.getConfigValue());
         entity.setConfigName(request.getConfigName());
         entity.setConfigValue(request.getConfigValue());
         entity.setValueType(request.getValueType());
@@ -197,6 +266,25 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         entity.setRemark(request.getRemark());
         entity.setUpdatedBy(request.getOperator());
         entity.setUpdatedAt(now);
+    }
+
+    /**
+     * 平台访问地址类配置必须保存为 HTTP(S) base URL，避免邮件模板生成不可点击或不安全的链接。
+     *
+     * @param configKey 参数键名
+     * @param configValue 参数值
+     */
+    private void assertHttpBaseUrl(String configKey, String configValue) {
+        if (!SystemConfigKeys.HTTP_BASE_URL_KEYS.contains(configKey)) {
+            return;
+        }
+        if (!StringUtils.hasText(configValue)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "平台访问地址不能为空");
+        }
+        String value = configValue.trim();
+        if (!value.startsWith("http://") && !value.startsWith("https://")) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "平台访问地址必须以 http:// 或 https:// 开头");
+        }
     }
 
     /**

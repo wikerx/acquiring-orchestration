@@ -36,13 +36,22 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  *
  * <p>负责管理后台国家地区基础资料用例编排，包括分页查询、详情查询、新增、更新、状态切换和逻辑删除。</p>
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : AdminBaseCountryApplicationService
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 基础数据Admin Base Country Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Service
 public class AdminBaseCountryApplicationService {
 
     /**
      * 导出文件时间戳格式。
      */
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 默认启用状态。
@@ -63,8 +72,17 @@ public class AdminBaseCountryApplicationService {
      * 国家地区数据访问组件。
      */
     private final IsoCountryMapper isoCountryMapper;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -93,6 +111,15 @@ public class AdminBaseCountryApplicationService {
      * @param status        状态
      * @return 分页结果
      */
+    /**
+     * 查询基础数据列表或分页数据，供页面筛选和展示使用。
+     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param keyword 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param continentCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public PageResult<IsoCountryDO> pageCountries(int pageNo, int pageSize, String keyword,
                                                   String continentCode, Integer status) {
         LambdaQueryWrapper<IsoCountryDO> queryWrapper = new LambdaQueryWrapper<>();
@@ -118,6 +145,11 @@ public class AdminBaseCountryApplicationService {
      * @param id 主键
      * @return 国家地区详情
      */
+    /**
+     * 获取基础数据明细数据，并在不存在或不满足条件时按业务边界处理。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public IsoCountryDO getCountry(Long id) {
         return isoCountryMapper.selectById(id);
     }
@@ -126,6 +158,11 @@ public class AdminBaseCountryApplicationService {
      * 导出全部国家地区资料。
      *
      * @return 国家地区列表
+     */
+    /**
+     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
+     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportCountries(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -137,8 +174,8 @@ public class AdminBaseCountryApplicationService {
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<IsoCountryExportRow>builder()
-                        .fileName("国家地区_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("国家地区")
+                        .fileName(excelI18nMessageResolver.resolve("excel.country.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(excelI18nMessageResolver.resolve("excel.country.title", locale))
                         .titleKey("excel.country.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())
@@ -156,6 +193,11 @@ public class AdminBaseCountryApplicationService {
      *
      * @param country 国家地区实体
      * @return 保存后的实体
+     */
+    /**
+     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
+     * @param country 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
      */
     public IsoCountryDO createCountry(IsoCountryDO country) {
         country.setId(null);
@@ -176,6 +218,12 @@ public class AdminBaseCountryApplicationService {
      * @param input 更新输入
      * @return 更新结果
      */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<IsoCountryDO> updateCountry(Long id, IsoCountryDO input) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
@@ -194,6 +242,13 @@ public class AdminBaseCountryApplicationService {
      * @param body 状态请求体
      * @return 更新结果
      */
+    /**
+     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @return 处理后的业务结果或页面展示数据。
+     */
     public CommonResult<IsoCountryDO> updateStatus(Long id, Map<String, Integer> body) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
@@ -209,6 +264,10 @@ public class AdminBaseCountryApplicationService {
      * 逻辑删除国家地区资料。
      *
      * @param id 主键
+     */
+    /**
+     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
+     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void removeCountry(Long id) {
         IsoCountryDO country = isoCountryMapper.selectById(id);

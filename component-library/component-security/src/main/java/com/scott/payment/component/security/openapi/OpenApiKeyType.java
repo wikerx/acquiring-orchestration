@@ -1,7 +1,13 @@
 package com.scott.payment.component.security.openapi;
 
 /**
- * OpenAPI 密钥材料导出类型，限定管理端和商户端可以复制或下载的材料范围。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : OpenApiKeyType
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : OpenAPI 密钥材料导出类型，限定管理端和商户端可以复制或下载的材料范围。
+ * @status : create
  */
 public enum OpenApiKeyType {
 

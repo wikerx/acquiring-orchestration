@@ -6,6 +6,8 @@ import com.scott.payment.admin.dto.SysConfigSaveRequest;
 import com.scott.payment.component.core.model.PageResult;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @author : scott
@@ -35,6 +37,14 @@ public interface AdminConfigService {
      * @return 参数配置
      */
     SysConfigDTO getConfigByKey(String configKey);
+
+    /**
+     * 按配置键集合查询启用的未删除配置值。
+     *
+     * @param configKeys 参数键名集合
+     * @return 参数键名与参数值映射
+     */
+    Map<String, String> enabledConfigValues(Set<String> configKeys);
 
     /**
      * 按条件查询系统参数配置列表。

@@ -13,6 +13,15 @@ import java.io.Serializable;
  * @description : 商户 JWT 授权声明
  * @status : create
  */
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : JwtMerchantClaims
+ * @date : 2026-07-04 16:30
+ * @email : scott_x@163.com
+ * @description : 收单支付Jwt Merchant Claims，位于 component-library/component-security 的安全组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @status : create
+ */
 @Data
 public class JwtMerchantClaims implements Serializable {
 
