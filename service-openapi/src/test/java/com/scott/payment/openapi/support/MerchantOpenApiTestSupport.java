@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * @author : scott
@@ -152,6 +153,16 @@ public final class MerchantOpenApiTestSupport {
         payload.put(RegisteredPayload.EXPIRES_AT, issuedAt + JWT_EXPIRES_SECONDS);
         payload.put("merchantId", merchantId);
         return JWTUtil.createToken(header, payload, merchantKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 构造测试专用 JWT jti，避免 Redis 防重放键在重复执行或并发执行测试时相互影响。
+     *
+     * @param scenario 当前测试场景或业务订单标识
+     * @return 带随机后缀的 JWT jti
+     */
+    public static String uniqueJwtId(String scenario) {
+        return scenario + "-" + UUID.randomUUID();
     }
 
     /**

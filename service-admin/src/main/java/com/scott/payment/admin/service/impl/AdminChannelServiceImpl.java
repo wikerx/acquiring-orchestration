@@ -9,24 +9,38 @@ import com.scott.payment.admin.dto.channel.ChannelDTOs.CapabilitySaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMetadataSchemaItem;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelOption;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingSaveRequest;
 import com.scott.payment.admin.entity.SysDictDataDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCardBrandDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCurrencyDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelInfoDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelLimitRuleDO;
+import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelMetadataSchemaDO;
+import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelMidConfigDO;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelPaymentCapabilityDO;
+import com.scott.payment.admin.entity.channel.ChannelEntities.MerchantChannelMidBindingDO;
 import com.scott.payment.admin.mapper.ChannelCapabilityCardBrandMapper;
 import com.scott.payment.admin.mapper.ChannelCapabilityCurrencyMapper;
 import com.scott.payment.admin.mapper.ChannelInfoMapper;
 import com.scott.payment.admin.mapper.ChannelLimitRuleMapper;
+import com.scott.payment.admin.mapper.ChannelMetadataSchemaMapper;
+import com.scott.payment.admin.mapper.ChannelMidConfigMapper;
 import com.scott.payment.admin.mapper.ChannelPaymentCapabilityMapper;
+import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
 import com.scott.payment.admin.mapper.SysDictDataMapper;
 import com.scott.payment.admin.service.AdminChannelService;
+import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
@@ -54,114 +68,165 @@ import java.util.stream.Collectors;
  * @classname : AdminChannelServiceImpl
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 收单支付Admin Channel Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 管理后台渠道配置服务实现，负责维护渠道基础信息、支付能力、MID 参数模板和限额规则。
  * @status : create
  */
 @Service
 public class AdminChannelServiceImpl implements AdminChannelService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 软删除未删除标识。
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 通用启用状态。
      */
     private static final int ENABLED = 1;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 通用停用状态。
      */
     private static final int DISABLED = 0;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 收单业务类型。
      */
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 代付业务类型。
      */
     private static final String BUSINESS_PAYOUT = "PAYOUT";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 银行卡支付方式编码。
      */
     private static final String PAYMENT_BANK_CARD = "BANK_CARD";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 无卡品牌维度占位值。
      */
     private static final String NONE = "NONE";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 全部卡品牌维度占位值。
      */
     private static final String ALL = "ALL";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 脱敏元数据的占位值，编辑敏感字段留空或保持占位时不覆盖原始配置。
+     */
+    private static final String MASKED_METADATA_VALUE = "***";
+    /**
+     * 当前限额配置默认币种。
      */
     private static final String USD = "USD";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 日限额类型。
      */
     private static final String LIMIT_DAILY = "DAILY";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 周限额类型。
      */
     private static final String LIMIT_WEEKLY = "WEEKLY";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 月限额类型。
      */
     private static final String LIMIT_MONTHLY = "MONTHLY";
+    /**
+     * 限额配置允许的最小金额。
+     */
     private static final BigDecimal MIN_LIMIT_AMOUNT = new BigDecimal("0.01");
+    /**
+     * 周限额默认按日限额 7 倍生成。
+     */
     private static final BigDecimal WEEKLY_LIMIT_MULTIPLIER = new BigDecimal("7");
+    /**
+     * 月限额默认按周限额 4 倍生成。
+     */
     private static final BigDecimal MONTHLY_LIMIT_MULTIPLIER = new BigDecimal("4");
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 多交易类型保存时使用的分隔符。
      */
     private static final String TRANSACTION_TYPE_SEPARATOR = ",";
+    /**
+     * 渠道编码格式，限制为大写字母、数字和下划线。
+     */
     private static final Pattern CHANNEL_CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{2,64}$");
+    /**
+     * MID 参数模板字段名格式。
+     */
+    private static final Pattern METADATA_FIELD_KEY_PATTERN = Pattern.compile("^[A-Za-z][A-Za-z0-9_]{1,63}$");
+    /**
+     * 渠道默认请求地址格式。
+     */
     private static final Pattern HTTP_URL_PATTERN = Pattern.compile("^https?://.+", Pattern.CASE_INSENSITIVE);
+    /**
+     * 允许开启增量授权的交易类型。
+     */
     private static final Set<String> INCREMENTAL_TRANSACTION_TYPES = Set.of("AUTHORIZATION", "PRE_AUTHORIZATION");
+    /**
+     * 后台支持配置的 MID 参数字段类型。
+     */
+    private static final Set<String> METADATA_FIELD_TYPES = Set.of(
+            "TEXT", "PASSWORD", "URL", "NUMBER", "JSON", "TEXTAREA", "PRIVATE_KEY", "PUBLIC_KEY", "CERTIFICATE", "SELECT"
+    );
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 渠道基础信息数据访问对象。
      */
     private final ChannelInfoMapper channelInfoMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 渠道 MID 参数模板数据访问对象。
+     */
+    private final ChannelMetadataSchemaMapper metadataSchemaMapper;
+    /**
+     * 渠道支付能力数据访问对象。
      */
     private final ChannelPaymentCapabilityMapper capabilityMapper;
     /**
-     * 收单支付币种字段，通常使用 ISO 4217 三位字母代码，不能为空时由上层校验。
+     * 渠道能力支持币种数据访问对象。
      */
     private final ChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 渠道能力支持卡品牌数据访问对象。
      */
     private final ChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 渠道限额规则数据访问对象。
      */
     private final ChannelLimitRuleMapper limitRuleMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 渠道真实 MID 配置数据访问对象。
+     */
+    private final ChannelMidConfigMapper midConfigMapper;
+    /**
+     * 商户与渠道 MID 绑定关系数据访问对象。
+     */
+    private final MerchantChannelMidBindingMapper midBindingMapper;
+    /**
+     * 系统字典数据访问对象，用于校验交易类型、支付方式、卡品牌等管理端配置值。
      */
     private final SysDictDataMapper dictDataMapper;
 
     public AdminChannelServiceImpl(ChannelInfoMapper channelInfoMapper,
+                                   ChannelMetadataSchemaMapper metadataSchemaMapper,
                                    ChannelPaymentCapabilityMapper capabilityMapper,
                                    ChannelCapabilityCurrencyMapper capabilityCurrencyMapper,
                                    ChannelCapabilityCardBrandMapper capabilityCardBrandMapper,
                                    ChannelLimitRuleMapper limitRuleMapper,
+                                   ChannelMidConfigMapper midConfigMapper,
+                                   MerchantChannelMidBindingMapper midBindingMapper,
                                    SysDictDataMapper dictDataMapper) {
         this.channelInfoMapper = channelInfoMapper;
+        this.metadataSchemaMapper = metadataSchemaMapper;
         this.capabilityMapper = capabilityMapper;
         this.capabilityCurrencyMapper = capabilityCurrencyMapper;
         this.capabilityCardBrandMapper = capabilityCardBrandMapper;
         this.limitRuleMapper = limitRuleMapper;
+        this.midConfigMapper = midConfigMapper;
+        this.midBindingMapper = midBindingMapper;
         this.dictDataMapper = dictDataMapper;
     }
 
     /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 分页查询渠道基础信息。
+     *
+     * @param request 渠道状态、业务支持能力和关键字等筛选条件；为空时使用默认分页
+     * @return 渠道基础信息分页结果
      */
     @Override
     public PageResult<ChannelInfoResponse> pageChannels(ChannelInfoQuery request) {
@@ -186,8 +251,9 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询渠道下拉选项。
+     *
+     * @return 渠道编码、名称、状态和业务支持能力摘要
      */
     @Override
     public List<ChannelOption> listChannelOptions() {
@@ -211,9 +277,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询渠道基础信息详情。
+     *
+     * @param id 渠道主键
+     * @return 渠道基础信息、支付方式摘要和 MID 参数模板
      */
     @Override
     public ChannelInfoResponse getChannel(Long id) {
@@ -221,9 +288,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 新增渠道基础信息。
+     *
+     * @param request 渠道编码、名称、业务支持能力、默认请求地址和 MID 参数模板
+     * @return 新增后的渠道基础信息
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -234,14 +302,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setCreateTime(entity.getUpdateTime());
         entity.setDeleted(NOT_DELETED);
         channelInfoMapper.insert(entity);
+        replaceMetadataSchemas(entity, request.getMetadataSchemas());
         return toChannelResponse(entity);
     }
 
     /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新渠道基础信息，并同步替换 MID 参数模板。
+     *
+     * @param id 渠道主键
+     * @param request 渠道基础信息和 MID 参数模板
+     * @return 更新后的渠道基础信息
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -250,14 +320,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         validateChannelRequest(request, id);
         fillChannel(entity, request, LocalDateTime.now());
         channelInfoMapper.updateById(entity);
+        replaceMetadataSchemas(entity, request.getMetadataSchemas());
         return toChannelResponse(entity);
     }
 
     /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新渠道启停状态。
+     *
+     * @param id 渠道主键
+     * @param status 目标状态：0停用，1启用
+     * @return 更新后的渠道基础信息
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -271,8 +343,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 软删除渠道基础信息。
+     * <p>
+     * 渠道存在启用中的支付能力或限额规则时禁止删除，避免后台配置出现悬挂引用。
+     *
+     * @param id 渠道主键
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -287,9 +362,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 分页查询渠道支付能力。
+     *
+     * @param request 渠道、业务类型、支付方式、交易类型和状态等筛选条件
+     * @return 支付能力分页结果
      */
     @Override
     public PageResult<CapabilityResponse> pageCapabilities(CapabilityQuery request) {
@@ -304,9 +380,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询渠道支付能力详情。
+     *
+     * @param id 支付能力主键
+     * @return 支付能力详情，包含支持币种和卡品牌
      */
     @Override
     public CapabilityResponse getCapability(Long id) {
@@ -315,9 +392,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 新增渠道支付能力。
+     *
+     * @param request 业务类型、支付方式、交易类型、币种、卡品牌和能力开关配置
+     * @return 新增后的支付能力详情
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -334,10 +412,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新渠道支付能力，并同步替换支持币种和卡品牌范围。
+     *
+     * @param id 支付能力主键
+     * @param request 支付能力配置
+     * @return 更新后的支付能力详情
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -352,10 +431,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新支付能力启停状态。
+     *
+     * @param id 支付能力主键
+     * @param status 目标状态：0停用，1启用
+     * @return 更新后的支付能力详情
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -373,11 +453,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param support3ds 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param supportIncrementalAuthorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新支付能力的 3DS 和增量授权开关。
+     *
+     * @param id 支付能力主键
+     * @param support3ds 3DS 支持状态；为空表示不变
+     * @param supportIncrementalAuthorization 增量授权支持状态；为空表示不变
+     * @return 更新后的支付能力详情
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -405,8 +486,9 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 软删除渠道支付能力，并同步软删除能力下的币种和卡品牌配置。
+     *
+     * @param id 支付能力主键
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -419,9 +501,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 分页查询渠道限额规则。
+     *
+     * @param request 渠道、业务类型、支付方式、卡品牌、限额类型和状态等筛选条件
+     * @return 限额规则分页结果
      */
     @Override
     public PageResult<LimitResponse> pageLimits(LimitQuery request) {
@@ -436,9 +519,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询渠道限额规则详情。
+     *
+     * @param id 限额规则主键
+     * @return 限额规则详情
      */
     @Override
     public LimitResponse getLimit(Long id) {
@@ -447,9 +531,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 新增单条渠道限额规则。
+     *
+     * @param request 限额维度、限额类型、金额和状态
+     * @return 新增后的限额规则详情
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -464,9 +549,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 批量新增渠道限额规则。
+     *
+     * @param request 限额规则批量保存请求
+     * @return 新增后的限额规则列表
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -481,9 +567,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 保存同一限额维度下的多周期规则。
+     *
+     * @param request 同一渠道、业务类型、支付方式和卡品牌下的限额规则集合
+     * @return 新增或更新后的限额规则列表
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -504,10 +591,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新单条渠道限额规则。
+     *
+     * @param id 限额规则主键
+     * @param request 限额维度、限额类型、金额和状态
+     * @return 更新后的限额规则详情
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -520,10 +608,11 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新限额规则启停状态。
+     *
+     * @param id 限额规则主键
+     * @param status 目标状态：0停用，1启用
+     * @return 更新后的限额规则详情
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -538,8 +627,9 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 软删除渠道限额规则。
+     *
+     * @param id 限额规则主键
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -549,6 +639,219 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
         limitRuleMapper.updateById(entity);
+    }
+
+    /**
+     * 分页查询渠道 MID 配置。
+     *
+     * @param request 查询条件
+     * @return 渠道 MID 分页结果
+     */
+    @Override
+    public PageResult<ChannelMidConfigResponse> pageMids(ChannelMidConfigQuery request) {
+        ChannelMidConfigQuery query = request == null ? new ChannelMidConfigQuery() : request;
+        Page<ChannelMidConfigDO> page = midConfigMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()),
+                buildMidQuery(query)
+        );
+        Map<Long, ChannelInfoDO> channelMap = channelMap(page.getRecords().stream().map(ChannelMidConfigDO::getChannelId).toList());
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
+                page.getRecords().stream().map(row -> toMidResponse(row, channelMap.get(row.getChannelId()))).toList());
+    }
+
+    /**
+     * 查询渠道 MID 配置详情。
+     *
+     * @param id MID 配置主键
+     * @return MID 配置详情
+     */
+    @Override
+    public ChannelMidConfigResponse getMid(Long id) {
+        ChannelMidConfigDO entity = findMid(id);
+        return toMidResponse(entity, findChannel(entity.getChannelId()));
+    }
+
+    /**
+     * 新增渠道 MID 配置。
+     *
+     * @param request MID 配置参数
+     * @return 新增后的 MID 配置
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ChannelMidConfigResponse createMid(ChannelMidConfigSaveRequest request) {
+        ChannelInfoDO channel = validateMidRequest(request, null);
+        ChannelMidConfigDO entity = new ChannelMidConfigDO();
+        fillMid(entity, request, channel, LocalDateTime.now());
+        entity.setCreateTime(entity.getUpdateTime());
+        entity.setDeleted(NOT_DELETED);
+        midConfigMapper.insert(entity);
+        return toMidResponse(entity, channel);
+    }
+
+    /**
+     * 更新渠道 MID 配置。
+     *
+     * @param id MID 配置主键
+     * @param request MID 配置参数
+     * @return 更新后的 MID 配置
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ChannelMidConfigResponse updateMid(Long id, ChannelMidConfigSaveRequest request) {
+        ChannelMidConfigDO entity = findMid(id);
+        mergeMetadataValuesForUpdate(entity, request);
+        ChannelInfoDO channel = validateMidRequest(request, id);
+        fillMid(entity, request, channel, LocalDateTime.now());
+        midConfigMapper.updateById(entity);
+        refreshBindingChannelMid(entity);
+        return toMidResponse(entity, channel);
+    }
+
+    /**
+     * 更新渠道 MID 启停状态。
+     *
+     * @param id MID 配置主键
+     * @param status 目标状态
+     * @return 更新后的 MID 配置
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ChannelMidConfigResponse updateMidStatus(Long id, Integer status) {
+        validateStatus(status);
+        ChannelMidConfigDO entity = findMid(id);
+        if (status == ENABLED) {
+            validateChannelSupportsBusiness(findChannel(entity.getChannelId()), entity.getBusinessType());
+        }
+        entity.setMidStatus(status);
+        entity.setUpdateBy(currentOperatorName());
+        entity.setUpdateTime(LocalDateTime.now());
+        midConfigMapper.updateById(entity);
+        return toMidResponse(entity, findChannel(entity.getChannelId()));
+    }
+
+    /**
+     * 软删除渠道 MID 配置。
+     *
+     * @param id MID 配置主键
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMid(Long id) {
+        ChannelMidConfigDO entity = findMid(id);
+        if (hasActiveMidBinding(id)) {
+            throw badRequest("MID存在启用中的商户绑定，不能删除");
+        }
+        entity.setDeleted(entity.getId());
+        entity.setUpdateBy(currentOperatorName());
+        entity.setUpdateTime(LocalDateTime.now());
+        midConfigMapper.updateById(entity);
+    }
+
+    /**
+     * 分页查询商户渠道 MID 绑定关系。
+     *
+     * @param request 查询条件
+     * @return 绑定关系分页结果
+     */
+    @Override
+    public PageResult<MerchantChannelMidBindingResponse> pageMidBindings(MerchantChannelMidBindingQuery request) {
+        MerchantChannelMidBindingQuery query = request == null ? new MerchantChannelMidBindingQuery() : request;
+        Page<MerchantChannelMidBindingDO> page = midBindingMapper.selectPage(
+                new Page<>(query.safePageNo(), query.safePageSize()),
+                buildMidBindingQuery(query)
+        );
+        Map<Long, ChannelInfoDO> channelMap = channelMap(page.getRecords().stream().map(MerchantChannelMidBindingDO::getChannelId).toList());
+        Map<Long, ChannelMidConfigDO> midMap = midMap(page.getRecords().stream().map(MerchantChannelMidBindingDO::getMidConfigId).toList());
+        return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(),
+                page.getRecords().stream().map(row -> toMidBindingResponse(row, channelMap.get(row.getChannelId()), midMap.get(row.getMidConfigId()))).toList());
+    }
+
+    /**
+     * 查询商户渠道 MID 绑定详情。
+     *
+     * @param id 绑定主键
+     * @return 绑定详情
+     */
+    @Override
+    public MerchantChannelMidBindingResponse getMidBinding(Long id) {
+        MerchantChannelMidBindingDO entity = findMidBinding(id);
+        return toMidBindingResponse(entity, findChannel(entity.getChannelId()), findMid(entity.getMidConfigId()));
+    }
+
+    /**
+     * 新增商户渠道 MID 绑定。
+     *
+     * @param request 绑定参数
+     * @return 新增后的绑定关系
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MerchantChannelMidBindingResponse createMidBinding(MerchantChannelMidBindingSaveRequest request) {
+        ChannelMidConfigDO mid = validateMidBindingRequest(request, null);
+        MerchantChannelMidBindingDO entity = new MerchantChannelMidBindingDO();
+        fillMidBinding(entity, request, mid, LocalDateTime.now());
+        entity.setCreateTime(entity.getUpdateTime());
+        entity.setDeleted(NOT_DELETED);
+        midBindingMapper.insert(entity);
+        return toMidBindingResponse(entity, findChannel(entity.getChannelId()), mid);
+    }
+
+    /**
+     * 更新商户渠道 MID 绑定。
+     *
+     * @param id 绑定主键
+     * @param request 绑定参数
+     * @return 更新后的绑定关系
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MerchantChannelMidBindingResponse updateMidBinding(Long id, MerchantChannelMidBindingSaveRequest request) {
+        MerchantChannelMidBindingDO entity = findMidBinding(id);
+        ChannelMidConfigDO mid = validateMidBindingRequest(request, id);
+        fillMidBinding(entity, request, mid, LocalDateTime.now());
+        midBindingMapper.updateById(entity);
+        return toMidBindingResponse(entity, findChannel(entity.getChannelId()), mid);
+    }
+
+    /**
+     * 更新商户渠道 MID 绑定状态。
+     *
+     * @param id 绑定主键
+     * @param status 目标状态
+     * @return 更新后的绑定关系
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MerchantChannelMidBindingResponse updateMidBindingStatus(Long id, Integer status) {
+        validateStatus(status);
+        MerchantChannelMidBindingDO entity = findMidBinding(id);
+        if (status == ENABLED) {
+            ChannelMidConfigDO mid = findMid(entity.getMidConfigId());
+            if (defaultZero(mid.getMidStatus()) != ENABLED) {
+                throw badRequest("MID停用时不能启用绑定");
+            }
+        }
+        entity.setBindingStatus(status);
+        entity.setUpdateBy(currentOperatorName());
+        entity.setUpdateTime(LocalDateTime.now());
+        midBindingMapper.updateById(entity);
+        return toMidBindingResponse(entity, findChannel(entity.getChannelId()), findMid(entity.getMidConfigId()));
+    }
+
+    /**
+     * 软删除商户渠道 MID 绑定。
+     *
+     * @param id 绑定主键
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMidBinding(Long id) {
+        MerchantChannelMidBindingDO entity = findMidBinding(id);
+        entity.setDeleted(entity.getId());
+        entity.setUpdateBy(currentOperatorName());
+        entity.setUpdateTime(LocalDateTime.now());
+        midBindingMapper.updateById(entity);
     }
 
     private void validateChannelRequest(ChannelInfoSaveRequest request, Long id) {
@@ -573,6 +876,100 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         if (StringUtils.hasText(request.getDefaultRequestUrl())
                 && !HTTP_URL_PATTERN.matcher(trim(request.getDefaultRequestUrl())).matches()) {
             throw badRequest("默认请求地址必须以 http:// 或 https:// 开头");
+        }
+        validateTimeoutSeconds(request.getConnectTimeoutSeconds(), "连接超时时间");
+        validateTimeoutSeconds(request.getReadTimeoutSeconds(), "读取超时时间");
+        validateMetadataSchemas(request.getMetadataSchemas());
+    }
+
+    private ChannelInfoDO validateMidRequest(ChannelMidConfigSaveRequest request, Long id) {
+        ChannelInfoDO channel = findChannel(request.getChannelId());
+        String businessType = normalizeCode(request.getBusinessType());
+        validateBusinessType(businessType);
+        validateChannelSupportsBusiness(channel, businessType);
+        validateStatus(request.getMidStatus());
+        request.setBusinessType(businessType);
+        request.setChannelMid(resolveChannelMid(request));
+        request.setPaymentMethodScope(normalizeScope(request.getPaymentMethodScope(), "支付方式"));
+        request.setTransactionTypeScope(resolveMidTransactionTypeScope(channel.getId(), businessType, request.getPaymentMethodScope()));
+        request.setCardBrandScope(resolveMidCardBrandScope(channel.getId(), businessType, request.getPaymentMethodScope(), request.getCardBrandScope()));
+        request.setCurrencyScope(normalizeScope(request.getCurrencyScope(), "交易币种范围"));
+        request.setAllowedCountryScope(normalizeScope(request.getAllowedCountryScope(), "允许交易国家范围"));
+        validatePaymentMethodScope(channel.getId(), businessType, request.getPaymentMethodScope());
+        validateCurrencyScope(request.getCurrencyScope());
+        request.setDefaultSettlementCurrency(normalizeCode(request.getDefaultSettlementCurrency()));
+        assertDictValue("iso_currency", request.getDefaultSettlementCurrency(), true);
+        request.setSettlementCycle(normalizeSettlementCycle(request.getSettlementCycle()));
+        if (request.getEffectiveTime() != null && request.getExpireTime() != null
+                && !request.getExpireTime().isAfter(request.getEffectiveTime())) {
+            throw badRequest("MID失效时间必须晚于生效时间");
+        }
+        validateMetadataValues(channel.getId(), request.getMetadataValueJson());
+        Long count = midConfigMapper.selectCount(Wrappers.<ChannelMidConfigDO>lambdaQuery()
+                .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
+                .eq(ChannelMidConfigDO::getChannelId, channel.getId())
+                .eq(ChannelMidConfigDO::getChannelMid, trim(request.getChannelMid()))
+                .ne(id != null, ChannelMidConfigDO::getId, id));
+        if (count > 0) {
+            throw badRequest("同一渠道下 MID 不能重复");
+        }
+        return channel;
+    }
+
+    private ChannelMidConfigDO validateMidBindingRequest(MerchantChannelMidBindingSaveRequest request, Long id) {
+        validateStatus(request.getBindingStatus());
+        if (request.getEffectiveTime() != null && request.getExpireTime() != null
+                && !request.getExpireTime().isAfter(request.getEffectiveTime())) {
+            throw badRequest("绑定失效时间必须晚于生效时间");
+        }
+        ChannelMidConfigDO mid = findMid(request.getMidConfigId());
+        if (defaultZero(request.getBindingStatus()) == ENABLED && defaultZero(mid.getMidStatus()) != ENABLED) {
+            throw badRequest("MID停用时不能启用绑定");
+        }
+        Long count = midBindingMapper.selectCount(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
+                .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
+                .eq(MerchantChannelMidBindingDO::getMerchantId, trim(request.getMerchantId()))
+                .eq(MerchantChannelMidBindingDO::getMidConfigId, request.getMidConfigId())
+                .ne(id != null, MerchantChannelMidBindingDO::getId, id));
+        if (count > 0) {
+            throw badRequest("同一商户和 MID 不能重复绑定");
+        }
+        return mid;
+    }
+
+    private void validateMetadataSchemas(List<ChannelMetadataSchemaItem> schemas) {
+        if (schemas == null || schemas.isEmpty()) {
+            return;
+        }
+        Set<String> fieldKeys = new LinkedHashSet<>();
+        for (ChannelMetadataSchemaItem schema : schemas) {
+            String fieldKey = trim(schema.getFieldKey());
+            if (!METADATA_FIELD_KEY_PATTERN.matcher(fieldKey).matches()) {
+                throw badRequest("渠道元数据 key 必须以字母开头，仅支持字母、数字、下划线，长度2-64");
+            }
+            if (!fieldKeys.add(fieldKey)) {
+                throw badRequest("渠道元数据 key 不能重复：" + fieldKey);
+            }
+            if (!StringUtils.hasText(schema.getFieldLabel())) {
+                throw badRequest("渠道元数据名称不能为空：" + fieldKey);
+            }
+            String fieldType = normalizeCode(schema.getFieldType());
+            if (!METADATA_FIELD_TYPES.contains(fieldType)) {
+                throw badRequest("渠道元数据类型不支持：" + fieldType);
+            }
+            validateStatus(defaultOne(schema.getRequiredFlag()));
+            validateStatus(defaultZero(schema.getSensitiveFlag()));
+            validateStatus(defaultOne(schema.getFieldStatus()));
+            if (defaultZero(schema.getSensitiveFlag()) == ENABLED && StringUtils.hasText(schema.getDefaultValue())) {
+                throw badRequest("敏感元数据字段不能配置默认值：" + fieldKey);
+            }
+            if (StringUtils.hasText(schema.getValidationRegex())) {
+                try {
+                    Pattern.compile(schema.getValidationRegex());
+                } catch (Exception exception) {
+                    throw badRequest("渠道元数据正则表达式不合法：" + fieldKey);
+                }
+            }
         }
     }
 
@@ -823,8 +1220,60 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setSupport3ds(request.getSupport3ds());
         entity.setDefaultRequestUrl(trimToNull(request.getDefaultRequestUrl()));
         entity.setDefaultInteractionMode(trimToNull(request.getDefaultInteractionMode()));
+        entity.setConnectTimeoutSeconds(defaultTimeout(request.getConnectTimeoutSeconds(), 10));
+        entity.setReadTimeoutSeconds(defaultTimeout(request.getReadTimeoutSeconds(), 30));
         entity.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
         entity.setRemark(trimToNull(request.getRemark()));
+        entity.setUpdateTime(now);
+    }
+
+    private void fillMid(ChannelMidConfigDO entity, ChannelMidConfigSaveRequest request, ChannelInfoDO channel, LocalDateTime now) {
+        String operatorName = currentOperatorName();
+        entity.setChannelId(channel.getId());
+        entity.setChannelCode(channel.getChannelCode());
+        entity.setChannelMid(trim(request.getChannelMid()));
+        entity.setMidName(StringUtils.hasText(request.getMidName()) ? trim(request.getMidName()) : trim(request.getChannelMid()));
+        entity.setTerminalId(trimToNull(request.getTerminalId()));
+        entity.setBusinessType(request.getBusinessType());
+        entity.setPaymentMethodScope(request.getPaymentMethodScope());
+        entity.setCardBrandScope(request.getCardBrandScope());
+        entity.setTransactionTypeScope(request.getTransactionTypeScope());
+        entity.setCurrencyScope(request.getCurrencyScope());
+        entity.setAllowedCountryScope(request.getAllowedCountryScope());
+        entity.setDefaultSettlementCurrency(request.getDefaultSettlementCurrency());
+        entity.setSettlementCycle(request.getSettlementCycle());
+        entity.setSettlementCutoffTime(request.getSettlementCutoffTime());
+        entity.setSettlementTimeZone(trim(request.getSettlementTimeZone()));
+        entity.setMcc(trimToNull(request.getMcc()));
+        entity.setStatementDescriptor(trimToNull(request.getStatementDescriptor()));
+        entity.setMetadataValueJson(trimToNull(request.getMetadataValueJson()));
+        entity.setMidStatus(request.getMidStatus());
+        entity.setEffectiveTime(request.getEffectiveTime());
+        entity.setExpireTime(request.getExpireTime());
+        entity.setRemark(trimToNull(request.getRemark()));
+        if (!StringUtils.hasText(entity.getCreateBy())) {
+            entity.setCreateBy(operatorName);
+        }
+        entity.setUpdateBy(operatorName);
+        entity.setUpdateTime(now);
+    }
+
+    private void fillMidBinding(MerchantChannelMidBindingDO entity, MerchantChannelMidBindingSaveRequest request,
+                                ChannelMidConfigDO mid, LocalDateTime now) {
+        String operatorName = currentOperatorName();
+        entity.setMerchantId(trim(request.getMerchantId()));
+        entity.setChannelId(mid.getChannelId());
+        entity.setChannelCode(mid.getChannelCode());
+        entity.setMidConfigId(mid.getId());
+        entity.setChannelMid(mid.getChannelMid());
+        entity.setBindingStatus(request.getBindingStatus());
+        entity.setEffectiveTime(request.getEffectiveTime());
+        entity.setExpireTime(request.getExpireTime());
+        entity.setRemark(trimToNull(request.getRemark()));
+        if (!StringUtils.hasText(entity.getCreateBy())) {
+            entity.setCreateBy(operatorName);
+        }
+        entity.setUpdateBy(operatorName);
         entity.setUpdateTime(now);
     }
 
@@ -874,6 +1323,8 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         response.setSupport3ds(entity.getSupport3ds());
         response.setDefaultRequestUrl(entity.getDefaultRequestUrl());
         response.setDefaultInteractionMode(entity.getDefaultInteractionMode());
+        response.setConnectTimeoutSeconds(entity.getConnectTimeoutSeconds());
+        response.setReadTimeoutSeconds(entity.getReadTimeoutSeconds());
         response.setSortOrder(entity.getSortOrder());
         response.setRemark(entity.getRemark());
         response.setCreateTime(entity.getCreateTime());
@@ -881,6 +1332,59 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         Map<String, List<String>> methods = capabilityMethods(entity.getId());
         response.setAcquiringPaymentMethods(methods.getOrDefault(BUSINESS_ACQUIRING, List.of()));
         response.setPayoutPaymentMethods(methods.getOrDefault(BUSINESS_PAYOUT, List.of()));
+        response.setMetadataSchemas(listMetadataSchemas(entity.getId()));
+        return response;
+    }
+
+    private ChannelMidConfigResponse toMidResponse(ChannelMidConfigDO entity, ChannelInfoDO channel) {
+        ChannelMidConfigResponse response = new ChannelMidConfigResponse();
+        response.setId(entity.getId());
+        response.setChannelId(entity.getChannelId());
+        response.setChannelCode(entity.getChannelCode());
+        response.setChannelName(channelName(channel));
+        response.setChannelMid(entity.getChannelMid());
+        response.setMidName(entity.getMidName());
+        response.setTerminalId(entity.getTerminalId());
+        response.setBusinessType(entity.getBusinessType());
+        response.setPaymentMethodScope(entity.getPaymentMethodScope());
+        response.setCardBrandScope(entity.getCardBrandScope());
+        response.setTransactionTypeScope(entity.getTransactionTypeScope());
+        response.setCurrencyScope(entity.getCurrencyScope());
+        response.setAllowedCountryScope(entity.getAllowedCountryScope());
+        response.setDefaultSettlementCurrency(entity.getDefaultSettlementCurrency());
+        response.setSettlementCycle(entity.getSettlementCycle());
+        response.setSettlementCutoffTime(entity.getSettlementCutoffTime());
+        response.setSettlementTimeZone(entity.getSettlementTimeZone());
+        response.setMcc(entity.getMcc());
+        response.setStatementDescriptor(entity.getStatementDescriptor());
+        response.setMetadataValueJson(maskMetadataJson(entity.getChannelId(), entity.getMetadataValueJson()));
+        response.setMidStatus(entity.getMidStatus());
+        response.setEffectiveTime(entity.getEffectiveTime());
+        response.setExpireTime(entity.getExpireTime());
+        response.setRemark(entity.getRemark());
+        response.setCreateTime(entity.getCreateTime());
+        response.setUpdateTime(entity.getUpdateTime());
+        return response;
+    }
+
+    private MerchantChannelMidBindingResponse toMidBindingResponse(MerchantChannelMidBindingDO entity,
+                                                                   ChannelInfoDO channel,
+                                                                   ChannelMidConfigDO mid) {
+        MerchantChannelMidBindingResponse response = new MerchantChannelMidBindingResponse();
+        response.setId(entity.getId());
+        response.setMerchantId(entity.getMerchantId());
+        response.setChannelId(entity.getChannelId());
+        response.setChannelCode(entity.getChannelCode());
+        response.setChannelName(channelName(channel));
+        response.setMidConfigId(entity.getMidConfigId());
+        response.setChannelMid(entity.getChannelMid());
+        response.setMidName(mid == null ? null : mid.getMidName());
+        response.setBindingStatus(entity.getBindingStatus());
+        response.setEffectiveTime(entity.getEffectiveTime());
+        response.setExpireTime(entity.getExpireTime());
+        response.setRemark(entity.getRemark());
+        response.setCreateTime(entity.getCreateTime());
+        response.setUpdateTime(entity.getUpdateTime());
         return response;
     }
 
@@ -962,6 +1466,28 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(StringUtils.hasText(query.getLimitType()), ChannelLimitRuleDO::getLimitType, normalizeCode(query.getLimitType()))
                 .eq(query.getRuleStatus() != null, ChannelLimitRuleDO::getRuleStatus, query.getRuleStatus())
                 .orderByDesc(ChannelLimitRuleDO::getUpdateTime);
+    }
+
+    private LambdaQueryWrapper<ChannelMidConfigDO> buildMidQuery(ChannelMidConfigQuery query) {
+        return Wrappers.<ChannelMidConfigDO>lambdaQuery()
+                .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
+                .eq(query.getChannelId() != null, ChannelMidConfigDO::getChannelId, query.getChannelId())
+                .eq(StringUtils.hasText(query.getChannelCode()), ChannelMidConfigDO::getChannelCode, normalizeCode(query.getChannelCode()))
+                .like(StringUtils.hasText(query.getChannelMid()), ChannelMidConfigDO::getChannelMid, trim(query.getChannelMid()))
+                .eq(StringUtils.hasText(query.getBusinessType()), ChannelMidConfigDO::getBusinessType, normalizeCode(query.getBusinessType()))
+                .eq(query.getMidStatus() != null, ChannelMidConfigDO::getMidStatus, query.getMidStatus())
+                .orderByDesc(ChannelMidConfigDO::getUpdateTime);
+    }
+
+    private LambdaQueryWrapper<MerchantChannelMidBindingDO> buildMidBindingQuery(MerchantChannelMidBindingQuery query) {
+        return Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
+                .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
+                .eq(StringUtils.hasText(query.getMerchantId()), MerchantChannelMidBindingDO::getMerchantId, trim(query.getMerchantId()))
+                .eq(query.getChannelId() != null, MerchantChannelMidBindingDO::getChannelId, query.getChannelId())
+                .eq(StringUtils.hasText(query.getChannelCode()), MerchantChannelMidBindingDO::getChannelCode, normalizeCode(query.getChannelCode()))
+                .eq(query.getMidConfigId() != null, MerchantChannelMidBindingDO::getMidConfigId, query.getMidConfigId())
+                .eq(query.getBindingStatus() != null, MerchantChannelMidBindingDO::getBindingStatus, query.getBindingStatus())
+                .orderByDesc(MerchantChannelMidBindingDO::getUpdateTime);
     }
 
     private List<Long> capabilityIdsByCurrencyOrBrand(CapabilityQuery query) {
@@ -1058,6 +1584,73 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 });
     }
 
+    private void replaceMetadataSchemas(ChannelInfoDO channel, List<ChannelMetadataSchemaItem> schemas) {
+        LocalDateTime now = LocalDateTime.now();
+        String operatorName = currentOperatorName();
+        metadataSchemaMapper.selectList(Wrappers.<ChannelMetadataSchemaDO>lambdaQuery()
+                        .eq(ChannelMetadataSchemaDO::getDeleted, NOT_DELETED)
+                        .eq(ChannelMetadataSchemaDO::getChannelId, channel.getId()))
+                .forEach(row -> {
+                    row.setDeleted(row.getId());
+                    row.setUpdateBy(operatorName);
+                    row.setUpdateTime(now);
+                    metadataSchemaMapper.updateById(row);
+                });
+        if (schemas == null || schemas.isEmpty()) {
+            return;
+        }
+        int index = 1;
+        for (ChannelMetadataSchemaItem schema : schemas) {
+            ChannelMetadataSchemaDO row = new ChannelMetadataSchemaDO();
+            row.setChannelId(channel.getId());
+            row.setChannelCode(channel.getChannelCode());
+            row.setFieldKey(trim(schema.getFieldKey()));
+            row.setFieldLabel(trim(schema.getFieldLabel()));
+            row.setFieldType(normalizeCode(schema.getFieldType()));
+            row.setRequiredFlag(defaultOne(schema.getRequiredFlag()));
+            row.setSensitiveFlag(defaultZero(schema.getSensitiveFlag()));
+            row.setValidationRegex(trimToNull(schema.getValidationRegex()));
+            row.setPlaceholder(trimToNull(schema.getPlaceholder()));
+            row.setDefaultValue(defaultZero(schema.getSensitiveFlag()) == ENABLED ? null : trimToNull(schema.getDefaultValue()));
+            row.setSortOrder(schema.getSortOrder() == null ? index : schema.getSortOrder());
+            row.setFieldStatus(defaultOne(schema.getFieldStatus()));
+            row.setCreateBy(operatorName);
+            row.setCreateTime(now);
+            row.setUpdateBy(operatorName);
+            row.setUpdateTime(now);
+            row.setDeleted(NOT_DELETED);
+            metadataSchemaMapper.insert(row);
+            index++;
+        }
+    }
+
+    private List<ChannelMetadataSchemaItem> listMetadataSchemas(Long channelId) {
+        return metadataSchemaMapper.selectList(Wrappers.<ChannelMetadataSchemaDO>lambdaQuery()
+                        .eq(ChannelMetadataSchemaDO::getDeleted, NOT_DELETED)
+                        .eq(ChannelMetadataSchemaDO::getChannelId, channelId)
+                        .orderByAsc(ChannelMetadataSchemaDO::getSortOrder)
+                        .orderByAsc(ChannelMetadataSchemaDO::getId))
+                .stream()
+                .map(this::toMetadataSchemaItem)
+                .toList();
+    }
+
+    private ChannelMetadataSchemaItem toMetadataSchemaItem(ChannelMetadataSchemaDO row) {
+        ChannelMetadataSchemaItem item = new ChannelMetadataSchemaItem();
+        item.setId(row.getId());
+        item.setFieldKey(row.getFieldKey());
+        item.setFieldLabel(row.getFieldLabel());
+        item.setFieldType(row.getFieldType());
+        item.setRequiredFlag(row.getRequiredFlag());
+        item.setSensitiveFlag(row.getSensitiveFlag());
+        item.setValidationRegex(row.getValidationRegex());
+        item.setPlaceholder(row.getPlaceholder());
+        item.setDefaultValue(row.getDefaultValue());
+        item.setSortOrder(row.getSortOrder());
+        item.setFieldStatus(row.getFieldStatus());
+        return item;
+    }
+
     private List<String> listCapabilityCurrencies(Long capabilityId) {
         return capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
                         .eq(ChannelCapabilityCurrencyDO::getDeleted, NOT_DELETED)
@@ -1097,6 +1690,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .collect(Collectors.toMap(ChannelInfoDO::getId, row -> row, (left, right) -> left));
     }
 
+    private Map<Long, ChannelMidConfigDO> midMap(List<Long> midIds) {
+        if (midIds == null || midIds.isEmpty()) {
+            return Map.of();
+        }
+        return midConfigMapper.selectBatchIds(midIds).stream()
+                .collect(Collectors.toMap(ChannelMidConfigDO::getId, row -> row, (left, right) -> left));
+    }
+
     private ChannelInfoDO findChannel(Long id) {
         ChannelInfoDO entity = channelInfoMapper.selectOne(Wrappers.<ChannelInfoDO>lambdaQuery()
                 .eq(ChannelInfoDO::getDeleted, NOT_DELETED)
@@ -1123,6 +1724,26 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelLimitRuleDO::getId, id));
         if (entity == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "渠道限额不存在");
+        }
+        return entity;
+    }
+
+    private ChannelMidConfigDO findMid(Long id) {
+        ChannelMidConfigDO entity = midConfigMapper.selectOne(Wrappers.<ChannelMidConfigDO>lambdaQuery()
+                .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
+                .eq(ChannelMidConfigDO::getId, id));
+        if (entity == null) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "渠道MID配置不存在");
+        }
+        return entity;
+    }
+
+    private MerchantChannelMidBindingDO findMidBinding(Long id) {
+        MerchantChannelMidBindingDO entity = midBindingMapper.selectOne(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
+                .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
+                .eq(MerchantChannelMidBindingDO::getId, id));
+        if (entity == null) {
+            throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "商户渠道MID绑定不存在");
         }
         return entity;
     }
@@ -1159,6 +1780,28 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelLimitRuleDO::getRuleStatus, ENABLED)) > 0;
     }
 
+    private boolean hasActiveMidBinding(Long midConfigId) {
+        return midBindingMapper.selectCount(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
+                .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
+                .eq(MerchantChannelMidBindingDO::getMidConfigId, midConfigId)
+                .eq(MerchantChannelMidBindingDO::getBindingStatus, ENABLED)) > 0;
+    }
+
+    private void refreshBindingChannelMid(ChannelMidConfigDO mid) {
+        List<MerchantChannelMidBindingDO> bindings = midBindingMapper.selectList(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
+                .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
+                .eq(MerchantChannelMidBindingDO::getMidConfigId, mid.getId()));
+        LocalDateTime now = LocalDateTime.now();
+        for (MerchantChannelMidBindingDO binding : bindings) {
+            binding.setChannelId(mid.getChannelId());
+            binding.setChannelCode(mid.getChannelCode());
+            binding.setChannelMid(mid.getChannelMid());
+            binding.setUpdateBy(currentOperatorName());
+            binding.setUpdateTime(now);
+            midBindingMapper.updateById(binding);
+        }
+    }
+
     private void validateChannelSupportsBusiness(ChannelInfoDO channel, String businessType) {
         if (BUSINESS_ACQUIRING.equals(businessType) && defaultZero(channel.getSupportAcquiring()) != ENABLED) {
             throw badRequest("渠道未开启收单能力");
@@ -1183,6 +1826,81 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         } else {
             assertDictValue("payout_payment_method", paymentMethod, true);
         }
+    }
+
+    private List<ChannelPaymentCapabilityDO> listEnabledCapabilities(Long channelId, String businessType) {
+        return capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
+                .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
+                .eq(ChannelPaymentCapabilityDO::getChannelId, channelId)
+                .eq(ChannelPaymentCapabilityDO::getBusinessType, businessType)
+                .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)
+                .orderByAsc(ChannelPaymentCapabilityDO::getSortOrder)
+                .orderByAsc(ChannelPaymentCapabilityDO::getId));
+    }
+
+    private String resolveMidTransactionTypeScope(Long channelId, String businessType, String paymentMethodScope) {
+        if (BUSINESS_PAYOUT.equals(businessType)) {
+            return NONE;
+        }
+        List<ChannelPaymentCapabilityDO> capabilities = filterMidCapabilities(channelId, businessType, paymentMethodScope);
+        List<String> transactionTypes = capabilities.stream()
+                .flatMap(capability -> splitTransactionTypes(businessType, capability.getTransactionType()).stream())
+                .distinct()
+                .toList();
+        if (transactionTypes.isEmpty()) {
+            throw badRequest("所选支付方式未配置启用的交易类型能力");
+        }
+        return joinTransactionTypes(transactionTypes);
+    }
+
+    private String resolveMidCardBrandScope(Long channelId, String businessType, String paymentMethodScope, String cardBrandScope) {
+        boolean includesBankCard = ALL.equals(paymentMethodScope)
+                || splitScope(paymentMethodScope).contains(PAYMENT_BANK_CARD);
+        if (!includesBankCard) {
+            return NONE;
+        }
+        ChannelPaymentCapabilityDO bankCardCapability = findEnabledCapability(channelId, businessType, PAYMENT_BANK_CARD);
+        if (bankCardCapability == null) {
+            throw badRequest("银行卡支付方式不存在启用中的支付能力");
+        }
+        String normalizedScope = normalizeScope(cardBrandScope, "卡品牌范围");
+        if (ALL.equals(normalizedScope)) {
+            return ALL;
+        }
+        for (String cardBrand : splitScope(normalizedScope)) {
+            assertDictValue("card_brand", cardBrand, true);
+            Long count = capabilityCardBrandMapper.selectCount(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
+                    .eq(ChannelCapabilityCardBrandDO::getDeleted, NOT_DELETED)
+                    .eq(ChannelCapabilityCardBrandDO::getCapabilityId, bankCardCapability.getId())
+                    .eq(ChannelCapabilityCardBrandDO::getCardBrand, cardBrand)
+                    .eq(ChannelCapabilityCardBrandDO::getBrandStatus, ENABLED));
+            if (count <= 0) {
+                throw badRequest("该银行卡支付能力未绑定启用的卡品牌：" + cardBrand);
+            }
+        }
+        return normalizedScope;
+    }
+
+    private List<ChannelPaymentCapabilityDO> filterMidCapabilities(Long channelId, String businessType, String paymentMethodScope) {
+        List<ChannelPaymentCapabilityDO> capabilities = listEnabledCapabilities(channelId, businessType);
+        if (capabilities.isEmpty()) {
+            throw badRequest("该渠道业务类型下不存在启用中的支付能力");
+        }
+        if (ALL.equals(paymentMethodScope)) {
+            return capabilities;
+        }
+        Map<String, ChannelPaymentCapabilityDO> capabilityMap = capabilities.stream()
+                .collect(Collectors.toMap(ChannelPaymentCapabilityDO::getPaymentMethod, item -> item, (left, right) -> left, LinkedHashMap::new));
+        List<ChannelPaymentCapabilityDO> selected = new ArrayList<>();
+        for (String paymentMethod : splitScope(paymentMethodScope)) {
+            validatePaymentMethod(businessType, paymentMethod);
+            ChannelPaymentCapabilityDO capability = capabilityMap.get(paymentMethod);
+            if (capability == null) {
+                throw badRequest("该渠道支付方式不存在启用中的支付能力：" + paymentMethod);
+            }
+            selected.add(capability);
+        }
+        return selected;
     }
 
     private void assertDictValue(String dictType, String value, boolean required) {
@@ -1215,6 +1933,162 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         if (status == null || (status != ENABLED && status != DISABLED)) {
             throw badRequest("状态必须为0停用或1启用");
         }
+    }
+
+    private void validateTimeoutSeconds(Integer seconds, String fieldName) {
+        if (seconds != null && (seconds <= 0 || seconds > 300)) {
+            throw badRequest(fieldName + "必须在1到300秒之间");
+        }
+    }
+
+    private int defaultTimeout(Integer seconds, int defaultValue) {
+        return seconds == null ? defaultValue : seconds;
+    }
+
+    private String normalizeScope(String value, String fieldName) {
+        if (!StringUtils.hasText(value)) {
+            throw badRequest(fieldName + "不能为空");
+        }
+        if (ALL.equalsIgnoreCase(trim(value))) {
+            return ALL;
+        }
+        return String.join(TRANSACTION_TYPE_SEPARATOR, normalizeCodes(List.of(value.split(TRANSACTION_TYPE_SEPARATOR))));
+    }
+
+    private void validatePaymentMethodScope(Long channelId, String businessType, String scope) {
+        filterMidCapabilities(channelId, businessType, scope);
+    }
+
+    private void validateCurrencyScope(String scope) {
+        if (ALL.equals(scope)) {
+            return;
+        }
+        for (String value : splitScope(scope)) {
+            assertDictValue("iso_currency", value, true);
+        }
+    }
+
+    private String normalizeSettlementCycle(String value) {
+        if (!StringUtils.hasText(value)) {
+            throw badRequest("结算周期不能为空");
+        }
+        String normalized = normalizeCode(value).replace(" ", "");
+        if (normalized.matches("^T\\+?\\d{1,3}$")) {
+            return "T+" + normalized.substring(normalized.indexOf('T') + 1).replace("+", "");
+        }
+        throw badRequest("结算周期必须为 T+N 格式");
+    }
+
+    private List<String> splitScope(String scope) {
+        if (!StringUtils.hasText(scope) || ALL.equals(scope)) {
+            return List.of();
+        }
+        return normalizeCodes(List.of(scope.split(TRANSACTION_TYPE_SEPARATOR)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void validateMetadataValues(Long channelId, String metadataValueJson) {
+        Map<String, Object> values = StringUtils.hasText(metadataValueJson)
+                ? JsonUtils.parseObject(metadataValueJson, Map.class)
+                : Map.of();
+        if (values == null) {
+            values = Map.of();
+        }
+        for (ChannelMetadataSchemaItem schema : listMetadataSchemas(channelId)) {
+            if (schema.getFieldStatus() != ENABLED) {
+                continue;
+            }
+            Object value = values.get(schema.getFieldKey());
+            if (schema.getRequiredFlag() == ENABLED && (value == null || !StringUtils.hasText(String.valueOf(value)))) {
+                throw badRequest("MID元数据必填：" + schema.getFieldLabel());
+            }
+            if (StringUtils.hasText(schema.getValidationRegex()) && value != null && StringUtils.hasText(String.valueOf(value))
+                    && !Pattern.compile(schema.getValidationRegex()).matcher(String.valueOf(value)).matches()) {
+                throw badRequest("MID元数据格式不合法：" + schema.getFieldLabel());
+            }
+        }
+    }
+
+    private String resolveChannelMid(ChannelMidConfigSaveRequest request) {
+        String value = firstTextMetadataValue(request.getMetadataValueJson(),
+                "merchantId", "merchant_id", "channelMid", "channel_mid", "mid", "midNo", "mid_no", "merchantNo", "merchant_no");
+        if (StringUtils.hasText(value)) {
+            return trim(value);
+        }
+        if (StringUtils.hasText(request.getChannelMid())) {
+            return trim(request.getChannelMid());
+        }
+        throw badRequest("MID元数据中缺少渠道MID或商户号");
+    }
+
+    private String firstTextMetadataValue(String metadataValueJson, String... keys) {
+        Map<String, Object> values = parseMetadataMap(metadataValueJson);
+        for (String key : keys) {
+            Object value = values.get(key);
+            if (value != null && StringUtils.hasText(String.valueOf(value))) {
+                return String.valueOf(value);
+            }
+        }
+        return "";
+    }
+
+    @SuppressWarnings("unchecked")
+    private void mergeMetadataValuesForUpdate(ChannelMidConfigDO entity, ChannelMidConfigSaveRequest request) {
+        Map<String, Object> incoming = parseMetadataMap(request.getMetadataValueJson());
+        if (incoming.isEmpty() || !StringUtils.hasText(entity.getMetadataValueJson())) {
+            return;
+        }
+        Map<String, Object> existing = parseMetadataMap(entity.getMetadataValueJson());
+        if (existing.isEmpty()) {
+            return;
+        }
+        Map<String, Object> merged = new LinkedHashMap<>(incoming);
+        for (ChannelMetadataSchemaItem schema : listMetadataSchemas(entity.getChannelId())) {
+            if (!shouldMaskMetadata(schema) || !existing.containsKey(schema.getFieldKey())) {
+                continue;
+            }
+            Object submittedValue = incoming.get(schema.getFieldKey());
+            if (submittedValue == null || !StringUtils.hasText(String.valueOf(submittedValue))
+                    || MASKED_METADATA_VALUE.equals(String.valueOf(submittedValue).trim())) {
+                merged.put(schema.getFieldKey(), existing.get(schema.getFieldKey()));
+            }
+        }
+        request.setMetadataValueJson(JsonUtils.toJsonString(merged));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseMetadataMap(String metadataValueJson) {
+        if (!StringUtils.hasText(metadataValueJson)) {
+            return Map.of();
+        }
+        Map<String, Object> values = JsonUtils.parseObject(metadataValueJson, Map.class);
+        return values == null ? Map.of() : values;
+    }
+
+    private String maskMetadataJson(Long channelId, String metadataValueJson) {
+        if (!StringUtils.hasText(metadataValueJson)) {
+            return metadataValueJson;
+        }
+        Map<String, Object> values = parseMetadataMap(metadataValueJson);
+        if (values.isEmpty()) {
+            return metadataValueJson;
+        }
+        Map<String, Object> masked = new LinkedHashMap<>(values);
+        for (ChannelMetadataSchemaItem schema : listMetadataSchemas(channelId)) {
+            if (!masked.containsKey(schema.getFieldKey()) || !shouldMaskMetadata(schema)) {
+                continue;
+            }
+            masked.put(schema.getFieldKey(), MASKED_METADATA_VALUE);
+        }
+        return JsonUtils.toJsonString(masked);
+    }
+
+    private boolean shouldMaskMetadata(ChannelMetadataSchemaItem schema) {
+        return defaultZero(schema.getSensitiveFlag()) == ENABLED || isSensitiveMetadataType(schema.getFieldType());
+    }
+
+    private boolean isSensitiveMetadataType(String fieldType) {
+        return Set.of("PASSWORD", "PRIVATE_KEY").contains(normalizeCode(fieldType));
     }
 
     private String normalizeTransactionType(String businessType, String transactionType) {
@@ -1274,6 +2148,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
 
     private int defaultZero(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private int defaultOne(Integer value) {
+        return value == null ? 1 : value;
     }
 
     private String trim(String value) {

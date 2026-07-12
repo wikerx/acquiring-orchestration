@@ -123,7 +123,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 COUNTRY_PATH,
                 plainRequestJson,
                 merchantMaterial,
-                "iso-country-200045"
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-country-200045")
         );
         List<IsoCountryVO> countryList = decryptDataList(
                 mvcResult.getResponse().getContentAsString(),
@@ -149,7 +149,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 CURRENCY_PATH,
                 plainRequestJson,
                 merchantMaterial,
-                "iso-currency-200045"
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-200045")
         );
         List<IsoCurrencyVO> currencyList = decryptDataList(
                 mvcResult.getResponse().getContentAsString(),
@@ -180,7 +180,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 COUNTRY_PATH,
                 plainRequestJson,
                 merchantMaterial,
-                "iso-country-invalid-alpha2",
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-country-invalid-alpha2"),
                 ApiResultEnum.PARAM_INVALID
         );
 
@@ -202,7 +202,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 CURRENCY_PATH,
                 plainRequestJson,
                 merchantMaterial,
-                "iso-currency-invalid-code",
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-invalid-code"),
                 ApiResultEnum.PARAM_INVALID
         );
 

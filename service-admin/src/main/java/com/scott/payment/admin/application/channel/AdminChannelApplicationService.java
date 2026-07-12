@@ -7,10 +7,16 @@ import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelInfoSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelOption;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.ChannelMidConfigSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitQuery;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitBatchSaveRequest;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitResponse;
 import com.scott.payment.admin.dto.channel.ChannelDTOs.LimitSaveRequest;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingQuery;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingResponse;
+import com.scott.payment.admin.dto.channel.ChannelDTOs.MerchantChannelMidBindingSaveRequest;
 import com.scott.payment.admin.service.AdminChannelService;
 import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
@@ -260,6 +266,54 @@ public class AdminChannelApplicationService {
 
     public void deleteLimit(Long id) {
         adminChannelService.deleteLimit(id);
+    }
+
+    public PageResult<ChannelMidConfigResponse> pageMids(ChannelMidConfigQuery query) {
+        return adminChannelService.pageMids(query);
+    }
+
+    public ChannelMidConfigResponse getMid(Long id) {
+        return adminChannelService.getMid(id);
+    }
+
+    public ChannelMidConfigResponse createMid(ChannelMidConfigSaveRequest request) {
+        return adminChannelService.createMid(request);
+    }
+
+    public ChannelMidConfigResponse updateMid(Long id, ChannelMidConfigSaveRequest request) {
+        return adminChannelService.updateMid(id, request);
+    }
+
+    public ChannelMidConfigResponse updateMidStatus(Long id, Integer status) {
+        return adminChannelService.updateMidStatus(id, status);
+    }
+
+    public void deleteMid(Long id) {
+        adminChannelService.deleteMid(id);
+    }
+
+    public PageResult<MerchantChannelMidBindingResponse> pageMidBindings(MerchantChannelMidBindingQuery query) {
+        return adminChannelService.pageMidBindings(query);
+    }
+
+    public MerchantChannelMidBindingResponse getMidBinding(Long id) {
+        return adminChannelService.getMidBinding(id);
+    }
+
+    public MerchantChannelMidBindingResponse createMidBinding(MerchantChannelMidBindingSaveRequest request) {
+        return adminChannelService.createMidBinding(request);
+    }
+
+    public MerchantChannelMidBindingResponse updateMidBinding(Long id, MerchantChannelMidBindingSaveRequest request) {
+        return adminChannelService.updateMidBinding(id, request);
+    }
+
+    public MerchantChannelMidBindingResponse updateMidBindingStatus(Long id, Integer status) {
+        return adminChannelService.updateMidBindingStatus(id, status);
+    }
+
+    public void deleteMidBinding(Long id) {
+        adminChannelService.deleteMidBinding(id);
     }
 
 }

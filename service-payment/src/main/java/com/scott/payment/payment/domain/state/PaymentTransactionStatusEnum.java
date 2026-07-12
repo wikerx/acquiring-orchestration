@@ -8,25 +8,43 @@ import lombok.Getter;
  * @classname : PaymentTransactionStatusEnum
  * @date : 2026-07-11 00:00
  * @email : scott_x@163.com
- * @description : 收单支付交易状态枚举，位于 service-payment 领域状态层，用于收敛平台支付状态取值，避免核心链路散落状态字符串。
+ * @description : 收单交易状态枚举，位于 service-payment 领域状态层，对齐字典 transaction_status，仅表达交易结果状态；风控、路由、渠道请求等过程节点应使用处理阶段枚举承载。
  * @status : create
  */
 @Getter
 public enum PaymentTransactionStatusEnum {
 
     /**
-     * 支付服务已接收交易，后续结果以查询、回调或通知为准。
+     * 交易已成功。
      */
-    RECEIVED("RECEIVED");
+    SUCCESS("SUCCESS", true),
+
+    /**
+     * 交易已失败，失败原因由失败原因码进一步区分。
+     */
+    FAILED("FAILED", true),
+
+    /**
+     * 交易等待外部动作或异步结果，例如 3DS 跳转、渠道异步回调、拒付处理中。
+     */
+    PENDING("PENDING", false),
+
+    /**
+     * 交易处理中，例如风控、路由、渠道请求、回调处理。
+     */
+    PROCESSING("PROCESSING", false);
 
     private final String code;
+
+    private final boolean terminal;
 
     /**
      * 创建收单支付交易状态。
      *
      * @param code 对外和内部接口传递的状态编码
      */
-    PaymentTransactionStatusEnum(String code) {
+    PaymentTransactionStatusEnum(String code, boolean terminal) {
         this.code = code;
+        this.terminal = terminal;
     }
 }

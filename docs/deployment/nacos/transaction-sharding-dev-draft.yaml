@@ -1,0 +1,196 @@
+# 交易核心表分表配置草案：确认后再合入 sharding-dev.yaml。
+# 当前只作为设计草案，不会被服务自动加载。
+global-payment:
+  sharding:
+    strategy: quarter
+    database-timezone: Asia/Shanghai
+    sharding-column: transaction_date_time
+
+    table-maintenance:
+      enabled: true
+      pre-create-current-quarter: true
+      pre-create-next-quarter: true
+      compare-schema-if-exists: true
+      ddl-data-source: master
+      set-auto-increment-start-value: true
+      auto-increment-sequence-width: 12
+      allow-create-from-template-table: true
+      allow-alter-existing-table: false
+
+    id-generator:
+      mode: mysql-auto-increment-prefix
+      prefix-format: yyyyQQ
+      sequence-width: 12
+      start-sequence: 1
+      max-sequence: 999999999999
+
+    tables:
+      transaction-order:
+        enabled: false
+        logical-table: transaction_order
+        template-table: transaction_order
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 交易生命周期主单，按交易业务时间季度分表。
+      transaction-operation:
+        enabled: false
+        logical-table: transaction_operation
+        template-table: transaction_operation
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 交易动作单，按交易业务时间季度分表。
+      transaction-additional-info:
+        enabled: false
+        logical-table: transaction_additional_info
+        template-table: transaction_additional_info
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 交易附属信息，按交易业务时间季度分表。
+      transaction-merchant-snapshot:
+        enabled: false
+        logical-table: transaction_merchant_snapshot
+        template-table: transaction_merchant_snapshot
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 交易商户快照，按交易业务时间季度分表。
+      transaction-channel-request:
+        enabled: false
+        logical-table: transaction_channel_request
+        template-table: transaction_channel_request
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 渠道请求核心字段，按交易业务时间季度分表。
+      transaction-channel-interaction-log:
+        enabled: false
+        logical-table: transaction_channel_interaction_log
+        template-table: transaction_channel_interaction_log
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 渠道交互日志，按交易业务时间季度分表。
+      transaction-callback-log:
+        enabled: false
+        logical-table: transaction_callback_log
+        template-table: transaction_callback_log
+        id-column: id
+        sharding-column: callback_received_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 渠道回调原文日志，按回调接收时间季度分表，允许未匹配交易先落日志。
+      transaction-callback:
+        enabled: false
+        logical-table: transaction_callback
+        template-table: transaction_callback
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 渠道回调业务处理单，按原交易业务时间季度分表。
+      transaction-status-history:
+        enabled: false
+        logical-table: transaction_status_history
+        template-table: transaction_status_history
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 交易状态流转历史，按交易业务时间季度分表。
+      transaction-finance-state:
+        enabled: false
+        logical-table: transaction_finance_state
+        template-table: transaction_finance_state
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 交易结算对账状态，按交易业务时间季度分表。
+      transaction-merchant-notification:
+        enabled: false
+        logical-table: transaction_merchant_notification
+        template-table: transaction_merchant_notification
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 商户异步通知任务，按交易业务时间季度分表。
+      transaction-merchant-notification-log:
+        enabled: false
+        logical-table: transaction_merchant_notification_log
+        template-table: transaction_merchant_notification_log
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 商户异步通知日志，按交易业务时间季度分表。
+      transaction-event-outbox:
+        enabled: true
+        logical-table: transaction_event_outbox
+        template-table: transaction_event_outbox
+        id-column: id
+        sharding-column: event_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 交易本地事务事件表，按事件产生时间季度分表。

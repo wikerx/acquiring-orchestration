@@ -5,6 +5,8 @@ import com.scott.payment.job.entity.SysJobExecutorNodeDO;
 import com.scott.payment.job.mapper.SysJobExecutorNodeMapper;
 import com.scott.payment.job.service.JobExecutorNodeService;
 import com.scott.payment.job.support.JobNodeContext;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -28,8 +30,24 @@ import java.util.List;
  * @description : 收单支付Job Executor Node Service Impl，位于 service-job 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
  * @status : create
  */
+@Slf4j
 @Service
 public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
+
+    /**
+     * 离线节点单次最大更新行数，降低与心跳上报并发更新同表时的锁范围。
+     */
+    private static final int MARK_OFFLINE_BATCH_SIZE = 100;
+
+    /**
+     * 节点离线扫描遇到 MySQL 死锁时的最大重试次数。
+     */
+    private static final int MARK_OFFLINE_MAX_RETRY = 3;
+
+    /**
+     * 离线扫描死锁重试退避基准毫秒数。
+     */
+    private static final long DEADLOCK_RETRY_BACKOFF_MILLIS = 50L;
 
     /**
      * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
@@ -73,11 +91,35 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
+     * 标记超时在线节点为离线。
+     *
+     * <p>心跳上报和离线扫描会并发更新同一张节点表。这里采用小批量、固定排序、排除当前节点以及死锁重试，
+     * 避免偶发 MySQL 死锁直接冒泡到调度线程。</p>
      */
     @Override
     public void markOfflineNodes() {
-        sysJobExecutorNodeMapper.markOffline(LocalDateTime.now().minusSeconds(jobNodeContext.offlineSeconds()));
+        LocalDateTime offlineBefore = LocalDateTime.now().minusSeconds(jobNodeContext.offlineSeconds());
+        String currentNodeId = jobNodeContext.nodeId();
+        for (int attempt = 1; attempt <= MARK_OFFLINE_MAX_RETRY; attempt++) {
+            try {
+                int affectedRows = sysJobExecutorNodeMapper.markOffline(
+                        offlineBefore,
+                        currentNodeId,
+                        MARK_OFFLINE_BATCH_SIZE);
+                if (affectedRows > 0) {
+                    log.info("超时任务节点已标记离线，affectedRows：{}，offlineBefore：{}", affectedRows, offlineBefore);
+                }
+                return;
+            } catch (PessimisticLockingFailureException exception) {
+                if (attempt >= MARK_OFFLINE_MAX_RETRY) {
+                    log.warn("超时任务节点离线扫描遇到锁冲突，已达到最大重试次数，offlineBefore：{}，原因：{}",
+                            offlineBefore,
+                            exception.getMessage());
+                    return;
+                }
+                sleepBeforeRetry(attempt, exception);
+            }
+        }
     }
 
     /**
@@ -89,5 +131,18 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
         return sysJobExecutorNodeMapper.selectList(new LambdaQueryWrapper<SysJobExecutorNodeDO>()
                 .orderByDesc(SysJobExecutorNodeDO::getLastHeartbeatTime)
                 .orderByAsc(SysJobExecutorNodeDO::getNodeId));
+    }
+
+    private void sleepBeforeRetry(int attempt, PessimisticLockingFailureException exception) {
+        long backoffMillis = DEADLOCK_RETRY_BACKOFF_MILLIS * attempt;
+        log.warn("超时任务节点离线扫描遇到锁冲突，准备重试，attempt：{}，backoffMillis：{}，原因：{}",
+                attempt,
+                backoffMillis,
+                exception.getMessage());
+        try {
+            Thread.sleep(backoffMillis);
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
