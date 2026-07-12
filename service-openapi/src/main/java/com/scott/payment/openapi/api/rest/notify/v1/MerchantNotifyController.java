@@ -1,6 +1,8 @@
 package com.scott.payment.openapi.api.rest.notify.v1;
 
 import com.scott.payment.component.core.model.ApiResult;
+import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,6 +32,20 @@ import static com.scott.payment.component.core.model.ApiResult.success;
 public class MerchantNotifyController {
 
     /**
+     * 回调类入口安全校验组件。
+     */
+    private final OpenApiCallbackSecuritySupport callbackSecuritySupport;
+
+    /**
+     * 创建商户通知控制器。
+     *
+     * @param callbackSecuritySupport 回调类入口安全校验组件
+     */
+    public MerchantNotifyController(OpenApiCallbackSecuritySupport callbackSecuritySupport) {
+        this.callbackSecuritySupport = callbackSecuritySupport;
+    }
+
+    /**
      * 重试商户通知。
      *
      * @return 重试受理结果
@@ -39,7 +55,8 @@ public class MerchantNotifyController {
      * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/retry")
-    public ApiResult<String> retry() {
+    public ApiResult<String> retry(HttpServletRequest request) {
+        callbackSecuritySupport.verifyNotifyRetryToken(request);
         return success("accepted");
     }
 }

@@ -48,7 +48,7 @@ import java.util.Locale;
 @Service
 public class AdminExchangeRateApplicationService {
 
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。

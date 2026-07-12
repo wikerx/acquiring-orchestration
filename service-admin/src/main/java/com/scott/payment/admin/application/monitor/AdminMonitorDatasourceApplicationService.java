@@ -55,7 +55,7 @@ public class AdminMonitorDatasourceApplicationService {
     /**
      * 导出文件时间戳格式。
      */
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 动态数据源运行时入口。
@@ -178,7 +178,7 @@ public class AdminMonitorDatasourceApplicationService {
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<DataSourceMonitorExportRow>builder()
-                        .fileName("数据源监控_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .fileName(excelI18nMessageResolver.resolve("excel.datasource.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
                         .sheetName(excelI18nMessageResolver.resolve("excel.datasource.title", locale))
                         .titleKey("excel.datasource.title")
                         .operator(operator)

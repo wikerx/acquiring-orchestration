@@ -4,6 +4,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.payment.application.PaymentAuthorizationApplicationService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,7 +60,7 @@ public class PaymentInternalController {
      * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/authorization")
-    public CommonResult<PaymentCreateResultDTO> createAuthorization(@RequestBody PaymentCreateCommandDTO commandDTO) {
+    public CommonResult<PaymentCreateResultDTO> createAuthorization(@Valid @RequestBody PaymentCreateCommandDTO commandDTO) {
         return success(paymentAuthorizationApplicationService.createAuthorization(commandDTO));
     }
 }

@@ -42,7 +42,7 @@ public class AdminDeptApplicationService {
     /**
      * 导出文件时间戳格式。
      */
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
@@ -127,8 +127,8 @@ public class AdminDeptApplicationService {
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<SysDeptExportRow>builder()
-                        .fileName("部门列表_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("部门列表")
+                        .fileName(excelI18nMessageResolver.resolve("excel.dept.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(excelI18nMessageResolver.resolve("excel.dept.title", locale))
                         .titleKey("excel.dept.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())

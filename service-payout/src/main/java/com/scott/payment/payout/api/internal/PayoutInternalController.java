@@ -4,6 +4,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.payout.application.PayoutApplicationService;
 import com.scott.payment.payout.api.internal.dto.PayoutCreateCommandDTO;
 import com.scott.payment.payout.api.internal.dto.PayoutCreateResultDTO;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,7 +51,7 @@ public class PayoutInternalController {
      * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/create")
-    public CommonResult<PayoutCreateResultDTO> createPayout(@RequestBody PayoutCreateCommandDTO commandDTO) {
+    public CommonResult<PayoutCreateResultDTO> createPayout(@Valid @RequestBody PayoutCreateCommandDTO commandDTO) {
         return success(payoutApplicationService.createPayout(commandDTO));
     }
 }

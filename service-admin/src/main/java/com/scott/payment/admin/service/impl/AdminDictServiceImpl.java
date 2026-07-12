@@ -77,9 +77,24 @@ public class AdminDictServiceImpl implements AdminDictService {
      */
     private final SysDictDataMapper dictDataMapper;
 
-    public AdminDictServiceImpl(SysDictTypeMapper dictTypeMapper, SysDictDataMapper dictDataMapper) {
+    /**
+     * 数据字典对象转换器。
+     */
+    private final DictConverter dictConverter;
+
+    /**
+     * 创建数据字典领域服务。
+     *
+     * @param dictTypeMapper 字典类型数据访问组件
+     * @param dictDataMapper 字典项数据访问组件
+     * @param dictConverter  数据字典对象转换器
+     */
+    public AdminDictServiceImpl(SysDictTypeMapper dictTypeMapper,
+                                SysDictDataMapper dictDataMapper,
+                                DictConverter dictConverter) {
         this.dictTypeMapper = dictTypeMapper;
         this.dictDataMapper = dictDataMapper;
+        this.dictConverter = dictConverter;
     }
 
     /**
@@ -110,7 +125,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         } else {
             dictTypeMapper.updateById(entity);
         }
-        return DictConverter.INSTANCE.toTypeDTO(entity);
+        return dictConverter.toTypeDTO(entity);
     }
 
     /**
@@ -135,7 +150,7 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(DictConverter.INSTANCE::toTypeDTO).toList()
+                page.getRecords().stream().map(dictConverter::toTypeDTO).toList()
         );
     }
 
@@ -149,7 +164,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
         return dictTypeMapper.selectList(buildDictTypeQueryWrapper(query))
                 .stream()
-                .map(DictConverter.INSTANCE::toTypeDTO)
+                .map(dictConverter::toTypeDTO)
                 .toList();
     }
 
@@ -204,7 +219,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         } else {
             dictDataMapper.updateById(entity);
         }
-        return DictConverter.INSTANCE.toDataDTO(entity);
+        return dictConverter.toDataDTO(entity);
     }
 
     /**
@@ -229,7 +244,7 @@ public class AdminDictServiceImpl implements AdminDictService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(DictConverter.INSTANCE::toDataDTO).toList()
+                page.getRecords().stream().map(dictConverter::toDataDTO).toList()
         );
     }
 
@@ -243,7 +258,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
         return dictDataMapper.selectList(buildDictDataQueryWrapper(query))
                 .stream()
-                .map(DictConverter.INSTANCE::toDataDTO)
+                .map(dictConverter::toDataDTO)
                 .toList();
     }
 
@@ -261,7 +276,7 @@ public class AdminDictServiceImpl implements AdminDictService {
     @Override
     public SysDictDataDTO getDictDataById(Long id) {
         SysDictDataDO entity = findDictDataById(id);
-        return DictConverter.INSTANCE.toDataDTO(entity);
+        return dictConverter.toDataDTO(entity);
     }
 
     /**
@@ -283,7 +298,7 @@ public class AdminDictServiceImpl implements AdminDictService {
         LocalDateTime now = LocalDateTime.now();
         fillDictData(entity, request, defaultIfBlank(request.getLocale(), entity.getLocale()), now);
         dictDataMapper.updateById(entity);
-        return DictConverter.INSTANCE.toDataDTO(entity);
+        return dictConverter.toDataDTO(entity);
     }
 
     /**

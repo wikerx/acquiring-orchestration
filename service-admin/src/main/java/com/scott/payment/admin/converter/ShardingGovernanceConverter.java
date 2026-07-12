@@ -8,7 +8,6 @@ import com.scott.payment.admin.entity.SysShardingPhysicalTableDO;
 import com.scott.payment.admin.entity.SysShardingTableCreateLogDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.factory.Mappers;
 
 /**
  * @author : scott
@@ -16,16 +15,11 @@ import org.mapstruct.factory.Mappers;
  * @classname : ShardingGovernanceConverter
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 收单支付Sharding Governance Converter，位于 service-admin 的对象转换层，用于定义调用契约和职责边界。
+ * @description : 分表治理对象转换器，位于 service-admin 转换层；负责物理表、建表日志和 service-job 建表请求之间的字段映射。
  * @status : create
  */
-@Mapper
+@Mapper(componentModel = "spring")
 public interface ShardingGovernanceConverter {
-
-    /**
-     * 转换器单例。
-     */
-    ShardingGovernanceConverter INSTANCE = Mappers.getMapper(ShardingGovernanceConverter.class);
 
     /**
      * 物理表登记实体转后台响应。

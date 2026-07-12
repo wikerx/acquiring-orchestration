@@ -25,4 +25,14 @@ public class PayoutClientProperties {
      * service-payout 内部创建接口地址。
      */
     private String createUrl = "http://service-payout/internal/payout/create";
+
+    /**
+     * 内部服务调用方标识，用于 service-payout 审计调用来源。
+     */
+    private String internalCaller = "service-openapi";
+
+    /**
+     * 调用 service-payout 内部接口的 HMAC-SHA256 共享密钥。
+     */
+    private String internalSecret = "dev-internal-service-secret";
 }

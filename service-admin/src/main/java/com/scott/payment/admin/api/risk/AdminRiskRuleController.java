@@ -39,6 +39,11 @@ public class AdminRiskRuleController {
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;
 
+    /**
+     * 创建内风控规则管理接口。
+     *
+     * @param riskManagementApplicationService 风控管理应用服务
+     */
     public AdminRiskRuleController(AdminRiskManagementApplicationService riskManagementApplicationService) {
         this.riskManagementApplicationService = riskManagementApplicationService;
     }
@@ -51,7 +56,7 @@ public class AdminRiskRuleController {
      * @return 规则分页结果
      */
     @PostMapping("/rule/{functionCode}/page")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.QUERY, operation = "分页查询风控规则")
     public CommonResult<PageResult<RiskDTOs.RiskRecordResponse>> page(@PathVariable("functionCode") String functionCode,
                                                                       @RequestBody(required = false) RiskDTOs.RiskRuleQueryRequest request) {
@@ -66,7 +71,7 @@ public class AdminRiskRuleController {
      * @return 规则详情
      */
     @GetMapping("/rule/{functionCode}/{id}")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     public CommonResult<RiskDTOs.RiskRecordResponse> detail(@PathVariable("functionCode") String functionCode,
                                                            @PathVariable("id") Long id) {
         return success(riskManagementApplicationService.ruleDetail(functionCode, id));
@@ -80,11 +85,24 @@ public class AdminRiskRuleController {
      * @return 新增后的规则
      */
     @PostMapping("/rule/{functionCode}")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.CREATE, operation = "新增风控规则")
     public CommonResult<RiskDTOs.RiskRecordResponse> create(@PathVariable("functionCode") String functionCode,
                                                            @Valid @RequestBody RiskDTOs.RiskRuleSaveRequest request) {
         return success(riskManagementApplicationService.createRule(functionCode, request));
+    }
+
+    /**
+     * 批量新增商户来源网址限定。
+     *
+     * @param request 来源网址批量保存请求
+     * @return 新增后的来源网址记录
+     */
+    @PostMapping("/rule/sourceUrl/batch-create")
+    @RequiresPermission("risk:access")
+    @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.CREATE, operation = "批量新增商户来源网址限定")
+    public CommonResult<java.util.List<RiskDTOs.RiskRecordResponse>> createSourceUrls(@Valid @RequestBody RiskDTOs.RiskSourceUrlBatchSaveRequest request) {
+        return success(riskManagementApplicationService.createSourceUrlRules(request));
     }
 
     /**
@@ -96,7 +114,7 @@ public class AdminRiskRuleController {
      * @return 修改后的规则
      */
     @PutMapping("/rule/{functionCode}/{id}")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.UPDATE, operation = "修改风控规则")
     public CommonResult<RiskDTOs.RiskRecordResponse> update(@PathVariable("functionCode") String functionCode,
                                                            @PathVariable("id") Long id,
@@ -112,7 +130,7 @@ public class AdminRiskRuleController {
      * @return 空结果
      */
     @DeleteMapping("/RULE/{functionCode}/{id}")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.DELETE, operation = "删除风控规则")
     public CommonResult<Void> remove(@PathVariable("functionCode") String functionCode,
                                      @PathVariable("id") Long id) {
@@ -128,7 +146,7 @@ public class AdminRiskRuleController {
      * @return 空结果
      */
     @DeleteMapping("/RULE/{functionCode}/batch")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.DELETE, operation = "批量删除风控规则")
     public CommonResult<Void> batchRemove(@PathVariable("functionCode") String functionCode,
                                           @RequestBody RiskDTOs.BatchRemoveRequest request) {
@@ -145,7 +163,7 @@ public class AdminRiskRuleController {
      * @return 更新后的规则
      */
     @PutMapping("/RULE/{functionCode}/{id}/status")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.UPDATE, operation = "更新风控规则状态")
     public CommonResult<RiskDTOs.RiskRecordResponse> updateStatus(@PathVariable("functionCode") String functionCode,
                                                                  @PathVariable("id") Long id,
@@ -157,13 +175,16 @@ public class AdminRiskRuleController {
      * 导出内风控规则。
      *
      * @param functionCode 功能编码
+     * @param request      导出筛选条件
      * @param response     HTTP 响应
      */
     @PostMapping("/RULE/{functionCode}/export")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.EXPORT, operation = "导出风控规则")
-    public void export(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
-        riskManagementApplicationService.export(MODULE_TYPE, functionCode, response);
+    public void export(@PathVariable("functionCode") String functionCode,
+                       @RequestBody(required = false) RiskDTOs.RiskRuleQueryRequest request,
+                       HttpServletResponse response) {
+        riskManagementApplicationService.exportRule(functionCode, request, response);
     }
 
     /**
@@ -173,20 +194,20 @@ public class AdminRiskRuleController {
      * @param response     HTTP 响应
      */
     @GetMapping("/RULE/{functionCode}/template")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     public void template(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
         riskManagementApplicationService.template(MODULE_TYPE, functionCode, response);
     }
 
     /**
-     * 导入内风控规则 CSV 文件。
+     * 导入内风控规则配置文件。
      *
      * @param functionCode 功能编码
-     * @param file         CSV 文件
+     * @param file         CSV 或 Excel 文件
      * @return 导入结果
      */
     @PostMapping("/RULE/{functionCode}/import")
-    @RequiresPermission("risk:rule:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.CREATE, operation = "导入风控规则")
     public CommonResult<RiskDTOs.ImportResultResponse> importCsv(@PathVariable("functionCode") String functionCode,
                                                                  @RequestParam("file") MultipartFile file) {

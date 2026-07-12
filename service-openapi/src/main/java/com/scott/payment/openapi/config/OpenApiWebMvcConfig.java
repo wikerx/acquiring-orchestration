@@ -2,6 +2,7 @@ package com.scott.payment.openapi.config;
 
 import com.scott.payment.openapi.support.OpenApiHeaderInterceptor;
 import com.scott.payment.openapi.support.OpenApiRequestArgumentResolver;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
@@ -28,6 +29,7 @@ import java.util.List;
  * @status : create
  */
 @Configuration
+@EnableConfigurationProperties(OpenApiCallbackProperties.class)
 public class OpenApiWebMvcConfig implements WebMvcConfigurer {
 
     /**

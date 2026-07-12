@@ -47,7 +47,7 @@ public class AdminDictApplicationService {
     /**
      * 导出文件时间戳格式。
      */
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
@@ -65,23 +65,30 @@ public class AdminDictApplicationService {
      * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final ExcelLocaleResolver excelLocaleResolver;
+    /**
+     * 数据字典对象转换器。
+     */
+    private final DictConverter dictConverter;
 
     /**
      * 创建后台数据字典应用服务。
      *
-     * @param adminDictService 数据字典领域服务
+     * @param adminDictService         数据字典领域服务
      * @param excelExportService       Excel 导出服务
      * @param excelI18nMessageResolver Excel 文案解析器
      * @param excelLocaleResolver      Excel 语言解析器
+     * @param dictConverter            数据字典对象转换器
      */
     public AdminDictApplicationService(AdminDictService adminDictService,
                                        ExcelExportService excelExportService,
                                        ExcelI18nMessageResolver excelI18nMessageResolver,
-                                       ExcelLocaleResolver excelLocaleResolver) {
+                                       ExcelLocaleResolver excelLocaleResolver,
+                                       DictConverter dictConverter) {
         this.adminDictService = adminDictService;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.dictConverter = dictConverter;
     }
 
     /**
@@ -132,7 +139,7 @@ public class AdminDictApplicationService {
                                 HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<SysDictTypeExportRow> rows = adminDictService.listDictTypes(request).stream()
-                .map(DictConverter.INSTANCE::toTypeExportRow)
+                .map(dictConverter::toTypeExportRow)
                 .peek(row -> fillDictTypeDisplayValue(row, locale))
                 .toList();
         String exportTitle = excelI18nMessageResolver.resolve("excel.dict.title", locale);
@@ -213,7 +220,7 @@ public class AdminDictApplicationService {
                                HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<SysDictDataExportRow> rows = adminDictService.listDictData(request).stream()
-                .map(DictConverter.INSTANCE::toDataExportRow)
+                .map(dictConverter::toDataExportRow)
                 .peek(row -> fillDictDataDisplayValue(row, locale))
                 .toList();
         String exportTitle = excelI18nMessageResolver.resolve("excel.dictData.title", locale);

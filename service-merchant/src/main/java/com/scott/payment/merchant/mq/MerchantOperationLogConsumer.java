@@ -59,20 +59,27 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
      * 操作日志 MQ 配置。
      */
     private final OperationLogMqProperties properties;
+    /**
+     * 商户操作日志 MQ 消息转换器。
+     */
+    private final OperLogMessageConverter operLogMessageConverter;
 
     /**
      * 创建商户操作日志消费者。
      *
      * @param merchantOperLogService 商户操作日志领域服务
-     * @param idempotentService Redis 幂等服务
-     * @param properties 操作日志 MQ 配置
+     * @param idempotentService       Redis 幂等服务
+     * @param properties              操作日志 MQ 配置
+     * @param operLogMessageConverter 商户操作日志 MQ 消息转换器
      */
     public MerchantOperationLogConsumer(MerchantOperLogService merchantOperLogService,
                                         IdempotentService idempotentService,
-                                        OperationLogMqProperties properties) {
+                                        OperationLogMqProperties properties,
+                                        OperLogMessageConverter operLogMessageConverter) {
         this.merchantOperLogService = merchantOperLogService;
         this.idempotentService = idempotentService;
         this.properties = properties;
+        this.operLogMessageConverter = operLogMessageConverter;
     }
 
     /**
@@ -98,7 +105,7 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
                     message.getIdempotentKey());
             return;
         }
-        SysOperLogRecordRequest request = OperLogMessageConverter.INSTANCE.toRecordRequest(message);
+        SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
         merchantOperLogService.recordOperLog(request);
     }
 }

@@ -4,7 +4,6 @@ import com.scott.payment.admin.dto.SysUserAccountDTO;
 import com.scott.payment.admin.dto.export.SysUserAccountExportRow;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.factory.Mappers;
 
 /**
  * @author : scott
@@ -12,16 +11,11 @@ import org.mapstruct.factory.Mappers;
  * @classname : UserExportConverter
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 收单支付User Export Converter，位于 service-admin 的对象转换层，用于定义调用契约和职责边界。
+ * @description : 后台用户导出转换器，位于 service-admin 转换层；负责用户 DTO 到 Excel 行对象的普通字段映射，导出展示文案由应用层补充。
  * @status : create
  */
-@Mapper
+@Mapper(componentModel = "spring")
 public interface UserExportConverter {
-
-    /**
-     * 转换器单例。
-     */
-    UserExportConverter INSTANCE = Mappers.getMapper(UserExportConverter.class);
 
     /**
      * 用户 DTO 转导出行对象。
@@ -30,5 +24,6 @@ public interface UserExportConverter {
      * @return 导出行对象
      */
     @Mapping(target = "postNamesText", ignore = true)
+    @Mapping(target = "roleNamesText", ignore = true)
     SysUserAccountExportRow toExportRow(SysUserAccountDTO dto);
 }

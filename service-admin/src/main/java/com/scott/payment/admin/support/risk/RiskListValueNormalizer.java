@@ -39,6 +39,11 @@ public class RiskListValueNormalizer {
 
     private final RiskSensitiveValueCrypto sensitiveValueCrypto;
 
+    /**
+     * 创建名单值归一化组件。
+     *
+     * @param sensitiveValueCrypto 敏感名单值加解密组件
+     */
     public RiskListValueNormalizer(RiskSensitiveValueCrypto sensitiveValueCrypto) {
         this.sensitiveValueCrypto = sensitiveValueCrypto;
     }
@@ -82,7 +87,7 @@ public class RiskListValueNormalizer {
         if ("merchant".equals(code)) {
             return normalizeMerchant(request);
         }
-        if ("billingAddress".equals(code) || "shippingAddress".equals(code)) {
+        if ("billingAddress".equals(code) || "shippingAddress".equals(code) || "merchantBillingAddress".equals(code)) {
             return normalizeSimple(requiredPlain(request), false);
         }
         if ("billingZip".equals(code) || "shippingZip".equals(code)) {
@@ -140,7 +145,7 @@ public class RiskListValueNormalizer {
         rejectMultipleRanges(start);
         rejectMultipleRanges(end);
         if ("WHITE".equalsIgnoreCase(definition.getModuleType()) && StringUtils.hasText(end) && !start.equals(end)) {
-            throw invalid("IP whitelist only supports single IP address");
+            throw invalid("IP白名单仅支持单个IP地址");
         }
         ParsedIp startIp = parseIp(start);
         ParsedIp endIp = parseIp(end);
@@ -151,7 +156,7 @@ public class RiskListValueNormalizer {
             throw invalid("IP区间最多只能有一个段位不一致");
         }
         if (startIp.number().compareTo(endIp.number()) > 0) {
-            throw invalid("IP start must be less than or equal to end");
+            throw invalid("起始IP不能大于截止IP");
         }
         String masked = startIp.original().equals(endIp.original()) ? startIp.original() : startIp.original() + "-" + endIp.original();
         return NormalizedValue.range(masked, sha256(startIp.version() + "-" + startIp.number() + "-" + endIp.number()),
@@ -161,7 +166,7 @@ public class RiskListValueNormalizer {
     private NormalizedValue normalizeCountry(RiskDTOs.RiskListSaveRequest request) {
         String country = upper(defaultIfBlank(request.getCountryAlpha3(), request.getMatchValuePlain()));
         if (!StringUtils.hasText(country) || country.length() != 3) {
-            throw invalid("country alpha3 is required");
+            throw invalid("请选择国家/地区");
         }
         return NormalizedValue.fixed(country, sha256(country), null);
     }
@@ -187,7 +192,7 @@ public class RiskListValueNormalizer {
     private NormalizedValue normalizeEmailUsername(RiskDTOs.RiskListSaveRequest request) {
         String username = requiredPlain(request).trim().toLowerCase(Locale.ROOT);
         if (!username.toUpperCase(Locale.ROOT).matches(EMAIL_USERNAME_REGEX)) {
-            throw invalid("email username format is invalid");
+            throw invalid("邮箱用户名格式不正确");
         }
         return normalizeSimple(username, true);
     }
@@ -196,12 +201,12 @@ public class RiskListValueNormalizer {
         String email = rawEmail.trim().toLowerCase(Locale.ROOT);
         int atIndex = email.indexOf('@');
         if (atIndex <= 0 || atIndex != email.lastIndexOf('@') || atIndex == email.length() - 1) {
-            throw invalid("email format is invalid");
+            throw invalid("邮箱格式不正确");
         }
         String username = email.substring(0, atIndex);
         String domain = normalizeDomain(email.substring(atIndex + 1));
         if (!username.toUpperCase(Locale.ROOT).matches(EMAIL_USERNAME_REGEX)) {
-            throw invalid("email format is invalid");
+            throw invalid("邮箱格式不正确");
         }
         return username + "@" + domain;
     }
@@ -219,18 +224,18 @@ public class RiskListValueNormalizer {
         try {
             domain = IDN.toASCII(domain).toLowerCase(Locale.ROOT);
         } catch (IllegalArgumentException exception) {
-            throw invalid("email domain format is invalid");
+            throw invalid("邮箱域名格式不正确");
         }
         if (!domain.toUpperCase(Locale.ROOT).matches(EMAIL_DOMAIN_REGEX)) {
-            throw invalid("email domain format is invalid");
+            throw invalid("邮箱域名格式不正确");
         }
         return domain;
     }
 
     private NormalizedValue normalizeMerchant(RiskDTOs.RiskListSaveRequest request) {
-        String merchantId = defaultIfBlank(request.getMerchantId(), request.getMatchValuePlain());
+        String merchantId = defaultIfBlank(request.getMatchValuePlain(), request.getMatchValueMasked());
         if (!StringUtils.hasText(merchantId)) {
-            throw invalid("请选择商户号");
+            throw invalid("请选择白名单商户号");
         }
         return NormalizedValue.fixed(merchantId, sha256(merchantId), null);
     }
@@ -260,19 +265,21 @@ public class RiskListValueNormalizer {
         return code.contains("Fingerprint")
                 || code.contains("Name")
                 || code.contains("Address")
+                || code.contains("Person")
+                || code.contains("enterprise")
                 || code.contains("customer")
                 || code.contains("Customer");
     }
 
     private void validateCardBin(String value, String label) {
         if (value.length() < CARD_BIN_MIN_LENGTH || value.length() > CARD_BIN_MAX_LENGTH) {
-            throw invalid(label + " length must be 6-11");
+            throw invalid("BIN必须为 6-11 位纯数字");
         }
     }
 
     private ParsedIp parseIp(String ip) {
         if (!StringUtils.hasText(ip)) {
-            throw invalid("IP address is required");
+            throw invalid("请输入IP地址");
         }
         String value = ip.trim();
         if (value.contains(":")) {
@@ -284,18 +291,18 @@ public class RiskListValueNormalizer {
     private ParsedIp parseIpv4(String value) {
         String[] parts = value.split("\\.", -1);
         if (parts.length != 4) {
-            throw invalid("IP address format is invalid");
+            throw invalid("IP地址格式不正确");
         }
         int[] segments = new int[4];
         BigInteger number = BigInteger.ZERO;
         for (int index = 0; index < parts.length; index++) {
             String part = parts[index];
             if (!part.matches("\\d{1,3}")) {
-                throw invalid("IP address format is invalid");
+                throw invalid("IP地址格式不正确");
             }
             int segment = Integer.parseInt(part);
             if (segment < 0 || segment > 255) {
-                throw invalid("IP address format is invalid");
+                throw invalid("IP地址格式不正确");
             }
             segments[index] = segment;
             number = number.shiftLeft(8).add(BigInteger.valueOf(segment));
@@ -305,12 +312,12 @@ public class RiskListValueNormalizer {
 
     private ParsedIp parseIpv6(String value) {
         if (!value.matches("[0-9a-fA-F:]+")) {
-            throw invalid("IP address format is invalid");
+            throw invalid("IP地址格式不正确");
         }
         try {
             byte[] bytes = InetAddress.getByName(value).getAddress();
             if (bytes.length != 16) {
-                throw invalid("IP address format is invalid");
+                throw invalid("IP地址格式不正确");
             }
             int[] segments = new int[8];
             for (int index = 0; index < segments.length; index++) {
@@ -318,7 +325,7 @@ public class RiskListValueNormalizer {
             }
             return new ParsedIp(value, "IPV6", new BigInteger(1, bytes), segments);
         } catch (UnknownHostException exception) {
-            throw invalid("IP address format is invalid");
+            throw invalid("IP地址格式不正确");
         }
     }
 
@@ -334,7 +341,7 @@ public class RiskListValueNormalizer {
 
     private void rejectMultipleRanges(String value) {
         if (value != null && (value.contains(",") || value.contains(";") || value.contains("\n"))) {
-            throw invalid("only one IP range is allowed");
+            throw invalid("一次只能录入一个IP区间");
         }
     }
 
@@ -377,7 +384,7 @@ public class RiskListValueNormalizer {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest);
         } catch (Exception exception) {
-            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "risk value hash failed");
+            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "风控名单值哈希计算失败");
         }
     }
 
@@ -397,14 +404,47 @@ public class RiskListValueNormalizer {
                                   String matchValueCipher,
                                   String ipVersion) {
 
+        /**
+         * 创建固定值名单归一化结果。
+         *
+         * @param masked 脱敏展示值
+         * @param hash   归一化哈希
+         * @param cipher 敏感值密文，非敏感名单为空
+         * @return 固定值归一化结果
+         */
         public static NormalizedValue fixed(String masked, String hash, String cipher) {
             return new NormalizedValue(masked, hash, null, null, null, null, cipher, null);
         }
 
+        /**
+         * 创建不区分 IP 版本的区间归一化结果。
+         *
+         * @param masked      区间展示值
+         * @param hash        区间归一化哈希
+         * @param start       区间起始展示值
+         * @param end         区间截止展示值
+         * @param startNumber 区间起始数值
+         * @param endNumber   区间截止数值
+         * @param cipher      敏感值密文，非敏感名单为空
+         * @return 区间归一化结果
+         */
         public static NormalizedValue range(String masked, String hash, String start, String end, String startNumber, String endNumber, String cipher) {
             return range(masked, hash, start, end, startNumber, endNumber, cipher, null);
         }
 
+        /**
+         * 创建带 IP 版本的区间归一化结果。
+         *
+         * @param masked      区间展示值
+         * @param hash        区间归一化哈希
+         * @param start       区间起始展示值
+         * @param end         区间截止展示值
+         * @param startNumber 区间起始数值
+         * @param endNumber   区间截止数值
+         * @param cipher      敏感值密文，非敏感名单为空
+         * @param ipVersion   IP 版本：IPV4、IPV6
+         * @return 区间归一化结果
+         */
         public static NormalizedValue range(String masked, String hash, String start, String end, String startNumber, String endNumber, String cipher, String ipVersion) {
             return new NormalizedValue(masked, hash, start, end, startNumber, endNumber, cipher, ipVersion);
         }

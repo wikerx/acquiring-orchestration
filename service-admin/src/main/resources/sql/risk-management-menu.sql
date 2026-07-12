@@ -68,8 +68,11 @@ JOIN (
     UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_email', '邮箱/域名AML', '/risk/aml/email', 'risk/list', 'risk:aml:email:list', 'Message', 26
     UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_phone', '手机号AML', '/risk/aml/phone', 'risk/list', 'risk:aml:phone:list', 'Iphone', 27
     UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_cardholder_name', '持卡人姓名AML', '/risk/aml/cardholder-name', 'risk/list', 'risk:aml:cardholderName:list', 'User', 28
-    UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_source_url', '来源网址AML', '/risk/aml/source-url', 'risk/list', 'risk:aml:sourceUrl:list', 'Link', 29
-    UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_hit_record', 'AML命中记录', '/risk/aml/hit-record', 'risk/record', 'risk:record:evaluation:list', 'Document', 30
+    UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_legal_person', 'AML法人', '/risk/aml/legal-person', 'risk/list', 'risk:aml:legalPerson:list', 'UserFilled', 29
+    UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_enterprise', 'AML企业', '/risk/aml/enterprise', 'risk/list', 'risk:aml:enterprise:list', 'OfficeBuilding', 30
+    UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_merchant_billing_address', 'AML（商户）账单地址', '/risk/aml/merchant-billing-address', 'risk/list', 'risk:aml:merchantBillingAddress:list', 'House', 31
+    UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_source_url', '来源网址AML', '/risk/aml/source-url', 'risk/list', 'risk:aml:sourceUrl:list', 'Link', 32
+    UNION ALL SELECT 'risk_aml_catalog', 'risk_aml_hit_record', 'AML命中记录', '/risk/aml/hit-record', 'risk/record', 'risk:record:evaluation:list', 'Document', 33
     UNION ALL SELECT 'risk_black_catalog', 'risk_black_overview', '黑名单总览', '/risk/blacklist/overview', 'risk/overview', 'risk:blacklist:overview:list', 'DataBoard', 31
     UNION ALL SELECT 'risk_black_catalog', 'risk_black_card_no', '卡号黑名单', '/risk/blacklist/card-no', 'risk/list', 'risk:blacklist:cardNo:list', 'CreditCard', 32
     UNION ALL SELECT 'risk_black_catalog', 'risk_black_card_fingerprint', '卡指纹黑名单', '/risk/blacklist/card-fingerprint', 'risk/list', 'risk:blacklist:cardFingerprint:list', 'FingerPrint', 33
@@ -107,9 +110,6 @@ JOIN (
     UNION ALL SELECT 'risk_rule_catalog', 'risk_rule_source_url', '商户来源网址限定', '/risk/rule/source-url', 'risk/rule', 'risk:rule:sourceUrl:list', 'Link', 62
     UNION ALL SELECT 'risk_rule_catalog', 'risk_rule_merchant_limit', '商户交易限额管理', '/risk/rule/merchant-limit', 'risk/rule', 'risk:rule:merchantLimit:list', 'Money', 63
     UNION ALL SELECT 'risk_rule_catalog', 'risk_rule_frequency', '交易频率限定', '/risk/rule/frequency', 'risk/rule', 'risk:rule:frequency:list', 'Timer', 64
-    UNION ALL SELECT 'risk_rule_catalog', 'risk_rule_trade_country', '商户交易国家限定', '/risk/rule/trade-country', 'risk/rule', 'risk:rule:tradeCountry:list', 'Location', 65
-    UNION ALL SELECT 'risk_rule_catalog', 'risk_rule_issuer_country', '发卡行国家限定', '/risk/rule/issuer-country', 'risk/rule', 'risk:rule:issuerCountry:list', 'LocationFilled', 66
-    UNION ALL SELECT 'risk_rule_catalog', 'risk_rule_card_bin', '卡BIN交易规则', '/risk/rule/card-bin', 'risk/rule', 'risk:rule:cardBin:list', 'Tickets', 67
     UNION ALL SELECT 'risk_rule_catalog', 'risk_rule_3ds', '3DS规则管理', '/risk/rule/3ds', 'risk/rule', 'risk:rule:threeDs:list', 'Unlock', 68
     UNION ALL SELECT 'risk_record_catalog', 'risk_record_evaluation', '风控记录明细', '/risk/record/evaluation', 'risk/record', 'risk:record:evaluation:list', 'Document', 71
 ) item ON item.parent_code = parent.menu_code
@@ -154,6 +154,120 @@ SELECT 1, menu.id, menu.permission_code, menu.menu_name, menu.menu_type, '*', CO
 FROM sys_menu menu
 WHERE menu.app_id = 1 AND menu.deleted = 0 AND menu.permission_code LIKE 'risk:%'
 ON DUPLICATE KEY UPDATE menu_id=VALUES(menu_id), permission_name=VALUES(permission_name), permission_type=VALUES(permission_type), resource_method=VALUES(resource_method), resource_path=VALUES(resource_path), description=VALUES(description), status=VALUES(status), deleted=0;
+
+UPDATE sys_role_permission rp
+JOIN sys_permission p ON p.id = rp.permission_id
+SET rp.deleted = rp.id
+WHERE p.app_id = 1
+  AND p.permission_code LIKE 'risk:rule:tradeCountry:%'
+  AND rp.deleted = 0;
+
+UPDATE sys_permission
+SET deleted = id, status = 0
+WHERE app_id = 1
+  AND permission_code LIKE 'risk:rule:tradeCountry:%'
+  AND deleted = 0;
+
+UPDATE sys_role_menu rm
+JOIN sys_menu m ON m.id = rm.menu_id
+SET rm.deleted = rm.id
+WHERE m.app_id = 1
+  AND m.menu_code LIKE 'risk_rule_trade_country%'
+  AND rm.deleted = 0;
+
+UPDATE sys_menu
+SET deleted = id, status = 0
+WHERE app_id = 1
+  AND menu_code LIKE 'risk_rule_trade_country%'
+  AND deleted = 0;
+
+UPDATE sys_role_permission rp
+JOIN sys_permission p ON p.id = rp.permission_id
+SET rp.deleted = rp.id
+WHERE p.app_id = 1
+  AND (
+      p.permission_code LIKE 'risk:rule:issuerCountry:%'
+      OR p.permission_name = '发卡行国家限定'
+      OR p.resource_path = '/risk/rule/issuer-country'
+  )
+  AND rp.deleted = 0;
+
+UPDATE sys_permission
+SET deleted = id, status = 0
+WHERE app_id = 1
+  AND (
+      permission_code LIKE 'risk:rule:issuerCountry:%'
+      OR permission_name = '发卡行国家限定'
+      OR resource_path = '/risk/rule/issuer-country'
+  )
+  AND deleted = 0;
+
+UPDATE sys_role_menu rm
+JOIN sys_menu m ON m.id = rm.menu_id
+SET rm.deleted = rm.id
+WHERE m.app_id = 1
+  AND (
+      m.menu_code LIKE 'risk_rule_issuer_country%'
+      OR m.menu_name = '发卡行国家限定'
+      OR m.route_path = '/risk/rule/issuer-country'
+      OR m.permission_code LIKE 'risk:rule:issuerCountry:%'
+  )
+  AND rm.deleted = 0;
+
+UPDATE sys_menu
+SET deleted = id, status = 0
+WHERE app_id = 1
+  AND (
+      menu_code LIKE 'risk_rule_issuer_country%'
+      OR menu_name = '发卡行国家限定'
+      OR route_path = '/risk/rule/issuer-country'
+      OR permission_code LIKE 'risk:rule:issuerCountry:%'
+  )
+  AND deleted = 0;
+
+UPDATE sys_role_permission rp
+JOIN sys_permission p ON p.id = rp.permission_id
+SET rp.deleted = rp.id
+WHERE p.app_id = 1
+  AND (
+      p.permission_code LIKE 'risk:rule:cardBin:%'
+      OR p.permission_name = '卡BIN交易规则'
+      OR p.resource_path = '/risk/rule/card-bin'
+  )
+  AND rp.deleted = 0;
+
+UPDATE sys_permission
+SET deleted = id, status = 0
+WHERE app_id = 1
+  AND (
+      permission_code LIKE 'risk:rule:cardBin:%'
+      OR permission_name = '卡BIN交易规则'
+      OR resource_path = '/risk/rule/card-bin'
+  )
+  AND deleted = 0;
+
+UPDATE sys_role_menu rm
+JOIN sys_menu m ON m.id = rm.menu_id
+SET rm.deleted = rm.id
+WHERE m.app_id = 1
+  AND (
+      m.menu_code LIKE 'risk_rule_card_bin%'
+      OR m.menu_name = '卡BIN交易规则'
+      OR m.route_path = '/risk/rule/card-bin'
+      OR m.permission_code LIKE 'risk:rule:cardBin:%'
+  )
+  AND rm.deleted = 0;
+
+UPDATE sys_menu
+SET deleted = id, status = 0
+WHERE app_id = 1
+  AND (
+      menu_code LIKE 'risk_rule_card_bin%'
+      OR menu_name = '卡BIN交易规则'
+      OR route_path = '/risk/rule/card-bin'
+      OR permission_code LIKE 'risk:rule:cardBin:%'
+  )
+  AND deleted = 0;
 
 INSERT INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT 1, role.id, menu.id, 0

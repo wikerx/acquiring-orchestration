@@ -11,74 +11,86 @@ import java.util.List;
  * @classname : SysUserAccountDTO
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 系统管理Sys User Account 数据传输对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 后台用户账号展示 DTO，位于 service-admin 接口传输层；用于用户列表、详情和导出展示，不返回密码、盐等敏感字段。
  * @status : create
  */
 @Data
 public class SysUserAccountDTO {
 
     /**
-     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * 账号ID。
      */
     private Long accountId;
     /**
-     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * 用户主体ID。
      */
     private Long userId;
     /**
-     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * 所属部门ID。
      */
     private Long deptId;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 所属部门名称。
      */
     private String deptName;
     /**
-     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * 所属岗位ID集合。
      */
     private List<Long> postIds;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 所属岗位名称集合。
      */
     private List<String> postNames;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 已绑定角色ID集合。
+     */
+    private List<Long> roleIds;
+    /**
+     * 已绑定角色名称集合。
+     */
+    private List<String> roleNames;
+    /**
+     * 登录账号。
      */
     private String loginAccount;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 用户真实姓名。
      */
     private String realName;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 手机号。
      */
     private String mobile;
     /**
-     * 系统管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
+     * 邮箱。
      */
     private String email;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 用户类型。
      */
     private String userType;
     /**
-     * 系统管理状态字段，取值需与数据字典或枚举约定保持一致。
+     * 账号状态：1启用，0停用。
      */
     private Integer status;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 是否锁定：1锁定，0未锁定。
      */
     private Integer locked;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 最后登录时间。
      */
     private LocalDateTime lastLoginAt;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 最后登录IP。
      */
     private String lastLoginIp;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 备注。
+     */
+    private String remark;
+    /**
+     * 创建时间。
      */
     private LocalDateTime createdAt;
 }

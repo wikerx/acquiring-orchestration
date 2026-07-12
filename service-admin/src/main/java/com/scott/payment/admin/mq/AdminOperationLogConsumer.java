@@ -59,20 +59,27 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
      * 操作日志 MQ 配置。
      */
     private final OperationLogMqProperties properties;
+    /**
+     * 操作日志 MQ 消息转换器。
+     */
+    private final OperLogMessageConverter operLogMessageConverter;
 
     /**
      * 创建后台操作日志消费者。
      *
      * @param adminOperLogService 操作日志领域服务
-     * @param idempotentService Redis 幂等服务
-     * @param properties 操作日志 MQ 配置
+     * @param idempotentService   Redis 幂等服务
+     * @param properties          操作日志 MQ 配置
+     * @param operLogMessageConverter 操作日志 MQ 消息转换器
      */
     public AdminOperationLogConsumer(AdminOperLogService adminOperLogService,
                                      IdempotentService idempotentService,
-                                     OperationLogMqProperties properties) {
+                                     OperationLogMqProperties properties,
+                                     OperLogMessageConverter operLogMessageConverter) {
         this.adminOperLogService = adminOperLogService;
         this.idempotentService = idempotentService;
         this.properties = properties;
+        this.operLogMessageConverter = operLogMessageConverter;
     }
 
     /**
@@ -98,7 +105,7 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
                     message.getIdempotentKey());
             return;
         }
-        SysOperLogRecordRequest request = OperLogMessageConverter.INSTANCE.toRecordRequest(message);
+        SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
         adminOperLogService.recordOperLog(request);
     }
 }

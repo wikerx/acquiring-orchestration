@@ -14,58 +14,70 @@ import java.util.List;
  * @classname : SysUserAccountCreateRequest
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 系统管理Sys User Account Create 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 后台用户新增请求，位于 service-admin 接口传输层；只承载用户资料、账号状态和岗位关系，不暴露角色授权明细。
  * @status : create
  */
 @Data
 public class SysUserAccountCreateRequest implements Serializable {
 
     /**
-     * 系统管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * 序列化版本号。
      */
     private static final long serialVersionUID = 1L;
 
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 登录账号，创建后不支持改名。
      */
-    @NotBlank(message = "loginAccount")
-    @Size(max = 100, message = "loginAccount length must be less than 100")
+    @NotBlank(message = "请输入登录账号")
+    @Size(max = 100, message = "登录账号长度不能超过100位")
     private String loginAccount;
 
     /**
-     * 系统管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
+     * 初始密码，日志和操作记录中不得明文输出。
      */
-    @NotBlank(message = "password")
-    @Size(min = 8, max = 64, message = "password length must be between 8 and 64")
+    @NotBlank(message = "请输入初始密码")
+    @Size(min = 8, max = 64, message = "初始密码长度必须在8到64位之间")
     private String password;
 
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 用户真实姓名。
      */
-    @NotBlank(message = "realName")
-    @Size(max = 100, message = "realName length must be less than 100")
+    @NotBlank(message = "请输入姓名")
+    @Size(max = 100, message = "姓名长度不能超过100位")
     private String realName;
 
     /**
-     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * 所属部门ID，允许为空。
      */
     private Long deptId;
 
     /**
-     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * 所属岗位ID集合，允许为空。
      */
     private List<Long> postIds;
 
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 手机号，允许为空。
      */
-    @Size(max = 30, message = "mobile length must be less than 30")
+    @Size(max = 30, message = "手机号长度不能超过30位")
     private String mobile;
 
     /**
-     * 系统管理邮箱字段，需满足邮箱格式校验，日志展示时应按敏感信息处理。
+     * 邮箱，后台用户必填并需满足邮箱格式。
      */
-    @Email(message = "email format does not match")
-    @Size(max = 150, message = "email length must be less than 150")
+    @NotBlank(message = "请输入邮箱")
+    @Email(message = "邮箱格式不正确")
+    @Size(max = 150, message = "邮箱长度不能超过150位")
     private String email;
+
+    /**
+     * 账号状态：1启用，0停用；为空时按启用处理。
+     */
+    private Integer status;
+
+    /**
+     * 备注信息，用于后台人工管理说明。
+     */
+    @Size(max = 500, message = "备注长度不能超过500位")
+    private String remark;
 }

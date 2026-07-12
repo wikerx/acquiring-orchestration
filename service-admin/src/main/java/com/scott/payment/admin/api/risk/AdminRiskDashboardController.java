@@ -31,6 +31,11 @@ public class AdminRiskDashboardController {
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;
 
+    /**
+     * 创建风控工作台接口。
+     *
+     * @param riskManagementApplicationService 风控管理应用服务
+     */
     public AdminRiskDashboardController(AdminRiskManagementApplicationService riskManagementApplicationService) {
         this.riskManagementApplicationService = riskManagementApplicationService;
     }

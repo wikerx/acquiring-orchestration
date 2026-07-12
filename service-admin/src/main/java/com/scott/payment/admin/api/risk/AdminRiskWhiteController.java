@@ -39,6 +39,11 @@ public class AdminRiskWhiteController {
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;
 
+    /**
+     * 创建白名单管理接口。
+     *
+     * @param riskManagementApplicationService 风控管理应用服务
+     */
     public AdminRiskWhiteController(AdminRiskManagementApplicationService riskManagementApplicationService) {
         this.riskManagementApplicationService = riskManagementApplicationService;
     }
@@ -51,7 +56,7 @@ public class AdminRiskWhiteController {
      * @return 白名单分页结果
      */
     @PostMapping("/list/WHITE/{functionCode}/page")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-白名单", businessType = OperationTypeConstants.QUERY, operation = "分页查询白名单")
     public CommonResult<PageResult<RiskDTOs.RiskRecordResponse>> page(@PathVariable("functionCode") String functionCode,
                                                                       @RequestBody(required = false) RiskDTOs.RiskListQueryRequest request) {
@@ -66,7 +71,7 @@ public class AdminRiskWhiteController {
      * @return 白名单详情
      */
     @GetMapping("/list/WHITE/{functionCode}/{id}")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     public CommonResult<RiskDTOs.RiskRecordResponse> detail(@PathVariable("functionCode") String functionCode,
                                                            @PathVariable("id") Long id) {
         return success(riskManagementApplicationService.listDetail(MODULE_TYPE, functionCode, id));
@@ -80,7 +85,7 @@ public class AdminRiskWhiteController {
      * @return 白名单编辑详情，敏感值仅在编辑权限下回显
      */
     @GetMapping("/list/WHITE/{functionCode}/{id}/edit")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     public CommonResult<RiskDTOs.RiskRecordResponse> editDetail(@PathVariable("functionCode") String functionCode,
                                                                @PathVariable("id") Long id) {
         return success(riskManagementApplicationService.listEditDetail(MODULE_TYPE, functionCode, id));
@@ -94,7 +99,7 @@ public class AdminRiskWhiteController {
      * @return 新增后的白名单记录
      */
     @PostMapping("/list/WHITE/{functionCode}")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-白名单", businessType = OperationTypeConstants.CREATE, operation = "新增白名单")
     public CommonResult<RiskDTOs.RiskRecordResponse> create(@PathVariable("functionCode") String functionCode,
                                                            @Valid @RequestBody RiskDTOs.RiskListSaveRequest request) {
@@ -110,7 +115,7 @@ public class AdminRiskWhiteController {
      * @return 修改后的白名单记录
      */
     @PutMapping("/list/WHITE/{functionCode}/{id}")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-白名单", businessType = OperationTypeConstants.UPDATE, operation = "修改白名单")
     public CommonResult<RiskDTOs.RiskRecordResponse> update(@PathVariable("functionCode") String functionCode,
                                                            @PathVariable("id") Long id,
@@ -126,7 +131,7 @@ public class AdminRiskWhiteController {
      * @return 空结果
      */
     @DeleteMapping("/WHITE/{functionCode}/{id}")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-白名单", businessType = OperationTypeConstants.DELETE, operation = "删除白名单")
     public CommonResult<Void> remove(@PathVariable("functionCode") String functionCode,
                                      @PathVariable("id") Long id) {
@@ -142,7 +147,7 @@ public class AdminRiskWhiteController {
      * @return 空结果
      */
     @DeleteMapping("/WHITE/{functionCode}/batch")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-白名单", businessType = OperationTypeConstants.DELETE, operation = "批量删除白名单")
     public CommonResult<Void> batchRemove(@PathVariable("functionCode") String functionCode,
                                           @RequestBody RiskDTOs.BatchRemoveRequest request) {
@@ -159,7 +164,7 @@ public class AdminRiskWhiteController {
      * @return 更新后的白名单记录
      */
     @PutMapping("/WHITE/{functionCode}/{id}/status")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-白名单", businessType = OperationTypeConstants.UPDATE, operation = "更新白名单状态")
     public CommonResult<RiskDTOs.RiskRecordResponse> updateStatus(@PathVariable("functionCode") String functionCode,
                                                                  @PathVariable("id") Long id,
@@ -171,13 +176,16 @@ public class AdminRiskWhiteController {
      * 导出白名单。
      *
      * @param functionCode 功能编码
+     * @param request      导出筛选条件
      * @param response     HTTP 响应
      */
     @PostMapping("/WHITE/{functionCode}/export")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-白名单", businessType = OperationTypeConstants.EXPORT, operation = "导出白名单")
-    public void export(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
-        riskManagementApplicationService.export(MODULE_TYPE, functionCode, response);
+    public void export(@PathVariable("functionCode") String functionCode,
+                       @RequestBody(required = false) RiskDTOs.RiskListQueryRequest request,
+                       HttpServletResponse response) {
+        riskManagementApplicationService.export(MODULE_TYPE, functionCode, request, response);
     }
 
     /**
@@ -187,20 +195,20 @@ public class AdminRiskWhiteController {
      * @param response     HTTP 响应
      */
     @GetMapping("/WHITE/{functionCode}/template")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     public void template(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
         riskManagementApplicationService.template(MODULE_TYPE, functionCode, response);
     }
 
     /**
-     * 导入白名单 CSV 文件。
+     * 导入白名单配置文件。
      *
      * @param functionCode 功能编码
-     * @param file         CSV 文件
+     * @param file         CSV 或 Excel 文件
      * @return 导入结果
      */
     @PostMapping("/WHITE/{functionCode}/import")
-    @RequiresPermission("risk:whitelist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-白名单", businessType = OperationTypeConstants.CREATE, operation = "导入白名单")
     public CommonResult<RiskDTOs.ImportResultResponse> importCsv(@PathVariable("functionCode") String functionCode,
                                                                  @RequestParam("file") MultipartFile file) {

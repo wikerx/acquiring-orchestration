@@ -2,6 +2,7 @@ package com.scott.payment.admin.application.monitor;
 
 import com.scott.payment.admin.client.job.JobSchedulerInternalClient;
 import com.scott.payment.admin.client.job.dto.JobTaskRemoteSaveRequest;
+import com.scott.payment.admin.converter.JobSchedulerConverterImpl;
 import com.scott.payment.admin.dto.monitor.JobTaskResponse;
 import com.scott.payment.admin.dto.monitor.JobTaskSaveRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
@@ -65,7 +66,8 @@ class AdminJobSchedulerApplicationServiceTest {
                 jobSchedulerInternalClient,
                 excelExportService,
                 excelI18nMessageResolver,
-                excelLocaleResolver
+                excelLocaleResolver,
+                new JobSchedulerConverterImpl()
         );
     }
 

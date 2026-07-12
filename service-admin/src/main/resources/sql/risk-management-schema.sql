@@ -149,8 +149,38 @@ CREATE TABLE IF NOT EXISTS risk_aml_card (
 
 CREATE TABLE IF NOT EXISTS risk_aml_card_bin LIKE risk_aml_card;
 ALTER TABLE risk_aml_card_bin COMMENT = '卡BIN区间AML名单表';
-CREATE TABLE IF NOT EXISTS risk_aml_ip LIKE risk_aml_card;
-ALTER TABLE risk_aml_ip COMMENT = 'IP地址区间AML名单表';
+CREATE TABLE IF NOT EXISTS risk_aml_ip (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(128) NOT NULL COMMENT 'IP地址或区间展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT 'IP区间归一化哈希，用于重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT 'IP地址默认不保存敏感密文',
+    match_value_start VARCHAR(128) NOT NULL COMMENT '起始IP',
+    match_value_end VARCHAR(128) NOT NULL COMMENT '截止IP',
+    match_value_start_number DECIMAL(39,0) NOT NULL COMMENT '起始IP数值，交易检索使用',
+    match_value_end_number DECIMAL(39,0) NOT NULL COMMENT '截止IP数值，交易检索使用',
+    ip_version VARCHAR(8) NOT NULL COMMENT 'IP版本：IPV4、IPV6',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'CRITICAL' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_aml_ip_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_aml_ip_trade_lookup (ip_version, match_value_start_number, match_value_end_number, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_aml_ip_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_aml_ip_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IP地址区间AML名单表';
 CREATE TABLE IF NOT EXISTS risk_aml_country LIKE risk_aml_card;
 ALTER TABLE risk_aml_country COMMENT = '国家地区AML名单表';
 CREATE TABLE IF NOT EXISTS risk_aml_email (
@@ -184,13 +214,98 @@ CREATE TABLE IF NOT EXISTS risk_aml_phone LIKE risk_aml_card;
 ALTER TABLE risk_aml_phone COMMENT = '手机号AML名单表';
 CREATE TABLE IF NOT EXISTS risk_aml_cardholder_name LIKE risk_aml_card;
 ALTER TABLE risk_aml_cardholder_name COMMENT = '持卡人姓名AML名单表';
+CREATE TABLE IF NOT EXISTS risk_aml_legal_person (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '法人名称脱敏展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '法人名称归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '法人名称密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'CRITICAL' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_aml_legal_person_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_aml_legal_person_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_aml_legal_person_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_aml_legal_person_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AML法人名单表';
+CREATE TABLE IF NOT EXISTS risk_aml_enterprise (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '企业名称脱敏展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '企业名称归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '企业名称密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'CRITICAL' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_aml_enterprise_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_aml_enterprise_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_aml_enterprise_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_aml_enterprise_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AML企业名单表';
+CREATE TABLE IF NOT EXISTS risk_aml_merchant_billing_address (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '商户账单地址明文展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '商户账单地址归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '商户账单地址默认不加密存储',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'CRITICAL' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_aml_merchant_billing_address_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_aml_merchant_billing_address_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_aml_merchant_billing_address_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_aml_merchant_billing_address_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='AML商户账单地址名单表';
 CREATE TABLE IF NOT EXISTS risk_aml_source_url LIKE risk_aml_card;
-ALTER TABLE risk_aml_source_url COMMENT = '来源网址AML名单表';
+ALTER TABLE risk_aml_source_url
+    ADD COLUMN source_host VARCHAR(255) NULL COMMENT '来源网址Host，交易和商户进件按全局Host匹配' AFTER match_value_cipher,
+    ADD UNIQUE KEY uk_aml_source_url_host_deleted (source_host, deleted),
+    ADD KEY idx_aml_source_url_host_lookup (source_host, status, deleted, effective_time, expire_time),
+    COMMENT = '来源网址AML名单表';
 
 CREATE TABLE IF NOT EXISTS risk_black_card_no (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
-    merchant_id VARCHAR(32) NULL COMMENT '商户号，仅商户范围生效时必填',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
     match_value_masked VARCHAR(255) NOT NULL COMMENT '卡号脱敏展示值，禁止保存完整卡号明文',
     match_value_hash VARCHAR(128) NOT NULL COMMENT '卡号归一化哈希，用于交易检索和重复校验',
     match_value_cipher VARCHAR(1024) NULL COMMENT '卡号密文，仅编辑授权时解密回显',
@@ -210,21 +325,159 @@ CREATE TABLE IF NOT EXISTS risk_black_card_no (
     update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
     PRIMARY KEY (id),
+    UNIQUE KEY uk_black_card_no_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
     KEY idx_black_card_no_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
-    KEY idx_black_card_no_duplicate (merchant_scope, merchant_id, match_value_hash, deleted),
     KEY idx_black_card_no_merchant_time (merchant_scope, merchant_id, update_time, id),
     KEY idx_black_card_no_time (update_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='卡号黑名单表';
-CREATE TABLE IF NOT EXISTS risk_black_card_fingerprint LIKE risk_aml_card;
-ALTER TABLE risk_black_card_fingerprint COMMENT = '卡指纹黑名单表';
-CREATE TABLE IF NOT EXISTS risk_black_card_bin LIKE risk_aml_card;
-ALTER TABLE risk_black_card_bin COMMENT = '卡BIN区间黑名单表';
-CREATE TABLE IF NOT EXISTS risk_black_cardholder_name LIKE risk_aml_card;
-ALTER TABLE risk_black_cardholder_name COMMENT = '持卡人姓名黑名单表';
-CREATE TABLE IF NOT EXISTS risk_black_phone LIKE risk_aml_card;
-ALTER TABLE risk_black_phone COMMENT = '电话号码黑名单表';
-CREATE TABLE IF NOT EXISTS risk_black_ip LIKE risk_aml_card;
-ALTER TABLE risk_black_ip COMMENT = 'IP地址区间黑名单表';
+
+CREATE TABLE IF NOT EXISTS risk_black_card_fingerprint (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '卡指纹脱敏展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '卡指纹归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '卡指纹密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'HIGH' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_black_card_fingerprint_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_black_card_fingerprint_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_black_card_fingerprint_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_black_card_fingerprint_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='卡指纹黑名单表';
+
+CREATE TABLE IF NOT EXISTS risk_black_card_bin (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '卡BIN区间展示值，保存为补齐后的起止值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT 'BIN区间归一化哈希，用于重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT 'BIN区间默认不保存敏感密文',
+    match_value_start VARCHAR(11) NULL COMMENT '起始BIN，录入不足11位时右补0',
+    match_value_end VARCHAR(11) NULL COMMENT '截止BIN，录入不足11位时右补9',
+    match_value_start_number DECIMAL(39,0) NULL COMMENT '起始BIN数值，交易卡号区间检索使用',
+    match_value_end_number DECIMAL(39,0) NULL COMMENT '截止BIN数值，交易卡号区间检索使用',
+    card_brand VARCHAR(64) NULL COMMENT '卡品牌，后端根据起始BIN自动识别',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'HIGH' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_black_card_bin_scope_range_deleted (merchant_scope, merchant_id, match_value_start_number, match_value_end_number, deleted),
+    KEY idx_black_card_bin_bin_lookup (status, deleted, merchant_scope, merchant_id, match_value_start_number, match_value_end_number, effective_time, expire_time),
+    KEY idx_black_card_bin_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_black_card_bin_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='卡BIN区间黑名单表';
+
+CREATE TABLE IF NOT EXISTS risk_black_cardholder_name (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '持卡人姓名脱敏展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '持卡人姓名归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '持卡人姓名密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'HIGH' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_black_cardholder_name_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_black_cardholder_name_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_black_cardholder_name_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_black_cardholder_name_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='持卡人姓名黑名单表';
+CREATE TABLE IF NOT EXISTS risk_black_phone (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(64) NOT NULL COMMENT '电话号码展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '电话号码归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(512) NULL COMMENT '电话号码密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'HIGH' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_black_phone_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_black_phone_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_black_phone_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_black_phone_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='电话号码黑名单表';
+CREATE TABLE IF NOT EXISTS risk_black_ip (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(128) NOT NULL COMMENT 'IP地址或区间展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT 'IP区间归一化哈希，用于重复校验',
+    match_value_cipher VARCHAR(512) NULL COMMENT 'IP地址或区间密文，仅编辑授权时解密回显',
+    match_value_start VARCHAR(128) NOT NULL COMMENT 'IP起始值',
+    match_value_end VARCHAR(128) NOT NULL COMMENT 'IP截止值',
+    match_value_start_number DECIMAL(39,0) NOT NULL COMMENT 'IP起始数值，交易区间检索使用',
+    match_value_end_number DECIMAL(39,0) NOT NULL COMMENT 'IP截止数值，交易区间检索使用',
+    ip_version VARCHAR(8) NOT NULL COMMENT 'IP版本：IPV4、IPV6',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'HIGH' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_black_ip_scope_range_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_black_ip_trade_lookup (ip_version, match_value_start_number, match_value_end_number, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_black_ip_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_black_ip_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IP地址区间黑名单表';
 CREATE TABLE IF NOT EXISTS risk_black_email (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
@@ -397,8 +650,33 @@ CREATE TABLE IF NOT EXISTS risk_black_shipping_country LIKE risk_black_billing_c
 ALTER TABLE risk_black_shipping_country COMMENT = '收货国家地区黑名单表';
 CREATE TABLE IF NOT EXISTS risk_black_issuer_country LIKE risk_black_billing_country;
 ALTER TABLE risk_black_issuer_country COMMENT = '发卡行国家地区黑名单表';
-CREATE TABLE IF NOT EXISTS risk_black_device_fingerprint LIKE risk_aml_card;
-ALTER TABLE risk_black_device_fingerprint COMMENT = '设备指纹黑名单表';
+CREATE TABLE IF NOT EXISTS risk_black_device_fingerprint (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '设备指纹脱敏展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '设备指纹归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '设备指纹密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'HIGH' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_black_device_fingerprint_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_black_device_fingerprint_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_black_device_fingerprint_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_black_device_fingerprint_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='设备指纹黑名单表';
 
 CREATE TABLE IF NOT EXISTS risk_black_region (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -428,20 +706,210 @@ CREATE TABLE IF NOT EXISTS risk_black_region (
     KEY idx_black_region_trade_lookup (merchant_scope, merchant_id, region_match_level, country_alpha3, state_province_name, city_name, status, deleted, effective_time, expire_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='高风险区域黑名单表';
 
-CREATE TABLE IF NOT EXISTS risk_white_merchant LIKE risk_aml_card;
-ALTER TABLE risk_white_merchant COMMENT = '商户白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_card_no LIKE risk_aml_card;
-ALTER TABLE risk_white_card_no COMMENT = '卡号白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_card_fingerprint LIKE risk_aml_card;
-ALTER TABLE risk_white_card_fingerprint COMMENT = '卡指纹白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_card_bin LIKE risk_aml_card;
-ALTER TABLE risk_white_card_bin COMMENT = '卡BIN区间白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_ip LIKE risk_aml_card;
-ALTER TABLE risk_white_ip COMMENT = 'IP地址白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_trade_country LIKE risk_aml_card;
-ALTER TABLE risk_white_trade_country COMMENT = '交易国家地区白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_issuer_country LIKE risk_aml_card;
-ALTER TABLE risk_white_issuer_country COMMENT = '发卡行国家地区白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_merchant (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'MERCHANT' COMMENT '固定为MERCHANT，商户白名单仅对商户自身生效',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '白名单商户号，与商户号展示值保持一致',
+    match_value_masked VARCHAR(32) NOT NULL COMMENT '白名单商户号展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '白名单商户号哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '商户白名单不保存敏感密文',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_merchant_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_white_merchant_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_merchant_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_merchant_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_card_no (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(32) NOT NULL COMMENT '卡号脱敏展示值，禁止保存完整卡号明文',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '卡号归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NOT NULL COMMENT '卡号密文，仅编辑授权时解密回显',
+    card_brand VARCHAR(64) NULL COMMENT '卡品牌，后端根据卡号自动识别',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_card_no_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_white_card_no_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_card_no_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_card_no_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='卡号白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_card_fingerprint (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '卡指纹脱敏展示值，禁止保存完整明文',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '卡指纹归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NOT NULL COMMENT '卡指纹密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_card_fingerprint_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_white_card_fingerprint_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_card_fingerprint_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_card_fingerprint_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='卡指纹白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_card_bin (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '卡BIN区间展示值，保存为补齐后的起止值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT 'BIN区间归一化哈希，用于重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT 'BIN区间默认不保存敏感密文',
+    match_value_start VARCHAR(11) NULL COMMENT '起始BIN，录入不足11位时右补0',
+    match_value_end VARCHAR(11) NULL COMMENT '截止BIN，录入不足11位时右补9',
+    match_value_start_number DECIMAL(39,0) NULL COMMENT '起始BIN数值，交易卡号区间检索使用',
+    match_value_end_number DECIMAL(39,0) NULL COMMENT '截止BIN数值，交易卡号区间检索使用',
+    card_brand VARCHAR(64) NULL COMMENT '卡品牌，后端根据起始BIN自动识别',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_card_bin_scope_range_deleted (merchant_scope, merchant_id, match_value_start_number, match_value_end_number, deleted),
+    KEY idx_white_card_bin_bin_lookup (status, deleted, merchant_scope, merchant_id, match_value_start_number, match_value_end_number, effective_time, expire_time),
+    KEY idx_white_card_bin_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_card_bin_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='卡BIN区间白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_ip (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(128) NOT NULL COMMENT 'IP地址展示值，白名单仅支持单IP',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT 'IP地址归一化哈希，用于重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT 'IP地址默认不保存敏感密文',
+    match_value_start VARCHAR(128) NOT NULL COMMENT 'IP地址值',
+    match_value_end VARCHAR(128) NOT NULL COMMENT 'IP地址值，白名单与起始值一致',
+    match_value_start_number DECIMAL(39,0) NOT NULL COMMENT 'IP数值，交易检索使用',
+    match_value_end_number DECIMAL(39,0) NOT NULL COMMENT 'IP数值，白名单与起始数值一致',
+    ip_version VARCHAR(8) NOT NULL COMMENT 'IP版本：IPV4、IPV6',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_ip_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_white_ip_trade_lookup (ip_version, match_value_start_number, match_value_end_number, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_ip_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_ip_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IP地址白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_trade_country (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(3) NOT NULL COMMENT '国家或地区 Alpha-3 编码展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '国家或地区 Alpha-3 编码哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '预留密文字段，国家或地区默认不加密存储',
+    country_alpha2 VARCHAR(2) NULL COMMENT '国家或地区 Alpha-2 编码，仅用于管理端回显',
+    country_alpha3 VARCHAR(3) NOT NULL COMMENT '国家或地区 Alpha-3 编码，交易匹配主字段',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_trade_country_scope_country_deleted (merchant_scope, merchant_id, country_alpha3, deleted),
+    KEY idx_white_trade_country_trade_lookup (country_alpha3, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_trade_country_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_trade_country_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='交易国家地区白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_issuer_country (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(3) NOT NULL COMMENT '国家或地区 Alpha-3 编码展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '国家或地区 Alpha-3 编码哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NULL COMMENT '预留密文字段，国家或地区默认不加密存储',
+    country_alpha2 VARCHAR(2) NULL COMMENT '国家或地区 Alpha-2 编码，仅用于管理端回显',
+    country_alpha3 VARCHAR(3) NOT NULL COMMENT '国家或地区 Alpha-3 编码，交易匹配主字段',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_issuer_country_scope_country_deleted (merchant_scope, merchant_id, country_alpha3, deleted),
+    KEY idx_white_issuer_country_trade_lookup (country_alpha3, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_issuer_country_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_issuer_country_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='发卡行国家地区白名单表';
 CREATE TABLE IF NOT EXISTS risk_white_email (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
@@ -496,14 +964,112 @@ CREATE TABLE IF NOT EXISTS risk_white_email_domain (
     KEY idx_white_email_domain_merchant_time (merchant_scope, merchant_id, update_time, id),
     KEY idx_white_email_domain_time (update_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮箱域名白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_phone LIKE risk_aml_card;
-ALTER TABLE risk_white_phone COMMENT = '手机号白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_customer_id LIKE risk_aml_card;
-ALTER TABLE risk_white_customer_id COMMENT = 'Customer ID白名单表';
-CREATE TABLE IF NOT EXISTS risk_white_device_fingerprint LIKE risk_aml_card;
-ALTER TABLE risk_white_device_fingerprint COMMENT = '设备指纹白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_phone (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(64) NOT NULL COMMENT '手机号展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '手机号归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NOT NULL COMMENT '手机号密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_phone_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_white_phone_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_phone_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_phone_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='手机号白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_customer_id (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT 'Customer ID 脱敏展示值',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT 'Customer ID 归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NOT NULL COMMENT 'Customer ID 密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_customer_id_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_white_customer_id_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_customer_id_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_customer_id_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='Customer ID白名单表';
+CREATE TABLE IF NOT EXISTS risk_white_device_fingerprint (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    match_value_masked VARCHAR(255) NOT NULL COMMENT '设备指纹脱敏展示值，禁止保存完整明文',
+    match_value_hash VARCHAR(128) NOT NULL COMMENT '设备指纹归一化哈希，用于交易检索和重复校验',
+    match_value_cipher VARCHAR(1024) NOT NULL COMMENT '设备指纹密文，仅编辑授权时解密回显',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'LOW' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'PASS' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    validity_type VARCHAR(32) NOT NULL DEFAULT 'SUPER_LONG' COMMENT '有效期类型：SUPER_LONG超长期、LONG长期、LIMITED限定有效期',
+    validity_days INT NULL COMMENT '有效天数，长期和限定有效期使用',
+    source_type VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '来源类型：MANUAL手工、IMPORT导入、SYSTEM系统',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_white_device_fingerprint_scope_hash_deleted (merchant_scope, merchant_id, match_value_hash, deleted),
+    KEY idx_white_device_fingerprint_trade_lookup (match_value_hash, merchant_scope, merchant_id, status, deleted, effective_time, expire_time),
+    KEY idx_white_device_fingerprint_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_white_device_fingerprint_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='设备指纹白名单表';
 
 CREATE TABLE IF NOT EXISTS risk_rule_source_url (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_id VARCHAR(32) NOT NULL COMMENT '商户号，来源网址限定按商户直接生效',
+    source_url VARCHAR(512) NOT NULL COMMENT '商户录入来源网址，必须以http://或https://开头',
+    source_host VARCHAR(255) NOT NULL COMMENT '来源网址Host，交易链路按商户号和Host匹配',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'MEDIUM' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REVIEW' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_rule_source_url_merchant_host_deleted (merchant_id, source_host, deleted),
+    KEY idx_rule_source_url_trade_lookup (merchant_id, source_host, status, deleted, effective_time, expire_time),
+    KEY idx_rule_source_url_merchant_time (merchant_id, update_time, id),
+    KEY idx_rule_source_url_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户来源网址限定表';
+
+CREATE TABLE IF NOT EXISTS risk_rule_template (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
     merchant_id VARCHAR(32) NULL COMMENT '商户号，仅商户范围生效时必填',
@@ -532,19 +1098,69 @@ CREATE TABLE IF NOT EXISTS risk_rule_source_url (
     KEY idx_risk_rule_scope (merchant_scope, merchant_id, status, deleted),
     KEY idx_risk_rule_time (create_time),
     KEY idx_risk_rule_currency (currency, status, deleted)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户来源网址限定规则表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='内风控通用规则模板表';
 
-CREATE TABLE IF NOT EXISTS risk_rule_merchant_limit LIKE risk_rule_source_url;
-ALTER TABLE risk_rule_merchant_limit COMMENT = '商户交易限额规则表';
-CREATE TABLE IF NOT EXISTS risk_rule_frequency LIKE risk_rule_source_url;
+CREATE TABLE IF NOT EXISTS risk_rule_merchant_limit (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号，仅商户范围生效时必填；全局范围为空字符串',
+    rule_name VARCHAR(128) NOT NULL COMMENT '规则名称',
+    match_value VARCHAR(512) NOT NULL DEFAULT '' COMMENT '限额场景，可为空字符串；用于区分同一商户下不同交易场景',
+    limit_type VARCHAR(64) NOT NULL COMMENT '限额类型：SINGLE_MIN、SINGLE_MAX、DAILY、WEEKLY、MONTHLY',
+    amount_min DECIMAL(18,2) NULL COMMENT '最小金额，单笔最低限额使用，固定USD且保留2位小数',
+    amount_max DECIMAL(18,2) NULL COMMENT '最大金额，单笔最高、日、周、月限额使用，固定USD且保留2位小数',
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD' COMMENT '限额币种，当前固定USD',
+    risk_level VARCHAR(32) NOT NULL DEFAULT 'HIGH' COMMENT '风险等级',
+    decision_action VARCHAR(32) NOT NULL DEFAULT 'REJECT' COMMENT '命中动作：REJECT、REVIEW、PASS',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_rule_merchant_limit_scope_type_scene_deleted (merchant_scope, merchant_id, match_value, limit_type, deleted),
+    KEY idx_rule_merchant_limit_trade_lookup (merchant_scope, merchant_id, match_value, limit_type, status, deleted, effective_time, expire_time),
+    KEY idx_rule_merchant_limit_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_rule_merchant_limit_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户交易限额规则表';
+CREATE TABLE IF NOT EXISTS risk_rule_frequency LIKE risk_rule_template;
 ALTER TABLE risk_rule_frequency COMMENT = '交易频率限定规则表';
-CREATE TABLE IF NOT EXISTS risk_rule_trade_country LIKE risk_rule_source_url;
-ALTER TABLE risk_rule_trade_country COMMENT = '商户交易国家限定规则表';
-CREATE TABLE IF NOT EXISTS risk_rule_issuer_country LIKE risk_rule_source_url;
-ALTER TABLE risk_rule_issuer_country COMMENT = '发卡行国家限定规则表';
-CREATE TABLE IF NOT EXISTS risk_rule_card_bin LIKE risk_rule_source_url;
-ALTER TABLE risk_rule_card_bin COMMENT = '卡BIN交易规则表';
-CREATE TABLE IF NOT EXISTS risk_rule_3ds LIKE risk_rule_source_url;
-ALTER TABLE risk_rule_3ds COMMENT = '3DS规则管理表';
+CREATE TABLE IF NOT EXISTS risk_rule_3ds (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    rule_group_no VARCHAR(64) NOT NULL COMMENT '规则组编号',
+    merchant_scope VARCHAR(32) NOT NULL DEFAULT 'GLOBAL' COMMENT '生效范围：GLOBAL全局、MERCHANT商户',
+    merchant_id VARCHAR(32) NOT NULL DEFAULT '' COMMENT '商户号；全局范围为空字符串',
+    merchant_name VARCHAR(128) NULL COMMENT '商户名称，管理端展示辅助快照',
+    rule_name VARCHAR(128) NOT NULL COMMENT '规则名称',
+    rule_type VARCHAR(32) NOT NULL DEFAULT 'RISK_STRATEGY' COMMENT '规则类型：RISK_STRATEGY风险策略、EXEMPTION_STRATEGY豁免策略、CHANNEL_POLICY渠道策略',
+    channel_code VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '收单渠道编码，ALL表示全部渠道',
+    payment_method VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '支付方式，ALL表示全部支付方式',
+    card_brand VARCHAR(64) NOT NULL DEFAULT 'ALL' COMMENT '卡品牌，ALL表示全部卡品牌',
+    amount_match_type VARCHAR(32) NOT NULL DEFAULT 'ALL' COMMENT '金额匹配类型：ALL、GE、LE、BETWEEN',
+    amount_min DECIMAL(18,2) NULL COMMENT '最小交易金额，固定USD且保留2位小数',
+    amount_max DECIMAL(18,2) NULL COMMENT '最大交易金额，固定USD且保留2位小数',
+    currency VARCHAR(3) NOT NULL DEFAULT 'USD' COMMENT '交易币种，当前固定USD',
+    risk_condition VARCHAR(32) NOT NULL DEFAULT 'ANY' COMMENT '风险条件：ANY、LOW_AND_ABOVE、MEDIUM_AND_ABOVE、HIGH_AND_ABOVE、CRITICAL_ONLY',
+    trigger_action VARCHAR(32) NOT NULL DEFAULT 'FORCE_3DS' COMMENT '触发动作：FORCE_3DS、SKIP_3DS、FOLLOW_DEFAULT',
+    priority INT NOT NULL DEFAULT 100 COMMENT '优先级，数字越小越优先',
+    effective_time DATETIME(3) NULL COMMENT '生效时间',
+    expire_time DATETIME(3) NULL COMMENT '失效时间',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    remark VARCHAR(500) NULL COMMENT '备注',
+    create_by VARCHAR(64) NULL COMMENT '创建人',
+    update_by VARCHAR(64) NULL COMMENT '更新人',
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) COMMENT '更新时间',
+    deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_rule_3ds_dimension_deleted (merchant_scope, merchant_id, channel_code, payment_method, card_brand, amount_match_type, amount_min, amount_max, currency, risk_condition, trigger_action, deleted),
+    KEY idx_rule_3ds_trade_lookup (deleted, status, merchant_scope, merchant_id, channel_code, payment_method, card_brand, currency, priority, effective_time, expire_time),
+    KEY idx_rule_3ds_merchant_time (merchant_scope, merchant_id, update_time, id),
+    KEY idx_rule_3ds_time (update_time, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='3DS规则管理表';
 
 SET FOREIGN_KEY_CHECKS = 1;

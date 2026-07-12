@@ -51,14 +51,23 @@ public class AdminDeptServiceImpl implements AdminDeptService {
     private final SysAppMapper sysAppMapper;
 
     /**
+     * 部门对象转换器。
+     */
+    private final DeptConverter deptConverter;
+
+    /**
      * 创建后台部门领域服务。
      *
      * @param sysDeptMapper 部门 Mapper
      * @param sysAppMapper  应用 Mapper
+     * @param deptConverter 部门对象转换器
      */
-    public AdminDeptServiceImpl(SysDeptMapper sysDeptMapper, SysAppMapper sysAppMapper) {
+    public AdminDeptServiceImpl(SysDeptMapper sysDeptMapper,
+                                SysAppMapper sysAppMapper,
+                                DeptConverter deptConverter) {
         this.sysDeptMapper = sysDeptMapper;
         this.sysAppMapper = sysAppMapper;
+        this.deptConverter = deptConverter;
     }
 
     /**
@@ -72,7 +81,7 @@ public class AdminDeptServiceImpl implements AdminDeptService {
                         .eq(SysDeptDO::getDeleted, AuthConstants.NOT_DELETED)
                         .orderByAsc(SysDeptDO::getSortNo)
         );
-        return DeptConverter.INSTANCE.buildTree(departments);
+        return deptConverter.buildTree(departments);
     }
 
     /**

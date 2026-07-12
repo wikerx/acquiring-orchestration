@@ -39,6 +39,11 @@ public class AdminRiskAmlController {
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;
 
+    /**
+     * 创建 AML 强制拦截名单接口。
+     *
+     * @param riskManagementApplicationService 风控管理应用服务
+     */
     public AdminRiskAmlController(AdminRiskManagementApplicationService riskManagementApplicationService) {
         this.riskManagementApplicationService = riskManagementApplicationService;
     }
@@ -51,7 +56,7 @@ public class AdminRiskAmlController {
      * @return AML 名单分页结果
      */
     @PostMapping("/list/AML/{functionCode}/page")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-AML", businessType = OperationTypeConstants.QUERY, operation = "分页查询AML名单")
     public CommonResult<PageResult<RiskDTOs.RiskRecordResponse>> page(@PathVariable("functionCode") String functionCode,
                                                                       @RequestBody(required = false) RiskDTOs.RiskListQueryRequest request) {
@@ -66,7 +71,7 @@ public class AdminRiskAmlController {
      * @return AML 名单详情
      */
     @GetMapping("/list/AML/{functionCode}/{id}")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     public CommonResult<RiskDTOs.RiskRecordResponse> detail(@PathVariable("functionCode") String functionCode,
                                                            @PathVariable("id") Long id) {
         return success(riskManagementApplicationService.listDetail(MODULE_TYPE, functionCode, id));
@@ -80,7 +85,7 @@ public class AdminRiskAmlController {
      * @return AML 编辑详情，敏感值仅在编辑权限下回显
      */
     @GetMapping("/list/AML/{functionCode}/{id}/edit")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     public CommonResult<RiskDTOs.RiskRecordResponse> editDetail(@PathVariable("functionCode") String functionCode,
                                                                @PathVariable("id") Long id) {
         return success(riskManagementApplicationService.listEditDetail(MODULE_TYPE, functionCode, id));
@@ -94,7 +99,7 @@ public class AdminRiskAmlController {
      * @return 新增后的名单记录
      */
     @PostMapping("/list/AML/{functionCode}")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-AML", businessType = OperationTypeConstants.CREATE, operation = "新增AML名单")
     public CommonResult<RiskDTOs.RiskRecordResponse> create(@PathVariable("functionCode") String functionCode,
                                                            @Valid @RequestBody RiskDTOs.RiskListSaveRequest request) {
@@ -110,7 +115,7 @@ public class AdminRiskAmlController {
      * @return 修改后的名单记录
      */
     @PutMapping("/list/AML/{functionCode}/{id}")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-AML", businessType = OperationTypeConstants.UPDATE, operation = "修改AML名单")
     public CommonResult<RiskDTOs.RiskRecordResponse> update(@PathVariable("functionCode") String functionCode,
                                                            @PathVariable("id") Long id,
@@ -126,7 +131,7 @@ public class AdminRiskAmlController {
      * @return 空结果
      */
     @DeleteMapping("/AML/{functionCode}/{id}")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-AML", businessType = OperationTypeConstants.DELETE, operation = "删除AML名单")
     public CommonResult<Void> remove(@PathVariable("functionCode") String functionCode,
                                      @PathVariable("id") Long id) {
@@ -142,7 +147,7 @@ public class AdminRiskAmlController {
      * @return 空结果
      */
     @DeleteMapping("/AML/{functionCode}/batch")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-AML", businessType = OperationTypeConstants.DELETE, operation = "批量删除AML名单")
     public CommonResult<Void> batchRemove(@PathVariable("functionCode") String functionCode,
                                           @RequestBody RiskDTOs.BatchRemoveRequest request) {
@@ -159,7 +164,7 @@ public class AdminRiskAmlController {
      * @return 更新后的名单记录
      */
     @PutMapping("/AML/{functionCode}/{id}/status")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-AML", businessType = OperationTypeConstants.UPDATE, operation = "更新AML名单状态")
     public CommonResult<RiskDTOs.RiskRecordResponse> updateStatus(@PathVariable("functionCode") String functionCode,
                                                                  @PathVariable("id") Long id,
@@ -171,13 +176,16 @@ public class AdminRiskAmlController {
      * 导出 AML 名单。
      *
      * @param functionCode 功能编码
+     * @param request      导出筛选条件
      * @param response     HTTP 响应
      */
     @PostMapping("/AML/{functionCode}/export")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-AML", businessType = OperationTypeConstants.EXPORT, operation = "导出AML名单")
-    public void export(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
-        riskManagementApplicationService.export(MODULE_TYPE, functionCode, response);
+    public void export(@PathVariable("functionCode") String functionCode,
+                       @RequestBody(required = false) RiskDTOs.RiskListQueryRequest request,
+                       HttpServletResponse response) {
+        riskManagementApplicationService.export(MODULE_TYPE, functionCode, request, response);
     }
 
     /**
@@ -187,20 +195,20 @@ public class AdminRiskAmlController {
      * @param response     HTTP 响应
      */
     @GetMapping("/AML/{functionCode}/template")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     public void template(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
         riskManagementApplicationService.template(MODULE_TYPE, functionCode, response);
     }
 
     /**
-     * 导入 AML 名单 CSV 文件。
+     * 导入 AML 名单配置文件。
      *
      * @param functionCode 功能编码
-     * @param file         CSV 文件
+     * @param file         CSV 或 Excel 文件
      * @return 导入结果
      */
     @PostMapping("/AML/{functionCode}/import")
-    @RequiresPermission("risk:aml:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-AML", businessType = OperationTypeConstants.CREATE, operation = "导入AML名单")
     public CommonResult<RiskDTOs.ImportResultResponse> importCsv(@PathVariable("functionCode") String functionCode,
                                                                  @RequestParam("file") MultipartFile file) {

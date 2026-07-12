@@ -6,7 +6,6 @@ import com.scott.payment.component.db.auth.entity.SysDeptDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.ReportingPolicy;
-import org.mapstruct.factory.Mappers;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -19,27 +18,11 @@ import java.util.Map;
  * @classname : DeptConverter
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 部门对象转换器
- * @status : create
- *
- * <p>负责部门实体与后台树形 DTO 之间的转换，并提供树结构组装能力。</p>
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : DeptConverter
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Dept Converter，位于 service-admin 的对象转换层，用于定义调用契约和职责边界。
+ * @description : 部门对象转换器，位于 service-admin 转换层；负责部门实体、树形 DTO 和导出行之间的字段映射与树组装。
  * @status : create
  */
-@Mapper(unmappedTargetPolicy = ReportingPolicy.IGNORE)
+@Mapper(componentModel = "spring", unmappedTargetPolicy = ReportingPolicy.IGNORE)
 public interface DeptConverter {
-
-    /**
-     * 转换器单例。
-     */
-    DeptConverter INSTANCE = Mappers.getMapper(DeptConverter.class);
 
     /**
      * 部门实体转树形 DTO。

@@ -35,6 +35,11 @@ public class AdminRiskTradeBlackController {
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;
 
+    /**
+     * 创建系统交易加黑接口。
+     *
+     * @param riskManagementApplicationService 风控管理应用服务
+     */
     public AdminRiskTradeBlackController(AdminRiskManagementApplicationService riskManagementApplicationService) {
         this.riskManagementApplicationService = riskManagementApplicationService;
     }

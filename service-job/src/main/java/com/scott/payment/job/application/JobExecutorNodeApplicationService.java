@@ -32,14 +32,21 @@ public class JobExecutorNodeApplicationService {
      * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
      */
     private final JobExecutorNodeService jobExecutorNodeService;
+    /**
+     * 任务调度对象转换器。
+     */
+    private final JobSchedulerConverter jobSchedulerConverter;
 
     /**
      * 创建执行节点应用服务。
      *
      * @param jobExecutorNodeService 节点领域服务
+     * @param jobSchedulerConverter 任务调度对象转换器
      */
-    public JobExecutorNodeApplicationService(JobExecutorNodeService jobExecutorNodeService) {
+    public JobExecutorNodeApplicationService(JobExecutorNodeService jobExecutorNodeService,
+                                             JobSchedulerConverter jobSchedulerConverter) {
         this.jobExecutorNodeService = jobExecutorNodeService;
+        this.jobSchedulerConverter = jobSchedulerConverter;
     }
 
     /**
@@ -53,7 +60,7 @@ public class JobExecutorNodeApplicationService {
      */
     public List<JobExecutorNodeResponse> listNodes() {
         return jobExecutorNodeService.listNodes().stream()
-                .map(JobSchedulerConverter.INSTANCE::toNodeResponse)
+                .map(jobSchedulerConverter::toNodeResponse)
                 .toList();
     }
 }

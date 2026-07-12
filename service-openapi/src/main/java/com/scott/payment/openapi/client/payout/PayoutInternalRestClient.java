@@ -5,15 +5,19 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.client.payout.dto.PayoutCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payout.dto.PayoutCreateClientResponseDTO;
 import com.scott.payment.openapi.config.PayoutClientProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -93,7 +97,11 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
     public PayoutCreateClientResponseDTO createPayout(PayoutCreateClientRequestDTO requestDTO) {
         try {
             String createUrl = payoutClientProperties.getCreateUrl();
-            String responseBody = chooseRestTemplate(createUrl).postForObject(createUrl, requestDTO, String.class);
+            String responseBody = chooseRestTemplate(createUrl).postForObject(
+                    createUrl,
+                    buildSignedEntity(URI.create(createUrl), requestDTO),
+                    String.class
+            );
             CommonResult<PayoutCreateClientResponseDTO> result = JsonUtils.parseObject(
                     responseBody,
                     new TypeReference<CommonResult<PayoutCreateClientResponseDTO>>() {
@@ -122,6 +130,33 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
             return directRestTemplate;
         }
         return loadBalancedRestTemplate;
+    }
+
+    /**
+     * 构造带内部服务签名头的请求实体。
+     *
+     * @param uri        内部服务地址
+     * @param requestDTO 创建代付内部请求
+     * @return 带签名头的请求实体
+     */
+    private HttpEntity<PayoutCreateClientRequestDTO> buildSignedEntity(URI uri, PayoutCreateClientRequestDTO requestDTO) {
+        long timestamp = InternalServiceSignature.currentTimeMillis();
+        String nonce = UUID.randomUUID().toString();
+        String caller = payoutClientProperties.getInternalCaller();
+        String signature = InternalServiceSignature.sign(
+                "POST",
+                uri.getPath(),
+                timestamp,
+                nonce,
+                caller,
+                payoutClientProperties.getInternalSecret()
+        );
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(InternalServiceSignature.HEADER_CALLER, caller);
+        headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
+        headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
+        headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
+        return new HttpEntity<>(requestDTO, headers);
     }
 
     /**

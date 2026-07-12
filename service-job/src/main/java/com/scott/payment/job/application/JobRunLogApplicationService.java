@@ -35,14 +35,21 @@ public class JobRunLogApplicationService {
      * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final JobRunLogService jobRunLogService;
+    /**
+     * 任务调度对象转换器。
+     */
+    private final JobSchedulerConverter jobSchedulerConverter;
 
     /**
      * 创建执行日志应用服务。
      *
      * @param jobRunLogService 执行日志领域服务
+     * @param jobSchedulerConverter 任务调度对象转换器
      */
-    public JobRunLogApplicationService(JobRunLogService jobRunLogService) {
+    public JobRunLogApplicationService(JobRunLogService jobRunLogService,
+                                       JobSchedulerConverter jobSchedulerConverter) {
         this.jobRunLogService = jobRunLogService;
+        this.jobSchedulerConverter = jobSchedulerConverter;
     }
 
     /**
@@ -63,7 +70,7 @@ public class JobRunLogApplicationService {
                 pageResult.getPageNo(),
                 pageResult.getPageSize(),
                 pageResult.getRecords().stream()
-                        .map(JobSchedulerConverter.INSTANCE::toRunLogResponse)
+                        .map(jobSchedulerConverter::toRunLogResponse)
                         .toList()
         );
     }
@@ -109,7 +116,7 @@ public class JobRunLogApplicationService {
      */
     public List<JobRunLogResponse> listLogs(JobRunLogQueryRequest request) {
         return jobRunLogService.listLogs(request).stream()
-                .map(JobSchedulerConverter.INSTANCE::toRunLogResponse)
+                .map(jobSchedulerConverter::toRunLogResponse)
                 .toList();
     }
 }

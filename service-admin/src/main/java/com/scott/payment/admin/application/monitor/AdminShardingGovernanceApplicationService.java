@@ -72,6 +72,10 @@ public class AdminShardingGovernanceApplicationService {
      * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final JobSchedulerInternalClient jobSchedulerInternalClient;
+    /**
+     * 分表治理对象转换器。
+     */
+    private final ShardingGovernanceConverter shardingGovernanceConverter;
 
     /**
      * 创建分表治理应用服务。
@@ -82,7 +86,8 @@ public class AdminShardingGovernanceApplicationService {
      * @param autoIncrementValueCalculator  自增区间计算器
      * @param physicalTableMapper           物理表登记 Mapper
      * @param createLogMapper               建表日志 Mapper
-     * @param jobSchedulerInternalClient    调度中心内部客户端
+     * @param jobSchedulerInternalClient   调度中心内部客户端
+     * @param shardingGovernanceConverter  分表治理对象转换器
      */
     public AdminShardingGovernanceApplicationService(PaymentQuarterShardingProperties shardingProperties,
                                                      ShardingQuarterResolver quarterResolver,
@@ -90,7 +95,8 @@ public class AdminShardingGovernanceApplicationService {
                                                      ShardingAutoIncrementValueCalculator autoIncrementValueCalculator,
                                                      SysShardingPhysicalTableMapper physicalTableMapper,
                                                      SysShardingTableCreateLogMapper createLogMapper,
-                                                     JobSchedulerInternalClient jobSchedulerInternalClient) {
+                                                     JobSchedulerInternalClient jobSchedulerInternalClient,
+                                                     ShardingGovernanceConverter shardingGovernanceConverter) {
         this.shardingProperties = shardingProperties;
         this.quarterResolver = quarterResolver;
         this.tableNameResolver = tableNameResolver;
@@ -98,6 +104,7 @@ public class AdminShardingGovernanceApplicationService {
         this.physicalTableMapper = physicalTableMapper;
         this.createLogMapper = createLogMapper;
         this.jobSchedulerInternalClient = jobSchedulerInternalClient;
+        this.shardingGovernanceConverter = shardingGovernanceConverter;
     }
 
     /**
@@ -153,7 +160,7 @@ public class AdminShardingGovernanceApplicationService {
                 page.getCurrent(),
                 page.getSize(),
                 page.getRecords().stream()
-                        .map(ShardingGovernanceConverter.INSTANCE::toPhysicalTableResponse)
+                        .map(shardingGovernanceConverter::toPhysicalTableResponse)
                         .toList()
         );
     }
@@ -174,7 +181,7 @@ public class AdminShardingGovernanceApplicationService {
         if (entity == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND);
         }
-        return ShardingGovernanceConverter.INSTANCE.toPhysicalTableResponse(entity);
+        return shardingGovernanceConverter.toPhysicalTableResponse(entity);
     }
 
     /**
@@ -249,7 +256,7 @@ public class AdminShardingGovernanceApplicationService {
                 page.getCurrent(),
                 page.getSize(),
                 page.getRecords().stream()
-                        .map(ShardingGovernanceConverter.INSTANCE::toCreateLogResponse)
+                        .map(shardingGovernanceConverter::toCreateLogResponse)
                         .toList()
         );
     }
@@ -270,7 +277,7 @@ public class AdminShardingGovernanceApplicationService {
         if (entity == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND);
         }
-        return ShardingGovernanceConverter.INSTANCE.toCreateLogResponse(entity);
+        return shardingGovernanceConverter.toCreateLogResponse(entity);
     }
 
     /**
@@ -418,7 +425,7 @@ public class AdminShardingGovernanceApplicationService {
                                                                 String operatorId,
                                                                 String operatorName) {
         ShardingTableCreateRequest safeRequest = request == null ? new ShardingTableCreateRequest() : request;
-        ShardingTablePreCreateRemoteRequest remoteRequest = ShardingGovernanceConverter.INSTANCE.toRemoteRequest(
+        ShardingTablePreCreateRemoteRequest remoteRequest = shardingGovernanceConverter.toRemoteRequest(
                 safeRequest,
                 dryRun,
                 operatorId,

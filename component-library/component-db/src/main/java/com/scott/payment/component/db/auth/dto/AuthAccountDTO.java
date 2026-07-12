@@ -3,6 +3,9 @@ package com.scott.payment.component.db.auth.dto;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * @author : scott
@@ -59,6 +62,26 @@ public class AuthAccountDTO implements Serializable {
      * 用户姓名。
      */
     private String realName;
+
+    /**
+     * 用户信息表手机号，用于个人中心资料展示。
+     */
+    private String mobile;
+
+    /**
+     * 用户信息表邮箱，用于个人中心资料展示。
+     */
+    private String email;
+
+    /**
+     * 当前账号角色名称集合，仅用于页面展示，权限判断仍使用登录响应 roles 中的角色编码。
+     */
+    private List<String> roleNames = Collections.emptyList();
+
+    /**
+     * 用户主体创建时间。
+     */
+    private LocalDateTime createdAt;
 
     /**
      * 商户号。

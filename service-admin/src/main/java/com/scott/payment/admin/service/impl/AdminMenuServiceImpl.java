@@ -93,24 +93,32 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     private final SysRolePermissionMapper sysRolePermissionMapper;
 
     /**
+     * 后台菜单对象转换器。
+     */
+    private final MenuConverter menuConverter;
+
+    /**
      * 创建后台菜单服务实现。
      *
-     * @param sysAppMapper  应用 Mapper
-     * @param sysMenuMapper 菜单 Mapper
-     * @param sysPermissionMapper 权限 Mapper
-     * @param sysRoleMenuMapper 角色菜单 Mapper
+     * @param sysAppMapper            应用 Mapper
+     * @param sysMenuMapper           菜单 Mapper
+     * @param sysPermissionMapper     权限 Mapper
+     * @param sysRoleMenuMapper       角色菜单 Mapper
      * @param sysRolePermissionMapper 角色权限 Mapper
+     * @param menuConverter           后台菜单对象转换器
      */
     public AdminMenuServiceImpl(SysAppMapper sysAppMapper,
                                 SysMenuMapper sysMenuMapper,
                                 SysPermissionMapper sysPermissionMapper,
                                 SysRoleMenuMapper sysRoleMenuMapper,
-                                SysRolePermissionMapper sysRolePermissionMapper) {
+                                SysRolePermissionMapper sysRolePermissionMapper,
+                                MenuConverter menuConverter) {
         this.sysAppMapper = sysAppMapper;
         this.sysMenuMapper = sysMenuMapper;
         this.sysPermissionMapper = sysPermissionMapper;
         this.sysRoleMenuMapper = sysRoleMenuMapper;
         this.sysRolePermissionMapper = sysRolePermissionMapper;
+        this.menuConverter = menuConverter;
     }
 
     /**
@@ -592,6 +600,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     private SysMenuDTO toDTO(SysMenuDO menu) {
-        return MenuConverter.INSTANCE.toDTO(menu);
+        return menuConverter.toDTO(menu);
     }
 }

@@ -62,12 +62,19 @@ public class AdminConfigServiceImpl implements AdminConfigService {
     private final SysConfigMapper sysConfigMapper;
 
     /**
+     * 系统参数配置对象转换器。
+     */
+    private final ConfigConverter configConverter;
+
+    /**
      * 创建系统参数配置服务实现。
      *
      * @param sysConfigMapper 系统参数配置 Mapper
+     * @param configConverter 系统参数配置对象转换器
      */
-    public AdminConfigServiceImpl(SysConfigMapper sysConfigMapper) {
+    public AdminConfigServiceImpl(SysConfigMapper sysConfigMapper, ConfigConverter configConverter) {
         this.sysConfigMapper = sysConfigMapper;
+        this.configConverter = configConverter;
     }
 
     /**
@@ -98,7 +105,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         } else {
             sysConfigMapper.updateById(entity);
         }
-        return ConfigConverter.INSTANCE.toDTO(entity);
+        return configConverter.toDTO(entity);
     }
 
     /**
@@ -118,7 +125,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         if (entity == null) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), ApiResultEnum.NOT_FOUND.getMessage() + ":" + configKey);
         }
-        return ConfigConverter.INSTANCE.toDTO(entity);
+        return configConverter.toDTO(entity);
     }
 
     /**
@@ -167,7 +174,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(ConfigConverter.INSTANCE::toDTO).toList()
+                page.getRecords().stream().map(configConverter::toDTO).toList()
         );
     }
 
@@ -181,7 +188,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
         return sysConfigMapper.selectList(buildConfigQueryWrapper(query))
                 .stream()
-                .map(ConfigConverter.INSTANCE::toDTO)
+                .map(configConverter::toDTO)
                 .toList();
     }
 

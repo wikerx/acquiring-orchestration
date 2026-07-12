@@ -342,7 +342,7 @@ public final class RiskDTOs {
         /**
          * 区域匹配级别：COUNTRY、STATE、CITY，必填。
          */
-        @NotBlank(message = "regionMatchLevel is required")
+        @NotBlank(message = "请选择区域级别")
         private String regionMatchLevel;
 
         /**
@@ -433,6 +433,11 @@ public final class RiskDTOs {
     @EqualsAndHashCode(callSuper = true)
     public static class RiskRuleQueryRequest extends PageRequest {
         /**
+         * 生效范围：GLOBAL 全局、MERCHANT 商户，允许为空。
+         */
+        private String merchantScope;
+
+        /**
          * 商户号，商户风控范围下可精确查询，允许为空。
          */
         private String merchantId;
@@ -448,9 +453,49 @@ public final class RiskDTOs {
         private String matchValue;
 
         /**
+         * 商户录入的来源网址，商户来源网址限定查询使用，允许为空并支持模糊查询。
+         */
+        private String sourceUrl;
+
+        /**
+         * 来源网址 host，商户来源网址限定查询使用，允许为空并支持模糊查询。
+         */
+        private String sourceHost;
+
+        /**
+         * 限额类型，商户交易限额规则查询使用，允许为空。
+         */
+        private String limitType;
+
+        /**
+         * 3DS 规则类型，区分风险策略、豁免策略和渠道默认策略，允许为空。
+         */
+        private String ruleType;
+
+        /**
+         * 收单渠道编码，3DS 规则查询使用；ALL 表示全部渠道。
+         */
+        private String channelCode;
+
+        /**
+         * 支付方式，3DS 规则查询使用；ALL 表示全部支付方式。
+         */
+        private String paymentMethod;
+
+        /**
+         * 卡品牌，3DS 规则查询使用；ALL 表示全部卡品牌。
+         */
+        private String cardBrand;
+
+        /**
          * 交易币种，ISO 4217 Alpha-3，允许为空。
          */
         private String currency;
+
+        /**
+         * 3DS 触发动作：FORCE_3DS、SKIP_3DS、FOLLOW_DEFAULT，允许为空。
+         */
+        private String triggerAction;
 
         /**
          * 状态：0 停用，1 启用，允许为空。
@@ -474,13 +519,22 @@ public final class RiskDTOs {
         private String merchantId;
 
         /**
-         * 规则名称，必填，用于管理端识别规则配置。
+         * 商户名称，3DS 等规则保存商户快照时使用，允许为空并由后端兜底查询。
          */
-        @NotBlank(message = "ruleName is required")
+        private String merchantName;
+
+        /**
+         * 3DS 规则组编号，新增时允许为空并由后端生成。
+         */
+        private String ruleGroupNo;
+
+        /**
+         * 规则名称，普通内风控规则必填；商户来源网址限定不使用该字段。
+         */
         private String ruleName;
 
         /**
-         * 匹配方式：EXACT、DOMAIN、CONTAINS、REGEX，允许为空。
+         * 匹配方式：EXACT、DOMAIN、CONTAINS、REGEX，允许为空；商户来源网址限定固定按 host 匹配。
          */
         private String matchMode;
 
@@ -488,6 +542,21 @@ public final class RiskDTOs {
          * 规则匹配值，来源网址、国家、BIN 等规则使用；不得保存卡号、CVV 等敏感明文。
          */
         private String matchValue;
+
+        /**
+         * 商户录入的来源网址，商户来源网址限定使用，必须以 http:// 或 https:// 开头。
+         */
+        private String sourceUrl;
+
+        /**
+         * 商户录入的来源网址列表，商户来源网址限定批量新增时使用。
+         */
+        private List<String> sourceUrls;
+
+        /**
+         * 来源网址 host，后端从 sourceUrl 解析生成，管理端查询时允许精确过滤。
+         */
+        private String sourceHost;
 
         /**
          * 限额类型，优先复用 channel_limit_type 字典，允许为空。
@@ -510,6 +579,51 @@ public final class RiskDTOs {
         private String currency;
 
         /**
+         * 3DS 规则类型：RISK_STRATEGY、EXEMPTION_STRATEGY、CHANNEL_POLICY。
+         */
+        private String ruleType;
+
+        /**
+         * 收单渠道编码；3DS 规则使用，ALL 表示全部渠道。
+         */
+        private String channelCode;
+
+        /**
+         * 支付方式；3DS 规则使用，默认 BANK_CARD，ALL 表示全部支付方式。
+         */
+        private String paymentMethod;
+
+        /**
+         * 卡品牌；3DS 规则使用，ALL 表示全部卡品牌。
+         */
+        private String cardBrand;
+
+        /**
+         * 卡品牌列表；3DS 新增时允许一次选择多个品牌，后端按单品牌拆分成多条规则保存。
+         */
+        private List<String> cardBrands;
+
+        /**
+         * 金额匹配类型：ALL、GE、LE、BETWEEN。
+         */
+        private String amountMatchType;
+
+        /**
+         * 3DS 风险条件：ANY、LOW_AND_ABOVE、MEDIUM_AND_ABOVE、HIGH_AND_ABOVE、CRITICAL_ONLY。
+         */
+        private String riskCondition;
+
+        /**
+         * 3DS 触发动作：FORCE_3DS、SKIP_3DS、FOLLOW_DEFAULT。
+         */
+        private String triggerAction;
+
+        /**
+         * 规则优先级，数字越小越优先。
+         */
+        private Integer priority;
+
+        /**
          * 时间窗口秒数，频率类规则使用，允许为空。
          */
         private Integer timeWindowSeconds;
@@ -523,6 +637,53 @@ public final class RiskDTOs {
          * 组合元素 JSON，频率类规则描述参与统计的元素，允许为空。
          */
         private String elementsJson;
+
+        /**
+         * 风险等级：LOW、MEDIUM、HIGH、CRITICAL，允许为空。
+         */
+        private String riskLevel;
+
+        /**
+         * 决策动作：PASS、REJECT、REVIEW，允许为空。
+         */
+        private String decisionAction;
+
+        /**
+         * 生效时间，具体时间点，允许为空。
+         */
+        private LocalDateTime effectiveTime;
+
+        /**
+         * 失效时间，具体时间点，允许为空。
+         */
+        private LocalDateTime expireTime;
+
+        /**
+         * 状态：0 停用，1 启用，允许为空，默认启用。
+         */
+        private Integer status;
+
+        /**
+         * 备注，管理端说明文本，允许为空。
+         */
+        private String remark;
+    }
+
+    /**
+     * 商户来源网址批量保存请求。
+     */
+    @Data
+    public static class RiskSourceUrlBatchSaveRequest {
+        /**
+         * 商户号，来源网址限定按商户号直接生效。
+         */
+        @NotBlank(message = "请输入商户号")
+        private String merchantId;
+
+        /**
+         * 来源网址列表，每个值必须以 http:// 或 https:// 开头。
+         */
+        private List<String> sourceUrls;
 
         /**
          * 风险等级：LOW、MEDIUM、HIGH、CRITICAL，允许为空。
@@ -578,7 +739,7 @@ public final class RiskDTOs {
     }
 
     /**
-     * CSV 导入结果。
+     * 配置文件导入结果。
      */
     @Data
     public static class ImportResultResponse {
@@ -629,6 +790,11 @@ public final class RiskDTOs {
         private String ruleName;
 
         /**
+         * 3DS 规则组编号，供后续交易策略按组管理和排查使用。
+         */
+        private String ruleGroupNo;
+
+        /**
          * 匹配值脱敏展示，响应中禁止出现完整敏感明文。
          */
         private String matchValueMasked;
@@ -662,6 +828,41 @@ public final class RiskDTOs {
          * 卡品牌，允许为空。
          */
         private String cardBrand;
+
+        /**
+         * 3DS 规则类型，允许为空。
+         */
+        private String ruleType;
+
+        /**
+         * 收单渠道编码，允许为空。
+         */
+        private String channelCode;
+
+        /**
+         * 支付方式，允许为空。
+         */
+        private String paymentMethod;
+
+        /**
+         * 金额匹配类型：ALL、GE、LE、BETWEEN。
+         */
+        private String amountMatchType;
+
+        /**
+         * 3DS 风险条件。
+         */
+        private String riskCondition;
+
+        /**
+         * 3DS 触发动作。
+         */
+        private String triggerAction;
+
+        /**
+         * 规则优先级，数字越小越优先。
+         */
+        private Integer priority;
 
         /**
          * 国家 Alpha-2 编码，允许为空。
@@ -789,6 +990,16 @@ public final class RiskDTOs {
         private String matchValue;
 
         /**
+         * 商户录入的来源网址。
+         */
+        private String sourceUrl;
+
+        /**
+         * 来源网址 host，交易链路按商户号和该字段匹配。
+         */
+        private String sourceHost;
+
+        /**
          * 限额类型。
          */
         private String limitType;
@@ -884,13 +1095,13 @@ public final class RiskDTOs {
         /**
          * 加黑对象类型：CARD、CARD_FINGERPRINT、EMAIL、PHONE、IP、DEVICE、CUSTOMER，必填。
          */
-        @NotBlank(message = "blackTargetType is required")
+        @NotBlank(message = "请选择加黑对象")
         private String blackTargetType;
 
         /**
          * 加黑对象脱敏展示值，必填；禁止保存完整卡号、手机号、邮箱等敏感明文。
          */
-        @NotBlank(message = "blackTargetValueMasked is required")
+        @NotBlank(message = "请输入对象脱敏值")
         private String blackTargetValueMasked;
 
         /**

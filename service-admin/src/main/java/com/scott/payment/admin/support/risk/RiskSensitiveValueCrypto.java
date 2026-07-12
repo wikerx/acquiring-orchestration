@@ -47,7 +47,7 @@ public class RiskSensitiveValueCrypto {
             byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(iv) + "." + Base64.getEncoder().encodeToString(encrypted);
         } catch (Exception exception) {
-            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "risk sensitive value encrypt failed");
+            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "风控敏感名单值加密失败");
         }
     }
 
@@ -72,7 +72,7 @@ public class RiskSensitiveValueCrypto {
             cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(secretKey(), "AES"), new GCMParameterSpec(TAG_LENGTH_BITS, iv));
             return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
         } catch (Exception exception) {
-            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "risk sensitive value decrypt failed");
+            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "风控敏感名单值解密失败");
         }
     }
 

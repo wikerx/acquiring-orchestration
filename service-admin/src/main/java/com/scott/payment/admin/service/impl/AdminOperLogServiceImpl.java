@@ -55,12 +55,19 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
     private final SysOperLogMapper operLogMapper;
 
     /**
+     * 操作日志对象转换器。
+     */
+    private final OperLogConverter operLogConverter;
+
+    /**
      * 创建操作日志服务实现。
      *
      * @param operLogMapper 操作日志 Mapper
+     * @param operLogConverter 操作日志对象转换器
      */
-    public AdminOperLogServiceImpl(SysOperLogMapper operLogMapper) {
+    public AdminOperLogServiceImpl(SysOperLogMapper operLogMapper, OperLogConverter operLogConverter) {
         this.operLogMapper = operLogMapper;
+        this.operLogConverter = operLogConverter;
     }
 
     /**
@@ -132,7 +139,7 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(OperLogConverter.INSTANCE::toDTO).toList()
+                page.getRecords().stream().map(operLogConverter::toDTO).toList()
         );
     }
 

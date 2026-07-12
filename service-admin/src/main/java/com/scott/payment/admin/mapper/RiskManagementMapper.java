@@ -21,6 +21,76 @@ import java.util.Map;
 public interface RiskManagementMapper {
 
     /**
+     * 创建风控导入批次记录。
+     *
+     * @param moduleType   模块类型
+     * @param functionCode 功能编码
+     * @param batchNo      导入批次号
+     * @param fileName     导入文件名
+     * @param totalCount   CSV 数据行数
+     * @param operator     操作人
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO risk_import_batch (
+                module_type, function_code, batch_no, file_name,
+                total_count, success_count, failed_count, status, operator, remark
+            ) VALUES (
+                #{moduleType}, #{functionCode}, #{batchNo}, #{fileName},
+                #{totalCount}, 0, 0, 0, #{operator}, '处理中'
+            )
+            """)
+    int insertImportBatch(@Param("moduleType") String moduleType,
+                          @Param("functionCode") String functionCode,
+                          @Param("batchNo") String batchNo,
+                          @Param("fileName") String fileName,
+                          @Param("totalCount") int totalCount,
+                          @Param("operator") String operator);
+
+    /**
+     * 更新风控导入批次结果。
+     *
+     * @param batchNo      导入批次号
+     * @param successCount 成功导入行数
+     * @param failedCount  失败行数
+     * @param status       批次状态：1成功、3失败
+     * @param remark       结果说明
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE risk_import_batch
+            SET success_count = #{successCount},
+                failed_count = #{failedCount},
+                status = #{status},
+                remark = #{remark},
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE batch_no = #{batchNo}
+            """)
+    int updateImportBatch(@Param("batchNo") String batchNo,
+                          @Param("successCount") int successCount,
+                          @Param("failedCount") int failedCount,
+                          @Param("status") int status,
+                          @Param("remark") String remark);
+
+    /**
+     * 写入风控导入行级错误。
+     *
+     * @param batchNo      导入批次号
+     * @param rowNo        CSV 文件行号
+     * @param rawContent   脱敏后的原始行内容
+     * @param errorMessage 错误说明
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO risk_import_error (batch_no, row_no, raw_content, error_message)
+            VALUES (#{batchNo}, #{rowNo}, #{rawContent}, #{errorMessage})
+            """)
+    int insertImportError(@Param("batchNo") String batchNo,
+                          @Param("rowNo") int rowNo,
+                          @Param("rawContent") String rawContent,
+                          @Param("errorMessage") String errorMessage);
+
+    /**
      * 查询通用名单总数。
      *
      * @param tableName     物理表名，必须来自 RiskFunctionDefinition 白名单
@@ -39,7 +109,7 @@ public interface RiskManagementMapper {
             FROM ${tableName}
             WHERE deleted = 0
             <if test="merchantScope != null and merchantScope != ''">AND merchant_scope = #{merchantScope}</if>
-            <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
+            <if test="merchantId != null">AND COALESCE(merchant_id, '') = #{merchantId}</if>
             <if test="cardBinLookupNumber != null">AND match_value_start_number &lt;= #{cardBinLookupNumber} AND match_value_end_number &gt;= #{cardBinLookupNumber}</if>
             <if test="cardBinLookupNumber == null and matchValue != null and matchValue != ''">AND match_value_masked LIKE CONCAT('%', #{matchValue}, '%')</if>
             <if test="hasCountryFields and countryAlpha2 != null and countryAlpha2 != ''">AND country_alpha3 = #{countryAlpha2}</if>
@@ -76,7 +146,7 @@ public interface RiskManagementMapper {
             FROM ${tableName}
             WHERE deleted = 0
             <if test="merchantScope != null and merchantScope != ''">AND merchant_scope = #{merchantScope}</if>
-            <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
+            <if test="merchantId != null">AND COALESCE(merchant_id, '') = #{merchantId}</if>
             <if test="cardBinLookupNumber != null">AND match_value_start_number &lt;= #{cardBinLookupNumber} AND match_value_end_number &gt;= #{cardBinLookupNumber}</if>
             <if test="cardBinLookupNumber == null and matchValue != null and matchValue != ''">AND match_value_masked LIKE CONCAT('%', #{matchValue}, '%')</if>
             <if test="hasCountryFields and countryAlpha2 != null and countryAlpha2 != ''">AND country_alpha3 = #{countryAlpha2}</if>
@@ -208,6 +278,98 @@ public interface RiskManagementMapper {
                             @Param("excludeId") Long excludeId);
 
     /**
+     * 查询来源网址 AML 重复记录数。AML 来源网址是全局名单，唯一口径为 URL host。
+     *
+     * @param sourceHost 来源网址 host
+     * @param excludeId  编辑时排除的记录ID，新增时为空
+     * @return 未删除重复记录数
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM risk_aml_source_url
+            WHERE deleted = 0
+              AND source_host = #{sourceHost}
+            <if test="excludeId != null">AND id &lt;&gt; #{excludeId}</if>
+            </script>
+            """)
+    long countAmlSourceUrlHostDuplicate(@Param("sourceHost") String sourceHost,
+                                        @Param("excludeId") Long excludeId);
+
+    /**
+     * 查询内风控规则重复记录数。
+     *
+     * @param tableName     物理表名，必须来自 RiskFunctionDefinition 白名单
+     * @param merchantScope 生效范围
+     * @param merchantId    商户号，全局范围允许为空
+     * @param matchMode     匹配方式，允许为空
+     * @param matchValue    匹配值，允许为空
+     * @param limitType     限额类型，允许为空
+     * @param amountMin     最小金额，限额规则用于重复判断，允许为空
+     * @param amountMax     最大金额，限额规则用于重复判断，允许为空
+     * @param currency      币种，允许为空
+     * @param timeWindowSeconds 时间窗口秒数，频率规则用于重复判断，允许为空
+     * @param thresholdCount 阈值次数，频率规则用于重复判断，允许为空
+     * @param elementsJson  元素配置 JSON，频率规则用于重复判断，允许为空
+     * @param excludeId     编辑时排除的记录ID，新增时为空
+     * @return 未删除重复规则数
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM ${tableName}
+            WHERE deleted = 0
+              AND merchant_scope = #{merchantScope}
+              AND COALESCE(merchant_id, '') = COALESCE(#{merchantId}, '')
+              AND COALESCE(match_mode, '') = COALESCE(#{matchMode}, '')
+              AND COALESCE(match_value, '') = COALESCE(#{matchValue}, '')
+              AND COALESCE(limit_type, '') = COALESCE(#{limitType}, '')
+              AND COALESCE(amount_min, 0) = COALESCE(#{amountMin}, 0)
+              AND COALESCE(amount_max, 0) = COALESCE(#{amountMax}, 0)
+              AND COALESCE(currency, '') = COALESCE(#{currency}, '')
+              AND COALESCE(time_window_seconds, 0) = COALESCE(#{timeWindowSeconds}, 0)
+              AND COALESCE(threshold_count, 0) = COALESCE(#{thresholdCount}, 0)
+              AND COALESCE(elements_json, '') = COALESCE(#{elementsJson}, '')
+            <if test="excludeId != null">AND id &lt;&gt; #{excludeId}</if>
+            </script>
+            """)
+    long countRuleDuplicate(@Param("tableName") String tableName,
+                            @Param("merchantScope") String merchantScope,
+                            @Param("merchantId") String merchantId,
+                            @Param("matchMode") String matchMode,
+                            @Param("matchValue") String matchValue,
+                            @Param("limitType") String limitType,
+                            @Param("amountMin") java.math.BigDecimal amountMin,
+                            @Param("amountMax") java.math.BigDecimal amountMax,
+                            @Param("currency") String currency,
+                            @Param("timeWindowSeconds") Integer timeWindowSeconds,
+                            @Param("thresholdCount") Integer thresholdCount,
+                            @Param("elementsJson") String elementsJson,
+                            @Param("excludeId") Long excludeId);
+
+    /**
+     * 查询商户来源网址重复记录数。来源网址限定按商户号和 host 唯一，不使用生效范围、规则名称和匹配方式。
+     *
+     * @param merchantId 商户号
+     * @param sourceHost 来源网址 host
+     * @param excludeId  编辑时排除的记录ID，新增时为空
+     * @return 未删除重复记录数
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM risk_rule_source_url
+            WHERE deleted = 0
+              AND merchant_id = #{merchantId}
+              AND source_host = #{sourceHost}
+            <if test="excludeId != null">AND id &lt;&gt; #{excludeId}</if>
+            </script>
+            """)
+    long countSourceUrlDuplicate(@Param("merchantId") String merchantId,
+                                 @Param("sourceHost") String sourceHost,
+                                 @Param("excludeId") Long excludeId);
+
+    /**
      * 新增通用名单记录。
      *
      * @param tableName 物理表名，必须来自 RiskFunctionDefinition 白名单
@@ -217,6 +379,8 @@ public interface RiskManagementMapper {
      * @param hasCardBrandField 当前表是否保留卡品牌字段
      * @param hasCountryFields 当前表是否保留国家字段
      * @param hasCountryNumericField 当前表是否保留国家数字码字段
+     * @param hasIpVersionField 当前表是否保留 IP 版本字段
+     * @param hasSourceHostField 当前表是否保留来源网址 host 字段
      * @return 影响行数
      */
     @Insert("""
@@ -226,7 +390,7 @@ public interface RiskManagementMapper {
                 <if test="hasRangeFields">
                 , match_value_start, match_value_end, match_value_start_number, match_value_end_number
                 </if>
-                <if test="tableName == 'risk_black_ip'">
+                <if test="hasIpVersionField">
                 , ip_version
                 </if>
                 <if test="hasCardBrandField">
@@ -238,6 +402,9 @@ public interface RiskManagementMapper {
                 <if test="hasCountryNumericField">
                 , country_numeric
                 </if>
+                <if test="hasSourceHostField">
+                , source_host
+                </if>
                 , risk_level, decision_action, effective_time, expire_time,
                 validity_type, validity_days, source_type, status, remark, create_by, update_by, deleted
             ) VALUES (
@@ -245,7 +412,7 @@ public interface RiskManagementMapper {
                 <if test="hasRangeFields">
                 , #{data.matchValueStart}, #{data.matchValueEnd}, #{data.matchValueStartNumber}, #{data.matchValueEndNumber}
                 </if>
-                <if test="tableName == 'risk_black_ip'">
+                <if test="hasIpVersionField">
                 , #{data.ipVersion}
                 </if>
                 <if test="hasCardBrandField">
@@ -256,6 +423,9 @@ public interface RiskManagementMapper {
                 </if>
                 <if test="hasCountryNumericField">
                 , #{data.countryNumeric}
+                </if>
+                <if test="hasSourceHostField">
+                , #{data.sourceHost}
                 </if>
                 , #{data.riskLevel}, #{data.decisionAction}, #{data.effectiveTime}, #{data.expireTime},
                 #{data.validityType}, #{data.validityDays}, #{data.sourceType}, #{data.status}, #{data.remark}, #{operator}, #{operator}, 0
@@ -268,7 +438,9 @@ public interface RiskManagementMapper {
                          @Param("hasRangeFields") boolean hasRangeFields,
                          @Param("hasCardBrandField") boolean hasCardBrandField,
                          @Param("hasCountryFields") boolean hasCountryFields,
-                         @Param("hasCountryNumericField") boolean hasCountryNumericField);
+                         @Param("hasCountryNumericField") boolean hasCountryNumericField,
+                         @Param("hasIpVersionField") boolean hasIpVersionField,
+                         @Param("hasSourceHostField") boolean hasSourceHostField);
 
     /**
      * 修改通用名单记录。
@@ -281,6 +453,8 @@ public interface RiskManagementMapper {
      * @param hasCardBrandField 当前表是否保留卡品牌字段
      * @param hasCountryFields 当前表是否保留国家字段
      * @param hasCountryNumericField 当前表是否保留国家数字码字段
+     * @param hasIpVersionField 当前表是否保留 IP 版本字段
+     * @param hasSourceHostField 当前表是否保留来源网址 host 字段
      * @return 影响行数
      */
     @Update("""
@@ -297,7 +471,7 @@ public interface RiskManagementMapper {
                 match_value_start_number = #{data.matchValueStartNumber},
                 match_value_end_number = #{data.matchValueEndNumber},
             </if>
-            <if test="tableName == 'risk_black_ip'">
+            <if test="hasIpVersionField">
                 ip_version = #{data.ipVersion},
             </if>
             <if test="hasCardBrandField">
@@ -309,6 +483,9 @@ public interface RiskManagementMapper {
             </if>
             <if test="hasCountryNumericField">
                 country_numeric = #{data.countryNumeric},
+            </if>
+            <if test="hasSourceHostField">
+                source_host = #{data.sourceHost},
             </if>
                 risk_level = #{data.riskLevel},
                 decision_action = #{data.decisionAction},
@@ -331,7 +508,9 @@ public interface RiskManagementMapper {
                          @Param("hasRangeFields") boolean hasRangeFields,
                          @Param("hasCardBrandField") boolean hasCardBrandField,
                          @Param("hasCountryFields") boolean hasCountryFields,
-                         @Param("hasCountryNumericField") boolean hasCountryNumericField);
+                         @Param("hasCountryNumericField") boolean hasCountryNumericField,
+                         @Param("hasIpVersionField") boolean hasIpVersionField,
+                         @Param("hasSourceHostField") boolean hasSourceHostField);
 
     /**
      * 新增高风险区域黑名单。
@@ -448,12 +627,14 @@ public interface RiskManagementMapper {
     /**
      * 查询内风控规则总数。
      *
-     * @param tableName  物理表名，必须来自 RiskFunctionDefinition 白名单
-     * @param merchantId 商户号，允许为空
-     * @param ruleName   规则名称，允许为空并支持模糊匹配
-     * @param matchValue  规则匹配值，允许为空并支持模糊匹配
-     * @param currency   交易币种，允许为空
-     * @param status     状态，允许为空
+     * @param tableName     物理表名，必须来自 RiskFunctionDefinition 白名单
+     * @param merchantScope 生效范围，允许为空
+     * @param merchantId    商户号，允许为空
+     * @param ruleName      规则名称，允许为空并支持模糊匹配
+     * @param matchValue    规则匹配值，允许为空并支持模糊匹配
+     * @param limitType     限额类型，商户交易限额规则使用，允许为空
+     * @param currency      交易币种，允许为空
+     * @param status        状态，允许为空
      * @return 满足条件的规则数量
      */
     @Select("""
@@ -461,31 +642,37 @@ public interface RiskManagementMapper {
             SELECT COUNT(1)
             FROM ${tableName}
             WHERE deleted = 0
+            <if test="merchantScope != null and merchantScope != ''">AND merchant_scope = #{merchantScope}</if>
             <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
             <if test="ruleName != null and ruleName != ''">AND rule_name LIKE CONCAT('%', #{ruleName}, '%')</if>
             <if test="matchValue != null and matchValue != ''">AND match_value LIKE CONCAT('%', #{matchValue}, '%')</if>
+            <if test="limitType != null and limitType != ''">AND limit_type = #{limitType}</if>
             <if test="currency != null and currency != ''">AND currency = #{currency}</if>
             <if test="status != null">AND status = #{status}</if>
             </script>
             """)
     long countRules(@Param("tableName") String tableName,
+                    @Param("merchantScope") String merchantScope,
                     @Param("merchantId") String merchantId,
                     @Param("ruleName") String ruleName,
                     @Param("matchValue") String matchValue,
+                    @Param("limitType") String limitType,
                     @Param("currency") String currency,
                     @Param("status") Integer status);
 
     /**
      * 分页查询内风控规则。
      *
-     * @param tableName  物理表名，必须来自 RiskFunctionDefinition 白名单
-     * @param merchantId 商户号，允许为空
-     * @param ruleName   规则名称，允许为空并支持模糊匹配
-     * @param matchValue  规则匹配值，允许为空并支持模糊匹配
-     * @param currency   交易币种，允许为空
-     * @param status     状态，允许为空
-     * @param offset     分页偏移量
-     * @param pageSize   每页记录数
+     * @param tableName     物理表名，必须来自 RiskFunctionDefinition 白名单
+     * @param merchantScope 生效范围，允许为空
+     * @param merchantId    商户号，允许为空
+     * @param ruleName      规则名称，允许为空并支持模糊匹配
+     * @param matchValue    规则匹配值，允许为空并支持模糊匹配
+     * @param limitType     限额类型，商户交易限额规则使用，允许为空
+     * @param currency      交易币种，允许为空
+     * @param status        状态，允许为空
+     * @param offset        分页偏移量
+     * @param pageSize      每页记录数
      * @return 规则记录列表
      */
     @Select("""
@@ -493,9 +680,11 @@ public interface RiskManagementMapper {
             SELECT *
             FROM ${tableName}
             WHERE deleted = 0
+            <if test="merchantScope != null and merchantScope != ''">AND merchant_scope = #{merchantScope}</if>
             <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
             <if test="ruleName != null and ruleName != ''">AND rule_name LIKE CONCAT('%', #{ruleName}, '%')</if>
             <if test="matchValue != null and matchValue != ''">AND match_value LIKE CONCAT('%', #{matchValue}, '%')</if>
+            <if test="limitType != null and limitType != ''">AND limit_type = #{limitType}</if>
             <if test="currency != null and currency != ''">AND currency = #{currency}</if>
             <if test="status != null">AND status = #{status}</if>
             ORDER BY update_time DESC, id DESC
@@ -503,13 +692,317 @@ public interface RiskManagementMapper {
             </script>
             """)
     List<Map<String, Object>> selectRulePage(@Param("tableName") String tableName,
+                                             @Param("merchantScope") String merchantScope,
                                              @Param("merchantId") String merchantId,
                                              @Param("ruleName") String ruleName,
                                              @Param("matchValue") String matchValue,
+                                             @Param("limitType") String limitType,
                                              @Param("currency") String currency,
                                              @Param("status") Integer status,
                                              @Param("offset") long offset,
                                              @Param("pageSize") long pageSize);
+
+    /**
+     * 查询商户交易限额总数。
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM risk_rule_merchant_limit
+            WHERE deleted = 0
+            <if test="merchantScope != null and merchantScope != ''">AND merchant_scope = #{merchantScope}</if>
+            <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
+            <if test="ruleName != null and ruleName != ''">AND rule_name LIKE CONCAT('%', #{ruleName}, '%')</if>
+            <if test="matchValue != null and matchValue != ''">AND match_value LIKE CONCAT('%', #{matchValue}, '%')</if>
+            <if test="limitType != null and limitType != ''">AND limit_type = #{limitType}</if>
+            <if test="status != null">AND status = #{status}</if>
+            </script>
+            """)
+    long countMerchantLimitRules(@Param("merchantScope") String merchantScope,
+                                 @Param("merchantId") String merchantId,
+                                 @Param("ruleName") String ruleName,
+                                 @Param("matchValue") String matchValue,
+                                 @Param("limitType") String limitType,
+                                 @Param("status") Integer status);
+
+    /**
+     * 分页查询商户交易限额。
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM risk_rule_merchant_limit
+            WHERE deleted = 0
+            <if test="merchantScope != null and merchantScope != ''">AND merchant_scope = #{merchantScope}</if>
+            <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
+            <if test="ruleName != null and ruleName != ''">AND rule_name LIKE CONCAT('%', #{ruleName}, '%')</if>
+            <if test="matchValue != null and matchValue != ''">AND match_value LIKE CONCAT('%', #{matchValue}, '%')</if>
+            <if test="limitType != null and limitType != ''">AND limit_type = #{limitType}</if>
+            <if test="status != null">AND status = #{status}</if>
+            ORDER BY update_time DESC, id DESC
+            LIMIT #{offset}, #{pageSize}
+            </script>
+            """)
+    List<Map<String, Object>> selectMerchantLimitRulePage(@Param("merchantScope") String merchantScope,
+                                                          @Param("merchantId") String merchantId,
+                                                          @Param("ruleName") String ruleName,
+                                                          @Param("matchValue") String matchValue,
+                                                          @Param("limitType") String limitType,
+                                                          @Param("status") Integer status,
+                                                          @Param("offset") long offset,
+                                                          @Param("pageSize") long pageSize);
+
+    /**
+     * 查询商户交易限额重复记录数。
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM risk_rule_merchant_limit
+            WHERE deleted = 0
+              AND merchant_scope = #{merchantScope}
+              AND COALESCE(merchant_id, '') = COALESCE(#{merchantId}, '')
+              AND COALESCE(rule_name, '') = COALESCE(#{ruleName}, '')
+              AND COALESCE(match_value, '') = COALESCE(#{matchValue}, '')
+              AND COALESCE(limit_type, '') = COALESCE(#{limitType}, '')
+              AND COALESCE(amount_min, 0) = COALESCE(#{amountMin}, 0)
+              AND COALESCE(amount_max, 0) = COALESCE(#{amountMax}, 0)
+            <if test="excludeId != null">AND id &lt;&gt; #{excludeId}</if>
+            </script>
+            """)
+    long countMerchantLimitDuplicate(@Param("merchantScope") String merchantScope,
+                                     @Param("merchantId") String merchantId,
+                                     @Param("ruleName") String ruleName,
+                                     @Param("matchValue") String matchValue,
+                                     @Param("limitType") String limitType,
+                                     @Param("amountMin") java.math.BigDecimal amountMin,
+                                     @Param("amountMax") java.math.BigDecimal amountMax,
+                                     @Param("excludeId") Long excludeId);
+
+    /**
+     * 查询 3DS 规则总数。3DS 规则按商户、渠道、卡品牌、金额区间、风险条件和触发动作做结构化匹配。
+     *
+     * @param merchantScope 生效范围，允许为空
+     * @param merchantId    商户号，允许为空
+     * @param ruleName      规则名称，允许为空并支持模糊匹配
+     * @param ruleType      规则类型，允许为空
+     * @param channelCode   收单渠道编码，允许为空
+     * @param paymentMethod 支付方式，允许为空
+     * @param cardBrand     卡品牌，允许为空
+     * @param currency      交易币种，允许为空
+     * @param triggerAction 触发动作，允许为空
+     * @param status        状态，允许为空
+     * @return 满足条件的规则数量
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM risk_rule_3ds
+            WHERE deleted = 0
+            <if test="merchantScope != null and merchantScope != ''">AND merchant_scope = #{merchantScope}</if>
+            <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
+            <if test="ruleName != null and ruleName != ''">AND rule_name LIKE CONCAT('%', #{ruleName}, '%')</if>
+            <if test="ruleType != null and ruleType != ''">AND rule_type = #{ruleType}</if>
+            <if test="channelCode != null and channelCode != ''">AND channel_code = #{channelCode}</if>
+            <if test="paymentMethod != null and paymentMethod != ''">AND payment_method = #{paymentMethod}</if>
+            <if test="cardBrand != null and cardBrand != ''">AND card_brand = #{cardBrand}</if>
+            <if test="currency != null and currency != ''">AND currency = #{currency}</if>
+            <if test="triggerAction != null and triggerAction != ''">AND trigger_action = #{triggerAction}</if>
+            <if test="status != null">AND status = #{status}</if>
+            </script>
+            """)
+    long countThreeDsRules(@Param("merchantScope") String merchantScope,
+                           @Param("merchantId") String merchantId,
+                           @Param("ruleName") String ruleName,
+                           @Param("ruleType") String ruleType,
+                           @Param("channelCode") String channelCode,
+                           @Param("paymentMethod") String paymentMethod,
+                           @Param("cardBrand") String cardBrand,
+                           @Param("currency") String currency,
+                           @Param("triggerAction") String triggerAction,
+                           @Param("status") Integer status);
+
+    /**
+     * 分页查询 3DS 规则。
+     *
+     * @param merchantScope 生效范围，允许为空
+     * @param merchantId    商户号，允许为空
+     * @param ruleName      规则名称，允许为空并支持模糊匹配
+     * @param ruleType      规则类型，允许为空
+     * @param channelCode   收单渠道编码，允许为空
+     * @param paymentMethod 支付方式，允许为空
+     * @param cardBrand     卡品牌，允许为空
+     * @param currency      交易币种，允许为空
+     * @param triggerAction 触发动作，允许为空
+     * @param status        状态，允许为空
+     * @param offset        分页偏移量
+     * @param pageSize      每页记录数
+     * @return 3DS 规则记录列表
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM risk_rule_3ds
+            WHERE deleted = 0
+            <if test="merchantScope != null and merchantScope != ''">AND merchant_scope = #{merchantScope}</if>
+            <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
+            <if test="ruleName != null and ruleName != ''">AND rule_name LIKE CONCAT('%', #{ruleName}, '%')</if>
+            <if test="ruleType != null and ruleType != ''">AND rule_type = #{ruleType}</if>
+            <if test="channelCode != null and channelCode != ''">AND channel_code = #{channelCode}</if>
+            <if test="paymentMethod != null and paymentMethod != ''">AND payment_method = #{paymentMethod}</if>
+            <if test="cardBrand != null and cardBrand != ''">AND card_brand = #{cardBrand}</if>
+            <if test="currency != null and currency != ''">AND currency = #{currency}</if>
+            <if test="triggerAction != null and triggerAction != ''">AND trigger_action = #{triggerAction}</if>
+            <if test="status != null">AND status = #{status}</if>
+            ORDER BY update_time DESC, id DESC
+            LIMIT #{offset}, #{pageSize}
+            </script>
+            """)
+    List<Map<String, Object>> selectThreeDsRulePage(@Param("merchantScope") String merchantScope,
+                                                    @Param("merchantId") String merchantId,
+                                                    @Param("ruleName") String ruleName,
+                                                    @Param("ruleType") String ruleType,
+                                                    @Param("channelCode") String channelCode,
+                                                    @Param("paymentMethod") String paymentMethod,
+                                                    @Param("cardBrand") String cardBrand,
+                                                    @Param("currency") String currency,
+                                                    @Param("triggerAction") String triggerAction,
+                                                    @Param("status") Integer status,
+                                                    @Param("offset") long offset,
+                                                    @Param("pageSize") long pageSize);
+
+    /**
+     * 查询 3DS 精确重复规则数。金额区间重叠需要服务层额外校验，精确重复由该查询兜底。
+     *
+     * @param merchantScope   生效范围
+     * @param merchantId      商户号，全局范围为空字符串
+     * @param channelCode     收单渠道编码
+     * @param paymentMethod   支付方式
+     * @param cardBrand       卡品牌
+     * @param amountMatchType 金额匹配类型
+     * @param amountMin       最小金额
+     * @param amountMax       最大金额
+     * @param currency        交易币种
+     * @param riskCondition   风险条件
+     * @param triggerAction   触发动作
+     * @param excludeId       编辑时排除的记录ID，新增时为空
+     * @return 未删除重复规则数
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM risk_rule_3ds
+            WHERE deleted = 0
+              AND merchant_scope = #{merchantScope}
+              AND COALESCE(merchant_id, '') = COALESCE(#{merchantId}, '')
+              AND channel_code = #{channelCode}
+              AND payment_method = #{paymentMethod}
+              AND card_brand = #{cardBrand}
+              AND amount_match_type = #{amountMatchType}
+              AND COALESCE(amount_min, 0) = COALESCE(#{amountMin}, 0)
+              AND COALESCE(amount_max, 0) = COALESCE(#{amountMax}, 0)
+              AND currency = #{currency}
+              AND risk_condition = #{riskCondition}
+              AND trigger_action = #{triggerAction}
+            <if test="excludeId != null">AND id &lt;&gt; #{excludeId}</if>
+            </script>
+            """)
+    long countThreeDsDuplicate(@Param("merchantScope") String merchantScope,
+                               @Param("merchantId") String merchantId,
+                               @Param("channelCode") String channelCode,
+                               @Param("paymentMethod") String paymentMethod,
+                               @Param("cardBrand") String cardBrand,
+                               @Param("amountMatchType") String amountMatchType,
+                               @Param("amountMin") java.math.BigDecimal amountMin,
+                               @Param("amountMax") java.math.BigDecimal amountMax,
+                               @Param("currency") String currency,
+                               @Param("riskCondition") String riskCondition,
+                               @Param("triggerAction") String triggerAction,
+                               @Param("excludeId") Long excludeId);
+
+    /**
+     * 查询同一商户交易限额维度下的周期限额金额，用于保存前校验日、周、月限额倍数关系。
+     *
+     * @param tableName     物理表名，必须来自 RiskFunctionDefinition 白名单
+     * @param merchantScope 生效范围，允许为空
+     * @param merchantId    商户号，全局范围允许为空
+     * @param matchValue    限额场景，允许为空
+     * @param excludeId     编辑时排除的当前记录ID，新增时为空
+     * @return 同组周期限额规则
+     */
+    @Select("""
+            <script>
+            SELECT limit_type, amount_min, amount_max
+            FROM ${tableName}
+            WHERE deleted = 0
+              AND limit_type IN ('DAILY', 'WEEKLY', 'MONTHLY')
+              AND COALESCE(merchant_scope, '') = COALESCE(#{merchantScope}, '')
+              AND COALESCE(merchant_id, '') = COALESCE(#{merchantId}, '')
+              AND COALESCE(match_value, '') = COALESCE(#{matchValue}, '')
+              <if test="excludeId != null">AND id &lt;&gt; #{excludeId}</if>
+            </script>
+            """)
+    List<Map<String, Object>> selectMerchantLimitAmounts(@Param("tableName") String tableName,
+                                                         @Param("merchantScope") String merchantScope,
+                                                         @Param("merchantId") String merchantId,
+                                                         @Param("matchValue") String matchValue,
+                                                         @Param("excludeId") Long excludeId);
+
+    /**
+     * 查询商户来源网址限定总数。
+     *
+     * @param merchantId 商户号，允许为空
+     * @param sourceUrl  商户录入 URL，允许为空并支持模糊匹配
+     * @param sourceHost 来源网址 host，允许为空并支持模糊匹配
+     * @param status     状态，允许为空
+     * @return 满足条件的记录数量
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM risk_rule_source_url
+            WHERE deleted = 0
+            <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
+            <if test="sourceUrl != null and sourceUrl != ''">AND source_url LIKE CONCAT('%', #{sourceUrl}, '%')</if>
+            <if test="sourceHost != null and sourceHost != ''">AND source_host LIKE CONCAT('%', #{sourceHost}, '%')</if>
+            <if test="status != null">AND status = #{status}</if>
+            </script>
+            """)
+    long countSourceUrlRules(@Param("merchantId") String merchantId,
+                             @Param("sourceUrl") String sourceUrl,
+                             @Param("sourceHost") String sourceHost,
+                             @Param("status") Integer status);
+
+    /**
+     * 分页查询商户来源网址限定。
+     *
+     * @param merchantId 商户号，允许为空
+     * @param sourceUrl  商户录入 URL，允许为空并支持模糊匹配
+     * @param sourceHost 来源网址 host，允许为空并支持模糊匹配
+     * @param status     状态，允许为空
+     * @param offset     分页偏移量
+     * @param pageSize   每页记录数
+     * @return 来源网址记录列表
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM risk_rule_source_url
+            WHERE deleted = 0
+            <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
+            <if test="sourceUrl != null and sourceUrl != ''">AND source_url LIKE CONCAT('%', #{sourceUrl}, '%')</if>
+            <if test="sourceHost != null and sourceHost != ''">AND source_host LIKE CONCAT('%', #{sourceHost}, '%')</if>
+            <if test="status != null">AND status = #{status}</if>
+            ORDER BY update_time DESC, id DESC
+            LIMIT #{offset}, #{pageSize}
+            </script>
+            """)
+    List<Map<String, Object>> selectSourceUrlRulePage(@Param("merchantId") String merchantId,
+                                                      @Param("sourceUrl") String sourceUrl,
+                                                      @Param("sourceHost") String sourceHost,
+                                                      @Param("status") Integer status,
+                                                      @Param("offset") long offset,
+                                                      @Param("pageSize") long pageSize);
 
     /**
      * 新增内风控规则。
@@ -535,6 +1028,65 @@ public interface RiskManagementMapper {
     int insertRule(@Param("tableName") String tableName,
                    @Param("data") Map<String, Object> data,
                    @Param("operator") String operator);
+
+    /**
+     * 新增商户交易限额。
+     */
+    @Insert("""
+            INSERT INTO risk_rule_merchant_limit (
+                merchant_scope, merchant_id, rule_name, match_value, limit_type, amount_min, amount_max, currency,
+                risk_level, decision_action, effective_time, expire_time,
+                status, remark, create_by, update_by, deleted
+            ) VALUES (
+                #{data.merchantScope}, #{data.merchantId}, #{data.ruleName}, #{data.matchValue}, #{data.limitType}, #{data.amountMin}, #{data.amountMax}, #{data.currency},
+                #{data.riskLevel}, #{data.decisionAction}, #{data.effectiveTime}, #{data.expireTime},
+                #{data.status}, #{data.remark}, #{operator}, #{operator}, 0
+            )
+            """)
+    int insertMerchantLimitRule(@Param("data") Map<String, Object> data,
+                                @Param("operator") String operator);
+
+    /**
+     * 新增 3DS 规则。
+     *
+     * @param data     3DS 规则字段映射
+     * @param operator 操作人
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO risk_rule_3ds (
+                rule_group_no, merchant_scope, merchant_id, merchant_name, rule_name, rule_type,
+                channel_code, payment_method, card_brand, amount_match_type, amount_min, amount_max, currency,
+                risk_condition, trigger_action, priority, effective_time, expire_time,
+                status, remark, create_by, update_by, deleted
+            ) VALUES (
+                #{data.ruleGroupNo}, #{data.merchantScope}, #{data.merchantId}, #{data.merchantName}, #{data.ruleName}, #{data.ruleType},
+                #{data.channelCode}, #{data.paymentMethod}, #{data.cardBrand}, #{data.amountMatchType}, #{data.amountMin}, #{data.amountMax}, #{data.currency},
+                #{data.riskCondition}, #{data.triggerAction}, #{data.priority}, #{data.effectiveTime}, #{data.expireTime},
+                #{data.status}, #{data.remark}, #{operator}, #{operator}, 0
+            )
+            """)
+    int insertThreeDsRule(@Param("data") Map<String, Object> data,
+                          @Param("operator") String operator);
+
+    /**
+     * 新增商户来源网址限定。
+     *
+     * @param data     来源网址字段映射
+     * @param operator 操作人
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO risk_rule_source_url (
+                merchant_id, source_url, source_host, risk_level, decision_action,
+                effective_time, expire_time, status, remark, create_by, update_by, deleted
+            ) VALUES (
+                #{data.merchantId}, #{data.sourceUrl}, #{data.sourceHost}, #{data.riskLevel}, #{data.decisionAction},
+                #{data.effectiveTime}, #{data.expireTime}, #{data.status}, #{data.remark}, #{operator}, #{operator}, 0
+            )
+            """)
+    int insertSourceUrlRule(@Param("data") Map<String, Object> data,
+                            @Param("operator") String operator);
 
     /**
      * 修改内风控规则。
@@ -573,6 +1125,97 @@ public interface RiskManagementMapper {
                    @Param("id") Long id,
                    @Param("data") Map<String, Object> data,
                    @Param("operator") String operator);
+
+    /**
+     * 修改商户交易限额。
+     */
+    @Update("""
+            UPDATE risk_rule_merchant_limit
+            SET merchant_scope = #{data.merchantScope},
+                merchant_id = #{data.merchantId},
+                rule_name = #{data.ruleName},
+                match_value = #{data.matchValue},
+                limit_type = #{data.limitType},
+                amount_min = #{data.amountMin},
+                amount_max = #{data.amountMax},
+                currency = #{data.currency},
+                risk_level = #{data.riskLevel},
+                decision_action = #{data.decisionAction},
+                effective_time = #{data.effectiveTime},
+                expire_time = #{data.expireTime},
+                status = #{data.status},
+                remark = #{data.remark},
+                update_by = #{operator},
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE id = #{id} AND deleted = 0
+            """)
+    int updateMerchantLimitRule(@Param("id") Long id,
+                                @Param("data") Map<String, Object> data,
+                                @Param("operator") String operator);
+
+    /**
+     * 修改 3DS 规则。
+     *
+     * @param id       规则记录ID
+     * @param data     3DS 规则字段映射
+     * @param operator 操作人
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE risk_rule_3ds
+            SET merchant_scope = #{data.merchantScope},
+                merchant_id = #{data.merchantId},
+                merchant_name = #{data.merchantName},
+                rule_name = #{data.ruleName},
+                rule_type = #{data.ruleType},
+                channel_code = #{data.channelCode},
+                payment_method = #{data.paymentMethod},
+                card_brand = #{data.cardBrand},
+                amount_match_type = #{data.amountMatchType},
+                amount_min = #{data.amountMin},
+                amount_max = #{data.amountMax},
+                currency = #{data.currency},
+                risk_condition = #{data.riskCondition},
+                trigger_action = #{data.triggerAction},
+                priority = #{data.priority},
+                effective_time = #{data.effectiveTime},
+                expire_time = #{data.expireTime},
+                status = #{data.status},
+                remark = #{data.remark},
+                update_by = #{operator},
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE id = #{id} AND deleted = 0
+            """)
+    int updateThreeDsRule(@Param("id") Long id,
+                          @Param("data") Map<String, Object> data,
+                          @Param("operator") String operator);
+
+    /**
+     * 修改商户来源网址限定。
+     *
+     * @param id       来源网址记录ID
+     * @param data     来源网址字段映射
+     * @param operator 操作人
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE risk_rule_source_url
+            SET merchant_id = #{data.merchantId},
+                source_url = #{data.sourceUrl},
+                source_host = #{data.sourceHost},
+                risk_level = #{data.riskLevel},
+                decision_action = #{data.decisionAction},
+                effective_time = #{data.effectiveTime},
+                expire_time = #{data.expireTime},
+                status = #{data.status},
+                remark = #{data.remark},
+                update_by = #{operator},
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE id = #{id} AND deleted = 0
+            """)
+    int updateSourceUrlRule(@Param("id") Long id,
+                            @Param("data") Map<String, Object> data,
+                            @Param("operator") String operator);
 
     /**
      * 写入配置变更日志。

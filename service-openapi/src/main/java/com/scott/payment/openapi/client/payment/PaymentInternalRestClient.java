@@ -5,15 +5,19 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
 import com.scott.payment.openapi.config.PaymentClientProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.URI;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -104,7 +108,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             String authorizationUrl = paymentClientProperties.getAuthorizationUrl();
             String responseBody = chooseRestTemplate(authorizationUrl).postForObject(
                     authorizationUrl,
-                    requestDTO,
+                    buildSignedEntity(URI.create(authorizationUrl), requestDTO),
                     String.class
             );
             CommonResult<PaymentCreateClientResponseDTO> result = JsonUtils.parseObject(
@@ -138,6 +142,33 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             return directRestTemplate;
         }
         return loadBalancedRestTemplate;
+    }
+
+    /**
+     * 构造带内部服务签名头的请求实体。
+     *
+     * @param uri        内部服务地址
+     * @param requestDTO 创建交易内部请求
+     * @return 带签名头的请求实体
+     */
+    private HttpEntity<PaymentCreateClientRequestDTO> buildSignedEntity(URI uri, PaymentCreateClientRequestDTO requestDTO) {
+        long timestamp = InternalServiceSignature.currentTimeMillis();
+        String nonce = UUID.randomUUID().toString();
+        String caller = paymentClientProperties.getInternalCaller();
+        String signature = InternalServiceSignature.sign(
+                "POST",
+                uri.getPath(),
+                timestamp,
+                nonce,
+                caller,
+                paymentClientProperties.getInternalSecret()
+        );
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(InternalServiceSignature.HEADER_CALLER, caller);
+        headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
+        headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
+        headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
+        return new HttpEntity<>(requestDTO, headers);
     }
 
     /**

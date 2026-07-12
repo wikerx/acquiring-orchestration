@@ -43,7 +43,7 @@ public class AdminConfigApplicationService {
     /**
      * 导出文件时间戳格式。
      */
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
@@ -61,21 +61,30 @@ public class AdminConfigApplicationService {
      * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final ExcelLocaleResolver excelLocaleResolver;
+    /**
+     * 系统参数配置对象转换器。
+     */
+    private final ConfigConverter configConverter;
 
     /**
      * 创建后台系统配置应用服务。
      *
-     * @param adminConfigService  系统配置领域服务
-     * @param excelExportService Excel 导出服务
+     * @param adminConfigService       系统配置领域服务
+     * @param excelExportService       Excel 导出服务
+     * @param excelI18nMessageResolver Excel 文案解析器
+     * @param excelLocaleResolver      Excel 语言解析器
+     * @param configConverter          系统参数配置对象转换器
      */
     public AdminConfigApplicationService(AdminConfigService adminConfigService,
                                          ExcelExportService excelExportService,
                                          ExcelI18nMessageResolver excelI18nMessageResolver,
-                                         ExcelLocaleResolver excelLocaleResolver) {
+                                         ExcelLocaleResolver excelLocaleResolver,
+                                         ConfigConverter configConverter) {
         this.adminConfigService = adminConfigService;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.configConverter = configConverter;
     }
 
     /**
@@ -141,13 +150,13 @@ public class AdminConfigApplicationService {
                               HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<SysConfigExportRow> rows = adminConfigService.listConfigs(request).stream()
-                .map(ConfigConverter.INSTANCE::toExportRow)
+                .map(configConverter::toExportRow)
                 .peek(row -> fillConfigDisplayValue(row, locale))
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<SysConfigExportRow>builder()
-                        .fileName("参数列表_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("参数列表")
+                        .fileName(excelI18nMessageResolver.resolve("excel.config.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(excelI18nMessageResolver.resolve("excel.config.title", locale))
                         .titleKey("excel.config.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())

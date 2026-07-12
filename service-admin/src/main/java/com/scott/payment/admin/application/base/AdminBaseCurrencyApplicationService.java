@@ -51,7 +51,7 @@ public class AdminBaseCurrencyApplicationService {
     /**
      * 导出文件时间戳格式。
      */
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 默认启用状态。
@@ -170,8 +170,8 @@ public class AdminBaseCurrencyApplicationService {
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<IsoCurrencyExportRow>builder()
-                        .fileName("币种列表_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("币种列表")
+                        .fileName(excelI18nMessageResolver.resolve("excel.currency.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(excelI18nMessageResolver.resolve("excel.currency.title", locale))
                         .titleKey("excel.currency.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())

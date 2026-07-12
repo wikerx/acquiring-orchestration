@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
 @Service
 public class AdminBaseMccApplicationService {
 
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     /**
      * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
      */

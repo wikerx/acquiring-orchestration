@@ -51,7 +51,7 @@ public class AdminBaseCountryApplicationService {
     /**
      * 导出文件时间戳格式。
      */
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 默认启用状态。
@@ -174,8 +174,8 @@ public class AdminBaseCountryApplicationService {
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<IsoCountryExportRow>builder()
-                        .fileName("国家地区_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("国家地区")
+                        .fileName(excelI18nMessageResolver.resolve("excel.country.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(excelI18nMessageResolver.resolve("excel.country.title", locale))
                         .titleKey("excel.country.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())

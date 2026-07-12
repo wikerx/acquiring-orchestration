@@ -1,5 +1,8 @@
 package com.scott.payment.payment.api.internal.dto;
 
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -35,11 +38,13 @@ public class PaymentCreateCommandDTO implements Serializable {
     /**
      * 支付平台颁发的商户号，用于定位商户、通道、风控和费率配置。
      */
+    @NotBlank(message = "merchantId is required")
     private String merchantId;
 
     /**
      * 商户订单号，商户侧保持唯一，用于幂等和交易查询。
      */
+    @NotBlank(message = "merchantOrderNo is required")
     private String merchantOrderNo;
 
     /**
@@ -50,11 +55,14 @@ public class PaymentCreateCommandDTO implements Serializable {
     /**
      * 订单金额，主币种单位，例如 123.45 USD。
      */
+    @NotNull(message = "amount is required")
+    @DecimalMin(value = "0.00", inclusive = false, message = "amount must be greater than 0")
     private BigDecimal amount;
 
     /**
      * 订单币种，使用 ISO 4217 三位大写币种代码。
      */
+    @NotBlank(message = "currency is required")
     private String currency;
 
     /**

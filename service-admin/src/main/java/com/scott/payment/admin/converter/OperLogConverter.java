@@ -3,7 +3,6 @@ package com.scott.payment.admin.converter;
 import com.scott.payment.admin.dto.SysOperLogDTO;
 import com.scott.payment.admin.entity.SysOperLogDO;
 import org.mapstruct.Mapper;
-import org.mapstruct.factory.Mappers;
 
 /**
  * @author : scott
@@ -11,27 +10,11 @@ import org.mapstruct.factory.Mappers;
  * @classname : OperLogConverter
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 操作日志对象转换器
- * @status : create
- *
- * <p>负责操作日志实体与后台响应 DTO 之间的转换，避免应用层直接暴露持久化对象。</p>
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperLogConverter
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Oper Log Converter，位于 service-admin 的对象转换层，用于定义调用契约和职责边界。
+ * @description : 操作日志对象转换器，位于 service-admin 转换层；负责操作日志实体到后台响应 DTO 的普通字段映射。
  * @status : create
  */
-@Mapper
+@Mapper(componentModel = "spring")
 public interface OperLogConverter {
-
-    /**
-     * 转换器单例。
-     */
-    OperLogConverter INSTANCE = Mappers.getMapper(OperLogConverter.class);
 
     /**
      * 操作日志实体转响应 DTO。

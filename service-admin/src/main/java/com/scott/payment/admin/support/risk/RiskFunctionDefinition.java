@@ -24,6 +24,9 @@ public enum RiskFunctionDefinition {
     AML_EMAIL("AML", "email", "邮箱/域名AML", "risk_aml_email", "/risk/aml/email", "risk:aml:email", false, false),
     AML_PHONE("AML", "phone", "手机号AML", "risk_aml_phone", "/risk/aml/phone", "risk:aml:phone", false, false),
     AML_CARDHOLDER_NAME("AML", "cardholderName", "持卡人姓名AML", "risk_aml_cardholder_name", "/risk/aml/cardholder-name", "risk:aml:cardholderName", false, false),
+    AML_LEGAL_PERSON("AML", "legalPerson", "AML法人", "risk_aml_legal_person", "/risk/aml/legal-person", "risk:aml:legalPerson", false, false),
+    AML_ENTERPRISE("AML", "enterprise", "AML企业", "risk_aml_enterprise", "/risk/aml/enterprise", "risk:aml:enterprise", false, false),
+    AML_MERCHANT_BILLING_ADDRESS("AML", "merchantBillingAddress", "AML（商户）账单地址", "risk_aml_merchant_billing_address", "/risk/aml/merchant-billing-address", "risk:aml:merchantBillingAddress", false, false),
     AML_SOURCE_URL("AML", "sourceUrl", "来源网址AML", "risk_aml_source_url", "/risk/aml/source-url", "risk:aml:sourceUrl", false, false),
 
     BLACK_CARD_NO("BLACK", "cardNo", "卡号黑名单", "risk_black_card_no", "/risk/blacklist/card-no", "risk:blacklist:cardNo", false, false),
@@ -61,9 +64,6 @@ public enum RiskFunctionDefinition {
     RULE_SOURCE_URL("RULE", "sourceUrl", "商户来源网址限定", "risk_rule_source_url", "/risk/rule/source-url", "risk:rule:sourceUrl", false, true),
     RULE_MERCHANT_LIMIT("RULE", "merchantLimit", "商户交易限额管理", "risk_rule_merchant_limit", "/risk/rule/merchant-limit", "risk:rule:merchantLimit", false, true),
     RULE_FREQUENCY("RULE", "frequency", "交易频率限定", "risk_rule_frequency", "/risk/rule/frequency", "risk:rule:frequency", false, true),
-    RULE_TRADE_COUNTRY("RULE", "tradeCountry", "商户交易国家限定", "risk_rule_trade_country", "/risk/rule/trade-country", "risk:rule:tradeCountry", false, true),
-    RULE_ISSUER_COUNTRY("RULE", "issuerCountry", "发卡行国家限定", "risk_rule_issuer_country", "/risk/rule/issuer-country", "risk:rule:issuerCountry", false, true),
-    RULE_CARD_BIN("RULE", "cardBin", "卡BIN交易规则", "risk_rule_card_bin", "/risk/rule/card-bin", "risk:rule:cardBin", false, true),
     RULE_3DS("RULE", "threeDs", "3DS规则管理", "risk_rule_3ds", "/risk/rule/3ds", "risk:rule:threeDs", false, true);
 
     private final String moduleType;
@@ -104,7 +104,7 @@ public enum RiskFunctionDefinition {
         return Arrays.stream(values())
                 .filter(item -> item.moduleType.equalsIgnoreCase(moduleType) && item.functionCode.equals(functionCode))
                 .findFirst()
-                .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "invalid risk function"));
+                .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风控功能不存在"));
     }
 
     /**

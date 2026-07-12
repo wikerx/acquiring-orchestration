@@ -42,12 +42,19 @@ public class AdminLoginLogServiceImpl implements AdminLoginLogService {
     private final SysLoginLogMapper loginLogMapper;
 
     /**
+     * 登录日志对象转换器。
+     */
+    private final LoginLogConverter loginLogConverter;
+
+    /**
      * 创建登录日志服务实现。
      *
      * @param loginLogMapper 登录日志 Mapper
+     * @param loginLogConverter 登录日志对象转换器
      */
-    public AdminLoginLogServiceImpl(SysLoginLogMapper loginLogMapper) {
+    public AdminLoginLogServiceImpl(SysLoginLogMapper loginLogMapper, LoginLogConverter loginLogConverter) {
         this.loginLogMapper = loginLogMapper;
+        this.loginLogConverter = loginLogConverter;
     }
 
     /**
@@ -72,7 +79,7 @@ public class AdminLoginLogServiceImpl implements AdminLoginLogService {
                 page.getTotal(),
                 page.getCurrent(),
                 page.getSize(),
-                page.getRecords().stream().map(LoginLogConverter.INSTANCE::toDTO).toList()
+                page.getRecords().stream().map(loginLogConverter::toDTO).toList()
         );
     }
 

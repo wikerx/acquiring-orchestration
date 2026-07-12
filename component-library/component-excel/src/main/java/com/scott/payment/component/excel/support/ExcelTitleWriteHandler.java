@@ -57,37 +57,20 @@ public class ExcelTitleWriteHandler implements SheetWriteHandler {
      */
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     private final String title;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
+
     private final String operator;
-    /**
-     * 收单支付时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
-     */
+
     private final LocalDateTime exportTime;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
+
     private final String querySummary;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
+
     private final int columnSize;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
+
     private final ExcelI18nMessageResolver messageResolver;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
+
     private final Locale locale;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
+
     private boolean initialized;
 
     /**
@@ -118,9 +101,10 @@ public class ExcelTitleWriteHandler implements SheetWriteHandler {
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param writeWorkbookHolder 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param writeSheetHolder 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 在 sheet 创建后写入标题和导出元信息。
+     *
+     * @param writeWorkbookHolder 当前工作簿上下文
+     * @param writeSheetHolder    当前 sheet 上下文
      */
     @Override
     public void afterSheetCreate(WriteWorkbookHolder writeWorkbookHolder,

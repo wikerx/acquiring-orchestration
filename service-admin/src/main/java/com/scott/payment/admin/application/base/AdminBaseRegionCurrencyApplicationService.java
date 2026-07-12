@@ -55,7 +55,7 @@ public class AdminBaseRegionCurrencyApplicationService {
     /**
      * 导出文件时间戳格式。
      */
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
      * 币种启用状态。
@@ -183,8 +183,8 @@ public class AdminBaseRegionCurrencyApplicationService {
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<RegionCurrencyExportRow>builder()
-                        .fileName("地区币种配置_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("地区币种配置")
+                        .fileName(excelI18nMessageResolver.resolve("excel.regionCurrency.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(excelI18nMessageResolver.resolve("excel.regionCurrency.title", locale))
                         .titleKey("excel.regionCurrency.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())

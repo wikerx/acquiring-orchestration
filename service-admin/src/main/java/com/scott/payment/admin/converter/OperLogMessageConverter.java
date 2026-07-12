@@ -4,7 +4,6 @@ import com.scott.payment.admin.dto.SysOperLogRecordRequest;
 import com.scott.payment.component.mq.message.OperationLogMessage;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-import org.mapstruct.factory.Mappers;
 
 /**
  * @author : scott
@@ -12,25 +11,11 @@ import org.mapstruct.factory.Mappers;
  * @classname : OperLogMessageConverter
  * @date : 2026-06-20 01:52
  * @email : scott_x@163.com
- * @description : 操作日志 MQ 消息转后台落库请求转换器
+ * @description : 操作日志 MQ 消息转换器，位于 service-admin 转换层；负责将公共 MQ 操作日志消息转换为后台落库请求。
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : OperLogMessageConverter
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Oper Log Message Converter，位于 service-admin 的对象转换层，用于定义调用契约和职责边界。
- * @status : create
- */
-@Mapper
+@Mapper(componentModel = "spring")
 public interface OperLogMessageConverter {
-
-    /**
-     * 转换器单例。
-     */
-    OperLogMessageConverter INSTANCE = Mappers.getMapper(OperLogMessageConverter.class);
 
     /**
      * 将操作日志 MQ 消息转换为后台写库请求。

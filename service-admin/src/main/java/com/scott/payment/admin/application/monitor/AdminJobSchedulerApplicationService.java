@@ -62,20 +62,30 @@ public class AdminJobSchedulerApplicationService {
      * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final ExcelLocaleResolver excelLocaleResolver;
+    /**
+     * 任务调度对象转换器。
+     */
+    private final JobSchedulerConverter jobSchedulerConverter;
 
     /**
      * 创建管理后台任务调度应用服务。
      *
      * @param jobSchedulerInternalClient 调度中心内部客户端
+     * @param excelExportService         Excel 导出服务
+     * @param excelI18nMessageResolver   Excel 文案解析器
+     * @param excelLocaleResolver        Excel 语言解析器
+     * @param jobSchedulerConverter      任务调度对象转换器
      */
     public AdminJobSchedulerApplicationService(JobSchedulerInternalClient jobSchedulerInternalClient,
                                                ExcelExportService excelExportService,
                                                ExcelI18nMessageResolver excelI18nMessageResolver,
-                                               ExcelLocaleResolver excelLocaleResolver) {
+                                               ExcelLocaleResolver excelLocaleResolver,
+                                               JobSchedulerConverter jobSchedulerConverter) {
         this.jobSchedulerInternalClient = jobSchedulerInternalClient;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.jobSchedulerConverter = jobSchedulerConverter;
     }
 
     /**
@@ -281,13 +291,13 @@ public class AdminJobSchedulerApplicationService {
                               HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
         List<JobRunLogExportRow> rows = jobSchedulerInternalClient.listRunLogs(request).stream()
-                .map(JobSchedulerConverter.INSTANCE::toRunLogExportRow)
+                .map(jobSchedulerConverter::toRunLogExportRow)
                 .peek(row -> fillRunLogDisplayValue(row, locale))
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<JobRunLogExportRow>builder()
-                        .fileName("任务日志_" + DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss").format(LocalDateTime.now()))
-                        .sheetName("任务日志")
+                        .fileName(excelI18nMessageResolver.resolve("excel.jobLog.title", locale) + "_" + DateTimeFormatter.ofPattern("yyyyMMddHHmmss").format(LocalDateTime.now()))
+                        .sheetName(excelI18nMessageResolver.resolve("excel.jobLog.title", locale))
                         .titleKey("excel.jobLog.title")
                         .operator(operator)
                         .exportTime(LocalDateTime.now())
@@ -321,7 +331,7 @@ public class AdminJobSchedulerApplicationService {
      * @return 内部保存请求
      */
     private JobTaskRemoteSaveRequest toRemoteSaveRequest(JobTaskSaveRequest request, String operator) {
-        JobTaskRemoteSaveRequest remoteSaveRequest = JobSchedulerConverter.INSTANCE.toRemoteSaveRequest(request, operator);
+        JobTaskRemoteSaveRequest remoteSaveRequest = jobSchedulerConverter.toRemoteSaveRequest(request, operator);
         remoteSaveRequest.setDescription(trimToNull(remoteSaveRequest.getDescription()));
         remoteSaveRequest.setParams(trimToNull(remoteSaveRequest.getParams()));
         remoteSaveRequest.setCronExpression(trimToNull(remoteSaveRequest.getCronExpression()));

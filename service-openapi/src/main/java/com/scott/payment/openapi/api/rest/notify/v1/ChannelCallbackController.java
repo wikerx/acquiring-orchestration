@@ -1,6 +1,8 @@
 package com.scott.payment.openapi.api.rest.notify.v1;
 
 import com.scott.payment.component.core.model.ApiResult;
+import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,6 +33,20 @@ import static com.scott.payment.component.core.model.ApiResult.success;
 public class ChannelCallbackController {
 
     /**
+     * 回调类入口安全校验组件。
+     */
+    private final OpenApiCallbackSecuritySupport callbackSecuritySupport;
+
+    /**
+     * 创建渠道回调控制器。
+     *
+     * @param callbackSecuritySupport 回调类入口安全校验组件
+     */
+    public ChannelCallbackController(OpenApiCallbackSecuritySupport callbackSecuritySupport) {
+        this.callbackSecuritySupport = callbackSecuritySupport;
+    }
+
+    /**
      * 接收渠道侧回调通知。
      *
      * @param channelCode 渠道编码
@@ -42,7 +58,8 @@ public class ChannelCallbackController {
      * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/{channelCode}")
-    public ApiResult<String> receive(@PathVariable("channelCode") String channelCode) {
+    public ApiResult<String> receive(@PathVariable("channelCode") String channelCode, HttpServletRequest request) {
+        callbackSecuritySupport.verifyChannelCallback(channelCode, request);
         return success(channelCode + " accepted");
     }
 }

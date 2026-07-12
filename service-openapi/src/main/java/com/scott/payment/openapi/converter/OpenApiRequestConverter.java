@@ -6,35 +6,17 @@ import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-import java.math.BigDecimal;
-
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestConverter
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
- * @description : 开放接口请求对象转换器
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestConverter
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Request Converter，位于 service-openapi 的对象转换层，用于定义调用契约和职责边界。
+ * @description : 商户 OpenAPI 请求对象转换器，位于 service-openapi 转换层，只做字段映射，不承担币种金额精度换算。
  * @status : create
  */
 @Mapper(componentModel = "spring")
 public interface OpenApiRequestConverter {
-
-    /**
-     * 当前收单支付基础响应使用两位小数币种的最小单位。
-     * <p>
-     * 后续接入 JPY、KWD 等特殊币种时，应改为按 ISO 4217 币种精度配置动态转换。
-     */
-    int DEFAULT_MINOR_UNIT_SCALE = 2;
 
     /**
      * 将普通收单创建 DTO 转换为创建响应。
@@ -60,20 +42,6 @@ public interface OpenApiRequestConverter {
         ApiMerchantPaymentRequestDTO.OrderInfoDTO orderInfo = requestDTO.getOrderInfo();
         vo.setMerchantOrderNo(orderInfo.getTradeNo());
         vo.setCurrency(orderInfo.getCurrency());
-        vo.setAmount(toMinorAmount(orderInfo.getAmount()));
         return vo;
-    }
-
-    /**
-     * 将主单位金额转换为分单位金额。
-     *
-     * @param amount 主单位金额
-     * @return 分单位金额
-     */
-    default Long toMinorAmount(BigDecimal amount) {
-        if (amount == null) {
-            return null;
-        }
-        return amount.movePointRight(DEFAULT_MINOR_UNIT_SCALE).longValueExact();
     }
 }

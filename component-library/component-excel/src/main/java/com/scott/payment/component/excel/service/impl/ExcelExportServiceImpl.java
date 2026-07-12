@@ -2,9 +2,12 @@ package com.scott.payment.component.excel.service.impl;
 
 import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.write.builder.ExcelWriterSheetBuilder;
+import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelColumnStyleWriteHandler;
 import com.scott.payment.component.excel.support.ExcelColumnWidthWriteHandler;
+import com.scott.payment.component.excel.support.ExcelDynamicColumnDefinition;
 import com.scott.payment.component.excel.support.ExcelExportColumnDefinition;
 import com.scott.payment.component.excel.support.ExcelExportMetadataResolver;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -25,6 +28,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -38,15 +42,6 @@ import java.util.Locale;
  * <p>统一处理响应头、导出标题、表头国际化、列宽样式和空数据导出，
  * 让业务代码只负责准备导出 DTO 数据。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : ExcelExportServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Excel Export Service Impl，位于 component-library/component-excel 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class ExcelExportServiceImpl implements ExcelExportService {
 
@@ -55,17 +50,8 @@ public class ExcelExportServiceImpl implements ExcelExportService {
      */
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     private final ExcelI18nMessageResolver messageResolver;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     private final ExcelExportMetadataResolver metadataResolver;
-    /**
-     * 收单支付金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
-     */
     private final ExcelStyleStrategyFactory styleStrategyFactory;
 
     /**
@@ -84,9 +70,11 @@ public class ExcelExportServiceImpl implements ExcelExportService {
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 按注解列定义导出统一样式 Excel。
+     *
+     * @param request 导出请求
+     * @param response HTTP 响应
+     * @param <T> 行类型
      */
     @Override
     public <T> void export(ExcelExportRequest<T> request, HttpServletResponse response) {
@@ -103,7 +91,48 @@ public class ExcelExportServiceImpl implements ExcelExportService {
                     .head(head)
                     .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
                     .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
+                    .registerWriteHandler(new ExcelColumnStyleWriteHandler(columns))
                     .registerWriteHandler(new ExcelColumnWidthWriteHandler(columns))
+                    .registerWriteHandler(new ExcelTitleWriteHandler(
+                            title,
+                            request.getOperator(),
+                            request.getExportTime() == null ? LocalDateTime.now() : request.getExportTime(),
+                            request.getQuerySummary(),
+                            Math.max(columns.size(), 1),
+                            messageResolver,
+                            locale
+                    ))
+                    .sheet(sheetName);
+            sheetBuilder.doWrite(rows);
+        } catch (IOException exception) {
+            throw new IllegalStateException("excel export failed", exception);
+        }
+    }
+
+    /**
+     * 使用动态列定义导出 Excel，适用于不同功能拥有不同列结构的管理端列表导出。
+     *
+     * @param request 动态列导出请求
+     * @param response HTTP 响应
+     */
+    @Override
+    public void exportDynamic(ExcelDynamicExportRequest request, HttpServletResponse response) {
+        Locale locale = request.getLocale() == null ? resolveCurrentLocale() : request.getLocale();
+        List<ExcelDynamicColumnDefinition> columns = request.getColumns() == null ? List.of() : request.getColumns();
+        List<List<String>> head = buildDynamicHead(columns);
+        List<List<Object>> rows = toDynamicRowData(request.getDataList(), columns, locale);
+        List<ExcelExportColumnDefinition> columnDefinitions = toColumnDefinitions(columns);
+        String fileName = normalizeFileName(request.getFileName());
+        String sheetName = normalizeSheetName(request.getSheetName());
+        String title = request.getTitle() == null || request.getTitle().isBlank() ? sheetName : request.getTitle().trim();
+        try {
+            prepareResponse(response, fileName);
+            ExcelWriterSheetBuilder sheetBuilder = EasyExcel.write(response.getOutputStream())
+                    .head(head)
+                    .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
+                    .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
+                    .registerWriteHandler(new ExcelColumnStyleWriteHandler(columnDefinitions))
+                    .registerWriteHandler(new ExcelColumnWidthWriteHandler(columnDefinitions))
                     .registerWriteHandler(new ExcelTitleWriteHandler(
                             title,
                             request.getOperator(),
@@ -161,6 +190,57 @@ public class ExcelExportServiceImpl implements ExcelExportService {
     }
 
     /**
+     * 构造动态列表头。
+     *
+     * @param columns 动态列定义
+     * @return 表头结构
+     */
+    private List<List<String>> buildDynamicHead(List<ExcelDynamicColumnDefinition> columns) {
+        List<List<String>> head = new ArrayList<>(columns.size());
+        for (ExcelDynamicColumnDefinition column : columns) {
+            head.add(List.of(column.header()));
+        }
+        return head;
+    }
+
+    /**
+     * 将动态行数据转换为 EasyExcel 行数据。
+     *
+     * @param dataList 原始行数据
+     * @param columns 动态列定义
+     * @param locale 导出语言
+     * @return EasyExcel 行数据
+     */
+    private List<List<Object>> toDynamicRowData(List<Map<String, Object>> dataList,
+                                                List<ExcelDynamicColumnDefinition> columns,
+                                                Locale locale) {
+        if (dataList == null || dataList.isEmpty()) {
+            return List.of();
+        }
+        List<List<Object>> rows = new ArrayList<>(dataList.size());
+        for (Map<String, Object> data : dataList) {
+            List<Object> row = new ArrayList<>(columns.size());
+            for (ExcelDynamicColumnDefinition column : columns) {
+                row.add(formatValue(data.get(column.key()), locale));
+            }
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    /**
+     * 将动态列定义转换为列宽处理器所需的通用列定义。
+     *
+     * @param columns 动态列定义
+     * @return 列宽定义
+     */
+    private List<ExcelExportColumnDefinition> toColumnDefinitions(List<ExcelDynamicColumnDefinition> columns) {
+        return columns.stream()
+                .map(column -> new ExcelExportColumnDefinition(null, 0, "", column.width(), column.align()))
+                .toList();
+    }
+
+    /**
      * 读取导出字段值。
      *
      * @param data 数据对象
@@ -170,22 +250,33 @@ public class ExcelExportServiceImpl implements ExcelExportService {
     private Object readValue(Object data, Field field, Locale locale) {
         try {
             Object value = field.get(data);
-            if (value == null) {
-                return "";
-            }
-            if (value instanceof LocalDateTime localDateTime) {
-                return DATE_TIME_FORMATTER.format(localDateTime);
-            }
-            if (value instanceof Instant instant) {
-                return DATE_TIME_FORMATTER.format(LocalDateTime.ofInstant(instant, ZoneId.systemDefault()));
-            }
-            if (value instanceof Boolean booleanValue) {
-                return messageResolver.resolve(booleanValue ? "excel.common.yes" : "excel.common.no", locale);
-            }
-            return value;
+            return formatValue(value, locale);
         } catch (IllegalAccessException exception) {
             throw new IllegalStateException("read export field failed: " + field.getName(), exception);
         }
+    }
+
+    /**
+     * 按统一规则格式化导出单元格值。
+     *
+     * @param value 原始值
+     * @param locale 导出语言
+     * @return Excel 单元格值
+     */
+    private Object formatValue(Object value, Locale locale) {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof LocalDateTime localDateTime) {
+            return DATE_TIME_FORMATTER.format(localDateTime);
+        }
+        if (value instanceof Instant instant) {
+            return DATE_TIME_FORMATTER.format(LocalDateTime.ofInstant(instant, ZoneId.systemDefault()));
+        }
+        if (value instanceof Boolean booleanValue) {
+            return messageResolver.resolve(booleanValue ? "excel.common.yes" : "excel.common.no", locale);
+        }
+        return value;
     }
 
     /**
@@ -236,6 +327,15 @@ public class ExcelExportServiceImpl implements ExcelExportService {
         if (request.getLocale() != null) {
             return request.getLocale();
         }
+        return resolveCurrentLocale();
+    }
+
+    /**
+     * 解析当前请求语言环境。
+     *
+     * @return 当前语言环境
+     */
+    private Locale resolveCurrentLocale() {
         Locale locale = LocaleContextHolder.getLocale();
         return locale == null ? Locale.SIMPLIFIED_CHINESE : locale;
     }

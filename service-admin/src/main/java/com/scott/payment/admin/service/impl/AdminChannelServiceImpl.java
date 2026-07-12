@@ -1070,6 +1070,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return capabilityCardBrandMapper.selectList(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
                         .eq(ChannelCapabilityCardBrandDO::getDeleted, NOT_DELETED)
                         .eq(ChannelCapabilityCardBrandDO::getCapabilityId, capabilityId)
+                        .eq(ChannelCapabilityCardBrandDO::getBrandStatus, ENABLED)
                         .orderByAsc(ChannelCapabilityCardBrandDO::getSortOrder))
                 .stream().map(ChannelCapabilityCardBrandDO::getCardBrand).toList();
     }

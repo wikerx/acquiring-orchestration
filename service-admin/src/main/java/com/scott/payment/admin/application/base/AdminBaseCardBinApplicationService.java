@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 @Service
 public class AdminBaseCardBinApplicationService {
 
-    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final DateTimeFormatter BATCH_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     private static final long NOT_DELETED = AuthConstants.NOT_DELETED;
     private static final int STATUS_DISABLED = 0;
@@ -345,8 +345,8 @@ public class AdminBaseCardBinApplicationService {
                 .toList();
         excelExportService.export(
                 ExcelExportRequest.<CardBinExportRow>builder()
-                        .fileName("卡BIN库_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
-                        .sheetName("卡BIN库")
+                        .fileName(excelI18nMessageResolver.resolve("excel.cardBin.title", locale) + "_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()))
+                        .sheetName(excelI18nMessageResolver.resolve("excel.cardBin.title", locale))
                         .titleKey("excel.cardBin.title")
                         .operator(currentOperatorName())
                         .exportTime(LocalDateTime.now())

@@ -1,7 +1,9 @@
 package com.scott.payment.component.excel.service.impl;
 
 import com.scott.payment.component.excel.annotation.ExcelExportColumn;
+import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.support.ExcelDynamicColumnDefinition;
 import com.scott.payment.component.excel.support.ExcelExportMetadataResolver;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelStyleStrategyFactory;
@@ -10,6 +12,7 @@ import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -21,8 +24,10 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -45,14 +50,7 @@ class ExcelExportServiceImplTest {
      */
     @Test
     void shouldWriteTitleHeaderAndDataRows() throws IOException {
-        ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
-        messageSource.setBasenames("messages");
-        messageSource.setDefaultEncoding("UTF-8");
-        ExcelExportServiceImpl service = new ExcelExportServiceImpl(
-                new ExcelI18nMessageResolver(messageSource),
-                new ExcelExportMetadataResolver(),
-                new ExcelStyleStrategyFactory()
-        );
+        ExcelExportServiceImpl service = createService();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         service.export(
@@ -82,6 +80,69 @@ class ExcelExportServiceImplTest {
             Assertions.assertEquals("alice", dataRow.getCell(0).getStringCellValue());
             Assertions.assertEquals("启用", dataRow.getCell(1).getStringCellValue());
         }
+    }
+
+    /**
+     * 验证动态列导出也使用统一标题、表头和数据区布局。
+     *
+     * @throws IOException 读取工作簿异常
+     */
+    @Test
+    void shouldWriteDynamicColumnsWithUnifiedLayout() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("scope", "全局风控");
+        row.put("status", "启用");
+
+        service.exportDynamic(
+                ExcelDynamicExportRequest.builder()
+                        .fileName("risk-demo")
+                        .sheetName("风控导出")
+                        .title("风控导出")
+                        .operator("tester")
+                        .exportTime(LocalDateTime.of(2026, 7, 11, 0, 0, 0))
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .querySummary("状态=启用")
+                        .columns(List.of(
+                                new ExcelDynamicColumnDefinition("scope", "生效范围", 14, HorizontalAlignment.CENTER),
+                                new ExcelDynamicColumnDefinition("status", "状态", 12, HorizontalAlignment.CENTER)
+                        ))
+                        .dataList(List.of(row))
+                        .build(),
+                response
+        );
+
+        Assertions.assertTrue(response.body.size() > 0, "动态导出的 Excel 二进制内容不能为空");
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(response.body.toByteArray()))) {
+            var sheet = workbook.getSheetAt(0);
+            Assertions.assertEquals("风控导出", sheet.getRow(0).getCell(0).getStringCellValue());
+            Assertions.assertEquals("生效范围", sheet.getRow(2).getCell(0).getStringCellValue());
+            Assertions.assertEquals("状态", sheet.getRow(2).getCell(1).getStringCellValue());
+            Row dataRow = sheet.getRow(3);
+            Assertions.assertNotNull(dataRow, "动态导出数据行不能为空");
+            Assertions.assertEquals("全局风控", dataRow.getCell(0).getStringCellValue());
+            Assertions.assertEquals("启用", dataRow.getCell(1).getStringCellValue());
+            Assertions.assertEquals(HorizontalAlignment.CENTER, dataRow.getCell(0).getCellStyle().getAlignment());
+            Assertions.assertEquals(HorizontalAlignment.CENTER, dataRow.getCell(1).getCellStyle().getAlignment());
+        }
+    }
+
+    /**
+     * 创建带测试 MessageSource 的 Excel 导出服务。
+     *
+     * @return Excel 导出服务
+     */
+    private ExcelExportServiceImpl createService() {
+        ResourceBundleMessageSource messageSource = new ResourceBundleMessageSource();
+        messageSource.setBasenames("messages");
+        messageSource.setDefaultEncoding("UTF-8");
+        return new ExcelExportServiceImpl(
+                new ExcelI18nMessageResolver(messageSource),
+                new ExcelExportMetadataResolver(),
+                new ExcelStyleStrategyFactory()
+        );
     }
 
     /**
@@ -123,36 +184,20 @@ class ExcelExportServiceImplTest {
          */
         private final ByteArrayOutputStream body = new ByteArrayOutputStream();
 
-        /**
-         * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
         public ServletOutputStream getOutputStream() {
             return new ServletOutputStream() {
 
-                /**
-                 * 判断收单支付条件是否满足，供业务分支或权限控制使用。
-                 * @return 处理后的业务结果或页面展示数据。
-                 */
                 @Override
                 public boolean isReady() {
                     return true;
                 }
 
-                /**
-                 * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-                 * @param listener 请求参数或业务处理上下文，不能为空时由上层校验约束。
-                 */
                 @Override
                 public void setWriteListener(WriteListener listener) {
                     // 单元测试场景不需要异步写监听。
                 }
 
-                /**
-                 * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-                 * @param b 请求参数或业务处理上下文，不能为空时由上层校验约束。
-                 */
                 @Override
                 public void write(int b) {
                     body.write(b);

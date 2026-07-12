@@ -38,4 +38,14 @@ public class PaymentClientProperties {
      * 使用 lb:// 能力时通过 http://service-payment 交给 Spring Cloud LoadBalancer 解析服务实例。
      */
     private String authorizationUrl = "http://service-payment/internal/payment/authorization";
+
+    /**
+     * 内部服务调用方标识，用于 service-payment 审计调用来源。
+     */
+    private String internalCaller = "service-openapi";
+
+    /**
+     * 调用 service-payment 内部接口的 HMAC-SHA256 共享密钥。
+     */
+    private String internalSecret = "dev-internal-service-secret";
 }

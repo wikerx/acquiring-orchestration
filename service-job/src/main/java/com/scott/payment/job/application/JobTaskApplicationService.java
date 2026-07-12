@@ -48,6 +48,10 @@ public class JobTaskApplicationService {
      * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final JobHandlerRegistry jobHandlerRegistry;
+    /**
+     * 任务调度对象转换器。
+     */
+    private final JobSchedulerConverter jobSchedulerConverter;
 
     /**
      * 创建任务管理应用服务。
@@ -55,13 +59,16 @@ public class JobTaskApplicationService {
      * @param jobTaskService     任务领域服务
      * @param jobDispatchService 任务分发服务
      * @param jobHandlerRegistry 处理器注册中心
+     * @param jobSchedulerConverter 任务调度对象转换器
      */
     public JobTaskApplicationService(JobTaskService jobTaskService,
                                      JobDispatchService jobDispatchService,
-                                     JobHandlerRegistry jobHandlerRegistry) {
+                                     JobHandlerRegistry jobHandlerRegistry,
+                                     JobSchedulerConverter jobSchedulerConverter) {
         this.jobTaskService = jobTaskService;
         this.jobDispatchService = jobDispatchService;
         this.jobHandlerRegistry = jobHandlerRegistry;
+        this.jobSchedulerConverter = jobSchedulerConverter;
     }
 
     /**
@@ -75,7 +82,7 @@ public class JobTaskApplicationService {
      */
     public List<JobHandlerOptionResponse> listHandlers() {
         return jobHandlerRegistry.listDescriptors().stream()
-                .map(JobSchedulerConverter.INSTANCE::toHandlerOption)
+                .map(jobSchedulerConverter::toHandlerOption)
                 .toList();
     }
 
@@ -97,7 +104,7 @@ public class JobTaskApplicationService {
                 pageResult.getPageNo(),
                 pageResult.getPageSize(),
                 pageResult.getRecords().stream()
-                        .map(JobSchedulerConverter.INSTANCE::toTaskResponse)
+                        .map(jobSchedulerConverter::toTaskResponse)
                         .toList()
         );
     }
@@ -114,7 +121,7 @@ public class JobTaskApplicationService {
      * @return 处理后的业务结果或页面展示数据。
      */
     public JobTaskResponse createTask(JobTaskSaveRequest request) {
-        return JobSchedulerConverter.INSTANCE.toTaskResponse(jobTaskService.createTask(request));
+        return jobSchedulerConverter.toTaskResponse(jobTaskService.createTask(request));
     }
 
     /**
@@ -131,7 +138,7 @@ public class JobTaskApplicationService {
      * @return 处理后的业务结果或页面展示数据。
      */
     public JobTaskResponse updateTask(Long taskId, JobTaskSaveRequest request) {
-        return JobSchedulerConverter.INSTANCE.toTaskResponse(jobTaskService.updateTask(taskId, request));
+        return jobSchedulerConverter.toTaskResponse(jobTaskService.updateTask(taskId, request));
     }
 
     /**
@@ -150,7 +157,7 @@ public class JobTaskApplicationService {
      * @return 处理后的业务结果或页面展示数据。
      */
     public JobTaskResponse changeStatus(Long taskId, String status, String operator) {
-        return JobSchedulerConverter.INSTANCE.toTaskResponse(jobTaskService.changeStatus(taskId, status, operator));
+        return jobSchedulerConverter.toTaskResponse(jobTaskService.changeStatus(taskId, status, operator));
     }
 
     /**

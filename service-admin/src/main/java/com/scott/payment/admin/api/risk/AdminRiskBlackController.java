@@ -39,6 +39,11 @@ public class AdminRiskBlackController {
 
     private final AdminRiskManagementApplicationService riskManagementApplicationService;
 
+    /**
+     * 创建黑名单管理接口。
+     *
+     * @param riskManagementApplicationService 风控管理应用服务
+     */
     public AdminRiskBlackController(AdminRiskManagementApplicationService riskManagementApplicationService) {
         this.riskManagementApplicationService = riskManagementApplicationService;
     }
@@ -51,7 +56,7 @@ public class AdminRiskBlackController {
      * @return 黑名单分页结果
      */
     @PostMapping("/list/BLACK/{functionCode}/page")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-黑名单", businessType = OperationTypeConstants.QUERY, operation = "分页查询黑名单")
     public CommonResult<PageResult<RiskDTOs.RiskRecordResponse>> page(@PathVariable("functionCode") String functionCode,
                                                                       @RequestBody(required = false) RiskDTOs.RiskListQueryRequest request) {
@@ -66,7 +71,7 @@ public class AdminRiskBlackController {
      * @return 黑名单详情
      */
     @GetMapping("/list/BLACK/{functionCode}/{id}")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     public CommonResult<RiskDTOs.RiskRecordResponse> detail(@PathVariable("functionCode") String functionCode,
                                                            @PathVariable("id") Long id) {
         return success(riskManagementApplicationService.listDetail(MODULE_TYPE, functionCode, id));
@@ -80,7 +85,7 @@ public class AdminRiskBlackController {
      * @return 黑名单编辑详情，敏感值仅在编辑权限下回显
      */
     @GetMapping("/list/BLACK/{functionCode}/{id}/edit")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     public CommonResult<RiskDTOs.RiskRecordResponse> editDetail(@PathVariable("functionCode") String functionCode,
                                                                @PathVariable("id") Long id) {
         return success(riskManagementApplicationService.listEditDetail(MODULE_TYPE, functionCode, id));
@@ -94,7 +99,7 @@ public class AdminRiskBlackController {
      * @return 新增后的黑名单记录
      */
     @PostMapping("/list/BLACK/{functionCode}")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-黑名单", businessType = OperationTypeConstants.CREATE, operation = "新增黑名单")
     public CommonResult<RiskDTOs.RiskRecordResponse> create(@PathVariable("functionCode") String functionCode,
                                                            @Valid @RequestBody RiskDTOs.RiskListSaveRequest request) {
@@ -110,7 +115,7 @@ public class AdminRiskBlackController {
      * @return 修改后的黑名单记录
      */
     @PutMapping("/list/BLACK/{functionCode}/{id}")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-黑名单", businessType = OperationTypeConstants.UPDATE, operation = "修改黑名单")
     public CommonResult<RiskDTOs.RiskRecordResponse> update(@PathVariable("functionCode") String functionCode,
                                                            @PathVariable("id") Long id,
@@ -125,7 +130,7 @@ public class AdminRiskBlackController {
      * @return 新增后的区域黑名单记录
      */
     @PostMapping("/region")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-高风险区域", businessType = OperationTypeConstants.CREATE, operation = "新增高风险区域")
     public CommonResult<RiskDTOs.RiskRecordResponse> createRegion(@Valid @RequestBody RiskDTOs.RegionSaveRequest request) {
         return success(riskManagementApplicationService.createRegion(request));
@@ -139,7 +144,7 @@ public class AdminRiskBlackController {
      * @return 修改后的区域黑名单记录
      */
     @PutMapping("/region/{id}")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-高风险区域", businessType = OperationTypeConstants.UPDATE, operation = "修改高风险区域")
     public CommonResult<RiskDTOs.RiskRecordResponse> updateRegion(@PathVariable("id") Long id,
                                                                  @Valid @RequestBody RiskDTOs.RegionSaveRequest request) {
@@ -154,7 +159,7 @@ public class AdminRiskBlackController {
      * @return 空结果
      */
     @DeleteMapping("/BLACK/{functionCode}/{id}")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-黑名单", businessType = OperationTypeConstants.DELETE, operation = "删除黑名单")
     public CommonResult<Void> remove(@PathVariable("functionCode") String functionCode,
                                      @PathVariable("id") Long id) {
@@ -170,7 +175,7 @@ public class AdminRiskBlackController {
      * @return 空结果
      */
     @DeleteMapping("/BLACK/{functionCode}/batch")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-黑名单", businessType = OperationTypeConstants.DELETE, operation = "批量删除黑名单")
     public CommonResult<Void> batchRemove(@PathVariable("functionCode") String functionCode,
                                           @RequestBody RiskDTOs.BatchRemoveRequest request) {
@@ -187,7 +192,7 @@ public class AdminRiskBlackController {
      * @return 更新后的黑名单记录
      */
     @PutMapping("/BLACK/{functionCode}/{id}/status")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-黑名单", businessType = OperationTypeConstants.UPDATE, operation = "更新黑名单状态")
     public CommonResult<RiskDTOs.RiskRecordResponse> updateStatus(@PathVariable("functionCode") String functionCode,
                                                                  @PathVariable("id") Long id,
@@ -202,10 +207,12 @@ public class AdminRiskBlackController {
      * @param response     HTTP 响应
      */
     @PostMapping("/BLACK/{functionCode}/export")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-黑名单", businessType = OperationTypeConstants.EXPORT, operation = "导出黑名单")
-    public void export(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
-        riskManagementApplicationService.export(MODULE_TYPE, functionCode, response);
+    public void export(@PathVariable("functionCode") String functionCode,
+                       @RequestBody(required = false) RiskDTOs.RiskListQueryRequest request,
+                       HttpServletResponse response) {
+        riskManagementApplicationService.export(MODULE_TYPE, functionCode, request, response);
     }
 
     /**
@@ -215,20 +222,20 @@ public class AdminRiskBlackController {
      * @param response     HTTP 响应
      */
     @GetMapping("/BLACK/{functionCode}/template")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     public void template(@PathVariable("functionCode") String functionCode, HttpServletResponse response) {
         riskManagementApplicationService.template(MODULE_TYPE, functionCode, response);
     }
 
     /**
-     * 导入黑名单 CSV 文件。
+     * 导入黑名单配置文件。
      *
      * @param functionCode 功能编码
-     * @param file         CSV 文件
+     * @param file         CSV 或 Excel 文件
      * @return 导入结果
      */
     @PostMapping("/BLACK/{functionCode}/import")
-    @RequiresPermission("risk:blacklist:list")
+    @RequiresPermission("risk:access")
     @OperationLog(moduleName = "收单风控-黑名单", businessType = OperationTypeConstants.CREATE, operation = "导入黑名单")
     public CommonResult<RiskDTOs.ImportResultResponse> importCsv(@PathVariable("functionCode") String functionCode,
                                                                  @RequestParam("file") MultipartFile file) {
