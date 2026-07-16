@@ -28,19 +28,29 @@ public class ChannelPaymentRequest implements Serializable {
     private String channelCode;
 
     /**
-     * 同一原始交易生命周期主标识，后续正式表建议使用 transaction_order_no。
+     * 平台内部生命周期关联标识，同一原始交易生命周期共用，不直接上送渠道。
      */
-    private String transactionOrderNo;
+    private String operationId;
 
     /**
-     * 当前交易动作单号，后续正式表建议使用 transaction_no。
+     * 平台当前交易唯一标识，每一笔授权、请款、退款、撤销都不同。
      */
-    private String transactionNo;
+    private String transactionId;
 
     /**
-     * 原交易动作单号，例如请款关联授权、退款关联请款或支付。
+     * 原平台交易 ID，后续动作关联授权、支付或请款时使用。
      */
-    private String originalTransactionNo;
+    private String sourceTransactionId;
+
+    /**
+     * 渠道订单号；MPGS 使用原始授权/支付的平台 transactionId。
+     */
+    private String channelOrderNo;
+
+    /**
+     * 渠道交易 ID；MPGS 使用平台生成的 channel_transaction_id，部分渠道可为空。
+     */
+    private String channelTransactionId;
 
     /**
      * 商户号。
@@ -51,6 +61,11 @@ public class ChannelPaymentRequest implements Serializable {
      * 商户订单号。
      */
     private String merchantOrderNo;
+
+    /**
+     * 商户本次 API 请求唯一标识，来自 orderInfo.orderId。
+     */
+    private String merchantOrderId;
 
     /**
      * 交易类型，对齐 transaction_type。

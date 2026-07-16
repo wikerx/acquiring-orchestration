@@ -12,7 +12,7 @@ import org.springframework.web.client.RestTemplate;
  * @classname : PayoutClientConfig
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIPayout Client 配置，位于 service-openapi 的配置层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户 OpenAPI 调用代付核心的 REST 客户端配置，区分本地直连和 Nacos 服务发现两种内部调用方式。
  * @status : create
  */
 @Configuration
@@ -24,10 +24,6 @@ public class PayoutClientConfig {
      *
      * @return RestTemplate
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Bean("payoutRestTemplate")
     public RestTemplate payoutRestTemplate() {
         return new RestTemplate();
@@ -37,10 +33,6 @@ public class PayoutClientConfig {
      * 注册带负载均衡能力的 RestTemplate。
      *
      * @return RestTemplate
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean("payoutLoadBalancedRestTemplate")
     @LoadBalanced

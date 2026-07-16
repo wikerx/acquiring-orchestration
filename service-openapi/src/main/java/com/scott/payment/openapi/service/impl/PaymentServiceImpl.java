@@ -2,6 +2,8 @@ package com.scott.payment.openapi.service.impl;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
@@ -11,6 +13,7 @@ import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseD
 import com.scott.payment.openapi.config.PaymentClientProperties;
 import com.scott.payment.openapi.converter.OpenApiRequestConverter;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
+import com.scott.payment.openapi.enums.OpenApiPaymentOperationEnum;
 import com.scott.payment.openapi.enums.OpenApiPaymentStatusEnum;
 import com.scott.payment.openapi.service.PaymentService;
 import com.scott.payment.openapi.support.OpenApiRequestContext;
@@ -22,6 +25,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * @author : scott
@@ -29,26 +33,16 @@ import java.time.LocalDateTime;
  * @classname : PaymentServiceImpl
  * @date : 2026-05-28 10:28
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 收单支付服务实现，位于 service-openapi 服务层，负责本地降级受理和转调 service-payment。
+ * @description : 商户 OpenAPI 收单交易服务实现，位于 service-openapi 服务层，负责把独立交易动作转换为 service-payment 内部请求；敏感卡信息只允许内存透传到支付核心。
  * @status : create
  */
 @Service
 public class PaymentServiceImpl implements PaymentService {
 
     /**
-     * 平台收单订单号前缀，用于本地降级模式生成可追踪的模拟订单号。
-     */
-    private static final String PAYMENT_ORDER_PREFIX = "PA";
-
-    /**
      * 默认卡交易支付方式，后续可由外部请求或商户产品配置显式传入。
      */
     private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
-
-    /**
-     * 默认创建支付交易类型，与当前 /authorization 内部接口保持一致。
-     */
-    private static final String DEFAULT_TRANSACTION_TYPE = "AUTHORIZATION";
 
     /**
      * 网关转发客户端 IP 请求头。
@@ -129,37 +123,119 @@ public class PaymentServiceImpl implements PaymentService {
         this.isoDictionaryService = isoDictionaryService;
     }
 
-    /**
-     * 创建收单支付交易。
-     *
-     * @param encryptedData 商户原始密文
-     * @param requestDTO    解密后的统一请求参数
-     * @return 创建交易响应
-     */
     @Override
     public PaymentCreateVO createPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.PAYMENT);
+    }
+
+    @Override
+    public PaymentCreateVO createAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.AUTHORIZATION);
+    }
+
+    @Override
+    public PaymentCreateVO createPreAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.PRE_AUTHORIZATION);
+    }
+
+    @Override
+    public PaymentCreateVO createIncrementalAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION);
+    }
+
+    @Override
+    public PaymentCreateVO capture(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.CAPTURE);
+    }
+
+    @Override
+    public PaymentCreateVO refund(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.REFUND);
+    }
+
+    @Override
+    public PaymentCreateVO voidPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.VOID);
+    }
+
+    /**
+     * 提交收单交易动作。
+     *
+     * @param encryptedData 商户原始密文，仅用于生成安全指纹
+     * @param requestDTO    解密后的统一请求参数
+     * @param operation     交易动作
+     * @return 交易受理响应
+     */
+    private PaymentCreateVO submitTransaction(String encryptedData,
+                                              ApiMerchantPaymentRequestDTO requestDTO,
+                                              OpenApiPaymentOperationEnum operation) {
         if (!paymentClientProperties.isRemoteEnabled()) {
-            return createLocalPaymentResult(requestDTO);
+            return createLocalPaymentResult(requestDTO, operation);
         }
-        PaymentCreateClientRequestDTO clientRequestDTO = toPaymentClientRequest(encryptedData, requestDTO);
-        PaymentCreateClientResponseDTO clientResponseDTO = paymentInternalClient.createAuthorization(clientRequestDTO);
+        PaymentCreateClientRequestDTO clientRequestDTO = toPaymentClientRequest(encryptedData, requestDTO, operation);
+        PaymentCreateClientResponseDTO clientResponseDTO = submitToPayment(clientRequestDTO, operation);
         return toPaymentCreateVO(clientResponseDTO);
     }
 
     /**
-     * 构建本地降级模式支付响应。
+     * 查询收单交易状态。
+     *
+     * @param encryptedData 商户原始密文，仅用于生成安全指纹
+     * @param requestDTO 解密后的查询请求参数
+     * @return 交易查询响应
+     */
+    @Override
+    public PaymentCreateVO queryTransaction(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        if (!paymentClientProperties.isRemoteEnabled()) {
+            return createLocalPaymentResult(requestDTO, OpenApiPaymentOperationEnum.QUERY);
+        }
+        PaymentCreateClientRequestDTO clientRequestDTO = toPaymentClientRequest(encryptedData, requestDTO, OpenApiPaymentOperationEnum.QUERY);
+        return toPaymentCreateVO(paymentInternalClient.query(clientRequestDTO));
+    }
+
+    /**
+     * 构建本地降级模式交易响应。
      * <p>
-     * 单元测试或本地只启动 `service-openapi` 时不依赖 `service-payment`，但仍然返回平台订单号和状态，
-     * 方便商户侧完整验证响应解析、日志追踪和后续回调字段映射。
+     * 单元测试或本地只启动 `service-openapi` 时不依赖 `service-payment`，但仍返回平台订单号和状态，
+     * 方便商户侧验证响应加密、字段解析和接口契约。
      *
      * @param requestDTO 解密后的统一请求参数
-     * @return 本地模拟创建交易响应
+     * @param operation 交易动作
+     * @return 本地模拟交易响应
      */
-    private PaymentCreateVO createLocalPaymentResult(ApiMerchantPaymentRequestDTO requestDTO) {
+    private PaymentCreateVO createLocalPaymentResult(ApiMerchantPaymentRequestDTO requestDTO,
+                                                     OpenApiPaymentOperationEnum operation) {
         PaymentCreateVO vo = converter.toPaymentCreateVO(requestDTO);
-        vo.setPaymentOrderNo(PaymentOrderNoGenerator.nextOrderNo(PAYMENT_ORDER_PREFIX));
         vo.setStatus(OpenApiPaymentStatusEnum.PROCESSING.getCode());
-        vo.setAmount(toMinorAmount(requestDTO));
+        PaymentCreateVO.TransactionInfoVO transactionInfoVO = new PaymentCreateVO.TransactionInfoVO();
+        transactionInfoVO.setTransactionId(PaymentOrderNoGenerator.nextTransactionId());
+        transactionInfoVO.setSourceTransactionId(requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getSourceTransactionId());
+        transactionInfoVO.setCode(ApiResultEnum.PROCESSING.getCode());
+        transactionInfoVO.setMessage(ApiResultEnum.PROCESSING.getMessage());
+        transactionInfoVO.setTransactionType(operation.getTransactionType());
+        transactionInfoVO.setTransactionStatus(vo.getStatus());
+        transactionInfoVO.setTransactionDateTime(LocalDateTime.now().atZone(ZoneId.of("Asia/Shanghai")).toOffsetDateTime());
+        transactionInfoVO.setPaymentMethod(DEFAULT_PAYMENT_METHOD);
+        transactionInfoVO.setCardBrand(requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getCardBrand());
+        transactionInfoVO.setCardBin(maskCardBin(requestDTO));
+        transactionInfoVO.setDescription(requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getDescription());
+        transactionInfoVO.setCallbackUrl(requestDTO.getTransactionInfo() == null ? null : requestDTO.getTransactionInfo().getCallbackUrl());
+        vo.setTransactionInfo(transactionInfoVO);
+        if (requestDTO.getOrderInfo() != null && requestDTO.getOrderInfo().getAmount() != null) {
+            PaymentCreateVO.BillingInfoVO billingInfoVO = new PaymentCreateVO.BillingInfoVO();
+            billingInfoVO.setLabelAmount(requestDTO.getOrderInfo().getAmount());
+            billingInfoVO.setLabelCurrency(requestDTO.getOrderInfo().getCurrency());
+            billingInfoVO.setTransactionAmount(requestDTO.getOrderInfo().getAmount());
+            billingInfoVO.setTransactionCurrency(requestDTO.getOrderInfo().getCurrency());
+            billingInfoVO.setTransactionRate(new java.math.BigDecimal("1.00000000"));
+            vo.setBillingInfo(billingInfoVO);
+        }
+        if (OpenApiPaymentOperationEnum.QUERY == operation) {
+            vo.setStatus(OpenApiPaymentStatusEnum.PENDING.getCode());
+            transactionInfoVO.setCode(ApiResultEnum.PENDING.getCode());
+            transactionInfoVO.setMessage(ApiResultEnum.PENDING.getMessage());
+            transactionInfoVO.setTransactionStatus(vo.getStatus());
+        }
         return vo;
     }
 
@@ -184,28 +260,96 @@ public class PaymentServiceImpl implements PaymentService {
      * @param requestDTO    解密后的统一请求参数
      * @return 支付内部创建请求
      */
-    private PaymentCreateClientRequestDTO toPaymentClientRequest(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+    private PaymentCreateClientRequestDTO toPaymentClientRequest(String encryptedData,
+                                                                 ApiMerchantPaymentRequestDTO requestDTO,
+                                                                 OpenApiPaymentOperationEnum operation) {
         PaymentCreateClientRequestDTO clientRequestDTO = new PaymentCreateClientRequestDTO();
         clientRequestDTO.setMerchantId(requestContext.getRequiredMerchantId());
-        clientRequestDTO.setMerchantOrderNo(requestDTO.getOrderInfo().getTradeNo());
-        clientRequestDTO.setTransactionType(DEFAULT_TRANSACTION_TYPE);
+        clientRequestDTO.setMerchantOrderNo(resolveMerchantOrderNo(requestDTO));
+        clientRequestDTO.setMerchantOrderId(resolveMerchantOrderId(requestDTO));
+        clientRequestDTO.setTransactionType(operation.getTransactionType());
         clientRequestDTO.setPaymentMethod(DEFAULT_PAYMENT_METHOD);
-        clientRequestDTO.setAmount(requestDTO.getOrderInfo().getAmount());
-        clientRequestDTO.setCurrency(requestDTO.getOrderInfo().getCurrency());
-        clientRequestDTO.setSourceReference(requestDTO.getOrderInfo().getSourceReference());
+        if (requestDTO.getOrderInfo() != null) {
+            clientRequestDTO.setAmount(requestDTO.getOrderInfo().getAmount());
+            clientRequestDTO.setCurrency(requestDTO.getOrderInfo().getCurrency());
+        }
         clientRequestDTO.setTransactionDateTime(LocalDateTime.now());
+        clientRequestDTO.setRequestId(resolveMerchantOrderId(requestDTO));
         if (requestDTO.getTransactionInfo() != null) {
-            clientRequestDTO.setRequestId(requestDTO.getTransactionInfo().getTransactionId());
             clientRequestDTO.setCallbackUrl(requestDTO.getTransactionInfo().getCallbackUrl());
         }
         clientRequestDTO.setRequestFingerprint(keyMaterialFactory.fingerprint(encryptedData));
-        clientRequestDTO.setSubMerchantInfo(converter.toPaymentClientSubMerchantInfo(requestDTO.getMerchantInfo().getSubMerchantInfo()));
+        clientRequestDTO.setOpenApiRequestPath(resolveRequestPath());
+        clientRequestDTO.setOpenApiRequestTime(LocalDateTime.now());
+        clientRequestDTO.setMerchantRequestCipherMasked(maskCipher(encryptedData));
+        clientRequestDTO.setMerchantRequestPlainJsonMasked(SensitiveDataMaskUtils.maskJson(JsonUtils.toJsonString(requestDTO)));
+        clientRequestDTO.setSubMerchantInfo(converter.toPaymentClientSubMerchantInfo(
+                requestDTO.getMerchantInfo() == null ? null : requestDTO.getMerchantInfo().getSubMerchantInfo()));
         clientRequestDTO.setBillingCardHolderInfo(converter.toPaymentClientBillingCardHolderInfo(requestDTO.getBillingCardHolderInfo()));
         clientRequestDTO.setCardInfo(converter.toPaymentClientCardInfo(requestDTO.getCardInfo()));
         clientRequestDTO.setThreeDsInfo(converter.toPaymentClientThreeDsInfo(requestDTO.getThreeDsInfo()));
         clientRequestDTO.setTransactionInfo(converter.toPaymentClientTransactionInfo(requestDTO.getTransactionInfo()));
         populateRequestSource(clientRequestDTO);
         return clientRequestDTO;
+    }
+
+    /**
+     * 解析商户订单号。
+     *
+     * @param requestDTO 解密后的统一请求参数
+     * @return 商户订单号
+     */
+    private String resolveMerchantOrderNo(ApiMerchantPaymentRequestDTO requestDTO) {
+        if (requestDTO.getOrderInfo() != null && StringUtils.hasText(requestDTO.getOrderInfo().getOrderNo())) {
+            return requestDTO.getOrderInfo().getOrderNo();
+        }
+        return null;
+    }
+
+    /**
+     * 解析商户本次 API 请求唯一标识。
+     *
+     * @param requestDTO 解密后的统一请求参数
+     * @return 商户请求唯一标识
+     */
+    private String resolveMerchantOrderId(ApiMerchantPaymentRequestDTO requestDTO) {
+        if (requestDTO.getOrderInfo() != null && StringUtils.hasText(requestDTO.getOrderInfo().getOrderId())) {
+            return requestDTO.getOrderInfo().getOrderId();
+        }
+        return null;
+    }
+
+    /**
+     * 按交易动作调用 service-payment 对应内部接口。
+     *
+     * @param clientRequestDTO 内部交易请求
+     * @param operation 交易动作
+     * @return 内部交易响应
+     */
+    private PaymentCreateClientResponseDTO submitToPayment(PaymentCreateClientRequestDTO clientRequestDTO,
+                                                           OpenApiPaymentOperationEnum operation) {
+        if (OpenApiPaymentOperationEnum.PAYMENT == operation) {
+            return paymentInternalClient.createPayment(clientRequestDTO);
+        }
+        if (OpenApiPaymentOperationEnum.AUTHORIZATION == operation) {
+            return paymentInternalClient.createAuthorization(clientRequestDTO);
+        }
+        if (OpenApiPaymentOperationEnum.PRE_AUTHORIZATION == operation) {
+            return paymentInternalClient.createPreAuthorization(clientRequestDTO);
+        }
+        if (OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION == operation) {
+            return paymentInternalClient.createIncrementalAuthorization(clientRequestDTO);
+        }
+        if (OpenApiPaymentOperationEnum.CAPTURE == operation) {
+            return paymentInternalClient.capture(clientRequestDTO);
+        }
+        if (OpenApiPaymentOperationEnum.REFUND == operation) {
+            return paymentInternalClient.refund(clientRequestDTO);
+        }
+        if (OpenApiPaymentOperationEnum.VOID == operation) {
+            return paymentInternalClient.voidPayment(clientRequestDTO);
+        }
+        throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
     }
 
     /**
@@ -241,6 +385,49 @@ public class PaymentServiceImpl implements PaymentService {
             return realIp;
         }
         return request.getRemoteAddr();
+    }
+
+    /**
+     * 解析当前 OpenAPI 请求路径，用于后台商户请求日志定位接口入口。
+     *
+     * @return 请求 URI，无法获取上下文时返回 null
+     */
+    private String resolveRequestPath() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes == null) {
+            return null;
+        }
+        HttpServletRequest request = attributes.getRequest();
+        String queryString = request.getQueryString();
+        return StringUtils.hasText(queryString) ? request.getRequestURI() + "?" + queryString : request.getRequestURI();
+    }
+
+    /**
+     * 生成密文掩码摘要，仅保留首尾短片段用于核对，禁止传递或保存完整密文。
+     *
+     * @param encryptedData 商户请求密文
+     * @return 密文掩码
+     */
+    private String maskCipher(String encryptedData) {
+        if (!StringUtils.hasText(encryptedData)) {
+            return null;
+        }
+        String normalized = encryptedData.trim();
+        if (normalized.length() <= 16) {
+            return "***";
+        }
+        return normalized.substring(0, 8) + "***" + normalized.substring(normalized.length() - 8);
+    }
+
+    private String maskCardBin(ApiMerchantPaymentRequestDTO requestDTO) {
+        if (requestDTO == null || requestDTO.getCardInfo() == null || !StringUtils.hasText(requestDTO.getCardInfo().getCardNo())) {
+            return null;
+        }
+        String cardNo = requestDTO.getCardInfo().getCardNo().trim();
+        if (cardNo.length() < 10) {
+            return null;
+        }
+        return cardNo.substring(0, 6) + "****" + cardNo.substring(cardNo.length() - 4);
     }
 
     /**

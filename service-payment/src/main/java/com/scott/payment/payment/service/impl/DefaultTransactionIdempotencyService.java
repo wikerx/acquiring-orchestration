@@ -8,6 +8,9 @@ import com.scott.payment.payment.service.TransactionIdempotencyService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Optional;
@@ -40,6 +43,21 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
     private static final long DEFAULT_EXPIRE_DAYS = 30L;
 
     /**
+     * 一步支付交易类型。
+     */
+    private static final String PAYMENT = "PAYMENT";
+
+    /**
+     * 授权交易类型。
+     */
+    private static final String AUTHORIZATION = "AUTHORIZATION";
+
+    /**
+     * 预授权交易类型。
+     */
+    private static final String PRE_AUTHORIZATION = "PRE_AUTHORIZATION";
+
+    /**
      * 交易幂等 Mapper。
      */
     private final TransactionIdempotencyMapper idempotencyMapper;
@@ -54,18 +72,18 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
     }
 
     /**
-     * 构建支付创建幂等键。
+     * 构建交易动作幂等键。
      *
      * @param merchantId      商户号
-     * @param merchantOrderNo 商户订单号
+     * @param merchantOrderId 商户本次 API 请求唯一标识
      * @param transactionType 交易类型
      * @return 幂等键
      */
     @Override
-    public String buildPaymentCreateKey(String merchantId, String merchantOrderNo, String transactionType) {
+    public String buildTransactionOperationKey(String merchantId, String merchantOrderId, String transactionType) {
         return String.join(":",
                 normalize(merchantId),
-                normalize(merchantOrderNo),
+                normalize(merchantOrderId),
                 normalize(transactionType));
     }
 
@@ -82,6 +100,22 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 .eq(TransactionIdempotencyDO::getIdempotencyScope, scope)
                 .eq(TransactionIdempotencyDO::getIdempotencyKey, key)
                 .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED)
+                .last("limit 1")));
+    }
+
+    /**
+     * 按平台当前交易 ID 查询首次交易幂等记录。
+     *
+     * @param transactionId 平台当前交易唯一标识
+     * @return 首次交易幂等记录
+     */
+    @Override
+    public Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId) {
+        return Optional.ofNullable(idempotencyMapper.selectOne(Wrappers.<TransactionIdempotencyDO>lambdaQuery()
+                .eq(TransactionIdempotencyDO::getTransactionId, transactionId)
+                .in(TransactionIdempotencyDO::getTransactionType, PAYMENT, AUTHORIZATION, PRE_AUTHORIZATION)
+                .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED)
+                .orderByAsc(TransactionIdempotencyDO::getCreateTime)
                 .last("limit 1")));
     }
 
@@ -106,27 +140,27 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
      *
      * @param scope                  幂等范围
      * @param key                    幂等键
-     * @param transactionOrderNo     交易生命周期主标识
-     * @param transactionNo          交易动作单号
+     * @param operationId            内部生命周期关联标识
+     * @param transactionId          平台当前交易 ID
      * @param transactionStatus      交易状态
-     * @param transactionAmountMinor 交易金额，最小币种单位
+     * @param transactionAmount      交易金额，主币种单位
      * @param transactionCurrency    交易币种
      * @param resultSnapshot         返回结果 JSON 快照
      */
     @Override
     public void complete(String scope,
                          String key,
-                         String transactionOrderNo,
-                         String transactionNo,
+                         String operationId,
+                         String transactionId,
                          String transactionStatus,
-                         Long transactionAmountMinor,
+                         BigDecimal transactionAmount,
                          String transactionCurrency,
                          String resultSnapshot) {
         TransactionIdempotencyDO update = new TransactionIdempotencyDO();
-        update.setTransactionOrderNo(transactionOrderNo);
-        update.setTransactionNo(transactionNo);
+        update.setOperationId(operationId);
+        update.setTransactionId(transactionId);
         update.setTransactionStatus(transactionStatus);
-        update.setTransactionAmountMinor(transactionAmountMinor);
+        update.setTransactionAmount(transactionAmount);
         update.setTransactionCurrency(transactionCurrency);
         update.setResultSnapshot(resultSnapshot);
         update.setUpdateTime(LocalDateTime.now());
@@ -143,6 +177,7 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
      * @param key                 幂等键
      * @param merchantId          商户号
      * @param merchantOrderNo     商户订单号
+     * @param merchantOrderId     商户本次 API 请求唯一标识
      * @param transactionType     交易类型
      * @param transactionDateTime 交易业务时间
      * @param timeZone            交易业务时区
@@ -155,6 +190,7 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                                                         String key,
                                                         String merchantId,
                                                         String merchantOrderNo,
+                                                        String merchantOrderId,
                                                         String transactionType,
                                                         LocalDateTime transactionDateTime,
                                                         String timeZone,
@@ -165,10 +201,12 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
         record.setIdempotencyKey(key);
         record.setMerchantId(merchantId);
         record.setMerchantOrderNo(merchantOrderNo);
+        record.setMerchantOrderId(merchantOrderId);
         record.setTransactionType(transactionType);
         record.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         record.setTransactionDateTime(transactionDateTime);
-        record.setTimeZone(timeZone);
+        record.setTransactionTimeZone(timeZone);
+        record.setTransactionUtcTime(toUtcTime(transactionDateTime, timeZone));
         record.setRequestFingerprint(requestFingerprint);
         record.setExpireTime(now.plusDays(DEFAULT_EXPIRE_DAYS));
         record.setVersion(INITIAL_VERSION);
@@ -180,5 +218,10 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
+        ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? "Asia/Shanghai" : timeZone);
+        return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 }

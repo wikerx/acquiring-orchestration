@@ -43,19 +43,19 @@ public class TransactionEventOutboxDO implements Serializable {
     private String aggregateType;
 
     /**
-     * 聚合标识，当前使用 transaction_order_no。
+     * 聚合标识，当前使用内部生命周期 operation_id。
      */
     private String aggregateNo;
 
     /**
-     * 同一原始交易生命周期主标识。
+     * 平台当前交易唯一标识，对应 transaction_operation.transaction_id。
      */
-    private String transactionOrderNo;
+    private String transactionId;
 
     /**
-     * 当前交易动作单号。
+     * 平台内部生命周期关联标识，对应 transaction_order.operation_id。
      */
-    private String transactionNo;
+    private String operationId;
 
     /**
      * 商户号，用于事件排查、补偿和下游消费幂等。
@@ -73,7 +73,7 @@ public class TransactionEventOutboxDO implements Serializable {
     private String transactionType;
 
     /**
-     * 事件类型，例如 PAYMENT_CREATED、PAYMENT_STATUS_CHANGED。
+     * 事件类型，例如 TRANSACTION_CREATED、TRANSACTION_STATUS_CHANGED。
      */
     private String eventType;
 
@@ -98,6 +98,11 @@ public class TransactionEventOutboxDO implements Serializable {
     private String messageKey;
 
     /**
+     * 顺序消息分组键，如 transaction_id。
+     */
+    private String messageGroup;
+
+    /**
      * 消息体 JSON，禁止保存完整卡号、CVV、JWT、私钥或 API Key。
      */
     private String payloadJson;
@@ -113,9 +118,14 @@ public class TransactionEventOutboxDO implements Serializable {
     private LocalDateTime transactionDateTime;
 
     /**
-     * 事件时间所属时区，默认 Asia/Shanghai。
+     * 交易业务时间对应 UTC 时间，用于跨时区排序和审计。
      */
-    private String timeZone;
+    private LocalDateTime transactionUtcTime;
+
+    /**
+     * 交易业务时间所属 IANA 时区，默认 Asia/Shanghai。
+     */
+    private String transactionTimeZone;
 
     /**
      * 当前重试次数。
@@ -161,4 +171,5 @@ public class TransactionEventOutboxDO implements Serializable {
      * 记录最后更新时间，数据库字段必须使用 DATETIME(3)。
      */
     private LocalDateTime updateTime;
+
 }

@@ -44,6 +44,11 @@ public class MerchantInfoDO extends BaseEntity {
     private String merchantName;
 
     /**
+     * 账单描述，用于交易账单或渠道侧展示的商户识别名称。
+     */
+    private String billingDescriptor;
+
+    /**
      * 商户简称，用于管理后台列表、运营查询和日志摘要展示。
      */
     private String merchantShortName;
@@ -77,6 +82,16 @@ public class MerchantInfoDO extends BaseEntity {
      * 商户开户地址或经营地址，用于卡组织资料、渠道风控和人工审核。
      */
     private String addressLine;
+
+    /**
+     * 商户经营地址邮编，用于渠道进件、AVS 辅助校验和人工审核。
+     */
+    private String postalCode;
+
+    /**
+     * 商户联系人姓名，用于人工审核、密钥交付和异常沟通。
+     */
+    private String contactName;
 
     /**
      * 商户联系人邮箱，用于开户通知、密钥交付通知和异常沟通。

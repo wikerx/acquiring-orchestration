@@ -68,7 +68,7 @@ class MpgsApiClientLiveFlowTests {
                 "AUTHORIZE授权",
                 cardRequest(new ChannelAuthorizeRequest(), ChannelCapability.AUTHORIZATION, orderId, nextId("AUT"), authorizeAmount)
         );
-        String authorizeTransactionId = authorize.getTransactionNo();
+        String authorizeTransactionId = authorize.getChannelTransactionId();
 
         executeAndAssert(
                 "QUERY查询授权",
@@ -120,7 +120,8 @@ class MpgsApiClientLiveFlowTests {
         ChannelPaymentResponse preAuthorize = executeAndAssert("PRE_AUTHORIZATION预授权", preAuthorizeRequest);
 
         ChannelVoidRequest voidRequest = amountRequest(new ChannelVoidRequest(), ChannelCapability.VOID, orderId, nextId("VOI"), amount);
-        voidRequest.setOriginalTransactionNo(preAuthorize.getTransactionNo());
+        voidRequest.setSourceTransactionId(preAuthorize.getTransactionId());
+        voidRequest.getExtension().put("targetTransactionId", preAuthorize.getChannelTransactionId());
         ChannelPaymentResponse voidResponse = executeAndAssert("VOID撤销预授权", voidRequest);
 
         log.info("MPGS真实流程测试完成，flow=预授权-Void，result={}",
@@ -150,7 +151,7 @@ class MpgsApiClientLiveFlowTests {
      */
     private ChannelPaymentResponse executeAndRecord(String caseName, ChannelPaymentRequest request) {
         log.info("MPGS真实接口开始，case={}, request={}", caseName, JsonUtils.toJsonString(new LiveCaseRequest(
-                request.getTransactionType(), request.getMerchantOrderNo(), request.getTransactionNo(),
+                request.getTransactionType(), request.getMerchantOrderNo(), request.getTransactionId(),
                 String.valueOf(request.getAmount()), request.getCurrency(),
                 MpgsApiClient.maskMpgsJson("{\"number\":\"" + request.getCardNo() + "\"}")
         )));
@@ -256,8 +257,10 @@ class MpgsApiClientLiveFlowTests {
                           String transactionId,
                           BigDecimal amount) {
         request.setChannelCode("MPGS");
-        request.setTransactionOrderNo(orderId);
-        request.setTransactionNo(transactionId);
+        request.setOperationId(orderId);
+        request.setTransactionId(transactionId);
+        request.setChannelOrderNo(orderId);
+        request.setChannelTransactionId(transactionId);
         request.setMerchantId(config.merchantId());
         request.setMerchantOrderNo(orderId);
         request.setTransactionType(capability.getCode());
@@ -283,7 +286,7 @@ class MpgsApiClientLiveFlowTests {
      * @return 响应摘要
      */
     private ResponseSummary summary(ChannelPaymentResponse response) {
-        return new ResponseSummary(response.getTransactionNo(), response.getChannelTradeStatus(),
+        return new ResponseSummary(response.getTransactionId(), response.getChannelTradeStatus(),
                 response.getChannelResponseCode(), response.getChannelResponseMessage(), response.getRawResponse());
     }
 
@@ -307,7 +310,7 @@ class MpgsApiClientLiveFlowTests {
                                    String card) {
     }
 
-    private record ResponseSummary(String transactionNo,
+    private record ResponseSummary(String transactionId,
                                    String status,
                                    String code,
                                    String message,

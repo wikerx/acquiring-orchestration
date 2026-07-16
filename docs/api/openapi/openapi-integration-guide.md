@@ -8,6 +8,9 @@
 | --- | --- | --- | --- |
 | v1.0.0 | 2026-06-03 | scott | 创建商户 OpenAPI 对接文档，包含鉴权、加密、响应解密、ISO 国家地区和币种查询接口 |
 | v1.1.0 | 2026-06-12 | scott | 拆分 ISO 对外 API 控制器，补充响应模型和 HTTP Method 规范 |
+| v1.2.2 | 2026-07-14 | scott | 补充 MPGS 渠道订单映射、渠道回调终态推进和商户异步通知说明 |
+| v1.2.1 | 2026-07-14 | scott | 明确收单交易订单标识、MPGS 订单号映射和后续动作按本次交易时间分表规则 |
+| v1.2.0 | 2026-07-14 | scott | 补充收单交易 V1 接口清单，移除早期 V2 测试入口说明，说明 transaction_id 与 transaction_date_time 后续动作定位规则 |
 
 ### 1.2 适用范围
 
@@ -17,7 +20,7 @@
 | --- | --- | --- |
 | ISO 字典 | 查询国家地区列表 | v1 |
 | ISO 字典 | 查询币种列表 | v1 |
-| 支付 | 创建收单授权 | v1、v2 |
+| 支付 | 一步支付、授权、预授权、增量授权、请款、退款、撤销、查询 | v1 |
 | 代付 | 创建代付 | v1 |
 
 后续支付、退款、代付、回调等接口均在本文档上继续追加。
@@ -505,9 +508,124 @@ eyJ0eXAiOiJQQVlNRU5ULVBBWUxPQUQiLCJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NN
 | --- | --- | --- | --- |
 | 查询国家地区列表 | POST | `/api/rest/iso/v1/countries/query` | 加密条件查询系统支持的 ISO 3166 国家地区 |
 | 查询币种列表 | POST | `/api/rest/iso/v1/currencies/query` | 加密条件查询系统支持的 ISO 4217 币种 |
+| 创建一步支付 | POST | `/api/rest/payment/v1/payment` | 创建一笔一步支付交易，通常由渠道一次完成授权和请款 |
 | 创建收单授权 | POST | `/api/rest/payment/v1/authorization` | 创建一笔收单授权交易 |
-| 创建收单授权 V2 | POST | `/api/rest/payment/v2/authorization` | 创建一笔 V2 收单授权交易 |
+| 创建预授权 | POST | `/api/rest/payment/v1/pre-authorization` | 创建一笔预授权交易 |
+| 创建增量授权 | POST | `/api/rest/payment/v1/incremental-authorization` | 对同一原始交易追加授权额度 |
+| 发起请款 | POST | `/api/rest/payment/v1/capture` | 对授权或预授权成功交易发起请款 |
+| 发起退款 | POST | `/api/rest/payment/v1/refund` | 对成功支付或已请款交易发起退款 |
+| 发起撤销 | POST | `/api/rest/payment/v1/void` | 撤销未清算、未请款、未退款的授权或支付动作 |
+| 查询交易 | POST | `/api/rest/payment/v1/query` | 按原交易 `transaction_id` 查询交易当前状态 |
 | 创建代付 | POST | `/api/rest/payout/v1/create` | 创建一笔代付交易 |
+
+### 10.1 收单交易 V1 接口说明
+
+收单交易接口均走同一套商户 OpenAPI 安全链路：`POST`、JWT 鉴权、请求 `data` 解密、参数校验、`jti` 防重放、成功响应 `data` 加密。商户不要直接调用 `service-payment` 的 `/internal/payment/**` 接口。
+
+商户侧订单标识统一放在 `orderInfo`：`orderInfo.orderNo` 是商户业务订单号，`orderInfo.orderId` 是商户本次 API 请求唯一标识，也是平台资金类幂等键。平台侧交易标识统一放在 `transactionInfo`：`transactionInfo.transactionId` 是平台当前交易唯一标识，每一笔授权、请款、退款、撤销都不同，新交易号不带 `TX` 或其他业务前缀；`transactionInfo.sourceTransactionId` 是后续动作关联的原平台交易 ID。`transactionInfo.transactionId` 是平台响应字段，商户请求中不要上送该字段。历史 `TX` 前缀交易号仍可用于查询和后续动作兼容。
+
+平台内部还会生成 `operation_id` 关联同一原始交易生命周期，但该字段不返回商户、不要求商户保存、不直接作为渠道请求标识。商户不需要传原交易业务时间，平台会根据 `sourceTransactionId` 定位原交易动作分表，再通过内部 `operation_id` 读取生命周期主单。
+
+平台与渠道交互时会继续隔离商户订单号和渠道订单号。以 MPGS 为例，MPGS URL 中的 `orderId` 使用原始授权或一步支付返回的 `transactionInfo.transactionId`，MPGS URL 中的 `transactionId` 使用平台生成并落库的 `channel_transaction_id`。商户无需感知 `channel_transaction_id`，也不会在 OpenAPI 响应中看到内部 `operation_id`。
+
+后续动作必须传入：
+
+| 字段 | 位置 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `orderInfo.orderNo` | 明文业务 JSON | M | 商户业务订单号，后续动作建议继续传原商户订单号 |
+| `orderInfo.orderId` | 明文业务 JSON | M | 商户本次 API 请求唯一标识；创建、请款、退款、撤销、查询均需唯一 |
+| `transactionInfo.sourceTransactionId` | 明文业务 JSON | M | 原平台交易 ID，即首次交易或被操作交易响应中的 `transactionInfo.transactionId` |
+
+首次类交易包括 `/payment`、`/authorization`、`/pre-authorization`，通常需要 `orderInfo`、`cardInfo` 和 `billingCardHolderInfo`，不要求商户传平台交易 ID。后续资金动作包括 `/incremental-authorization`、`/capture`、`/refund`、`/void`，平台会先按 `sourceTransactionId` 定位原交易，再校验交易类型、交易状态、币种和可用金额，校验通过后才会请求渠道。
+
+后续动作的金额规则：
+
+| 接口 | 金额规则 |
+| --- | --- |
+| `/incremental-authorization` | `orderInfo.amount` 必须大于 0，币种必须与原交易交易币种一致 |
+| `/capture` | `orderInfo.amount` 必须大于 0，不能超过原交易可请款金额，币种必须与原交易交易币种一致 |
+| `/refund` | `orderInfo.amount` 必须大于 0，不能超过原交易可退金额，币种必须与原交易交易币种一致 |
+| `/void` | 不建议传金额；原交易必须未请款、未退款，且状态允许撤销 |
+
+收单交易通用响应解密后示例：
+
+```json
+{
+  "merchantInfo": {
+    "merchantId": "200045",
+    "subMerchantInfo": {
+      "subId": "SUB001",
+      "merchantCategory": "5311"
+    }
+  },
+  "orderInfo": {
+    "orderNo": "M202607140001",
+    "orderId": "CAPTURE202607140001",
+    "amount": 120.00,
+    "currency": "USD",
+    "totalAuthorizedAmount": 120.00,
+    "totalCapturedAmount": 120.00,
+    "totalRefundAmount": 0.00
+  },
+  "transactionInfo": {
+    "code": "T200",
+    "message": "Success",
+    "transactionId": "202607141805301230002",
+    "sourceTransactionId": "202607141759001110001",
+    "transactionType": "CAPTURE",
+    "transactionStatus": "SUCCESS",
+    "processStage": "FINISHED",
+    "transactionDateTime": "2026-07-14T18:05:30+08:00",
+    "paymentMethod": "BANK_CARD",
+    "cardBrand": "MASTERCARD",
+    "cardBin": "512345****0008",
+    "authCode": "244682"
+  },
+  "billingInfo": {
+    "labelAmount": 120.00,
+    "labelCurrency": "USD",
+    "transactionAmount": 120.00,
+    "transactionCurrency": "USD",
+    "transactionRate": 1.00000000
+  }
+}
+```
+
+说明：响应业务 JSON 中为空的字段不返回。平台不会在商户响应中返回 `operationId`、`channel_transaction_id`、渠道原始报文、CVV 或完整卡号，也不会返回顶层兼容字段 `status/currency`、`dccEnabled`、`edcEnabled`；商户可通过 `transactionInfo.transactionStatus` 判断交易结果，通过 `billingInfo.labelCurrency/labelAmount` 与 `billingInfo.transactionCurrency/transactionAmount` 以及 `transactionRate` 判断是否发生币种转换。
+
+字段说明：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `merchantInfo.merchantId` | string | 支付平台颁发的商户号 |
+| `merchantInfo.subMerchantInfo` | object | 子商户摘要，返回商户上送且允许回显的字段；无值时不返回 |
+| `orderInfo.orderNo` | string | 商户订单号，原样返回请求中的 `orderInfo.orderNo` |
+| `orderInfo.orderId` | string | 商户本次 API 请求唯一标识，原样返回请求中的 `orderInfo.orderId` |
+| `orderInfo.amount` | decimal | 商户上送订单金额，主币种单位 |
+| `orderInfo.currency` | string | 商户上送订单币种 |
+| `orderInfo.totalAuthorizedAmount` | decimal | 当前生命周期累计授权成功金额，平台交易币种单位 |
+| `orderInfo.totalCapturedAmount` | decimal | 当前生命周期累计请款成功金额，平台交易币种单位 |
+| `orderInfo.totalRefundAmount` | decimal | 当前生命周期累计退款成功金额，平台交易币种单位 |
+| `transactionInfo.code` | string | 当前交易动作商户响应码，例如 `T200`、`T202`、`T203`、`F210` |
+| `transactionInfo.message` | string | 当前交易动作商户响应描述 |
+| `transactionInfo.transactionId` | string | 平台当前交易唯一标识，后续请款、退款、撤销、查询可作为 `sourceTransactionId` 使用 |
+| `transactionInfo.sourceTransactionId` | string | 原平台交易 ID；首次类交易通常为空，后续动作返回请求传入值 |
+| `transactionInfo.transactionType` | string | 交易类型，对齐平台字典 `transaction_type` |
+| `transactionInfo.transactionStatus` | string | 交易状态，对齐平台字典 `transaction_status` |
+| `transactionInfo.processStage` | string | 平台内部处理阶段，用于说明当前处于渠道处理中、等待 3DS、已完成等节点 |
+| `transactionInfo.transactionDateTime` | string | 交易发生时间，按交易业务时区返回，格式为 ISO-8601 offset datetime |
+| `transactionInfo.paymentMethod` | string | 支付方式，例如 `BANK_CARD` |
+| `transactionInfo.cardBrand` | string | 卡品牌或支付品牌，例如 `MASTERCARD`、`VISA` |
+| `transactionInfo.cardBin` | string | 脱敏卡号摘要，格式为前六位 + `****` + 后四位 |
+| `transactionInfo.authCode` | string | 授权码，渠道成功返回时填写 |
+| `transactionInfo.arn` | string | ARN 或收单机构参考号，请款或渠道返回时填写 |
+| `billingInfo.labelAmount` / `billingInfo.labelCurrency` | decimal / string | 商户上送或页面标签展示的金额和币种 |
+| `billingInfo.transactionAmount` / `billingInfo.transactionCurrency` | decimal / string | 平台上送渠道的交易金额和币种 |
+| `billingInfo.transactionRate` | decimal | 标签金额转平台交易金额使用的汇率，保留 8 位小数；未换汇时为 `1.00000000` |
+
+商户应以 `transactionInfo.transactionStatus` 判断交易结果：`SUCCESS` 表示当前动作成功，`FAILED` 表示当前动作失败，`PROCESSING` 或 `PENDING` 表示结果未最终确认，需通过查询接口或商户回调确认最终结果。HTTP 200 或外层 `T200` 只代表平台成功处理请求，不等于渠道资金结果必然成功；解密后的 `transactionInfo.code/message` 表示当前交易动作的商户可见结果。
+
+当商户在 `transactionInfo.callbackUrl` 或平台商户配置中登记回调地址时，平台会在交易进入终态后创建商户通知任务并按重试策略推送结果。商户通知只包含商户可见字段和模糊失败原因；渠道真实失败码、收单响应和内部排查信息只在平台后台交易详情、渠道交互日志和渠道回调记录中展示。
 
 ## 11. 查询国家地区列表
 

@@ -41,18 +41,9 @@ import java.util.List;
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantSecurityServiceImpl
- * @date : 2026-05-30 00:00
- * @email : scott_x@163.com
- * @description : OpenAPI 商户安全材料 MyBatisPlus 实现
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityServiceImpl
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIMerchant Security Service Impl，位于 service-openapi 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户 OpenAPI 安全材料服务实现，位于 service-openapi 服务层，负责商户 JWT 密钥、平台请求体 RSA 密钥和商户响应公钥的初始化、查询与轮换。
  * @status : create
  */
 @Primary
@@ -462,6 +453,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         MerchantInfoDO entity = new MerchantInfoDO();
         entity.setMerchantId(seedDTO.getMerchantId());
         entity.setMerchantName(seedDTO.getMerchantName());
+        entity.setBillingDescriptor(seedDTO.getMerchantName());
         entity.setMerchantShortName(defaultIfBlank(seedDTO.getMerchantShortName(), seedDTO.getMerchantName()));
         entity.setMerchantStatus(MerchantStatusEnum.ACTIVE.getCode());
         entity.setMerchantCategoryCode(defaultIfBlank(seedDTO.getMerchantCategoryCode(), "5311"));
@@ -469,6 +461,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setRegionCode(defaultIfBlank(seedDTO.getRegionCode(), "CA"));
         entity.setCity(defaultIfBlank(seedDTO.getCity(), "San Jose"));
         entity.setAddressLine(defaultIfBlank(seedDTO.getAddressLine(), "Default acquiring merchant address"));
+        entity.setPostalCode("95113");
+        entity.setContactName(defaultIfBlank(seedDTO.getMerchantName(), "Merchant Contact"));
         entity.setContactEmail(defaultIfBlank(seedDTO.getContactEmail(), "merchant@example.com"));
         entity.setContactPhone(defaultIfBlank(seedDTO.getContactPhone(), "+1-408-555-0100"));
         entity.setSettlementCurrency(defaultIfBlank(seedDTO.getSettlementCurrency(), DEFAULT_SETTLEMENT_CURRENCY));
@@ -702,6 +696,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         MerchantInfoDTO dto = new MerchantInfoDTO();
         dto.setMerchantId(entity.getMerchantId());
         dto.setMerchantName(entity.getMerchantName());
+        dto.setBillingDescriptor(entity.getBillingDescriptor());
         dto.setMerchantShortName(entity.getMerchantShortName());
         dto.setMerchantStatus(entity.getMerchantStatus());
         dto.setMerchantCategoryCode(entity.getMerchantCategoryCode());
@@ -709,6 +704,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         dto.setRegionCode(entity.getRegionCode());
         dto.setCity(entity.getCity());
         dto.setAddressLine(entity.getAddressLine());
+        dto.setPostalCode(entity.getPostalCode());
+        dto.setContactName(entity.getContactName());
         dto.setContactEmail(entity.getContactEmail());
         dto.setContactPhone(entity.getContactPhone());
         dto.setSettlementCurrency(entity.getSettlementCurrency());

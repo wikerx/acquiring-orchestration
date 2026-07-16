@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -33,12 +34,12 @@ public class TransactionIdempotencyDO implements Serializable {
     private Long id;
 
     /**
-     * 幂等业务范围，例如 PAYMENT_CREATE、CAPTURE、REFUND、CHANNEL_CALLBACK、MQ_CONSUME。
+     * 幂等业务范围，例如 TRANSACTION_OPERATION、CHANNEL_CALLBACK、MQ_CONSUME。
      */
     private String idempotencyScope;
 
     /**
-     * 幂等键，同一范围内必须唯一；创建交易使用 merchantId + merchantOrderNo + transactionType。
+     * 幂等键，同一范围内必须唯一；商户交易使用 merchantId + merchantOrderId + transactionType。
      */
     private String idempotencyKey;
 
@@ -53,19 +54,24 @@ public class TransactionIdempotencyDO implements Serializable {
     private String merchantOrderNo;
 
     /**
+     * 商户本次 API 请求唯一标识，来自 orderInfo.orderId，用于资金类幂等。
+     */
+    private String merchantOrderId;
+
+    /**
      * 交易类型，对齐系统字典 transaction_type。
      */
     private String transactionType;
 
     /**
-     * 同一原始交易生命周期主标识。
+     * 平台当前交易唯一标识，对应 transaction_operation.transaction_id。
      */
-    private String transactionOrderNo;
+    private String transactionId;
 
     /**
-     * 当前交易动作单号。
+     * 平台内部生命周期关联标识，对应 transaction_order.operation_id。
      */
-    private String transactionNo;
+    private String operationId;
 
     /**
      * 交易状态，对齐系统字典 transaction_status。
@@ -73,9 +79,19 @@ public class TransactionIdempotencyDO implements Serializable {
     private String transactionStatus;
 
     /**
-     * 交易金额，最小币种单位，例如 USD 分。
+     * 原始请求金额，主币种单位，用于幂等冲突排查。
      */
-    private Long transactionAmountMinor;
+    private BigDecimal requestAmount;
+
+    /**
+     * 原始请求币种，ISO 4217 三位大写币种代码。
+     */
+    private String requestCurrency;
+
+    /**
+     * 系统交易金额，主币种单位。
+     */
+    private BigDecimal transactionAmount;
 
     /**
      * 交易币种，ISO 4217 三位大写币种代码。
@@ -88,9 +104,19 @@ public class TransactionIdempotencyDO implements Serializable {
     private LocalDateTime transactionDateTime;
 
     /**
-     * 交易业务时间所属时区，默认 Asia/Shanghai。
+     * 交易业务时间对应 UTC 时间，用于跨时区排序和审计。
      */
-    private String timeZone;
+    private LocalDateTime transactionUtcTime;
+
+    /**
+     * 交易业务时间所属 IANA 时区，默认 Asia/Shanghai。
+     */
+    private String transactionTimeZone;
+
+    /**
+     * 交易发生时区偏移，例如 +08:00。
+     */
+    private String transactionTimezoneOffset;
 
     /**
      * 请求体安全摘要，用于问题排查；不得保存完整密文、卡号或 CVV。
@@ -126,4 +152,5 @@ public class TransactionIdempotencyDO implements Serializable {
      * 记录最后更新时间，数据库字段必须使用 DATETIME(3)。
      */
     private LocalDateTime updateTime;
+
 }

@@ -11,7 +11,7 @@
 
 当商户请求 `/api/rest/payment/v1/authorization` 时，只会匹配 V1 控制器。
 
-当系统新增 V2 控制器后，商户请求 `/api/rest/payment/v2/authorization` 会优先匹配 V2 控制器；如果后续商户请求 `/api/rest/payment/v3/authorization`，但系统还没有 V3 控制器，会自动降级匹配当前最高可用版本 V2。
+当前正式开放的收单支付接口仅保留 V1。后续如果新增 V2 控制器，商户请求 `/api/rest/payment/v2/authorization` 会优先匹配 V2 控制器；如果再请求更高版本但系统尚未提供对应控制器，版本匹配行为必须以实际 `ApiVersion` 组件配置和发布说明为准，不能在文档中提前承诺降级到某个未发布版本。
 
 ## 升级步骤
 
@@ -30,13 +30,13 @@
 public class OpenApiPaymentV2Controller {
 
     @PostMapping("/authorization")
-    public CommonResult<PaymentCreateVO> createPayment(...) {
+    public CommonResult<PaymentCreateVO> createAuthorization(...) {
         // V2 业务实现
     }
 }
 ```
 
-注意：Spring 默认 bean 名来自类名，同一个模块中不要让 V1/V2 控制器使用完全相同的简单类名，避免 beanName 冲突。建议类名显式带版本号，例如 `OpenApiPaymentV2Controller`。
+注意：V2 示例只说明升级方式，不代表当前已经开放 V2 接口。Spring 默认 bean 名来自类名，同一个模块中不要让 V1/V2 控制器使用完全相同的简单类名，避免 beanName 冲突。建议类名显式带版本号，例如 `OpenApiPaymentV2Controller`。
 
 ## Controller 拆分规则
 

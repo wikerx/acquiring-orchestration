@@ -32,14 +32,6 @@ public class MerchantSignatureVerifier implements SignatureVerifier {
      * @param secret     签名密钥
      * @return true 表示签名一致
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param parameters 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param signature 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param secret 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public boolean verify(Map<String, String> parameters, String signature, String secret) {
         if (signature == null || secret == null) {

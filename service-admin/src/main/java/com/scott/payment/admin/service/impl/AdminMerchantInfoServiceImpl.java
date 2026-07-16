@@ -121,6 +121,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
      */
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
+    /**
+     * 商户主体名称和账单描述需要进入渠道侧及卡组织资料，限制为可打印英文字符避免中文导致渠道拒绝。
+     */
+    private static final String PRINTABLE_ASCII_PATTERN = "^[\\x20-\\x7E]+$";
     private static final DateTimeFormatter KEY_VERSION_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
@@ -621,13 +625,18 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     private void merge(BaseMerchantInfoDO row, AdminMerchantSaveRequest request) {
-        row.setMerchantName(request.getMerchantName().trim());
+        String merchantName = trimRequiredAscii(request.getMerchantName(), "商户名称仅支持英文、数字、空格及常见英文符号");
+        String billingDescriptor = trimRequiredAscii(request.getBillingDescriptor(), "账单描述仅支持英文、数字、空格及常见英文符号");
+        row.setMerchantName(merchantName);
+        row.setBillingDescriptor(billingDescriptor);
         row.setMerchantShortName(request.getMerchantShortName().trim());
         row.setMerchantCategoryCode(request.getMerchantCategoryCode().trim());
         row.setCountryCode(trimUpper(request.getCountryCode()));
         row.setRegionCode(trimToNull(request.getRegionCode()));
         row.setCity(trimToNull(request.getCity()));
         row.setAddressLine(trimToNull(request.getAddressLine()));
+        row.setPostalCode(trimToNull(request.getPostalCode()));
+        row.setContactName(trimToNull(request.getContactName()));
         row.setContactEmail(request.getContactEmail().trim());
         row.setContactPhone(trimToNull(request.getContactPhone()));
         row.setSettlementCurrency(trimUpper(request.getSettlementCurrency()));
@@ -787,6 +796,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setRegionCode(row.getRegionCode());
         dto.setCity(row.getCity());
         dto.setAddressLine(row.getAddressLine());
+        dto.setBillingDescriptor(row.getBillingDescriptor());
+        dto.setPostalCode(row.getPostalCode());
+        dto.setContactName(row.getContactName());
         dto.setContactEmail(row.getContactEmail());
         dto.setContactPhone(row.getContactPhone());
         dto.setSettlementCurrency(row.getSettlementCurrency());
@@ -997,6 +1009,17 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String trimRequiredAscii(String value, String errorMessage) {
+        if (!StringUtils.hasText(value)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), errorMessage);
+        }
+        String trimmed = value.trim();
+        if (!trimmed.matches(PRINTABLE_ASCII_PATTERN)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), errorMessage);
+        }
+        return trimmed;
     }
 
     private String fingerprint(String value) {

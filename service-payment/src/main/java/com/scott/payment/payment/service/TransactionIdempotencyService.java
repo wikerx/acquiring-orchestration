@@ -2,6 +2,7 @@ package com.scott.payment.payment.service;
 
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -17,14 +18,14 @@ import java.util.Optional;
 public interface TransactionIdempotencyService {
 
     /**
-     * 构建幂等键。
+     * 构建交易动作幂等键。
      *
      * @param merchantId      商户号
-     * @param merchantOrderNo 商户订单号
+     * @param merchantOrderId 商户本次 API 请求唯一标识
      * @param transactionType 交易类型
      * @return 幂等键
      */
-    String buildPaymentCreateKey(String merchantId, String merchantOrderNo, String transactionType);
+    String buildTransactionOperationKey(String merchantId, String merchantOrderId, String transactionType);
 
     /**
      * 查询幂等记录。
@@ -34,6 +35,14 @@ public interface TransactionIdempotencyService {
      * @return 幂等记录
      */
     Optional<TransactionIdempotencyDO> find(String scope, String key);
+
+    /**
+     * 按平台当前交易 ID 查询首次交易幂等记录。
+     *
+     * @param transactionId 平台当前交易唯一标识
+     * @return 首次交易幂等记录
+     */
+    Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId);
 
     /**
      * 占用幂等键。
@@ -50,19 +59,19 @@ public interface TransactionIdempotencyService {
      *
      * @param scope                 幂等范围
      * @param key                   幂等键
-     * @param transactionOrderNo    交易生命周期主标识
-     * @param transactionNo         交易动作单号
+     * @param operationId           内部生命周期关联标识
+     * @param transactionId         平台当前交易 ID
      * @param transactionStatus     交易状态
-     * @param transactionAmountMinor 交易金额，最小币种单位
+     * @param transactionAmount     交易金额，主币种单位
      * @param transactionCurrency   交易币种
      * @param resultSnapshot        返回结果 JSON 快照
      */
     void complete(String scope,
                   String key,
-                  String transactionOrderNo,
-                  String transactionNo,
+                  String operationId,
+                  String transactionId,
                   String transactionStatus,
-                  Long transactionAmountMinor,
+                  BigDecimal transactionAmount,
                   String transactionCurrency,
                   String resultSnapshot);
 
@@ -73,6 +82,7 @@ public interface TransactionIdempotencyService {
      * @param key                 幂等键
      * @param merchantId          商户号
      * @param merchantOrderNo     商户订单号
+     * @param merchantOrderId     商户本次 API 请求唯一标识
      * @param transactionType     交易类型
      * @param transactionDateTime 交易业务时间
      * @param timeZone            交易业务时区
@@ -84,6 +94,7 @@ public interface TransactionIdempotencyService {
                                                  String key,
                                                  String merchantId,
                                                  String merchantOrderNo,
+                                                 String merchantOrderId,
                                                  String transactionType,
                                                  LocalDateTime transactionDateTime,
                                                  String timeZone,

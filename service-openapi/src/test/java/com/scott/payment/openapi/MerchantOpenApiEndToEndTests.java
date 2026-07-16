@@ -35,18 +35,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantOpenApiEndToEndTests
- * @date : 2026-05-30 09:40
- * @email : scott_x@163.com
- * @description : 商户使用自身密钥调用 OpenAPI 服务端的成功、响应解密和异常失败集成测试
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiEndToEndTests
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIMerchant Open Api End To End Tests，位于 service-openapi 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户 OpenAPI 端到端测试，验证商户请求加密、JWT 验签、响应加密和响应字段契约。
  * @status : create
  */
 @Slf4j
@@ -172,12 +163,14 @@ class MerchantOpenApiEndToEndTests {
         PaymentCreateVO decryptedResponse = decryptMerchantResponseData(onboardingMaterial, mvcResult.getResponse().getContentAsString());
         log.info("decryptedResponse={}", decryptedResponse);
 
-        assertThat(decryptedResponse.getMerchantOrderNo()).isEqualTo(SUCCESS_TRADE_NO);
-        assertThat(decryptedResponse.getCurrency()).isEqualTo("USD");
+        assertThat(decryptedResponse.getOrderInfo().getOrderNo()).isEqualTo(SUCCESS_TRADE_NO);
+        assertThat(decryptedResponse.getBillingInfo().getTransactionCurrency()).isEqualTo("USD");
+        assertThat(decryptedResponse.getBillingInfo().getTransactionAmount()).isEqualByComparingTo("12389.45");
+        assertThat(decryptedResponse.getTransactionInfo().getCode()).isEqualTo(ApiResultEnum.PROCESSING.getCode());
         log.info("商户完整调用成功-响应解密后订单号：{}，金额：{} {}",
-                decryptedResponse.getMerchantOrderNo(),
-                decryptedResponse.getAmount(),
-                decryptedResponse.getCurrency());
+                decryptedResponse.getOrderInfo().getOrderNo(),
+                decryptedResponse.getBillingInfo().getTransactionAmount(),
+                decryptedResponse.getBillingInfo().getTransactionCurrency());
     }
 
     /**

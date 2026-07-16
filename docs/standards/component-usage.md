@@ -99,9 +99,9 @@ MQ 基础接口在 `component-mq`：
 
 ```java
 BaseMqMessage message = new BaseMqMessage();
-message.setMessageId(paymentOrderNo);
+message.setMessageId(transactionId);
 message.setCreatedAt(LocalDateTime.now());
-mqProducer.send(MqTopic.PAYMENT_EVENT, "PAYMENT_CREATED", message);
+mqProducer.send(MqTopic.PAYMENT_EVENT, "TRANSACTION_CREATED", message);
 ```
 
 ## 订单号

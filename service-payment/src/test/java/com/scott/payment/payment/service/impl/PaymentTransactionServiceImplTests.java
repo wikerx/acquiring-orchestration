@@ -2,27 +2,38 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.redis.lock.RedisLockService;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
+import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentPendingReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
+import com.scott.payment.payment.domain.state.DefaultTransactionStateMachineService;
+import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
+import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
+import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
+import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -33,6 +44,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @author : scott
@@ -44,6 +56,26 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @status : create
  */
 class PaymentTransactionServiceImplTests {
+
+    /**
+     * 测试用原平台交易 ID，时间片段为 2026-07-12 10:30:00.000。
+     */
+    private static final String SOURCE_TRANSACTION_ID = "TX202607121030000000001";
+
+    /**
+     * 测试用请款动作交易 ID，用于覆盖商户以后续动作 ID 发起退款的场景。
+     */
+    private static final String CAPTURE_TRANSACTION_ID = "202607141615000000999";
+
+    /**
+     * 测试用内部生命周期关联 ID。
+     */
+    private static final String SOURCE_OPERATION_ID = "OP202607121030000000001";
+
+    /**
+     * 测试用原动作渠道交易 ID。
+     */
+    private static final String SOURCE_CHANNEL_TRANSACTION_ID = "CH202607121030000000001";
 
     /**
      * 风控通过后应进入渠道路由和渠道调用，并返回字典状态及交易生命周期标识。
@@ -58,28 +90,383 @@ class PaymentTransactionServiceImplTests {
         PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
         commandDTO.setMerchantId("200001");
         commandDTO.setMerchantOrderNo("M202607120001");
+        commandDTO.setMerchantOrderId("AUTH202607120001");
         commandDTO.setAmount(new BigDecimal("12.34"));
         commandDTO.setCurrency("USD");
+        commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
 
         PaymentCreateResultDTO resultDTO = service.createAuthorization(commandDTO);
 
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
         assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
-        assertThat(resultDTO.getTransactionOrderNo()).startsWith("TO");
-        assertThat(resultDTO.getTransactionNo()).startsWith("TX");
-        assertThat(resultDTO.getPaymentOrderNo()).isEqualTo(resultDTO.getTransactionOrderNo());
+        assertThat(resultDTO.getOperationId()).startsWith("OP");
+        assertThat(resultDTO.getTransactionId()).startsWith("20260712103000000");
+        assertThat(resultDTO.getTransactionId()).doesNotStartWith("TX");
         assertThat(resultDTO.getAmount()).isEqualTo(1234L);
         assertThat(channelInvokeService.commandDTO).isSameAs(commandDTO);
         assertThat(channelInvokeService.routeResultDTO.getChannelCode()).isEqualTo("MPGS");
-        assertThat(channelInvokeService.transactionOrderNo).isEqualTo(resultDTO.getTransactionOrderNo());
-        assertThat(channelInvokeService.transactionNo).isEqualTo(resultDTO.getTransactionNo());
-        assertThat(eventOutboxService.eventDO.getMessageKey()).isEqualTo(resultDTO.getTransactionNo());
+        assertThat(channelInvokeService.operationId).isEqualTo(resultDTO.getOperationId());
+        assertThat(channelInvokeService.transactionId).isEqualTo(resultDTO.getTransactionId());
+        assertThat(channelInvokeService.channelOrderNo).isEqualTo(resultDTO.getTransactionId());
+        assertThat(eventOutboxService.eventDO.getMessageKey()).isEqualTo(resultDTO.getTransactionId());
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("INIT");
-        assertThat(idempotencyService.find("PAYMENT_CREATE", "200001:M202607120001:AUTHORIZATION"))
+        assertThat(eventOutboxService.eventDO.getEventType()).isEqualTo("TRANSACTION_CREATED");
+        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:AUTH202607120001:AUTHORIZATION"))
                 .get()
-                .extracting(TransactionIdempotencyDO::getTransactionNo)
-                .isEqualTo(resultDTO.getTransactionNo());
+                .extracting(TransactionIdempotencyDO::getTransactionId)
+                .isEqualTo(resultDTO.getTransactionId());
+    }
+
+    /**
+     * 渠道支持商户标签币种时不触发 EDC，交易汇率按 1.00000000 落入命令上下文。
+     */
+    @Test
+    void shouldKeepDefaultRateWhenRequestedCurrencyIsSupportedByChannel() {
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                new CapturingTransactionRecordService(),
+                List.of(),
+                channelInvokeService);
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
+
+        assertThat(resultDTO.getCurrency()).isEqualTo("USD");
+        assertThat(channelInvokeService.commandDTO.getLabelCurrency()).isEqualTo("USD");
+        assertThat(channelInvokeService.commandDTO.getTransactionCurrency()).isEqualTo("USD");
+        assertThat(channelInvokeService.commandDTO.getTransactionAmount()).isEqualByComparingTo("12.34");
+        assertThat(channelInvokeService.commandDTO.getTransactionRate()).isEqualByComparingTo("1.00000000");
+        assertThat(channelInvokeService.commandDTO.getEdcEnabled()).isZero();
+    }
+
+    /**
+     * 渠道不支持商户标签币种但存在交易汇率时，应按 EDC 把标签金额换算为渠道支持币种后再上送渠道。
+     */
+    @Test
+    void shouldConvertLabelCurrencyToRoutedCurrencyWhenEdcRateExists() {
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                new CapturingTransactionRecordService(),
+                List.of(),
+                channelInvokeService,
+                commandDTO -> {
+                    PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
+                    routeResultDTO.setChannelId(101L);
+                    routeResultDTO.setMidConfigId(1001L);
+                    routeResultDTO.setMidNo("TESTDEVMER031");
+                    routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
+                    routeResultDTO.setRoutedCurrency("USD");
+                    routeResultDTO.setEdcRequired(true);
+                    return routeResultDTO;
+                },
+                exchangeRateService());
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        commandDTO.setAmount(new BigDecimal("100.00"));
+        commandDTO.setCurrency("CNY");
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(commandDTO);
+
+        assertThat(resultDTO.getCurrency()).isEqualTo("USD");
+        assertThat(resultDTO.getAmount()).isEqualTo(1400L);
+        assertThat(channelInvokeService.commandDTO.getLabelCurrency()).isEqualTo("CNY");
+        assertThat(channelInvokeService.commandDTO.getLabelAmount()).isEqualByComparingTo("100.00");
+        assertThat(channelInvokeService.commandDTO.getTransactionCurrency()).isEqualTo("USD");
+        assertThat(channelInvokeService.commandDTO.getTransactionAmount()).isEqualByComparingTo("14.00");
+        assertThat(channelInvokeService.commandDTO.getTransactionRate()).isEqualByComparingTo("0.14000000");
+        assertThat(channelInvokeService.commandDTO.getRateSource()).isEqualTo("TEST");
+        assertThat(channelInvokeService.commandDTO.getEdcEnabled()).isOne();
+    }
+
+    /**
+     * 渠道不支持标签币种且系统没有交易汇率时，交易应失败落库并禁止请求渠道，避免无汇率时误扣款。
+     */
+    @Test
+    void shouldRejectTransactionWhenEdcRateMissing() {
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService,
+                commandDTO -> {
+                    PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
+                    routeResultDTO.setChannelId(101L);
+                    routeResultDTO.setMidConfigId(1001L);
+                    routeResultDTO.setMidNo("TESTDEVMER031");
+                    routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
+                    routeResultDTO.setRoutedCurrency("EUR");
+                    routeResultDTO.setEdcRequired(true);
+                    return routeResultDTO;
+                },
+                exchangeRateService());
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        commandDTO.setCurrency("CNY");
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(commandDTO);
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.EXCHANGE_RATE_NOT_FOUND.getCode());
+        assertThat(resultDTO.getCurrency()).isEqualTo("CNY");
+        assertThat(resultDTO.getAmount()).isEqualTo(1234L);
+        assertThat(channelInvokeService.commandDTO).isNull();
+        assertThat(transactionRecordService.commandDTO.getEdcEnabled()).isOne();
+        assertThat(transactionRecordService.commandDTO.getLabelCurrency()).isEqualTo("CNY");
+        assertThat(transactionRecordService.commandDTO.getTransactionCurrency()).isEqualTo("CNY");
+        assertThat(transactionRecordService.commandDTO.getTransactionAmount()).isEqualByComparingTo("12.34");
+        assertThat(transactionRecordService.commandDTO.getTransactionRate()).isEqualByComparingTo("1.00000000");
+        assertThat(transactionRecordService.resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.EXCHANGE_RATE_NOT_FOUND.getCode());
+    }
+
+    /**
+     * 首次类交易必须在本地事务内记录主单、动作单和状态历史，为后续查询、请款、退款和时间线提供基础数据。
+     */
+    @Test
+    void shouldRecordInitialTransactionFactsWhenTransactionCreated() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                idempotencyService,
+                eventOutboxService,
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
+
+        assertThat(transactionRecordService.commandDTO.getMerchantOrderNo()).isEqualTo("M202607120001");
+        assertThat(transactionRecordService.resultDTO.getTransactionId()).isEqualTo(resultDTO.getTransactionId());
+        assertThat(transactionRecordService.routeResultDTO.getChannelCode()).isEqualTo("MPGS");
+        assertThat(transactionRecordService.channelResponse.getChannelResponseCode()).isEqualTo("00");
+        assertThat(transactionRecordService.riskDecisionEnum).isEqualTo(PaymentRiskDecisionEnum.PASS);
+        assertThat(transactionRecordService.currencyExponent).isEqualTo(2);
+    }
+
+    /**
+     * 子商户信息允许部分字段为空；交易响应回显时不能因为空字段触发 JDK 不允许 null 的集合构造异常。
+     */
+    @Test
+    void shouldIgnoreNullFieldsWhenSubMerchantInfoIsPartiallyProvided() {
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                new CapturingTransactionRecordService(),
+                List.of(),
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS)));
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        PaymentCreateCommandDTO.SubMerchantInfoDTO subMerchantInfoDTO = new PaymentCreateCommandDTO.SubMerchantInfoDTO();
+        subMerchantInfoDTO.setSubId("SUB200045");
+        subMerchantInfoDTO.setSubName("Codex");
+        subMerchantInfoDTO.setSubCountryCode("CHN");
+        subMerchantInfoDTO.setMerchantCategory("4077");
+        commandDTO.setSubMerchantInfo(subMerchantInfoDTO);
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(commandDTO);
+
+        assertThat(resultDTO.getSubMerchantInfo()).isNotNull();
+        assertThat(resultDTO.getSubMerchantInfo().getSubId()).isEqualTo("SUB200045");
+        assertThat(resultDTO.getSubMerchantInfo().getSubCompanyName()).isNull();
+    }
+
+    /**
+     * 一步支付入口应把交易类型传递为 PAYMENT，并复用首次交易受理骨架。
+     */
+    @Test
+    void shouldCreatePaymentWithPaymentTransactionType() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS), idempotencyService, eventOutboxService, List.of(), channelInvokeService);
+
+        PaymentCreateResultDTO resultDTO = service.createPayment(baseCommand());
+
+        assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
+        assertThat(channelInvokeService.commandDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
+        assertThat(idempotencyService.records).containsKey("TRANSACTION_OPERATION:200001:AUTH202607120001:PAYMENT");
+    }
+
+    /**
+     * 预授权入口应把交易类型传递为 PRE_AUTHORIZATION，并复用首次交易受理骨架。
+     */
+    @Test
+    void shouldCreatePreAuthorizationWithPreAuthorizationTransactionType() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS), idempotencyService, eventOutboxService, List.of(), channelInvokeService);
+
+        PaymentCreateResultDTO resultDTO = service.createPreAuthorization(baseCommand());
+
+        assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode());
+        assertThat(channelInvokeService.commandDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode());
+    }
+
+    /**
+     * 请款应按原交易时间和 transaction_id 定位授权主单，校验可请款金额后生成新的动作单并调用渠道。
+     */
+    @Test
+    void shouldCreateCaptureAfterSourceTransactionLocatedAndAmountChecked() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                idempotencyService,
+                eventOutboxService,
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+        PaymentCreateCommandDTO commandDTO = followUpCommand(PaymentTransactionTypeEnum.CAPTURE, new BigDecimal("5.00"));
+        commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 14, 16, 15));
+
+        PaymentCreateResultDTO resultDTO = service.capture(commandDTO);
+
+        assertThat(resultDTO.getOperationId()).isEqualTo(SOURCE_OPERATION_ID);
+        assertThat(resultDTO.getTransactionId()).startsWith("20260714161500000");
+        assertThat(resultDTO.getTransactionId()).doesNotStartWith("TX");
+        assertThat(resultDTO.getSourceTransactionId()).isEqualTo(SOURCE_TRANSACTION_ID);
+        assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.CAPTURE.getCode());
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(resultDTO.getAmount()).isEqualTo(500L);
+        assertThat(channelInvokeService.operationId).isEqualTo(SOURCE_OPERATION_ID);
+        assertThat(channelInvokeService.channelOrderNo).isEqualTo(SOURCE_TRANSACTION_ID);
+        assertThat(channelInvokeService.commandDTO.getMerchantOrderNo()).isEqualTo("M202607120001");
+        assertThat(channelInvokeService.commandDTO.getMerchantOrderId()).isEqualTo("CAPTURE202607120001");
+        assertThat(channelInvokeService.commandDTO.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 7, 14, 16, 15));
+        assertThat(channelInvokeService.commandDTO.getTransactionInfo().getSourceTransactionId()).isEqualTo(SOURCE_TRANSACTION_ID);
+        assertThat(channelInvokeService.commandDTO.getTransactionInfo().getSourceChannelTransactionId()).isEqualTo(SOURCE_CHANNEL_TRANSACTION_ID);
+        assertThat(transactionRecordService.followUpRecordDTO.getResultDTO().getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.CAPTURE.getCode());
+    }
+
+    /**
+     * 退款即使以上一笔请款交易 ID 作为源交易，也必须使用生命周期根交易 ID 作为 MPGS orderId。
+     */
+    @Test
+    void shouldUseRootTransactionIdAsChannelOrderNoWhenRefundSourceIsCaptureOperation() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+        PaymentCreateCommandDTO commandDTO = followUpCommand(PaymentTransactionTypeEnum.REFUND, new BigDecimal("1.00"));
+        commandDTO.getTransactionInfo().setSourceTransactionId(CAPTURE_TRANSACTION_ID);
+        commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 15, 14, 30));
+
+        PaymentCreateResultDTO resultDTO = service.refund(commandDTO);
+
+        assertThat(resultDTO.getSourceTransactionId()).isEqualTo(CAPTURE_TRANSACTION_ID);
+        assertThat(channelInvokeService.channelOrderNo).isEqualTo(SOURCE_TRANSACTION_ID);
+        assertThat(channelInvokeService.commandDTO.getTransactionInfo().getSourceChannelTransactionId()).isEqualTo("CH202607141615000000999");
+        assertThat(transactionRecordService.followUpRecordDTO.getSourceOrderDO().getRootTransactionId()).isEqualTo(SOURCE_TRANSACTION_ID);
+    }
+
+    /**
+     * 退款金额超过主单可退金额时必须在渠道调用前被状态机拒绝。
+     */
+    @Test
+    void shouldRejectRefundWhenAmountExceedsAvailableRefundAmount() {
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                new CapturingTransactionRecordService(),
+                List.of(),
+                channelInvokeService);
+
+        assertThatThrownBy(() -> service.refund(followUpCommand(PaymentTransactionTypeEnum.REFUND, new BigDecimal("9.00"))))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.PARAM_INVALID.getCode());
+        assertThat(channelInvokeService.commandDTO).isNull();
+    }
+
+    /**
+     * 查询应通过 transaction_date_time + transaction_id 精确读取原交易主单，并返回主单当前状态。
+     */
+    @Test
+    void shouldQueryTransactionBySourceTransactionDateTimeAndTransactionId() {
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                new CapturingTransactionRecordService(),
+                List.of(),
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING)));
+
+        PaymentCreateResultDTO resultDTO = service.query(followUpCommand(PaymentTransactionTypeEnum.CAPTURE, new BigDecimal("1.00")));
+
+        assertThat(resultDTO.getOperationId()).isEqualTo(SOURCE_OPERATION_ID);
+        assertThat(resultDTO.getTransactionId()).isEqualTo(SOURCE_TRANSACTION_ID);
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(resultDTO.getAmount()).isEqualTo(1234L);
+    }
+
+    /**
+     * 商户后续动作不需要上送原交易时间；系统应从平台交易号时间片定位原动作分表，再统一后续动作分表时间。
+     */
+    @Test
+    void shouldResolveSourceTransactionDateTimeFromTransactionIdWhenMerchantDoesNotPassIt() {
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                new CapturingTransactionRecordService(),
+                List.of(),
+                channelInvokeService);
+        PaymentCreateCommandDTO commandDTO = followUpCommand(PaymentTransactionTypeEnum.CAPTURE, new BigDecimal("5.00"));
+        commandDTO.getTransactionInfo().setSourceTransactionDateTime(null);
+        commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 14, 16, 16));
+
+        PaymentCreateResultDTO resultDTO = service.capture(commandDTO);
+
+        assertThat(resultDTO.getOperationId()).isEqualTo(SOURCE_OPERATION_ID);
+        assertThat(commandDTO.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 7, 14, 16, 16));
+        assertThat(commandDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
+        assertThat(channelInvokeService.commandDTO).isSameAs(commandDTO);
+    }
+
+    /**
+     * 后续动作不依赖幂等记录定位原交易；即使没有首次幂等记录，也应从标准平台 transaction_id 推导原交易分表时间。
+     */
+    @Test
+    void shouldResolveSourceTransactionDateTimeFromTransactionIdWhenIdempotencyMissed() {
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new EmptyInitialTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                new CapturingTransactionRecordService(),
+                List.of(),
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS)));
+        PaymentCreateCommandDTO commandDTO = followUpCommand(PaymentTransactionTypeEnum.CAPTURE, new BigDecimal("5.00"));
+        commandDTO.getTransactionInfo().setSourceTransactionDateTime(null);
+        commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 14, 16, 17));
+
+        PaymentCreateResultDTO resultDTO = service.capture(commandDTO);
+
+        assertThat(resultDTO.getOperationId()).isEqualTo(SOURCE_OPERATION_ID);
+        assertThat(commandDTO.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 7, 14, 16, 17));
+        assertThat(commandDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
     }
 
     /**
@@ -98,7 +485,8 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
         assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
-        assertThat(eventOutboxService.eventDO).isNull();
+        assertThat(eventOutboxService.eventDO).isNotNull();
+        assertThat(eventOutboxService.eventDO.getTransactionId()).isEqualTo(resultDTO.getTransactionId());
     }
 
     /**
@@ -154,7 +542,8 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
-        assertThat(eventOutboxService.eventDO).isNull();
+        assertThat(eventOutboxService.eventDO).isNotNull();
+        assertThat(eventOutboxService.eventDO.getTransactionId()).isEqualTo(resultDTO.getTransactionId());
     }
 
     /**
@@ -171,8 +560,8 @@ class PaymentTransactionServiceImplTests {
         PaymentCreateResultDTO firstResult = service.createAuthorization(commandDTO);
         PaymentCreateResultDTO repeatedResult = service.createAuthorization(commandDTO);
 
-        assertThat(repeatedResult.getTransactionNo()).isEqualTo(firstResult.getTransactionNo());
-        assertThat(repeatedResult.getTransactionOrderNo()).isEqualTo(firstResult.getTransactionOrderNo());
+        assertThat(repeatedResult.getTransactionId()).isEqualTo(firstResult.getTransactionId());
+        assertThat(repeatedResult.getOperationId()).isEqualTo(firstResult.getOperationId());
         assertThat(idempotencyService.records).hasSize(1);
     }
 
@@ -187,7 +576,7 @@ class PaymentTransactionServiceImplTests {
                 riskDecision(PaymentRiskDecisionEnum.PASS), idempotencyService, eventOutboxService, List.of(new RejectingRedisLockService()));
         PaymentCreateCommandDTO commandDTO = baseCommand();
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.createAuthorization(commandDTO))
+        assertThatThrownBy(() -> service.createAuthorization(commandDTO))
                 .hasMessage("The network is busy, please try again later");
     }
 
@@ -249,8 +638,24 @@ class PaymentTransactionServiceImplTests {
         PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
         commandDTO.setMerchantId("200001");
         commandDTO.setMerchantOrderNo("M202607120001");
+        commandDTO.setMerchantOrderId("AUTH202607120001");
         commandDTO.setAmount(new BigDecimal("12.34"));
         commandDTO.setCurrency("USD");
+        return commandDTO;
+    }
+
+    private PaymentCreateCommandDTO followUpCommand(PaymentTransactionTypeEnum transactionTypeEnum, BigDecimal amount) {
+        PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
+        commandDTO.setMerchantId("200001");
+        commandDTO.setMerchantOrderNo(transactionTypeEnum.getCode() + "202607120001");
+        commandDTO.setMerchantOrderId(transactionTypeEnum.getCode() + "202607120001");
+        commandDTO.setAmount(amount);
+        commandDTO.setCurrency("USD");
+        commandDTO.setTransactionType(transactionTypeEnum.getCode());
+        commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 13, 11, 30));
+        PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
+        transactionInfoDTO.setSourceTransactionId(SOURCE_TRANSACTION_ID);
+        commandDTO.setTransactionInfo(transactionInfoDTO);
         return commandDTO;
     }
 
@@ -267,7 +672,7 @@ class PaymentTransactionServiceImplTests {
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
                                                      List<RedisLockService> redisLockServices) {
-        return newService(riskInvokeService, idempotencyService, eventOutboxService, redisLockServices,
+        return newService(riskInvokeService, idempotencyService, eventOutboxService, new CapturingTransactionRecordService(), redisLockServices,
                 new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING)));
     }
 
@@ -276,22 +681,64 @@ class PaymentTransactionServiceImplTests {
                                                      CapturingTransactionEventOutboxService eventOutboxService,
                                                      List<RedisLockService> redisLockServices,
                                                      PaymentChannelInvokeService channelInvokeService) {
+        return newService(riskInvokeService, idempotencyService, eventOutboxService, new CapturingTransactionRecordService(), redisLockServices, channelInvokeService);
+    }
+
+    private PaymentTransactionServiceImpl newService(PaymentRiskInvokeService riskInvokeService,
+                                                     InMemoryTransactionIdempotencyService idempotencyService,
+                                                     CapturingTransactionEventOutboxService eventOutboxService,
+                                                     CapturingTransactionRecordService transactionRecordService,
+                                                     List<RedisLockService> redisLockServices,
+                                                     PaymentChannelInvokeService channelInvokeService) {
+        return newService(riskInvokeService, idempotencyService, eventOutboxService, transactionRecordService,
+                redisLockServices, channelInvokeService, routeService(), exchangeRateService());
+    }
+
+    private PaymentTransactionServiceImpl newService(PaymentRiskInvokeService riskInvokeService,
+                                                     InMemoryTransactionIdempotencyService idempotencyService,
+                                                     CapturingTransactionEventOutboxService eventOutboxService,
+                                                     CapturingTransactionRecordService transactionRecordService,
+                                                     List<RedisLockService> redisLockServices,
+                                                     PaymentChannelInvokeService channelInvokeService,
+                                                     PaymentChannelRouteService routeService,
+                                                     PaymentExchangeRateService exchangeRateService) {
         return new PaymentTransactionServiceImpl(
                 isoDictionaryService(),
                 riskInvokeService,
-                routeService(),
+                routeService,
                 channelInvokeService,
+                exchangeRateService,
                 idempotencyService,
                 eventOutboxService,
+                transactionRecordService,
+                new DefaultTransactionStateMachineService(),
                 redisLockServices);
     }
 
     private PaymentChannelRouteService routeService() {
         return commandDTO -> {
             PaymentRouteResultDTO routeResultDTO = PaymentRouteResultDTO.routed("MPGS");
+            routeResultDTO.setChannelId(101L);
             routeResultDTO.setMidConfigId(1001L);
             routeResultDTO.setMidNo("TESTDEVMER031");
+            routeResultDTO.setRequestedCurrency(commandDTO.getCurrency());
+            routeResultDTO.setRoutedCurrency(commandDTO.getCurrency());
             return routeResultDTO;
+        };
+    }
+
+    private PaymentExchangeRateService exchangeRateService() {
+        return (baseCurrency, quoteCurrency, atTime) -> {
+            if ("CNY".equalsIgnoreCase(baseCurrency) && "USD".equalsIgnoreCase(quoteCurrency)) {
+                PaymentExchangeRateDTO dto = new PaymentExchangeRateDTO();
+                dto.setBaseCurrency("CNY");
+                dto.setQuoteCurrency("USD");
+                dto.setSourceCode("TEST");
+                dto.setFinalRate(new BigDecimal("0.14000000"));
+                dto.setEffectiveTime(LocalDateTime.of(2026, 7, 12, 10, 0));
+                return Optional.of(dto);
+            }
+            return Optional.empty();
         };
     }
 
@@ -333,16 +780,25 @@ class PaymentTransactionServiceImplTests {
 
             @Override
             public List<IsoCurrencyInfo> listCurrencies() {
-                return List.of();
+                return List.of(usdCurrencyInfo(), cnyCurrencyInfo(), eurCurrencyInfo());
             }
 
             @Override
             public List<IsoCurrencyInfo> searchCurrencies(String keyword) {
-                return List.of();
+                return List.of(usdCurrencyInfo(), cnyCurrencyInfo(), eurCurrencyInfo());
             }
 
             @Override
             public Optional<IsoCurrencyInfo> getCurrency(String value) {
+                if ("USD".equalsIgnoreCase(value)) {
+                    return Optional.of(usdCurrencyInfo());
+                }
+                if ("CNY".equalsIgnoreCase(value)) {
+                    return Optional.of(cnyCurrencyInfo());
+                }
+                if ("EUR".equalsIgnoreCase(value)) {
+                    return Optional.of(eurCurrencyInfo());
+                }
                 return Optional.empty();
             }
 
@@ -355,7 +811,142 @@ class PaymentTransactionServiceImplTests {
             public long toMinorUnit(BigDecimal amount, String currencyValue) {
                 return amount.movePointRight(2).longValueExact();
             }
+
+            private IsoCurrencyInfo usdCurrencyInfo() {
+                return new IsoCurrencyInfo("USD", "840", "US Dollar", "美元", 2, 100L, new BigDecimal("0.01"), "$");
+            }
+
+            private IsoCurrencyInfo cnyCurrencyInfo() {
+                return new IsoCurrencyInfo("CNY", "156", "Yuan Renminbi", "人民币", 2, 100L, new BigDecimal("0.01"), "¥");
+            }
+
+            private IsoCurrencyInfo eurCurrencyInfo() {
+                return new IsoCurrencyInfo("EUR", "978", "Euro", "欧元", 2, 100L, new BigDecimal("0.01"), "€");
+            }
         };
+    }
+
+    private static class CapturingTransactionRecordService implements TransactionRecordService {
+
+        private PaymentCreateCommandDTO commandDTO;
+
+        private PaymentRouteResultDTO routeResultDTO;
+
+        private ChannelPaymentResponse channelResponse;
+
+        private PaymentChannelInvokeResultDTO channelInvokeResultDTO;
+
+        private PaymentCreateResultDTO resultDTO;
+
+        private PaymentRiskDecisionEnum riskDecisionEnum;
+
+        private int currencyExponent;
+
+        private TransactionFollowUpRecordDTO followUpRecordDTO;
+
+        @Override
+        public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
+                                             PaymentRouteResultDTO routeResultDTO,
+                                             PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+                                             PaymentCreateResultDTO resultDTO,
+                                             PaymentRiskDecisionEnum riskDecisionEnum,
+                                             int currencyExponent) {
+            this.commandDTO = commandDTO;
+            this.routeResultDTO = routeResultDTO;
+            this.channelInvokeResultDTO = channelInvokeResultDTO;
+            this.channelResponse = channelInvokeResultDTO == null ? null : channelInvokeResultDTO.getChannelResponse();
+            this.resultDTO = resultDTO;
+            this.riskDecisionEnum = riskDecisionEnum;
+            this.currencyExponent = currencyExponent;
+        }
+
+        @Override
+        public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
+            if (!LocalDateTime.of(2026, 7, 12, 10, 30).equals(transactionDateTime)
+                    || !SOURCE_OPERATION_ID.equals(operationId)) {
+                return null;
+            }
+            TransactionOrderDO orderDO = new TransactionOrderDO();
+            orderDO.setOperationId(SOURCE_OPERATION_ID);
+            orderDO.setRootTransactionId(SOURCE_TRANSACTION_ID);
+            orderDO.setLatestTransactionId(SOURCE_TRANSACTION_ID);
+            orderDO.setMerchantId("200001");
+            orderDO.setMerchantOrderNo("M202607120001");
+            orderDO.setMerchantOrderId("AUTH202607120001");
+            orderDO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
+            orderDO.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+            orderDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            orderDO.setTransactionCurrency("USD");
+            orderDO.setTransactionAmount(new BigDecimal("12.34"));
+            orderDO.setAuthorizedAmount(new BigDecimal("12.34"));
+            orderDO.setCapturedAmount(BigDecimal.ZERO);
+            orderDO.setRefundedAmount(BigDecimal.ZERO);
+            orderDO.setAvailableCaptureAmount(new BigDecimal("12.34"));
+            orderDO.setAvailableRefundAmount(new BigDecimal("5.00"));
+            orderDO.setCurrencyExponent(2);
+            orderDO.setTransactionDateTime(transactionDateTime);
+            orderDO.setTransactionUtcTime(LocalDateTime.of(2026, 7, 12, 2, 30));
+            orderDO.setTransactionTimeZone("Asia/Shanghai");
+            orderDO.setVersion(0);
+            return orderDO;
+        }
+
+        @Override
+        public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId) {
+            if (!SOURCE_TRANSACTION_ID.equals(sourceTransactionId) && !CAPTURE_TRANSACTION_ID.equals(sourceTransactionId)) {
+                return null;
+            }
+            return findOrder(LocalDateTime.of(2026, 7, 12, 10, 30), SOURCE_OPERATION_ID);
+        }
+
+        @Override
+        public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
+            if (!SOURCE_TRANSACTION_ID.equals(sourceTransactionId) && !CAPTURE_TRANSACTION_ID.equals(sourceTransactionId)) {
+                return null;
+            }
+            TransactionOperationDO operationDO = new TransactionOperationDO();
+            operationDO.setOperationId(SOURCE_OPERATION_ID);
+            operationDO.setTransactionId(sourceTransactionId);
+            operationDO.setChannelOrderNo(SOURCE_TRANSACTION_ID);
+            operationDO.setChannelTransactionId(SOURCE_TRANSACTION_ID.equals(sourceTransactionId)
+                    ? SOURCE_CHANNEL_TRANSACTION_ID
+                    : "CH202607141615000000999");
+            operationDO.setTransactionDateTime(SOURCE_TRANSACTION_ID.equals(sourceTransactionId)
+                    ? LocalDateTime.of(2026, 7, 12, 10, 30)
+                    : LocalDateTime.of(2026, 7, 14, 16, 15));
+            return operationDO;
+        }
+
+        @Override
+        public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
+            if (!SOURCE_TRANSACTION_ID.equals(channelOrderNo) || !SOURCE_CHANNEL_TRANSACTION_ID.equals(channelTransactionId)) {
+                return null;
+            }
+            return findSourceOperationByTransactionId(SOURCE_TRANSACTION_ID);
+        }
+
+        @Override
+        public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
+            this.followUpRecordDTO = recordDTO;
+        }
+
+        @Override
+        public boolean completeByChannelCallback(TransactionOperationDO operationDO,
+                                                 TransactionOrderDO orderDO,
+                                                 String callbackId,
+                                                 String targetTransactionStatus,
+                                                 String failReasonCode,
+                                                 String failReasonMessage,
+                                                 String channelStatus,
+                                                 String channelResponseCode,
+                                                 String channelResponseMessage) {
+            return true;
+        }
+
+        @Override
+        public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateCommandDTO commandDTO) {
+            return true;
+        }
     }
 
     private static class CapturingTransactionEventOutboxService implements TransactionEventOutboxService {
@@ -399,24 +990,31 @@ class PaymentTransactionServiceImplTests {
 
         private PaymentRouteResultDTO routeResultDTO;
 
-        private String transactionOrderNo;
+        private String operationId;
 
-        private String transactionNo;
+        private String transactionId;
+
+        private String channelOrderNo;
 
         private CapturingPaymentChannelInvokeService(ChannelPaymentResponse response) {
             this.response = response;
         }
 
         @Override
-        public ChannelPaymentResponse invoke(PaymentCreateCommandDTO commandDTO,
-                                             PaymentRouteResultDTO routeResult,
-                                             String transactionOrderNo,
-                                             String transactionNo) {
+        public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResult,
+                                                    String operationId,
+                                                    String transactionId,
+                                                    String channelOrderNo) {
             this.commandDTO = commandDTO;
             this.routeResultDTO = routeResult;
-            this.transactionOrderNo = transactionOrderNo;
-            this.transactionNo = transactionNo;
-            return response;
+            this.operationId = operationId;
+            this.transactionId = transactionId;
+            this.channelOrderNo = channelOrderNo;
+            PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
+            resultDTO.setChannelResponse(response);
+            resultDTO.setRequestStatus("SUCCESS");
+            return resultDTO;
         }
     }
 
@@ -425,13 +1023,27 @@ class PaymentTransactionServiceImplTests {
         private final Map<String, TransactionIdempotencyDO> records = new LinkedHashMap<>();
 
         @Override
-        public String buildPaymentCreateKey(String merchantId, String merchantOrderNo, String transactionType) {
-            return String.join(":", merchantId, merchantOrderNo, transactionType);
+        public String buildTransactionOperationKey(String merchantId, String merchantOrderId, String transactionType) {
+            return String.join(":", merchantId, merchantOrderId, transactionType);
         }
 
         @Override
         public Optional<TransactionIdempotencyDO> find(String scope, String key) {
             return Optional.ofNullable(records.get(scope + ":" + key));
+        }
+
+        @Override
+        public Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId) {
+            if (!SOURCE_TRANSACTION_ID.equals(transactionId)) {
+                return Optional.empty();
+            }
+            TransactionIdempotencyDO record = new TransactionIdempotencyDO();
+            record.setOperationId(SOURCE_OPERATION_ID);
+            record.setTransactionId(transactionId);
+            record.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
+            record.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+            record.setTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+            return Optional.of(record);
         }
 
         @Override
@@ -447,17 +1059,17 @@ class PaymentTransactionServiceImplTests {
         @Override
         public void complete(String scope,
                              String key,
-                             String transactionOrderNo,
-                             String transactionNo,
+                             String operationId,
+                             String transactionId,
                              String transactionStatus,
-                             Long transactionAmountMinor,
+                             BigDecimal transactionAmount,
                              String transactionCurrency,
                              String resultSnapshot) {
             TransactionIdempotencyDO record = records.get(scope + ":" + key);
-            record.setTransactionOrderNo(transactionOrderNo);
-            record.setTransactionNo(transactionNo);
+            record.setOperationId(operationId);
+            record.setTransactionId(transactionId);
             record.setTransactionStatus(transactionStatus);
-            record.setTransactionAmountMinor(transactionAmountMinor);
+            record.setTransactionAmount(transactionAmount);
             record.setTransactionCurrency(transactionCurrency);
             record.setResultSnapshot(resultSnapshot);
         }
@@ -467,6 +1079,7 @@ class PaymentTransactionServiceImplTests {
                                                             String key,
                                                             String merchantId,
                                                             String merchantOrderNo,
+                                                            String merchantOrderId,
                                                             String transactionType,
                                                             LocalDateTime transactionDateTime,
                                                             String timeZone,
@@ -477,11 +1090,21 @@ class PaymentTransactionServiceImplTests {
             record.setIdempotencyKey(key);
             record.setMerchantId(merchantId);
             record.setMerchantOrderNo(merchantOrderNo);
+            record.setMerchantOrderId(merchantOrderId);
             record.setTransactionType(transactionType);
             record.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
             record.setTransactionDateTime(transactionDateTime);
-            record.setTimeZone(timeZone);
+            record.setTransactionTimeZone(timeZone);
+            record.setTransactionUtcTime(transactionDateTime);
             return record;
+        }
+    }
+
+    private static class EmptyInitialTransactionIdempotencyService extends InMemoryTransactionIdempotencyService {
+
+        @Override
+        public Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId) {
+            return Optional.empty();
         }
     }
 
@@ -496,4 +1119,5 @@ class PaymentTransactionServiceImplTests {
         public void unlock(String key, String value) {
         }
     }
+
 }

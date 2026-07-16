@@ -38,13 +38,6 @@ public class HmacSha256Signer {
      * @param secret     签名密钥
      * @return 小写十六进制签名
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param parameters 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param secret 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String sign(Map<String, String> parameters, String secret) {
         Objects.requireNonNull(parameters, "parameters can not be null");
         return sign(buildCanonicalText(parameters), secret);
@@ -56,12 +49,6 @@ public class HmacSha256Signer {
      * @param content 待签名文本
      * @param secret  签名密钥
      * @return 小写十六进制签名
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param content 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param secret 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public String sign(String content, String secret) {
         Objects.requireNonNull(content, "content can not be null");
@@ -75,12 +62,6 @@ public class HmacSha256Signer {
      * @param content 待签名文本
      * @param secret  签名密钥
      * @return Base64Url 无填充签名
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param content 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param secret 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public String signBase64Url(String content, String secret) {
         Objects.requireNonNull(content, "content can not be null");

@@ -33,7 +33,13 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 授权交易校验分组，适用于首次扣款或消费类请求。
+     * 一步支付交易校验分组，适用于商户希望渠道一次完成授权和请款的请求。
+     */
+    public interface Payment {
+    }
+
+    /**
+     * 授权交易校验分组，适用于首次授权或后续请款前的额度确认请求。
      */
     public interface Authorization {
     }
@@ -42,6 +48,12 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * 预授权交易校验分组，适用于先冻结额度、后续再完成请款的请求。
      */
     public interface PreAuthorization {
+    }
+
+    /**
+     * 增量授权校验分组，适用于对同一原始交易生命周期追加授权额度。
+     */
+    public interface IncrementalAuthorization {
     }
 
     /**
@@ -63,6 +75,12 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
+     * 查询交易校验分组，适用于按商户订单号或平台交易号查询交易状态。
+     */
+    public interface Query {
+    }
+
+    /**
      * 冲正交易校验分组，适用于异常交易的反向更正。
      */
     public interface Reversal {
@@ -78,14 +96,14 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * 商户信息，包含支付平台商户号以及子商户信息，所有收单类交易都需要用它定位商户配置。
      */
     @Valid
-    @NotNull(message = "merchantInfo", groups = {Authorization.class, PreAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Reversal.class})
+    @NotNull(message = "merchantInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private MerchantInfoDTO merchantInfo;
 
     /**
-     * 订单信息，包含金额、币种、商户订单号和原始交易引用，用于创建或关联交易。
+     * 订单信息，包含金额、币种、商户订单号和商户本次请求唯一标识。
      */
     @Valid
-    @NotNull(message = "orderInfo", groups = {Authorization.class, PreAuthorization.class, Capture.class, Refund.class})
+    @NotNull(message = "orderInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private OrderInfoDTO orderInfo;
 
     /**
@@ -101,21 +119,21 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * 持卡人账单信息，用于卡组织风控、AVS 校验和交易补充数据。
      */
     @Valid
-    @NotNull(message = "billingCardHolderInfo", groups = {Authorization.class})
+    @NotNull(message = "billingCardHolderInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class})
     private BillingCardHolderInfoDTO billingCardHolderInfo;
 
     /**
      * 卡信息，包含 PAN、有效期和安全码，是授权交易的核心敏感数据，日志中必须脱敏。
      */
     @Valid
-    @NotNull(message = "cardInfo", groups = {Authorization.class})
+    @NotNull(message = "cardInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class})
     private CardInfoDTO cardInfo;
 
     /**
-     * 原交易或后续操作信息，退款、撤销、冲正等非首次授权接口通过该对象定位原交易。
+     * 平台交易信息。首次类交易不要求商户传入；后续动作通过 sourceTransactionId 定位原平台交易。
      */
     @Valid
-    @NotNull(message = "transactionInfo", groups = {Authorization.class, Refund.class, AuthorizationCancel.class, Reversal.class})
+    @NotNull(message = "transactionInfo", groups = {IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private TransactionInfoDTO transactionInfo;
 
     @Data
@@ -130,7 +148,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 支付平台颁发的商户号，必须与 JWT 中的 merchantId 保持一致，避免商户冒用其他商户配置。
          */
-        @NotBlank(message = "merchantInfo.merchantId", groups = {Authorization.class, PreAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Reversal.class})
+        @NotBlank(message = "merchantInfo.merchantId", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
         @Pattern(regexp = "^[2-9]\\d{5,16}$", message = "merchantInfo.merchantId format does not match", groups = {Format.class})
         private String merchantId;
 
@@ -138,7 +156,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
          * 子商户信息，代表实际收款或履约主体，授权交易必传。
          */
         @Valid
-        @NotNull(message = "merchantInfo.subMerchantInfo", groups = {Authorization.class})
+        @NotNull(message = "merchantInfo.subMerchantInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         private SubMerchantInfoDTO subMerchantInfo;
     }
 
@@ -166,21 +184,21 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 商户侧子商户编号，用于聚合平台或平台代理模式下识别实际经营主体。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.subId", groups = {Authorization.class})
+        @NotBlank(message = "merchantInfo.subMerchantInfo.subId", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,15}$", message = "merchantInfo.subMerchantInfo.subId format does not match", groups = {Format.class})
         private String subId;
 
         /**
          * 子商户街道地址，用于卡组织和渠道侧商户补充信息。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.subStreet", groups = {Authorization.class})
+        @NotBlank(message = "merchantInfo.subMerchantInfo.subStreet", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,128}$", message = "merchantInfo.subMerchantInfo.subStreet format does not match", groups = {Format.class})
         private String subStreet;
 
         /**
          * 子商户城市，建议传英文或渠道要求的标准城市名称。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.subCity", groups = {Authorization.class})
+        @NotBlank(message = "merchantInfo.subMerchantInfo.subCity", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,64}$", message = "merchantInfo.subMerchantInfo.subCity format does not match", groups = {Format.class})
         private String subCity;
 
@@ -193,7 +211,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 子商户国家三字码，使用 ISO 3166-1 alpha-3 格式，例如 USA、CAN、GBR。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.subCountryCode", groups = {Authorization.class})
+        @NotBlank(message = "merchantInfo.subMerchantInfo.subCountryCode", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^[A-Z]{3}$", message = "merchantInfo.subMerchantInfo.subCountryCode format does not match", groups = {Format.class})
         private String subCountryCode;
 
@@ -224,7 +242,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 子商户 MCC 行业类别码，四位数字，用于卡组织行业识别和费率规则。
          */
-        @NotBlank(message = "merchantInfo.subMerchantInfo.merchantCategory", groups = {Authorization.class})
+        @NotBlank(message = "merchantInfo.subMerchantInfo.merchantCategory", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^\\d{4}$", message = "merchantInfo.subMerchantInfo.merchantCategory format does not match", groups = {Format.class})
         private String merchantCategory;
 
@@ -248,7 +266,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
          * @return true 表示子商户名称信息满足接口要求
          */
         @JSONField(serialize = false)
-        @AssertTrue(message = "Must fill in one of merchantInfo.subMerchantInfo.subName or merchantInfo.subMerchantInfo.subCompanyName", groups = {Authorization.class})
+        @AssertTrue(message = "Must fill in one of merchantInfo.subMerchantInfo.subName or merchantInfo.subMerchantInfo.subCompanyName", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         public boolean isSubNameOrCompanyNameValid() {
             return hasText(subName) || hasText(subCompanyName);
         }
@@ -266,29 +284,30 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 订单金额，主币种单位，最多 12 位整数和 3 位小数，进入核心后可转换为最小币种单位。
          */
-        @NotNull(message = "orderInfo.amount", groups = {Authorization.class, PreAuthorization.class, Capture.class, Refund.class})
+        @NotNull(message = "orderInfo.amount", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class})
         @Digits(integer = 12, fraction = 3, message = "orderInfo.amount format does not match", groups = {Format.class})
         private BigDecimal amount;
 
         /**
          * 订单币种，使用 ISO 4217 三位大写币种代码，例如 USD、EUR、CNY。
          */
-        @NotBlank(message = "orderInfo.currency", groups = {Authorization.class, PreAuthorization.class, Capture.class, Refund.class})
+        @NotBlank(message = "orderInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class})
         @Pattern(regexp = "^[A-Z]{3}$", message = "orderInfo.currency format does not match", groups = {Format.class})
         private String currency;
 
         /**
-         * 商户订单号，由商户侧生成并保证唯一，是幂等、查单、退款和对账的重要关联字段。
+         * 商户订单号，由商户侧生成，是商户业务订单在平台侧的主要查询和对账字段。
          */
-        @NotBlank(message = "orderInfo.tradeNo", groups = {Authorization.class, PreAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Reversal.class})
-        @Pattern(regexp = "^[A-Za-z0-9]{1,64}$", message = "orderInfo.tradeNo format does not match", groups = {Format.class})
-        private String tradeNo;
+        @NotBlank(message = "orderInfo.orderNo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        @Pattern(regexp = "^[A-Za-z0-9]{1,64}$", message = "orderInfo.orderNo format does not match", groups = {Format.class})
+        private String orderNo;
 
         /**
-         * 原交易参考号，请款或预授权完成时可用于关联原授权交易。
+         * 商户本次 API 请求唯一标识，由商户侧生成，用作创建、请款、退款、撤销、查询等 OpenAPI 幂等键。
          */
-        @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,32}$", message = "orderInfo.sourceReference format does not match", groups = {Format.class})
-        private String sourceReference;
+        @NotBlank(message = "orderInfo.orderId", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,64}$", message = "orderInfo.orderId format does not match", groups = {Format.class})
+        private String orderId;
     }
 
     @Data
@@ -303,35 +322,35 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 持卡人名，用于卡组织风控、AVS 和渠道资料补充。
          */
-        @NotBlank(message = "billingCardHolderInfo.firstName", groups = {Authorization.class})
+        @NotBlank(message = "billingCardHolderInfo.firstName", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^.{1,32}$", message = "billingCardHolderInfo.firstName format does not match", groups = {Format.class})
         private String firstName;
 
         /**
          * 持卡人姓，用于卡组织风控、AVS 和渠道资料补充。
          */
-        @NotBlank(message = "billingCardHolderInfo.lastName", groups = {Authorization.class})
+        @NotBlank(message = "billingCardHolderInfo.lastName", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^.{1,32}$", message = "billingCardHolderInfo.lastName format does not match", groups = {Format.class})
         private String lastName;
 
         /**
          * 持卡人联系电话，用于卡组织风控和渠道补充资料。
          */
-        @NotBlank(message = "billingCardHolderInfo.phone", groups = {Authorization.class})
+        @NotBlank(message = "billingCardHolderInfo.phone", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^.{1,32}$", message = "billingCardHolderInfo.phone format does not match", groups = {Format.class})
         private String phone;
 
         /**
          * 持卡人邮箱，用于交易风险识别、通知或渠道补充资料。
          */
-        @NotBlank(message = "billingCardHolderInfo.email", groups = {Authorization.class})
+        @NotBlank(message = "billingCardHolderInfo.email", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^(?=.{1,64}$)[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", message = "billingCardHolderInfo.email format does not match", groups = {Format.class})
         private String email;
 
         /**
          * 持卡人账单国家三字码，使用 ISO 3166-1 alpha-3 格式。
          */
-        @NotBlank(message = "billingCardHolderInfo.country", groups = {Authorization.class})
+        @NotBlank(message = "billingCardHolderInfo.country", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^[A-Z]{3}$", message = "billingCardHolderInfo.country format does not match", groups = {Format.class})
         private String country;
 
@@ -344,21 +363,21 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 持卡人账单城市，建议传英文或渠道要求的标准城市名称。
          */
-        @NotBlank(message = "billingCardHolderInfo.city", groups = {Authorization.class})
+        @NotBlank(message = "billingCardHolderInfo.city", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^.{1,64}$", message = "billingCardHolderInfo.city format does not match", groups = {Format.class})
         private String city;
 
         /**
          * 持卡人账单街道地址，用于 AVS 地址校验和渠道风控。
          */
-        @NotBlank(message = "billingCardHolderInfo.street", groups = {Authorization.class})
+        @NotBlank(message = "billingCardHolderInfo.street", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^.{1,128}$", message = "billingCardHolderInfo.street format does not match", groups = {Format.class})
         private String street;
 
         /**
          * 持卡人账单邮编，用于 AVS 地址校验和渠道风控。
          */
-        @NotBlank(message = "billingCardHolderInfo.postal", groups = {Authorization.class})
+        @NotBlank(message = "billingCardHolderInfo.postal", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^.{1,32}$", message = "billingCardHolderInfo.postal format does not match", groups = {Format.class})
         private String postal;
 
@@ -367,7 +386,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
          *
          * @return true 表示姓名总长度满足限制
          */
-        @AssertTrue(message = "The total length of billingCardHolderInfo.firstName and billingCardHolderInfo.lastName cannot exceed 64 characters", groups = {Authorization.class})
+        @AssertTrue(message = "The total length of billingCardHolderInfo.firstName and billingCardHolderInfo.lastName cannot exceed 64 characters", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @JSONField(serialize = false)
         public boolean isFirstNameAndLastNameValid() {
             return length(firstName) + length(lastName) <= 64;
@@ -386,28 +405,28 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 持卡人 PAN 卡号，长度 11-19 位，只允许数字，日志和落库必须按 PCI 要求脱敏或加密。
          */
-        @NotBlank(message = "cardInfo.cardNo", groups = {Authorization.class})
+        @NotBlank(message = "cardInfo.cardNo", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^\\d{11,19}$", message = "cardInfo.cardNo format does not match", groups = {Format.class})
         private String cardNo;
 
         /**
          * 卡有效期月份，格式 MM，取值 01-12。
          */
-        @NotBlank(message = "cardInfo.expirationMonth", groups = {Authorization.class})
+        @NotBlank(message = "cardInfo.expirationMonth", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^(0[1-9]|1[0-2])$", message = "cardInfo.expirationMonth format does not match", groups = {Format.class})
         private String expirationMonth;
 
         /**
          * 卡有效期年份，格式 yyyy，例如 2028。
          */
-        @NotBlank(message = "cardInfo.expirationYear", groups = {Authorization.class})
+        @NotBlank(message = "cardInfo.expirationYear", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^\\d{4}$", message = "cardInfo.expirationYear format does not match", groups = {Format.class})
         private String expirationYear;
 
         /**
          * 卡安全码 CVV/CVC，长度 3-4 位，只允许数字，严禁落库和明文日志输出。
          */
-        @NotBlank(message = "cardInfo.securityCode", groups = {Authorization.class})
+        @NotBlank(message = "cardInfo.securityCode", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         @Pattern(regexp = "^\\d{3,4}$", message = "cardInfo.securityCode format does not match", groups = {Format.class})
         private String securityCode;
     }
@@ -456,15 +475,9 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private static final long serialVersionUID = 1L;
 
         /**
-         * 商户侧交易唯一标识，退款、撤销、冲正等后续操作通过它保证交易幂等。
+         * 原平台交易 ID，后续请款、退款、撤销、冲正和查询场景用于定位原交易。
          */
-        @NotBlank(message = "transactionInfo.transactionId", groups = {Authorization.class, Refund.class, AuthorizationCancel.class, Reversal.class})
-        @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "transactionInfo.transactionId format does not match", groups = {Format.class})
-        private String transactionId;
-
-        /**
-         * 原交易 ID，冲正等场景用于明确指向需要反向处理的源交易。
-         */
+        @NotBlank(message = "transactionInfo.sourceTransactionId", groups = {IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
         @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "transactionInfo.sourceTransactionId format does not match", groups = {Format.class})
         private String sourceTransactionId;
 

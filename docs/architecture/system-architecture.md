@@ -100,15 +100,22 @@ flowchart TD
 
 ### 4.3 `service-payment`
 
-`service-payment` 是收单支付核心服务的目标归属模块。当前代码只实现了内部授权创建骨架：
+`service-payment` 是收单支付核心服务的目标归属模块。当前代码已开始按交易动作拆分内部入口：
 
 ```text
+POST /internal/payment/payment
 POST /internal/payment/authorization
+POST /internal/payment/pre-authorization
+POST /internal/payment/incremental-authorization
+POST /internal/payment/capture
+POST /internal/payment/refund
+POST /internal/payment/void
+POST /internal/payment/query
 ```
 
-当前实现会生成平台支付单号、返回 `RECEIVED` 状态并发送 `PAYMENT_CREATED` 消息，但未落交易主单、操作单、幂等表、渠道流水和状态机。
+当前实现已具备交易幂等表写入、交易生命周期主单、交易动作单、状态历史、outbox 事件和后续动作状态机校验骨架。后续动作商户只需要传原平台交易 ID，即 `transactionInfo.sourceTransactionId`；系统先用该 `transaction_id` 定位原动作分表，再通过动作单的内部 `operation_id` 读取生命周期主单，并校验类型、状态、币种和可用金额。
 
-后续支付交易主单、交易操作单、授权、请款、撤销、冲正、退款、拒付、渠道请求记录、交易事件、对账与清分基础数据必须在本模块逐步落地。
+仍未完成的生产闭环包括渠道请求/响应持久化、渠道回调处理、商户通知、真实路由策略、清结算、对账、拒付和完整异常补偿。
 
 ### 4.4 `service-payout`
 
@@ -190,7 +197,7 @@ sequenceDiagram
         O->>O: 本地生成模拟 PA 单号
     else remote-enabled=true
         O->>P: POST /internal/payment/authorization
-        P->>P: 当前模拟生成 PA 单号与 RECEIVED 状态
+        P->>P: 幂等、状态机、分表交易事实、渠道调用和 outbox 事件
     end
     O->>O: 加密响应 data
     O-->>M: CommonResult(data=encryptedData)
@@ -219,10 +226,10 @@ AUTH:
 商户请求 -> OpenAPI 安全链路 -> service-payment 创建授权操作单 -> 渠道授权 -> AUTHORIZED / FAILED / PROCESSING
 
 CAPTURE:
-商户或后台请求 -> 校验原授权单 -> 校验可请款金额 -> 创建请款操作单 -> 渠道请款 -> CAPTURED / PARTIALLY_CAPTURED / FAILED / PROCESSING
+商户或后台请求 -> 使用 sourceTransactionId 定位原交易动作分表 -> 读取内部 operation_id 和生命周期主单 -> 校验可请款金额和币种 -> 创建请款交易动作 -> 渠道请款 -> SUCCESS / FAILED / PROCESSING / PENDING
 
-Incremental Capture:
-必须校验渠道和卡组织是否支持，必须记录每次增量请款与剩余可请款金额。
+Incremental Authorization:
+商户请求 -> 定位原授权或预授权主单 -> 校验状态、币种和正金额 -> 创建增量授权动作单 -> 渠道增量授权 -> 更新累计授权金额与可请款金额。
 ```
 
 ### 5.4 回调链路目标形态
@@ -244,7 +251,9 @@ Incremental Capture:
 
 ## 6. 交易状态机目标
 
-当前代码只有 `RECEIVED` 模拟状态，正式支付状态机尚未落地。目标支付状态机至少应覆盖：
+当前代码已落地第一版后续动作状态机，`transaction_status` 使用 `SUCCESS`、`FAILED`、`PENDING`、`PROCESSING` 表达交易结果状态，风控、路由、渠道请求、等待回调等过程节点使用 `process_stage`。完整生产状态机仍需继续扩展渠道回调、拒付、对账、结算和异常补偿。
+
+目标支付状态机至少应覆盖：
 
 ```mermaid
 stateDiagram-v2
@@ -294,18 +303,22 @@ stateDiagram-v2
 5. 商户 OpenAPI 安全材料：`base_merchant_info`、`base_merchant_jwt_key`、平台 payload key、商户 response key。
 6. ISO 国家和币种基础能力。
 
-尚未落地或需要补齐的资金核心模型：
+已经开始落地的资金核心模型：
 
-1. 支付交易主单。
-2. 支付交易操作单。
-3. 退款单。
-4. 代付单。
-5. 渠道请求记录。
-6. 渠道响应记录。
-7. 渠道回调原文记录。
-8. 交易状态流转记录。
-9. 资金类幂等表。
-10. 对账、清分、结算、拒付模型。
+1. `transaction_idempotency`：资金类幂等兜底。
+2. `transaction_order`：同一原始交易生命周期主单。
+3. `transaction_operation`：授权、请款、退款、撤销等动作单。
+4. `transaction_status_history`：交易状态流转记录。
+5. `transaction_event_outbox`：交易侧本地事务消息。
+
+尚未落地或需要继续补齐的资金核心模型：
+
+1. 渠道请求记录。
+2. 渠道响应和交互日志。
+3. 渠道回调原文记录和回调业务处理单。
+4. 商户通知任务与通知日志。
+5. 代付单。
+6. 对账、清分、结算、拒付模型。
 
 ## 8. 前端应用关系
 
@@ -333,9 +346,9 @@ flowchart LR
 
 ## 9. 当前主要架构风险
 
-1. `service-payment`、`service-payout` 仍是模拟交易核心，不能承载生产资金链路。
-2. 资金类幂等尚未落地数据库唯一约束。
-3. 正式交易状态机尚未落地。
+1. `service-payment` 已有核心骨架但仍不能承载完整生产资金链路。
+2. `service-payout` 仍是模拟交易核心。
+3. 渠道请求/响应日志和渠道回调状态推进尚未落地。
 4. 渠道回调缺少签名、IP 白名单、原文保存、幂等和状态推进。
 5. `/internal/payment/**`、`/internal/payout/**` 需要补充内部调用鉴权边界。
 6. 清结算、对账、拒付模型缺失。

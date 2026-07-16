@@ -131,7 +131,7 @@ public class MpgsResponsePayload {
     public static class Order {
 
         /**
-         * MPGS orderId，当前使用平台商户订单号构造。
+         * MPGS orderId，当前使用平台原始授权/支付 transactionId。
          */
         private String id;
 

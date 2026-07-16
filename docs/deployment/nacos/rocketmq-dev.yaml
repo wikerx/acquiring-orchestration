@@ -40,12 +40,21 @@ acquiring:
           type: TOPIC
           read-queue-nums: 4
           write-queue-nums: 4
+        - name: payment-event
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
         - name: acquiring-admin-operation-log-consumer-dev
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
         - name: acquiring-merchant-operation-log-consumer-dev
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        - name: acquiring-payment-merchant-notification-consumer-dev
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16

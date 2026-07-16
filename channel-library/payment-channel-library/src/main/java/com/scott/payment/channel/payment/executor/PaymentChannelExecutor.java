@@ -81,11 +81,14 @@ public class PaymentChannelExecutor {
 
     private <T extends ChannelPaymentRequest> T copy(ChannelPaymentRequest source, T target) {
         target.setChannelCode(source.getChannelCode());
-        target.setTransactionOrderNo(source.getTransactionOrderNo());
-        target.setTransactionNo(source.getTransactionNo());
-        target.setOriginalTransactionNo(source.getOriginalTransactionNo());
+        target.setOperationId(source.getOperationId());
+        target.setTransactionId(source.getTransactionId());
+        target.setSourceTransactionId(source.getSourceTransactionId());
+        target.setChannelOrderNo(source.getChannelOrderNo());
+        target.setChannelTransactionId(source.getChannelTransactionId());
         target.setMerchantId(source.getMerchantId());
         target.setMerchantOrderNo(source.getMerchantOrderNo());
+        target.setMerchantOrderId(source.getMerchantOrderId());
         target.setTransactionType(source.getTransactionType());
         target.setPaymentMethod(source.getPaymentMethod());
         target.setAmount(source.getAmount());

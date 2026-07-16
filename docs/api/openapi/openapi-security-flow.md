@@ -240,7 +240,8 @@ authorization: <jwt-token>
   "orderInfo": {
     "amount": 12389.45,
     "currency": "USD",
-    "tradeNo": "20250116140182865587"
+    "orderNo": "20250116140182865587",
+    "orderId": "AUTH20250116140182865587"
   },
   "billingCardHolderInfo": {
     "firstName": "John",
@@ -266,7 +267,6 @@ authorization: <jwt-token>
     "threeDsVersion": "2.2.0"
   },
   "transactionInfo": {
-    "transactionId": "txn-20250116140182865587",
     "description": "authorize request"
   }
 }

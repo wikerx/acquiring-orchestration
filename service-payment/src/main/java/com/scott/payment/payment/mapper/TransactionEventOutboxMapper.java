@@ -31,21 +31,21 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
     @Insert("""
             INSERT INTO ${physicalTableName}
             (
-              event_no, aggregate_type, aggregate_no, transaction_order_no, transaction_no,
+              event_no, aggregate_type, aggregate_no, transaction_id, operation_id,
               merchant_id, merchant_order_no, transaction_type, event_type, event_status,
-              topic, tag, message_key, payload_json, retry_count, max_retry_count,
+              topic, tag, message_key, message_group, payload_json, retry_count, max_retry_count,
               next_retry_time, sent_time, fail_reason, event_time, transaction_date_time,
-              time_zone, version, deleted, create_time, update_time
+              transaction_utc_time, transaction_time_zone, version, deleted, create_time, update_time
             )
             VALUES
             (
               #{eventDO.eventNo}, #{eventDO.aggregateType}, #{eventDO.aggregateNo},
-              #{eventDO.transactionOrderNo}, #{eventDO.transactionNo}, #{eventDO.merchantId},
+              #{eventDO.transactionId}, #{eventDO.operationId}, #{eventDO.merchantId},
               #{eventDO.merchantOrderNo}, #{eventDO.transactionType}, #{eventDO.eventType},
               #{eventDO.eventStatus}, #{eventDO.topic}, #{eventDO.tag}, #{eventDO.messageKey},
-              #{eventDO.payloadJson}, #{eventDO.retryCount}, #{eventDO.maxRetryCount},
+              #{eventDO.messageGroup}, #{eventDO.payloadJson}, #{eventDO.retryCount}, #{eventDO.maxRetryCount},
               #{eventDO.nextRetryTime}, #{eventDO.sentTime}, #{eventDO.failReason},
-              #{eventDO.eventTime}, #{eventDO.transactionDateTime}, #{eventDO.timeZone},
+              #{eventDO.eventTime}, #{eventDO.transactionDateTime}, #{eventDO.transactionUtcTime}, #{eventDO.transactionTimeZone},
               #{eventDO.version}, #{eventDO.deleted}, #{eventDO.createTime}, #{eventDO.updateTime}
             )
             """)
@@ -67,7 +67,7 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
               AND event_status IN ('INIT', 'FAILED')
               AND retry_count < max_retry_count
               AND (next_retry_time IS NULL OR next_retry_time <= #{now})
-            ORDER BY event_time ASC, id ASC
+            ORDER BY transaction_date_time ASC, event_time ASC, id ASC
             LIMIT #{limit}
             """)
     List<TransactionEventOutboxDO> selectDueForPublish(@Param("physicalTableName") String physicalTableName,

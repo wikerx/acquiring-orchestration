@@ -1,0 +1,203 @@
+package com.scott.payment.payment.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.scott.payment.payment.entity.TransactionChannelRequestDO;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : TransactionChannelRequestMapper
+ * @date : 2026-07-14 19:40
+ * @email : scott_x@163.com
+ * @description : 交易渠道请求 Mapper，位于 service-payment 数据访问层，仅负责 transaction_channel_request 逻辑表及物理分表写入。
+ * @status : create
+ */
+public interface TransactionChannelRequestMapper extends BaseMapper<TransactionChannelRequestDO> {
+
+    /**
+     * 写入渠道请求物理分表。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param requestDO         渠道请求记录
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO ${physicalTableName}
+            (
+              request_id, transaction_id, operation_id, channel_id, channel_code, channel_mid_config_id,
+              transaction_type, request_scene, channel_match_flag, request_status, http_method,
+              request_url_masked, request_currency, request_amount, channel_order_no, channel_transaction_id,
+              gateway_result, gateway_code, acquirer_code, acquirer_message, channel_status,
+              platform_success, platform_result_code, platform_fail_reason, request_start_time,
+              response_time, duration_millis, transaction_date_time, transaction_utc_time,
+              transaction_time_zone, version, deleted, create_time, update_time
+            )
+            VALUES
+            (
+              #{requestDO.requestId}, #{requestDO.transactionId}, #{requestDO.operationId},
+              #{requestDO.channelId}, #{requestDO.channelCode}, #{requestDO.channelMidConfigId},
+              #{requestDO.transactionType}, #{requestDO.requestScene}, #{requestDO.channelMatchFlag},
+              #{requestDO.requestStatus}, #{requestDO.httpMethod}, #{requestDO.requestUrlMasked},
+              #{requestDO.requestCurrency}, #{requestDO.requestAmount}, #{requestDO.channelOrderNo},
+              #{requestDO.channelTransactionId}, #{requestDO.gatewayResult}, #{requestDO.gatewayCode},
+              #{requestDO.acquirerCode}, #{requestDO.acquirerMessage}, #{requestDO.channelStatus},
+              #{requestDO.platformSuccess}, #{requestDO.platformResultCode}, #{requestDO.platformFailReason},
+              #{requestDO.requestStartTime}, #{requestDO.responseTime}, #{requestDO.durationMillis},
+              #{requestDO.transactionDateTime}, #{requestDO.transactionUtcTime}, #{requestDO.transactionTimeZone},
+              #{requestDO.version}, #{requestDO.deleted}, #{requestDO.createTime}, #{requestDO.updateTime}
+            )
+            """)
+    int insertPhysical(@Param("physicalTableName") String physicalTableName,
+                       @Param("requestDO") TransactionChannelRequestDO requestDO);
+
+    /**
+     * 按平台交易 ID 查询渠道请求摘要。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param transactionId 平台当前交易 ID
+     * @return 渠道请求列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE transaction_id = #{transactionId}
+              AND deleted = 0
+            ORDER BY request_start_time DESC
+            LIMIT 100
+            """)
+    List<TransactionChannelRequestDO> selectByTransactionIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                    @Param("transactionId") String transactionId);
+
+    /**
+     * 按 operation_id 查询同一生命周期的渠道请求摘要。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param operationId       平台内部生命周期关联标识
+     * @return 渠道请求列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE operation_id = #{operationId}
+              AND deleted = 0
+            ORDER BY request_start_time DESC
+            LIMIT 200
+            """)
+    List<TransactionChannelRequestDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                  @Param("operationId") String operationId);
+
+    /**
+     * 按 request_id 批量查询渠道请求摘要，用于渠道交互日志分页后补齐业务结果。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param requestIds        渠道请求 ID 列表
+     * @return 渠道请求摘要列表
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE deleted = 0
+              AND request_id IN
+              <foreach collection="requestIds" item="requestId" open="(" separator="," close=")">
+                #{requestId}
+              </foreach>
+            </script>
+            """)
+    List<TransactionChannelRequestDO> selectByRequestIdsPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                 @Param("requestIds") List<String> requestIds);
+
+    /**
+     * 按交易时间范围查询渠道请求摘要。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param channelCode 渠道编码，可为空
+     * @param transactionId 平台交易 ID，可为空
+     * @param channelOrderNo 渠道订单号，可为空
+     * @param requestStatus 请求状态，可为空
+     * @param beginTime 查询开始时间
+     * @param endTime 查询结束时间
+     * @param offset 分页偏移
+     * @param limit 分页大小
+     * @return 渠道请求列表
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE deleted = 0
+              AND transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt;= #{endTime}
+              <if test="channelCode != null and channelCode != ''">
+                AND channel_code = #{channelCode}
+              </if>
+              <if test="transactionId != null and transactionId != ''">
+                AND transaction_id = #{transactionId}
+              </if>
+              <if test="channelOrderNo != null and channelOrderNo != ''">
+                AND channel_order_no = #{channelOrderNo}
+              </if>
+              <if test="requestStatus != null and requestStatus != ''">
+                AND request_status = #{requestStatus}
+              </if>
+            ORDER BY request_start_time DESC, id DESC
+            LIMIT #{offset}, #{limit}
+            </script>
+            """)
+    List<TransactionChannelRequestDO> selectPagePhysical(@Param("physicalTableName") String physicalTableName,
+                                                         @Param("channelCode") String channelCode,
+                                                         @Param("transactionId") String transactionId,
+                                                         @Param("channelOrderNo") String channelOrderNo,
+                                                         @Param("requestStatus") String requestStatus,
+                                                         @Param("beginTime") LocalDateTime beginTime,
+                                                         @Param("endTime") LocalDateTime endTime,
+                                                         @Param("offset") long offset,
+                                                         @Param("limit") long limit);
+
+    /**
+     * 统计交易时间范围内的渠道请求摘要数量。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param channelCode 渠道编码，可为空
+     * @param transactionId 平台交易 ID，可为空
+     * @param channelOrderNo 渠道订单号，可为空
+     * @param requestStatus 请求状态，可为空
+     * @param beginTime 查询开始时间
+     * @param endTime 查询结束时间
+     * @return 命中记录数
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM ${physicalTableName}
+            WHERE deleted = 0
+              AND transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt;= #{endTime}
+              <if test="channelCode != null and channelCode != ''">
+                AND channel_code = #{channelCode}
+              </if>
+              <if test="transactionId != null and transactionId != ''">
+                AND transaction_id = #{transactionId}
+              </if>
+              <if test="channelOrderNo != null and channelOrderNo != ''">
+                AND channel_order_no = #{channelOrderNo}
+              </if>
+              <if test="requestStatus != null and requestStatus != ''">
+                AND request_status = #{requestStatus}
+              </if>
+            </script>
+            """)
+    long countPagePhysical(@Param("physicalTableName") String physicalTableName,
+                           @Param("channelCode") String channelCode,
+                           @Param("transactionId") String transactionId,
+                           @Param("channelOrderNo") String channelOrderNo,
+                           @Param("requestStatus") String requestStatus,
+                           @Param("beginTime") LocalDateTime beginTime,
+                           @Param("endTime") LocalDateTime endTime);
+}

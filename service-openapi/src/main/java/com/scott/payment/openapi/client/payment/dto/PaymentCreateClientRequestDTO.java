@@ -29,9 +29,14 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     private String merchantId;
 
     /**
-     * 商户订单号。
+     * 商户订单号，来自 orderInfo.orderNo。
      */
     private String merchantOrderNo;
+
+    /**
+     * 商户本次 API 请求唯一标识，来自 orderInfo.orderId，用作资金类幂等键。
+     */
+    private String merchantOrderId;
 
     /**
      * 交易类型，对齐字典 transaction_type，例如 AUTHORIZATION、PAYMENT、CAPTURE、REFUND。
@@ -44,7 +49,7 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     private String paymentMethod;
 
     /**
-     * 请求唯一号，优先使用商户交易 transactionId。
+     * 请求唯一号，当前与 merchantOrderId 一致，用于链路排查。
      */
     private String requestId;
 
@@ -67,6 +72,26 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      * OpenAPI 收到的密文请求体指纹，仅用于排查链路，不包含原始密文或卡号。
      */
     private String requestFingerprint;
+
+    /**
+     * OpenAPI 请求路径，用于后台商户请求日志排查。
+     */
+    private String openApiRequestPath;
+
+    /**
+     * OpenAPI 请求进入服务层的时间。
+     */
+    private LocalDateTime openApiRequestTime;
+
+    /**
+     * 商户请求密文掩码，只保留首尾短片段，禁止传递完整密文。
+     */
+    private String merchantRequestCipherMasked;
+
+    /**
+     * 商户请求脱敏明文 JSON，卡号、CVV、JWT、密钥等敏感字段必须脱敏。
+     */
+    private String merchantRequestPlainJsonMasked;
 
     /**
      * 商户侧子商户信息，用于风控、渠道资料补充和 MID 路由。
@@ -92,11 +117,6 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      * 交易扩展信息，包含商户交易 ID、原交易引用和回调地址。
      */
     private TransactionInfoDTO transactionInfo;
-
-    /**
-     * 原交易参考号，请款、退款、撤销等后续动作可用于关联原始交易。
-     */
-    private String sourceReference;
 
     /**
      * 商户通知回调地址，交易状态变化后系统可按该地址推送异步通知。
@@ -218,9 +238,14 @@ public class PaymentCreateClientRequestDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        private String transactionId;
-
         private String sourceTransactionId;
+
+        /**
+         * 原交易业务时间，用于 service-payment 按 transaction_date_time + transaction_id 定位原交易分表。
+         * <p>
+         * 商户 OpenAPI 不要求上送该字段；内部调用方如已知原交易时间可传入，否则支付核心会先按 transaction_id 解析原交易时间。
+         */
+        private LocalDateTime sourceTransactionDateTime;
 
         private String description;
 

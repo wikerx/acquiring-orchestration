@@ -33,10 +33,16 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String merchantId;
 
     /**
-     * 商户订单号，商户侧保持唯一，用于幂等和交易查询。
+     * 商户订单号，来自 orderInfo.orderNo，用于商户侧查询和对账。
      */
     @NotBlank(message = "merchantOrderNo is required")
     private String merchantOrderNo;
+
+    /**
+     * 商户本次 API 请求唯一标识，来自 orderInfo.orderId，用作资金类请求幂等键。
+     */
+    @NotBlank(message = "merchantOrderId is required")
+    private String merchantOrderId;
 
     /**
      * 交易类型，对齐字典 transaction_type，例如 AUTHORIZATION、PAYMENT、CAPTURE、REFUND。
@@ -49,12 +55,14 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String paymentMethod;
 
     /**
-     * 商户请求唯一标识，通常来自 JWT jti 或交易 transactionId，用于链路追踪和幂等。
+     * 请求唯一标识，当前默认与 merchantOrderId 一致，用于链路追踪。
      */
     private String requestId;
 
     /**
      * 订单金额，主币种单位，例如 123.45 USD。
+     * <p>
+     * 该字段保留商户上送的标签金额；渠道不支持标签币种时，支付核心会在内部交易金额字段中保存 EDC 换汇后的金额。
      */
     @NotNull(message = "amount is required")
     @DecimalMin(value = "0.00", inclusive = false, message = "amount must be greater than 0")
@@ -62,9 +70,56 @@ public class PaymentCreateCommandDTO implements Serializable {
 
     /**
      * 订单币种，使用 ISO 4217 三位大写币种代码。
+     * <p>
+     * 该字段保留商户上送的标签币种；渠道不支持标签币种时，支付核心会在内部交易币种字段中保存 EDC 目标币种。
      */
     @NotBlank(message = "currency is required")
     private String currency;
+
+    /**
+     * 商户上送或页面标签展示的原始金额。首次交易默认等于 amount，后续动作在归一化交易币种前保留商户请求值。
+     */
+    private BigDecimal labelAmount;
+
+    /**
+     * 商户上送或页面标签展示的原始币种。首次交易默认等于 currency，后续动作在归一化交易币种前保留商户请求值。
+     */
+    private String labelCurrency;
+
+    /**
+     * 平台交易金额，主币种单位；未启用 DCC/EDC 时等于标签金额，启用 EDC 时为换汇后上送渠道的金额。
+     */
+    private BigDecimal transactionAmount;
+
+    /**
+     * 平台交易币种，ISO 4217 三位代码；未启用 DCC/EDC 时等于标签币种，启用 EDC 时为渠道支持的目标币种。
+     */
+    private String transactionCurrency;
+
+    /**
+     * 标签金额转平台交易金额使用的汇率。未换汇时固定为 1.00000000。
+     */
+    private BigDecimal transactionRate;
+
+    /**
+     * 汇率来源编码，例如 BOC、PLATFORM；未换汇时为空。
+     */
+    private String rateSource;
+
+    /**
+     * 汇率生效或报价时间；未换汇时为空。
+     */
+    private LocalDateTime rateTime;
+
+    /**
+     * 是否启用 DCC，0 否、1 是；当前收单链路暂不启用 DCC。
+     */
+    private Integer dccEnabled;
+
+    /**
+     * 是否启用 EDC，0 否、1 是；渠道不支持标签币种且平台换汇后上送渠道时置为 1。
+     */
+    private Integer edcEnabled;
 
     /**
      * 交易请求时间，按 UTC+8 业务时区写入。
@@ -75,6 +130,26 @@ public class PaymentCreateCommandDTO implements Serializable {
      * 请求体安全摘要，OpenAPI 层传入用于排查，但不保存完整密文和敏感卡信息。
      */
     private String requestFingerprint;
+
+    /**
+     * OpenAPI 请求路径，用于后台商户请求日志排查。
+     */
+    private String openApiRequestPath;
+
+    /**
+     * OpenAPI 请求进入服务层的时间。
+     */
+    private LocalDateTime openApiRequestTime;
+
+    /**
+     * 商户请求密文掩码，只保留首尾短片段，禁止传递完整密文。
+     */
+    private String merchantRequestCipherMasked;
+
+    /**
+     * 商户请求脱敏明文 JSON，卡号、CVV、JWT、密钥等敏感字段必须脱敏。
+     */
+    private String merchantRequestPlainJsonMasked;
 
     /**
      * 商户侧子商户信息，用于风控、渠道资料补充和 MID 路由。
@@ -97,14 +172,9 @@ public class PaymentCreateCommandDTO implements Serializable {
     private ThreeDsInfoDTO threeDsInfo;
 
     /**
-     * 交易扩展信息，包含商户交易 ID、原交易引用和回调地址。
+     * 交易扩展信息，包含原平台交易 ID、描述和回调地址。
      */
     private TransactionInfoDTO transactionInfo;
-
-    /**
-     * 原交易参考号，请款、退款、撤销等后续动作可用于关联原始交易。
-     */
-    private String sourceReference;
 
     /**
      * 商户通知回调地址，交易状态变化后系统可按该地址推送异步通知。
@@ -226,9 +296,17 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
-        private String transactionId;
-
         private String sourceTransactionId;
+
+        /**
+         * 原交易业务时间，用于按 transaction_date_time + transaction_id 精确定位交易主单所在物理分表。
+         */
+        private LocalDateTime sourceTransactionDateTime;
+
+        /**
+         * 原交易对应的渠道交易 ID，由支付核心按 sourceTransactionId 查询原动作单后补齐，不要求商户上送。
+         */
+        private String sourceChannelTransactionId;
 
         private String description;
 

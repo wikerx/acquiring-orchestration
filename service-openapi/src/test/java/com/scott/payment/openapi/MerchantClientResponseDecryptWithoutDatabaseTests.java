@@ -22,15 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @description : 不连接数据库的商户响应解密测试，使用固定商户响应密钥模拟商户解密 OpenAPI 响应 data
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantClientResponseDecryptWithoutDatabaseTests
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPIMerchant Client Response Decrypt Without Database Tests，位于 service-openapi 的测试层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Slf4j
 class MerchantClientResponseDecryptWithoutDatabaseTests {
 
@@ -69,11 +60,26 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
     @Test
     void shouldDecryptOpenApiEncryptedResponseWithoutDatabase() {
         String plainResponseData = JsonUtils.toJsonString(Map.of(
-                "merchantOrderNo", "202606020001",
-                "platformReference", "PAY202606020001",
-                "transactionStatus", "SUCCESS",
-                "amount", 1238945,
-                "currency", "USD"
+                "merchantInfo", Map.of("merchantId", "260001"),
+                "orderInfo", Map.of(
+                        "orderNo", "202606020001",
+                        "orderId", "REQ202606020001",
+                        "amount", 12389.45,
+                        "currency", "USD"),
+                "transactionInfo", Map.of(
+                        "code", ApiResultEnum.SUCCESS.getCode(),
+                        "message", ApiResultEnum.SUCCESS.getMessage(),
+                        "transactionId", "202607160954270000001",
+                        "transactionStatus", "SUCCESS",
+                        "transactionType", "AUTHORIZATION"),
+                "billingInfo", Map.of(
+                        "labelAmount", 12389.45,
+                        "labelCurrency", "USD",
+                        "transactionAmount", 12389.45,
+                        "transactionCurrency", "USD",
+                        "transactionRate", "1.00000000"),
+                "currency", "USD",
+                "status", "SUCCESS"
         ));
         log.info("响应参数明文：{}", plainResponseData);
 
@@ -108,6 +114,7 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
         assertThat(responseMap.get("code")).isEqualTo(ApiResultEnum.SUCCESS.getCode());
         assertThat(MerchantOpenApiTestSupport.compactPartCount(encryptedResponseData)).isEqualTo(5);
         assertThat(decryptedData).isEqualTo(plainResponseData);
+        assertThat(decryptedData).doesNotContain("operationId", "dccEnabled", "edcEnabled");
         log.info("平台响应加密摘要-商户号：{}，响应公钥指纹：{}，data摘要：{}",
                 MERCHANT_ID,
                 keyMaterialFactory.fingerprint(MERCHANT_RESPONSE_PUBLIC_KEY_X509_BASE64),

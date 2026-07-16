@@ -22,18 +22,9 @@ import java.lang.reflect.Type;
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestBodyAdvice
- * @date : 2026-05-28 11:25
- * @email : scott_x@163.com
- * @description : 开放接口请求体解密转换处理器
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestBodyAdvice
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Request Body Advice，位于 service-openapi 的支撑组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户 OpenAPI 请求体解密与参数校验处理器，位于 service-openapi 支撑层，只负责把密文 data 解密为接口 DTO 并执行注解声明的校验分组。
  * @status : create
  */
 @Slf4j
@@ -69,13 +60,6 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
      * @param converterType   消息转换器类型
      * @return 是否支持处理
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param methodParameter 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param targetType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param converterType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public boolean supports(MethodParameter methodParameter, Type targetType,
                             Class<? extends HttpMessageConverter<?>> converterType) {
@@ -93,15 +77,6 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
      * @param targetType    目标类型
      * @param converterType 消息转换器类型
      * @return 保持原始请求体传递给控制器的 String 参数
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param inputMessage 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param parameter 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param targetType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param converterType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public Object afterBodyRead(Object body, HttpInputMessage inputMessage, MethodParameter parameter,

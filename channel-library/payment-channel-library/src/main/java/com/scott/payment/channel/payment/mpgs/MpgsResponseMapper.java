@@ -4,9 +4,6 @@ import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.PaymentChannelCode;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 /**
  * @author : scott
  * @version : v1.0.0
@@ -52,9 +49,10 @@ public class MpgsResponseMapper {
                                                      MpgsResponsePayload response) {
         ChannelPaymentResponse target = new ChannelPaymentResponse();
         target.setChannelCode(PaymentChannelCode.MPGS.getCode());
-        target.setTransactionOrderNo(request.getTransactionOrderNo());
-        target.setTransactionNo(request.getTransactionNo());
-        target.setChannelOrderNo(request.getMerchantOrderNo());
+        target.setOperationId(request.getOperationId());
+        target.setTransactionId(request.getTransactionId());
+        target.setChannelOrderNo(request.getChannelOrderNo());
+        target.setChannelTransactionId(request.getChannelTransactionId());
         if (response == null) {
             target.setChannelTradeStatus(tradeStatusMapper.map(null));
             target.setRawChannelStatus(null);
@@ -69,46 +67,47 @@ public class MpgsResponseMapper {
         if (response.getOrder() != null && response.getOrder().getId() != null) {
             target.setChannelOrderNo(response.getOrder().getId());
         }
-        target.setRawResponse(rawResponse(response));
+        if (response.getTransaction() != null && response.getTransaction().getId() != null) {
+            target.setChannelTransactionId(response.getTransaction().getId());
+        }
+        target.setRawResponse(responseSummary(response).toRawResponseMap());
         return target;
     }
 
-    private Map<String, String> rawResponse(MpgsResponsePayload response) {
-        Map<String, String> raw = new LinkedHashMap<>();
-        put(raw, "result", response.getResult());
-        put(raw, "gatewayEntryPoint", response.getGatewayEntryPoint());
-        put(raw, "merchant", response.getMerchant());
-        put(raw, "version", response.getVersion());
-        if (response.getResponse() != null) {
-            put(raw, "gatewayCode", response.getResponse().getGatewayCode());
-            put(raw, "gatewayRecommendation", response.getResponse().getGatewayRecommendation());
-            put(raw, "acquirerCode", response.getResponse().getAcquirerCode());
-            put(raw, "acquirerMessage", response.getResponse().getAcquirerMessage());
-        }
-        if (response.getError() != null) {
-            put(raw, "errorCause", response.getError().getCause());
-            put(raw, "errorExplanation", response.getError().getExplanation());
-            put(raw, "errorField", response.getError().getField());
-            put(raw, "errorValidationType", response.getError().getValidationType());
-        }
-        if (response.getOrder() != null) {
-            put(raw, "orderId", response.getOrder().getId());
-            put(raw, "orderStatus", response.getOrder().getStatus());
-            put(raw, "orderReference", response.getOrder().getReference());
-        }
-        if (response.getTransaction() != null) {
-            put(raw, "transactionId", response.getTransaction().getId());
-            put(raw, "transactionType", response.getTransaction().getType());
-            put(raw, "authorizationCode", response.getTransaction().getAuthorizationCode());
-            put(raw, "acquirerReference", response.getTransaction().getReference());
-            put(raw, "receipt", response.getTransaction().getReceipt());
-        }
-        return raw;
-    }
-
-    private void put(Map<String, String> target, String key, String value) {
-        if (value != null) {
-            target.put(key, value);
-        }
+    /**
+     * 提取 MPGS 类型化响应摘要。
+     * <p>
+     * Map 只作为渠道公共扩展字段向后兼容；MPGS 自身字段在这里先落入类型化对象，避免业务代码散落字符串 key。
+     *
+     * @param response MPGS 响应载荷
+     * @return MPGS 响应摘要
+     */
+    MpgsResponseSummary responseSummary(MpgsResponsePayload response) {
+        MpgsResponsePayload.Response gatewayResponse = response.getResponse();
+        MpgsResponsePayload.ErrorPayload error = response.getError();
+        MpgsResponsePayload.Order order = response.getOrder();
+        MpgsResponsePayload.Transaction transaction = response.getTransaction();
+        return MpgsResponseSummary.builder()
+                .result(response.getResult())
+                .gatewayEntryPoint(response.getGatewayEntryPoint())
+                .merchant(response.getMerchant())
+                .version(response.getVersion())
+                .gatewayCode(gatewayResponse == null ? null : gatewayResponse.getGatewayCode())
+                .gatewayRecommendation(gatewayResponse == null ? null : gatewayResponse.getGatewayRecommendation())
+                .acquirerCode(gatewayResponse == null ? null : gatewayResponse.getAcquirerCode())
+                .acquirerMessage(gatewayResponse == null ? null : gatewayResponse.getAcquirerMessage())
+                .errorCause(error == null ? null : error.getCause())
+                .errorExplanation(error == null ? null : error.getExplanation())
+                .errorField(error == null ? null : error.getField())
+                .errorValidationType(error == null ? null : error.getValidationType())
+                .orderId(order == null ? null : order.getId())
+                .orderStatus(order == null ? null : order.getStatus())
+                .orderReference(order == null ? null : order.getReference())
+                .transactionId(transaction == null ? null : transaction.getId())
+                .transactionType(transaction == null ? null : transaction.getType())
+                .authorizationCode(transaction == null ? null : transaction.getAuthorizationCode())
+                .acquirerReference(transaction == null ? null : transaction.getReference())
+                .receipt(transaction == null ? null : transaction.getReceipt())
+                .build();
     }
 }

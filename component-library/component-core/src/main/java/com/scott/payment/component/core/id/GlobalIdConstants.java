@@ -10,7 +10,7 @@ import java.util.Locale;
  * @classname : GlobalIdConstants
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 收单支付Global Id Constants，位于 component-library/component-core 的业务组件层，用于说明职责边界、数据语义和关键业务约束。
+ * @description : 全局数字 ID 生成规则常量，统一约束时间片、毫秒内序列和 Luhn 校验位长度。
  * @status : create
  */
 public final class GlobalIdConstants {

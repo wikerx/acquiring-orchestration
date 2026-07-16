@@ -4,6 +4,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
+import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.TransactionEventOutboxRelayService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import lombok.extern.slf4j.Slf4j;
@@ -80,10 +81,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
 
     private boolean publishSingle(TransactionEventOutboxDO eventDO, LocalDateTime now) {
         try {
-            BaseMqMessage message = JsonUtils.parseObject(eventDO.getPayloadJson(), BaseMqMessage.class);
-            if (message == null) {
-                message = new BaseMqMessage();
-            }
+            BaseMqMessage message = buildMessage(eventDO);
             if (!StringUtils.hasText(message.getMessageId())) {
                 message.setMessageId(eventDO.getMessageKey());
             }
@@ -108,6 +106,11 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                     exception.getMessage());
             return false;
         }
+    }
+
+    private BaseMqMessage buildMessage(TransactionEventOutboxDO eventDO) {
+        TransactionEventMessage message = JsonUtils.parseObject(eventDO.getPayloadJson(), TransactionEventMessage.class);
+        return message == null ? new TransactionEventMessage() : message;
     }
 
     private String safeFailReason(Exception exception) {

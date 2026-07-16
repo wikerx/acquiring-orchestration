@@ -19,10 +19,10 @@
 
 当前系统尚未具备完整生产交易核心能力：
 
-1. `service-payment` 仍是收单支付模拟实现。
+1. `service-payment` 已开始落地收单交易骨架，包括独立内部交易入口、幂等服务、交易主单/动作单/状态历史写入、渠道交互日志、MPGS 回调解析、后续动作状态机校验和商户通知任务骨架，但仍未形成完整生产交易闭环。
 2. `service-payout` 仍是代付模拟实现。
-3. 未落地正式支付交易主单、操作单、资金幂等表、渠道流水、状态机和清结算模型。
-4. 未实现完整 SALE、AUTH、CAPTURE、REFUND、VOID、REVERSAL、DISPUTE 交易闭环。
+3. 渠道请求流水、渠道交互日志、渠道回调处理和商户通知已有基础落库与状态推进能力；通知配置同步、MQ 消费幂等、重试调度、对账、清分、结算、拒付等能力仍需继续落地。
+4. 已定义一步支付、授权、预授权、增量授权、请款、退款、撤销、查询入口，但仍需逐步补齐更多渠道差异、异常补偿和生产级调度。
 5. Hosted Checkout 尚未接入真实 checkout session、支付提交和结果查询链路。
 
 所有后续文档、接口、页面和代码都不得把当前模拟实现描述为已具备生产资金处理能力。
@@ -76,8 +76,8 @@
 
 当前限制：
 
-1. 不要继续在 `PaymentTransactionServiceImpl` 模拟实现中堆正式交易逻辑。
-2. 新能力应围绕应用服务、交易状态机、幂等服务、仓储服务、渠道调用服务逐步小步补齐。
+1. `PaymentTransactionServiceImpl` 只保留交易受理编排，复杂查询、渠道日志、回调、通知、对账、结算不要继续堆在单类中。
+2. 新能力应围绕应用服务、交易状态机、幂等服务、仓储服务、渠道调用服务、查询聚合服务逐步小步补齐。
 
 ### 4.3 `service-payout`
 
@@ -128,6 +128,16 @@
 
 ## 5. 交易链路约束
 
+### 5.0 订单标识边界
+
+商户、平台、渠道三层订单标识必须分清：
+
+1. 商户请求只使用 `orderInfo.orderNo` 表示商户业务订单号，使用 `orderInfo.orderId` 表示本次 API 请求唯一标识和幂等键。
+2. 平台响应给商户的交易标识只使用 `transactionInfo.transactionId`；后续请款、退款、撤销、查询时，商户通过 `transactionInfo.sourceTransactionId` 传入原平台交易 ID。
+3. 平台内部 `operation_id` 只用于关联同一原始交易生命周期，不返回商户，不直接作为渠道请求标识。
+4. `transaction_order.transaction_date_time` 使用原始交易时间，`transaction_operation.transaction_date_time` 使用每个动作自己的受理时间；后台详情通过 `operation_id` 跨分表聚合生命周期数据。
+5. MPGS 的 `orderId` 使用原始授权或一步支付的平台 `transaction_id`，MPGS 的 `transactionId` 使用平台生成并落库的 `channel_transaction_id`；其他渠道如无渠道交易 ID，`channel_transaction_id` 可为空。
+
 ### 5.1 支付创建
 
 必须具备：
@@ -145,7 +155,7 @@
 幂等维度：
 
 ```text
-merchantId + merchantOrderNo + operationType
+merchantId + orderInfo.orderId + transactionType
 ```
 
 ### 5.2 授权
@@ -167,7 +177,7 @@ merchantId + merchantOrderNo + operationType
 
 1. 原授权状态必须允许请款。
 2. 请款金额不能超过可请款金额。
-3. 增量请款必须确认渠道和卡组织支持。
+3. 增量授权必须确认渠道和卡组织支持，并且币种必须与原交易交易币种一致。
 4. 每次请款必须形成独立操作单。
 
 ### 5.4 退款
@@ -182,8 +192,7 @@ merchantId + merchantOrderNo + operationType
 建议幂等维度：
 
 ```text
-merchantId + merchantRefundNo
-merchantId + originalTransactionId + operationType + merchantRefundNo
+merchantId + orderInfo.orderId + REFUND
 ```
 
 ### 5.5 撤销与冲正
@@ -313,7 +322,7 @@ openapi.security.replay.required=true
 
 必须具备：
 
-1. 渠道维度签名校验。
+1. 渠道维度签名校验，签名文本必须包含原始 body 的 SHA-256 摘要。
 2. 渠道 IP 白名单。
 3. 回调原文保存。
 4. 回调幂等。
@@ -321,6 +330,8 @@ openapi.security.replay.required=true
 6. 金额、币种、状态校验。
 7. 状态机合法流转校验。
 8. 异常回调告警。
+
+当前 MPGS 回调解析通过 `payment-channel-library` 的 `PaymentChannelCallbackHandler` 完成，平台侧只负责验签、脱敏落库、幂等和状态推进。MPGS 的 `order.id` 对应平台原始 `transaction_id`，`transaction.id` 对应平台生成并落库的 `channel_transaction_id`；交易成功判断仍以 `result=SUCCESS` 且 `response.acquirerCode=00` 为核心。
 
 ## 11. 内部接口约束
 
@@ -354,6 +365,8 @@ openapi.security.replay.required=true
 3. 消费端以 `messageId + consumerGroup` 幂等。
 4. 终态保护必须在数据库状态机层兜底。
 
+交易侧 `transaction_event_outbox` 按 `transaction_date_time` 分表，当前已支持本地事务内写入、relay 投递和 CAS 更新。商户通知消费者必须通过 `payment.transaction.merchant-notification.mq.enabled=true` 显式开启，避免未配置 RocketMQ 的环境误注册消费者。
+
 ## 13. 前端约束
 
 后台管理：
@@ -361,7 +374,8 @@ openapi.security.replay.required=true
 1. 使用后端菜单动态生成路由。
 2. 前端权限码与后端 `@RequiresPermission`、数据库 `sys_permission` 保持一致。
 3. 敏感密钥默认只展示摘要和指纹。
-4. 日期时间展示统一为 `yyyy-MM-dd HH:mm:ss`。
+4. 交易退款、撤销等后台人工动作必须调用 `service-admin -> service-payment` 内部交易动作接口，由支付核心执行幂等、状态机、分表落库和渠道调用，后台页面不得直接更新交易表状态。
+5. 日期时间展示统一为 `yyyy-MM-dd HH:mm:ss`。
 
 商户后台：
 

@@ -8,10 +8,15 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
 import com.scott.payment.openapi.config.PaymentClientProperties;
+import com.scott.payment.openapi.enums.OpenApiPaymentOperationEnum;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -24,18 +29,9 @@ import java.util.regex.Pattern;
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentInternalRestClient
- * @date : 2026-05-31 21:15
+ * @date : 2026-07-14 12:30
  * @email : scott_x@163.com
- * @description : service-payment REST 客户端，支持 Nacos 服务名负载均衡和本地 IP 直连
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentInternalRestClient
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPIPayment Internal Rest Client，位于 service-openapi 的外部调用层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : service-payment REST 客户端，位于 service-openapi 客户端层，为收单交易动作封装内部 HMAC 签名、负载均衡选择和统一响应解包。
  * @status : create
  */
 @Service
@@ -92,23 +88,159 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     }
 
     /**
-     * 调用 service-payment 创建收单授权交易。
+     * 调用 service-payment 创建授权交易。
+     *
+     * @param requestDTO 创建授权内部请求
+     * @return 授权交易内部响应
+     */
+    @Override
+    public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.AUTHORIZATION, requestDTO);
+    }
+
+    /**
+     * 调用 service-payment 创建一步支付交易。
      *
      * @param requestDTO 创建交易内部请求
      * @return 创建交易内部响应
      */
+    @Override
+    public PaymentCreateClientResponseDTO createPayment(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.PAYMENT, requestDTO);
+    }
+
     /**
-     * 创建或保存商户 OpenAPI数据，保持请求校验、默认值和审计字段一致。
-     * @param requestDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 调用 service-payment 创建预授权交易。
+     *
+     * @param requestDTO 创建交易内部请求
+     * @return 创建交易内部响应
      */
     @Override
-    public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
+    public PaymentCreateClientResponseDTO createPreAuthorization(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.PRE_AUTHORIZATION, requestDTO);
+    }
+
+    /**
+     * 调用 service-payment 创建增量授权交易。
+     *
+     * @param requestDTO 创建交易内部请求
+     * @return 创建交易内部响应
+     */
+    @Override
+    public PaymentCreateClientResponseDTO createIncrementalAuthorization(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION, requestDTO);
+    }
+
+    /**
+     * 调用 service-payment 发起请款交易。
+     *
+     * @param requestDTO 请款内部请求
+     * @return 请款内部响应
+     */
+    @Override
+    public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.CAPTURE, requestDTO);
+    }
+
+    /**
+     * 调用 service-payment 发起退款交易。
+     *
+     * @param requestDTO 退款内部请求
+     * @return 退款内部响应
+     */
+    @Override
+    public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.REFUND, requestDTO);
+    }
+
+    /**
+     * 调用 service-payment 发起撤销交易。
+     *
+     * @param requestDTO 撤销内部请求
+     * @return 撤销内部响应
+     */
+    @Override
+    public PaymentCreateClientResponseDTO voidPayment(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.VOID, requestDTO);
+    }
+
+    /**
+     * 调用 service-payment 查询交易状态。
+     *
+     * @param requestDTO 查询内部请求
+     * @return 查询内部响应
+     */
+    @Override
+    public PaymentCreateClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.QUERY, requestDTO);
+    }
+
+    /**
+     * 调用 service-payment 记录渠道回调。
+     *
+     * @param requestDTO 渠道回调内部请求
+     * @return 渠道回调记录响应
+     */
+    @Override
+    public TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO) {
         try {
-            String authorizationUrl = paymentClientProperties.getAuthorizationUrl();
-            String responseBody = chooseRestTemplate(authorizationUrl).postForObject(
-                    authorizationUrl,
-                    buildSignedEntity(URI.create(authorizationUrl), requestDTO),
+            String targetUrl = paymentClientProperties.getChannelCallbackUrl();
+            String responseBody = chooseRestTemplate(targetUrl).postForObject(
+                    targetUrl,
+                    buildSignedEntity(URI.create(targetUrl), requestDTO),
+                    String.class
+            );
+            CommonResult<TransactionChannelCallbackClientResponseDTO> result = JsonUtils.parseObject(
+                    responseBody,
+                    new TypeReference<CommonResult<TransactionChannelCallbackClientResponseDTO>>() {
+                    }
+            );
+            return unwrapCallbackResult(result);
+        } catch (RestClientException exception) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment callback call failed");
+        }
+    }
+
+    /**
+     * 回写商户 OpenAPI 响应加密后的密文摘要。
+     *
+     * @param requestDTO 响应日志回写请求
+     * @return true 表示 service-payment 命中并更新日志
+     */
+    @Override
+    public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
+        try {
+            String targetUrl = paymentClientProperties.getMerchantApiResponseLogUrl();
+            String responseBody = chooseRestTemplate(targetUrl).postForObject(
+                    targetUrl,
+                    buildSignedEntity(URI.create(targetUrl), requestDTO),
+                    String.class
+            );
+            CommonResult<Boolean> result = JsonUtils.parseObject(
+                    responseBody,
+                    new TypeReference<CommonResult<Boolean>>() {
+                    }
+            );
+            return unwrapBooleanResult(result);
+        } catch (RestClientException exception) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment merchant api log update failed");
+        }
+    }
+
+    /**
+     * 按交易动作调用 service-payment 内部接口。
+     *
+     * @param operation 交易动作
+     * @param requestDTO 内部请求
+     * @return 内部响应
+     */
+    private PaymentCreateClientResponseDTO postTransaction(OpenApiPaymentOperationEnum operation,
+                                                           PaymentCreateClientRequestDTO requestDTO) {
+        try {
+            String targetUrl = targetUrl(operation);
+            String responseBody = chooseRestTemplate(targetUrl).postForObject(
+                    targetUrl,
+                    buildSignedEntity(URI.create(targetUrl), requestDTO),
                     String.class
             );
             CommonResult<PaymentCreateClientResponseDTO> result = JsonUtils.parseObject(
@@ -123,16 +255,50 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     }
 
     /**
-     * 根据配置的授权接口地址选择调用客户端。
+     * 获取交易动作对应的内部接口地址。
+     *
+     * @param operation 交易动作
+     * @return 内部接口地址
+     */
+    private String targetUrl(OpenApiPaymentOperationEnum operation) {
+        if (OpenApiPaymentOperationEnum.PAYMENT == operation) {
+            return paymentClientProperties.getPaymentUrl();
+        }
+        if (OpenApiPaymentOperationEnum.AUTHORIZATION == operation) {
+            return paymentClientProperties.getAuthorizationUrl();
+        }
+        if (OpenApiPaymentOperationEnum.PRE_AUTHORIZATION == operation) {
+            return paymentClientProperties.getPreAuthorizationUrl();
+        }
+        if (OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION == operation) {
+            return paymentClientProperties.getIncrementalAuthorizationUrl();
+        }
+        if (OpenApiPaymentOperationEnum.CAPTURE == operation) {
+            return paymentClientProperties.getCaptureUrl();
+        }
+        if (OpenApiPaymentOperationEnum.REFUND == operation) {
+            return paymentClientProperties.getRefundUrl();
+        }
+        if (OpenApiPaymentOperationEnum.VOID == operation) {
+            return paymentClientProperties.getVoidUrl();
+        }
+        if (OpenApiPaymentOperationEnum.QUERY == operation) {
+            return paymentClientProperties.getQueryUrl();
+        }
+        throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+    }
+
+    /**
+     * 根据配置的内部接口地址选择调用客户端。
      * <p>
      * 单段主机名如 `service-payment` 代表服务发现名称，走负载均衡；localhost、IP 和带点域名代表
      * 明确网络地址，直接调用，方便本地联调和固定域名部署。
      *
-     * @param authorizationUrl service-payment 授权接口地址
+     * @param targetUrl service-payment 内部接口地址
      * @return 匹配当前地址类型的 RestTemplate
      */
-    private RestTemplate chooseRestTemplate(String authorizationUrl) {
-        URI uri = URI.create(authorizationUrl);
+    private RestTemplate chooseRestTemplate(String targetUrl) {
+        URI uri = URI.create(targetUrl);
         String host = uri.getHost();
         if (host == null) {
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment url host is empty");
@@ -151,7 +317,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @param requestDTO 创建交易内部请求
      * @return 带签名头的请求实体
      */
-    private HttpEntity<PaymentCreateClientRequestDTO> buildSignedEntity(URI uri, PaymentCreateClientRequestDTO requestDTO) {
+    private HttpEntity<String> buildSignedEntity(URI uri, Object requestDTO) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = paymentClientProperties.getInternalCaller();
@@ -164,11 +330,12 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 paymentClientProperties.getInternalSecret()
         );
         HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
         headers.add(InternalServiceSignature.HEADER_CALLER, caller);
         headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
         headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
-        return new HttpEntity<>(requestDTO, headers);
+        return new HttpEntity<>(JsonUtils.toJsonString(requestDTO), headers);
     }
 
     /**
@@ -188,5 +355,41 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response data is empty");
         }
         return result.getData();
+    }
+
+    /**
+     * 解包渠道回调内部服务统一响应。
+     *
+     * @param result 内部服务统一响应
+     * @return 渠道回调记录响应
+     */
+    private TransactionChannelCallbackClientResponseDTO unwrapCallbackResult(
+            CommonResult<TransactionChannelCallbackClientResponseDTO> result) {
+        if (result == null) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment callback response is empty");
+        }
+        if (!CommonResult.isSuccess(result)) {
+            throw new ApiException(result.getCode(), result.getMessage());
+        }
+        if (result.getData() == null) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment callback response data is empty");
+        }
+        return result.getData();
+    }
+
+    /**
+     * 解包内部服务布尔响应。
+     *
+     * @param result 内部服务统一响应
+     * @return 布尔结果
+     */
+    private boolean unwrapBooleanResult(CommonResult<Boolean> result) {
+        if (result == null) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response is empty");
+        }
+        if (!CommonResult.isSuccess(result)) {
+            throw new ApiException(result.getCode(), result.getMessage());
+        }
+        return Boolean.TRUE.equals(result.getData());
     }
 }

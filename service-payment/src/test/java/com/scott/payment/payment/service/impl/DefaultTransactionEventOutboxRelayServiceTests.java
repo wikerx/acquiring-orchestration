@@ -4,6 +4,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
+import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import org.junit.jupiter.api.Test;
 
@@ -26,6 +27,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         assertThat(successCount).isEqualTo(1);
         assertThat(mqProducer.sent).isTrue();
+        assertThat(mqProducer.message).isInstanceOf(TransactionEventMessage.class);
+        assertThat(((TransactionEventMessage) mqProducer.message).getTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 0));
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("SENT");
         assertThat(eventOutboxService.eventDO.getSentTime()).isNotNull();
     }
@@ -47,15 +51,23 @@ class DefaultTransactionEventOutboxRelayServiceTests {
     }
 
     private TransactionEventOutboxDO event() {
-        BaseMqMessage message = new BaseMqMessage();
+        TransactionEventMessage message = new TransactionEventMessage();
         message.setMessageId("TX202607121000000010001");
         message.setCreatedAt(LocalDateTime.of(2026, 7, 12, 10, 0));
+        message.setTransactionId("TX202607121000000010001");
+        message.setOperationId("OP202607121000000010001");
+        message.setMerchantId("200001");
+        message.setMerchantOrderNo("M202607120001");
+        message.setTransactionType("AUTHORIZATION");
+        message.setTransactionStatus("SUCCESS");
+        message.setEventType("TRANSACTION_CREATED");
+        message.setTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 0));
         TransactionEventOutboxDO eventDO = new TransactionEventOutboxDO();
         eventDO.setId(1L);
         eventDO.setEventNo("TX202607121000000010001");
         eventDO.setMessageKey("TX202607121000000010001");
         eventDO.setTopic("PAYMENT_EVENT");
-        eventDO.setTag("PAYMENT_CREATED");
+        eventDO.setTag("TRANSACTION_CREATED");
         eventDO.setPayloadJson(JsonUtils.toJsonString(message));
         eventDO.setEventTime(message.getCreatedAt());
         eventDO.setEventStatus("INIT");
@@ -69,6 +81,8 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         private boolean sent;
 
+        private BaseMqMessage message;
+
         private CapturingMqProducer(boolean fail) {
             this.fail = fail;
         }
@@ -78,6 +92,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             if (fail) {
                 throw new IllegalStateException("send failed");
             }
+            this.message = message;
             this.sent = true;
         }
     }

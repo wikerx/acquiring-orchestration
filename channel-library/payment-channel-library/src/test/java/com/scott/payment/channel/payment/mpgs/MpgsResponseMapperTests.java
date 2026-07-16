@@ -106,8 +106,8 @@ class MpgsResponseMapperTests {
 
     private ChannelPaymentRequest request() {
         ChannelPaymentRequest request = new ChannelPaymentRequest();
-        request.setTransactionOrderNo("TO-001");
-        request.setTransactionNo("TX-001");
+        request.setOperationId("OP-001");
+        request.setTransactionId("TX-001");
         request.setMerchantOrderNo("MER-ORDER-001");
         return request;
     }

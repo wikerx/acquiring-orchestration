@@ -9,6 +9,7 @@ import com.scott.payment.channel.payment.exception.ChannelRequestException;
 import com.scott.payment.channel.payment.exception.ChannelResponseException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -93,6 +94,7 @@ public class MpgsApiClient {
      * @param requestMapper  MPGS 请求映射器
      * @param responseMapper MPGS 响应映射器
      */
+    @Autowired
     public MpgsApiClient(MpgsChannelProperties properties,
                          MpgsRequestMapper requestMapper,
                          MpgsResponseMapper responseMapper) {
@@ -155,14 +157,14 @@ public class MpgsApiClient {
             return handleResponse(request, response, httpMethod, operation, startNanos);
         } catch (java.net.http.HttpTimeoutException e) {
             logRequestException(request, httpMethod, operation, url, startNanos, e);
-            throw new ChannelTimeoutException("MPGS渠道请求超时", e);
+            throw new ChannelTimeoutException("MPGS request timed out", e);
         } catch (IOException e) {
             logRequestException(request, httpMethod, operation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS渠道网络请求失败", e);
+            throw new ChannelRequestException("MPGS network request failed", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logRequestException(request, httpMethod, operation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS渠道请求被中断", e);
+            throw new ChannelRequestException("MPGS request was interrupted", e);
         }
     }
 
@@ -183,19 +185,20 @@ public class MpgsApiClient {
                                                   long startNanos) {
         String body = response.body();
         log.info("MPGS渠道响应上下文，context={}", JsonUtils.toJsonString(new ResponseLogContext(
-                httpMethod, operation, request.getTransactionOrderNo(), request.getTransactionNo(),
-                request.getMerchantOrderNo(), response.statusCode(), elapsedMillis(startNanos)
+                httpMethod, operation, request.getOperationId(), request.getTransactionId(),
+                request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
+                response.statusCode(), elapsedMillis(startNanos)
         )));
         log.info("MPGS渠道响应报文，response={}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
         if (!StringUtils.hasText(body)) {
-            throw new ChannelResponseException("MPGS渠道响应体为空");
+            throw new ChannelResponseException("MPGS response body is empty");
         }
         MpgsResponsePayload payload = parseResponseBody(body, response.statusCode());
         if (payload == null) {
-            throw new ChannelResponseException("MPGS渠道响应解析为空");
+            throw new ChannelResponseException("MPGS parsed response is empty");
         }
         if ((response.statusCode() < 200 || response.statusCode() >= 300) && !hasMpgsResult(payload)) {
-            throw new ChannelResponseException("MPGS渠道HTTP响应异常，status=" + response.statusCode());
+            throw new ChannelResponseException("MPGS HTTP response is not successful, status=" + response.statusCode());
         }
         return responseMapper.toChannelResponse(request, payload);
     }
@@ -205,9 +208,9 @@ public class MpgsApiClient {
             return JsonUtils.parseObject(body, MpgsResponsePayload.class);
         } catch (RuntimeException e) {
             if (httpStatus < 200 || httpStatus >= 300) {
-                throw new ChannelResponseException("MPGS渠道HTTP响应异常，status=" + httpStatus, e);
+                throw new ChannelResponseException("MPGS HTTP response is not successful, status=" + httpStatus, e);
             }
-            throw new ChannelResponseException("MPGS渠道响应解析失败", e);
+            throw new ChannelResponseException("MPGS response parse failed", e);
         }
     }
 
@@ -267,15 +270,15 @@ public class MpgsApiClient {
     /**
      * 构建 MPGS 交易 URL。
      * <p>
-     * URL 中的 orderId 采用平台 merchantOrderNo，transactionId 采用平台 transactionNo；同一原始交易生命周期的关联关系
-     * 由平台 transactionOrderNo/originalTransactionNo 维护，渠道库不落库。
+     * URL 中的 orderId 采用平台传入的 channelOrderNo，MPGS transactionId 采用平台生成并持久化的 channelTransactionId。
+     * 对 MPGS，channelOrderNo 通常等于原始授权/支付的平台 transactionId。
      *
      * @param request 渠道统一请求
      * @return MPGS REST 交易 URL
      */
     String buildTransactionUrl(ChannelPaymentRequest request) {
-        requireText(request.getMerchantOrderNo(), "MPGS merchantOrderNo不能为空");
-        requireText(request.getTransactionNo(), "MPGS transactionNo不能为空");
+        requireText(request.getChannelOrderNo(), "MPGS channelOrderNo is required");
+        requireText(request.getChannelTransactionId(), "MPGS channelTransactionId is required");
         String configuredBaseUrl = extensionValue(request, EXT_REQUEST_URL, properties.getBaseUrl());
         String baseUrl = configuredBaseUrl.endsWith("/")
                 ? configuredBaseUrl
@@ -283,8 +286,8 @@ public class MpgsApiClient {
         return baseUrl
                 + "version/" + encode(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()))
                 + "/merchant/" + encode(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()))
-                + "/order/" + encode(request.getMerchantOrderNo())
-                + "/transaction/" + encode(request.getTransactionNo());
+                + "/order/" + encode(request.getChannelOrderNo())
+                + "/transaction/" + encode(request.getChannelTransactionId());
     }
 
     /**
@@ -307,12 +310,12 @@ public class MpgsApiClient {
      */
     private void validateProperties(ChannelPaymentRequest request) {
         if (!properties.isEnabled()) {
-            throw new ChannelRequestException("MPGS真实渠道未启用");
+            throw new ChannelRequestException("MPGS live channel is disabled");
         }
-        requireText(extensionValue(request, EXT_REQUEST_URL, properties.getBaseUrl()), "MPGS baseUrl不能为空");
-        requireText(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()), "MPGS version不能为空");
-        requireText(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()), "MPGS merchantId不能为空");
-        requireText(extensionValue(request, EXT_MPGS_API_PASSWORD, properties.getApiPassword()), "MPGS apiPassword不能为空");
+        requireText(extensionValue(request, EXT_REQUEST_URL, properties.getBaseUrl()), "MPGS baseUrl is required");
+        requireText(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()), "MPGS version is required");
+        requireText(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()), "MPGS merchantId is required");
+        requireText(extensionValue(request, EXT_MPGS_API_PASSWORD, properties.getApiPassword()), "MPGS apiPassword is required");
     }
 
     /**
@@ -322,9 +325,9 @@ public class MpgsApiClient {
      */
     private void validateRequest(ChannelPaymentRequest request) {
         if (request == null) {
-            throw new ChannelRequestException("MPGS请求不能为空");
+            throw new ChannelRequestException("MPGS request is required");
         }
-        requireText(request.getTransactionType(), "MPGS transactionType不能为空");
+        requireText(request.getTransactionType(), "MPGS transactionType is required");
     }
 
     /**
@@ -342,8 +345,9 @@ public class MpgsApiClient {
                             String url,
                             MpgsRequestPayload payload) {
         log.info("MPGS渠道请求上下文，context={}", JsonUtils.toJsonString(new RequestLogContext(
-                httpMethod, operation, url, request.getTransactionOrderNo(), request.getTransactionNo(),
-                request.getMerchantId(), request.getMerchantOrderNo(), request.getTransactionType(),
+                httpMethod, operation, url, request.getOperationId(), request.getTransactionId(),
+                request.getChannelOrderNo(), request.getChannelTransactionId(),
+                request.getMerchantId(), request.getMerchantOrderNo(), request.getMerchantOrderId(), request.getTransactionType(),
                 String.valueOf(request.getAmount()), request.getCurrency()
         )));
         log.info("MPGS渠道请求报文，request={}", JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
@@ -365,10 +369,11 @@ public class MpgsApiClient {
                                      String url,
                                      long startNanos,
                                      Exception exception) {
-        log.warn("MPGS渠道请求异常，method={}, operation={}, url={}, transactionOrderNo={}, transactionNo={}, "
-                        + "merchantOrderNo={}, durationMillis={}, errorType={}, errorMessage={}",
-                httpMethod, operation, url, safeTransactionOrderNo(request), safeTransactionNo(request),
-                safeMerchantOrderNo(request), elapsedMillis(startNanos), exception.getClass().getSimpleName(),
+        log.warn("MPGS渠道请求异常，method={}, operation={}, url={}, operationId={}, transactionId={}, "
+                        + "channelOrderNo={}, channelTransactionId={}, merchantOrderNo={}, durationMillis={}, errorType={}, errorMessage={}",
+                httpMethod, operation, url, safeOperationId(request), safeTransactionId(request),
+                safeChannelOrderNo(request), safeChannelTransactionId(request), safeMerchantOrderNo(request),
+                elapsedMillis(startNanos), exception.getClass().getSimpleName(),
                 exception.getMessage(), exception);
     }
 
@@ -415,12 +420,20 @@ public class MpgsApiClient {
         return fallback;
     }
 
-    private String safeTransactionOrderNo(ChannelPaymentRequest request) {
-        return request == null ? null : request.getTransactionOrderNo();
+    private String safeOperationId(ChannelPaymentRequest request) {
+        return request == null ? null : request.getOperationId();
     }
 
-    private String safeTransactionNo(ChannelPaymentRequest request) {
-        return request == null ? null : request.getTransactionNo();
+    private String safeTransactionId(ChannelPaymentRequest request) {
+        return request == null ? null : request.getTransactionId();
+    }
+
+    private String safeChannelOrderNo(ChannelPaymentRequest request) {
+        return request == null ? null : request.getChannelOrderNo();
+    }
+
+    private String safeChannelTransactionId(ChannelPaymentRequest request) {
+        return request == null ? null : request.getChannelTransactionId();
     }
 
     private String safeMerchantOrderNo(ChannelPaymentRequest request) {
@@ -487,10 +500,13 @@ public class MpgsApiClient {
     private record RequestLogContext(String method,
                                      String operation,
                                      String url,
-                                     String transactionOrderNo,
-                                     String transactionNo,
+                                     String operationId,
+                                     String transactionId,
+                                     String channelOrderNo,
+                                     String channelTransactionId,
                                      String merchantId,
                                      String merchantOrderNo,
+                                     String merchantOrderId,
                                      String transactionType,
                                      String amount,
                                      String currency) {
@@ -498,8 +514,10 @@ public class MpgsApiClient {
 
     private record ResponseLogContext(String method,
                                       String operation,
-                                      String transactionOrderNo,
-                                      String transactionNo,
+                                      String operationId,
+                                      String transactionId,
+                                      String channelOrderNo,
+                                      String channelTransactionId,
                                       String merchantOrderNo,
                                       int httpStatus,
                                       long durationMillis) {

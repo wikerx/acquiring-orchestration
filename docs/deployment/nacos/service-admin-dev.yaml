@@ -6,3 +6,17 @@ acquiring:
       open-api-base-url: ${OPENAPI_BASE_URL:https://openapi.example.com}
       sdk-version: ${OPENAPI_JAVA_SDK_VERSION:0.9.0}
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
+
+admin:
+  payment-client:
+    order-search-url: ${PAYMENT_ORDER_SEARCH_URL:http://service-payment/internal/payment/transactions/orders/search}
+    operation-search-url: ${PAYMENT_OPERATION_SEARCH_URL:http://service-payment/internal/payment/transactions/operations/search}
+    operation-search-with-summary-url: ${PAYMENT_OPERATION_SEARCH_WITH_SUMMARY_URL:http://service-payment/internal/payment/transactions/operations/search-with-summary}
+    refund-url: ${PAYMENT_REFUND_URL:http://service-payment/internal/payment/refund}
+    void-url: ${PAYMENT_VOID_URL:http://service-payment/internal/payment/void}
+    detail-base-url: ${PAYMENT_TRANSACTION_DETAIL_BASE_URL:http://service-payment/internal/payment/transactions}
+    channel-log-search-url: ${PAYMENT_CHANNEL_LOG_SEARCH_URL:http://service-payment/internal/payment/transactions/channel-logs/search}
+    channel-callback-search-url: ${PAYMENT_CHANNEL_CALLBACK_SEARCH_URL:http://service-payment/internal/payment/transactions/channel-callbacks/search}
+    merchant-notification-search-url: ${PAYMENT_MERCHANT_NOTIFICATION_SEARCH_URL:http://service-payment/internal/payment/transactions/merchant-notifications/search}
+    internal-caller: ${PAYMENT_INTERNAL_CALLER:service-admin}
+    internal-secret: ${PAYMENT_INTERNAL_SECRET:dev-internal-service-secret}

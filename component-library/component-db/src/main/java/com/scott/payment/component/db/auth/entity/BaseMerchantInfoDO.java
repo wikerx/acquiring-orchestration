@@ -46,6 +46,11 @@ public class BaseMerchantInfoDO {
     private String merchantName;
 
     /**
+     * 账单描述，用于交易账单或渠道侧展示的商户识别名称。
+     */
+    private String billingDescriptor;
+
+    /**
      * 商户简称。
      */
     private String merchantShortName;
@@ -79,6 +84,16 @@ public class BaseMerchantInfoDO {
      * 地址。
      */
     private String addressLine;
+
+    /**
+     * 商户经营地址邮编。
+     */
+    private String postalCode;
+
+    /**
+     * 商户联系人姓名。
+     */
+    private String contactName;
 
     /**
      * 联系邮箱。
