@@ -14,18 +14,9 @@ import org.springframework.util.StringUtils;
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiPayloadDecoder
- * @date : 2026-05-28 11:25
- * @email : scott_x@163.com
- * @description : 开放接口密文数据解密与转换器
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiPayloadDecoder
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Payload Decoder，位于 service-openapi 的支撑组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户 OpenAPI 请求体解密器，位于 service-openapi 支撑层，负责从 data 密文恢复业务 DTO；禁止在该层打印密文明文和私钥材料。
  * @status : create
  */
 @Component
@@ -60,13 +51,6 @@ public class OpenApiPayloadDecoder {
      * @param headerDTO    已通过验证的请求头信息
      * @return 解密后的 DTO 对象
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param requestBody 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param dataReceiver 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param headerDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public Object decode(String requestBody, Class<?> dataReceiver, OpenApiRequestHeaderDTO headerDTO) {
         if (!StringUtils.hasText(requestBody)) {
             throw new ApiException(ApiResultEnum.PARAM_MISSING, "data");
@@ -80,6 +64,12 @@ public class OpenApiPayloadDecoder {
         return data;
     }
 
+    /**
+     * 从请求体中提取 data 密文，兼容只提交 compact 密文的本地测试形态。
+     *
+     * @param requestBody 商户提交的原始请求体
+     * @return compact 密文
+     */
     private String extractCipherText(String requestBody) {
         String trimmedBody = requestBody.trim();
         if (!trimmedBody.startsWith("{")) {
@@ -92,6 +82,13 @@ public class OpenApiPayloadDecoder {
         return trimmedBody;
     }
 
+    /**
+     * 将解密后的 JSON 明文转换为控制器声明的 DTO。
+     *
+     * @param plainText    解密后的业务 JSON 明文
+     * @param dataReceiver 目标 DTO 类型
+     * @return 业务 DTO
+     */
     private Object parsePlainText(String plainText, Class<?> dataReceiver) {
         try {
             return JsonUtils.parseObject(plainText, dataReceiver);

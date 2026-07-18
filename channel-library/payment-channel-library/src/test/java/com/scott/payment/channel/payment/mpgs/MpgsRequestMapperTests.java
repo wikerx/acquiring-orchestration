@@ -46,7 +46,7 @@ class MpgsRequestMapperTests {
         assertThat(payload.getApiOperation()).isEqualTo(MpgsApiOperation.PAY);
         assertThat(payload.getOrder().getAmount()).isEqualTo("10.25");
         assertThat(payload.getOrder().getCurrency()).isEqualTo("USD");
-        assertThat(payload.getOrder().getReference()).isEqualTo("MER-ORDER-001");
+        assertThat(payload.getOrder().getReference()).isEqualTo("TX-001");
         assertThat(payload.getSourceOfFunds().getType()).isEqualTo(MpgsApiOperation.CARD);
         assertThat(payload.getSourceOfFunds().getProvided().getCard().getNumber()).isEqualTo("5123450000000008");
         assertThat(payload.getSourceOfFunds().getProvided().getCard().getExpiry().getYear()).isEqualTo("39");
@@ -150,7 +150,7 @@ class MpgsRequestMapperTests {
         logPayload("INCREMENTAL_AUTHORIZATION增量授权映射", payload);
 
         assertThat(payload.getApiOperation()).isEqualTo(MpgsApiOperation.UPDATE_AUTHORIZATION);
-        assertThat(payload.getOrder().getReference()).isEqualTo("MER-ORDER-001");
+        assertThat(payload.getOrder().getReference()).isEqualTo("TX-001");
         assertThat(payload.getTransaction().getAmount()).isEqualTo("10.25");
     }
 
@@ -160,14 +160,14 @@ class MpgsRequestMapperTests {
     @Test
     void shouldBuildVoidRequestWithTargetTransactionId() {
         ChannelPaymentRequest request = baseRequest(ChannelCapability.VOID.getCode());
-        request.setOriginalTransactionNo("TX-AUTH-001");
+        request.getExtension().put("targetTransactionId", "CH-AUTH-001");
         logCaseStart("VOID撤销映射", request);
 
         MpgsRequestPayload payload = mapper.toMpgsRequest(request);
         logPayload("VOID撤销映射", payload);
 
         assertThat(payload.getApiOperation()).isEqualTo(MpgsApiOperation.VOID);
-        assertThat(payload.getTransaction().getTargetTransactionId()).isEqualTo("TX-AUTH-001");
+        assertThat(payload.getTransaction().getTargetTransactionId()).isEqualTo("CH-AUTH-001");
     }
 
     /**
@@ -197,7 +197,7 @@ class MpgsRequestMapperTests {
 
         assertThatThrownBy(() -> mapper.toMpgsRequest(request))
                 .isInstanceOf(ChannelRequestException.class)
-                .hasMessageContaining("卡号不能为空");
+                .hasMessageContaining("card number is required");
     }
 
     /**
@@ -206,11 +206,12 @@ class MpgsRequestMapperTests {
     @Test
     void shouldRejectVoidWithoutTargetTransactionId() {
         ChannelPaymentRequest request = baseRequest(ChannelCapability.VOID.getCode());
+        request.setSourceTransactionId(null);
         logCaseStart("VOID缺少目标交易号异常映射", request);
 
         assertThatThrownBy(() -> mapper.toMpgsRequest(request))
                 .isInstanceOf(ChannelRequestException.class)
-                .hasMessageContaining("目标交易号不能为空");
+                .hasMessageContaining("target transactionId is required");
     }
 
     /**
@@ -223,7 +224,7 @@ class MpgsRequestMapperTests {
 
         assertThatThrownBy(() -> mapper.toMpgsRequest(request))
                 .isInstanceOf(ChannelRequestException.class)
-                .hasMessageContaining("暂不支持交易类型");
+                .hasMessageContaining("unsupported transaction type");
     }
 
     /**
@@ -234,8 +235,9 @@ class MpgsRequestMapperTests {
      */
     private void logCaseStart(String caseName, ChannelPaymentRequest request) {
         log.info("MPGS请求映射测试开始，case={}, request={}", caseName, JsonUtils.toJsonString(new MappingRequest(
-                request.getTransactionType(), request.getTransactionOrderNo(), request.getTransactionNo(),
-                request.getMerchantOrderNo(), String.valueOf(request.getAmount()), request.getCurrency(),
+                request.getTransactionType(), request.getOperationId(), request.getTransactionId(),
+                request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
+                request.getMerchantOrderId(), String.valueOf(request.getAmount()), request.getCurrency(),
                 MpgsApiClient.maskMpgsJson("{\"number\":\"" + request.getCardNo() + "\"}")
         )));
     }
@@ -259,10 +261,14 @@ class MpgsRequestMapperTests {
      */
     private ChannelPaymentRequest baseRequest(String transactionType) {
         ChannelPaymentRequest request = new ChannelPaymentRequest();
-        request.setTransactionOrderNo("TO-001");
-        request.setTransactionNo("TX-001");
+        request.setOperationId("OP-001");
+        request.setTransactionId("TX-001");
+        request.setSourceTransactionId("CH-SRC-001");
+        request.setChannelOrderNo("TX-AUTH-001");
+        request.setChannelTransactionId("CH-001");
         request.setMerchantId("M001");
         request.setMerchantOrderNo("MER-ORDER-001");
+        request.setMerchantOrderId("MER-REQ-001");
         request.setTransactionType(transactionType);
         request.setAmount(new BigDecimal("10.25"));
         request.setCurrency("usd");
@@ -274,9 +280,12 @@ class MpgsRequestMapperTests {
     }
 
     private record MappingRequest(String transactionType,
-                                  String transactionOrderNo,
-                                  String transactionNo,
+                                  String operationId,
+                                  String transactionId,
+                                  String channelOrderNo,
+                                  String channelTransactionId,
                                   String merchantOrderNo,
+                                  String merchantOrderId,
                                   String amount,
                                   String currency,
                                   String card) {

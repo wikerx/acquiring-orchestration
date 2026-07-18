@@ -71,20 +71,20 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     }
 
     /**
-     * 保存交易本地事件到事件时间所在的季度物理分表。
+     * 保存交易本地事件到交易业务时间所在的季度物理分表。
      *
      * @param eventDO 本地事件记录
      */
     @Override
     public void save(TransactionEventOutboxDO eventDO) {
         validateEvent(eventDO);
-        eventOutboxMapper.insertPhysical(resolvePhysicalTable(eventDO.getEventTime()), eventDO);
+        eventOutboxMapper.insertPhysical(resolvePhysicalTable(eventDO.getTransactionDateTime()), eventDO);
     }
 
     /**
-     * 查询指定事件时间所在物理分表中待投递的本地事件。
+     * 查询指定交易时间所在物理分表中待投递的本地事件。
      *
-     * @param eventTime 事件时间，用于定位物理分表
+     * @param eventTime 交易时间，用于定位物理分表；保留参数名兼容现有调用方
      * @param now       当前时间
      * @param limit     最大返回条数
      * @return 待投递事件列表
@@ -112,7 +112,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         validatePersistedEvent(eventDO);
         LocalDateTime actualSentTime = sentTime == null ? LocalDateTime.now() : sentTime;
         return eventOutboxMapper.markSent(
-                resolvePhysicalTable(eventDO.getEventTime()),
+                resolvePhysicalTable(eventDO.getTransactionDateTime()),
                 eventDO.getId(),
                 eventDO.getVersion(),
                 actualSentTime) == 1;
@@ -142,7 +142,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
             safeFailReason = safeFailReason.substring(0, 512);
         }
         return eventOutboxMapper.markFailed(
-                resolvePhysicalTable(eventDO.getEventTime()),
+                resolvePhysicalTable(eventDO.getTransactionDateTime()),
                 eventDO.getId(),
                 eventDO.getVersion(),
                 nextRetryTime,
@@ -159,22 +159,23 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
                 || !StringUtils.hasText(eventDO.getEventStatus())
                 || !StringUtils.hasText(eventDO.getTopic())
                 || !StringUtils.hasText(eventDO.getMessageKey())
+                || eventDO.getTransactionDateTime() == null
                 || eventDO.getEventTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
     private void validatePersistedEvent(TransactionEventOutboxDO eventDO) {
-        if (eventDO == null || eventDO.getId() == null || eventDO.getVersion() == null || eventDO.getEventTime() == null) {
+        if (eventDO == null || eventDO.getId() == null || eventDO.getVersion() == null || eventDO.getTransactionDateTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
-    private String resolvePhysicalTable(LocalDateTime eventTime) {
+    private String resolvePhysicalTable(LocalDateTime transactionDateTime) {
         PaymentQuarterShardingProperties.TableRule rule = resolveRule();
-        ShardingQuarter quarter = quarterResolver.fromDateTime(eventTime);
+        ShardingQuarter quarter = quarterResolver.fromDateTime(transactionDateTime);
         if (!quarterResolver.inRange(rule, quarter)) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "event_time is outside sharding table range");
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "transaction_date_time is outside sharding table range");
         }
         return tableNameResolver.physicalTableName(rule, quarter);
     }
@@ -203,7 +204,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
             rule.setTemplateTable(LOGICAL_TABLE);
         }
         if (!StringUtils.hasText(rule.getShardingColumn())) {
-            rule.setShardingColumn("event_time");
+            rule.setShardingColumn("transaction_date_time");
         }
         return rule;
     }

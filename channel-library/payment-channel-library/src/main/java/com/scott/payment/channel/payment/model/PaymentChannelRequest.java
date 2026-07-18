@@ -9,18 +9,9 @@ import java.util.Map;
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentChannelRequest
- * @date : 2026-05-28 10:58
- * @email : scott_x@163.com
- * @description : 收单支付渠道请求模型
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : PaymentChannelRequest
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 渠道管理Payment Channel 请求对象，位于 channel-library 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 早期收单渠道请求模型，位于 channel-library 渠道模型层，仅保留基础渠道路由字段；正式交易调用优先使用 dto.request.ChannelPaymentRequest。
  * @status : create
  */
 @Data
@@ -42,9 +33,14 @@ public class PaymentChannelRequest implements Serializable {
     private String merchantOrderNo;
 
     /**
-     * 系统内部支付订单号，由 service-payment 生成，用于渠道调用、交易状态推进和对账。
+     * 平台当前交易唯一标识，每一笔授权、请款、退款、撤销都不同。
      */
-    private String paymentOrderNo;
+    private String transactionId;
+
+    /**
+     * 平台内部生命周期关联标识，不返回商户。
+     */
+    private String operationId;
 
     /**
      * 渠道扩展参数，用于承载不同收单渠道的差异化字段，核心通用字段应优先使用显式属性。

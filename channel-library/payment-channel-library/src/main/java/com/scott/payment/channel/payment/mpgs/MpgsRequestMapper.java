@@ -37,7 +37,7 @@ public class MpgsRequestMapper {
             payload.setOrder(order(request));
         } else if (ChannelCapability.INCREMENTAL_AUTHORIZATION.getCode().equals(transactionType)) {
             MpgsRequestPayload.Order order = new MpgsRequestPayload.Order();
-            order.setReference(request.getMerchantOrderNo());
+            order.setReference(request.getTransactionId());
             payload.setOrder(order);
         }
         payload.setTransaction(transaction(request, transactionType));
@@ -52,11 +52,11 @@ public class MpgsRequestMapper {
 
     private void validateCommonRequest(ChannelPaymentRequest request) {
         if (request == null) {
-            throw new ChannelRequestException("MPGS请求不能为空");
+            throw new ChannelRequestException("MPGS request is required");
         }
-        requireText(request.getMerchantOrderNo(), "MPGS merchantOrderNo不能为空");
-        requireText(request.getTransactionNo(), "MPGS transactionNo不能为空");
-        requireText(request.getTransactionType(), "MPGS transactionType不能为空");
+        requireText(request.getChannelOrderNo(), "MPGS channelOrderNo is required");
+        requireText(request.getChannelTransactionId(), "MPGS channelTransactionId is required");
+        requireText(request.getTransactionType(), "MPGS transactionType is required");
     }
 
     private String toApiOperation(String transactionType) {
@@ -81,7 +81,7 @@ public class MpgsRequestMapper {
                 || ChannelCapability.REVERSAL.getCode().equals(transactionType)) {
             return MpgsApiOperation.VOID;
         }
-        throw new ChannelRequestException("MPGS暂不支持交易类型：" + transactionType);
+        throw new ChannelRequestException("MPGS unsupported transaction type: " + transactionType);
     }
 
     private boolean requiresOrderAmount(String transactionType) {
@@ -96,10 +96,10 @@ public class MpgsRequestMapper {
                 || ChannelCapability.PRE_AUTHORIZATION.getCode().equals(transactionType))) {
             return false;
         }
-        requireText(request.getCardNo(), "MPGS卡号不能为空");
-        requireText(request.getExpirationMonth(), "MPGS卡有效期月份不能为空");
-        requireText(request.getExpirationYear(), "MPGS卡有效期年份不能为空");
-        requireText(request.getSecurityCode(), "MPGS卡安全码不能为空");
+        requireText(request.getCardNo(), "MPGS card number is required");
+        requireText(request.getExpirationMonth(), "MPGS card expiry month is required");
+        requireText(request.getExpirationYear(), "MPGS card expiry year is required");
+        requireText(request.getSecurityCode(), "MPGS card security code is required");
         return true;
     }
 
@@ -107,7 +107,7 @@ public class MpgsRequestMapper {
         MpgsRequestPayload.Order order = new MpgsRequestPayload.Order();
         order.setAmount(amount(request.getAmount()));
         order.setCurrency(currency(request.getCurrency()));
-        order.setReference(request.getMerchantOrderNo());
+        order.setReference(request.getTransactionId());
         return order;
     }
 
@@ -117,7 +117,7 @@ public class MpgsRequestMapper {
             transaction.setAmount(amount(request.getAmount()));
             transaction.setCurrency(currency(request.getCurrency()));
         }
-        transaction.setReference(request.getTransactionNo());
+        transaction.setReference(request.getTransactionId());
         if (ChannelCapability.VOID.getCode().equals(transactionType)
                 || ChannelCapability.REVERSAL.getCode().equals(transactionType)) {
             transaction.setTargetTransactionId(requiredTargetTransactionId(request));
@@ -173,37 +173,34 @@ public class MpgsRequestMapper {
     }
 
     private String requiredTargetTransactionId(ChannelPaymentRequest request) {
-        String targetTransactionId = request.getOriginalTransactionNo();
-        if (!StringUtils.hasText(targetTransactionId) && request.getExtension() != null) {
-            targetTransactionId = request.getExtension().get("targetTransactionId");
-        }
-        requireText(targetTransactionId, "MPGS撤销交易目标交易号不能为空");
+        String targetTransactionId = request.getExtension() == null ? null : request.getExtension().get("targetTransactionId");
+        requireText(targetTransactionId, "MPGS target transactionId is required for void");
         return targetTransactionId;
     }
 
     private String amount(BigDecimal amount) {
         if (amount == null) {
-            throw new ChannelRequestException("MPGS交易金额不能为空");
+            throw new ChannelRequestException("MPGS transaction amount is required");
         }
         if (amount.signum() <= 0) {
-            throw new ChannelRequestException("MPGS交易金额必须大于0");
+            throw new ChannelRequestException("MPGS transaction amount must be greater than 0");
         }
         return amount.setScale(Math.max(amount.scale(), 2), RoundingMode.UNNECESSARY).stripTrailingZeros().toPlainString();
     }
 
     private String currency(String currency) {
-        requireText(currency, "MPGS交易币种不能为空");
+        requireText(currency, "MPGS transaction currency is required");
         return currency.trim().toUpperCase(Locale.ROOT);
     }
 
     private String normalizeMonth(String month) {
-        requireText(month, "MPGS卡有效期月份不能为空");
+        requireText(month, "MPGS card expiry month is required");
         String normalized = month.trim();
         return normalized.length() == 1 ? "0" + normalized : normalized;
     }
 
     private String normalizeYear(String year) {
-        requireText(year, "MPGS卡有效期年份不能为空");
+        requireText(year, "MPGS card expiry year is required");
         String normalized = year.trim();
         if (normalized.length() == 4) {
             return normalized.substring(2);

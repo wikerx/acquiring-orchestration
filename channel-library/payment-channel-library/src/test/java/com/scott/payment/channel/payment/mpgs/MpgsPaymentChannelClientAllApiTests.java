@@ -278,14 +278,14 @@ class MpgsPaymentChannelClientAllApiTests {
     @Test
     void shouldCallVoidApiAndPrintMaskedRequestResponseLogs(CapturedOutput output) {
         ChannelVoidRequest request = baseRequest(new ChannelVoidRequest(), ChannelCapability.VOID, "VOID");
-        request.setOriginalTransactionNo("TX-AUTH-ORIGINAL");
+        request.getExtension().put("targetTransactionId", "CH-AUTH-ORIGINAL");
         logCaseStart("VOID撤销", request);
 
         ChannelPaymentResponse response = client.voidPayment(request);
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.VOID);
-        assertThat(recordedRequest.body()).contains("\"targetTransactionId\":\"TX-AUTH-ORIGINAL\"");
+        assertThat(recordedRequest.body()).contains("\"targetTransactionId\":\"CH-AUTH-ORIGINAL\"");
         assertSuccessResponse(response, request, MpgsApiOperation.VOID);
         logCaseEnd("VOID撤销", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.VOID);
@@ -326,8 +326,8 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertThat(recordedRequest.method()).isEqualTo("GET");
-        assertThat(recordedRequest.path()).contains("/version/100/merchant/TESTMID/order/" + request.getMerchantOrderNo()
-                + "/transaction/" + request.getTransactionNo());
+        assertThat(recordedRequest.path()).contains("/version/100/merchant/TESTMID/order/" + request.getChannelOrderNo()
+                + "/transaction/" + request.getChannelTransactionId());
         assertThat(recordedRequest.body()).isEmpty();
         assertBasicAuth(recordedRequest);
         assertSuccessResponse(response, request, MpgsApiOperation.RETRIEVE);
@@ -430,10 +430,14 @@ class MpgsPaymentChannelClientAllApiTests {
      */
     private <T extends ChannelPaymentRequest> T baseRequest(T request, ChannelCapability capability, String suffix) {
         request.setChannelCode(PaymentChannelCode.MPGS.getCode());
-        request.setTransactionOrderNo("TO-" + suffix);
-        request.setTransactionNo("TX-" + suffix);
+        request.setOperationId("OP-" + suffix);
+        request.setTransactionId("TX-" + suffix);
+        request.setSourceTransactionId("CH-SOURCE-" + suffix);
+        request.setChannelOrderNo("TX-ROOT-" + suffix);
+        request.setChannelTransactionId("CH-" + suffix);
         request.setMerchantId("M-LOCAL");
         request.setMerchantOrderNo("MER-" + suffix);
+        request.setMerchantOrderId("REQ-" + suffix);
         request.setTransactionType(capability.getCode());
         request.setAmount(new BigDecimal("10.25"));
         request.setCurrency("USD");
@@ -449,8 +453,8 @@ class MpgsPaymentChannelClientAllApiTests {
      */
     private void assertPutRequest(RecordedRequest recordedRequest, ChannelPaymentRequest request, String apiOperation) {
         assertThat(recordedRequest.method()).isEqualTo("PUT");
-        assertThat(recordedRequest.path()).contains("/version/100/merchant/TESTMID/order/" + request.getMerchantOrderNo()
-                + "/transaction/" + request.getTransactionNo());
+        assertThat(recordedRequest.path()).contains("/version/100/merchant/TESTMID/order/" + request.getChannelOrderNo()
+                + "/transaction/" + request.getChannelTransactionId());
         assertThat(recordedRequest.body()).contains("\"apiOperation\":\"" + apiOperation + "\"");
         assertBasicAuth(recordedRequest);
     }
@@ -479,7 +483,10 @@ class MpgsPaymentChannelClientAllApiTests {
         assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.SUCCESS.getCode());
         assertThat(response.getChannelResponseCode()).isEqualTo("APPROVED");
         assertThat(response.getChannelResponseMessage()).isEqualTo("Approved");
-        assertThat(response.getChannelOrderNo()).isEqualTo(request.getMerchantOrderNo());
+        assertThat(response.getOperationId()).isEqualTo(request.getOperationId());
+        assertThat(response.getTransactionId()).isEqualTo(request.getTransactionId());
+        assertThat(response.getChannelOrderNo()).isEqualTo(request.getChannelOrderNo());
+        assertThat(response.getChannelTransactionId()).isEqualTo(request.getChannelTransactionId());
         assertThat(response.getRawResponse()).containsEntry("transactionType", operation);
         assertThat(response.getRawResponse()).containsEntry("acquirerCode", "00");
     }
@@ -547,8 +554,9 @@ class MpgsPaymentChannelClientAllApiTests {
      */
     private void logCaseStart(String caseName, ChannelPaymentRequest request) {
         log.info("MPGS API测试开始，case={}, request={}", caseName, JsonUtils.toJsonString(new LogCaseRequest(
-                request.getTransactionType(), request.getTransactionOrderNo(), request.getTransactionNo(),
-                request.getMerchantOrderNo(), String.valueOf(request.getAmount()), request.getCurrency(),
+                request.getTransactionType(), request.getOperationId(), request.getTransactionId(),
+                request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
+                request.getMerchantOrderId(), String.valueOf(request.getAmount()), request.getCurrency(),
                 MpgsApiClient.maskMpgsJson("{\"number\":\"" + request.getCardNo() + "\"}")
         )));
     }
@@ -619,9 +627,12 @@ class MpgsPaymentChannelClientAllApiTests {
     }
 
     private record LogCaseRequest(String transactionType,
-                                  String transactionOrderNo,
-                                  String transactionNo,
+                                  String operationId,
+                                  String transactionId,
+                                  String channelOrderNo,
+                                  String channelTransactionId,
                                   String merchantOrderNo,
+                                  String merchantOrderId,
                                   String amount,
                                   String currency,
                                   String card) {

@@ -4,6 +4,12 @@ server:
   port: 8000
   shutdown: graceful
 
+acquiring:
+  gateway:
+    client-ip:
+      # 默认不信任外部 X-Forwarded-For，部署在可信负载均衡之后再按环境开启。
+      trust-forwarded-header: false
+
 spring:
   application:
     name: service-gateway

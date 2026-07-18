@@ -34,10 +34,6 @@ public class LocalGlobalIdGenerator implements GlobalIdGenerator {
      *
      * @return 22 位纯数字唯一标识
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public synchronized String nextId() {
         long effectiveMillis = resolveEffectiveMillis(System.currentTimeMillis());

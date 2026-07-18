@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
@@ -172,6 +174,7 @@ class AdminMerchantInfoServiceImplTest {
         AdminMerchantSaveRequest request = new AdminMerchantSaveRequest();
         request.setMerchantId("MANUAL-ID");
         request.setMerchantName("Codex Test Merchant");
+        request.setBillingDescriptor("CODEX TEST");
         request.setMerchantShortName("Codex");
         request.setMerchantCategoryCode("5411");
         request.setCountryCode("usa");
@@ -190,9 +193,21 @@ class AdminMerchantInfoServiceImplTest {
         verify(merchantInfoMapper).insert(argThat((BaseMerchantInfoDO row) ->
                 row != null
                         && row.getMerchantId().equals(result.getMerchantId())
+                        && "CODEX TEST".equals(row.getBillingDescriptor())
                         && "Codex".equals(row.getMerchantShortName())
                         && "merchant@example.com".equals(row.getContactEmail())
         ));
+    }
+
+    @Test
+    void shouldSerializeMerchantPrimaryKeyAsString() throws Exception {
+        AdminMerchantInfoDTO dto = new AdminMerchantInfoDTO();
+        dto.setId(2076595876878270466L);
+
+        JsonNode jsonNode = new ObjectMapper().readTree(new ObjectMapper().writeValueAsString(dto));
+
+        assertThat(jsonNode.get("id").isTextual()).isTrue();
+        assertThat(jsonNode.get("id").asText()).isEqualTo("2076595876878270466");
     }
 
     private MccEntities.BaseMccLevel1DO level1() {

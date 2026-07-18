@@ -24,9 +24,9 @@ public interface TransactionEventOutboxService {
     void save(TransactionEventOutboxDO eventDO);
 
     /**
-     * 查询指定事件时间所在物理分表中待投递的本地事件。
+     * 查询指定交易时间所在物理分表中待投递的本地事件。
      *
-     * @param eventTime 事件时间，用于定位物理分表
+     * @param eventTime 交易时间，用于定位物理分表；保留参数名兼容现有调用方
      * @param now       当前时间
      * @param limit     最大返回条数
      * @return 待投递事件列表

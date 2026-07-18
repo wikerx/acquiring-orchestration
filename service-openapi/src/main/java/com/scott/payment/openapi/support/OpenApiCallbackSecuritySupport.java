@@ -8,6 +8,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Locale;
 
 /**
@@ -73,15 +76,16 @@ public class OpenApiCallbackSecuritySupport {
     /**
      * 校验渠道回调签名。
      * <p>
-     * 当前占位入口尚未接入渠道原文落库和业务幂等，只先建立渠道维度签名边界；后续接入真实渠道回调时，
-     * 应将原始 body 摘要纳入签名文本，并保存原文与幂等键。
+     * 签名文本包含 method、path、timestamp、nonce、channelCode 和原始 body 的 SHA-256 摘要，避免回调
+     * 业务报文被篡改后仍通过路径级签名。
      *
      * @param channelCode 渠道编码
      * @param request     HTTP 请求
+     * @param rawBody     渠道回调原始 body，按 UTF-8 计算 SHA-256 摘要
      */
-    public void verifyChannelCallback(String channelCode, HttpServletRequest request) {
+    public CallbackSecurityResult verifyChannelCallback(String channelCode, HttpServletRequest request, String rawBody) {
         if (!callbackProperties.isChannelSignatureRequired()) {
-            return;
+            return new CallbackSecurityResult(true, true);
         }
         String timestampText = request.getHeader(CHANNEL_TIMESTAMP_HEADER);
         String nonce = request.getHeader(CHANNEL_NONCE_HEADER);
@@ -110,11 +114,13 @@ public class OpenApiCallbackSecuritySupport {
                 timestamp,
                 nonce,
                 normalizedChannelCode,
+                sha256Hex(rawBody),
                 channelSecret
         );
         if (!InternalServiceSignature.matches(expectedSignature, signature)) {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED, "channel callback signature is invalid");
         }
+        return new CallbackSecurityResult(true, true);
     }
 
     private long parseTimestamp(String timestampText) {
@@ -123,5 +129,24 @@ public class OpenApiCallbackSecuritySupport {
         } catch (NumberFormatException exception) {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED, "channel callback signature timestamp is invalid");
         }
+    }
+
+    private String sha256Hex(String rawBody) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest((rawBody == null ? "" : rawBody).getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "channel callback body digest can not be calculated");
+        }
+    }
+
+    /**
+     * 渠道回调入口安全校验结果。
+     *
+     * @param signatureValid 签名校验是否通过
+     * @param ipAllowed IP 白名单是否通过；当前配置尚未启用独立 IP 规则时按通过记录
+     */
+    public record CallbackSecurityResult(boolean signatureValid, boolean ipAllowed) {
     }
 }

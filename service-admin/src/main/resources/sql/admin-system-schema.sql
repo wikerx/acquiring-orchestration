@@ -1579,12 +1579,14 @@ INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale,
 (3202, 'transaction_type', '支付', 'PAYMENT', 'zh-CN', 3, 'primary', NULL, 1, 1, 0),
 (3203, 'transaction_type', '预授权', 'PRE_AUTHORIZATION', 'zh-CN', 4, 'primary', NULL, 0, 1, 0),
 (3204, 'transaction_type', '预授权完成', 'PRE_AUTH_COMPLETION', 'zh-CN', 5, 'primary', NULL, 0, 1, 0),
-(3205, 'transaction_type', '退款', 'REFUND', 'zh-CN', 6, 'warning', NULL, 0, 1, 0),
-(3206, 'transaction_type', '撤销', 'VOID', 'zh-CN', 7, 'warning', NULL, 0, 1, 0),
-(3207, 'transaction_type', '冲正', 'REVERSAL', 'zh-CN', 8, 'warning', NULL, 0, 1, 0),
-(3208, 'transaction_type', '拒付', 'CHARGEBACK', 'zh-CN', 9, 'danger', NULL, 0, 1, 0),
-(3209, 'transaction_type', '二次请款', 'REPRESENTMENT', 'zh-CN', 10, 'warning', NULL, 0, 1, 0),
-(3210, 'transaction_type', '调单', 'RETRIEVAL_REQUEST', 'zh-CN', 11, 'info', NULL, 0, 1, 0),
+(3205, 'transaction_type', '增量授权', 'INCREMENTAL_AUTHORIZATION', 'zh-CN', 6, 'primary', NULL, 0, 1, 0),
+(3206, 'transaction_type', '退款', 'REFUND', 'zh-CN', 7, 'warning', NULL, 0, 1, 0),
+(3207, 'transaction_type', '撤销', 'VOID', 'zh-CN', 8, 'warning', NULL, 0, 1, 0),
+(3208, 'transaction_type', '查询', 'QUERY', 'zh-CN', 9, 'info', NULL, 0, 1, 0),
+(3209, 'transaction_type', '冲正', 'REVERSAL', 'zh-CN', 10, 'warning', NULL, 0, 1, 0),
+(3210, 'transaction_type', '拒付', 'CHARGEBACK', 'zh-CN', 11, 'danger', NULL, 0, 1, 0),
+(3211, 'transaction_type', '二次请款', 'REPRESENTMENT', 'zh-CN', 12, 'warning', NULL, 0, 1, 0),
+(3212, 'transaction_type', '调单', 'RETRIEVAL_REQUEST', 'zh-CN', 13, 'info', NULL, 0, 1, 0),
 (3300, 'transaction_status', '成功', 'SUCCESS', 'zh-CN', 1, 'success', NULL, 0, 1, 0),
 (3301, 'transaction_status', '失败', 'FAILED', 'zh-CN', 2, 'danger', NULL, 0, 1, 0),
 (3302, 'transaction_status', '待处理', 'PENDING', 'zh-CN', 3, 'warning', NULL, 0, 1, 0),
@@ -1636,12 +1638,14 @@ INSERT IGNORE INTO sys_dict_data (id, dict_type, dict_label, dict_value, locale,
 (13202, 'transaction_type', 'Payment', 'PAYMENT', 'en-US', 3, 'primary', NULL, 1, 1, 0),
 (13203, 'transaction_type', 'Pre-Authorization', 'PRE_AUTHORIZATION', 'en-US', 4, 'primary', NULL, 0, 1, 0),
 (13204, 'transaction_type', 'Pre-Authorization Completion', 'PRE_AUTH_COMPLETION', 'en-US', 5, 'primary', NULL, 0, 1, 0),
-(13205, 'transaction_type', 'Refund', 'REFUND', 'en-US', 6, 'warning', NULL, 0, 1, 0),
-(13206, 'transaction_type', 'Void', 'VOID', 'en-US', 7, 'warning', NULL, 0, 1, 0),
-(13207, 'transaction_type', 'Reversal', 'REVERSAL', 'en-US', 8, 'warning', NULL, 0, 1, 0),
-(13208, 'transaction_type', 'Chargeback', 'CHARGEBACK', 'en-US', 9, 'danger', NULL, 0, 1, 0),
-(13209, 'transaction_type', 'Representment', 'REPRESENTMENT', 'en-US', 10, 'warning', NULL, 0, 1, 0),
-(13210, 'transaction_type', 'Retrieval Request', 'RETRIEVAL_REQUEST', 'en-US', 11, 'info', NULL, 0, 1, 0),
+(13205, 'transaction_type', 'Incremental Authorization', 'INCREMENTAL_AUTHORIZATION', 'en-US', 6, 'primary', NULL, 0, 1, 0),
+(13206, 'transaction_type', 'Refund', 'REFUND', 'en-US', 7, 'warning', NULL, 0, 1, 0),
+(13207, 'transaction_type', 'Void', 'VOID', 'en-US', 8, 'warning', NULL, 0, 1, 0),
+(13208, 'transaction_type', 'Query', 'QUERY', 'en-US', 9, 'info', NULL, 0, 1, 0),
+(13209, 'transaction_type', 'Reversal', 'REVERSAL', 'en-US', 10, 'warning', NULL, 0, 1, 0),
+(13210, 'transaction_type', 'Chargeback', 'CHARGEBACK', 'en-US', 11, 'danger', NULL, 0, 1, 0),
+(13211, 'transaction_type', 'Representment', 'REPRESENTMENT', 'en-US', 12, 'warning', NULL, 0, 1, 0),
+(13212, 'transaction_type', 'Retrieval Request', 'RETRIEVAL_REQUEST', 'en-US', 13, 'info', NULL, 0, 1, 0),
 (13300, 'transaction_status', 'Success', 'SUCCESS', 'en-US', 1, 'success', NULL, 0, 1, 0),
 (13301, 'transaction_status', 'Failed', 'FAILED', 'en-US', 2, 'danger', NULL, 0, 1, 0),
 (13302, 'transaction_status', 'Pending', 'PENDING', 'en-US', 3, 'warning', NULL, 0, 1, 0),
@@ -2222,6 +2226,73 @@ WHERE app_id = 1
   AND deleted = 0
   AND (permission_code = 'email' OR permission_code LIKE 'email:%');
 
+-- ===================== 交易管理菜单与权限 =====================
+INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+VALUES
+(1040, 1, 0, 'admin_transaction_catalog_v1', '交易管理', 'CATALOG', '/transaction', NULL, 'transaction', 'Tickets', 1, 55, 1, 0),
+(1041, 1, 1040, 'admin_transaction_order_v1', '交易主单管理', 'MENU', '/transaction/order', 'transaction/order', 'transaction:order:list', 'DocumentChecked', 1, 56, 1, 0),
+(1042, 1, 1040, 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1, 0),
+(1043, 1, 1040, 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1, 0),
+(1044, 1, 1040, 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1, 0),
+(1045, 1, 1040, 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1, 0);
+
+INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+VALUES
+(1060, 1, 1040, 'transaction', '交易管理目录', 'MENU', 'GET', '/transaction/**', 1, 0),
+(1061, 1, 1041, 'transaction:order:list', '交易主单查询', 'MENU', 'POST', '/admin/transactions/orders/search', 1, 0),
+(1062, 1, 1041, 'transaction:order:detail', '交易主单详情', 'BUTTON', 'GET', '/admin/transactions/orders/*', 1, 0),
+(1063, 1, 1042, 'transaction:operation:list', '交易动作查询', 'MENU', 'POST', '/admin/transactions/operations/search', 1, 0),
+(1064, 1, 1042, 'transaction:operation:detail', '交易动作详情', 'BUTTON', 'GET', '/admin/transactions/operations/*', 1, 0),
+(1065, 1, 1042, 'transaction:operation:refund', '交易退款', 'BUTTON', 'POST', '/admin/transactions/operations/*/refund', 1, 0),
+(1066, 1, 1042, 'transaction:operation:void', '交易撤销', 'BUTTON', 'POST', '/admin/transactions/operations/*/void', 1, 0),
+(1067, 1, 1043, 'transaction:channel-log:list', '交易日志查询', 'MENU', 'POST', '/admin/transactions/channel-logs/search', 1, 0),
+(1068, 1, 1043, 'transaction:channel-log:detail', '交易日志详情', 'BUTTON', 'POST', '/admin/transactions/channel-logs/search', 1, 0),
+(1069, 1, 1044, 'transaction:channel-callback:list', '渠道回调记录查询', 'MENU', 'POST', '/admin/transactions/channel-callbacks/search', 1, 0),
+(1070, 1, 1044, 'transaction:channel-callback:detail', '渠道回调记录详情', 'BUTTON', 'POST', '/admin/transactions/channel-callbacks/search', 1, 0),
+(1071, 1, 1045, 'transaction:merchant-notification:list', '商户回调记录查询', 'MENU', 'POST', '/admin/transactions/merchant-notifications/search', 1, 0),
+(1072, 1, 1045, 'transaction:merchant-notification:detail', '商户回调记录详情', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/search', 1, 0),
+(1073, 1, 1041, 'transaction:order:export', '交易主单导出', 'BUTTON', 'POST', '/admin/transactions/orders/export', 1, 0),
+(1074, 1, 1042, 'transaction:operation:export', '交易动作导出', 'BUTTON', 'POST', '/admin/transactions/operations/export', 1, 0),
+(1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0);
+
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_transaction_order_v1' parent_code, 'admin_transaction_order_detail_v1' menu_code, '交易主单详情' menu_name, 'transaction:order:detail' permission_code, 1 sort_no
+    UNION ALL SELECT 'admin_transaction_order_v1', 'admin_transaction_order_export_v1', '交易主单导出', 'transaction:order:export', 2
+    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_detail_v1', '交易动作详情', 'transaction:operation:detail', 1
+    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_refund_v1', '交易退款', 'transaction:operation:refund', 2
+    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_void_v1', '交易撤销', 'transaction:operation:void', 3
+    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_export_v1', '交易动作导出', 'transaction:operation:export', 4
+    UNION ALL SELECT 'admin_transaction_channel_log_v1', 'admin_transaction_channel_log_detail_v1', '交易日志详情', 'transaction:channel-log:detail', 1
+    UNION ALL SELECT 'admin_transaction_channel_callback_v1', 'admin_transaction_channel_callback_detail_v1', '渠道回调记录详情', 'transaction:channel-callback:detail', 1
+    UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_detail_v1', '商户回调记录详情', 'transaction:merchant-notification:detail', 1
+    UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_export_v1', '商户回调记录导出', 'transaction:merchant-notification:export', 2
+) button ON button.parent_code = parent.menu_code
+WHERE parent.app_id = 1
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = 1
+        AND exists_menu.menu_code = button.menu_code
+        AND exists_menu.deleted = 0
+  );
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT 1, 1, id, 0
+FROM sys_menu
+WHERE app_id = 1
+  AND deleted = 0
+  AND (id BETWEEN 1040 AND 1045 OR menu_code LIKE 'admin_transaction_%_v1');
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT 1, 1, id, 0
+FROM sys_permission
+WHERE app_id = 1
+  AND deleted = 0
+  AND (permission_code = 'transaction' OR permission_code LIKE 'transaction:%');
+
 -- =============================================================================
 -- 管理端菜单最终校准
 -- 保留备份库中的正式菜单树，同时保留后续新增的渠道、汇率、邮件、分表功能。
@@ -2284,6 +2355,7 @@ JOIN (
     UNION ALL SELECT 'base', 0, '基础数据', 'CATALOG', '/base', NULL, NULL, 'DataLine', 1, 30, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 0, '渠道管理', 'CATALOG', '/channel', NULL, 'channel', 'OfficeBuilding', 1, 40, 1
     UNION ALL SELECT 'exchange', 0, '汇率管理', 'CATALOG', '/exchange', NULL, NULL, 'Money', 1, 50, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 0, '交易管理', 'CATALOG', '/transaction', NULL, 'transaction', 'Tickets', 1, 55, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 0, '邮件管理', 'CATALOG', '/email', NULL, 'email', 'Message', 1, 60, 1
     UNION ALL SELECT 'system_monitor', 0, '系统监控', 'CATALOG', '/monitor', NULL, NULL, 'Monitor', 1, 80, 1
     UNION ALL SELECT 'monitor_sharding', 0, '分表管理', 'CATALOG', '/monitor/sharding', 'monitor/sharding/index', NULL, 'Coin', 1, 85, 1
@@ -2340,6 +2412,11 @@ FROM (
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_mid_v1', '渠道MID配置', 'MENU', '/channel/mid', 'channel/mid', 'channel:mid:list', 'Tickets', 1, 44, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_order_v1', '交易主单管理', 'MENU', '/transaction/order', 'transaction/order', 'transaction:order:list', 'DocumentChecked', 1, 56, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
@@ -2390,6 +2467,11 @@ JOIN (
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_limit_v1', '渠道限额管理', 'MENU', '/channel/limit', 'channel/limit', 'channel:limit:list', 'Money', 1, 43, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_channel_mid_v1', '渠道MID配置', 'MENU', '/channel/mid', 'channel/mid', 'channel:mid:list', 'Tickets', 1, 44, 1
     UNION ALL SELECT 'admin_channel_catalog_v1', 'admin_merchant_channel_mid_binding_v1', '商户MID绑定', 'MENU', '/channel/merchant-mid-binding', 'channel/merchant-mid-binding', 'channel:mid-binding:list', 'Connection', 1, 45, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_order_v1', '交易主单管理', 'MENU', '/transaction/order', 'transaction/order', 'transaction:order:list', 'DocumentChecked', 1, 56, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_operation_v1', '交易管理', 'MENU', '/transaction/operation', 'transaction/operation', 'transaction:operation:list', 'CreditCard', 1, 57, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_log_v1', '交易日志查询', 'MENU', '/transaction/channel-log', 'transaction/channel-log', 'transaction:channel-log:list', 'Connection', 1, 58, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_channel_callback_v1', '渠道回调记录查询', 'MENU', '/transaction/channel-callback', 'transaction/channel-callback', 'transaction:channel-callback:list', 'RefreshRight', 1, 59, 1
+    UNION ALL SELECT 'admin_transaction_catalog_v1', 'admin_transaction_merchant_notification_v1', '商户回调记录', 'MENU', '/transaction/merchant-notification', 'transaction/merchant-notification', 'transaction:merchant-notification:list', 'Message', 1, 60, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_account_v1', '发件账户配置', 'MENU', '/email/account', 'email/account', 'email:account:list', 'Message', 1, 51, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_template_v1', '邮件模板管理', 'MENU', '/email/template', 'email/template', 'email:template:list', 'Tickets', 1, 52, 1
     UNION ALL SELECT 'admin_email_catalog_v1', 'admin_email_record_v1', '邮件发送记录', 'MENU', '/email/record', 'email/record', 'email:record:list', 'DocumentChecked', 1, 53, 1
@@ -2408,6 +2490,74 @@ SET menu.parent_id = parent.id,
     menu.updated_at = CURRENT_TIMESTAMP(3)
 WHERE menu.app_id = 1
   AND menu.deleted = 0;
+
+-- 商户菜单、授权和用户查询功能按钮，供角色授权树展示并与前端 v-hasPermi、后端 @RequiresPermission 保持一致。
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_merchant_menu_manage_v1' parent_code, 'admin_merchant_menu_manage_detail_v1' menu_code, '商户系统菜单详情' menu_name, 'merchant:menu-manage:list' permission_code, 1 sort_no
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'admin_merchant_menu_manage_add_v1', '商户系统菜单新增', 'merchant:menu-manage:add', 2
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'admin_merchant_menu_manage_edit_v1', '商户系统菜单修改', 'merchant:menu-manage:edit', 3
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'admin_merchant_menu_manage_status_v1', '商户系统菜单状态', 'merchant:menu-manage:edit', 4
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'admin_merchant_menu_manage_remove_v1', '商户系统菜单删除', 'merchant:menu-manage:remove', 5
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'admin_merchant_menu_grant_save_v1', '商户菜单授权保存', 'merchant:menu-grant:save', 1
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin_merchant_user_query_detail_v1', '商户用户详情', 'admin:merchant:user:detail', 1
+) button ON button.parent_code = parent.menu_code
+WHERE parent.app_id = 1
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = 1
+        AND exists_menu.menu_code = button.menu_code
+        AND exists_menu.deleted = 0
+  );
+
+INSERT INTO sys_permission (app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+SELECT 1, parent.id, permission.permission_code, permission.permission_name, permission.permission_type,
+       permission.resource_method, permission.resource_path, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_merchant_menu_manage_v1' menu_code, 'merchant:menu-manage:list' permission_code, '商户系统菜单查询' permission_name, 'MENU' permission_type, 'POST' resource_method, '/admin/merchant/menus/tree' resource_path
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:add', '商户系统菜单新增', 'BUTTON', 'POST', '/admin/merchant/menus/create'
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:edit', '商户系统菜单修改', 'BUTTON', 'POST', '/admin/merchant/menus/*'
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:remove', '商户系统菜单删除', 'BUTTON', 'POST', '/admin/merchant/menus/delete'
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'merchant:menu-grant:list', '商户菜单授权查询', 'MENU', 'GET', '/admin/merchant-menu-grants/*'
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'merchant:menu-grant:save', '商户菜单授权保存', 'BUTTON', 'POST', '/admin/merchant-menu-grants/*'
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin:merchant:user:list', '商户用户查询', 'MENU', 'GET', '/admin/merchant-users'
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin:merchant:user:detail', '商户用户详情', 'BUTTON', 'GET', '/admin/merchant-users/*'
+) permission ON permission.menu_code = parent.menu_code
+WHERE parent.app_id = 1
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM sys_permission exists_permission
+      WHERE exists_permission.app_id = 1
+        AND exists_permission.permission_code = permission.permission_code
+        AND exists_permission.deleted = 0
+  );
+
+UPDATE sys_permission permission
+JOIN (
+    SELECT 'admin_merchant_menu_manage_v1' menu_code, 'merchant:menu-manage:list' permission_code, '商户系统菜单查询' permission_name, 'MENU' permission_type, 'POST' resource_method, '/admin/merchant/menus/tree' resource_path
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:add', '商户系统菜单新增', 'BUTTON', 'POST', '/admin/merchant/menus/create'
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:edit', '商户系统菜单修改', 'BUTTON', 'POST', '/admin/merchant/menus/*'
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:remove', '商户系统菜单删除', 'BUTTON', 'POST', '/admin/merchant/menus/delete'
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'merchant:menu-grant:list', '商户菜单授权查询', 'MENU', 'GET', '/admin/merchant-menu-grants/*'
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'merchant:menu-grant:save', '商户菜单授权保存', 'BUTTON', 'POST', '/admin/merchant-menu-grants/*'
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin:merchant:user:list', '商户用户查询', 'MENU', 'GET', '/admin/merchant-users'
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin:merchant:user:detail', '商户用户详情', 'BUTTON', 'GET', '/admin/merchant-users/*'
+) expected ON expected.permission_code = permission.permission_code
+JOIN sys_menu menu ON menu.app_id = permission.app_id AND menu.menu_code = expected.menu_code AND menu.deleted = 0
+SET permission.menu_id = menu.id,
+    permission.permission_name = expected.permission_name,
+    permission.permission_type = expected.permission_type,
+    permission.resource_method = expected.resource_method,
+    permission.resource_path = expected.resource_path,
+    permission.status = 1,
+    permission.updated_at = CURRENT_TIMESTAMP(3)
+WHERE permission.app_id = 1
+  AND permission.deleted = 0;
 
 UPDATE sys_permission permission
 JOIN (
@@ -2457,6 +2607,11 @@ JOIN (
     UNION ALL SELECT 'channel:limit', 'admin_channel_limit_v1'
     UNION ALL SELECT 'channel:mid-binding', 'admin_merchant_channel_mid_binding_v1'
     UNION ALL SELECT 'channel:mid', 'admin_channel_mid_v1'
+    UNION ALL SELECT 'transaction:order', 'admin_transaction_order_v1'
+    UNION ALL SELECT 'transaction:operation', 'admin_transaction_operation_v1'
+    UNION ALL SELECT 'transaction:channel-log', 'admin_transaction_channel_log_v1'
+    UNION ALL SELECT 'transaction:channel-callback', 'admin_transaction_channel_callback_v1'
+    UNION ALL SELECT 'transaction:merchant-notification', 'admin_transaction_merchant_notification_v1'
     UNION ALL SELECT 'email:account', 'admin_email_account_v1'
     UNION ALL SELECT 'email:template', 'admin_email_template_v1'
     UNION ALL SELECT 'email:record', 'admin_email_record_v1'
@@ -2473,6 +2628,7 @@ WHERE permission.app_id = 1
   AND permission.deleted = 0
   AND (
       (permission.permission_code = 'channel' AND menu.menu_code = 'admin_channel_catalog_v1')
+      OR (permission.permission_code = 'transaction' AND menu.menu_code = 'admin_transaction_catalog_v1')
       OR (permission.permission_code = 'email' AND menu.menu_code = 'admin_email_catalog_v1')
       OR (permission.permission_code = 'dashboard:view' AND menu.menu_code = 'admin_dashboard_v3')
   );

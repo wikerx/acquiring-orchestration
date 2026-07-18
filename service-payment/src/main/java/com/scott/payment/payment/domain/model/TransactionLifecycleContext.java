@@ -22,24 +22,19 @@ public class TransactionLifecycleContext implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 同一原始交易生命周期的主标识，后续正式表建议使用 transaction_order_no 字段承载。
+     * 平台内部生命周期关联标识，落库字段为 operation_id，不返回商户。
      */
-    private String transactionOrderNo;
+    private String operationId;
 
     /**
-     * 当前交易动作单号，后续正式表建议使用 transaction_no 字段承载。
+     * 平台当前交易唯一标识，落库字段为 transaction_id，每个交易动作不同。
      */
-    private String transactionNo;
+    private String transactionId;
 
     /**
-     * 原交易动作单号，例如请款关联授权、退款关联请款或支付。
+     * 原平台交易 ID，例如请款关联授权、退款关联请款或支付。
      */
-    private String originalTransactionNo;
-
-    /**
-     * 父交易动作单号，用于表达更细粒度的链式关系。
-     */
-    private String parentTransactionNo;
+    private String sourceTransactionId;
 
     /**
      * 商户侧订单号，用于商户维度查询和创建类幂等。
@@ -47,7 +42,7 @@ public class TransactionLifecycleContext implements Serializable {
     private String merchantOrderNo;
 
     /**
-     * 商户侧交易唯一号，用于同一商户请求维度幂等和链路追踪。
+     * 商户本次 API 请求唯一标识，来自 orderInfo.orderId。
      */
-    private String merchantTransactionId;
+    private String merchantOrderId;
 }

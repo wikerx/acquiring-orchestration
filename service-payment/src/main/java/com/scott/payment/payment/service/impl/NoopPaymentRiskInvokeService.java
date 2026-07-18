@@ -19,6 +19,15 @@ import org.springframework.stereotype.Service;
 @ConditionalOnProperty(prefix = "payment.risk-client", name = "remote-enabled", havingValue = "false", matchIfMissing = true)
 public class NoopPaymentRiskInvokeService implements PaymentRiskInvokeService {
 
+    /**
+     * 执行路由前内风控检查。
+     * <p>
+     * 当前实现只用于框架搭建和本地联调，返回 SKIP/PASS 语义让交易继续进入路由和渠道调用；
+     * UAT/生产接入 service-risk 后必须通过配置关闭本实现，避免真实交易绕过风控决策。
+     *
+     * @param commandDTO 支付核心交易命令
+     * @return 跳过风控的决策结果
+     */
     @Override
     public PaymentRiskDecisionDTO checkPreRoute(PaymentCreateCommandDTO commandDTO) {
         return PaymentRiskDecisionDTO.skip();

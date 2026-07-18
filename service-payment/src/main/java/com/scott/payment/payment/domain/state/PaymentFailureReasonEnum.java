@@ -30,6 +30,11 @@ public enum PaymentFailureReasonEnum {
     CHANNEL_UNSUPPORTED("CHANNEL_UNSUPPORTED"),
 
     /**
+     * 渠道不支持标签币种且系统交易汇率不存在。
+     */
+    EXCHANGE_RATE_NOT_FOUND("EXCHANGE_RATE_NOT_FOUND"),
+
+    /**
      * 渠道请求失败。
      */
     CHANNEL_REQUEST_FAILED("CHANNEL_REQUEST_FAILED"),

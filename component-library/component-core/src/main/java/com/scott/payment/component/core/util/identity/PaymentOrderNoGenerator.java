@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @classname : PaymentOrderNoGenerator
  * @date : 2026-05-31 20:40
  * @email : scott_x@163.com
- * @description : 支付订单号生成工具
+ * @description : 支付平台订单号生成工具，按 UTC+8 毫秒时间生成可解析的交易标识和内部业务编号。
  * @status : create
  */
 public final class PaymentOrderNoGenerator {
@@ -46,19 +46,57 @@ public final class PaymentOrderNoGenerator {
     /**
      * 生成支付平台内部订单号。
      * <p>
-     * 格式：业务前缀 + UTC+8 时间戳 + 四位序列，例如 PA202605312040001230001。
+     * 格式：业务前缀 + UTC+8 时间戳 + 四位序列，例如 OP202605312040001230001。
+     * 对外可见的平台 transactionId 必须使用 {@link #nextTransactionId(LocalDateTime)}，
+     * 不携带 TX 等内部业务前缀。
      * 生产高并发环境如果要求跨机房严格单调，可在此工具基础上替换为 Redis/号段/雪花算法实现。
      *
      * @param businessPrefix 业务前缀，例如 PA 表示收单支付，PO 表示代付
      * @return 支付平台内部订单号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param businessPrefix 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String nextOrderNo(String businessPrefix) {
         return nextOrderNo(businessPrefix, Clock.system(PAYMENT_ZONE_ID));
+    }
+
+    /**
+     * 按指定业务时间生成支付平台内部订单号。
+     * <p>
+     * 交易分表场景会从平台交易号解析时间片定位物理表，因此传入时间必须与落库的
+     * transaction_date_time 保持一致。
+     *
+     * @param businessPrefix   业务前缀，例如 OP 表示内部交易关联动作
+     * @param businessDateTime 业务时间，对应交易表 transaction_date_time
+     * @return 支付平台内部订单号
+     */
+    public static String nextOrderNo(String businessPrefix, LocalDateTime businessDateTime) {
+        Objects.requireNonNull(businessDateTime, "businessDateTime can not be null");
+        String prefix = normalizePrefix(businessPrefix);
+        int sequence = SEQUENCE.updateAndGet(current -> current >= MAX_SEQUENCE ? 0 : current + 1);
+        return prefix + businessDateTime.format(ORDER_TIME_FORMATTER) + String.format("%04d", sequence);
+    }
+
+    /**
+     * 按指定业务时间生成无业务前缀的平台交易 ID。
+     * <p>
+     * 对外可见的收单 transactionId 不携带 TX 等内部前缀，但仍保留
+     * yyyyMMddHHmmssSSS 时间片，供交易分表按 transaction_date_time 定位历史物理表。
+     *
+     * @param businessDateTime 业务时间，对应交易表 transaction_date_time
+     * @return 无前缀平台交易 ID
+     */
+    public static String nextTransactionId(LocalDateTime businessDateTime) {
+        Objects.requireNonNull(businessDateTime, "businessDateTime can not be null");
+        int sequence = SEQUENCE.updateAndGet(current -> current >= MAX_SEQUENCE ? 0 : current + 1);
+        return businessDateTime.format(ORDER_TIME_FORMATTER) + String.format("%04d", sequence);
+    }
+
+    /**
+     * 按当前支付业务时区生成无业务前缀的平台交易 ID。
+     *
+     * @return 无前缀平台交易 ID
+     */
+    public static String nextTransactionId() {
+        return nextTransactionId(LocalDateTime.now(Clock.system(PAYMENT_ZONE_ID)));
     }
 
     /**
@@ -67,12 +105,6 @@ public final class PaymentOrderNoGenerator {
      * @param businessPrefix 业务前缀，例如 PA 表示收单支付，PO 表示代付
      * @param clock          业务时钟
      * @return 支付平台内部订单号
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param businessPrefix 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param clock 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String nextOrderNo(String businessPrefix, Clock clock) {
         Objects.requireNonNull(clock, "clock can not be null");

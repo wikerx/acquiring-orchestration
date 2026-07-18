@@ -1,0 +1,83 @@
+package com.scott.payment.admin.client.payment.dto;
+
+import lombok.Data;
+
+import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : PaymentTransactionActionClientRequestDTO
+ * @date : 2026-07-14 23:59
+ * @email : scott_x@163.com
+ * @description : 管理后台调用 service-payment 发起交易后续动作的内部客户端请求，位于 service-admin 客户端层，仅承载退款、撤销等后台动作必要上下文。
+ * @status : create
+ */
+@Data
+public class PaymentTransactionActionClientRequestDTO implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
+    /**
+     * 平台商户号，用于支付核心校验交易归属和构建幂等键。
+     */
+    private String merchantId;
+
+    /**
+     * 商户订单号，后台动作按原交易主单回填，保持交易生命周期一致。
+     */
+    private String merchantOrderNo;
+
+    /**
+     * 本次后台动作唯一请求号，用于支付核心幂等保护。
+     */
+    private String merchantOrderId;
+
+    /**
+     * 交易类型，由 service-payment 内部接口按入口强制设置。
+     */
+    private String transactionType;
+
+    /**
+     * 动作金额，退款必填，撤销可为空。
+     */
+    private BigDecimal amount;
+
+    /**
+     * 动作币种，退款为空时支付核心按原交易币种归一。
+     */
+    private String currency;
+
+    /**
+     * 后台动作交易时间，对应分表字段 transaction_date_time。
+     */
+    private LocalDateTime transactionDateTime;
+
+    /**
+     * 请求追踪号，当前与 merchantOrderId 保持一致。
+     */
+    private String requestId;
+
+    /**
+     * 交易扩展信息，用于传递原平台交易 ID 和后台操作说明。
+     */
+    private TransactionInfoDTO transactionInfo;
+
+    @Data
+    public static class TransactionInfoDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 原平台交易 ID，支付核心会据此定位原交易分表。
+         */
+        private String sourceTransactionId;
+
+        /**
+         * 后台操作原因，进入交易描述和审计上下文。
+         */
+        private String description;
+    }
+}

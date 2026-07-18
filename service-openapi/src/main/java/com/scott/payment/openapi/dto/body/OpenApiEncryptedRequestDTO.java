@@ -13,16 +13,7 @@ import jakarta.validation.constraints.NotBlank;
  * @classname : OpenApiEncryptedRequestDTO
  * @date : 2026-05-28 16:22
  * @email : scott_x@163.com
- * @description : 开放接口密文请求体
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiEncryptedRequestDTO
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Encrypted Request 数据传输对象，位于 service-openapi 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户 OpenAPI 密文请求体，承载统一安全链路解密前的 data 字段，不允许在业务层直接解析明文。
  * @status : create
  */
 @Data

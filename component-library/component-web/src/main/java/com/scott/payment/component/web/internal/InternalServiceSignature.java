@@ -62,6 +62,36 @@ public final class InternalServiceSignature {
      */
     public static String sign(String method, String path, long timestamp, String nonce, String caller, String secret) {
         String canonicalText = canonicalText(method, path, timestamp, nonce, caller);
+        return hmacSha256(canonicalText, secret);
+    }
+
+    /**
+     * 计算携带请求体摘要的 HMAC-SHA256 签名。
+     * <p>
+     * 渠道回调这类外部通知入口必须把原始 body 摘要纳入签名文本，避免路径和时间戳合法但业务报文被替换。
+     *
+     * @param method        HTTP 方法
+     * @param path          请求路径
+     * @param timestamp     毫秒时间戳
+     * @param nonce         请求随机串
+     * @param caller        调用方或渠道标识
+     * @param payloadSha256 原始请求体 UTF-8 SHA-256 小写十六进制摘要
+     * @param secret        共享密钥
+     * @return 小写十六进制 HMAC-SHA256 签名
+     */
+    public static String sign(String method,
+                              String path,
+                              long timestamp,
+                              String nonce,
+                              String caller,
+                              String payloadSha256,
+                              String secret) {
+        String canonicalText = canonicalText(method, path, timestamp, nonce, caller)
+                + LINE_SEPARATOR + (payloadSha256 == null ? "" : payloadSha256);
+        return hmacSha256(canonicalText, secret);
+    }
+
+    private static String hmacSha256(String canonicalText, String secret) {
         try {
             Mac mac = Mac.getInstance(HMAC_SHA256);
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_SHA256));

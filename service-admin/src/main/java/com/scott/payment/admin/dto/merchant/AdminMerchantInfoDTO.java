@@ -1,5 +1,7 @@
 package com.scott.payment.admin.dto.merchant;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -29,7 +31,10 @@ public class AdminMerchantInfoDTO {
 
     /**
      * 商户资料主键 ID。
+     *
+     * <p>后台主键是雪花 Long，超过 JavaScript 安全整数范围；接口返回字符串，避免前端编辑时 ID 被精度截断。</p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /**
@@ -38,9 +43,14 @@ public class AdminMerchantInfoDTO {
     private String merchantId;
 
     /**
-     * 商户全称。
+     * 商户主体名称，必须使用英文、数字、空格及常见英文符号。
      */
     private String merchantName;
+
+    /**
+     * 账单描述，用于交易账单或渠道侧展示的商户识别名称。
+     */
+    private String billingDescriptor;
 
     /**
      * 商户简称，可为空。
@@ -76,6 +86,16 @@ public class AdminMerchantInfoDTO {
      * 商户详细地址，可为空。
      */
     private String addressLine;
+
+    /**
+     * 商户经营地址邮编，可为空。
+     */
+    private String postalCode;
+
+    /**
+     * 商户联系人姓名，可为空。
+     */
+    private String contactName;
 
     /**
      * 商户联系人邮箱，属于敏感联系信息，展示时应按需要脱敏。

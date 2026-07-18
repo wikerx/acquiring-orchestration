@@ -187,9 +187,11 @@ class MerchantSecurityDatabaseFlowTests {
 
         PaymentCreateVO merchantResponse = decryptMerchantResponseData(merchantMaterial, mvcResult.getResponse().getContentAsString());
 
-        assertThat(merchantResponse.getMerchantOrderNo()).isEqualTo("20250116140182865587");
-        assertThat(merchantResponse.getCurrency()).isEqualTo("USD");
-        assertThat(merchantResponse.getAmount()).isEqualTo(1_238_945L);
+        assertThat(merchantResponse.getOrderInfo().getOrderNo()).isEqualTo("20250116140182865587");
+        assertThat(merchantResponse.getBillingInfo().getTransactionCurrency()).isEqualTo("USD");
+        assertThat(merchantResponse.getOrderInfo().getAmount()).isEqualByComparingTo("12389.45");
+        assertThat(merchantResponse.getBillingInfo().getTransactionAmount()).isEqualByComparingTo("12389.45");
+        assertThat(merchantResponse.getBillingInfo().getTransactionRate()).isEqualByComparingTo("1.00000000");
     }
 
     private MerchantSecurityMaterialDTO provisionMerchant(String merchantId) {
@@ -281,7 +283,7 @@ class MerchantSecurityDatabaseFlowTests {
                 claims.getJwtId(),
                 SensitiveDataMaskUtils.maskJson(decryptedJson));
         log.info("服务端解析DTO成功，订单号：{}，金额：{} {}，脱敏卡号：{}",
-                requestDTO.getOrderInfo().getTradeNo(),
+                requestDTO.getOrderInfo().getOrderNo(),
                 requestDTO.getOrderInfo().getAmount(),
                 requestDTO.getOrderInfo().getCurrency(),
                 SensitiveDataMaskUtils.maskPan(requestDTO.getCardInfo().getCardNo()));
@@ -324,9 +326,9 @@ class MerchantSecurityDatabaseFlowTests {
         log.info("商户收到响应并解密成功，响应码：{}，响应消息：{}，订单号：{}，金额：{}，币种：{}",
                 responseMap.get("code"),
                 responseMap.get("message"),
-                responseVO.getMerchantOrderNo(),
-                responseVO.getAmount(),
-                responseVO.getCurrency());
+                responseVO.getOrderInfo().getOrderNo(),
+                responseVO.getBillingInfo() == null ? null : responseVO.getBillingInfo().getTransactionAmount(),
+                responseVO.getBillingInfo() == null ? null : responseVO.getBillingInfo().getTransactionCurrency());
         return responseVO;
     }
 
@@ -386,7 +388,8 @@ class MerchantSecurityDatabaseFlowTests {
                   "orderInfo": {
                     "amount": 12389.45,
                     "currency": "USD",
-                    "tradeNo": "20250116140182865587"
+                    "orderNo": "20250116140182865587",
+                    "orderId": "REQ20250116140182865587"
                   },
                   "billingCardHolderInfo": {
                     "firstName": "John",
@@ -412,7 +415,6 @@ class MerchantSecurityDatabaseFlowTests {
                     "threeDsVersion": "2.2.0"
                   },
                   "transactionInfo": {
-                    "transactionId": "20250116140182887083",
                     "description": "authorize request"
                   }
                 }""".formatted(merchantId);

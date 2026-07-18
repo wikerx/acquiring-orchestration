@@ -78,11 +78,6 @@ public final class MerchantOpenApiTestSupport {
      * @param merchantId 支付框架颁发的商户号
      * @return 商户开户初始化参数
      */
-    /**
-     * 构建商户 OpenAPI处理所需的数据对象或查询条件。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static MerchantSecuritySeedDTO buildMerchantSeed(String merchantId) {
         MerchantSecuritySeedDTO seedDTO = new MerchantSecuritySeedDTO();
         seedDTO.setMerchantId(merchantId);
@@ -109,11 +104,6 @@ public final class MerchantOpenApiTestSupport {
      * @param jdbcTemplate   JDBC 模板，仅用于测试数据清理
      * @param merchantIdList 需要清理的商户号列表
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param jdbcTemplate 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param merchantIdList 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     public static void cleanMerchantSecurityData(JdbcTemplate jdbcTemplate,
                                                  List<String> merchantIdList) {
         merchantIdList.forEach(merchantId -> {
@@ -132,14 +122,6 @@ public final class MerchantOpenApiTestSupport {
      * @param issuedAt    JWT 签发时间，单位秒
      * @param jwtId       JWT 唯一标识，建议真实接入使用商户订单号
      * @return 可放入 authorization 请求头的 JWT
-     */
-    /**
-     * 创建或保存商户 OpenAPI数据，保持请求校验、默认值和审计字段一致。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param merchantKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param issuedAt 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param jwtId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String createMerchantJwt(String merchantId, String merchantKey, long issuedAt, String jwtId) {
         Map<String, Object> header = new LinkedHashMap<>();
@@ -169,16 +151,11 @@ public final class MerchantOpenApiTestSupport {
      * 构造授权交易明文 JSON。
      *
      * @param merchantId 支付框架颁发的商户号
-     * @param tradeNo    商户订单号
+     * @param orderNo    商户订单号
+     * @param orderId    商户本次 API 请求唯一标识
      * @return 授权交易明文 JSON
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param tradeNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
-    public static String authorizationPlainText(String merchantId, String tradeNo) {
+    public static String authorizationPlainText(String merchantId, String orderNo, String orderId) {
         return """
                 {
                   "merchantInfo": {
@@ -203,7 +180,8 @@ public final class MerchantOpenApiTestSupport {
                   "orderInfo": {
                     "amount": 12389.45,
                     "currency": "USD",
-                    "tradeNo": "%s"
+                    "orderNo": "%s",
+                    "orderId": "%s"
                   },
                   "billingCardHolderInfo": {
                     "firstName": "John",
@@ -229,10 +207,20 @@ public final class MerchantOpenApiTestSupport {
                     "threeDsVersion": "2.2.0"
                   },
                   "transactionInfo": {
-                    "transactionId": "txn-%s",
                     "description": "authorize request"
                   }
-                }""".formatted(merchantId, tradeNo, tradeNo);
+                }""".formatted(merchantId, orderNo, orderId);
+    }
+
+    /**
+     * 构造授权交易明文 JSON，测试场景中默认让商户请求唯一标识等于商户订单号。
+     *
+     * @param merchantId 支付框架颁发的商户号
+     * @param orderNo    商户订单号
+     * @return 授权交易明文 JSON
+     */
+    public static String authorizationPlainText(String merchantId, String orderNo) {
+        return authorizationPlainText(merchantId, orderNo, orderNo);
     }
 
     /**
@@ -240,11 +228,6 @@ public final class MerchantOpenApiTestSupport {
      *
      * @param encryptedData compact 密文数据
      * @return HTTP 请求体 JSON
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param encryptedData 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String wrapEncryptedData(String encryptedData) {
         return JsonUtils.toJsonString(Map.of("data", encryptedData));
@@ -256,12 +239,6 @@ public final class MerchantOpenApiTestSupport {
      * @param rawValue           原始敏感文本
      * @param keyMaterialFactory 密钥材料工厂，用于计算短指纹
      * @return 安全摘要
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param rawValue 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyMaterialFactory 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static Map<String, Object> safeSecretSummary(String rawValue, OpenApiKeyMaterialFactory keyMaterialFactory) {
         Map<String, Object> summary = new LinkedHashMap<>();
@@ -277,13 +254,6 @@ public final class MerchantOpenApiTestSupport {
      * @param httpRequestBody    HTTP 请求体
      * @param keyMaterialFactory 密钥材料工厂，用于计算短指纹
      * @return HTTP 调用安全摘要
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param httpRequestBody 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyMaterialFactory 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static Map<String, Object> safeHttpCallSummary(String authorization,
                                                           String httpRequestBody,
@@ -304,11 +274,6 @@ public final class MerchantOpenApiTestSupport {
      * @param encryptedData OpenAPI compact 密文
      * @return 已篡改 ciphertext 段的密文
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param encryptedData 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String tamperCiphertextSegment(String encryptedData) {
         String[] segments = encryptedData.split("\\.");
         Assertions.assertThat(segments).hasSize(5);
@@ -327,12 +292,6 @@ public final class MerchantOpenApiTestSupport {
      * @param payloadCrypto    OpenAPI 报文加解密工具
      * @return 商户响应私钥
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantMaterial 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param payloadCrypto 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static PrivateKey resolveMerchantResponsePrivateKey(MerchantSecurityMaterialDTO merchantMaterial,
                                                                OpenApiPayloadCrypto payloadCrypto) {
         return payloadCrypto.readPrivateKey(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64());
@@ -343,11 +302,6 @@ public final class MerchantOpenApiTestSupport {
      *
      * @param compactPayload compact 密文
      * @return compact 段数量
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param compactPayload 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static int compactPartCount(String compactPayload) {
         return (int) Arrays.stream(compactPayload.split("\\.", -1)).count();

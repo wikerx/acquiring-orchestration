@@ -18,18 +18,9 @@ import java.util.UUID;
  * @author : scott
  * @version : v1.0.0
  * @classname : RocketMqProducer
- * @date : 2026-05-31 20:52
- * @email : scott_x@163.com
- * @description : RocketMQ 消息发送服务实现
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : RocketMqProducer
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 收单支付Rocket Mq Producer，位于 component-library/component-mq 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : RocketMQ 消息发送实现，位于 component-library/component-mq 基础组件层，负责补齐公共消息元数据并同步投递消息。
  * @status : create
  */
 @Slf4j
@@ -53,15 +44,9 @@ public class RocketMqProducer implements MqProducer {
     /**
      * 发送普通同步消息。
      *
-     * @param topic   RocketMQ Topic
-     * @param tag     RocketMQ Tag，用于消费者过滤业务类型
-     * @param message 基础消息体
-     */
-    /**
-     * 发送收单支付消息或外部请求，并记录必要的执行结果。
-     * @param topic 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param tag 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param message 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * @param topic   RocketMQ Topic，不能为空
+     * @param tag     RocketMQ Tag，可为空
+     * @param message 基础消息体，必须是不含敏感明文的业务消息对象
      */
     @Override
     public void send(String topic, String tag, BaseMqMessage message) {

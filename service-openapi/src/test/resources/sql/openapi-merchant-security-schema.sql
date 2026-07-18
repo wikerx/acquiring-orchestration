@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     merchant_id VARCHAR(32) NOT NULL COMMENT '支付框架颁发的商户号',
     merchant_name VARCHAR(128) NOT NULL COMMENT '商户主体名称',
+    billing_descriptor VARCHAR(64) NULL COMMENT '账单描述，交易账单或渠道侧展示的商户识别名称',
     merchant_short_name VARCHAR(64) NULL COMMENT '商户简称',
     merchant_status TINYINT NOT NULL DEFAULT 1 COMMENT '商户状态：1正常，2冻结，3关闭',
     merchant_category_code VARCHAR(4) NOT NULL COMMENT '商户类别码MCC',
@@ -9,6 +10,8 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     region_code VARCHAR(16) NULL COMMENT '商户所在州、省或区域代码',
     city VARCHAR(64) NULL COMMENT '商户所在城市',
     address_line VARCHAR(256) NULL COMMENT '商户开户地址或经营地址',
+    postal_code VARCHAR(32) NULL COMMENT '商户经营地址邮编',
+    contact_name VARCHAR(64) NULL COMMENT '商户联系人姓名',
     contact_email VARCHAR(128) NULL COMMENT '商户联系人邮箱',
     contact_phone VARCHAR(32) NULL COMMENT '商户联系人电话',
     settlement_currency CHAR(3) NOT NULL COMMENT '默认结算币种',
@@ -21,6 +24,51 @@ CREATE TABLE IF NOT EXISTS base_merchant_info (
     UNIQUE KEY uk_base_merchant_info_mid (merchant_id),
     KEY idx_base_merchant_status (merchant_status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='基础商户信息表';
+
+SET @add_merchant_billing_descriptor_sql = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE base_merchant_info ADD COLUMN billing_descriptor VARCHAR(64) NULL COMMENT ''账单描述，交易账单或渠道侧展示的商户识别名称'' AFTER merchant_name',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'billing_descriptor'
+);
+PREPARE add_merchant_billing_descriptor_stmt FROM @add_merchant_billing_descriptor_sql;
+EXECUTE add_merchant_billing_descriptor_stmt;
+DEALLOCATE PREPARE add_merchant_billing_descriptor_stmt;
+
+SET @add_merchant_postal_code_sql = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE base_merchant_info ADD COLUMN postal_code VARCHAR(32) NULL COMMENT ''商户经营地址邮编'' AFTER address_line',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'postal_code'
+);
+PREPARE add_merchant_postal_code_stmt FROM @add_merchant_postal_code_sql;
+EXECUTE add_merchant_postal_code_stmt;
+DEALLOCATE PREPARE add_merchant_postal_code_stmt;
+
+SET @add_merchant_contact_name_sql = (
+    SELECT IF(
+        COUNT(*) = 0,
+        'ALTER TABLE base_merchant_info ADD COLUMN contact_name VARCHAR(64) NULL COMMENT ''商户联系人姓名'' AFTER postal_code',
+        'SELECT 1'
+    )
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'base_merchant_info'
+      AND column_name = 'contact_name'
+);
+PREPARE add_merchant_contact_name_stmt FROM @add_merchant_contact_name_sql;
+EXECUTE add_merchant_contact_name_stmt;
+DEALLOCATE PREPARE add_merchant_contact_name_stmt;
 
 SET @convert_merchant_status_sql = (
     SELECT IF(

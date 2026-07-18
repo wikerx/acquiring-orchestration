@@ -147,7 +147,7 @@ public class MpgsPaymentChannelClient extends AbstractPaymentChannelClient {
     /**
      * 提交 MPGS 撤销交易。
      *
-     * @param request 渠道撤销请求，需通过 originalTransactionNo 或扩展字段 targetTransactionId 指定目标交易
+     * @param request 渠道撤销请求，需通过 sourceTransactionId 或扩展字段 targetTransactionId 指定目标渠道交易
      * @return 渠道统一响应
      */
     @Override

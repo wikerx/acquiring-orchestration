@@ -17,18 +17,9 @@ import jakarta.servlet.http.HttpServletRequest;
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestArgumentResolver
- * @date : 2026-05-28 11:25
- * @email : scott_x@163.com
- * @description : 开放接口解密 DTO 参数解析器
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : OpenApiRequestArgumentResolver
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Request Argument Resolver，位于 service-openapi 的支撑组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户 OpenAPI 解密参数解析器，位于 service-openapi 支撑层，把 RequestBodyAdvice 解密后的 DTO 注入控制器参数。
  * @status : create
  */
 @Component
@@ -39,11 +30,6 @@ public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentReso
      *
      * @param parameter 控制器方法参数
      * @return 是否支持解析
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param parameter 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
@@ -67,14 +53,6 @@ public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentReso
      * @param webRequest    Web 请求
      * @param binderFactory 参数绑定工厂
      * @return 解密后的 DTO 对象
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param parameter 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param mavContainer 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param webRequest 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param binderFactory 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public Object resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,

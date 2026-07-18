@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
  * @classname : SensitiveDataMaskUtils
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 收单支付Sensitive Data Mask 工具，位于 component-library/component-core 的业务组件层，用于说明职责边界、数据语义和关键业务约束。
+ * @description : 日志敏感数据脱敏工具，统一处理卡号、CVV、JWT、渠道凭据、商户密钥和个人联系信息，避免明文进入日志或审计表。
  * @status : create
  */
 public final class SensitiveDataMaskUtils {
@@ -18,7 +18,7 @@ public final class SensitiveDataMaskUtils {
      * 密钥类字段统一替换为固定星号，禁止日志中出现任何明文片段。
      */
     private static final Pattern SECRET_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:password|oldPassword|newPassword|Authorization|accessToken|token|apiKey|secretKey|privateKey|publicKey|merchantSecret)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:password|mid\\.password|oldPassword|newPassword|apiPassword|mid\\.apiPassword|Authorization|accessToken|refreshToken|token|apiToken|authenticationToken|apiKey|secret|apiSecret|secretKey|privateKey|publicKey|merchantKey|merchantSecret)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -42,7 +42,7 @@ public final class SensitiveDataMaskUtils {
      * 手机号保留前 3 后 4。
      */
     private static final Pattern MOBILE_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:mobile)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:mobile|phone|subPhone|payerPhone|customerPhone|billingPhone|cardholderPhone)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -50,7 +50,7 @@ public final class SensitiveDataMaskUtils {
      * 邮箱保留首字符和域名。
      */
     private static final Pattern EMAIL_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:email)\"\\s*:\\s*\")([^\"\\\\@]*)(@[^\"\\\\]*)(\")",
+            "(\"(?:email|subEmail|payerEmail|customerEmail|billingEmail|cardholderEmail)\"\\s*:\\s*\")([^\"\\\\@]*)(@[^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -82,11 +82,6 @@ public final class SensitiveDataMaskUtils {
      * @param json 原始 JSON 文本
      * @return 脱敏后的 JSON 文本
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param json 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String maskJson(String json) {
         if (json == null || json.isEmpty()) {
             return json;
@@ -105,11 +100,6 @@ public final class SensitiveDataMaskUtils {
      *
      * @param value 原始文本
      * @return 脱敏后的文本
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String maskCardNo(String value) {
         if (value == null || value.isEmpty()) {
@@ -130,11 +120,6 @@ public final class SensitiveDataMaskUtils {
      * @param value 原始文本
      * @return 脱敏后的文本
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String maskAccountNumber(String value) {
         if (value == null || value.isEmpty()) {
             return value;
@@ -154,11 +139,6 @@ public final class SensitiveDataMaskUtils {
      * @param mobile 原始手机号
      * @return 脱敏后的手机号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param mobile 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String maskMobile(String mobile) {
         if (mobile == null || mobile.length() < 7) {
             return "***";
@@ -171,11 +151,6 @@ public final class SensitiveDataMaskUtils {
      *
      * @param email 原始邮箱
      * @return 脱敏后的邮箱
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param email 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String maskEmail(String email) {
         if (email == null || email.isEmpty()) {
@@ -195,11 +170,6 @@ public final class SensitiveDataMaskUtils {
      *
      * @param cardNo 原始 PAN 卡号
      * @return 脱敏后的 PAN，入参为空或长度不足时返回固定星号
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param cardNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String maskPan(String cardNo) {
         if (cardNo == null || cardNo.length() < 10) {

@@ -15,7 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
  * @classname : OpenApiRequestContext
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Request Context，位于 service-openapi 的支撑组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户 OpenAPI 请求上下文读取器，位于 service-openapi 支撑层，统一获取已验签的商户头信息和商户号。
  * @status : create
  */
 @Component
@@ -25,10 +25,6 @@ public class OpenApiRequestContext {
      * 获取当前请求中的开放接口请求头上下文。
      *
      * @return 开放接口请求头对象
-     */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public OpenApiRequestHeaderDTO getRequiredHeader() {
         HttpServletRequest request = currentRequest();
@@ -43,10 +39,6 @@ public class OpenApiRequestContext {
      * 获取当前请求中的商户号。
      *
      * @return 商户号
-     */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public String getRequiredMerchantId() {
         String merchantId = getRequiredHeader().getMerchantId();

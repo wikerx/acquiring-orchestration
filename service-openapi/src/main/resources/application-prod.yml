@@ -50,6 +50,7 @@ openapi:
     # 推荐通过 K8s Secret、CI/CD Secret 或主机环境变量注入：OPENAPI_NOTIFY_RETRY_TOKEN=<32位以上随机高强度密钥>。
     notify-retry-token: ${OPENAPI_NOTIFY_RETRY_TOKEN}
     # 渠道回调密钥按渠道编码配置在 Nacos 或环境专属配置中，例如：
+    # 回调签名文本包含 method、path、timestamp、nonce、channelCode 和 raw body 的 SHA-256 摘要。
     # channel-secrets:
     #   stripe: ${OPENAPI_CHANNEL_STRIPE_CALLBACK_SECRET}
   security:

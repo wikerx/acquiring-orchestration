@@ -3,6 +3,7 @@ package com.scott.payment.admin.dto.merchant;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 /**
@@ -34,10 +35,18 @@ public class AdminMerchantSaveRequest {
     private String merchantId;
 
     /**
-     * 商户全称。
+     * 商户主体名称，必须使用英文、数字、空格及常见英文符号，禁止中文。
      */
     @NotBlank(message = "商户名称不能为空")
+    @Pattern(regexp = "^[\\x20-\\x7E]{1,128}$", message = "商户名称仅支持英文、数字、空格及常见英文符号")
     private String merchantName;
+
+    /**
+     * 账单描述，用于交易账单或渠道侧展示的商户识别名称，禁止中文。
+     */
+    @NotBlank(message = "账单描述不能为空")
+    @Pattern(regexp = "^[\\x20-\\x7E]{1,64}$", message = "账单描述仅支持英文、数字、空格及常见英文符号")
+    private String billingDescriptor;
 
     /**
      * 商户简称。
@@ -71,6 +80,16 @@ public class AdminMerchantSaveRequest {
      * 商户详细地址，可为空。
      */
     private String addressLine;
+
+    /**
+     * 商户经营地址邮编，可为空。
+     */
+    private String postalCode;
+
+    /**
+     * 商户联系人姓名，可为空。
+     */
+    private String contactName;
 
     /**
      * 联系人邮箱，属于敏感联系信息。
