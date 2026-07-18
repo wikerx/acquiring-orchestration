@@ -12,6 +12,7 @@ import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 import com.scott.payment.payment.mq.TransactionMqConstants;
@@ -52,6 +53,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -91,6 +93,11 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * 默认交易业务时区。
      */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
+
+    /**
+     * 默认卡交易支付方式。
+     */
+    private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
 
     /**
      * 交易动作分布式锁前缀。
@@ -304,55 +311,31 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 查询结果
      */
     @Override
-    public PaymentCreateResultDTO query(PaymentCreateCommandDTO commandDTO) {
-        validateSourceTransaction(commandDTO);
+    public PaymentQueryResultDTO query(PaymentCreateCommandDTO commandDTO) {
+        validateQueryCommand(commandDTO);
         if (transactionRecordService == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        TransactionOrderDO sourceOrderDO = resolveSourceOrder(commandDTO);
-        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
-                commandDTO.getTransactionInfo().getSourceTransactionId());
-        PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
-        resultDTO.setTransactionId(sourceOrderDO.getLatestTransactionId());
-        resultDTO.setSourceTransactionId(commandDTO.getTransactionInfo().getSourceTransactionId());
-        resultDTO.setOperationId(sourceOrderDO.getOperationId());
+        String requestedTransactionId = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getTransactionId();
+        List<TransactionOperationDO> operations = transactionRecordService.findOperationsByMerchantOrder(
+                commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo(), requestedTransactionId);
+        if (operations.isEmpty()) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        TransactionOrderDO sourceOrderDO = resolveOrderForQuery(operations.get(0));
+        if (!Objects.equals(commandDTO.getMerchantId(), sourceOrderDO.getMerchantId())
+                || !Objects.equals(commandDTO.getMerchantOrderNo(), sourceOrderDO.getMerchantOrderNo())) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        PaymentQueryResultDTO resultDTO = new PaymentQueryResultDTO();
         resultDTO.setMerchantId(commandDTO.getMerchantId());
         resultDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
         resultDTO.setMerchantOrderId(commandDTO.getMerchantOrderId());
-        resultDTO.setTransactionType(sourceOrderDO.getTransactionType());
-        resultDTO.setStatus(sourceOrderDO.getTransactionStatus());
-        resultDTO.setProcessStage(sourceOrderDO.getProcessStage());
-        resultDTO.setFailReasonCode(sourceOrderDO.getFailReasonCode());
-        resultDTO.setPendingReasonCode(sourceOrderDO.getPendingReasonCode());
-        resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
-        resultDTO.setOrderAmount(sourceOrderDO.getLabelAmount());
-        resultDTO.setOrderCurrency(sourceOrderDO.getLabelCurrency());
-        resultDTO.setTotalAuthorizedAmount(sourceOrderDO.getAuthorizedAmount());
-        resultDTO.setTotalCapturedAmount(sourceOrderDO.getCapturedAmount());
-        resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalChargebackAmount(sourceOrderDO.getChargebackAmount());
-        resultDTO.setLabelAmount(sourceOrderDO.getLabelAmount());
-        resultDTO.setLabelCurrency(sourceOrderDO.getLabelCurrency());
-        resultDTO.setTransactionAmount(sourceOrderDO.getTransactionAmount());
-        resultDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
-        resultDTO.setTransactionRate(sourceOrderDO.getTransactionRate());
-        resultDTO.setRateSource(sourceOrderDO.getRateSource());
-        resultDTO.setRateTime(sourceOrderDO.getRateTime());
-        resultDTO.setSettlementAmount(sourceOrderDO.getSettlementAmount());
-        resultDTO.setSettlementCurrency(sourceOrderDO.getSettlementCurrency());
-        resultDTO.setTransactionDateTime(sourceOrderDO.getTransactionDateTime());
-        resultDTO.setTransactionTimeZone(sourceOrderDO.getTransactionTimeZone());
-        resultDTO.setPaymentMethod(sourceOrderDO.getPaymentMethod());
-        resultDTO.setPaymentBrand(sourceOrderDO.getPaymentBrand());
-        if (sourceOperationDO != null) {
-            resultDTO.setAuthCode(sourceOperationDO.getAuthCode());
-            resultDTO.setAcquirerReferenceNo(sourceOperationDO.getAcquirerReferenceNo());
-        }
-        enrichMerchantResponse(resultDTO);
-        resultDTO.setFailReasonMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
-        if (sourceOrderDO.getTransactionAmount() != null && StringUtils.hasText(sourceOrderDO.getTransactionCurrency())) {
-            resultDTO.setAmount(toMinorAmount(sourceOrderDO.getTransactionAmount(), sourceOrderDO.getTransactionCurrency()));
-        }
+        fillQueryOrderSummary(resultDTO, sourceOrderDO);
+        resultDTO.setTransactionInfo(operations.stream()
+                .map(operationDO -> toQueryTransactionInfo(operationDO, sourceOrderDO))
+                .toList());
         return resultDTO;
     }
 
@@ -452,7 +435,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, resolveChannelOrderNo(commandDTO, sourceOrderDO));
         ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
-        fillChannelResult(resultDTO, channelResponse);
+        fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         enrichFollowUpResult(commandDTO, sourceOrderDO, routeResultDTO, channelResponse, resultDTO);
         recordFollowUpTransaction(commandDTO, sourceOrderDO, routeResultDTO, invokeResultDTO, resultDTO, currencyExponent);
@@ -531,7 +514,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
                 commandDTO, routeResultDTO, operationId, transactionId, transactionId);
         ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
-        fillChannelResult(resultDTO, channelResponse);
+        fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
         enrichResult(commandDTO, routeResultDTO, channelResponse, resultDTO);
         recordInitialTransaction(commandDTO, routeResultDTO, invokeResultDTO, resultDTO, riskDecisionEnum, currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
@@ -539,7 +522,18 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return resultDTO;
     }
 
-    private void fillChannelResult(PaymentCreateResultDTO resultDTO, ChannelPaymentResponse channelResponse) {
+    private void fillChannelResult(PaymentCreateResultDTO resultDTO,
+                                   PaymentChannelInvokeResultDTO invokeResultDTO,
+                                   ChannelPaymentResponse channelResponse) {
+        if (isChannelInvokeFailed(invokeResultDTO)) {
+            resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            resultDTO.setFailReasonCode("TIMEOUT".equals(invokeResultDTO.getRequestStatus())
+                    ? PaymentFailureReasonEnum.CHANNEL_TIMEOUT.getCode()
+                    : PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
+            resultDTO.setFailReasonMessage(invokeResultDTO.getExceptionMessage());
+            return;
+        }
         if (channelResponse == null) {
             resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
             resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
@@ -565,6 +559,22 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+    }
+
+    /**
+     * 判断渠道调用是否在请求阶段失败。
+     * <p>
+     * 无渠道响应但存在异常类型、FAILED 或 TIMEOUT 时，说明请求没有完成有效渠道交易，必须落为失败或超时，
+     * 不能继续以 PROCESSING 等待不存在的渠道回调。
+     *
+     * @param invokeResultDTO 渠道调用上下文
+     * @return true 表示渠道请求阶段已失败
+     */
+    private boolean isChannelInvokeFailed(PaymentChannelInvokeResultDTO invokeResultDTO) {
+        return invokeResultDTO != null
+                && (StringUtils.hasText(invokeResultDTO.getExceptionType())
+                || "FAILED".equals(invokeResultDTO.getRequestStatus())
+                || "TIMEOUT".equals(invokeResultDTO.getRequestStatus()));
     }
 
     private PaymentChannelInvokeResultDTO invokeChannelSafely(PaymentCreateCommandDTO commandDTO,
@@ -612,7 +622,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                          PaymentTransactionTypeEnum transactionTypeEnum) {
         if (commandDTO == null
                 || !StringUtils.hasText(commandDTO.getMerchantId())
-                || !StringUtils.hasText(commandDTO.getMerchantOrderNo())
+                || requiresMerchantOrderNo(transactionTypeEnum) && !StringUtils.hasText(commandDTO.getMerchantOrderNo())
                 || !StringUtils.hasText(commandDTO.getMerchantOrderId())
                 || commandDTO.getTransactionInfo() == null
                 || !StringUtils.hasText(commandDTO.getTransactionInfo().getSourceTransactionId())) {
@@ -623,15 +633,41 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
         if (requiresAmount(transactionTypeEnum)
                 && (commandDTO.getAmount() == null || commandDTO.getAmount().compareTo(BigDecimal.ZERO) <= 0
-                || !StringUtils.hasText(commandDTO.getCurrency()))) {
+                || requiresRequestCurrency(transactionTypeEnum) && !StringUtils.hasText(commandDTO.getCurrency()))) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+    }
+
+    private boolean requiresRequestCurrency(PaymentTransactionTypeEnum transactionTypeEnum) {
+        return PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
+    }
+
+    private boolean requiresMerchantOrderNo(PaymentTransactionTypeEnum transactionTypeEnum) {
+        return PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
     }
 
     private void validateSourceTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO == null
                 || commandDTO.getTransactionInfo() == null
                 || !StringUtils.hasText(commandDTO.getTransactionInfo().getSourceTransactionId())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
+    /**
+     * 校验商户交易查询命令。
+     * <p>
+     * 查询只要求 merchantId、orderInfo.orderNo、orderInfo.orderId 和 transactionInfo 对象；
+     * transactionInfo.transactionId 是可选精确过滤条件，不再要求商户传 sourceTransactionId 或原交易时间。
+     *
+     * @param commandDTO 查询命令
+     */
+    private void validateQueryCommand(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO == null
+                || !StringUtils.hasText(commandDTO.getMerchantId())
+                || !StringUtils.hasText(commandDTO.getMerchantOrderNo())
+                || !StringUtils.hasText(commandDTO.getMerchantOrderId())
+                || commandDTO.getTransactionInfo() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
@@ -659,6 +695,77 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
+     * 根据查询命中的动作单读取生命周期主单。
+     *
+     * @param operationDO 查询命中的动作单
+     * @return 生命周期主单
+     */
+    private TransactionOrderDO resolveOrderForQuery(TransactionOperationDO operationDO) {
+        if (operationDO == null || !StringUtils.hasText(operationDO.getOperationId())) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        LocalDateTime orderTransactionDateTime = parseOperationDateTime(operationDO);
+        TransactionOrderDO orderDO = transactionRecordService.findOrder(orderTransactionDateTime, operationDO.getOperationId());
+        if (orderDO == null) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        return orderDO;
+    }
+
+    private LocalDateTime parseOperationDateTime(TransactionOperationDO operationDO) {
+        String operationId = operationDO.getOperationId();
+        int startIndex = operationId.startsWith(OPERATION_ID_PREFIX) ? OPERATION_ID_PREFIX.length() : 0;
+        int endIndex = startIndex + 17;
+        if (operationId.length() >= endIndex) {
+            try {
+                return LocalDateTime.parse(operationId.substring(startIndex, endIndex),
+                        java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS", Locale.ROOT));
+            } catch (java.time.format.DateTimeParseException ignored) {
+                // 回退到动作业务时间，兼容历史 operation_id 或异常补录数据。
+            }
+        }
+        return operationDO.getTransactionDateTime();
+    }
+
+    private void fillQueryOrderSummary(PaymentQueryResultDTO resultDTO, TransactionOrderDO orderDO) {
+        resultDTO.setOrderAmount(orderDO.getLabelAmount());
+        resultDTO.setOrderCurrency(orderDO.getLabelCurrency());
+        resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(orderDO));
+        resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(orderDO));
+        resultDTO.setTotalRefundAmount(orderDO.getRefundedAmount());
+        resultDTO.setTotalChargebackAmount(orderDO.getChargebackAmount());
+        resultDTO.setLabelAmount(orderDO.getLabelAmount());
+        resultDTO.setLabelCurrency(orderDO.getLabelCurrency());
+        resultDTO.setTransactionAmount(orderDO.getTransactionAmount());
+        resultDTO.setTransactionCurrency(orderDO.getTransactionCurrency());
+        resultDTO.setTransactionRate(orderDO.getTransactionRate());
+        resultDTO.setRateSource(orderDO.getRateSource());
+        resultDTO.setRateTime(orderDO.getRateTime());
+        resultDTO.setSettlementAmount(orderDO.getSettlementAmount());
+        resultDTO.setSettlementCurrency(orderDO.getSettlementCurrency());
+        resultDTO.setTransactionTimeZone(orderDO.getTransactionTimeZone());
+    }
+
+    private PaymentQueryResultDTO.TransactionInfoDTO toQueryTransactionInfo(TransactionOperationDO operationDO,
+                                                                           TransactionOrderDO orderDO) {
+        PaymentQueryResultDTO.TransactionInfoDTO target = new PaymentQueryResultDTO.TransactionInfoDTO();
+        target.setTransactionId(operationDO.getTransactionId());
+        target.setSourceTransactionId(operationDO.getSourceTransactionId());
+        target.setCode(resolveMerchantResponseCode(operationDO.getTransactionStatus()));
+        target.setMessage(resolveMerchantResponseMessage(operationDO.getTransactionStatus()));
+        target.setTransactionType(operationDO.getTransactionType());
+        target.setTransactionDateTime(operationDO.getTransactionDateTime());
+        target.setPaymentMethod(StringUtils.hasText(orderDO.getPaymentMethod()) ? orderDO.getPaymentMethod() : DEFAULT_PAYMENT_METHOD);
+        target.setCardBrand(orderDO.getPaymentBrand());
+        target.setCardBin(null);
+        target.setAuthCode(operationDO.getAuthCode());
+        target.setArn(operationDO.getAcquirerReferenceNo());
+        target.setDescription(null);
+        target.setCallbackUrl(null);
+        return target;
+    }
+
+    /**
      * 解析交易类型，当前首次类交易入口默认使用 AUTHORIZATION。
      *
      * @param commandDTO 创建交易命令
@@ -673,6 +780,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private void normalizeFollowUpCommand(PaymentCreateCommandDTO commandDTO,
                                           TransactionOrderDO sourceOrderDO,
                                           TransactionOperationDO sourceOperationDO) {
+        validateFollowUpMerchantOrderNo(commandDTO, sourceOrderDO);
         commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
         commandDTO.setLabelCurrency(StringUtils.hasText(commandDTO.getCurrency())
                 ? normalizeCurrency(commandDTO.getCurrency())
@@ -692,6 +800,18 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         commandDTO.setRateTime(null);
         commandDTO.setDccEnabled(0);
         commandDTO.setEdcEnabled(0);
+    }
+
+    private void validateFollowUpMerchantOrderNo(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
+        if (!PaymentTransactionTypeEnum.REFUND.getCode().equals(commandDTO.getTransactionType())) {
+            return;
+        }
+        if (!StringUtils.hasText(commandDTO.getMerchantOrderNo())) {
+            return;
+        }
+        if (!commandDTO.getMerchantOrderNo().equals(sourceOrderDO.getMerchantOrderNo())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "merchant order number must match source transaction");
+        }
     }
 
     private String resolveChannelOrderNo(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
@@ -749,12 +869,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setCardBin(resolveCardBin(commandDTO));
         resultDTO.setDescription(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getDescription());
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
-        if (channelResponse != null && channelResponse.getRawResponse() != null) {
-            resultDTO.setAuthCode(channelResponse.getRawResponse().get("authCode"));
-            resultDTO.setAcquirerReferenceNo(firstText(
-                    channelResponse.getRawResponse().get("acquirerReferenceNo"),
-                    channelResponse.getRawResponse().get("arn"),
-                    channelResponse.getRawResponse().get("rrn")));
+        if (channelResponse != null) {
+            resultDTO.setAuthCode(channelResponse.getAuthCode());
+            resultDTO.setAcquirerReferenceNo(firstText(channelResponse.getAcquirerReferenceNo(), channelResponse.getRrn()));
         }
         enrichMerchantResponse(resultDTO);
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
@@ -773,17 +890,38 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setPaymentBrand(firstText(resultDTO.getPaymentBrand(), sourceOrderDO.getPaymentBrand()));
         resultDTO.setOrderAmount(commandDTO.getLabelAmount());
         resultDTO.setOrderCurrency(commandDTO.getLabelCurrency());
-        resultDTO.setTotalAuthorizedAmount(sourceOrderDO.getAuthorizedAmount());
-        resultDTO.setTotalCapturedAmount(sourceOrderDO.getCapturedAmount());
+        resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
+        resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(sourceOrderDO));
         resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
         resultDTO.setTotalChargebackAmount(sourceOrderDO.getChargebackAmount());
-        resultDTO.setTotalAuthorizedAmount(sumOnSuccess(sourceOrderDO.getAuthorizedAmount(), resultDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION));
-        resultDTO.setTotalCapturedAmount(sumOnSuccess(sourceOrderDO.getCapturedAmount(), resultDTO, PaymentTransactionTypeEnum.CAPTURE));
+        resultDTO.setTotalAuthorizedAmount(sumOnSuccess(resultDTO.getTotalAuthorizedAmount(), resultDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION));
+        resultDTO.setTotalCapturedAmount(sumOnSuccess(resultDTO.getTotalCapturedAmount(), resultDTO, PaymentTransactionTypeEnum.CAPTURE));
         resultDTO.setTotalRefundAmount(sumOnSuccess(sourceOrderDO.getRefundedAmount(), resultDTO, PaymentTransactionTypeEnum.REFUND));
         if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())
                 && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
             resultDTO.setTotalVoidAmount(sourceOrderDO.getAuthorizedAmount());
         }
+    }
+
+    private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
+        if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
+            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+        }
+        return sourceOrderDO.getAuthorizedAmount();
+    }
+
+    private BigDecimal resolveDisplayCapturedAmount(TransactionOrderDO sourceOrderDO) {
+        if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
+            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+        }
+        return sourceOrderDO.getCapturedAmount();
+    }
+
+    private BigDecimal firstPositive(BigDecimal first, BigDecimal second) {
+        if (first != null && first.compareTo(BigDecimal.ZERO) > 0) {
+            return first;
+        }
+        return second;
     }
 
     private void fillInitialTotals(PaymentCreateResultDTO resultDTO) {
@@ -833,6 +971,25 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (commandDTO.getTransactionInfo() != null && StringUtils.hasText(commandDTO.getTransactionInfo().getCardBrand())) {
             return commandDTO.getTransactionInfo().getCardBrand();
         }
+        if (commandDTO.getCardInfo() == null || !StringUtils.hasText(commandDTO.getCardInfo().getCardNo())) {
+            return null;
+        }
+        String cardNo = commandDTO.getCardInfo().getCardNo().trim();
+        if (cardNo.startsWith("4")) {
+            return "VISA";
+        }
+        if (cardNo.startsWith("34") || cardNo.startsWith("37")) {
+            return "AMEX";
+        }
+        if (cardNo.startsWith("35")) {
+            return "JCB";
+        }
+        if (cardNo.startsWith("62")) {
+            return "UNIONPAY";
+        }
+        if (cardNo.startsWith("5") || cardNo.startsWith("22")) {
+            return "MASTERCARD";
+        }
         return null;
     }
 
@@ -859,6 +1016,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         target.setSubState(source.getSubState());
         target.setSubCity(source.getSubCity());
         target.setSubStreet(source.getSubStreet());
+        target.setSubPostal(source.getSubPostal());
+        target.setSubEmail(source.getSubEmail());
+        target.setSubPhone(source.getSubPhone());
+        target.setSubTaxId(source.getSubTaxId());
         target.setMerchantCategory(source.getMerchantCategory());
         target.setIntesCode(source.getIntesCode());
         target.setChargeType(source.getChargeType());
@@ -874,6 +1035,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 value.getSubState(),
                 value.getSubCity(),
                 value.getSubStreet(),
+                value.getSubPostal(),
+                value.getSubEmail(),
+                value.getSubPhone(),
+                value.getSubTaxId(),
                 value.getMerchantCategory(),
                 value.getIntesCode(),
                 value.getChargeType()).allMatch(item -> !StringUtils.hasText(item));

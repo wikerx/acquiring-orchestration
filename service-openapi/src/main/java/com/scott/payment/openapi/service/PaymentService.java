@@ -2,6 +2,7 @@ package com.scott.payment.openapi.service;
 
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
+import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
 
 /**
  * @author : scott
@@ -84,5 +85,5 @@ public interface PaymentService {
      * @param requestDTO 解密后的查询请求参数
      * @return 交易查询响应；当前阶段先占位，正式详情会在交易分表查询仓储落地后补齐
      */
-    PaymentCreateVO queryTransaction(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO);
+    PaymentQueryVO queryTransaction(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO);
 }

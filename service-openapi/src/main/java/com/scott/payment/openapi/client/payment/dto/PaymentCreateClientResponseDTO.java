@@ -252,6 +252,14 @@ public class PaymentCreateClientResponseDTO implements Serializable {
 
         private String subCountryCode;
 
+        private String subEmail;
+
+        private String subPhone;
+
+        private String subPostal;
+
+        private String subTaxId;
+
         private String merchantCategory;
 
         private String intesCode;

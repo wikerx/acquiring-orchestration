@@ -104,10 +104,8 @@ class OpenApiSecurityFlowTests {
                 SensitiveDataMaskUtils.maskJson(decryptedRequestJson));
 
         String responseDataJson = JsonUtils.toJsonString(java.util.Map.of(
-                "merchantOrderNo", TRADE_NO,
-                "transactionStatus", "SUCCESS",
-                "currency", "USD",
-                "amount", 1_238_945L
+                "orderInfo", java.util.Map.of("orderNo", TRADE_NO, "amount", 12389.45, "currency", "USD"),
+                "transactionInfo", java.util.Map.of("code", "T200", "message", "Success", "transactionId", "202607160954270000001")
         ));
         String encryptedResponseData = payloadCrypto.encrypt(
                 responseDataJson,

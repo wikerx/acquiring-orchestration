@@ -383,7 +383,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, orderHistoryDO);
         transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, operationHistoryDO);
         recordChannelAudit(commandDTO, routeResultDTO, channelInvokeResultDTO, resultDTO, now);
-        recordPaymentMethodInfo(commandDTO, resultDTO.getOperationId(), resultDTO.getTransactionId(),
+        recordPaymentMethodInfo(commandDTO, resultDTO, resultDTO.getOperationId(), resultDTO.getTransactionId(),
                 commandDTO.getTransactionDateTime(), now);
         recordFlowEvents(commandDTO, routeResultDTO, channelInvokeResultDTO, resultDTO, riskDecisionEnum, now);
         recordMerchantApiInteraction(commandDTO, resultDTO, now);
@@ -449,6 +449,36 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 按商户订单号查询交易动作单。
+     *
+     * @param merchantId      平台商户号
+     * @param merchantOrderNo 商户订单号
+     * @param transactionId   平台交易 ID，可为空
+     * @return 交易动作单列表
+     */
+    @Override
+    public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
+                                                                      String merchantOrderNo,
+                                                                      String transactionId) {
+        if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(merchantOrderNo)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        LocalDateTime parsedTransactionTime = shardingSupport.parseTransactionDateTime(transactionId);
+        if (parsedTransactionTime != null) {
+            String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, parsedTransactionTime);
+            return transactionOperationMapper.selectByMerchantOrderPhysical(
+                    operationTable, merchantId, merchantOrderNo, transactionId);
+        }
+        List<TransactionOperationDO> operations = new java.util.ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        for (String operationTable : shardingSupport.physicalTablesInRange(TRANSACTION_OPERATION_TABLE, null, now)) {
+            operations.addAll(transactionOperationMapper.selectByMerchantOrderPhysical(
+                    operationTable, merchantId, merchantOrderNo, transactionId));
+        }
+        return operations;
+    }
+
+    /**
      * 按渠道订单号和渠道交易 ID 定位动作单。
      *
      * @param channelOrderNo       渠道订单号
@@ -503,7 +533,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         transactionStatusHistoryMapper.insertPhysical(statusHistoryTable,
                 buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_OPERATION, actionTransactionDateTime, now));
         recordChannelAudit(commandDTO, recordDTO.getRouteResultDTO(), recordDTO.getChannelInvokeResultDTO(), resultDTO, now);
-        recordPaymentMethodInfo(commandDTO, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(),
+        recordPaymentMethodInfo(commandDTO, resultDTO, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(),
                 actionTransactionDateTime, now, sourceOrderDO);
         recordFlowEvents(commandDTO, recordDTO.getRouteResultDTO(), recordDTO.getChannelInvokeResultDTO(), resultDTO, PaymentRiskDecisionEnum.PASS, now);
         recordMerchantApiInteraction(commandDTO, resultDTO, now);
@@ -618,7 +648,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         orderDO.setSourceTransactionId(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId());
         orderDO.setPaymentMethod(resolvePaymentMethod(commandDTO));
-        orderDO.setPaymentBrand(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getCardBrand());
+        orderDO.setPaymentBrand(resultDTO.getPaymentBrand());
         orderDO.setTransactionType(resultDTO.getTransactionType());
         orderDO.setTransactionStatus(resultDTO.getStatus());
         orderDO.setProcessStage(resultDTO.getProcessStage());
@@ -883,11 +913,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             operationDO.setChannelStatus(channelResponse.getRawChannelStatus());
             operationDO.setChannelResponseCode(channelResponse.getChannelResponseCode());
             operationDO.setChannelResponseMessage(channelResponse.getChannelResponseMessage());
-            if (channelResponse.getRawResponse() != null) {
-                operationDO.setAuthCode(channelResponse.getRawResponse().get("authorizationCode"));
-                operationDO.setRrn(channelResponse.getRawResponse().get("receipt"));
-                operationDO.setAcquirerReferenceNo(channelResponse.getRawResponse().get("acquirerReference"));
-            }
+            operationDO.setAuthCode(channelResponse.getAuthCode());
+            operationDO.setRrn(channelResponse.getRrn());
+            operationDO.setAcquirerReferenceNo(channelResponse.getAcquirerReferenceNo());
         }
     }
 
@@ -1105,23 +1133,26 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * 需要从原生命周期支付工具摘要继承，确保交易查询列表每个动作都能展示卡品牌和卡号摘要。
      *
      * @param commandDTO           支付核心交易命令
-     * @param operationId          平台内部生命周期关联标识
-     * @param transactionId        平台当前交易 ID
-     * @param transactionDateTime  交易业务时间
-     * @param now                  当前处理时间
+     * @param resultDTO           交易结果
+     * @param operationId         平台内部生命周期关联标识
+     * @param transactionId       平台当前交易 ID
+     * @param transactionDateTime 交易业务时间
+     * @param now                 当前处理时间
      */
     private void recordPaymentMethodInfo(PaymentCreateCommandDTO commandDTO,
+                                         PaymentCreateResultDTO resultDTO,
                                          String operationId,
                                          String transactionId,
                                          LocalDateTime transactionDateTime,
                                          LocalDateTime now) {
-        recordPaymentMethodInfo(commandDTO, operationId, transactionId, transactionDateTime, now, null);
+        recordPaymentMethodInfo(commandDTO, resultDTO, operationId, transactionId, transactionDateTime, now, null);
     }
 
     /**
      * 记录交易支付工具摘要，并可从原主单继承卡摘要。
      *
      * @param commandDTO          支付核心交易命令
+     * @param resultDTO           交易结果
      * @param operationId         平台内部生命周期关联标识
      * @param transactionId       平台当前交易 ID
      * @param transactionDateTime 交易业务时间
@@ -1129,6 +1160,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param sourceOrderDO       原生命周期主单，后续动作可为空
      */
     private void recordPaymentMethodInfo(PaymentCreateCommandDTO commandDTO,
+                                         PaymentCreateResultDTO resultDTO,
                                          String operationId,
                                          String transactionId,
                                          LocalDateTime transactionDateTime,
@@ -1142,7 +1174,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         infoDO.setTransactionId(transactionId);
         infoDO.setOperationId(operationId);
         infoDO.setPaymentMethod(resolvePaymentMethod(commandDTO));
-        infoDO.setPaymentBrand(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getCardBrand());
+        infoDO.setPaymentBrand(resolvePaymentBrand(commandDTO, resultDTO, sourceOrderDO));
         fillCardSummary(infoDO, commandDTO);
         inheritPaymentMethodInfo(infoDO, sourceOrderDO, transactionDateTime);
         fillTransactionTime(infoDO, transactionDateTime);
@@ -1229,6 +1261,22 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return infoDO != null && (StringUtils.hasText(infoDO.getCardBin())
                 || StringUtils.hasText(infoDO.getCardLast4())
                 || StringUtils.hasText(infoDO.getCardNumberMasked()));
+    }
+
+    /**
+     * 解析支付品牌；首次交易优先使用支付核心识别结果，后续动作继承原生命周期主单。
+     *
+     * @param commandDTO     支付核心交易命令
+     * @param sourceOrderDO  原生命周期主单，首次交易为空
+     * @return 统一支付品牌枚举
+     */
+    private String resolvePaymentBrand(PaymentCreateCommandDTO commandDTO,
+                                       PaymentCreateResultDTO resultDTO,
+                                       TransactionOrderDO sourceOrderDO) {
+        return firstText(
+                resultDTO == null ? null : resultDTO.getPaymentBrand(),
+                commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getCardBrand(),
+                sourceOrderDO == null ? null : sourceOrderDO.getPaymentBrand());
     }
 
     /**

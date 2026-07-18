@@ -122,6 +122,9 @@ class DefaultTransactionRecordServiceTests {
         assertThat(orderCapture.value.getAuthorizedAmount()).isEqualByComparingTo("12.34");
         assertThat(orderCapture.value.getAvailableCaptureAmount()).isEqualByComparingTo("12.34");
         assertThat(operationCapture.value.getChannelResponseCode()).isEqualTo("00");
+        assertThat(operationCapture.value.getAuthCode()).isEqualTo("123456");
+        assertThat(operationCapture.value.getRrn()).isEqualTo("RCPT001");
+        assertThat(operationCapture.value.getAcquirerReferenceNo()).isEqualTo("REF001");
         assertThat(operationCapture.value.getApprovedAmount()).isEqualByComparingTo("12.34");
         assertThat(paymentInfoCapture.physicalTable).isEqualTo("transaction_payment_method_info_202603");
         assertThat(paymentInfoCapture.value.getPaymentMethod()).isEqualTo("BANK_CARD");
@@ -640,6 +643,9 @@ class DefaultTransactionRecordServiceTests {
         response.setChannelOrderNo("CODX260714180001");
         response.setChannelResponseCode("00");
         response.setChannelResponseMessage("Approved");
+        response.setAuthCode("123456");
+        response.setRrn("RCPT001");
+        response.setAcquirerReferenceNo("REF001");
         return response;
     }
 

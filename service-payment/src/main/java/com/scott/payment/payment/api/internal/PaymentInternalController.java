@@ -5,6 +5,7 @@ import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.payment.application.PaymentTransactionApplicationService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
@@ -138,7 +139,7 @@ public class PaymentInternalController {
      * @return 查询结果
      */
     @PostMapping("/query")
-    public CommonResult<PaymentCreateResultDTO> query(@RequestBody PaymentCreateCommandDTO commandDTO) {
+    public CommonResult<PaymentQueryResultDTO> query(@RequestBody PaymentCreateCommandDTO commandDTO) {
         return success(paymentTransactionApplicationService.query(commandDTO));
     }
 

@@ -129,11 +129,16 @@ class MerchantKeyCryptoUsageTests {
         );
         String plainResponseData = """
                 {
-                  "merchantOrderNo": "202605300002",
-                  "platformReference": "PAY202605300002",
-                  "transactionStatus": "SUCCESS",
-                  "amount": 1238945,
-                  "currency": "USD"
+                  "orderInfo": {
+                    "orderNo": "202605300002",
+                    "amount": 12389.45,
+                    "currency": "USD"
+                  },
+                  "transactionInfo": {
+                    "code": "T200",
+                    "message": "Success",
+                    "transactionId": "202607160954270000001"
+                  }
                 }""";
 
         String encryptedResponseData = payloadCrypto.encrypt(

@@ -70,7 +70,11 @@ public class MpgsResponseMapper {
         if (response.getTransaction() != null && response.getTransaction().getId() != null) {
             target.setChannelTransactionId(response.getTransaction().getId());
         }
-        target.setRawResponse(responseSummary(response).toRawResponseMap());
+        MpgsResponseSummary summary = responseSummary(response);
+        target.setAuthCode(summary.getAuthorizationCode());
+        target.setRrn(summary.getReceipt());
+        target.setAcquirerReferenceNo(summary.getAcquirerReference());
+        target.setRawResponse(summary.toRawResponseMap());
         return target;
     }
 

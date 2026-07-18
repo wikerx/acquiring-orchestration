@@ -5,7 +5,7 @@ import com.scott.payment.component.web.version.ApiVersion;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.application.payment.OpenApiPaymentQueryApplicationService;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
-import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
+import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -59,9 +59,9 @@ public class OpenApiPaymentQueryController {
             }
     )
     @PostMapping("/query")
-    public CommonResult<PaymentCreateVO> query(HttpServletRequest request,
-                                               @RequestBody String encryptedData,
-                                               ApiMerchantPaymentRequestDTO requestDTO) {
+    public CommonResult<PaymentQueryVO> query(HttpServletRequest request,
+                                              @RequestBody String encryptedData,
+                                              ApiMerchantPaymentRequestDTO requestDTO) {
         return success(paymentQueryApplicationService.query(encryptedData, requestDTO));
     }
 }

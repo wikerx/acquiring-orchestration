@@ -66,6 +66,21 @@ public class ChannelPaymentResponse implements Serializable {
     private String channelResponseMessage;
 
     /**
+     * 授权码。渠道适配层负责把渠道原始字段映射为该平台标准字段，交易核心禁止再猜测渠道 rawResponse 的字段名。
+     */
+    private String authCode;
+
+    /**
+     * 检索参考号或渠道回单号。
+     */
+    private String rrn;
+
+    /**
+     * 收单机构参考号，用于对账、争议和后台排查。
+     */
+    private String acquirerReferenceNo;
+
+    /**
      * 3DS 或渠道跳转地址。
      */
     private String redirectUrl;

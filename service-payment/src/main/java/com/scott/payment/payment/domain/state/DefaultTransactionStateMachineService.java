@@ -84,7 +84,7 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
         if (PaymentTransactionTypeEnum.REFUND == nextTransactionType) {
             validateType(sourceOrderDO, REFUND_SOURCE_TYPES, nextTransactionType);
-            validateCurrency(sourceOrderDO, requestCurrency, nextTransactionType);
+            validateOptionalCurrency(sourceOrderDO, requestCurrency, nextTransactionType);
             validateAvailableAmount(requestAmount, sourceOrderDO.getAvailableRefundAmount(), nextTransactionType);
             return;
         }
@@ -128,6 +128,17 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
                                   PaymentTransactionTypeEnum nextTransactionType) {
         if (!StringUtils.hasText(requestCurrency)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), nextTransactionType.getCode() + " currency is required");
+        }
+        if (!sourceOrderDO.getTransactionCurrency().equalsIgnoreCase(requestCurrency)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), nextTransactionType.getCode() + " currency must match source transaction currency");
+        }
+    }
+
+    private void validateOptionalCurrency(TransactionOrderDO sourceOrderDO,
+                                          String requestCurrency,
+                                          PaymentTransactionTypeEnum nextTransactionType) {
+        if (!StringUtils.hasText(requestCurrency)) {
+            return;
         }
         if (!sourceOrderDO.getTransactionCurrency().equalsIgnoreCase(requestCurrency)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), nextTransactionType.getCode() + " currency must match source transaction currency");

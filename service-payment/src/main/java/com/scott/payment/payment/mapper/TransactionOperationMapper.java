@@ -189,6 +189,33 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                              @Param("operationId") String operationId);
 
     /**
+     * 按商户订单号查询交易动作单。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param merchantId        平台商户号
+     * @param merchantOrderNo   商户订单号
+     * @param transactionId     平台交易 ID，可为空；传入时精确过滤单笔动作
+     * @return 交易动作单列表
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND merchant_order_no = #{merchantOrderNo}
+              AND deleted = 0
+              <if test="transactionId != null and transactionId != ''">
+                AND transaction_id = #{transactionId}
+              </if>
+            ORDER BY operation_sequence ASC, operation_time ASC
+            </script>
+            """)
+    List<TransactionOperationDO> selectByMerchantOrderPhysical(@Param("physicalTableName") String physicalTableName,
+                                                               @Param("merchantId") String merchantId,
+                                                               @Param("merchantOrderNo") String merchantOrderNo,
+                                                               @Param("transactionId") String transactionId);
+
+    /**
      * 按交易时间范围查询动作单列表。
      *
      * @param physicalTableName 经分表规则解析器校验后的物理表名

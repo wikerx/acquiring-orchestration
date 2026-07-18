@@ -2250,19 +2250,25 @@ VALUES
 (1069, 1, 1044, 'transaction:channel-callback:list', '渠道回调记录查询', 'MENU', 'POST', '/admin/transactions/channel-callbacks/search', 1, 0),
 (1070, 1, 1044, 'transaction:channel-callback:detail', '渠道回调记录详情', 'BUTTON', 'POST', '/admin/transactions/channel-callbacks/search', 1, 0),
 (1071, 1, 1045, 'transaction:merchant-notification:list', '商户回调记录查询', 'MENU', 'POST', '/admin/transactions/merchant-notifications/search', 1, 0),
-(1072, 1, 1045, 'transaction:merchant-notification:detail', '商户回调记录详情', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/search', 1, 0);
+(1072, 1, 1045, 'transaction:merchant-notification:detail', '商户回调记录详情', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/search', 1, 0),
+(1073, 1, 1041, 'transaction:order:export', '交易主单导出', 'BUTTON', 'POST', '/admin/transactions/orders/export', 1, 0),
+(1074, 1, 1042, 'transaction:operation:export', '交易动作导出', 'BUTTON', 'POST', '/admin/transactions/operations/export', 1, 0),
+(1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
 FROM sys_menu parent
 JOIN (
     SELECT 'admin_transaction_order_v1' parent_code, 'admin_transaction_order_detail_v1' menu_code, '交易主单详情' menu_name, 'transaction:order:detail' permission_code, 1 sort_no
+    UNION ALL SELECT 'admin_transaction_order_v1', 'admin_transaction_order_export_v1', '交易主单导出', 'transaction:order:export', 2
     UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_detail_v1', '交易动作详情', 'transaction:operation:detail', 1
     UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_refund_v1', '交易退款', 'transaction:operation:refund', 2
     UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_void_v1', '交易撤销', 'transaction:operation:void', 3
+    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_export_v1', '交易动作导出', 'transaction:operation:export', 4
     UNION ALL SELECT 'admin_transaction_channel_log_v1', 'admin_transaction_channel_log_detail_v1', '交易日志详情', 'transaction:channel-log:detail', 1
     UNION ALL SELECT 'admin_transaction_channel_callback_v1', 'admin_transaction_channel_callback_detail_v1', '渠道回调记录详情', 'transaction:channel-callback:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_detail_v1', '商户回调记录详情', 'transaction:merchant-notification:detail', 1
+    UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_export_v1', '商户回调记录导出', 'transaction:merchant-notification:export', 2
 ) button ON button.parent_code = parent.menu_code
 WHERE parent.app_id = 1
   AND parent.deleted = 0
@@ -2484,6 +2490,74 @@ SET menu.parent_id = parent.id,
     menu.updated_at = CURRENT_TIMESTAMP(3)
 WHERE menu.app_id = 1
   AND menu.deleted = 0;
+
+-- 商户菜单、授权和用户查询功能按钮，供角色授权树展示并与前端 v-hasPermi、后端 @RequiresPermission 保持一致。
+INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
+SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_merchant_menu_manage_v1' parent_code, 'admin_merchant_menu_manage_detail_v1' menu_code, '商户系统菜单详情' menu_name, 'merchant:menu-manage:list' permission_code, 1 sort_no
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'admin_merchant_menu_manage_add_v1', '商户系统菜单新增', 'merchant:menu-manage:add', 2
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'admin_merchant_menu_manage_edit_v1', '商户系统菜单修改', 'merchant:menu-manage:edit', 3
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'admin_merchant_menu_manage_status_v1', '商户系统菜单状态', 'merchant:menu-manage:edit', 4
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'admin_merchant_menu_manage_remove_v1', '商户系统菜单删除', 'merchant:menu-manage:remove', 5
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'admin_merchant_menu_grant_save_v1', '商户菜单授权保存', 'merchant:menu-grant:save', 1
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin_merchant_user_query_detail_v1', '商户用户详情', 'admin:merchant:user:detail', 1
+) button ON button.parent_code = parent.menu_code
+WHERE parent.app_id = 1
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1 FROM sys_menu exists_menu
+      WHERE exists_menu.app_id = 1
+        AND exists_menu.menu_code = button.menu_code
+        AND exists_menu.deleted = 0
+  );
+
+INSERT INTO sys_permission (app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+SELECT 1, parent.id, permission.permission_code, permission.permission_name, permission.permission_type,
+       permission.resource_method, permission.resource_path, 1, 0
+FROM sys_menu parent
+JOIN (
+    SELECT 'admin_merchant_menu_manage_v1' menu_code, 'merchant:menu-manage:list' permission_code, '商户系统菜单查询' permission_name, 'MENU' permission_type, 'POST' resource_method, '/admin/merchant/menus/tree' resource_path
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:add', '商户系统菜单新增', 'BUTTON', 'POST', '/admin/merchant/menus/create'
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:edit', '商户系统菜单修改', 'BUTTON', 'POST', '/admin/merchant/menus/*'
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:remove', '商户系统菜单删除', 'BUTTON', 'POST', '/admin/merchant/menus/delete'
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'merchant:menu-grant:list', '商户菜单授权查询', 'MENU', 'GET', '/admin/merchant-menu-grants/*'
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'merchant:menu-grant:save', '商户菜单授权保存', 'BUTTON', 'POST', '/admin/merchant-menu-grants/*'
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin:merchant:user:list', '商户用户查询', 'MENU', 'GET', '/admin/merchant-users'
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin:merchant:user:detail', '商户用户详情', 'BUTTON', 'GET', '/admin/merchant-users/*'
+) permission ON permission.menu_code = parent.menu_code
+WHERE parent.app_id = 1
+  AND parent.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM sys_permission exists_permission
+      WHERE exists_permission.app_id = 1
+        AND exists_permission.permission_code = permission.permission_code
+        AND exists_permission.deleted = 0
+  );
+
+UPDATE sys_permission permission
+JOIN (
+    SELECT 'admin_merchant_menu_manage_v1' menu_code, 'merchant:menu-manage:list' permission_code, '商户系统菜单查询' permission_name, 'MENU' permission_type, 'POST' resource_method, '/admin/merchant/menus/tree' resource_path
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:add', '商户系统菜单新增', 'BUTTON', 'POST', '/admin/merchant/menus/create'
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:edit', '商户系统菜单修改', 'BUTTON', 'POST', '/admin/merchant/menus/*'
+    UNION ALL SELECT 'admin_merchant_menu_manage_v1', 'merchant:menu-manage:remove', '商户系统菜单删除', 'BUTTON', 'POST', '/admin/merchant/menus/delete'
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'merchant:menu-grant:list', '商户菜单授权查询', 'MENU', 'GET', '/admin/merchant-menu-grants/*'
+    UNION ALL SELECT 'admin_merchant_menu_grant_v3', 'merchant:menu-grant:save', '商户菜单授权保存', 'BUTTON', 'POST', '/admin/merchant-menu-grants/*'
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin:merchant:user:list', '商户用户查询', 'MENU', 'GET', '/admin/merchant-users'
+    UNION ALL SELECT 'admin_merchant_user_query_v1', 'admin:merchant:user:detail', '商户用户详情', 'BUTTON', 'GET', '/admin/merchant-users/*'
+) expected ON expected.permission_code = permission.permission_code
+JOIN sys_menu menu ON menu.app_id = permission.app_id AND menu.menu_code = expected.menu_code AND menu.deleted = 0
+SET permission.menu_id = menu.id,
+    permission.permission_name = expected.permission_name,
+    permission.permission_type = expected.permission_type,
+    permission.resource_method = expected.resource_method,
+    permission.resource_path = expected.resource_path,
+    permission.status = 1,
+    permission.updated_at = CURRENT_TIMESTAMP(3)
+WHERE permission.app_id = 1
+  AND permission.deleted = 0;
 
 UPDATE sys_permission permission
 JOIN (

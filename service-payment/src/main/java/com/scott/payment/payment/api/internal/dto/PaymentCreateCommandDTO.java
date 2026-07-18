@@ -296,6 +296,11 @@ public class PaymentCreateCommandDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 平台当前交易 ID；商户查询接口可选传入，用于在同一商户订单下精确过滤单笔交易动作。
+         */
+        private String transactionId;
+
         private String sourceTransactionId;
 
         /**

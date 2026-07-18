@@ -2,6 +2,7 @@ package com.scott.payment.payment.application;
 
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
@@ -160,7 +161,7 @@ public class PaymentTransactionApplicationService {
      * @param commandDTO 查询命令
      * @return 查询结果
      */
-    public PaymentCreateResultDTO query(PaymentCreateCommandDTO commandDTO) {
+    public PaymentQueryResultDTO query(PaymentCreateCommandDTO commandDTO) {
         return paymentTransactionService.query(commandDTO);
     }
 

@@ -33,6 +33,9 @@ class MpgsResponseMapperTests {
         assertThat(response.getRawChannelStatus()).isEqualTo("SUCCESS");
         assertThat(response.getChannelResponseCode()).isEqualTo("APPROVED");
         assertThat(response.getChannelResponseMessage()).isEqualTo("Approved");
+        assertThat(response.getAuthCode()).isEqualTo("123456");
+        assertThat(response.getRrn()).isEqualTo("RCPT001");
+        assertThat(response.getAcquirerReferenceNo()).isEqualTo("REF001");
         assertThat(response.getRawResponse()).containsEntry("transactionId", "TX-001");
         assertThat(response.getRawResponse()).containsEntry("acquirerCode", "00");
     }
@@ -100,6 +103,8 @@ class MpgsResponseMapperTests {
         MpgsResponsePayload.Transaction transaction = new MpgsResponsePayload.Transaction();
         transaction.setId("TX-001");
         transaction.setAuthorizationCode("123456");
+        transaction.setReceipt("RCPT001");
+        transaction.setReference("REF001");
         payload.setTransaction(transaction);
         return payload;
     }

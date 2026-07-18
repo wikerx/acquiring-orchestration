@@ -11,6 +11,7 @@ import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * @author : scott
@@ -71,6 +72,19 @@ public interface TransactionRecordService {
      * @return 原交易动作单
      */
     TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId);
+
+    /**
+     * 按商户订单号查询同一订单下的交易动作。
+     * <p>
+     * 商户查询接口不要求传原交易时间；支付核心按分表规则从最小可查表扫描到当前表，并通过 merchantId + merchantOrderNo
+     * 控制数据归属，transactionId 仅作为可选精确过滤条件。
+     *
+     * @param merchantId      平台商户号
+     * @param merchantOrderNo 商户订单号
+     * @param transactionId   平台交易 ID，可为空
+     * @return 交易动作列表
+     */
+    List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId);
 
     /**
      * 按渠道订单号和渠道交易 ID 定位平台交易动作。

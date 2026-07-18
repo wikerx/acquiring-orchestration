@@ -8,6 +8,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
@@ -171,8 +172,23 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @return 查询内部响应
      */
     @Override
-    public PaymentCreateClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
-        return postTransaction(OpenApiPaymentOperationEnum.QUERY, requestDTO);
+    public PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
+        try {
+            String targetUrl = targetUrl(OpenApiPaymentOperationEnum.QUERY);
+            String responseBody = chooseRestTemplate(targetUrl).postForObject(
+                    targetUrl,
+                    buildSignedEntity(URI.create(targetUrl), requestDTO),
+                    String.class
+            );
+            CommonResult<PaymentQueryClientResponseDTO> result = JsonUtils.parseObject(
+                    responseBody,
+                    new TypeReference<CommonResult<PaymentQueryClientResponseDTO>>() {
+                    }
+            );
+            return unwrapQueryResult(result);
+        } catch (RestClientException exception) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment query call failed");
+        }
     }
 
     /**
@@ -353,6 +369,25 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         }
         if (result.getData() == null) {
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment response data is empty");
+        }
+        return result.getData();
+    }
+
+    /**
+     * 解包交易查询内部服务统一响应。
+     *
+     * @param result 内部服务统一响应
+     * @return 交易查询内部响应
+     */
+    private PaymentQueryClientResponseDTO unwrapQueryResult(CommonResult<PaymentQueryClientResponseDTO> result) {
+        if (result == null) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment query response is empty");
+        }
+        if (!CommonResult.isSuccess(result)) {
+            throw new ApiException(result.getCode(), result.getMessage());
+        }
+        if (result.getData() == null) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment query response data is empty");
         }
         return result.getData();
     }

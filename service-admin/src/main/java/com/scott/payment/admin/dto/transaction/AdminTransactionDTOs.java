@@ -345,6 +345,16 @@ public final class AdminTransactionDTOs {
 
         private String transactionStatus;
 
+        /**
+         * 当前生命周期展示状态，按金额汇总和最新动作推导。
+         */
+        private String lifecycleStatus;
+
+        /**
+         * 当前生命周期展示说明，供后台订单跟踪查询展示完整流程结果。
+         */
+        private String lifecycleStatusMessage;
+
         private String processStage;
 
         private String labelCurrency;

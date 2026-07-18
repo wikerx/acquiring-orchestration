@@ -238,6 +238,11 @@ public class PaymentCreateClientRequestDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 查询接口可选平台当前交易 ID；传入时 service-payment 只返回该商户订单下命中的单笔交易动作。
+         */
+        private String transactionId;
+
         private String sourceTransactionId;
 
         /**

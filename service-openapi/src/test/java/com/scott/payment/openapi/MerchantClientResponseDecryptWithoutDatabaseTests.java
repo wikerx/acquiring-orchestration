@@ -70,16 +70,13 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
                         "code", ApiResultEnum.SUCCESS.getCode(),
                         "message", ApiResultEnum.SUCCESS.getMessage(),
                         "transactionId", "202607160954270000001",
-                        "transactionStatus", "SUCCESS",
                         "transactionType", "AUTHORIZATION"),
                 "billingInfo", Map.of(
                         "labelAmount", 12389.45,
                         "labelCurrency", "USD",
                         "transactionAmount", 12389.45,
                         "transactionCurrency", "USD",
-                        "transactionRate", "1.00000000"),
-                "currency", "USD",
-                "status", "SUCCESS"
+                        "transactionRate", "1.00000000")
         ));
         log.info("响应参数明文：{}", plainResponseData);
 

@@ -53,6 +53,8 @@ public class MpgsApiClient {
 
     private static final String EXT_MPGS_API_USERNAME = "mid.apiUsername";
 
+    private static final String EXT_MPGS_PASSWORD = "mid.password";
+
     private static final String EXT_MPGS_API_PASSWORD = "mid.apiPassword";
 
     private static final String EXT_MPGS_API_VERSION = "mid.version";
@@ -301,7 +303,7 @@ public class MpgsApiClient {
         if (!StringUtils.hasText(username)) {
             username = "merchant." + merchantId;
         }
-        String raw = username + ":" + extensionValue(request, EXT_MPGS_API_PASSWORD, properties.getApiPassword());
+        String raw = username + ":" + mpgsPassword(request);
         return "Basic " + Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -315,7 +317,7 @@ public class MpgsApiClient {
         requireText(extensionValue(request, EXT_REQUEST_URL, properties.getBaseUrl()), "MPGS baseUrl is required");
         requireText(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()), "MPGS version is required");
         requireText(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()), "MPGS merchantId is required");
-        requireText(extensionValue(request, EXT_MPGS_API_PASSWORD, properties.getApiPassword()), "MPGS apiPassword is required");
+        requireText(mpgsPassword(request), "MPGS password is required");
     }
 
     /**
@@ -418,6 +420,23 @@ public class MpgsApiClient {
             return request.getExtension().get(key);
         }
         return fallback;
+    }
+
+    /**
+     * 解析 MPGS MID 密码。
+     * <p>
+     * 后台 MID 元数据标准字段为 password，渠道扩展参数会带上 mid. 前缀；apiPassword 仅作为历史字段兼容，
+     * 避免旧测试配置或旧数据在迁移窗口内直接失效。
+     *
+     * @param request 渠道统一请求
+     * @return MPGS Basic Auth 密码
+     */
+    private String mpgsPassword(ChannelPaymentRequest request) {
+        String password = extensionValue(request, EXT_MPGS_PASSWORD, null);
+        if (StringUtils.hasText(password)) {
+            return password;
+        }
+        return extensionValue(request, EXT_MPGS_API_PASSWORD, properties.getApiPassword());
     }
 
     private String safeOperationId(ChannelPaymentRequest request) {

@@ -580,9 +580,6 @@ class MerchantOpenApiMpgsLiveFlowTests {
                     "threeDsVersion", "2.2.0"
             ));
         }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> transactionInfo = (Map<String, Object>) payload.get("transactionInfo");
-        transactionInfo.put("cardBrand", card.cardBrand());
         return JsonUtils.toJsonString(payload);
     }
 
@@ -634,7 +631,6 @@ class MerchantOpenApiMpgsLiveFlowTests {
         Map<String, Object> transactionInfo = new LinkedHashMap<>();
         transactionInfo.put("description", description);
         transactionInfo.put("callbackUrl", "https://merchant.example.com/opgs/callback");
-        transactionInfo.put("cardBrand", TEST_CARD_BRAND);
         if (sourceTransactionId != null) {
             transactionInfo.put("sourceTransactionId", sourceTransactionId);
         }
@@ -715,7 +711,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
     /**
      * MPGS 官方基础测试卡。
      *
-     * @param cardBrand 商户请求卡品牌
+     * @param cardBrand 官方测试卡品牌，响应卡品牌应由平台按卡 BIN 识别后返回
      * @param cardNo 测试卡号
      * @param threeDsEnrolled 官方文档中的 3D 验证注册标识
      */

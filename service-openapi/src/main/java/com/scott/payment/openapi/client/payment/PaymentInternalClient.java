@@ -2,6 +2,7 @@ package com.scott.payment.openapi.client.payment;
 
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientResponseDTO;
+import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
@@ -79,7 +80,7 @@ public interface PaymentInternalClient {
      * @param requestDTO 查询内部请求
      * @return 查询内部响应
      */
-    PaymentCreateClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO);
+    PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO);
 
     /**
      * 调用 service-payment 记录渠道回调。

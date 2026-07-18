@@ -130,7 +130,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     private CardInfoDTO cardInfo;
 
     /**
-     * 平台交易信息。首次类交易不要求商户传入；后续动作通过 sourceTransactionId 定位原平台交易。
+     * 平台交易信息。首次类交易不要求商户传入；后续动作通过 sourceTransactionId 定位原平台交易，查询接口可传 transactionId 精确过滤。
      */
     @Valid
     @NotNull(message = "transactionInfo", groups = {IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
@@ -153,10 +153,9 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String merchantId;
 
         /**
-         * 子商户信息，代表实际收款或履约主体，授权交易必传。
+         * 子商户信息，可选；商户上送时平台做字段格式校验并在响应中原样回显。
          */
         @Valid
-        @NotNull(message = "merchantInfo.subMerchantInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class})
         private SubMerchantInfoDTO subMerchantInfo;
     }
 
@@ -291,15 +290,15 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 订单币种，使用 ISO 4217 三位大写币种代码，例如 USD、EUR、CNY。
          */
-        @NotBlank(message = "orderInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class})
+        @NotBlank(message = "orderInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class})
         @Pattern(regexp = "^[A-Z]{3}$", message = "orderInfo.currency format does not match", groups = {Format.class})
         private String currency;
 
         /**
          * 商户订单号，由商户侧生成，是商户业务订单在平台侧的主要查询和对账字段。
          */
-        @NotBlank(message = "orderInfo.orderNo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
-        @Pattern(regexp = "^[A-Za-z0-9]{1,64}$", message = "orderInfo.orderNo format does not match", groups = {Format.class})
+        @NotBlank(message = "orderInfo.orderNo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        @Pattern(regexp = "^$|^[A-Za-z0-9]{1,64}$", message = "orderInfo.orderNo format does not match", groups = {Format.class})
         private String orderNo;
 
         /**
@@ -477,9 +476,15 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 原平台交易 ID，后续请款、退款、撤销、冲正和查询场景用于定位原交易。
          */
-        @NotBlank(message = "transactionInfo.sourceTransactionId", groups = {IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        @NotBlank(message = "transactionInfo.sourceTransactionId", groups = {IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Reversal.class})
         @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "transactionInfo.sourceTransactionId format does not match", groups = {Format.class})
         private String sourceTransactionId;
+
+        /**
+         * 平台当前交易唯一标识。查询接口可选传入；传入时只返回该商户订单下命中的单笔交易动作。
+         */
+        @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "transactionInfo.transactionId format does not match", groups = {Format.class})
+        private String transactionId;
 
         /**
          * 交易描述或备注，用于商户侧订单说明、渠道补充信息和客服排查。
@@ -494,7 +499,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String callbackUrl;
 
         /**
-         * 卡品牌，当前支持 VISA、MASTERCARD、AMEX、JCB、DISCOVER、UNIONPAY。
+         * 兼容字段，不建议商户上送；响应卡品牌以平台卡 BIN 库识别结果为准。
          */
         @Pattern(regexp = "^$|^(VISA|MASTERCARD|AMEX|JCB|DISCOVER|UNIONPAY)$", message = "transactionInfo.cardBrand format does not match", groups = {Format.class})
         private String cardBrand;

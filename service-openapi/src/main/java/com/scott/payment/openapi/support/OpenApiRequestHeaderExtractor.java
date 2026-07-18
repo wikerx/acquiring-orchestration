@@ -5,6 +5,7 @@ import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
+import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -49,18 +50,26 @@ public class OpenApiRequestHeaderExtractor {
     private final OpenApiJwtReplayProtectionService replayProtectionService;
 
     /**
+     * 商户 IP 白名单访问控制服务，JWT 验签后、防重放写入前执行校验。
+     */
+    private final MerchantIpWhitelistAccessService ipWhitelistAccessService;
+
+    /**
      * 创建开放接口请求头提取器。
      *
      * @param merchantJwtVerifier    商户 JWT 验签器
      * @param merchantKeyProvider    商户密钥提供器
      * @param replayProtectionService JWT 防重放服务
+     * @param ipWhitelistAccessService 商户 IP 白名单访问控制服务
      */
     public OpenApiRequestHeaderExtractor(MerchantJwtVerifier merchantJwtVerifier,
                                          MerchantKeyProvider merchantKeyProvider,
-                                         OpenApiJwtReplayProtectionService replayProtectionService) {
+                                         OpenApiJwtReplayProtectionService replayProtectionService,
+                                         MerchantIpWhitelistAccessService ipWhitelistAccessService) {
         this.merchantJwtVerifier = merchantJwtVerifier;
         this.merchantKeyProvider = merchantKeyProvider;
         this.replayProtectionService = replayProtectionService;
+        this.ipWhitelistAccessService = ipWhitelistAccessService;
     }
 
     /**
@@ -77,6 +86,7 @@ public class OpenApiRequestHeaderExtractor {
         String merchantId = merchantJwtVerifier.peekMerchantId(token);
         String merchantKey = merchantKeyProvider.getMerchantKey(merchantId);
         JwtMerchantClaims claims = merchantJwtVerifier.verify(token, merchantKey);
+        String clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
         replayProtectionService.checkAndMark(claims.getMerchantId(), claims.getJwtId(), claims.getExpiresAt());
 
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
@@ -85,6 +95,7 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setJwtId(claims.getJwtId());
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
+        headerDTO.setClientIp(clientIp);
         return headerDTO;
     }
 

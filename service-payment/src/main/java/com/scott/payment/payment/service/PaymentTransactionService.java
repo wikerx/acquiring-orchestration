@@ -2,6 +2,7 @@ package com.scott.payment.payment.service;
 
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 
 /**
  * @author : scott
@@ -76,5 +77,5 @@ public interface PaymentTransactionService {
      * @param commandDTO 查询命令
      * @return 查询结果
      */
-    PaymentCreateResultDTO query(PaymentCreateCommandDTO commandDTO);
+    PaymentQueryResultDTO query(PaymentCreateCommandDTO commandDTO);
 }

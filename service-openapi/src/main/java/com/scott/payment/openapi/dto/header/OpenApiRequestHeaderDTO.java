@@ -45,4 +45,9 @@ public class OpenApiRequestHeaderDTO implements Serializable {
      * JWT Payload 中的 exp，秒级过期时间戳，最大允许与签发时间相差 3 分钟。
      */
     private Long expiresAt;
+
+    /**
+     * 网关规范化后透传的客户端 IP，仅用于审计和访问控制，不信任商户自传的转发头。
+     */
+    private String clientIp;
 }

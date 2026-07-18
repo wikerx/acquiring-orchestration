@@ -2,7 +2,7 @@ package com.scott.payment.openapi.application.payment;
 
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.service.PaymentService;
-import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
+import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
 import org.springframework.stereotype.Service;
 
 /**
@@ -38,7 +38,7 @@ public class OpenApiPaymentQueryApplicationService {
      * @param requestDTO 解密后的查询请求参数
      * @return 交易查询响应
      */
-    public PaymentCreateVO query(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+    public PaymentQueryVO query(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return paymentService.queryTransaction(encryptedData, requestDTO);
     }
 }
