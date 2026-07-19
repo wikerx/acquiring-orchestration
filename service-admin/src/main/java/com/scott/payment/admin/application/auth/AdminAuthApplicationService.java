@@ -70,7 +70,7 @@ public class AdminAuthApplicationService {
     }
 
     /**
-     * 发送管理后台登录动态验证码。
+     * 发送管理后台登录图形验证码。
      *
      * @param request        验证码发送请求
      * @param servletRequest Servlet 请求

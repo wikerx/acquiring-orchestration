@@ -25,7 +25,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : AdminUserMfaController
  * @date : 2026-07-19 00:00
  * @email : scott_x@163.com
- * @description : 后台用户 MFA 管理接口，位于 service-admin 接口层；负责 OTP 管理操作的 HTTP 映射、权限校验和参数接收。
+ * @description : 后台用户 MFA 管理接口，位于 service-admin 接口层；负责多因素认证管理操作的 HTTP 映射、权限校验和参数接收。
  * @status : create
  */
 @RestController
@@ -45,48 +45,48 @@ public class AdminUserMfaController {
 
     @PostMapping("/require")
     @RequiresPermission("sys:user:mfa:require")
-    @OperationLog(moduleName = "用户 OTP 管理", businessType = OperationTypeConstants.UPDATE,
-            operation = "强制启用用户 OTP", recordRequest = false, recordResponse = false)
+    @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "强制启用用户 MFA", recordRequest = false, recordResponse = false)
     public CommonResult<UserMfaStatusResponse> requireMfa(@Valid @RequestBody UserMfaActionRequest request) {
         return success(adminUserMfaApplicationService.requireMfa(request));
     }
 
     @PostMapping("/reset")
     @RequiresPermission("sys:user:mfa:reset")
-    @OperationLog(moduleName = "用户 OTP 管理", businessType = OperationTypeConstants.UPDATE,
-            operation = "重置用户 OTP", recordRequest = false, recordResponse = false)
+    @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "重置用户 MFA", recordRequest = false, recordResponse = false)
     public CommonResult<UserMfaStatusResponse> resetMfa(@Valid @RequestBody UserMfaActionRequest request) {
         return success(adminUserMfaApplicationService.resetMfa(request));
     }
 
     @PostMapping("/exempt")
     @RequiresPermission("sys:user:mfa:exempt")
-    @OperationLog(moduleName = "用户 OTP 管理", businessType = OperationTypeConstants.UPDATE,
-            operation = "配置用户 OTP 豁免", recordRequest = false, recordResponse = false)
+    @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "配置用户 MFA 豁免", recordRequest = false, recordResponse = false)
     public CommonResult<UserMfaStatusResponse> exemptMfa(@Valid @RequestBody UserMfaExemptRequest request) {
         return success(adminUserMfaApplicationService.exemptMfa(request));
     }
 
     @PostMapping("/disable")
     @RequiresPermission("sys:user:mfa:disable")
-    @OperationLog(moduleName = "用户 OTP 管理", businessType = OperationTypeConstants.UPDATE,
-            operation = "停用用户 OTP", recordRequest = false, recordResponse = false)
+    @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "停用用户 MFA", recordRequest = false, recordResponse = false)
     public CommonResult<UserMfaStatusResponse> disableMfa(@Valid @RequestBody UserMfaActionRequest request) {
         return success(adminUserMfaApplicationService.disableMfa(request));
     }
 
     @PostMapping("/unlock")
     @RequiresPermission("sys:user:mfa:unlock")
-    @OperationLog(moduleName = "用户 OTP 管理", businessType = OperationTypeConstants.UPDATE,
-            operation = "解锁用户 OTP", recordRequest = false, recordResponse = false)
+    @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "解锁用户 MFA", recordRequest = false, recordResponse = false)
     public CommonResult<UserMfaStatusResponse> unlockMfa(@Valid @RequestBody UserMfaActionRequest request) {
         return success(adminUserMfaApplicationService.unlockMfa(request));
     }
 
     @PostMapping("/resend-bind-mail")
     @RequiresPermission("sys:user:mfa:resend")
-    @OperationLog(moduleName = "用户 OTP 管理", businessType = OperationTypeConstants.UPDATE,
-            operation = "重发 OTP 绑定邮件", recordRequest = false, recordResponse = false)
+    @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
+            operation = "重发 MFA 绑定邮件", recordRequest = false, recordResponse = false)
     public CommonResult<UserMfaStatusResponse> resendBindMail(@Valid @RequestBody UserMfaActionRequest request) {
         return success(adminUserMfaApplicationService.resendBindMail(request));
     }

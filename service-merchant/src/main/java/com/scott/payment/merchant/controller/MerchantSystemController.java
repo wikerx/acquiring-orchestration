@@ -311,90 +311,90 @@ public class MerchantSystemController {
     }
 
     /**
-     * 强制启用商户员工 OTP。
+     * 强制启用商户员工 MFA。
      *
      * @param id      账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @PostMapping("/accounts/{id}/mfa/require")
     @RequiresPermission("merchant:system:account:mfa:require")
-    @OperationLog(moduleName = "商户员工OTP", businessType = OperationTypeConstants.UPDATE, operation = "强制启用商户员工OTP")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "强制启用商户员工 MFA")
     public CommonResult<AccountMfaStatusResponse> requireAccountMfa(@PathVariable("id") Long id,
                                                                     @Valid @RequestBody AccountMfaActionRequest request) {
         return success(merchantSystemService.requireAccountMfa(id, request));
     }
 
     /**
-     * 重置商户员工 OTP。
+     * 重置商户员工 MFA。
      *
      * @param id      账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @PostMapping("/accounts/{id}/mfa/reset")
     @RequiresPermission("merchant:system:account:mfa:reset")
-    @OperationLog(moduleName = "商户员工OTP", businessType = OperationTypeConstants.UPDATE, operation = "重置商户员工OTP")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "重置商户员工 MFA")
     public CommonResult<AccountMfaStatusResponse> resetAccountMfa(@PathVariable("id") Long id,
                                                                   @Valid @RequestBody AccountMfaActionRequest request) {
         return success(merchantSystemService.resetAccountMfa(id, request));
     }
 
     /**
-     * 豁免商户员工 OTP。
+     * 豁免商户员工 MFA。
      *
      * @param id      账号ID
      * @param request 豁免请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @PostMapping("/accounts/{id}/mfa/exempt")
     @RequiresPermission("merchant:system:account:mfa:exempt")
-    @OperationLog(moduleName = "商户员工OTP", businessType = OperationTypeConstants.UPDATE, operation = "豁免商户员工OTP")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "豁免商户员工 MFA")
     public CommonResult<AccountMfaStatusResponse> exemptAccountMfa(@PathVariable("id") Long id,
                                                                    @Valid @RequestBody AccountMfaExemptRequest request) {
         return success(merchantSystemService.exemptAccountMfa(id, request));
     }
 
     /**
-     * 停用商户员工 OTP。
+     * 停用商户员工 MFA。
      *
      * @param id      账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @PostMapping("/accounts/{id}/mfa/disable")
     @RequiresPermission("merchant:system:account:mfa:disable")
-    @OperationLog(moduleName = "商户员工OTP", businessType = OperationTypeConstants.UPDATE, operation = "停用商户员工OTP")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "停用商户员工 MFA")
     public CommonResult<AccountMfaStatusResponse> disableAccountMfa(@PathVariable("id") Long id,
                                                                     @Valid @RequestBody AccountMfaActionRequest request) {
         return success(merchantSystemService.disableAccountMfa(id, request));
     }
 
     /**
-     * 解锁商户员工 OTP。
+     * 解锁商户员工 MFA。
      *
      * @param id      账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @PostMapping("/accounts/{id}/mfa/unlock")
     @RequiresPermission("merchant:system:account:mfa:unlock")
-    @OperationLog(moduleName = "商户员工OTP", businessType = OperationTypeConstants.UPDATE, operation = "解锁商户员工OTP")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "解锁商户员工 MFA")
     public CommonResult<AccountMfaStatusResponse> unlockAccountMfa(@PathVariable("id") Long id,
                                                                    @Valid @RequestBody AccountMfaActionRequest request) {
         return success(merchantSystemService.unlockAccountMfa(id, request));
     }
 
     /**
-     * 重发商户员工 OTP 绑定邮件。
+     * 重发商户员工 MFA 绑定邮件。
      *
      * @param id      账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @PostMapping("/accounts/{id}/mfa/resend-bind-mail")
     @RequiresPermission("merchant:system:account:mfa:resend")
-    @OperationLog(moduleName = "商户员工OTP", businessType = OperationTypeConstants.UPDATE, operation = "重发商户员工OTP绑定邮件")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "重发商户员工 MFA 绑定邮件")
     public CommonResult<AccountMfaStatusResponse> resendAccountMfaBindMail(@PathVariable("id") Long id,
                                                                           @Valid @RequestBody AccountMfaActionRequest request) {
         return success(merchantSystemService.resendAccountMfaBindMail(id, request));

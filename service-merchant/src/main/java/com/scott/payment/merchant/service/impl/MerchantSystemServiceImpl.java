@@ -86,6 +86,8 @@ import com.scott.payment.merchant.service.MerchantTemplateEmailService.MerchantE
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
@@ -143,41 +145,49 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      */
     private static final String ACCOUNT_LOGIN_SEPARATOR = "_";
     /**
-     * OTP 登录票据类型。
+     * MFA 登录票据类型。
      */
     private static final String MFA_TOKEN_TYPE_LOGIN = "LOGIN_MFA";
     /**
-     * OTP 操作结果：成功。
+     * MFA 操作结果：成功。
      */
     private static final String MFA_RESULT_SUCCESS = "SUCCESS";
     /**
-     * OTP 操作结果：失败。
+     * MFA 操作结果：失败。
      */
     private static final String MFA_RESULT_FAILED = "FAILED";
     /**
-     * 商户 OTP 邮件场景编码。
+     * 商户 MFA 邮件场景编码。
      */
     private static final String MERCHANT_MFA_SCENE = "MERCHANT_MFA";
     /**
-     * 商户 OTP 绑定邮件模板。
+     * 商户 MFA 绑定邮件模板。
      */
     private static final String TEMPLATE_MFA_BIND_NOTICE = "MERCHANT_MFA_BIND_NOTICE";
     /**
-     * 商户 OTP 启用邮件模板。
+     * 商户 MFA 启用邮件模板。
      */
     private static final String TEMPLATE_MFA_ENABLED_NOTICE = "MERCHANT_MFA_ENABLED_NOTICE";
     /**
-     * 商户 OTP 重置邮件模板。
+     * 商户 MFA 重置邮件模板。
      */
     private static final String TEMPLATE_MFA_RESET_NOTICE = "MERCHANT_MFA_RESET_NOTICE";
     /**
-     * 商户 OTP 停用邮件模板。
+     * 商户 MFA 停用邮件模板。
      */
     private static final String TEMPLATE_MFA_DISABLED_NOTICE = "MERCHANT_MFA_DISABLED_NOTICE";
     /**
-     * 商户 OTP 豁免邮件模板。
+     * 商户 MFA 豁免邮件模板。
      */
     private static final String TEMPLATE_MFA_EXEMPT_NOTICE = "MERCHANT_MFA_EXEMPT_NOTICE";
+    /**
+     * 商户系统账号开户通知模板编码。
+     */
+    private static final String TEMPLATE_ACCOUNT_CREATED_NOTICE = "MERCHANT_ACCOUNT_CREATED";
+    /**
+     * 账号开户通知邮件场景编码。
+     */
+    private static final String ACCOUNT_CREATED_SCENE = "ACCOUNT_CREATED";
     /**
      * 参数管理中维护的商户系统前端地址。
      */
@@ -200,15 +210,15 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      */
     private final SysAccountMapper sysAccountMapper;
     /**
-     * 商户员工 OTP 配置 Mapper。
+     * 商户员工 MFA 配置 Mapper。
      */
     private final SysAccountMfaMapper sysAccountMfaMapper;
     /**
-     * 商户员工 OTP 登录票据 Mapper。
+     * 商户员工 MFA 登录票据 Mapper。
      */
     private final SysAccountMfaTokenMapper sysAccountMfaTokenMapper;
     /**
-     * 商户员工 OTP 审计日志 Mapper。
+     * 商户员工 MFA 审计日志 Mapper。
      */
     private final SysAccountMfaLogMapper sysAccountMfaLogMapper;
     /**
@@ -655,6 +665,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         replaceAccountRoles(app.getId(), merchantId, merchantUser, request.getRoleIds());
         replaceAccountDepts(merchantId, account.getId(), request.getDeptIds());
         replaceAccountPosts(merchantId, account.getId(), request.getPostIds());
+        sendAccountCreatedNoticeAfterCommit(app, account, request.getPassword());
         return toAccountDTO(app.getId(), account);
     }
 
@@ -802,11 +813,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 强制启用商户员工 OTP。
+     * 强制启用商户员工 MFA。
      *
      * @param id      员工账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -847,11 +858,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 重置商户员工 OTP。
+     * 重置商户员工 MFA。
      *
      * @param id      员工账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -860,7 +871,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         SysAppDO app = merchantApp();
         String merchantId = currentMerchantId();
         SysAccountDO account = getAccount(app.getId(), merchantId, id);
-        assertNotSelf(account.getId(), "不能重置当前登录账号自己的 OTP");
+        assertNotSelf(account.getId(), "不能重置当前登录账号自己的 MFA");
         SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
         String beforePolicy = mfa.getMfaPolicy();
         String beforeStatus = mfa.getMfaStatus();
@@ -890,11 +901,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 豁免商户员工 OTP。
+     * 豁免商户员工 MFA。
      *
      * @param id      员工账号ID
      * @param request 豁免请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -903,7 +914,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         SysAppDO app = merchantApp();
         String merchantId = currentMerchantId();
         SysAccountDO account = getAccount(app.getId(), merchantId, id);
-        assertNotSelf(account.getId(), "不能豁免当前登录账号自己的 OTP");
+        assertNotSelf(account.getId(), "不能豁免当前登录账号自己的 MFA");
         SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
         String beforePolicy = mfa.getMfaPolicy();
         String beforeStatus = mfa.getMfaStatus();
@@ -930,11 +941,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 停用商户员工 OTP。
+     * 停用商户员工 MFA。
      *
      * @param id      员工账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -943,7 +954,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         SysAppDO app = merchantApp();
         String merchantId = currentMerchantId();
         SysAccountDO account = getAccount(app.getId(), merchantId, id);
-        assertNotSelf(account.getId(), "不能停用当前登录账号自己的 OTP");
+        assertNotSelf(account.getId(), "不能停用当前登录账号自己的 MFA");
         SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
         String beforePolicy = mfa.getMfaPolicy();
         String beforeStatus = mfa.getMfaStatus();
@@ -968,11 +979,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 解锁商户员工 OTP。
+     * 解锁商户员工 MFA。
      *
      * @param id      员工账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -1001,11 +1012,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 重发商户员工 OTP 绑定邮件。
+     * 重发商户员工 MFA 绑定邮件。
      *
      * @param id      员工账号ID
      * @param request 操作请求
-     * @return OTP 状态
+     * @return MFA 状态
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -1017,7 +1028,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
         if (!AuthConstants.MFA_STATUS_PENDING_BIND.equals(mfa.getMfaStatus())
                 && !AuthConstants.MFA_STATUS_RESET_REQUIRED.equals(mfa.getMfaStatus())) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "OTP 绑定邮件只能对待绑定或需重绑用户重发");
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "MFA 绑定邮件只能对待绑定或需重绑用户重发");
         }
         String beforePolicy = mfa.getMfaPolicy();
         String beforeStatus = mfa.getMfaStatus();
@@ -1481,7 +1492,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 为新增商户员工创建默认强制 OTP 配置。
+     * 为新增商户员工创建默认强制 MFA 配置。
      *
      * @param app     商户应用
      * @param account 登录账号
@@ -1514,7 +1525,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      * 同步账号表历史 MFA 字段，避免旧页面、报表或缓存仍读取 sys_account.mfa_enabled 时出现状态不一致。
      *
      * @param account 登录账号
-     * @param enabled 是否启用 OTP
+     * @param enabled 是否启用 MFA
      */
     private void syncAccountMfaLegacyFields(SysAccountDO account, boolean enabled) {
         account.setMfaEnabled(enabled ? AuthConstants.ENABLED : AuthConstants.DISABLED);
@@ -1526,7 +1537,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 账号停用时同步 OTP 状态，账号启用时保留原 OTP 策略等待管理员明确处理。
+     * 账号停用时同步 MFA 状态，账号启用时保留原 MFA 策略等待管理员明确处理。
      *
      * @param account 登录账号
      */
@@ -1660,6 +1671,80 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
             recordMfaLog(app, account, mfa, "SEND_NOTICE", MFA_RESULT_FAILED, exception.getMessage(),
                     mfa.getMfaPolicy(), mfa.getMfaStatus(), currentOperator(), null);
         }
+    }
+
+    /**
+     * 事务提交后发送商户系统账号开户通知，避免账号创建失败时误发邮件。
+     *
+     * @param app             商户系统应用
+     * @param account         登录账号
+     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
+     */
+    private void sendAccountCreatedNoticeAfterCommit(SysAppDO app, SysAccountDO account, String initialPassword) {
+        Runnable task = () -> sendAccountCreatedNotice(app, account, initialPassword);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
+    }
+
+    /**
+     * 发送商户系统账号开户通知。发送失败仅记录告警，不影响员工创建结果。
+     *
+     * @param app             商户系统应用
+     * @param account         登录账号
+     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
+     */
+    private void sendAccountCreatedNotice(SysAppDO app, SysAccountDO account, String initialPassword) {
+        if (!StringUtils.hasText(account.getEmail())) {
+            return;
+        }
+        try {
+            merchantTemplateEmailService.sendByTemplate(new MerchantEmailSendCommand(
+                    app.getAppCode(),
+                    account.getMerchantId(),
+                    account.getMerchantId(),
+                    merchantName(account.getMerchantId()),
+                    TEMPLATE_ACCOUNT_CREATED_NOTICE,
+                    ACCOUNT_CREATED_SCENE,
+                    "zh-CN",
+                    List.of(account.getEmail()),
+                    accountCreatedEmailVariables(account, initialPassword),
+                    ACCOUNT_CREATED_SCENE,
+                    String.valueOf(account.getId())
+            ));
+        } catch (RuntimeException exception) {
+            log.warn("merchant account created notice send failed, accountId={}", account.getId(), exception);
+        }
+    }
+
+    /**
+     * 构建商户系统开户通知模板变量。
+     *
+     * @param account         登录账号
+     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
+     * @return 邮件模板变量
+     */
+    private Map<String, Object> accountCreatedEmailVariables(SysAccountDO account, String initialPassword) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        String merchantSystemBaseUrl = merchantSystemBaseUrl();
+        variables.put("systemName", "商户系统");
+        variables.put("userName", displayLoginAccount(account));
+        variables.put("merchantId", account.getMerchantId());
+        variables.put("merchantName", merchantName(account.getMerchantId()));
+        variables.put("loginAccount", displayLoginAccount(account));
+        variables.put("initialPassword", initialPassword);
+        variables.put("loginUrl", merchantLoginUrl(merchantSystemBaseUrl));
+        variables.put("merchantSystemBaseUrl", merchantSystemBaseUrl);
+        variables.put("mfaGuide", "首次登录时请按页面提示完成多因素认证（MFA）绑定。绑定二维码和手动密钥只会在登录页身份校验通过后展示，邮件不会包含 MFA 密钥。");
+        variables.put("verifyCodeGuide", "登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。");
+        return variables;
     }
 
     private Map<String, Object> mfaEmailVariables(SysAccountDO account, String reason, LocalDateTime exemptUntil) {

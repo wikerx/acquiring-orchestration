@@ -44,7 +44,7 @@ import java.util.regex.Pattern;
  * @classname : MerchantTemplateEmailServiceImpl
  * @date : 2026-07-19 00:00
  * @email : scott_x@163.com
- * @description : 商户模板邮件服务实现，位于 service-merchant 服务实现层；读取管理系统维护的邮件模板与发件账户发送商户 OTP 安全通知。
+ * @description : 商户模板邮件服务实现，位于 service-merchant 服务实现层；读取管理系统维护的邮件模板与发件账户发送商户 MFA 安全通知。
  * @status : create
  */
 @Service

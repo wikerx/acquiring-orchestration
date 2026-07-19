@@ -1,9 +1,9 @@
--- 商户系统 Google Authenticator MFA 落地脚本
+-- 商户系统 Multi-Factor Authentication (MFA) 落地脚本
 -- 适用：当前开发库。生产执行前请先确认 PAYMENT_MFA_SECRET / payment.mfa.secret 和管理系统通用邮件发件账户均已正确配置。
 -- 邮件通知复用管理系统“邮件模板管理 / 发件账户配置”能力：
 -- 1. 模板写入 msg_email_template，所属应用 MERCHANT，场景 MERCHANT_MFA；
 -- 2. 商户服务发送时优先使用商户专属发件账户，其次使用管理系统 ADMIN/SYSTEM 默认发件账户；
--- 3. 邮件正文不包含 OTP 密钥、二维码或动态验证码，用户仍需在登录页完成扫码/验证。
+-- 3. 邮件正文不包含 MFA 密钥、二维码或 MFA 验证码，用户仍需在登录页完成扫码/验证。
 
 CREATE TABLE IF NOT EXISTS sys_account_mfa (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -128,12 +128,12 @@ SELECT app.id,
 FROM sys_app app
 JOIN sys_menu menu ON menu.app_id = app.id AND menu.menu_code = 'merchant_system_account_v1' AND menu.deleted = 0
 JOIN (
-    SELECT 'merchant:system:account:mfa:require' permission_code, '强制启用员工 OTP' permission_name, '/merchant/system/accounts/*/mfa/require' resource_path, '将商户员工OTP策略调整为强制启用' description
-    UNION ALL SELECT 'merchant:system:account:mfa:reset', '重置员工 OTP', '/merchant/system/accounts/*/mfa/reset', '废弃旧OTP密钥并要求员工重新绑定'
-    UNION ALL SELECT 'merchant:system:account:mfa:exempt', '配置员工 OTP 豁免', '/merchant/system/accounts/*/mfa/exempt', '为商户员工配置OTP豁免'
-    UNION ALL SELECT 'merchant:system:account:mfa:disable', '停用员工 OTP', '/merchant/system/accounts/*/mfa/disable', '将员工OTP恢复为未启用'
-    UNION ALL SELECT 'merchant:system:account:mfa:unlock', '解锁员工 OTP', '/merchant/system/accounts/*/mfa/unlock', '解除员工OTP连续失败导致的临时锁定'
-    UNION ALL SELECT 'merchant:system:account:mfa:resend', '重发 OTP 绑定邮件', '/merchant/system/accounts/*/mfa/resend-bind-mail', '重新发送商户员工OTP绑定引导邮件'
+    SELECT 'merchant:system:account:mfa:require' permission_code, '强制启用员工 MFA' permission_name, '/merchant/system/accounts/*/mfa/require' resource_path, '将商户员工 MFA 策略调整为强制启用' description
+    UNION ALL SELECT 'merchant:system:account:mfa:reset', '重置员工 MFA', '/merchant/system/accounts/*/mfa/reset', '废弃旧 MFA 密钥并要求员工重新绑定'
+    UNION ALL SELECT 'merchant:system:account:mfa:exempt', '配置员工 MFA 豁免', '/merchant/system/accounts/*/mfa/exempt', '为商户员工配置 MFA 豁免'
+    UNION ALL SELECT 'merchant:system:account:mfa:disable', '停用员工 MFA', '/merchant/system/accounts/*/mfa/disable', '将员工 MFA 恢复为未启用'
+    UNION ALL SELECT 'merchant:system:account:mfa:unlock', '解锁员工 MFA', '/merchant/system/accounts/*/mfa/unlock', '解除员工 MFA 连续失败导致的临时锁定'
+    UNION ALL SELECT 'merchant:system:account:mfa:resend', '重发 MFA 绑定邮件', '/merchant/system/accounts/*/mfa/resend-bind-mail', '重新发送商户员工 MFA 绑定引导邮件'
 ) item
 WHERE app.app_code = 'MERCHANT'
   AND app.deleted = 0
@@ -182,7 +182,7 @@ WHERE role.deleted = 0
       'merchant:system:account:mfa:resend'
   );
 
--- 商户系统权限会先取“角色权限”和“平台开放权限”的交集；新按钮必须同步开放给已有商户，否则前端不会展示 OTP 管理入口。
+-- 商户系统权限会先取“角色权限”和“平台开放权限”的交集；新按钮必须同步开放给已有商户，否则前端不会展示 MFA 管理入口。
 INSERT IGNORE INTO sys_merchant_permission_grant (
     merchant_id, app_id, permission_id, grant_source, status, created_at, updated_at, deleted
 )
@@ -209,8 +209,8 @@ WHERE merchant.deleted = 0
 
 INSERT IGNORE INTO sys_dict_data (dict_type, dict_label, dict_value, locale, dict_sort, list_class, is_default, status, deleted)
 VALUES
-('email_scene_code', '商户 OTP 安全通知', 'MERCHANT_MFA', 'zh-CN', 8, 'danger', 0, 1, 0),
-('email_scene_code', 'Merchant OTP Security', 'MERCHANT_MFA', 'en-US', 8, 'danger', 0, 1, 0);
+('email_scene_code', '商户 MFA 安全通知', 'MERCHANT_MFA', 'zh-CN', 8, 'danger', 0, 1, 0),
+('email_scene_code', 'Merchant MFA Security', 'MERCHANT_MFA', 'en-US', 8, 'danger', 0, 1, 0);
 
 INSERT INTO msg_email_template (
     template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
@@ -222,35 +222,35 @@ SELECT item.template_code, item.template_name, 'MERCHANT', 'MERCHANT_MFA', 'zh-C
        item.remark, 'system', 'system', 0
 FROM (
     SELECT 'MERCHANT_MFA_BIND_NOTICE' template_code,
-           '商户系统 OTP 绑定通知' template_name,
-           '【Vexra Merchant】请绑定 Google 动态验证码' subject_template,
-           '<div style="margin:0;padding:34px;background:#eef8f7;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #cde7e3;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#0f766e;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b7f4ea;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">Google 动态验证码绑定</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">您的商户系统账号已开启 Google 动态验证码。请打开商户系统登录页，完成商户号、账号、密码和图形验证码校验后，按页面提示扫码绑定。</p><div style="margin:22px 0;padding:18px 20px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">登录地址：<a href="${bindUrl}" style="color:#0f766e;text-decoration:none;">${bindUrl}</a></p><p style="margin:0;">操作原因：${reason}</p></div><p style="margin:0 0 10px;">请使用 Google Authenticator、Microsoft Authenticator 或其他兼容 RFC 6238 的验证器应用。邮件不会包含 OTP 密钥、二维码或动态验证码。</p><p style="margin:0;color:#9a3412;">如非本人或授权商户管理员发起，请立即联系平台运营或商户管理员。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>' content_template,
+           '商户系统 MFA 绑定通知' template_name,
+           '【Vexra Merchant】请绑定多因素认证（MFA）' subject_template,
+           '<div style="margin:0;padding:34px;background:#eef8f7;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #cde7e3;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#0f766e;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b7f4ea;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">多因素认证（MFA）绑定</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">您的商户系统账号已开启多因素认证（MFA）。请打开商户系统登录页，完成商户号、账号、密码和图形验证码校验后，按页面提示扫码绑定。</p><div style="margin:22px 0;padding:18px 20px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">登录地址：<a href="${bindUrl}" style="color:#0f766e;text-decoration:none;">${bindUrl}</a></p><p style="margin:0;">操作原因：${reason}</p></div><p style="margin:0 0 10px;">请使用支持 TOTP 的验证器应用。邮件不会包含 MFA 密钥、二维码或 MFA 验证码。</p><p style="margin:0;color:#9a3412;">如非本人或授权商户管理员发起，请立即联系平台运营或商户管理员。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>' content_template,
            '{"merchantName":"Blue Ocean Store","merchantId":"M10000001","loginAccount":"finance","bindUrl":"https://merchant.example.com/login","merchantSystemBaseUrl":"https://merchant.example.com","reason":"安全策略启用"}' variable_schema,
-           '系统内置模板：商户系统 OTP 绑定通知' remark
+           '系统内置模板：商户系统 MFA 绑定通知' remark
     UNION ALL SELECT 'MERCHANT_MFA_ENABLED_NOTICE',
-           '商户系统 OTP 启用通知',
-           '【Vexra Merchant】Google 动态验证码已开启',
-           '<div style="margin:0;padding:34px;background:#eef8f7;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #cde7e3;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#155e75;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#a5f3fc;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">Google 动态验证码已开启</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">商户管理员已为您的账号开启 Google 动态验证码。下次登录商户系统时，您需要先完成绑定再进入系统。</p><div style="margin:22px 0;padding:18px 20px;background:#ecfeff;border:1px solid #a5f3fc;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">操作原因：${reason}</p></div><p style="margin:0;">请前往 <a href="${bindUrl}" style="color:#0f766e;text-decoration:none;">商户系统登录页</a> 完成绑定。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>',
+           '商户系统 MFA 启用通知',
+           '【Vexra Merchant】多因素认证（MFA）已开启',
+           '<div style="margin:0;padding:34px;background:#eef8f7;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #cde7e3;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#155e75;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#a5f3fc;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">多因素认证（MFA）已开启</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">商户管理员已为您的账号开启多因素认证（MFA）。下次登录商户系统时，您需要先完成绑定再进入系统。</p><div style="margin:22px 0;padding:18px 20px;background:#ecfeff;border:1px solid #a5f3fc;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">操作原因：${reason}</p></div><p style="margin:0;">请前往 <a href="${bindUrl}" style="color:#0f766e;text-decoration:none;">商户系统登录页</a> 完成绑定。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>',
            '{"merchantName":"Blue Ocean Store","merchantId":"M10000001","loginAccount":"finance","bindUrl":"https://merchant.example.com/login","reason":"安全策略启用"}',
-           '系统内置模板：商户系统 OTP 启用通知'
+           '系统内置模板：商户系统 MFA 启用通知'
     UNION ALL SELECT 'MERCHANT_MFA_RESET_NOTICE',
-           '商户系统 OTP 重置通知',
-           '【Vexra Merchant】Google 动态验证码已重置',
-           '<div style="margin:0;padding:34px;background:#f8f3ea;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #f3d7a8;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#92400e;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fde68a;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">Google 动态验证码已重置</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">您的原 Google 动态验证码密钥已失效。下次登录商户系统时必须重新绑定新的验证器。</p><div style="margin:22px 0;padding:18px 20px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">重置原因：${reason}</p></div><p style="margin:0;">请前往 <a href="${bindUrl}" style="color:#0f766e;text-decoration:none;">商户系统登录页</a> 重新绑定。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>',
+           '商户系统 MFA 重置通知',
+           '【Vexra Merchant】多因素认证（MFA）已重置',
+           '<div style="margin:0;padding:34px;background:#f8f3ea;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #f3d7a8;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#92400e;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fde68a;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">多因素认证（MFA）已重置</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">您的原多因素认证（MFA）密钥已失效。下次登录商户系统时必须重新绑定新的验证器。</p><div style="margin:22px 0;padding:18px 20px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">重置原因：${reason}</p></div><p style="margin:0;">请前往 <a href="${bindUrl}" style="color:#0f766e;text-decoration:none;">商户系统登录页</a> 重新绑定。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>',
            '{"merchantName":"Blue Ocean Store","merchantId":"M10000001","loginAccount":"finance","bindUrl":"https://merchant.example.com/login","reason":"用户更换设备"}',
-           '系统内置模板：商户系统 OTP 重置通知'
+           '系统内置模板：商户系统 MFA 重置通知'
     UNION ALL SELECT 'MERCHANT_MFA_DISABLED_NOTICE',
-           '商户系统 OTP 停用通知',
-           '【Vexra Merchant】Google 动态验证码已停用',
-           '<div style="margin:0;padding:34px;background:#f3f6f9;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#334155;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#cbd5e1;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">Google 动态验证码已停用</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">商户管理员已停用您账号的 Google 动态验证码要求。</p><div style="margin:22px 0;padding:18px 20px;background:#f8fafc;border:1px solid #dbe5ef;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">操作原因：${reason}</p></div><p style="margin:0;color:#9a3412;">如果您不清楚该变更来源，请联系商户管理员确认。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>',
+           '商户系统 MFA 停用通知',
+           '【Vexra Merchant】多因素认证（MFA）已停用',
+           '<div style="margin:0;padding:34px;background:#f3f6f9;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#334155;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#cbd5e1;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">多因素认证（MFA）已停用</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">商户管理员已停用您账号的多因素认证（MFA）要求。</p><div style="margin:22px 0;padding:18px 20px;background:#f8fafc;border:1px solid #dbe5ef;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">操作原因：${reason}</p></div><p style="margin:0;color:#9a3412;">如果您不清楚该变更来源，请联系商户管理员确认。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>',
            '{"merchantName":"Blue Ocean Store","merchantId":"M10000001","loginAccount":"finance","reason":"特殊账号调整"}',
-           '系统内置模板：商户系统 OTP 停用通知'
+           '系统内置模板：商户系统 MFA 停用通知'
     UNION ALL SELECT 'MERCHANT_MFA_EXEMPT_NOTICE',
-           '商户系统 OTP 豁免通知',
-           '【Vexra Merchant】Google 动态验证码豁免已配置',
-           '<div style="margin:0;padding:34px;background:#f6f2fb;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #ddd6fe;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#6d28d9;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#ddd6fe;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">Google 动态验证码豁免</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">商户管理员已为您的账号配置 Google 动态验证码豁免。</p><div style="margin:22px 0;padding:18px 20px;background:#faf5ff;border:1px solid #ddd6fe;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">豁免有效期：${exemptUntil}</p><p style="margin:0;">豁免原因：${reason}</p></div><p style="margin:0;color:#9a3412;">豁免账号仍应使用强密码，并限制共享和转借。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>',
+           '商户系统 MFA 豁免通知',
+           '【Vexra Merchant】多因素认证（MFA）豁免已配置',
+           '<div style="margin:0;padding:34px;background:#f6f2fb;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #ddd6fe;border-radius:10px;overflow:hidden;"><div style="padding:28px 32px;background:#6d28d9;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#ddd6fe;">Vexra Merchant Security</div><div style="margin-top:8px;font-size:24px;font-weight:700;">多因素认证（MFA）豁免</div></div><div style="padding:30px 32px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${loginAccount}：</p><p style="margin:0 0 14px;">商户管理员已为您的账号配置多因素认证（MFA）豁免。</p><div style="margin:22px 0;padding:18px 20px;background:#faf5ff;border:1px solid #ddd6fe;border-radius:8px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">豁免有效期：${exemptUntil}</p><p style="margin:0;">豁免原因：${reason}</p></div><p style="margin:0;color:#9a3412;">豁免账号仍应使用强密码，并限制共享和转借。</p></div><div style="padding:16px 32px;background:#f8fafc;color:#64748b;font-size:12px;">Vexra Merchant 安全通知，请勿转发。</div></div></div>',
            '{"merchantName":"Blue Ocean Store","merchantId":"M10000001","loginAccount":"finance","reason":"应急账号","exemptUntil":"长期有效"}',
-           '系统内置模板：商户系统 OTP 豁免通知'
+           '系统内置模板：商户系统 MFA 豁免通知'
 ) item
 WHERE NOT EXISTS (
     SELECT 1

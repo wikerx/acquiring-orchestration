@@ -51,7 +51,7 @@ import java.util.Set;
  * @classname : AdminUserMfaServiceImpl
  * @date : 2026-07-19 00:00
  * @email : scott_x@163.com
- * @description : 后台用户 MFA 管理服务实现，位于 service-admin 服务实现层；负责 OTP 策略状态变更、会话失效、邮件通知和安全审计。
+ * @description : 后台用户 MFA 管理服务实现，位于 service-admin 服务实现层；负责多因素认证策略状态变更、会话失效、邮件通知和安全审计。
  * @status : create
  */
 @Slf4j
@@ -191,7 +191,7 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     public UserMfaStatusResponse resetMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
-        assertNotSelf(account.getId(), "不能重置当前登录账号自己的 OTP");
+        assertNotSelf(account.getId(), "不能重置当前登录账号自己的 MFA");
         SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
         String beforePolicy = mfa.getMfaPolicy();
         String beforeStatus = mfa.getMfaStatus();
@@ -225,7 +225,7 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     public UserMfaStatusResponse exemptMfa(UserMfaExemptRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
-        assertNotSelf(account.getId(), "不能豁免当前登录账号自己的 OTP");
+        assertNotSelf(account.getId(), "不能豁免当前登录账号自己的 MFA");
         SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
         String beforePolicy = mfa.getMfaPolicy();
         String beforeStatus = mfa.getMfaStatus();
@@ -255,7 +255,7 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     public UserMfaStatusResponse disableMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
-        assertNotSelf(account.getId(), "不能停用当前登录账号自己的 OTP");
+        assertNotSelf(account.getId(), "不能停用当前登录账号自己的 MFA");
         SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
         String beforePolicy = mfa.getMfaPolicy();
         String beforeStatus = mfa.getMfaStatus();
@@ -311,7 +311,7 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
         if (!AuthConstants.MFA_STATUS_PENDING_BIND.equals(mfa.getMfaStatus())
                 && !AuthConstants.MFA_STATUS_RESET_REQUIRED.equals(mfa.getMfaStatus())) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "OTP 绑定邮件只能对待绑定或需重绑用户重发");
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "MFA 绑定邮件只能对待绑定或需重绑用户重发");
         }
         String beforePolicy = mfa.getMfaPolicy();
         String beforeStatus = mfa.getMfaStatus();
