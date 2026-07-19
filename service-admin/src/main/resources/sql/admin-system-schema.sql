@@ -764,7 +764,7 @@ VALUES
     (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'POST', '/admin/system/users/search', 1, 0),
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),
-    (214, 1, 211, 'system:user:delete', '用户删除', 'BUTTON', 'DELETE', '/admin/system/users/**', 1, 0),
+    (214, 1, 211, 'system:user:remove', '用户删除', 'BUTTON', 'POST', '/admin/system/users/delete', 1, 0),
     (215, 1, 211, 'system:user:resetPwd', '用户重置密码', 'BUTTON', 'POST', '/admin/system/users/reset-password', 1, 0),
     (216, 1, 211, 'system:user:assign-role', '用户分配角色', 'BUTTON', 'POST', '/admin/system/users/roles*', 1, 0),
     (221, 1, 212, 'system:role:list', '角色管理查询', 'MENU', 'POST', '/admin/system/roles/search', 1, 0),
