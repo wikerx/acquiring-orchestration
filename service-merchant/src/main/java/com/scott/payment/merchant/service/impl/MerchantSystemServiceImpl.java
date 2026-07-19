@@ -837,6 +837,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         mfa.setUpdatedAt(now);
         mfa.setUpdatedBy(currentAccountId());
         sysAccountMfaMapper.updateById(mfa);
+        syncAccountMfaLegacyFields(account, true);
         expireOpenMfaTokens(app.getId(), account.getId(), now);
         logoutSessions(app.getId(), account.getId(), now);
         recordMfaLog(app, account, mfa, "REQUIRE", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
@@ -879,6 +880,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         mfa.setUpdatedAt(now);
         mfa.setUpdatedBy(currentAccountId());
         sysAccountMfaMapper.updateById(mfa);
+        syncAccountMfaLegacyFields(account, true);
         expireOpenMfaTokens(app.getId(), account.getId(), now);
         logoutSessions(app.getId(), account.getId(), now);
         recordMfaLog(app, account, mfa, "RESET", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
@@ -919,6 +921,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         mfa.setUpdatedAt(now);
         mfa.setUpdatedBy(currentAccountId());
         sysAccountMfaMapper.updateById(mfa);
+        syncAccountMfaLegacyFields(account, false);
         expireOpenMfaTokens(app.getId(), account.getId(), now);
         logoutSessions(app.getId(), account.getId(), now);
         recordMfaLog(app, account, mfa, "EXEMPT", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
@@ -956,6 +959,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         mfa.setUpdatedAt(now);
         mfa.setUpdatedBy(currentAccountId());
         sysAccountMfaMapper.updateById(mfa);
+        syncAccountMfaLegacyFields(account, false);
         expireOpenMfaTokens(app.getId(), account.getId(), now);
         logoutSessions(app.getId(), account.getId(), now);
         recordMfaLog(app, account, mfa, "DISABLE", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
@@ -1503,6 +1507,22 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         mfa.setUpdatedBy(currentAccountId());
         mfa.setDeleted(AuthConstants.NOT_DELETED);
         sysAccountMfaMapper.insert(mfa);
+        syncAccountMfaLegacyFields(account, true);
+    }
+
+    /**
+     * 同步账号表历史 MFA 字段，避免旧页面、报表或缓存仍读取 sys_account.mfa_enabled 时出现状态不一致。
+     *
+     * @param account 登录账号
+     * @param enabled 是否启用 OTP
+     */
+    private void syncAccountMfaLegacyFields(SysAccountDO account, boolean enabled) {
+        account.setMfaEnabled(enabled ? AuthConstants.ENABLED : AuthConstants.DISABLED);
+        account.setMfaType(enabled ? AuthConstants.MFA_TYPE_TOTP : null);
+        account.setTotpSecret(null);
+        account.setUpdatedAt(LocalDateTime.now());
+        account.setUpdatedBy(currentAccountId());
+        sysAccountMapper.updateById(account);
     }
 
     /**
@@ -2090,6 +2110,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         dto.setLocked(account.getLocked());
         dto.setLastLoginAt(account.getLastLoginAt());
         dto.setCreatedAt(merchantUser.getCreatedAt());
+        dto.setCurrentAccount(Objects.equals(account.getId(), currentAccountId()));
         List<Long> roleIds = sysMerchantUserRoleMapper.selectList(Wrappers.<SysMerchantUserRoleDO>lambdaQuery()
                         .eq(SysMerchantUserRoleDO::getAppId, appId)
                         .eq(SysMerchantUserRoleDO::getMerchantUserId, merchantUser.getId())

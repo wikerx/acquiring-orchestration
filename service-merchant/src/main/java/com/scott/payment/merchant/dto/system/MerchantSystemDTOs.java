@@ -336,6 +336,10 @@ public final class MerchantSystemDTOs {
          * OTP 连续失败后的临时锁定截止时间。
          */
         private LocalDateTime mfaLockedUntil;
+        /**
+         * 是否当前登录账号，用于页面隐藏重置、豁免、停用等自我降级 OTP 操作。
+         */
+        private Boolean currentAccount;
         private List<Long> roleIds = Collections.emptyList();
         private List<String> roleNames = Collections.emptyList();
         private List<Long> deptIds = Collections.emptyList();
