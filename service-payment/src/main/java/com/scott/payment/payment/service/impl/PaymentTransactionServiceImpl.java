@@ -112,7 +112,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     /**
      * 本地事件默认最大重试次数。
      */
-    private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 10;
+    private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 200;
 
     /**
      * 本地事件初始版本。

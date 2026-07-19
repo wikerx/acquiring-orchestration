@@ -23,7 +23,7 @@ public final class CardNoGenerator {
     /**
      * 支付卡号最小长度。当前工具仅面向通用 PAN 测试场景，低于该长度不生成。
      */
-    private static final int MIN_CARD_NUMBER_LENGTH = 10;
+    private static final int MIN_CARD_NUMBER_LENGTH = 12;
 
     /**
      * 支付卡号最大长度。ISO/IEC 7812 账号长度常见上限为 19 位。

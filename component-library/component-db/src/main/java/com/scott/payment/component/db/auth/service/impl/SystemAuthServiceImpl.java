@@ -190,7 +190,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     /**
      * 同一 IP 在统计窗口内允许刷新图形验证码的最大次数。
      */
-    private static final long VERIFY_CODE_SEND_LIMIT_COUNT = 10;
+    private static final long VERIFY_CODE_SEND_LIMIT_COUNT = 200;
 
     /**
      * 登录页图形验证码类型。

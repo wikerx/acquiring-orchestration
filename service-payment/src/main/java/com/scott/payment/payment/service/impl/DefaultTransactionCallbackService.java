@@ -134,7 +134,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     /**
      * 本地事件默认最大重试次数。
      */
-    private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 10;
+    private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 200;
 
     /**
      * 初始版本号。
