@@ -4,6 +4,8 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
+import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
@@ -106,5 +108,21 @@ class AdminAuthApplicationServiceTest {
         assertThat(actual).isSameAs(expected);
         verify(systemAuthService).currentUser(AuthConstants.APP_ADMIN, "Bearer token");
         verify(systemAuthService).logout(AuthConstants.APP_ADMIN, "Bearer token");
+    }
+
+    @Test
+    void shouldDelegateProfileUpdateAndPasswordChange() {
+        AuthProfileUpdateRequest profileRequest = new AuthProfileUpdateRequest();
+        AuthPasswordChangeRequest passwordRequest = new AuthPasswordChangeRequest();
+        AuthLoginResponse expected = new AuthLoginResponse();
+        when(systemAuthService.updateCurrentProfile(AuthConstants.APP_ADMIN, "Bearer token", profileRequest))
+                .thenReturn(expected);
+
+        AuthLoginResponse actual = adminAuthApplicationService.updateCurrentProfile("Bearer token", profileRequest);
+        adminAuthApplicationService.changeCurrentPassword("Bearer token", passwordRequest);
+
+        assertThat(actual).isSameAs(expected);
+        verify(systemAuthService).updateCurrentProfile(AuthConstants.APP_ADMIN, "Bearer token", profileRequest);
+        verify(systemAuthService).changeCurrentPassword(AuthConstants.APP_ADMIN, "Bearer token", passwordRequest);
     }
 }

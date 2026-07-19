@@ -1,18 +1,27 @@
 package com.scott.payment.component.db.auth.service.impl;
 
 import com.scott.payment.component.core.auth.LoginTokenUtils;
+import com.scott.payment.component.core.auth.PasswordHashUtils;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
+import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
+import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysLoginSessionDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
+import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaLogMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaTokenMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginLogMapper;
@@ -38,6 +47,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -83,6 +93,10 @@ class SystemAuthServiceImplTest {
      */
     private SysLoginSessionMapper sysLoginSessionMapper;
     /**
+     * 登录页图形验证码 Mapper，用于验证验证码生成与校验规则。
+     */
+    private SysVerifyCodeMapper sysVerifyCodeMapper;
+    /**
      * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private SystemAuthServiceImpl systemAuthService;
@@ -107,7 +121,10 @@ class SystemAuthServiceImplTest {
         SysMerchantUserRoleMapper sysMerchantUserRoleMapper = mock(SysMerchantUserRoleMapper.class);
         SysLoginLogMapper sysLoginLogMapper = mock(SysLoginLogMapper.class);
         sysLoginSessionMapper = mock(SysLoginSessionMapper.class);
-        SysVerifyCodeMapper sysVerifyCodeMapper = mock(SysVerifyCodeMapper.class);
+        sysVerifyCodeMapper = mock(SysVerifyCodeMapper.class);
+        SysAccountMfaMapper sysAccountMfaMapper = mock(SysAccountMfaMapper.class);
+        SysAccountMfaTokenMapper sysAccountMfaTokenMapper = mock(SysAccountMfaTokenMapper.class);
+        SysAccountMfaLogMapper sysAccountMfaLogMapper = mock(SysAccountMfaLogMapper.class);
         BaseMerchantInfoMapper baseMerchantInfoMapper = mock(BaseMerchantInfoMapper.class);
 
         systemAuthService = new SystemAuthServiceImpl(
@@ -127,6 +144,9 @@ class SystemAuthServiceImplTest {
                 sysLoginLogMapper,
                 sysLoginSessionMapper,
                 sysVerifyCodeMapper,
+                sysAccountMfaMapper,
+                sysAccountMfaTokenMapper,
+                sysAccountMfaLogMapper,
                 baseMerchantInfoMapper
         );
     }
@@ -175,6 +195,106 @@ class SystemAuthServiceImplTest {
         verify(sysLoginSessionMapper).updateById(session);
     }
 
+    /**
+     * 当前账号修改个人资料时，应只更新本人用户主体和账号冗余联系方式。
+     */
+    @Test
+    void updateCurrentProfileShouldPersistCurrentUserProfile() {
+        SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
+        SysUserDO user = adminUser();
+        SysAccountDO account = adminAccount();
+        AuthProfileUpdateRequest request = new AuthProfileUpdateRequest();
+        request.setNickname("Scott Admin");
+        request.setMobile("18777777777");
+        request.setEmail("scott@vip.com");
+        when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
+        when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
+        when(sysAccountMapper.selectById(eq(10L))).thenReturn(account);
+        when(sysUserMapper.selectById(eq(20L))).thenReturn(user);
+        when(sysAccountRoleMapper.selectList(any())).thenReturn(List.of(adminAccountRole()));
+        when(sysRoleMapper.selectList(any())).thenReturn(List.of(adminRole()));
+
+        AuthLoginResponse response = systemAuthService.updateCurrentProfile(AuthConstants.APP_ADMIN, "Bearer " + RAW_TOKEN, request);
+
+        assertThat(response.getAccount().getRealName()).isEqualTo("Admin");
+        assertThat(response.getAccount().getNickname()).isEqualTo("Scott Admin");
+        assertThat(response.getAccount().getMobile()).isEqualTo("18777777777");
+        assertThat(response.getAccount().getEmail()).isEqualTo("scott@vip.com");
+        assertThat(user.getNickname()).isEqualTo("Scott Admin");
+        assertThat(user.getUpdatedBy()).isEqualTo(10L);
+        assertThat(account.getMobile()).isEqualTo("18777777777");
+        assertThat(account.getEmail()).isEqualTo("scott@vip.com");
+        verify(sysUserMapper).updateById(user);
+        verify(sysAccountMapper).updateById(account);
+    }
+
+    /**
+     * 修改密码必须先校验旧密码，旧密码错误时不得改写密码哈希。
+     */
+    @Test
+    void changeCurrentPasswordShouldRejectWrongOldPassword() {
+        SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
+        SysAccountDO account = adminAccountWithPassword("Old@123456");
+        AuthPasswordChangeRequest request = passwordChangeRequest("Wrong@123456", "New@123456");
+        when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
+        when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
+        when(sysAccountMapper.selectById(eq(10L))).thenReturn(account);
+
+        assertThatThrownBy(() -> systemAuthService.changeCurrentPassword(AuthConstants.APP_ADMIN, "Bearer " + RAW_TOKEN, request))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.UNAUTHORIZED.getCode());
+    }
+
+    /**
+     * 修改密码成功后应重新生成密码盐和哈希，并保留 PBKDF2 算法标识。
+     */
+    @Test
+    void changeCurrentPasswordShouldRefreshSaltAndHash() {
+        SysLoginSessionDO session = activeSession(LocalDateTime.now().minusMinutes(5));
+        SysAccountDO account = adminAccountWithPassword("Old@123456");
+        String oldSalt = account.getPasswordSalt();
+        AuthPasswordChangeRequest request = passwordChangeRequest("Old@123456", "New@123456");
+        when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
+        when(sysLoginSessionMapper.selectOne(any())).thenReturn(session);
+        when(sysAccountMapper.selectById(eq(10L))).thenReturn(account);
+
+        systemAuthService.changeCurrentPassword(AuthConstants.APP_ADMIN, "Bearer " + RAW_TOKEN, request);
+
+        assertThat(account.getPasswordSalt()).isNotEqualTo(oldSalt);
+        assertThat(PasswordHashUtils.matches("New@123456", account.getPasswordSalt(), account.getPasswordHash())).isTrue();
+        assertThat(account.getPasswordAlgo()).isEqualTo(PasswordHashUtils.ALGORITHM);
+        assertThat(account.getPasswordExpired()).isEqualTo(AuthConstants.DISABLED);
+        assertThat(account.getPasswordUpdatedAt()).isNotNull();
+        verify(sysAccountMapper).updateById(account);
+    }
+
+    /**
+     * 登录前验证码应生成页面可见的图形验证码，不依赖账号、邮箱或短信通道。
+     */
+    @Test
+    void sendLoginVerifyCodeShouldReturnCaptchaImageWithoutAccount() {
+        when(sysAppMapper.selectOne(any())).thenReturn(adminApp());
+        when(sysVerifyCodeMapper.selectCount(any())).thenReturn(0L);
+        AuthVerifyCodeSendRequest request = new AuthVerifyCodeSendRequest();
+        request.setScene("LOGIN");
+
+        AuthVerifyCodeSendResponse response = systemAuthService.sendLoginVerifyCode(AuthConstants.APP_ADMIN, request, "127.0.0.1");
+
+        assertThat(response.getReceiverType()).isEqualTo("CAPTCHA");
+        assertThat(response.getMaskedReceiver()).isEqualTo("页面图形验证码");
+        assertThat(response.getCaptchaImage()).startsWith("data:image/png;base64,");
+        assertThat(response.getExpireSeconds()).isEqualTo(300);
+        verify(sysVerifyCodeMapper).insert(argThat((SysVerifyCodeDO row) ->
+                "LOGIN".equals(row.getScene())
+                        && "CAPTCHA".equals(row.getReceiverType())
+                        && "LOGIN_PAGE".equals(row.getReceiver())
+                        && "PAGE_CAPTCHA".equals(row.getSendChannel())
+                        && row.getCodeSalt() != null
+                        && row.getCodeHash() != null
+        ));
+    }
+
     private SysAppDO adminApp() {
         SysAppDO app = new SysAppDO();
         app.setId(1L);
@@ -195,6 +315,16 @@ class SystemAuthServiceImplTest {
         account.setEmail("account@example.com");
         account.setStatus(AuthConstants.ENABLED);
         account.setDeleted(AuthConstants.NOT_DELETED);
+        return account;
+    }
+
+    private SysAccountDO adminAccountWithPassword(String password) {
+        SysAccountDO account = adminAccount();
+        String salt = PasswordHashUtils.generateSalt();
+        account.setPasswordSalt(salt);
+        account.setPasswordHash(PasswordHashUtils.hashPassword(password, salt));
+        account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
+        account.setPasswordExpired(AuthConstants.DISABLED);
         return account;
     }
 
@@ -242,5 +372,12 @@ class SystemAuthServiceImplTest {
         session.setCreatedAt(lastActiveAt);
         session.setUpdatedAt(lastActiveAt);
         return session;
+    }
+
+    private AuthPasswordChangeRequest passwordChangeRequest(String oldPassword, String newPassword) {
+        AuthPasswordChangeRequest request = new AuthPasswordChangeRequest();
+        request.setOldPassword(oldPassword);
+        request.setNewPassword(newPassword);
+        return request;
     }
 }

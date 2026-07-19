@@ -35,22 +35,23 @@ public class AuthVerifyCodeSendResponse implements Serializable {
     private String verifyCodeId;
 
     /**
-     * 接收方式：SMS、EMAIL、TOTP。
+     * 验证码类型：CAPTCHA 表示登录页图形验证码；历史兼容 SMS、EMAIL、TOTP。
      */
     private String receiverType;
 
     /**
-     * 脱敏后的接收人。
+     * 脱敏后的接收人。图形验证码场景固定返回页面验证码文案，不包含账号、邮箱或手机号。
      */
     private String maskedReceiver;
+
+    /**
+     * 图形验证码图片，格式为 data:image/png;base64,...。生产环境只返回图片，不返回明文验证码。
+     */
+    private String captchaImage;
 
     /**
      * 过期秒数。
      */
     private Integer expireSeconds;
 
-    /**
-     * 调试阶段返回给前端的验证码明文，当前开发、测试、生产环境保持一致。
-     */
-    private String devCode;
 }

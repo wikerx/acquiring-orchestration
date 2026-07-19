@@ -3,6 +3,7 @@ package com.scott.payment.merchant.config;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.openapi.OpenApiKeyAuditService;
+import com.scott.payment.component.security.openapi.OpenApiBaseUrlResolver;
 import com.scott.payment.component.security.openapi.OpenApiKeyExportService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyExportProperties;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
@@ -10,6 +11,7 @@ import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.merchant.service.MerchantConfigService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,13 +30,14 @@ import org.springframework.context.annotation.Configuration;
 public class MerchantOpenApiSecurityConfig {
 
     /**
+     * 系统参数中维护的网关对外基础地址键名，商户导出的 OpenAPI 调用地址必须统一走 gateway。
+     */
+    private static final String GATEWAY_BASE_URL_CONFIG_KEY = "platform.gateway.base-url";
+
+    /**
      * 注册 OpenAPI 报文加密组件，保留给商户端需要解析或生成 OpenAPI 加密报文的场景。
      *
      * @return OpenAPI 报文加密组件
-     */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     public OpenApiPayloadCrypto openApiPayloadCrypto() {
@@ -46,10 +49,6 @@ public class MerchantOpenApiSecurityConfig {
      *
      * @return OpenAPI 密钥材料工厂
      */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Bean
     public OpenApiKeyMaterialFactory openApiKeyMaterialFactory() {
         return new OpenApiKeyMaterialFactory();
@@ -58,27 +57,29 @@ public class MerchantOpenApiSecurityConfig {
     /**
      * 注册 OpenAPI 接入材料导出服务，统一生成 TXT、PEM、properties 和 ZIP 文件。
      *
-     * @param exportProperties OpenAPI 商户接入材料导出配置
+     * @param openApiBaseUrlResolver 商户 OpenAPI 对外地址解析器
      * @return OpenAPI 接入材料导出服务
      */
+    @Bean
+    public OpenApiKeyExportService openApiKeyExportService(OpenApiBaseUrlResolver openApiBaseUrlResolver) {
+        return new OpenApiKeyExportService(openApiBaseUrlResolver);
+    }
+
     /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param exportProperties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 注册商户端 OpenAPI 对外地址解析器。地址统一从系统参数读取，不再由商户服务 yml 单独维护。
+     *
+     * @param merchantConfigService 商户端只读系统参数服务
+     * @return OpenAPI 对外地址解析器
      */
     @Bean
-    public OpenApiKeyExportService openApiKeyExportService(OpenApiMerchantKeyExportProperties exportProperties) {
-        return new OpenApiKeyExportService(exportProperties);
+    public OpenApiBaseUrlResolver openApiBaseUrlResolver(MerchantConfigService merchantConfigService) {
+        return () -> merchantConfigService.enabledConfigValue(GATEWAY_BASE_URL_CONFIG_KEY).orElse(null);
     }
 
     /**
      * 注册 OpenAPI 密钥审计辅助服务，统一判断敏感材料范围。
      *
      * @return OpenAPI 密钥审计辅助服务
-     */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     public OpenApiKeyAuditService openApiKeyAuditService() {
@@ -95,18 +96,8 @@ public class MerchantOpenApiSecurityConfig {
      * @param keyMaterialFactory       OpenAPI 密钥材料工厂
      * @param keyExportService         OpenAPI 接入材料导出服务
      * @param exportProperties         OpenAPI 商户接入材料导出配置
+     * @param openApiBaseUrlResolver   商户 OpenAPI 对外地址解析器
      * @return OpenAPI 商户密钥材料服务
-     */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantInfoMapper 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param jwtKeyMapper 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param platformPayloadKeyMapper 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param responseKeyMapper 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyMaterialFactory 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyExportService 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param exportProperties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     public OpenApiMerchantKeyMaterialService openApiMerchantKeyMaterialService(BaseMerchantInfoMapper merchantInfoMapper,
@@ -115,8 +106,9 @@ public class MerchantOpenApiSecurityConfig {
                                                                                BaseMerchantResponseKeyMapper responseKeyMapper,
                                                                                OpenApiKeyMaterialFactory keyMaterialFactory,
                                                                                OpenApiKeyExportService keyExportService,
-                                                                               OpenApiMerchantKeyExportProperties exportProperties) {
+                                                                               OpenApiMerchantKeyExportProperties exportProperties,
+                                                                               OpenApiBaseUrlResolver openApiBaseUrlResolver) {
         return new OpenApiMerchantKeyMaterialService(merchantInfoMapper, jwtKeyMapper, platformPayloadKeyMapper,
-                responseKeyMapper, keyMaterialFactory, keyExportService, exportProperties);
+                responseKeyMapper, keyMaterialFactory, keyExportService, exportProperties, openApiBaseUrlResolver);
     }
 }

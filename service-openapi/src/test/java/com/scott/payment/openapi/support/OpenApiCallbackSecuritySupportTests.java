@@ -3,6 +3,7 @@ package com.scott.payment.openapi.support;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.config.OpenApiCallbackProperties;
+import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -17,6 +18,7 @@ import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.C
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_TIMESTAMP_HEADER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 /**
  * @author : scott
@@ -38,7 +40,7 @@ class OpenApiCallbackSecuritySupportTests {
      */
     @Test
     void shouldVerifyChannelCallbackSignatureWithBodyDigest() {
-        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties());
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties(), mock(SecurityInterceptEventRecorder.class));
         MockHttpServletRequest request = signedRequest(RAW_BODY);
 
         OpenApiCallbackSecuritySupport.CallbackSecurityResult result =
@@ -53,7 +55,7 @@ class OpenApiCallbackSecuritySupportTests {
      */
     @Test
     void shouldRejectChannelCallbackWhenBodyIsTampered() {
-        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties());
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties(), mock(SecurityInterceptEventRecorder.class));
         MockHttpServletRequest request = signedRequest(RAW_BODY);
 
         assertThatThrownBy(() -> support.verifyChannelCallback(CHANNEL_CODE, request,

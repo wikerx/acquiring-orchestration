@@ -1,8 +1,11 @@
 package com.scott.payment.admin.config;
 
+import com.scott.payment.admin.constant.SystemConfigKeys;
+import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.openapi.OpenApiKeyAuditService;
+import com.scott.payment.component.security.openapi.OpenApiBaseUrlResolver;
 import com.scott.payment.component.security.openapi.OpenApiKeyExportService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyExportProperties;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
@@ -13,6 +16,8 @@ import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Set;
 
 /**
  * @author : scott
@@ -67,8 +72,20 @@ public class AdminOpenApiSecurityConfig {
      * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
-    public OpenApiKeyExportService openApiKeyExportService(OpenApiMerchantKeyExportProperties exportProperties) {
-        return new OpenApiKeyExportService(exportProperties);
+    public OpenApiKeyExportService openApiKeyExportService(OpenApiBaseUrlResolver openApiBaseUrlResolver) {
+        return new OpenApiKeyExportService(openApiBaseUrlResolver);
+    }
+
+    /**
+     * 注册管理端 OpenAPI 对外地址解析器。商户所有 OpenAPI 调用必须走 gateway，对外地址统一取系统参数。
+     *
+     * @param adminConfigService 系统参数服务
+     * @return OpenAPI 对外地址解析器
+     */
+    @Bean
+    public OpenApiBaseUrlResolver openApiBaseUrlResolver(AdminConfigService adminConfigService) {
+        return () -> adminConfigService.enabledConfigValues(Set.of(SystemConfigKeys.GATEWAY_BASE_URL))
+                .get(SystemConfigKeys.GATEWAY_BASE_URL);
     }
 
     /**
@@ -115,8 +132,9 @@ public class AdminOpenApiSecurityConfig {
                                                                                BaseMerchantResponseKeyMapper responseKeyMapper,
                                                                                OpenApiKeyMaterialFactory keyMaterialFactory,
                                                                                OpenApiKeyExportService keyExportService,
-                                                                               OpenApiMerchantKeyExportProperties exportProperties) {
+                                                                               OpenApiMerchantKeyExportProperties exportProperties,
+                                                                               OpenApiBaseUrlResolver openApiBaseUrlResolver) {
         return new OpenApiMerchantKeyMaterialService(merchantInfoMapper, jwtKeyMapper, platformPayloadKeyMapper,
-                responseKeyMapper, keyMaterialFactory, keyExportService, exportProperties);
+                responseKeyMapper, keyMaterialFactory, keyExportService, exportProperties, openApiBaseUrlResolver);
     }
 }

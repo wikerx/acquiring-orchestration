@@ -64,6 +64,11 @@ public class AuthAccountDTO implements Serializable {
     private String realName;
 
     /**
+     * 用户昵称，用于个人中心资料展示。
+     */
+    private String nickname;
+
+    /**
      * 用户信息表手机号，用于个人中心资料展示。
      */
     private String mobile;

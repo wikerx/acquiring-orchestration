@@ -4,6 +4,8 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
+import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
@@ -145,6 +147,37 @@ public class MerchantAuthController {
     @RequiresPermission("merchant:dashboard:view")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
         return success(merchantAuthApplicationService.currentUser(authorization));
+    }
+
+    /**
+     * 更新当前商户登录账号个人资料。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       个人资料更新请求
+     * @return 更新后的当前商户登录账号、菜单和权限
+     */
+    @PostMapping("/profile")
+    @OperationLog(moduleName = "商户个人中心", businessType = OperationTypeConstants.UPDATE,
+            operation = "更新商户个人资料", recordRequest = false, recordResponse = false)
+    public CommonResult<AuthLoginResponse> updateProfile(@RequestHeader("Authorization") String authorization,
+                                                         @Valid @RequestBody AuthProfileUpdateRequest request) {
+        return success(merchantAuthApplicationService.updateCurrentProfile(authorization, request));
+    }
+
+    /**
+     * 修改当前商户登录账号密码。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       修改密码请求
+     * @return 空响应
+     */
+    @PostMapping("/password/change")
+    @OperationLog(moduleName = "商户个人中心", businessType = OperationTypeConstants.UPDATE,
+            operation = "修改商户登录密码", recordRequest = false, recordResponse = false)
+    public CommonResult<Void> changePassword(@RequestHeader("Authorization") String authorization,
+                                             @Valid @RequestBody AuthPasswordChangeRequest request) {
+        merchantAuthApplicationService.changeCurrentPassword(authorization, request);
+        return success();
     }
 
     /**

@@ -7,6 +7,9 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionA
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
+import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -37,7 +40,7 @@ class AdminTransactionApplicationServiceTests {
     @Test
     void refundShouldBuildPaymentCoreCommand() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        AdminTransactionApplicationService service = new AdminTransactionApplicationService(paymentInternalClient);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient);
         when(paymentInternalClient.detail("TX202607140001")).thenReturn(detail("TX202607140001", "PAYMENT"));
         TransactionActionResponse expected = actionResponse("TX202607140002", "REFUND");
         ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
@@ -66,7 +69,7 @@ class AdminTransactionApplicationServiceTests {
     @Test
     void voidShouldBuildPaymentCoreCommand() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        AdminTransactionApplicationService service = new AdminTransactionApplicationService(paymentInternalClient);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient);
         when(paymentInternalClient.detail("TX202607140010")).thenReturn(detail("TX202607140010", "AUTHORIZATION"));
         TransactionActionResponse expected = actionResponse("TX202607140011", "VOID");
         ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
@@ -89,7 +92,7 @@ class AdminTransactionApplicationServiceTests {
     @Test
     void refundShouldRejectInvalidAmount() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        AdminTransactionApplicationService service = new AdminTransactionApplicationService(paymentInternalClient);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient);
         when(paymentInternalClient.detail("TX202607140001")).thenReturn(detail("TX202607140001", "PAYMENT"));
         TransactionActionRequest request = new TransactionActionRequest();
         request.setAmount(BigDecimal.ZERO);
@@ -104,7 +107,7 @@ class AdminTransactionApplicationServiceTests {
     @Test
     void refundShouldUseCapturedOperationWhenAuthorizationRowSelected() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        AdminTransactionApplicationService service = new AdminTransactionApplicationService(paymentInternalClient);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient);
         TransactionDetailResponse detailResponse = new TransactionDetailResponse();
         TransactionOperationResponse authorization = operation("TX202607140020", "AUTHORIZATION", LocalDateTime.of(2026, 7, 14, 10, 0));
         TransactionOperationResponse capture = operation("TX202607140021", "CAPTURE", LocalDateTime.of(2026, 7, 14, 10, 5));
@@ -119,6 +122,15 @@ class AdminTransactionApplicationServiceTests {
         service.refund("TX202607140020", request);
 
         assertThat(captor.getValue().getTransactionInfo().getSourceTransactionId()).isEqualTo("TX202607140021");
+    }
+
+    private AdminTransactionApplicationService buildService(PaymentInternalClient paymentInternalClient) {
+        return new AdminTransactionApplicationService(
+                paymentInternalClient,
+                mock(ExcelExportService.class),
+                mock(ExcelI18nMessageResolver.class),
+                mock(ExcelLocaleResolver.class)
+        );
     }
 
     private TransactionDetailResponse detail(String transactionId, String transactionType) {

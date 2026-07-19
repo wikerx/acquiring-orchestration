@@ -1,0 +1,17 @@
+# service-risk 专属配置：实时风控内部接口鉴权和规则骨架参数。
+internal-service:
+  auth:
+    # dev 可开启内部 HMAC 校验，调用方 service-payment 必须使用相同共享密钥签名。
+    enabled: ${RISK_INTERNAL_AUTH_ENABLED:true}
+    caller: service-payment
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET:dev-internal-service-secret}
+    allowed-clock-skew: 5m
+    whitelist:
+      - /risk/health
+      - /actuator/health/**
+      - /error
+
+risk:
+  evaluation:
+    # 当前仅为可替换规则骨架；接入正式规则引擎、名单库或模型服务前不得承诺为完整风控能力。
+    skeleton-enabled: true

@@ -5,6 +5,11 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
+import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
+import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
@@ -17,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -116,6 +122,43 @@ public class AdminAuthController {
     }
 
     /**
+     * 获取管理后台 OTP 绑定信息。
+     *
+     * @param loginTicket 短期登录票据
+     * @return OTP 绑定信息
+     */
+    @GetMapping("/mfa/bind-info")
+    public CommonResult<AuthMfaBindInfoResponse> mfaBindInfo(@RequestParam("loginTicket") String loginTicket) {
+        return success(adminAuthApplicationService.mfaBindInfo(loginTicket));
+    }
+
+    /**
+     * 确认管理后台 OTP 绑定。
+     *
+     * @param request        绑定确认请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    @PostMapping("/mfa/bind-confirm")
+    public CommonResult<AuthLoginResponse> mfaBindConfirm(@Valid @RequestBody AuthMfaBindConfirmRequest request,
+                                                          HttpServletRequest servletRequest) {
+        return success(adminAuthApplicationService.mfaBindConfirm(request, servletRequest));
+    }
+
+    /**
+     * 验证管理后台 OTP。
+     *
+     * @param request        OTP 验证请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    @PostMapping("/mfa/verify")
+    public CommonResult<AuthLoginResponse> mfaVerify(@Valid @RequestBody AuthMfaVerifyRequest request,
+                                                     HttpServletRequest servletRequest) {
+        return success(adminAuthApplicationService.mfaVerify(request, servletRequest));
+    }
+
+    /**
      * 查询当前登录账号、菜单和权限。
      *
      * @param authorization Authorization 请求头
@@ -129,6 +172,37 @@ public class AdminAuthController {
     @GetMapping("/me")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
         return success(adminAuthApplicationService.currentUser(authorization));
+    }
+
+    /**
+     * 更新当前后台登录账号个人资料。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       个人资料更新请求
+     * @return 更新后的当前登录账号、菜单和权限
+     */
+    @PostMapping("/profile")
+    @OperationLog(moduleName = "后台个人中心", businessType = OperationTypeConstants.UPDATE,
+            operation = "更新后台个人资料", recordRequest = false, recordResponse = false)
+    public CommonResult<AuthLoginResponse> updateProfile(@RequestHeader("Authorization") String authorization,
+                                                         @Valid @RequestBody AuthProfileUpdateRequest request) {
+        return success(adminAuthApplicationService.updateCurrentProfile(authorization, request));
+    }
+
+    /**
+     * 修改当前后台登录账号密码。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       修改密码请求
+     * @return 空响应
+     */
+    @PostMapping("/password/change")
+    @OperationLog(moduleName = "后台个人中心", businessType = OperationTypeConstants.UPDATE,
+            operation = "修改后台登录密码", recordRequest = false, recordResponse = false)
+    public CommonResult<Void> changePassword(@RequestHeader("Authorization") String authorization,
+                                             @Valid @RequestBody AuthPasswordChangeRequest request) {
+        adminAuthApplicationService.changeCurrentPassword(authorization, request);
+        return success();
     }
 
     /**

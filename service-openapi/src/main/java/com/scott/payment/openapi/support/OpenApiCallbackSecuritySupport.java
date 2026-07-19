@@ -4,6 +4,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.config.OpenApiCallbackProperties;
+import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -51,12 +52,20 @@ public class OpenApiCallbackSecuritySupport {
     private final OpenApiCallbackProperties callbackProperties;
 
     /**
+     * 安全拦截事件记录器，仅记录脱敏排查元数据。
+     */
+    private final SecurityInterceptEventRecorder securityInterceptEventRecorder;
+
+    /**
      * 创建回调入口安全校验组件。
      *
      * @param callbackProperties 回调安全配置
+     * @param securityInterceptEventRecorder 安全拦截事件记录器
      */
-    public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties) {
+    public OpenApiCallbackSecuritySupport(OpenApiCallbackProperties callbackProperties,
+                                          SecurityInterceptEventRecorder securityInterceptEventRecorder) {
         this.callbackProperties = callbackProperties;
+        this.securityInterceptEventRecorder = securityInterceptEventRecorder;
     }
 
     /**
@@ -69,7 +78,11 @@ public class OpenApiCallbackSecuritySupport {
         String actualToken = request.getHeader(NOTIFY_RETRY_TOKEN_HEADER);
         if (!StringUtils.hasText(expectedToken)
                 || !InternalServiceSignature.matches(expectedToken, actualToken)) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "merchant notify retry token is invalid");
+            throw recordAndReturnOpenApiException(request,
+                    "OPENAPI_NOTIFY_RETRY_TOKEN_INVALID",
+                    SecurityInterceptEventRecorder.RISK_HIGH,
+                    "OPENAPI_NOTIFY_RETRY_TOKEN",
+                    "merchant notify retry token is invalid");
         }
     }
 
@@ -94,11 +107,34 @@ public class OpenApiCallbackSecuritySupport {
                 || !StringUtils.hasText(timestampText)
                 || !StringUtils.hasText(nonce)
                 || !StringUtils.hasText(signature)) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "channel callback signature headers are required");
+            throw recordAndReturnChannelException(request,
+                    "CHANNEL_SIGNATURE_HEADER_MISSING",
+                    SecurityInterceptEventRecorder.RISK_HIGH,
+                    "CHANNEL_CALLBACK_SIGNATURE",
+                    "channel callback signature headers are required");
         }
-        long timestamp = parseTimestamp(timestampText);
+        long timestamp;
+        try {
+            timestamp = parseTimestamp(timestampText);
+        } catch (ApiException exception) {
+            securityInterceptEventRecorder.recordBlocked(
+                    request,
+                    SecurityInterceptEventRecorder.SOURCE_CHANNEL,
+                    "CHANNEL_SIGNATURE_TIMESTAMP_INVALID",
+                    SecurityInterceptEventRecorder.RISK_HIGH,
+                    null,
+                    "CHANNEL_CALLBACK_SIGNATURE",
+                    securityInterceptEventRecorder.reasonCode(exception),
+                    securityInterceptEventRecorder.reasonMessage(exception)
+            );
+            throw exception;
+        }
         if (Math.abs(InternalServiceSignature.currentTimeMillis() - timestamp) > callbackProperties.getAllowedClockSkewMillis()) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "channel callback signature timestamp is expired");
+            throw recordAndReturnChannelException(request,
+                    "CHANNEL_SIGNATURE_TIMESTAMP_EXPIRED",
+                    SecurityInterceptEventRecorder.RISK_HIGH,
+                    "CHANNEL_CALLBACK_SIGNATURE",
+                    "channel callback signature timestamp is expired");
         }
         String normalizedChannelCode = channelCode.toLowerCase(Locale.ROOT);
         String channelSecret = callbackProperties.getChannelSecrets().get(channelCode);
@@ -106,7 +142,11 @@ public class OpenApiCallbackSecuritySupport {
             channelSecret = callbackProperties.getChannelSecrets().get(normalizedChannelCode);
         }
         if (!StringUtils.hasText(channelSecret)) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "channel callback secret is not configured");
+            throw recordAndReturnChannelException(request,
+                    "CHANNEL_CALLBACK_SECRET_MISSING",
+                    SecurityInterceptEventRecorder.RISK_CRITICAL,
+                    "CHANNEL_CALLBACK_SIGNATURE",
+                    "channel callback secret is not configured");
         }
         String expectedSignature = InternalServiceSignature.sign(
                 request.getMethod(),
@@ -118,9 +158,51 @@ public class OpenApiCallbackSecuritySupport {
                 channelSecret
         );
         if (!InternalServiceSignature.matches(expectedSignature, signature)) {
-            throw new ApiException(ApiResultEnum.UNAUTHORIZED, "channel callback signature is invalid");
+            throw recordAndReturnChannelException(request,
+                    "CHANNEL_SIGNATURE_INVALID",
+                    SecurityInterceptEventRecorder.RISK_CRITICAL,
+                    "CHANNEL_CALLBACK_SIGNATURE",
+                    "channel callback signature is invalid");
         }
         return new CallbackSecurityResult(true, true);
+    }
+
+    private ApiException recordAndReturnOpenApiException(HttpServletRequest request,
+                                                         String eventType,
+                                                         String riskLevel,
+                                                         String hitRuleCode,
+                                                         String message) {
+        ApiException exception = new ApiException(ApiResultEnum.UNAUTHORIZED, message);
+        securityInterceptEventRecorder.recordBlocked(
+                request,
+                SecurityInterceptEventRecorder.SOURCE_OPENAPI,
+                eventType,
+                riskLevel,
+                null,
+                hitRuleCode,
+                securityInterceptEventRecorder.reasonCode(exception),
+                securityInterceptEventRecorder.reasonMessage(exception)
+        );
+        return exception;
+    }
+
+    private ApiException recordAndReturnChannelException(HttpServletRequest request,
+                                                         String eventType,
+                                                         String riskLevel,
+                                                         String hitRuleCode,
+                                                         String message) {
+        ApiException exception = new ApiException(ApiResultEnum.UNAUTHORIZED, message);
+        securityInterceptEventRecorder.recordBlocked(
+                request,
+                SecurityInterceptEventRecorder.SOURCE_CHANNEL,
+                eventType,
+                riskLevel,
+                null,
+                hitRuleCode,
+                securityInterceptEventRecorder.reasonCode(exception),
+                securityInterceptEventRecorder.reasonMessage(exception)
+        );
+        return exception;
     }
 
     private long parseTimestamp(String timestampText) {

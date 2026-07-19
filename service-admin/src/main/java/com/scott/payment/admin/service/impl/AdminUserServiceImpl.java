@@ -21,6 +21,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
+import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
@@ -35,6 +36,7 @@ import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.entity.SysUserPostDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysDeptMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
@@ -93,6 +95,10 @@ public class AdminUserServiceImpl implements AdminUserService {
      */
     private final SysAccountMapper sysAccountMapper;
     /**
+     * MFA 配置数据访问接口。
+     */
+    private final SysAccountMfaMapper sysAccountMfaMapper;
+    /**
      * 用户主体数据访问接口。
      */
     private final SysUserMapper sysUserMapper;
@@ -142,6 +148,7 @@ public class AdminUserServiceImpl implements AdminUserService {
      *
      * @param sysAppMapper          应用 Mapper
      * @param sysAccountMapper      账号 Mapper
+     * @param sysAccountMfaMapper   MFA 配置 Mapper
      * @param sysUserMapper         用户 Mapper
      * @param sysDeptMapper         部门 Mapper
      * @param sysPostMapper         岗位 Mapper
@@ -156,6 +163,7 @@ public class AdminUserServiceImpl implements AdminUserService {
      */
     public AdminUserServiceImpl(SysAppMapper sysAppMapper,
                                 SysAccountMapper sysAccountMapper,
+                                SysAccountMfaMapper sysAccountMfaMapper,
                                 SysUserMapper sysUserMapper,
                                 SysDeptMapper sysDeptMapper,
                                 SysPostMapper sysPostMapper,
@@ -169,6 +177,7 @@ public class AdminUserServiceImpl implements AdminUserService {
                                 SysLoginSessionMapper sysLoginSessionMapper) {
         this.sysAppMapper = sysAppMapper;
         this.sysAccountMapper = sysAccountMapper;
+        this.sysAccountMfaMapper = sysAccountMfaMapper;
         this.sysUserMapper = sysUserMapper;
         this.sysDeptMapper = sysDeptMapper;
         this.sysPostMapper = sysPostMapper;
@@ -322,6 +331,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         account.setUpdatedAt(now);
         account.setDeleted(NOT_DELETED);
         sysAccountMapper.insert(account);
+
+        createDefaultRequiredMfa(app, account, now);
 
         bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
         return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())),
@@ -1129,9 +1140,58 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setLocked(account.getLocked());
         dto.setLastLoginAt(account.getLastLoginAt());
         dto.setLastLoginIp(account.getLastLoginIp());
+        fillMfaStatus(account, dto);
         dto.setRemark(account.getRemark());
         dto.setCreatedAt(account.getCreatedAt());
         return dto;
+    }
+
+    /**
+     * 为新增后台用户创建默认强制 OTP 配置。
+     *
+     * @param app     后台应用
+     * @param account 登录账号
+     * @param now     当前时间
+     */
+    private void createDefaultRequiredMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
+        SysAccountMfaDO mfa = new SysAccountMfaDO();
+        mfa.setAppId(app.getId());
+        mfa.setAccountId(account.getId());
+        mfa.setUserId(account.getUserId());
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+        mfa.setMfaStatus(account.getStatus() != null && account.getStatus() == AuthConstants.DISABLED
+                ? AuthConstants.MFA_STATUS_DISABLED
+                : AuthConstants.MFA_STATUS_PENDING_BIND);
+        mfa.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        mfa.setIssuer("Acquiring Admin");
+        mfa.setAccountLabel(account.getLoginAccount());
+        mfa.setFailedVerifyCount(0);
+        mfa.setCreatedAt(now);
+        mfa.setUpdatedAt(now);
+        mfa.setDeleted(NOT_DELETED);
+        sysAccountMfaMapper.insert(mfa);
+    }
+
+    /**
+     * 回填用户列表 MFA 状态，老账号无记录时按 OPTIONAL + NOT_ENABLED 展示。
+     *
+     * @param account 账号实体
+     * @param dto     用户 DTO
+     */
+    private void fillMfaStatus(SysAccountDO account, SysUserAccountDTO dto) {
+        SysAccountMfaDO mfa = sysAccountMfaMapper.selectOne(
+                Wrappers.<SysAccountMfaDO>lambdaQuery()
+                        .eq(SysAccountMfaDO::getAppId, account.getAppId())
+                        .eq(SysAccountMfaDO::getAccountId, account.getId())
+                        .eq(SysAccountMfaDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        dto.setMfaPolicy(mfa == null ? AuthConstants.MFA_POLICY_OPTIONAL : mfa.getMfaPolicy());
+        dto.setMfaStatus(mfa == null ? AuthConstants.MFA_STATUS_NOT_ENABLED : mfa.getMfaStatus());
+        dto.setMfaBindTime(mfa == null ? null : mfa.getBindTime());
+        dto.setMfaLastVerifyTime(mfa == null ? null : mfa.getLastVerifyTime());
+        dto.setMfaExemptUntil(mfa == null ? null : mfa.getExemptUntil());
+        dto.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
     }
 
     private SysRoleDTO toRoleDTO(SysRoleDO role, boolean assignable) {

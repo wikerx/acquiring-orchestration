@@ -6,6 +6,8 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
+import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
@@ -207,6 +209,27 @@ public class MerchantAuthApplicationService {
      */
     public AuthLoginResponse currentUser(String authorization) {
         return systemAuthService.currentUser(AuthConstants.APP_MERCHANT, authorization);
+    }
+
+    /**
+     * 更新当前商户登录账号个人资料。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       个人资料更新请求
+     * @return 更新后的当前商户登录账号、菜单和权限
+     */
+    public AuthLoginResponse updateCurrentProfile(String authorization, AuthProfileUpdateRequest request) {
+        return systemAuthService.updateCurrentProfile(AuthConstants.APP_MERCHANT, authorization, request);
+    }
+
+    /**
+     * 修改当前商户登录账号密码。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       修改密码请求
+     */
+    public void changeCurrentPassword(String authorization, AuthPasswordChangeRequest request) {
+        systemAuthService.changeCurrentPassword(AuthConstants.APP_MERCHANT, authorization, request);
     }
 
     /**

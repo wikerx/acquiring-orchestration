@@ -83,6 +83,10 @@ public class OpenApiMerchantKeyMaterialService {
      * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final OpenApiMerchantKeyExportProperties exportProperties;
+    /**
+     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     */
+    private final OpenApiBaseUrlResolver baseUrlResolver;
 
     /**
      * 创建 OpenAPI 商户密钥材料统一服务。
@@ -102,6 +106,30 @@ public class OpenApiMerchantKeyMaterialService {
                                              OpenApiKeyMaterialFactory keyMaterialFactory,
                                              OpenApiKeyExportService keyExportService,
                                              OpenApiMerchantKeyExportProperties exportProperties) {
+        this(merchantInfoMapper, jwtKeyMapper, platformPayloadKeyMapper, responseKeyMapper, keyMaterialFactory,
+                keyExportService, exportProperties, () -> exportProperties == null ? null : exportProperties.getOpenApiBaseUrl());
+    }
+
+    /**
+     * 创建 OpenAPI 商户密钥材料统一服务。
+     *
+     * @param merchantInfoMapper       商户基础资料 Mapper
+     * @param jwtKeyMapper             商户 JWT 密钥 Mapper
+     * @param platformPayloadKeyMapper 平台请求加密密钥 Mapper
+     * @param responseKeyMapper        商户响应密钥 Mapper
+     * @param keyMaterialFactory       OpenAPI 密钥指纹组件
+     * @param keyExportService         OpenAPI 接入材料导出服务
+     * @param exportProperties         OpenAPI 商户接入材料导出展示配置
+     * @param baseUrlResolver          商户 OpenAPI 外部地址解析器
+     */
+    public OpenApiMerchantKeyMaterialService(BaseMerchantInfoMapper merchantInfoMapper,
+                                             BaseMerchantJwtKeyMapper jwtKeyMapper,
+                                             BasePlatformPayloadKeyMapper platformPayloadKeyMapper,
+                                             BaseMerchantResponseKeyMapper responseKeyMapper,
+                                             OpenApiKeyMaterialFactory keyMaterialFactory,
+                                             OpenApiKeyExportService keyExportService,
+                                             OpenApiMerchantKeyExportProperties exportProperties,
+                                             OpenApiBaseUrlResolver baseUrlResolver) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -109,6 +137,7 @@ public class OpenApiMerchantKeyMaterialService {
         this.keyMaterialFactory = keyMaterialFactory;
         this.keyExportService = keyExportService;
         this.exportProperties = exportProperties;
+        this.baseUrlResolver = baseUrlResolver;
     }
 
     /**
@@ -553,7 +582,8 @@ public class OpenApiMerchantKeyMaterialService {
     }
 
     private String openApiBaseUrl() {
-        return requireText(exportProperties.getOpenApiBaseUrl(), "OpenAPI 基础地址未配置");
+        String baseUrl = baseUrlResolver == null ? null : baseUrlResolver.resolve();
+        return requireText(baseUrl, "OpenAPI 基础地址未配置");
     }
 
     private Long nullToDefault(Long value, Long defaultValue) {
