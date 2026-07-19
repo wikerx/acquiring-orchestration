@@ -86,6 +86,30 @@ public class SysUserAccountDTO {
      */
     private String lastLoginIp;
     /**
+     * MFA 策略：OPTIONAL、REQUIRED、EXEMPT。
+     */
+    private String mfaPolicy;
+    /**
+     * MFA 状态：NOT_ENABLED、PENDING_BIND、ENABLED、RESET_REQUIRED、EXEMPT、LOCKED、DISABLED。
+     */
+    private String mfaStatus;
+    /**
+     * OTP 完成绑定时间。
+     */
+    private LocalDateTime mfaBindTime;
+    /**
+     * 最近一次 OTP 验证成功时间。
+     */
+    private LocalDateTime mfaLastVerifyTime;
+    /**
+     * OTP 豁免截止时间。
+     */
+    private LocalDateTime mfaExemptUntil;
+    /**
+     * OTP 临时锁定截止时间。
+     */
+    private LocalDateTime mfaLockedUntil;
+    /**
      * 备注。
      */
     private String remark;

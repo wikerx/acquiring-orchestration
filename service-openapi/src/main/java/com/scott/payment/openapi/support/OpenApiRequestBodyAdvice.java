@@ -4,6 +4,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
+import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.MethodParameter;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -42,14 +43,23 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
     private final OpenApiValidator openApiValidator;
 
     /**
+     * 安全拦截事件记录器，仅记录脱敏排查元数据。
+     */
+    private final SecurityInterceptEventRecorder securityInterceptEventRecorder;
+
+    /**
      * 创建开放接口请求体处理器。
      *
      * @param payloadDecoder  OpenAPI 请求体密文解码器
      * @param openApiValidator OpenAPI 请求 DTO 参数校验器
+     * @param securityInterceptEventRecorder 安全拦截事件记录器
      */
-    public OpenApiRequestBodyAdvice(OpenApiPayloadDecoder payloadDecoder, OpenApiValidator openApiValidator) {
+    public OpenApiRequestBodyAdvice(OpenApiPayloadDecoder payloadDecoder,
+                                    OpenApiValidator openApiValidator,
+                                    SecurityInterceptEventRecorder securityInterceptEventRecorder) {
         this.payloadDecoder = payloadDecoder;
         this.openApiValidator = openApiValidator;
+        this.securityInterceptEventRecorder = securityInterceptEventRecorder;
     }
 
     /**
@@ -87,15 +97,46 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         }
         HttpServletRequest request = currentRequest();
         OpenApiRequestHeaderDTO headerDTO = (OpenApiRequestHeaderDTO) request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
-        Object data = payloadDecoder.decode(String.valueOf(body), annotation.dataReceiver(), headerDTO);
+        Object data;
+        try {
+            data = payloadDecoder.decode(String.valueOf(body), annotation.dataReceiver(), headerDTO);
+        } catch (RuntimeException exception) {
+            recordBlocked(request, headerDTO, "OPENAPI_DECRYPT_FAILED", SecurityInterceptEventRecorder.RISK_HIGH,
+                    "OPENAPI_PAYLOAD_DECRYPT", exception);
+            throw exception;
+        }
         if (annotation.validator()) {
-            openApiValidator.validate(data, annotation.validationGroups());
+            try {
+                openApiValidator.validate(data, annotation.validationGroups());
+            } catch (RuntimeException exception) {
+                recordBlocked(request, headerDTO, "OPENAPI_PARAM_INVALID", SecurityInterceptEventRecorder.RISK_MEDIUM,
+                        "OPENAPI_PARAM_VALIDATION", exception);
+                throw exception;
+            }
         }
         log.info("开放接口请求体解密完成，商户号：{}，脱敏后的请求参数：{}",
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 SensitiveDataMaskUtils.maskJson(JsonUtils.toJsonString(data)));
         request.setAttribute(OpenApiRequestAttributes.DECRYPTED_DATA, data);
         return body;
+    }
+
+    private void recordBlocked(HttpServletRequest request,
+                               OpenApiRequestHeaderDTO headerDTO,
+                               String eventType,
+                               String riskLevel,
+                               String hitRuleCode,
+                               RuntimeException exception) {
+        securityInterceptEventRecorder.recordBlocked(
+                request,
+                SecurityInterceptEventRecorder.SOURCE_OPENAPI,
+                eventType,
+                riskLevel,
+                headerDTO == null ? null : headerDTO.getMerchantId(),
+                hitRuleCode,
+                securityInterceptEventRecorder.reasonCode(exception),
+                securityInterceptEventRecorder.reasonMessage(exception)
+        );
     }
 
     /**

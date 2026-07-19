@@ -36,7 +36,7 @@ public class OpenApiKeyExportService {
     /**
      * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
-    private final OpenApiMerchantKeyExportProperties exportProperties;
+    private final OpenApiBaseUrlResolver baseUrlResolver;
 
     /**
      * 创建 OpenAPI 接入材料导出服务。
@@ -44,7 +44,16 @@ public class OpenApiKeyExportService {
      * @param exportProperties OpenAPI 商户接入材料导出配置
      */
     public OpenApiKeyExportService(OpenApiMerchantKeyExportProperties exportProperties) {
-        this.exportProperties = exportProperties;
+        this(() -> exportProperties == null ? null : exportProperties.getOpenApiBaseUrl());
+    }
+
+    /**
+     * 创建 OpenAPI 接入材料导出服务。
+     *
+     * @param baseUrlResolver 商户 OpenAPI 外部地址解析器
+     */
+    public OpenApiKeyExportService(OpenApiBaseUrlResolver baseUrlResolver) {
+        this.baseUrlResolver = baseUrlResolver;
     }
 
     /**
@@ -312,7 +321,7 @@ public class OpenApiKeyExportService {
     }
 
     private String openApiBaseUrl() {
-        String baseUrl = exportProperties.getOpenApiBaseUrl();
+        String baseUrl = baseUrlResolver == null ? null : baseUrlResolver.resolve();
         if (baseUrl == null || baseUrl.trim().isEmpty()) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "OpenAPI 基础地址未配置");
         }

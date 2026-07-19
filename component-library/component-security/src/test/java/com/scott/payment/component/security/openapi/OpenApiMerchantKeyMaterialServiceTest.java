@@ -127,6 +127,36 @@ class OpenApiMerchantKeyMaterialServiceTest {
     }
 
     /**
+     * Admin 侧导出地址来自系统参数解析器时，查询展示和接入配置必须使用解析后的 gateway 地址。
+     */
+    @Test
+    void shouldUseResolvedOpenApiBaseUrlForMaterialViewAndExportConfig() {
+        String gatewayBaseUrl = "https://gateway.local.test";
+        OpenApiMerchantKeyExportProperties exportProperties = new OpenApiMerchantKeyExportProperties();
+        exportProperties.setOpenApiBaseUrl("https://ignored.example.com");
+        exportProperties.setSdkVersion("0.1.0-SNAPSHOT");
+        exportProperties.setCryptoMode("RSA-OAEP-256+A256GCM");
+        OpenApiKeyExportService exportService = new OpenApiKeyExportService(() -> gatewayBaseUrl);
+        OpenApiMerchantKeyMaterialService service = new OpenApiMerchantKeyMaterialService(
+                mockMerchantInfoMapper(),
+                mockJwtKeyMapper(),
+                mockPlatformPayloadKeyMapper(),
+                responseKeyMapper,
+                new OpenApiKeyMaterialFactory(),
+                exportService,
+                exportProperties,
+                () -> gatewayBaseUrl
+        );
+
+        OpenApiMerchantKeyMaterialVO vo = service.queryMaterial(MERCHANT_ID);
+        String config = service.copy(MERCHANT_ID, configTextRequest()).getContent();
+
+        assertThat(vo.getOpenApiBaseUrl()).isEqualTo(gatewayBaseUrl);
+        assertThat(config).contains("merchant.openapi.base-url=" + gatewayBaseUrl);
+        assertThat(config).doesNotContain("https://ignored.example.com");
+    }
+
+    /**
      * 完整接入配置必须包含商户响应私钥；历史私钥缺失时不能生成不完整包。
      */
     @Test
@@ -191,5 +221,30 @@ class OpenApiMerchantKeyMaterialServiceTest {
         row.setEnabled(1);
         row.setDeleted(0);
         return row;
+    }
+
+    private OpenApiKeyExportRequest configTextRequest() {
+        OpenApiKeyExportRequest request = new OpenApiKeyExportRequest();
+        request.setKeyType(OpenApiKeyType.MERCHANT_CONFIG_TEXT);
+        request.setExportFormat(OpenApiKeyExportFormat.TEXT);
+        return request;
+    }
+
+    private BaseMerchantInfoMapper mockMerchantInfoMapper() {
+        BaseMerchantInfoMapper mapper = mock(BaseMerchantInfoMapper.class);
+        when(mapper.selectOne(any())).thenReturn(merchant());
+        return mapper;
+    }
+
+    private BaseMerchantJwtKeyMapper mockJwtKeyMapper() {
+        BaseMerchantJwtKeyMapper mapper = mock(BaseMerchantJwtKeyMapper.class);
+        when(mapper.selectOne(any())).thenReturn(jwtKey());
+        return mapper;
+    }
+
+    private BasePlatformPayloadKeyMapper mockPlatformPayloadKeyMapper() {
+        BasePlatformPayloadKeyMapper mapper = mock(BasePlatformPayloadKeyMapper.class);
+        when(mapper.selectOne(any())).thenReturn(platformKey());
+        return mapper;
     }
 }

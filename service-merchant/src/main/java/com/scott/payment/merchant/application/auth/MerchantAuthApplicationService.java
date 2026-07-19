@@ -6,6 +6,11 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
+import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
+import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
@@ -103,7 +108,7 @@ public class MerchantAuthApplicationService {
     }
 
     /**
-     * 发送商户系统登录动态验证码。
+     * 发送商户系统登录图形验证码。
      *
      * @param request        验证码发送请求
      * @param servletRequest Servlet 请求
@@ -195,6 +200,48 @@ public class MerchantAuthApplicationService {
     }
 
     /**
+     * 查询商户系统 OTP 绑定信息。
+     *
+     * @param loginTicket 短期登录票据
+     * @return OTP 绑定信息
+     */
+    public AuthMfaBindInfoResponse mfaBindInfo(String loginTicket) {
+        return systemAuthService.mfaBindInfo(AuthConstants.APP_MERCHANT, loginTicket);
+    }
+
+    /**
+     * 确认商户系统 OTP 绑定并完成登录。
+     *
+     * @param request        绑定确认请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    public AuthLoginResponse mfaBindConfirm(AuthMfaBindConfirmRequest request, HttpServletRequest servletRequest) {
+        return systemAuthService.mfaBindConfirm(
+                AuthConstants.APP_MERCHANT,
+                request,
+                clientIp(servletRequest),
+                servletRequest.getHeader("User-Agent")
+        );
+    }
+
+    /**
+     * 验证商户系统 OTP 并完成登录。
+     *
+     * @param request        OTP 验证请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    public AuthLoginResponse mfaVerify(AuthMfaVerifyRequest request, HttpServletRequest servletRequest) {
+        return systemAuthService.mfaVerify(
+                AuthConstants.APP_MERCHANT,
+                request,
+                clientIp(servletRequest),
+                servletRequest.getHeader("User-Agent")
+        );
+    }
+
+    /**
      * 查询当前商户登录账号、菜单和权限。
      *
      * @param authorization Authorization 请求头
@@ -207,6 +254,27 @@ public class MerchantAuthApplicationService {
      */
     public AuthLoginResponse currentUser(String authorization) {
         return systemAuthService.currentUser(AuthConstants.APP_MERCHANT, authorization);
+    }
+
+    /**
+     * 更新当前商户登录账号个人资料。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       个人资料更新请求
+     * @return 更新后的当前商户登录账号、菜单和权限
+     */
+    public AuthLoginResponse updateCurrentProfile(String authorization, AuthProfileUpdateRequest request) {
+        return systemAuthService.updateCurrentProfile(AuthConstants.APP_MERCHANT, authorization, request);
+    }
+
+    /**
+     * 修改当前商户登录账号密码。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       修改密码请求
+     */
+    public void changeCurrentPassword(String authorization, AuthPasswordChangeRequest request) {
+        systemAuthService.changeCurrentPassword(AuthConstants.APP_MERCHANT, authorization, request);
     }
 
     /**

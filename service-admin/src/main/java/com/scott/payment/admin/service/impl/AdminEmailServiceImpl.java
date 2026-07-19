@@ -120,6 +120,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      */
     private static final String COMMON_SCENE = "COMMON";
     /**
+     * 全局通用发件账户应用编码，用于没有应用专属发件账户时兜底。
+     */
+    private static final String APP_COMMON = "COMMON";
+    /**
      * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
      */
     private static final String SCOPE_SYSTEM = "SYSTEM";
@@ -766,13 +770,19 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     private EmailAccountDO selectAccount(String appCode, String merchantId, String sceneCode) {
+        String normalizedAppCode = defaultIfBlank(trimUpper(appCode), APP_COMMON);
+        String normalizedSceneCode = defaultIfBlank(trimUpper(sceneCode), COMMON_SCENE);
         List<LambdaQueryWrapper<EmailAccountDO>> candidates = new ArrayList<>();
         if (StringUtils.hasText(merchantId)) {
-            candidates.add(accountRouteWrapper(appCode, SCOPE_MERCHANT, merchantId, sceneCode));
-            candidates.add(accountRouteWrapper(appCode, SCOPE_MERCHANT, merchantId, COMMON_SCENE));
+            candidates.add(accountRouteWrapper(normalizedAppCode, SCOPE_MERCHANT, merchantId, normalizedSceneCode));
+            candidates.add(accountRouteWrapper(normalizedAppCode, SCOPE_MERCHANT, merchantId, COMMON_SCENE));
         }
-        candidates.add(accountRouteWrapper(appCode, SCOPE_SYSTEM, null, sceneCode));
-        candidates.add(accountRouteWrapper(appCode, SCOPE_SYSTEM, null, COMMON_SCENE));
+        candidates.add(accountRouteWrapper(normalizedAppCode, SCOPE_SYSTEM, null, normalizedSceneCode));
+        candidates.add(accountRouteWrapper(normalizedAppCode, SCOPE_SYSTEM, null, COMMON_SCENE));
+        if (!APP_COMMON.equals(normalizedAppCode)) {
+            candidates.add(accountRouteWrapper(APP_COMMON, SCOPE_SYSTEM, null, normalizedSceneCode));
+            candidates.add(accountRouteWrapper(APP_COMMON, SCOPE_SYSTEM, null, COMMON_SCENE));
+        }
         for (LambdaQueryWrapper<EmailAccountDO> wrapper : candidates) {
             EmailAccountDO account = accountMapper.selectOne(wrapper.last("LIMIT 1"));
             if (account != null) {

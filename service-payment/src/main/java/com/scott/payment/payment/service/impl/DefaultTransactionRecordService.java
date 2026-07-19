@@ -226,7 +226,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     /**
      * 默认商户通知最大重试次数。
      */
-    private static final int DEFAULT_NOTIFY_MAX_RETRY_COUNT = 10;
+    private static final int DEFAULT_NOTIFY_MAX_RETRY_COUNT = 2000;
 
     /**
      * 状态对象：订单。

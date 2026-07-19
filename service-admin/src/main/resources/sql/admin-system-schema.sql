@@ -222,8 +222,8 @@ CREATE TABLE IF NOT EXISTS sys_verify_code (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     app_id BIGINT NOT NULL COMMENT '系统应用ID',
     scene VARCHAR(50) NOT NULL COMMENT '验证码场景：LOGIN登录，REGISTER注册，RESET_PASSWORD重置密码',
-    receiver_type VARCHAR(20) NOT NULL COMMENT '接收方式：SMS短信，EMAIL邮箱，TOTP身份验证器',
-    receiver VARCHAR(150) NOT NULL COMMENT '接收人手机号或邮箱',
+    receiver_type VARCHAR(20) NOT NULL COMMENT '验证码类型：CAPTCHA图形验证码，历史兼容SMS短信、EMAIL邮箱、TOTP身份验证器',
+    receiver VARCHAR(150) NOT NULL COMMENT '验证码接收标识；登录页图形验证码固定为LOGIN_PAGE，不保存账号、手机号或邮箱',
     code_hash VARCHAR(255) NOT NULL COMMENT '验证码哈希值，不保存明文验证码',
     code_salt VARCHAR(100) NULL COMMENT '验证码盐值',
     expire_at DATETIME(3) NOT NULL COMMENT '过期时间',
@@ -231,14 +231,14 @@ CREATE TABLE IF NOT EXISTS sys_verify_code (
     used_at DATETIME(3) NULL COMMENT '使用时间',
     verify_count INT NOT NULL DEFAULT 0 COMMENT '验证次数',
     send_ip VARCHAR(64) NULL COMMENT '发送请求IP',
-    send_channel VARCHAR(50) NULL COMMENT '发送渠道',
+    send_channel VARCHAR(50) NULL COMMENT '生成或发送渠道；登录页图形验证码为PAGE_CAPTCHA',
     send_status TINYINT NOT NULL DEFAULT 1 COMMENT '发送状态：0失败，1成功',
     send_fail_reason VARCHAR(500) NULL COMMENT '发送失败原因',
     created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),
     KEY idx_sys_verify_app_scene_receiver (app_id, scene, receiver),
     KEY idx_sys_verify_expire_used (expire_at, used)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='动态验证码表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='验证码表';
 
 CREATE TABLE IF NOT EXISTS sys_role (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -462,6 +462,7 @@ VALUES
 INSERT IGNORE INTO sys_role (id, app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
 VALUES
     (1, 1, 'ADMIN_OPERATOR', '后台操作员', 'SYSTEM', 'ALL', '管理后台默认角色', 1, 1, 0),
+    (3, 1, 'SUPER_ADMIN', '超级管理员', 'SYSTEM', 'ALL', '管理后台超级管理员角色，内置通配权限，仅用于平台最高权限账号', 1, 0, 0),
     (2, 2, 'MERCHANT_ADMIN', '商户管理员', 'SYSTEM', 'SELF', '商户系统默认管理员角色', 1, 1, 0);
 
 INSERT INTO sys_user (user_type, real_name, nickname, mobile, email, country_code, language, timezone, status, remark, created_at, updated_at, deleted)
@@ -542,14 +543,14 @@ INSERT IGNORE INTO sys_account_role (app_id, account_id, role_id, deleted)
 SELECT app.id, account.id, role.id, 0
 FROM sys_app app
 JOIN sys_account account ON account.app_id = app.id AND account.login_account = 'admin' AND account.deleted = 0
-JOIN sys_role role ON role.app_id = app.id AND role.role_code = 'ADMIN_OPERATOR' AND role.deleted = 0
+JOIN sys_role role ON role.app_id = app.id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
 WHERE app.app_code = 'ADMIN' AND app.deleted = 0;
 
 INSERT IGNORE INTO sys_account_role (app_id, account_id, role_id, deleted)
 SELECT app.id, account.id, role.id, 0
 FROM sys_app app
 JOIN sys_account account ON account.app_id = app.id AND account.login_account = 'scott' AND account.deleted = 0
-JOIN sys_role role ON role.app_id = app.id AND role.role_code = 'ADMIN_OPERATOR' AND role.deleted = 0
+JOIN sys_role role ON role.app_id = app.id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
 WHERE app.app_code = 'ADMIN' AND app.deleted = 0;
 
 INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
@@ -668,6 +669,7 @@ VALUES
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
+    (671, 1, NULL, '*:*:*', '超级管理员', 'API', '*', '/**', 1, 0),
     (100, 1, 100, 'admin:system:view', '系统管理目录查看', 'MENU', 'GET', '/system/**', 1, 0),
     (101, 1, 101, 'admin:user:view', '用户管理查看', 'MENU', 'GET', '/system/user', 1, 0),
     (102, 1, 102, 'admin:role:view', '角色管理查看', 'MENU', 'GET', '/system/role', 1, 0),
@@ -747,6 +749,7 @@ VALUES
     (511, 2, 503, 'merchant:system:account:delete', '员工账号删除', 'BUTTON', 'DELETE', '/merchant/system/accounts/*', 1, 0),
     (512, 2, 503, 'merchant:system:account:status', '员工账号状态', 'BUTTON', 'PUT', '/merchant/system/accounts/*/status', 1, 0),
     (513, 2, 503, 'merchant:system:account:assignRole', '员工分配角色', 'BUTTON', 'POST', '/merchant/system/accounts/*/roles', 1, 0),
+    (549, 2, 503, 'merchant:system:account:resetPassword', '员工重置密码', 'BUTTON', 'POST', '/merchant/system/accounts/*/reset-password', 1, 0),
     (514, 2, 504, 'merchant:system:role:list', '角色查询', 'MENU', 'GET', '/merchant/system/roles', 1, 0),
     (515, 2, 504, 'merchant:system:role:add', '角色新增', 'BUTTON', 'POST', '/merchant/system/roles', 1, 0),
     (516, 2, 504, 'merchant:system:role:edit', '角色编辑', 'BUTTON', 'PUT', '/merchant/system/roles/*', 1, 0),
@@ -762,7 +765,7 @@ VALUES
     (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'POST', '/admin/system/users/search', 1, 0),
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),
-    (214, 1, 211, 'system:user:delete', '用户删除', 'BUTTON', 'DELETE', '/admin/system/users/**', 1, 0),
+    (214, 1, 211, 'system:user:remove', '用户删除', 'BUTTON', 'POST', '/admin/system/users/delete', 1, 0),
     (215, 1, 211, 'system:user:resetPwd', '用户重置密码', 'BUTTON', 'POST', '/admin/system/users/reset-password', 1, 0),
     (216, 1, 211, 'system:user:assign-role', '用户分配角色', 'BUTTON', 'POST', '/admin/system/users/roles*', 1, 0),
     (221, 1, 212, 'system:role:list', '角色管理查询', 'MENU', 'POST', '/admin/system/roles/search', 1, 0),
@@ -959,6 +962,12 @@ INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT app_id, 1, id, 0 FROM sys_menu WHERE app_id = 1 AND status = 1 AND visible = 1 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT menu.app_id, role.id, menu.id, 0
+FROM sys_menu menu
+JOIN sys_role role ON role.app_id = menu.app_id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
+WHERE menu.app_id = 1 AND menu.status = 1 AND menu.visible = 1 AND menu.deleted = 0;
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT app_id, 2, id, 0 FROM sys_menu WHERE app_id = 2 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
@@ -993,7 +1002,13 @@ WHERE r.app_id = 2
                             'merchant:system:role:list');
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
-SELECT app_id, 1, id, 0 FROM sys_permission WHERE app_id = 1 AND status = 1 AND deleted = 0;
+SELECT app_id, 1, id, 0 FROM sys_permission WHERE app_id = 1 AND status = 1 AND permission_code <> '*:*:*' AND deleted = 0;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT permission.app_id, role.id, permission.id, 0
+FROM sys_permission permission
+JOIN sys_role role ON role.app_id = permission.app_id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
+WHERE permission.app_id = 1 AND permission.permission_code = '*:*:*' AND permission.status = 1 AND permission.deleted = 0;
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT app_id, 2, id, 0 FROM sys_permission WHERE app_id = 2 AND deleted = 0;
@@ -1995,6 +2010,8 @@ VALUES
 (5023, 'email_scene_code', '账号创建通知', 'ACCOUNT_CREATED', 'zh-CN', 4, 'success', 0, 1, 0),
 (5024, 'email_scene_code', '商户开户通知', 'MERCHANT_ONBOARDING', 'zh-CN', 5, 'success', 0, 1, 0),
 (5025, 'email_scene_code', '密钥变更通知', 'API_KEY_CHANGED', 'zh-CN', 6, 'danger', 0, 1, 0),
+(5026, 'email_scene_code', '管理系统 MFA 安全通知', 'ADMIN_MFA', 'zh-CN', 7, 'danger', 0, 1, 0),
+(5027, 'email_scene_code', '商户 MFA 安全通知', 'MERCHANT_MFA', 'zh-CN', 8, 'danger', 0, 1, 0),
 (5030, 'email_provider_type', 'SMTP', 'SMTP', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5040, 'email_encryption_type', 'SSL', 'SSL', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5041, 'email_encryption_type', 'TLS', 'TLS', 'zh-CN', 2, 'primary', 0, 1, 0),
@@ -2022,6 +2039,8 @@ VALUES
 (15023, 'email_scene_code', 'Account Created', 'ACCOUNT_CREATED', 'en-US', 4, 'success', 0, 1, 0),
 (15024, 'email_scene_code', 'Merchant Onboarding', 'MERCHANT_ONBOARDING', 'en-US', 5, 'success', 0, 1, 0),
 (15025, 'email_scene_code', 'API Key Changed', 'API_KEY_CHANGED', 'en-US', 6, 'danger', 0, 1, 0),
+(15026, 'email_scene_code', 'Admin MFA Security', 'ADMIN_MFA', 'en-US', 7, 'danger', 0, 1, 0),
+(15027, 'email_scene_code', 'Merchant MFA Security', 'MERCHANT_MFA', 'en-US', 8, 'danger', 0, 1, 0),
 (15030, 'email_provider_type', 'SMTP', 'SMTP', 'en-US', 1, 'primary', 1, 1, 0),
 (15040, 'email_encryption_type', 'SSL', 'SSL', 'en-US', 1, 'primary', 1, 1, 0),
 (15041, 'email_encryption_type', 'TLS', 'TLS', 'en-US', 2, 'primary', 0, 1, 0),
@@ -2070,13 +2089,13 @@ FROM (
            '["verifyCode","resetLink"]', '系统内置模板：商户系统找回密码'
     UNION ALL SELECT 'ADMIN_ACCOUNT_CREATED', '管理系统账号创建通知', 'ADMIN', 'ACCOUNT_CREATED', 'zh-CN',
            '【${systemName}】账号创建通知', 'HTML',
-           '<p>您好，${userName}：</p><p>您的 ${systemName} 账号已创建成功。</p><p>登录账号：${loginAccount}</p><p>登录地址：${loginUrl}</p><p>如系统生成了初始密码，请在首次登录后立即修改密码。</p><p>如果您未申请该账号，请联系系统管理员。</p><p>${systemName}</p>',
-           '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"admin@example.com","loginUrl":"https://admin.example.com/login","initialPassword":"******"}',
+           '<p>您好，${userName}：</p><p>您的 ${systemName} 账号已创建成功。</p><p>登录账号：${loginAccount}</p><p>初始密码：${initialPassword}</p><p>登录地址：${loginUrl}</p><p>${verifyCodeGuide}</p><p>${mfaGuide}</p><p>首次登录后请立即修改密码，并妥善保管认证设备。</p><p>如果您未申请该账号，请联系系统管理员。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"admin@example.com","initialPassword":"******","loginUrl":"https://admin.example.com/login","verifyCodeGuide":"登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。","mfaGuide":"首次登录时请按页面提示完成多因素认证（MFA）绑定。"}',
            '["initialPassword"]', '系统内置模板：管理系统账号创建通知'
     UNION ALL SELECT 'MERCHANT_ACCOUNT_CREATED', '商户系统账号创建通知', 'MERCHANT', 'ACCOUNT_CREATED', 'zh-CN',
            '【${systemName}】账号创建通知', 'HTML',
-           '<p>您好，${userName}：</p><p>您的 ${systemName} 账号已创建成功。</p><p>商户名称：${merchantName}</p><p>登录账号：${loginAccount}</p><p>登录地址：${loginUrl}</p><p>请妥善保管账号信息，并在首次登录后及时修改密码。</p><p>${systemName}</p>',
-           '{"systemName":"Vexra Merchant","userName":"张三","merchantName":"示例商户","loginAccount":"merchant@example.com","loginUrl":"https://merchant.example.com/login","initialPassword":"******"}',
+           '<p>您好，${userName}：</p><p>您的 ${systemName} 账号已创建成功。</p><p>商户号：${merchantId}</p><p>商户名称：${merchantName}</p><p>登录账号：${loginAccount}</p><p>初始密码：${initialPassword}</p><p>登录地址：${loginUrl}</p><p>${verifyCodeGuide}</p><p>${mfaGuide}</p><p>首次登录后请立即修改密码，并妥善保管认证设备。</p><p>${systemName}</p>',
+           '{"systemName":"Vexra Merchant","userName":"张三","merchantId":"M10000001","merchantName":"示例商户","loginAccount":"merchant@example.com","initialPassword":"******","loginUrl":"https://merchant.example.com/login","merchantSystemBaseUrl":"https://merchant.example.com","verifyCodeGuide":"商户系统登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。","mfaGuide":"首次登录时请按页面提示完成多因素认证（MFA）绑定。"}',
            '["initialPassword"]', '系统内置模板：商户系统账号创建通知'
     UNION ALL SELECT 'MERCHANT_ONBOARDING_APPROVED', '商户开户审核成功通知', 'MERCHANT', 'MERCHANT_ONBOARDING', 'zh-CN',
            '【${systemName}】商户开户审核通过', 'HTML',
@@ -2122,8 +2141,8 @@ SET content_template = CASE template_code
     WHEN 'MERCHANT_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如非本人操作，请及时修改密码或联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
     WHEN 'ADMIN_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
     WHEN 'MERCHANT_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">账号创建通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您的 ${systemName} 账号已创建成功。</p><div style="margin:20px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 12px;">如系统生成了初始密码，请在首次登录后立即修改密码。</p><p style="margin:0;color:#b45309;">如果您未申请该账号，请联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">账号创建通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您的 ${systemName} 账号已创建成功。</p><div style="margin:20px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0;">请妥善保管账号信息，并在首次登录后及时修改密码。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#eef3f8;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#1f2937;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;"><div style="padding:26px 30px;background:#0f172a;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#cbd5e1;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#f8fafc;border:1px solid #dbe5ef;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#eef8f7;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #cde7e3;border-radius:10px;overflow:hidden;"><div style="padding:26px 30px;background:#0f766e;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b7f4ea;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">商户账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantId}</strong></p><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#0f766e;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
     WHEN 'MERCHANT_ONBOARDING_APPROVED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#065f46;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请已审核通过。</p><div style="margin:20px 0;padding:18px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0;">审核时间：${reviewTime}</p></div><p style="margin:0 0 12px;">您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
     WHEN 'MERCHANT_ONBOARDING_REJECTED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核未通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请暂未通过审核。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">审核时间：${reviewTime}</p><p style="margin:0;">未通过原因：${rejectReason}</p></div><p style="margin:0;">请根据提示补充或修改资料后重新提交。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
     WHEN 'API_KEY_CREATED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥生成通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已生成。</p><div style="margin:20px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
@@ -2150,6 +2169,20 @@ WHERE system_builtin = 1
       'API_KEY_ENABLED',
       'API_KEY_DISABLED'
   )
+  AND deleted = 0;
+
+UPDATE msg_email_template
+SET variable_schema = CASE template_code
+    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"admin@example.com","initialPassword":"******","loginUrl":"https://admin.example.com/login","verifyCodeGuide":"登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。","mfaGuide":"首次登录时请按页面提示完成多因素认证（MFA）绑定。"}'
+    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '{"systemName":"Vexra Merchant","userName":"张三","merchantId":"M10000001","merchantName":"示例商户","loginAccount":"merchant@example.com","initialPassword":"******","loginUrl":"https://merchant.example.com/login","merchantSystemBaseUrl":"https://merchant.example.com","verifyCodeGuide":"商户系统登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。","mfaGuide":"首次登录时请按页面提示完成多因素认证（MFA）绑定。"}'
+    ELSE variable_schema
+END,
+sensitive_variable_names = '["initialPassword"]',
+update_by = 'system',
+update_time = CURRENT_TIMESTAMP(3)
+WHERE system_builtin = 1
+  AND locale = 'zh-CN'
+  AND template_code IN ('ADMIN_ACCOUNT_CREATED', 'MERCHANT_ACCOUNT_CREATED')
   AND deleted = 0;
 
 INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)

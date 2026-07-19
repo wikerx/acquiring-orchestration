@@ -72,4 +72,44 @@ public class AuthLoginResponse implements Serializable {
      * 后端权限标识集合。
      */
     private List<String> permissions = Collections.emptyList();
+
+    /**
+     * 登录状态：SUCCESS 表示已签发会话，MFA_REQUIRED 表示需进入 OTP 二阶段。
+     */
+    private String loginStatus;
+
+    /**
+     * 是否需要 MFA 二阶段。
+     */
+    private Boolean mfaRequired;
+
+    /**
+     * MFA 挑战类型：BIND_REQUIRED、VERIFY_REQUIRED、RESET_BIND_REQUIRED、LOCKED。
+     */
+    private String mfaChallengeType;
+
+    /**
+     * 短期登录票据，仅 MFA_REQUIRED 时返回，不能作为真实登录 token 使用。
+     */
+    private String loginTicket;
+
+    /**
+     * 短期登录票据过期时间。
+     */
+    private LocalDateTime loginTicketExpireAt;
+
+    /**
+     * MFA 策略：OPTIONAL、REQUIRED、EXEMPT。
+     */
+    private String mfaPolicy;
+
+    /**
+     * MFA 状态：NOT_ENABLED、PENDING_BIND、ENABLED、RESET_REQUIRED、EXEMPT、LOCKED、DISABLED。
+     */
+    private String mfaStatus;
+
+    /**
+     * OTP 临时锁定截止时间。
+     */
+    private LocalDateTime mfaLockedUntil;
 }

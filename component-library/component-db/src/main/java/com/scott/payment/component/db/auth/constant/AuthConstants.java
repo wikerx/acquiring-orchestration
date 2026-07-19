@@ -61,6 +61,91 @@ public final class AuthConstants {
      */
     public static final long DEFAULT_TOKEN_TTL_SECONDS = 7_200L;
 
+    /**
+     * MFA 策略：上线前已有账号默认不启用 OTP。
+     */
+    public static final String MFA_POLICY_OPTIONAL = "OPTIONAL";
+
+    /**
+     * MFA 策略：账号登录必须完成 OTP 绑定和验证。
+     */
+    public static final String MFA_POLICY_REQUIRED = "REQUIRED";
+
+    /**
+     * MFA 策略：经管理员明确批准后豁免 OTP。
+     */
+    public static final String MFA_POLICY_EXEMPT = "EXEMPT";
+
+    /**
+     * MFA 状态：未启用。
+     */
+    public static final String MFA_STATUS_NOT_ENABLED = "NOT_ENABLED";
+
+    /**
+     * MFA 状态：待首次绑定。
+     */
+    public static final String MFA_STATUS_PENDING_BIND = "PENDING_BIND";
+
+    /**
+     * MFA 状态：已启用。
+     */
+    public static final String MFA_STATUS_ENABLED = "ENABLED";
+
+    /**
+     * MFA 状态：已重置，必须重新绑定。
+     */
+    public static final String MFA_STATUS_RESET_REQUIRED = "RESET_REQUIRED";
+
+    /**
+     * MFA 状态：已豁免。
+     */
+    public static final String MFA_STATUS_EXEMPT = "EXEMPT";
+
+    /**
+     * MFA 状态：因连续失败临时锁定。
+     */
+    public static final String MFA_STATUS_LOCKED = "LOCKED";
+
+    /**
+     * MFA 状态：账号停用后 MFA 不可用。
+     */
+    public static final String MFA_STATUS_DISABLED = "DISABLED";
+
+    /**
+     * MFA 类型：基于时间的一次性密码。
+     */
+    public static final String MFA_TYPE_TOTP = "TOTP";
+
+    /**
+     * 登录响应状态：已完成登录。
+     */
+    public static final String LOGIN_STATUS_SUCCESS = "SUCCESS";
+
+    /**
+     * 登录响应状态：需要进入 MFA 二阶段。
+     */
+    public static final String LOGIN_STATUS_MFA_REQUIRED = "MFA_REQUIRED";
+
+    /**
+     * MFA 挑战类型：需要首次绑定。
+     */
+    public static final String MFA_CHALLENGE_BIND_REQUIRED = "BIND_REQUIRED";
+
+    /**
+     * MFA 挑战类型：需要输入动态验证码。
+     */
+    public static final String MFA_CHALLENGE_VERIFY_REQUIRED = "VERIFY_REQUIRED";
+
+    /**
+     * MFA 挑战类型：重置后需要重新绑定。
+     */
+    public static final String MFA_CHALLENGE_RESET_BIND_REQUIRED = "RESET_BIND_REQUIRED";
+
+    /**
+     * MFA 挑战类型：连续失败后临时锁定。
+     */
+    public static final String MFA_CHALLENGE_LOCKED = "LOCKED";
+
     private AuthConstants() {
     }
 }

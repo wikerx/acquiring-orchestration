@@ -4,6 +4,11 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
+import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
+import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
@@ -65,7 +70,7 @@ public class AdminAuthApplicationService {
     }
 
     /**
-     * 发送管理后台登录动态验证码。
+     * 发送管理后台登录图形验证码。
      *
      * @param request        验证码发送请求
      * @param servletRequest Servlet 请求
@@ -108,6 +113,48 @@ public class AdminAuthApplicationService {
     }
 
     /**
+     * 查询管理后台 OTP 绑定信息。
+     *
+     * @param loginTicket 短期登录票据
+     * @return OTP 绑定信息
+     */
+    public AuthMfaBindInfoResponse mfaBindInfo(String loginTicket) {
+        return systemAuthService.mfaBindInfo(AuthConstants.APP_ADMIN, loginTicket);
+    }
+
+    /**
+     * 确认管理后台 OTP 绑定并完成登录。
+     *
+     * @param request        绑定确认请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    public AuthLoginResponse mfaBindConfirm(AuthMfaBindConfirmRequest request, HttpServletRequest servletRequest) {
+        return systemAuthService.mfaBindConfirm(
+                AuthConstants.APP_ADMIN,
+                request,
+                clientIp(servletRequest),
+                servletRequest.getHeader("User-Agent")
+        );
+    }
+
+    /**
+     * 验证管理后台 OTP 并完成登录。
+     *
+     * @param request        OTP 验证请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    public AuthLoginResponse mfaVerify(AuthMfaVerifyRequest request, HttpServletRequest servletRequest) {
+        return systemAuthService.mfaVerify(
+                AuthConstants.APP_ADMIN,
+                request,
+                clientIp(servletRequest),
+                servletRequest.getHeader("User-Agent")
+        );
+    }
+
+    /**
      * 查询当前登录账号、菜单和权限。
      *
      * @param authorization Authorization 请求头
@@ -120,6 +167,27 @@ public class AdminAuthApplicationService {
      */
     public AuthLoginResponse currentUser(String authorization) {
         return systemAuthService.currentUser(AuthConstants.APP_ADMIN, authorization);
+    }
+
+    /**
+     * 更新当前后台登录账号个人资料。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       个人资料更新请求
+     * @return 更新后的当前登录账号、菜单和权限
+     */
+    public AuthLoginResponse updateCurrentProfile(String authorization, AuthProfileUpdateRequest request) {
+        return systemAuthService.updateCurrentProfile(AuthConstants.APP_ADMIN, authorization, request);
+    }
+
+    /**
+     * 修改当前后台登录账号密码。
+     *
+     * @param authorization Authorization 请求头
+     * @param request       修改密码请求
+     */
+    public void changeCurrentPassword(String authorization, AuthPasswordChangeRequest request) {
+        systemAuthService.changeCurrentPassword(AuthConstants.APP_ADMIN, authorization, request);
     }
 
     /**

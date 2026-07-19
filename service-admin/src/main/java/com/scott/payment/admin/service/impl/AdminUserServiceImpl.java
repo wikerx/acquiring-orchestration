@@ -12,6 +12,10 @@ import com.scott.payment.admin.dto.SysUserAccountUpdateRequest;
 import com.scott.payment.admin.dto.SysRoleDTO;
 import com.scott.payment.admin.dto.SysUserRoleAuthDTO;
 import com.scott.payment.admin.dto.SysUserRoleGrantRequest;
+import com.scott.payment.admin.constant.SystemConfigKeys;
+import com.scott.payment.admin.dto.email.EmailDTOs.EmailSendRequest;
+import com.scott.payment.admin.service.AdminConfigService;
+import com.scott.payment.admin.service.AdminEmailService;
 import com.scott.payment.admin.service.AdminUserService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
@@ -21,6 +25,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
+import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysDeptDO;
@@ -35,6 +40,7 @@ import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.entity.SysUserPostDO;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
 import com.scott.payment.component.db.auth.mapper.SysDeptMapper;
 import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
@@ -47,8 +53,11 @@ import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserPostMapper;
 import com.scott.payment.component.db.constant.DataSourceName;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -72,6 +81,7 @@ import java.util.stream.Collectors;
  * @description : 后台用户领域服务实现，位于 service-admin 服务实现层；负责用户资料、账号状态、岗位绑定和角色授权边界校验。
  * @status : create
  */
+@Slf4j
 @Service
 public class AdminUserServiceImpl implements AdminUserService {
 
@@ -92,6 +102,10 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 登录账号数据访问接口。
      */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * MFA 配置数据访问接口。
+     */
+    private final SysAccountMfaMapper sysAccountMfaMapper;
     /**
      * 用户主体数据访问接口。
      */
@@ -136,12 +150,21 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 登录会话数据访问接口。
      */
     private final SysLoginSessionMapper sysLoginSessionMapper;
+    /**
+     * 邮件发送服务，用于账号开户通知。
+     */
+    private final AdminEmailService adminEmailService;
+    /**
+     * 系统参数服务，用于读取管理系统访问地址。
+     */
+    private final AdminConfigService adminConfigService;
 
     /**
      * 创建后台用户服务实现，显式注入用户、组织、角色和会话相关数据访问接口。
      *
      * @param sysAppMapper          应用 Mapper
      * @param sysAccountMapper      账号 Mapper
+     * @param sysAccountMfaMapper   MFA 配置 Mapper
      * @param sysUserMapper         用户 Mapper
      * @param sysDeptMapper         部门 Mapper
      * @param sysPostMapper         岗位 Mapper
@@ -153,9 +176,12 @@ public class AdminUserServiceImpl implements AdminUserService {
      * @param sysRolePermissionMapper 角色权限 Mapper
      * @param sysPermissionMapper   权限 Mapper
      * @param sysLoginSessionMapper 登录会话 Mapper
+     * @param adminEmailService     邮件服务
+     * @param adminConfigService    系统参数服务
      */
     public AdminUserServiceImpl(SysAppMapper sysAppMapper,
                                 SysAccountMapper sysAccountMapper,
+                                SysAccountMfaMapper sysAccountMfaMapper,
                                 SysUserMapper sysUserMapper,
                                 SysDeptMapper sysDeptMapper,
                                 SysPostMapper sysPostMapper,
@@ -166,9 +192,12 @@ public class AdminUserServiceImpl implements AdminUserService {
                                 SysRoleMenuMapper sysRoleMenuMapper,
                                 SysRolePermissionMapper sysRolePermissionMapper,
                                 SysPermissionMapper sysPermissionMapper,
-                                SysLoginSessionMapper sysLoginSessionMapper) {
+                                SysLoginSessionMapper sysLoginSessionMapper,
+                                AdminEmailService adminEmailService,
+                                AdminConfigService adminConfigService) {
         this.sysAppMapper = sysAppMapper;
         this.sysAccountMapper = sysAccountMapper;
+        this.sysAccountMfaMapper = sysAccountMfaMapper;
         this.sysUserMapper = sysUserMapper;
         this.sysDeptMapper = sysDeptMapper;
         this.sysPostMapper = sysPostMapper;
@@ -180,6 +209,8 @@ public class AdminUserServiceImpl implements AdminUserService {
         this.sysRolePermissionMapper = sysRolePermissionMapper;
         this.sysPermissionMapper = sysPermissionMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
+        this.adminEmailService = adminEmailService;
+        this.adminConfigService = adminConfigService;
     }
 
     /**
@@ -323,7 +354,10 @@ public class AdminUserServiceImpl implements AdminUserService {
         account.setDeleted(NOT_DELETED);
         sysAccountMapper.insert(account);
 
+        createDefaultRequiredMfa(app, account, now);
+
         bindUserPosts(app.getId(), user.getId(), request.getPostIds(), now);
+        sendAccountCreatedNoticeAfterCommit(account, user, request.getPassword());
         return toDTO(account, user, loadDeptNameMap(Collections.singletonList(user.getDeptId())),
                 loadUserPostMap(List.of(user.getId())), loadAccountRoleMap(app.getId(), List.of(account.getId())));
     }
@@ -1129,9 +1163,128 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setLocked(account.getLocked());
         dto.setLastLoginAt(account.getLastLoginAt());
         dto.setLastLoginIp(account.getLastLoginIp());
+        fillMfaStatus(account, dto);
         dto.setRemark(account.getRemark());
         dto.setCreatedAt(account.getCreatedAt());
         return dto;
+    }
+
+    /**
+     * 为新增后台用户创建默认强制 OTP 配置。
+     *
+     * @param app     后台应用
+     * @param account 登录账号
+     * @param now     当前时间
+     */
+    private void createDefaultRequiredMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
+        SysAccountMfaDO mfa = new SysAccountMfaDO();
+        mfa.setAppId(app.getId());
+        mfa.setAccountId(account.getId());
+        mfa.setUserId(account.getUserId());
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+        mfa.setMfaStatus(account.getStatus() != null && account.getStatus() == AuthConstants.DISABLED
+                ? AuthConstants.MFA_STATUS_DISABLED
+                : AuthConstants.MFA_STATUS_PENDING_BIND);
+        mfa.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        mfa.setIssuer("Acquiring Admin");
+        mfa.setAccountLabel(account.getLoginAccount());
+        mfa.setFailedVerifyCount(0);
+        mfa.setCreatedAt(now);
+        mfa.setUpdatedAt(now);
+        mfa.setDeleted(NOT_DELETED);
+        sysAccountMfaMapper.insert(mfa);
+    }
+
+    /**
+     * 事务提交后发送管理系统账号开户通知，避免账号创建回滚后误发邮件。
+     *
+     * @param account         登录账号
+     * @param user            用户主体
+     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
+     */
+    private void sendAccountCreatedNoticeAfterCommit(SysAccountDO account, SysUserDO user, String initialPassword) {
+        Runnable task = () -> sendAccountCreatedNotice(account, user, initialPassword);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
+    }
+
+    /**
+     * 发送管理系统开户通知。发送失败仅记录告警，不影响账号创建结果。
+     *
+     * @param account         登录账号
+     * @param user            用户主体
+     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
+     */
+    private void sendAccountCreatedNotice(SysAccountDO account, SysUserDO user, String initialPassword) {
+        if (!StringUtils.hasText(account.getEmail())) {
+            return;
+        }
+        try {
+            EmailSendRequest request = new EmailSendRequest();
+            request.setAppCode(AuthConstants.APP_ADMIN);
+            request.setTemplateCode("ADMIN_ACCOUNT_CREATED");
+            request.setSceneCode("ACCOUNT_CREATED");
+            request.setLocale("zh-CN");
+            request.getToEmails().add(account.getEmail());
+            request.setBizType("ACCOUNT_CREATED");
+            request.setBizNo(String.valueOf(account.getId()));
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("systemName", "管理系统");
+            variables.put("userName", StringUtils.hasText(user.getRealName()) ? user.getRealName() : account.getLoginAccount());
+            variables.put("loginAccount", account.getLoginAccount());
+            variables.put("initialPassword", initialPassword);
+            variables.put("loginUrl", adminLoginUrl());
+            variables.put("mfaGuide", "首次登录时请按页面提示完成多因素认证（MFA）绑定。绑定二维码和手动密钥只会在登录页身份校验通过后展示，邮件不会包含 MFA 密钥。");
+            variables.put("verifyCodeGuide", "登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。");
+            request.setVariables(variables);
+            adminEmailService.sendByTemplate(request);
+        } catch (RuntimeException exception) {
+            log.warn("admin account created notice send failed, accountId={}", account.getId(), exception);
+        }
+    }
+
+    /**
+     * 获取管理系统登录地址，优先使用参数管理配置。
+     *
+     * @return 管理系统登录页地址
+     */
+    private String adminLoginUrl() {
+        Map<String, String> configValues = adminConfigService.enabledConfigValues(Set.of(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL));
+        String baseUrl = configValues.get(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL);
+        if (!StringUtils.hasText(baseUrl)) {
+            return "http://127.0.0.1:5173/login";
+        }
+        return baseUrl.replaceAll("/+$", "") + "/login";
+    }
+
+    /**
+     * 回填用户列表 MFA 状态，老账号无记录时按 OPTIONAL + NOT_ENABLED 展示。
+     *
+     * @param account 账号实体
+     * @param dto     用户 DTO
+     */
+    private void fillMfaStatus(SysAccountDO account, SysUserAccountDTO dto) {
+        SysAccountMfaDO mfa = sysAccountMfaMapper.selectOne(
+                Wrappers.<SysAccountMfaDO>lambdaQuery()
+                        .eq(SysAccountMfaDO::getAppId, account.getAppId())
+                        .eq(SysAccountMfaDO::getAccountId, account.getId())
+                        .eq(SysAccountMfaDO::getDeleted, NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+        dto.setMfaPolicy(mfa == null ? AuthConstants.MFA_POLICY_OPTIONAL : mfa.getMfaPolicy());
+        dto.setMfaStatus(mfa == null ? AuthConstants.MFA_STATUS_NOT_ENABLED : mfa.getMfaStatus());
+        dto.setMfaBindTime(mfa == null ? null : mfa.getBindTime());
+        dto.setMfaLastVerifyTime(mfa == null ? null : mfa.getLastVerifyTime());
+        dto.setMfaExemptUntil(mfa == null ? null : mfa.getExemptUntil());
+        dto.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
     }
 
     private SysRoleDTO toRoleDTO(SysRoleDO role, boolean assignable) {

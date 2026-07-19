@@ -13,7 +13,11 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthMenuDTO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
+import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
+import com.scott.payment.component.db.auth.entity.SysAccountMfaLogDO;
+import com.scott.payment.component.db.auth.entity.SysAccountMfaTokenDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
+import com.scott.payment.component.db.auth.entity.SysLoginSessionDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantAccountDeptDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantAccountPostDO;
 import com.scott.payment.component.db.auth.entity.SysMerchantDeptDO;
@@ -30,7 +34,11 @@ import com.scott.payment.component.db.auth.entity.SysRolePermissionDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaLogMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaTokenMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
+import com.scott.payment.component.db.auth.mapper.SysLoginSessionMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantAccountDeptMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantAccountPostMapper;
 import com.scott.payment.component.db.auth.mapper.SysMerchantDeptMapper;
@@ -45,10 +53,16 @@ import com.scott.payment.component.db.auth.mapper.SysRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
+import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
+import com.scott.payment.component.db.auth.support.TotpUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountBaseSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaActionRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaExemptRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaStatusResponse;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountQueryRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountResetPasswordRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AuthGrantNodeDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptDTO;
@@ -66,9 +80,15 @@ import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleMenuAuthDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RolePermissionAuthDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleQueryRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleSaveRequest;
+import com.scott.payment.merchant.service.MerchantConfigService;
 import com.scott.payment.merchant.service.MerchantSystemService;
+import com.scott.payment.merchant.service.MerchantTemplateEmailService;
+import com.scott.payment.merchant.service.MerchantTemplateEmailService.MerchantEmailSendCommand;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
@@ -93,6 +113,7 @@ import java.util.stream.Collectors;
  * @description : 商户管理Merchant System Service Impl，位于 service-merchant 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
  * @status : create
  */
+@Slf4j
 @Service
 public class MerchantSystemServiceImpl implements MerchantSystemService {
 
@@ -124,6 +145,54 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      * 商户管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
      */
     private static final String ACCOUNT_LOGIN_SEPARATOR = "_";
+    /**
+     * MFA 登录票据类型。
+     */
+    private static final String MFA_TOKEN_TYPE_LOGIN = "LOGIN_MFA";
+    /**
+     * MFA 操作结果：成功。
+     */
+    private static final String MFA_RESULT_SUCCESS = "SUCCESS";
+    /**
+     * MFA 操作结果：失败。
+     */
+    private static final String MFA_RESULT_FAILED = "FAILED";
+    /**
+     * 商户 MFA 邮件场景编码。
+     */
+    private static final String MERCHANT_MFA_SCENE = "MERCHANT_MFA";
+    /**
+     * 商户 MFA 绑定邮件模板。
+     */
+    private static final String TEMPLATE_MFA_BIND_NOTICE = "MERCHANT_MFA_BIND_NOTICE";
+    /**
+     * 商户 MFA 启用邮件模板。
+     */
+    private static final String TEMPLATE_MFA_ENABLED_NOTICE = "MERCHANT_MFA_ENABLED_NOTICE";
+    /**
+     * 商户 MFA 重置邮件模板。
+     */
+    private static final String TEMPLATE_MFA_RESET_NOTICE = "MERCHANT_MFA_RESET_NOTICE";
+    /**
+     * 商户 MFA 停用邮件模板。
+     */
+    private static final String TEMPLATE_MFA_DISABLED_NOTICE = "MERCHANT_MFA_DISABLED_NOTICE";
+    /**
+     * 商户 MFA 豁免邮件模板。
+     */
+    private static final String TEMPLATE_MFA_EXEMPT_NOTICE = "MERCHANT_MFA_EXEMPT_NOTICE";
+    /**
+     * 商户系统账号开户通知模板编码。
+     */
+    private static final String TEMPLATE_ACCOUNT_CREATED_NOTICE = "MERCHANT_ACCOUNT_CREATED";
+    /**
+     * 账号开户通知邮件场景编码。
+     */
+    private static final String ACCOUNT_CREATED_SCENE = "ACCOUNT_CREATED";
+    /**
+     * 参数管理中维护的商户系统前端地址。
+     */
+    private static final String MERCHANT_FRONTEND_BASE_URL_KEY = "platform.merchant.frontend-base-url";
 
     /**
      * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
@@ -141,6 +210,22 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * 商户员工 MFA 配置 Mapper。
+     */
+    private final SysAccountMfaMapper sysAccountMfaMapper;
+    /**
+     * 商户员工 MFA 登录票据 Mapper。
+     */
+    private final SysAccountMfaTokenMapper sysAccountMfaTokenMapper;
+    /**
+     * 商户员工 MFA 审计日志 Mapper。
+     */
+    private final SysAccountMfaLogMapper sysAccountMfaLogMapper;
+    /**
+     * 登录会话 Mapper，用于安全策略变更后强制会话失效。
+     */
+    private final SysLoginSessionMapper sysLoginSessionMapper;
     /**
      * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
@@ -193,11 +278,23 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
+    /**
+     * 商户模板邮件服务。
+     */
+    private final MerchantTemplateEmailService merchantTemplateEmailService;
+    /**
+     * 商户系统只读参数服务，用于读取参数管理中的平台访问地址。
+     */
+    private final MerchantConfigService merchantConfigService;
 
     public MerchantSystemServiceImpl(BaseMerchantInfoMapper baseMerchantInfoMapper,
                                      SysAppMapper sysAppMapper,
                                      SysUserMapper sysUserMapper,
                                      SysAccountMapper sysAccountMapper,
+                                     SysAccountMfaMapper sysAccountMfaMapper,
+                                     SysAccountMfaTokenMapper sysAccountMfaTokenMapper,
+                                     SysAccountMfaLogMapper sysAccountMfaLogMapper,
+                                     SysLoginSessionMapper sysLoginSessionMapper,
                                      SysRoleMapper sysRoleMapper,
                                      SysRoleMenuMapper sysRoleMenuMapper,
                                      SysRolePermissionMapper sysRolePermissionMapper,
@@ -210,11 +307,17 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                                      SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper,
                                      SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper,
                                      SysMerchantUserMapper sysMerchantUserMapper,
-                                     SysMerchantUserRoleMapper sysMerchantUserRoleMapper) {
+                                     SysMerchantUserRoleMapper sysMerchantUserRoleMapper,
+                                     MerchantTemplateEmailService merchantTemplateEmailService,
+                                     MerchantConfigService merchantConfigService) {
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
         this.sysAppMapper = sysAppMapper;
         this.sysUserMapper = sysUserMapper;
         this.sysAccountMapper = sysAccountMapper;
+        this.sysAccountMfaMapper = sysAccountMfaMapper;
+        this.sysAccountMfaTokenMapper = sysAccountMfaTokenMapper;
+        this.sysAccountMfaLogMapper = sysAccountMfaLogMapper;
+        this.sysLoginSessionMapper = sysLoginSessionMapper;
         this.sysRoleMapper = sysRoleMapper;
         this.sysRoleMenuMapper = sysRoleMenuMapper;
         this.sysRolePermissionMapper = sysRolePermissionMapper;
@@ -228,6 +331,8 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         this.sysMerchantPermissionGrantMapper = sysMerchantPermissionGrantMapper;
         this.sysMerchantUserMapper = sysMerchantUserMapper;
         this.sysMerchantUserRoleMapper = sysMerchantUserRoleMapper;
+        this.merchantTemplateEmailService = merchantTemplateEmailService;
+        this.merchantConfigService = merchantConfigService;
     }
 
     /**
@@ -525,7 +630,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         user.setUserType(AuthConstants.USER_TYPE_MERCHANT);
         user.setRealName(required(request.getRealName(), "realName"));
         user.setMobile(normalize(request.getMobile()));
-        user.setEmail(normalize(request.getEmail()));
+        user.setEmail(required(request.getEmail(), "email"));
         user.setStatus(validStatus(request.getStatus()));
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
@@ -556,10 +661,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         account.setUpdatedBy(currentAccountId());
         account.setDeleted(AuthConstants.NOT_DELETED);
         sysAccountMapper.insert(account);
+        createDefaultRequiredMfa(app, account, now);
         SysMerchantUserDO merchantUser = createMerchantUser(merchantId, request.getLoginAccount(), user, account, now);
         replaceAccountRoles(app.getId(), merchantId, merchantUser, request.getRoleIds());
         replaceAccountDepts(merchantId, account.getId(), request.getDeptIds());
         replaceAccountPosts(merchantId, account.getId(), request.getPostIds());
+        sendAccountCreatedNoticeAfterCommit(app, account, request.getPassword());
         return toAccountDTO(app.getId(), account);
     }
 
@@ -635,6 +742,39 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
+     * 重置商户员工密码，并注销该员工当前有效会话，避免旧会话继续使用旧凭据授权。
+     *
+     * @param id      员工账号ID
+     * @param request 重置密码请求
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void resetAccountPassword(Long id, AccountResetPasswordRequest request) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        if (Objects.equals(id, currentAccountId())) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "不能重置当前登录账号密码，请在个人中心修改密码");
+        }
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        LocalDateTime now = LocalDateTime.now();
+        String salt = PasswordHashUtils.generateSalt();
+        account.setPasswordSalt(salt);
+        account.setPasswordHash(PasswordHashUtils.hashPassword(required(request.getPassword(), "password"), salt));
+        account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
+        account.setPasswordExpired(AuthConstants.DISABLED);
+        account.setPasswordUpdatedAt(now);
+        account.setFailedLoginCount(0);
+        account.setLocked(AuthConstants.DISABLED);
+        account.setLockedAt(null);
+        account.setLockedReason(null);
+        account.setUpdatedAt(now);
+        account.setUpdatedBy(currentAccountId());
+        sysAccountMapper.updateById(account);
+        logoutSessions(app.getId(), account.getId(), now);
+    }
+
+    /**
      * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
      * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
@@ -652,6 +792,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         account.setStatus(validStatus(status));
         account.setUpdatedAt(LocalDateTime.now());
         sysAccountMapper.updateById(account);
+        syncMfaStatusForAccountStatus(account);
         SysMerchantUserDO merchantUser = getMerchantUser(merchantId, account.getId());
         merchantUser.setStatus(validStatus(status));
         merchantUser.setUpdatedAt(LocalDateTime.now());
@@ -703,6 +844,239 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         String merchantId = currentMerchantId();
         getAccount(app.getId(), merchantId, id);
         replaceAccountPosts(merchantId, id, request.getIds());
+    }
+
+    /**
+     * 强制启用商户员工 MFA。
+     *
+     * @param id      员工账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AccountMfaStatusResponse requireAccountMfa(Long id, AccountMfaActionRequest request) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
+        String beforePolicy = mfa.getMfaPolicy();
+        String beforeStatus = mfa.getMfaStatus();
+        LocalDateTime now = LocalDateTime.now();
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+        mfa.setMfaStatus(account.getStatus() != null && account.getStatus() == AuthConstants.DISABLED
+                ? AuthConstants.MFA_STATUS_DISABLED
+                : AuthConstants.MFA_STATUS_PENDING_BIND);
+        mfa.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        mfa.setSecretCipher(null);
+        mfa.setPendingSecretCipher(MfaSecretCrypto.encrypt(TotpUtils.generateBase32Secret()));
+        mfa.setIssuer("Acquiring Merchant");
+        mfa.setAccountLabel(mfaAccountLabel(account));
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setLastSuccessTimeStep(null);
+        mfa.setExemptReason(null);
+        mfa.setExemptUntil(null);
+        mfa.setRemark(normalize(request.getReason()));
+        mfa.setUpdatedAt(now);
+        mfa.setUpdatedBy(currentAccountId());
+        sysAccountMfaMapper.updateById(mfa);
+        syncAccountMfaLegacyFields(account, true);
+        expireOpenMfaTokens(app.getId(), account.getId(), now);
+        logoutSessions(app.getId(), account.getId(), now);
+        recordMfaLog(app, account, mfa, "REQUIRE", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
+        sendMfaNotice(app, account, TEMPLATE_MFA_ENABLED_NOTICE, request.getReason(), null);
+        sendMfaNotice(app, account, TEMPLATE_MFA_BIND_NOTICE, request.getReason(), null);
+        return toMfaStatusResponse(account, mfa);
+    }
+
+    /**
+     * 重置商户员工 MFA。
+     *
+     * @param id      员工账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AccountMfaStatusResponse resetAccountMfa(Long id, AccountMfaActionRequest request) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        assertNotSelf(account.getId(), "不能重置当前登录账号自己的 MFA");
+        SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
+        String beforePolicy = mfa.getMfaPolicy();
+        String beforeStatus = mfa.getMfaStatus();
+        LocalDateTime now = LocalDateTime.now();
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+        mfa.setMfaStatus(AuthConstants.MFA_STATUS_RESET_REQUIRED);
+        mfa.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        mfa.setSecretCipher(null);
+        mfa.setPendingSecretCipher(MfaSecretCrypto.encrypt(TotpUtils.generateBase32Secret()));
+        mfa.setIssuer("Acquiring Merchant");
+        mfa.setAccountLabel(mfaAccountLabel(account));
+        mfa.setResetTime(now);
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setLastSuccessTimeStep(null);
+        mfa.setRemark(normalize(request.getReason()));
+        mfa.setUpdatedAt(now);
+        mfa.setUpdatedBy(currentAccountId());
+        sysAccountMfaMapper.updateById(mfa);
+        syncAccountMfaLegacyFields(account, true);
+        expireOpenMfaTokens(app.getId(), account.getId(), now);
+        logoutSessions(app.getId(), account.getId(), now);
+        recordMfaLog(app, account, mfa, "RESET", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
+        sendMfaNotice(app, account, TEMPLATE_MFA_RESET_NOTICE, request.getReason(), null);
+        sendMfaNotice(app, account, TEMPLATE_MFA_BIND_NOTICE, request.getReason(), null);
+        return toMfaStatusResponse(account, mfa);
+    }
+
+    /**
+     * 豁免商户员工 MFA。
+     *
+     * @param id      员工账号ID
+     * @param request 豁免请求
+     * @return MFA 状态
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AccountMfaStatusResponse exemptAccountMfa(Long id, AccountMfaExemptRequest request) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        assertNotSelf(account.getId(), "不能豁免当前登录账号自己的 MFA");
+        SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
+        String beforePolicy = mfa.getMfaPolicy();
+        String beforeStatus = mfa.getMfaStatus();
+        LocalDateTime now = LocalDateTime.now();
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_EXEMPT);
+        mfa.setMfaStatus(AuthConstants.MFA_STATUS_EXEMPT);
+        mfa.setSecretCipher(null);
+        mfa.setPendingSecretCipher(null);
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setLastSuccessTimeStep(null);
+        mfa.setExemptReason(normalize(request.getReason()));
+        mfa.setExemptUntil(request.getExemptUntil());
+        mfa.setRemark(normalize(request.getReason()));
+        mfa.setUpdatedAt(now);
+        mfa.setUpdatedBy(currentAccountId());
+        sysAccountMfaMapper.updateById(mfa);
+        syncAccountMfaLegacyFields(account, false);
+        expireOpenMfaTokens(app.getId(), account.getId(), now);
+        logoutSessions(app.getId(), account.getId(), now);
+        recordMfaLog(app, account, mfa, "EXEMPT", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
+        sendMfaNotice(app, account, TEMPLATE_MFA_EXEMPT_NOTICE, request.getReason(), request.getExemptUntil());
+        return toMfaStatusResponse(account, mfa);
+    }
+
+    /**
+     * 停用商户员工 MFA。
+     *
+     * @param id      员工账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AccountMfaStatusResponse disableAccountMfa(Long id, AccountMfaActionRequest request) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        assertNotSelf(account.getId(), "不能停用当前登录账号自己的 MFA");
+        SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
+        String beforePolicy = mfa.getMfaPolicy();
+        String beforeStatus = mfa.getMfaStatus();
+        LocalDateTime now = LocalDateTime.now();
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_OPTIONAL);
+        mfa.setMfaStatus(AuthConstants.MFA_STATUS_NOT_ENABLED);
+        mfa.setSecretCipher(null);
+        mfa.setPendingSecretCipher(null);
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setLastSuccessTimeStep(null);
+        mfa.setRemark(normalize(request.getReason()));
+        mfa.setUpdatedAt(now);
+        mfa.setUpdatedBy(currentAccountId());
+        sysAccountMfaMapper.updateById(mfa);
+        syncAccountMfaLegacyFields(account, false);
+        expireOpenMfaTokens(app.getId(), account.getId(), now);
+        logoutSessions(app.getId(), account.getId(), now);
+        recordMfaLog(app, account, mfa, "DISABLE", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
+        sendMfaNotice(app, account, TEMPLATE_MFA_DISABLED_NOTICE, request.getReason(), null);
+        return toMfaStatusResponse(account, mfa);
+    }
+
+    /**
+     * 解锁商户员工 MFA。
+     *
+     * @param id      员工账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AccountMfaStatusResponse unlockAccountMfa(Long id, AccountMfaActionRequest request) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
+        String beforePolicy = mfa.getMfaPolicy();
+        String beforeStatus = mfa.getMfaStatus();
+        LocalDateTime now = LocalDateTime.now();
+        if (AuthConstants.MFA_STATUS_LOCKED.equals(mfa.getMfaStatus())) {
+            mfa.setMfaStatus(StringUtils.hasText(mfa.getSecretCipher())
+                    ? AuthConstants.MFA_STATUS_ENABLED
+                    : AuthConstants.MFA_STATUS_PENDING_BIND);
+        }
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setRemark(normalize(request.getReason()));
+        mfa.setUpdatedAt(now);
+        mfa.setUpdatedBy(currentAccountId());
+        sysAccountMfaMapper.updateById(mfa);
+        recordMfaLog(app, account, mfa, "UNLOCK", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
+        return toMfaStatusResponse(account, mfa);
+    }
+
+    /**
+     * 重发商户员工 MFA 绑定邮件。
+     *
+     * @param id      员工账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AccountMfaStatusResponse resendAccountMfaBindMail(Long id, AccountMfaActionRequest request) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
+        if (!AuthConstants.MFA_STATUS_PENDING_BIND.equals(mfa.getMfaStatus())
+                && !AuthConstants.MFA_STATUS_RESET_REQUIRED.equals(mfa.getMfaStatus())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "MFA 绑定邮件只能对待绑定或需重绑用户重发");
+        }
+        String beforePolicy = mfa.getMfaPolicy();
+        String beforeStatus = mfa.getMfaStatus();
+        LocalDateTime now = LocalDateTime.now();
+        if (!StringUtils.hasText(mfa.getPendingSecretCipher())) {
+            mfa.setPendingSecretCipher(MfaSecretCrypto.encrypt(TotpUtils.generateBase32Secret()));
+        }
+        mfa.setUpdatedAt(now);
+        mfa.setUpdatedBy(currentAccountId());
+        sysAccountMfaMapper.updateById(mfa);
+        expireOpenMfaTokens(app.getId(), account.getId(), now);
+        recordMfaLog(app, account, mfa, "RESEND_BIND_MAIL", MFA_RESULT_SUCCESS, request.getReason(), beforePolicy, beforeStatus, currentOperator(), null);
+        sendMfaNotice(app, account, TEMPLATE_MFA_BIND_NOTICE, request.getReason(), null);
+        return toMfaStatusResponse(account, mfa);
     }
 
     /**
@@ -1119,7 +1493,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         SysUserDO user = sysUserMapper.selectById(account.getUserId());
         user.setRealName(required(request.getRealName(), "realName"));
         user.setMobile(normalize(request.getMobile()));
-        user.setEmail(normalize(request.getEmail()));
+        user.setEmail(required(request.getEmail(), "email"));
         user.setStatus(validStatus(request.getStatus()));
         user.setUpdatedAt(LocalDateTime.now());
         user.setUpdatedBy(currentAccountId());
@@ -1149,6 +1523,365 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         merchantUser.setDeleted(AuthConstants.NOT_DELETED);
         sysMerchantUserMapper.insert(merchantUser);
         return merchantUser;
+    }
+
+    /**
+     * 为新增商户员工创建默认强制 MFA 配置。
+     *
+     * @param app     商户应用
+     * @param account 登录账号
+     * @param now     当前时间
+     */
+    private void createDefaultRequiredMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
+        SysAccountMfaDO mfa = new SysAccountMfaDO();
+        mfa.setAppId(app.getId());
+        mfa.setAccountId(account.getId());
+        mfa.setUserId(account.getUserId());
+        mfa.setMerchantId(account.getMerchantId());
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+        mfa.setMfaStatus(account.getStatus() != null && account.getStatus() == AuthConstants.DISABLED
+                ? AuthConstants.MFA_STATUS_DISABLED
+                : AuthConstants.MFA_STATUS_PENDING_BIND);
+        mfa.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        mfa.setIssuer("Acquiring Merchant");
+        mfa.setAccountLabel(mfaAccountLabel(account));
+        mfa.setFailedVerifyCount(0);
+        mfa.setCreatedAt(now);
+        mfa.setUpdatedAt(now);
+        mfa.setCreatedBy(currentAccountId());
+        mfa.setUpdatedBy(currentAccountId());
+        mfa.setDeleted(AuthConstants.NOT_DELETED);
+        sysAccountMfaMapper.insert(mfa);
+        syncAccountMfaLegacyFields(account, true);
+    }
+
+    /**
+     * 同步账号表历史 MFA 字段，避免旧页面、报表或缓存仍读取 sys_account.mfa_enabled 时出现状态不一致。
+     *
+     * @param account 登录账号
+     * @param enabled 是否启用 MFA
+     */
+    private void syncAccountMfaLegacyFields(SysAccountDO account, boolean enabled) {
+        account.setMfaEnabled(enabled ? AuthConstants.ENABLED : AuthConstants.DISABLED);
+        account.setMfaType(enabled ? AuthConstants.MFA_TYPE_TOTP : null);
+        account.setTotpSecret(null);
+        account.setUpdatedAt(LocalDateTime.now());
+        account.setUpdatedBy(currentAccountId());
+        sysAccountMapper.updateById(account);
+    }
+
+    /**
+     * 账号停用时同步 MFA 状态，账号启用时保留原 MFA 策略等待管理员明确处理。
+     *
+     * @param account 登录账号
+     */
+    private void syncMfaStatusForAccountStatus(SysAccountDO account) {
+        if (account.getStatus() == null || account.getStatus() != AuthConstants.DISABLED) {
+            return;
+        }
+        SysAccountMfaDO mfa = loadMfa(account.getAppId(), account.getId());
+        if (mfa == null) {
+            return;
+        }
+        mfa.setMfaStatus(AuthConstants.MFA_STATUS_DISABLED);
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setUpdatedAt(LocalDateTime.now());
+        mfa.setUpdatedBy(currentAccountId());
+        sysAccountMfaMapper.updateById(mfa);
+    }
+
+    private SysAccountMfaDO loadMfa(Long appId, Long accountId) {
+        return sysAccountMfaMapper.selectOne(Wrappers.<SysAccountMfaDO>lambdaQuery()
+                .eq(SysAccountMfaDO::getAppId, appId)
+                .eq(SysAccountMfaDO::getAccountId, accountId)
+                .eq(SysAccountMfaDO::getDeleted, AuthConstants.NOT_DELETED)
+                .last("LIMIT 1"));
+    }
+
+    private SysAccountMfaDO ensureMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
+        SysAccountMfaDO mfa = loadMfa(app.getId(), account.getId());
+        if (mfa != null) {
+            return mfa;
+        }
+        SysAccountMfaDO created = new SysAccountMfaDO();
+        created.setAppId(app.getId());
+        created.setAccountId(account.getId());
+        created.setUserId(account.getUserId());
+        created.setMerchantId(account.getMerchantId());
+        created.setMfaPolicy(AuthConstants.MFA_POLICY_OPTIONAL);
+        created.setMfaStatus(AuthConstants.MFA_STATUS_NOT_ENABLED);
+        created.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        created.setIssuer("Acquiring Merchant");
+        created.setAccountLabel(mfaAccountLabel(account));
+        created.setFailedVerifyCount(0);
+        created.setCreatedAt(now);
+        created.setUpdatedAt(now);
+        created.setCreatedBy(currentAccountId());
+        created.setUpdatedBy(currentAccountId());
+        created.setDeleted(AuthConstants.NOT_DELETED);
+        sysAccountMfaMapper.insert(created);
+        return created;
+    }
+
+    private void expireOpenMfaTokens(Long appId, Long accountId, LocalDateTime now) {
+        sysAccountMfaTokenMapper.update(
+                Wrappers.<SysAccountMfaTokenDO>lambdaUpdate()
+                        .set(SysAccountMfaTokenDO::getUsed, AuthConstants.ENABLED)
+                        .set(SysAccountMfaTokenDO::getUsedAt, now)
+                        .set(SysAccountMfaTokenDO::getUpdatedAt, now)
+                        .eq(SysAccountMfaTokenDO::getAppId, appId)
+                        .eq(SysAccountMfaTokenDO::getAccountId, accountId)
+                        .eq(SysAccountMfaTokenDO::getTokenType, MFA_TOKEN_TYPE_LOGIN)
+                        .eq(SysAccountMfaTokenDO::getUsed, AuthConstants.DISABLED)
+                        .eq(SysAccountMfaTokenDO::getDeleted, AuthConstants.NOT_DELETED)
+        );
+    }
+
+    private void logoutSessions(Long appId, Long accountId, LocalDateTime now) {
+        sysLoginSessionMapper.update(
+                Wrappers.<SysLoginSessionDO>lambdaUpdate()
+                        .set(SysLoginSessionDO::getLogout, AuthConstants.ENABLED)
+                        .set(SysLoginSessionDO::getLogoutAt, now)
+                        .set(SysLoginSessionDO::getUpdatedAt, now)
+                        .eq(SysLoginSessionDO::getAppId, appId)
+                        .eq(SysLoginSessionDO::getAccountId, accountId)
+                        .eq(SysLoginSessionDO::getLogout, AuthConstants.DISABLED)
+        );
+    }
+
+    private void recordMfaLog(SysAppDO app,
+                              SysAccountDO account,
+                              SysAccountMfaDO mfa,
+                              String actionType,
+                              String result,
+                              String reason,
+                              String beforePolicy,
+                              String beforeStatus,
+                              InternalAuthAccount operator,
+                              String userAgent) {
+        SysAccountMfaLogDO logRow = new SysAccountMfaLogDO();
+        logRow.setAppId(app.getId());
+        logRow.setAccountId(account.getId());
+        logRow.setUserId(account.getUserId());
+        logRow.setMerchantId(account.getMerchantId());
+        logRow.setActionType(actionType);
+        logRow.setResult(result);
+        logRow.setReason(normalize(reason));
+        logRow.setBeforePolicy(beforePolicy);
+        logRow.setBeforeStatus(beforeStatus);
+        logRow.setAfterPolicy(mfa.getMfaPolicy());
+        logRow.setAfterStatus(mfa.getMfaStatus());
+        logRow.setOperatorAccountId(operator == null ? null : operator.getAccountId());
+        logRow.setOperatorLoginAccount(operator == null ? null : operator.getLoginAccount());
+        logRow.setClientIp("-");
+        logRow.setUserAgent(userAgent);
+        logRow.setEventTime(LocalDateTime.now());
+        logRow.setCreatedAt(LocalDateTime.now());
+        sysAccountMfaLogMapper.insert(logRow);
+    }
+
+    private void sendMfaNotice(SysAppDO app, SysAccountDO account, String templateCode, String reason, LocalDateTime exemptUntil) {
+        if (!StringUtils.hasText(account.getEmail())) {
+            return;
+        }
+        try {
+            merchantTemplateEmailService.sendByTemplate(new MerchantEmailSendCommand(
+                    app.getAppCode(),
+                    account.getMerchantId(),
+                    account.getMerchantId(),
+                    merchantName(account.getMerchantId()),
+                    templateCode,
+                    MERCHANT_MFA_SCENE,
+                    "zh-CN",
+                    List.of(account.getEmail()),
+                    mfaEmailVariables(account, reason, exemptUntil),
+                    MERCHANT_MFA_SCENE,
+                    String.valueOf(account.getId())
+            ));
+        } catch (RuntimeException exception) {
+            log.warn("merchant mfa notice send failed, accountId={}, templateCode={}", account.getId(), templateCode, exception);
+            SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
+            recordMfaLog(app, account, mfa, "SEND_NOTICE", MFA_RESULT_FAILED, exception.getMessage(),
+                    mfa.getMfaPolicy(), mfa.getMfaStatus(), currentOperator(), null);
+        }
+    }
+
+    /**
+     * 事务提交后发送商户系统账号开户通知，避免账号创建失败时误发邮件。
+     *
+     * @param app             商户系统应用
+     * @param account         登录账号
+     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
+     */
+    private void sendAccountCreatedNoticeAfterCommit(SysAppDO app, SysAccountDO account, String initialPassword) {
+        Runnable task = () -> sendAccountCreatedNotice(app, account, initialPassword);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
+    }
+
+    /**
+     * 发送商户系统账号开户通知。发送失败仅记录告警，不影响员工创建结果。
+     *
+     * @param app             商户系统应用
+     * @param account         登录账号
+     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
+     */
+    private void sendAccountCreatedNotice(SysAppDO app, SysAccountDO account, String initialPassword) {
+        if (!StringUtils.hasText(account.getEmail())) {
+            return;
+        }
+        try {
+            merchantTemplateEmailService.sendByTemplate(new MerchantEmailSendCommand(
+                    app.getAppCode(),
+                    account.getMerchantId(),
+                    account.getMerchantId(),
+                    merchantName(account.getMerchantId()),
+                    TEMPLATE_ACCOUNT_CREATED_NOTICE,
+                    ACCOUNT_CREATED_SCENE,
+                    "zh-CN",
+                    List.of(account.getEmail()),
+                    accountCreatedEmailVariables(account, initialPassword),
+                    ACCOUNT_CREATED_SCENE,
+                    String.valueOf(account.getId())
+            ));
+        } catch (RuntimeException exception) {
+            log.warn("merchant account created notice send failed, accountId={}", account.getId(), exception);
+        }
+    }
+
+    /**
+     * 构建商户系统开户通知模板变量。
+     *
+     * @param account         登录账号
+     * @param initialPassword 初始密码，仅作为敏感模板变量传入邮件服务
+     * @return 邮件模板变量
+     */
+    private Map<String, Object> accountCreatedEmailVariables(SysAccountDO account, String initialPassword) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        String merchantSystemBaseUrl = merchantSystemBaseUrl();
+        variables.put("systemName", "商户系统");
+        variables.put("userName", displayLoginAccount(account));
+        variables.put("merchantId", account.getMerchantId());
+        variables.put("merchantName", merchantName(account.getMerchantId()));
+        variables.put("loginAccount", displayLoginAccount(account));
+        variables.put("initialPassword", initialPassword);
+        variables.put("loginUrl", merchantLoginUrl(merchantSystemBaseUrl));
+        variables.put("merchantSystemBaseUrl", merchantSystemBaseUrl);
+        variables.put("mfaGuide", "首次登录时请按页面提示完成多因素认证（MFA）绑定。绑定二维码和手动密钥只会在登录页身份校验通过后展示，邮件不会包含 MFA 密钥。");
+        variables.put("verifyCodeGuide", "登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。");
+        return variables;
+    }
+
+    private Map<String, Object> mfaEmailVariables(SysAccountDO account, String reason, LocalDateTime exemptUntil) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        variables.put("loginAccount", displayLoginAccount(account));
+        variables.put("merchantId", account.getMerchantId());
+        variables.put("merchantName", merchantName(account.getMerchantId()));
+        variables.put("email", account.getEmail());
+        variables.put("reason", StringUtils.hasText(reason) ? reason : "-");
+        variables.put("exemptUntil", exemptUntil == null ? "长期有效" : exemptUntil.toString().replace("T", " "));
+        String merchantSystemBaseUrl = merchantSystemBaseUrl();
+        variables.put("merchantSystemBaseUrl", merchantSystemBaseUrl);
+        variables.put("bindUrl", merchantLoginUrl(merchantSystemBaseUrl));
+        return variables;
+    }
+
+    private String merchantSystemBaseUrl() {
+        return merchantConfigService.enabledConfigValue(MERCHANT_FRONTEND_BASE_URL_KEY)
+                .map(this::trimTrailingSlash)
+                .orElse("");
+    }
+
+    private String merchantLoginUrl(String merchantSystemBaseUrl) {
+        if (!StringUtils.hasText(merchantSystemBaseUrl)) {
+            return "/login";
+        }
+        return trimTrailingSlash(merchantSystemBaseUrl) + "/login";
+    }
+
+    private String trimTrailingSlash(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String normalized = value.trim();
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
+    }
+
+    private String merchantName(String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return "-";
+        }
+        BaseMerchantInfoDO merchant = baseMerchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
+                .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
+                .eq(BaseMerchantInfoDO::getDeleted, 0)
+                .last("LIMIT 1"));
+        if (merchant == null || !StringUtils.hasText(merchant.getMerchantName())) {
+            return merchantId;
+        }
+        return merchant.getMerchantName();
+    }
+
+    private AccountMfaStatusResponse toMfaStatusResponse(SysAccountDO account, SysAccountMfaDO mfa) {
+        AccountMfaStatusResponse response = new AccountMfaStatusResponse();
+        response.setAccountId(account.getId());
+        response.setLoginAccount(displayLoginAccount(account));
+        response.setMfaPolicy(mfa.getMfaPolicy());
+        response.setMfaStatus(mfa.getMfaStatus());
+        response.setBindTime(mfa.getBindTime());
+        response.setLastVerifyTime(mfa.getLastVerifyTime());
+        response.setLockedUntil(mfa.getLockedUntil());
+        response.setExemptUntil(mfa.getExemptUntil());
+        return response;
+    }
+
+    private void fillMfaStatus(SysAccountDO account, AccountDTO dto) {
+        SysAccountMfaDO mfa = loadMfa(account.getAppId(), account.getId());
+        dto.setMfaPolicy(mfa == null ? AuthConstants.MFA_POLICY_OPTIONAL : mfa.getMfaPolicy());
+        dto.setMfaStatus(mfa == null ? AuthConstants.MFA_STATUS_NOT_ENABLED : mfa.getMfaStatus());
+        dto.setMfaBindTime(mfa == null ? null : mfa.getBindTime());
+        dto.setMfaLastVerifyTime(mfa == null ? null : mfa.getLastVerifyTime());
+        dto.setMfaExemptUntil(mfa == null ? null : mfa.getExemptUntil());
+        dto.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
+    }
+
+    private void assertNotSelf(Long targetAccountId, String message) {
+        InternalAuthAccount operator = currentOperator();
+        if (operator != null && Objects.equals(operator.getAccountId(), targetAccountId)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
+        }
+    }
+
+    private InternalAuthAccount currentOperator() {
+        return InternalAuthContextHolder.get();
+    }
+
+    private String mfaAccountLabel(SysAccountDO account) {
+        return StringUtils.hasText(account.getMerchantId())
+                ? account.getMerchantId() + ":" + account.getLoginAccount()
+                : account.getLoginAccount();
+    }
+
+    private String displayLoginAccount(SysAccountDO account) {
+        if (account == null || !StringUtils.hasText(account.getLoginAccount())) {
+            return "-";
+        }
+        String suffix = ACCOUNT_LOGIN_SEPARATOR + account.getMerchantId();
+        if (StringUtils.hasText(account.getMerchantId()) && account.getLoginAccount().endsWith(suffix)) {
+            return account.getLoginAccount().substring(0, account.getLoginAccount().length() - suffix.length());
+        }
+        return account.getLoginAccount();
     }
 
     private Long currentMerchantInfoId(String merchantId) {
@@ -1496,6 +2229,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         dto.setLocked(account.getLocked());
         dto.setLastLoginAt(account.getLastLoginAt());
         dto.setCreatedAt(merchantUser.getCreatedAt());
+        dto.setCurrentAccount(Objects.equals(account.getId(), currentAccountId()));
         List<Long> roleIds = sysMerchantUserRoleMapper.selectList(Wrappers.<SysMerchantUserRoleDO>lambdaQuery()
                         .eq(SysMerchantUserRoleDO::getAppId, appId)
                         .eq(SysMerchantUserRoleDO::getMerchantUserId, merchantUser.getId())
@@ -1514,6 +2248,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                         .eq(SysMerchantAccountPostDO::getMerchantId, account.getMerchantId())
                         .eq(SysMerchantAccountPostDO::getAccountId, account.getId()))
                 .stream().map(SysMerchantAccountPostDO::getPostId).toList());
+        fillMfaStatus(account, dto);
         return dto;
     }
 

@@ -2,8 +2,6 @@
 acquiring:
   openapi:
     merchant-key-export:
-      # 管理系统导出商户 OpenAPI 接入材料时写入的基础地址。
-      open-api-base-url: ${OPENAPI_BASE_URL:https://openapi.example.com}
       sdk-version: ${OPENAPI_JAVA_SDK_VERSION:0.9.0}
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}
 

@@ -1,6 +1,8 @@
 package com.scott.payment.merchant.dto.system;
 
 import com.scott.payment.component.core.model.PageRequest;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -269,6 +271,16 @@ public final class MerchantSystemDTOs {
     }
 
     @Data
+    public static class AccountResetPasswordRequest {
+        /**
+         * 商户员工新登录密码。接口层只接收明文，服务层必须立即哈希后落库，禁止写入日志。
+         */
+        @NotBlank(message = "password is required")
+        @Size(min = 8, max = 64, message = "password length must be between 8 and 64")
+        private String password;
+    }
+
+    @Data
     public static class AccountDTO {
         /**
          * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
@@ -310,6 +322,34 @@ public final class MerchantSystemDTOs {
          * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
          */
         private LocalDateTime lastLoginAt;
+        /**
+         * OTP 策略：OPTIONAL、REQUIRED、EXEMPT。
+         */
+        private String mfaPolicy;
+        /**
+         * OTP 状态：NOT_ENABLED、PENDING_BIND、ENABLED、RESET_REQUIRED、EXEMPT、LOCKED、DISABLED。
+         */
+        private String mfaStatus;
+        /**
+         * OTP 完成绑定时间。
+         */
+        private LocalDateTime mfaBindTime;
+        /**
+         * 最近一次 OTP 验证成功时间。
+         */
+        private LocalDateTime mfaLastVerifyTime;
+        /**
+         * OTP 豁免截止时间，空表示长期豁免。
+         */
+        private LocalDateTime mfaExemptUntil;
+        /**
+         * OTP 连续失败后的临时锁定截止时间。
+         */
+        private LocalDateTime mfaLockedUntil;
+        /**
+         * 是否当前登录账号，用于页面隐藏重置、豁免、停用等自我降级 OTP 操作。
+         */
+        private Boolean currentAccount;
         private List<Long> roleIds = Collections.emptyList();
         private List<String> roleNames = Collections.emptyList();
         private List<Long> deptIds = Collections.emptyList();
@@ -318,6 +358,61 @@ public final class MerchantSystemDTOs {
          * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
          */
         private LocalDateTime createdAt;
+    }
+
+    @Data
+    public static class AccountMfaActionRequest {
+        /**
+         * OTP 安全操作原因，必须写明审批依据或处理背景。
+         */
+        @NotBlank(message = "reason is required")
+        @Size(max = 500, message = "reason length must not exceed 500")
+        private String reason;
+    }
+
+    @Data
+    @EqualsAndHashCode(callSuper = true)
+    public static class AccountMfaExemptRequest extends AccountMfaActionRequest {
+        /**
+         * OTP 豁免截止时间，空表示长期豁免。
+         */
+        private LocalDateTime exemptUntil;
+    }
+
+    @Data
+    public static class AccountMfaStatusResponse {
+        /**
+         * 登录账号ID。
+         */
+        private Long accountId;
+        /**
+         * 商户员工登录账号。
+         */
+        private String loginAccount;
+        /**
+         * OTP 策略。
+         */
+        private String mfaPolicy;
+        /**
+         * OTP 状态。
+         */
+        private String mfaStatus;
+        /**
+         * 完成绑定时间。
+         */
+        private LocalDateTime bindTime;
+        /**
+         * 最近验证成功时间。
+         */
+        private LocalDateTime lastVerifyTime;
+        /**
+         * 临时锁定截止时间。
+         */
+        private LocalDateTime lockedUntil;
+        /**
+         * 豁免截止时间。
+         */
+        private LocalDateTime exemptUntil;
     }
 
     @Data

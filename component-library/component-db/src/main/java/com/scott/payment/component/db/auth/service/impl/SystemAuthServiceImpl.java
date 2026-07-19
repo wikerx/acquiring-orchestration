@@ -11,12 +11,20 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
+import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
+import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthMenuDTO;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendRequest;
 import com.scott.payment.component.db.auth.dto.AuthVerifyCodeSendResponse;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.SysAccountDO;
+import com.scott.payment.component.db.auth.entity.SysAccountMfaDO;
+import com.scott.payment.component.db.auth.entity.SysAccountMfaLogDO;
+import com.scott.payment.component.db.auth.entity.SysAccountMfaTokenDO;
 import com.scott.payment.component.db.auth.entity.SysAccountRoleDO;
 import com.scott.payment.component.db.auth.entity.SysAppDO;
 import com.scott.payment.component.db.auth.entity.SysLoginLogDO;
@@ -33,6 +41,9 @@ import com.scott.payment.component.db.auth.entity.SysRolePermissionDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaLogMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaMapper;
+import com.scott.payment.component.db.auth.mapper.SysAccountMfaTokenMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountRoleMapper;
 import com.scott.payment.component.db.auth.mapper.SysAppMapper;
@@ -50,6 +61,8 @@ import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
+import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
+import com.scott.payment.component.db.auth.support.TotpUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.stereotype.Service;
@@ -57,9 +70,20 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.List;
@@ -159,24 +183,83 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private static final long SESSION_IDLE_TIMEOUT_MINUTES = 30L;
 
     /**
-     * 同一账号同一 IP 的验证码发送统计窗口，单位秒。
+     * 同一 IP 的登录页图形验证码刷新统计窗口，单位秒。
      */
     private static final int VERIFY_CODE_SEND_LIMIT_WINDOW_SECONDS = 60;
 
     /**
-     * 同一账号同一 IP 在统计窗口内允许发送验证码的最大次数。
+     * 同一 IP 在统计窗口内允许刷新图形验证码的最大次数。
      */
-    private static final long VERIFY_CODE_SEND_LIMIT_COUNT = 3;
+    private static final long VERIFY_CODE_SEND_LIMIT_COUNT = 200;
 
     /**
-     * 本地开发验证码发送渠道。
+     * 登录页图形验证码类型。
      */
-    private static final String VERIFY_CODE_SEND_CHANNEL = "LOCAL_DEV";
+    private static final String VERIFY_CODE_RECEIVER_TYPE_CAPTCHA = "CAPTCHA";
+
+    /**
+     * 登录页图形验证码接收人占位，避免记录账号、邮箱或手机号。
+     */
+    private static final String VERIFY_CODE_CAPTCHA_RECEIVER = "LOGIN_PAGE";
+
+    /**
+     * 登录页图形验证码生成渠道。
+     */
+    private static final String VERIFY_CODE_SEND_CHANNEL = "PAGE_CAPTCHA";
+
+    /**
+     * 图形验证码图片前缀。
+     */
+    private static final String CAPTCHA_IMAGE_PREFIX = "data:image/png;base64,";
+
+    /**
+     * MFA 登录票据类型。
+     */
+    private static final String MFA_TOKEN_TYPE_LOGIN = "LOGIN_MFA";
+
+    /**
+     * MFA 登录票据有效期，单位秒。
+     */
+    private static final int MFA_LOGIN_TICKET_TTL_SECONDS = 300;
+
+    /**
+     * TOTP 时间步长，单位秒。
+     */
+    private static final int MFA_TOTP_PERIOD_SECONDS = 30;
+
+    /**
+     * TOTP 容忍窗口，允许前后各一个时间步。
+     */
+    private static final int MFA_TOTP_WINDOW = 1;
+
+    /**
+     * TOTP 连续失败最大次数。
+     */
+    private static final int MFA_MAX_FAILED_ATTEMPTS = 5;
+
+    /**
+     * TOTP 临时锁定时间，单位分钟。
+     */
+    private static final int MFA_LOCK_MINUTES = 15;
+
+    /**
+     * MFA 审计结果：成功。
+     */
+    private static final String MFA_RESULT_SUCCESS = "SUCCESS";
+
+    /**
+     * MFA 审计结果：失败。
+     */
+    private static final String MFA_RESULT_FAILED = "FAILED";
 
     /**
      * 验证码随机数生成器。
      */
     private static final SecureRandom VERIFY_CODE_RANDOM = new SecureRandom();
+    /**
+     * 图形验证码字符集，排除 0/O/1/I 等容易混淆字符。
+     */
+    private static final char[] CAPTCHA_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
 
     /**
      * 接口资源通配路径匹配器。
@@ -248,10 +331,21 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private final SysVerifyCodeMapper sysVerifyCodeMapper;
     /**
+     * MFA 配置数据访问接口。
+     */
+    private final SysAccountMfaMapper sysAccountMfaMapper;
+    /**
+     * MFA 短期票据数据访问接口。
+     */
+    private final SysAccountMfaTokenMapper sysAccountMfaTokenMapper;
+    /**
+     * MFA 安全审计日志数据访问接口。
+     */
+    private final SysAccountMfaLogMapper sysAccountMfaLogMapper;
+    /**
      * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
      */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
-
     /**
      * 创建系统登录权限服务。
      *
@@ -271,6 +365,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param sysLoginLogMapper       登录日志 Mapper
      * @param sysLoginSessionMapper   登录会话 Mapper
      * @param sysVerifyCodeMapper     动态验证码 Mapper
+     * @param sysAccountMfaMapper     MFA 配置 Mapper
+     * @param sysAccountMfaTokenMapper MFA 票据 Mapper
+     * @param sysAccountMfaLogMapper  MFA 日志 Mapper
      * @param baseMerchantInfoMapper  商户基础信息 Mapper
      */
     public SystemAuthServiceImpl(SysAppMapper sysAppMapper,
@@ -289,6 +386,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                  SysLoginLogMapper sysLoginLogMapper,
                                  SysLoginSessionMapper sysLoginSessionMapper,
                                  SysVerifyCodeMapper sysVerifyCodeMapper,
+                                 SysAccountMfaMapper sysAccountMfaMapper,
+                                 SysAccountMfaTokenMapper sysAccountMfaTokenMapper,
+                                 SysAccountMfaLogMapper sysAccountMfaLogMapper,
                                  BaseMerchantInfoMapper baseMerchantInfoMapper) {
         this.sysAppMapper = sysAppMapper;
         this.sysUserMapper = sysUserMapper;
@@ -306,6 +406,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.sysLoginLogMapper = sysLoginLogMapper;
         this.sysLoginSessionMapper = sysLoginSessionMapper;
         this.sysVerifyCodeMapper = sysVerifyCodeMapper;
+        this.sysAccountMfaMapper = sysAccountMfaMapper;
+        this.sysAccountMfaTokenMapper = sysAccountMfaTokenMapper;
+        this.sysAccountMfaLogMapper = sysAccountMfaLogMapper;
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
     }
 
@@ -343,19 +446,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
-     * 发送登录动态验证码。
+     * 生成登录页图形验证码。
      *
      * @param appCode  系统应用编码
-     * @param request  验证码发送请求
-     * @param clientIp 客户端IP
-     * @return 验证码发送响应
-     */
-    /**
-     * 发送系统管理消息或外部请求，并记录必要的执行结果。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param clientIp 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * @param request  验证码生成请求，登录页图形验证码不依赖账号
+     * @param clientIp 客户端 IP，用于验证码刷新频率限制
+     * @return 验证码图片、验证码记录ID和有效期
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -367,26 +463,18 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "verify code scene is invalid");
         }
         SysAppDO app = getEnabledApp(appCode);
-        validateMerchantLogin(appCode, request.getMerchantId());
-        SysAccountDO account = findLoginAccount(app, request.getLoginAccount(), request.getMerchantId());
-        if (account == null || account.getStatus() == null || account.getStatus() != AuthConstants.ENABLED) {
-            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "account disabled or not found");
-        }
-        if (StringUtils.hasText(request.getMerchantId()) && !request.getMerchantId().equals(account.getMerchantId())) {
-            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant mismatch");
-        }
 
         LocalDateTime now = LocalDateTime.now();
-        validateVerifyCodeSendLimit(app.getId(), resolveReceiver(account), clientIp, now);
+        validateVerifyCodeSendLimit(app.getId(), clientIp, now);
         String code = generateVerifyCode();
         String salt = PasswordHashUtils.generateSalt();
         SysVerifyCodeDO verifyCode = new SysVerifyCodeDO();
         verifyCode.setAppId(app.getId());
         verifyCode.setScene(VERIFY_SCENE_LOGIN);
-        verifyCode.setReceiverType(resolveReceiverType(account));
-        verifyCode.setReceiver(resolveReceiver(account));
+        verifyCode.setReceiverType(VERIFY_CODE_RECEIVER_TYPE_CAPTCHA);
+        verifyCode.setReceiver(VERIFY_CODE_CAPTCHA_RECEIVER);
         verifyCode.setCodeSalt(salt);
-        verifyCode.setCodeHash(PasswordHashUtils.hashPassword(code, salt));
+        verifyCode.setCodeHash(PasswordHashUtils.hashPassword(code.toLowerCase(), salt));
         verifyCode.setExpireAt(now.plusSeconds(VERIFY_CODE_TTL_SECONDS));
         verifyCode.setUsed(AuthConstants.DISABLED);
         verifyCode.setVerifyCount(0);
@@ -399,9 +487,9 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         AuthVerifyCodeSendResponse response = new AuthVerifyCodeSendResponse();
         response.setVerifyCodeId(String.valueOf(verifyCode.getId()));
         response.setReceiverType(verifyCode.getReceiverType());
-        response.setMaskedReceiver(maskReceiver(verifyCode.getReceiver(), verifyCode.getReceiverType()));
+        response.setMaskedReceiver("页面图形验证码");
+        response.setCaptchaImage(generateCaptchaImage(code));
         response.setExpireSeconds(VERIFY_CODE_TTL_SECONDS);
-        response.setDevCode(code);
         return response;
     }
 
@@ -449,13 +537,142 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         }
 
         SysUserDO user = getEnabledUser(account.getUserId());
-        String token = LoginTokenUtils.generateToken();
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime expireAt = now.plusSeconds(AuthConstants.DEFAULT_TOKEN_TTL_SECONDS);
-        saveLoginSession(app, account, token, clientIp, userAgent, now, expireAt);
-        updateAccountLoginSuccess(account, clientIp, now);
-        recordLoginLog(app, account, request.getLoginAccount(), clientIp, userAgent, LOGIN_SUCCESS, null);
-        return buildLoginResponse(app, user, account, token, expireAt);
+        SysAccountMfaDO mfa = loadMfa(app.getId(), account.getId());
+        String challengeType = resolveMfaChallenge(mfa, now);
+        if (StringUtils.hasText(challengeType)) {
+            if (AuthConstants.MFA_CHALLENGE_LOCKED.equals(challengeType)) {
+                recordMfaLog(app, account, mfa, "LOGIN_LOCKED", MFA_RESULT_FAILED, "mfa locked", null, clientIp, userAgent);
+                return buildMfaLockedResponse(app, user, account, mfa);
+            }
+            SysAccountMfaDO preparedMfa = preparePendingMfaIfNecessary(app, account, mfa, challengeType, now);
+            MfaLoginTicket ticket = createMfaLoginTicket(app, account, challengeType, clientIp, userAgent, now);
+            recordMfaLog(app, account, preparedMfa, "LOGIN_CHALLENGE", MFA_RESULT_SUCCESS, challengeType, null, clientIp, userAgent);
+            return buildMfaChallengeResponse(app, user, account, preparedMfa, ticket);
+        }
+        return issueLoginSession(app, user, account, request.getLoginAccount(), clientIp, userAgent);
+    }
+
+    /**
+     * 获取 OTP 绑定信息。
+     *
+     * @param appCode     系统应用编码
+     * @param loginTicket 短期登录票据
+     * @return OTP 绑定信息
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AuthMfaBindInfoResponse mfaBindInfo(String appCode, String loginTicket) {
+        SysAppDO app = getEnabledApp(appCode);
+        MfaTicketContext context = requireMfaTicket(app, loginTicket);
+        if (!AuthConstants.MFA_CHALLENGE_BIND_REQUIRED.equals(context.ticket().getChallengeType())
+                && !AuthConstants.MFA_CHALLENGE_RESET_BIND_REQUIRED.equals(context.ticket().getChallengeType())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "mfa bind is not required");
+        }
+        SysAccountMfaDO mfa = requireMfa(context.account());
+        LocalDateTime now = LocalDateTime.now();
+        SysAccountMfaDO preparedMfa = preparePendingMfaIfNecessary(app, context.account(), mfa, context.ticket().getChallengeType(), now);
+        String secret = MfaSecretCrypto.decrypt(preparedMfa.getPendingSecretCipher());
+
+        AuthMfaBindInfoResponse response = new AuthMfaBindInfoResponse();
+        response.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        response.setMfaStatus(preparedMfa.getMfaStatus());
+        response.setIssuer(preparedMfa.getIssuer());
+        response.setAccountLabel(preparedMfa.getAccountLabel());
+        response.setOtpauthUri(TotpUtils.buildOtpauthUri(preparedMfa.getIssuer(), preparedMfa.getAccountLabel(), secret));
+        response.setDigits(6);
+        response.setPeriodSeconds(MFA_TOTP_PERIOD_SECONDS);
+        response.setMaskedLoginAccount(maskLoginAccount(context.account().getLoginAccount()));
+        response.setLoginTicketExpireAt(context.ticket().getExpireAt());
+        return response;
+    }
+
+    /**
+     * 确认 OTP 绑定并签发登录会话。
+     *
+     * @param appCode   系统应用编码
+     * @param request   绑定确认请求
+     * @param clientIp  客户端IP
+     * @param userAgent 客户端 User-Agent
+     * @return 登录响应
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AuthLoginResponse mfaBindConfirm(String appCode,
+                                            AuthMfaBindConfirmRequest request,
+                                            String clientIp,
+                                            String userAgent) {
+        SysAppDO app = getEnabledApp(appCode);
+        MfaTicketContext context = requireMfaTicket(app, request.getLoginTicket());
+        if (!AuthConstants.MFA_CHALLENGE_BIND_REQUIRED.equals(context.ticket().getChallengeType())
+                && !AuthConstants.MFA_CHALLENGE_RESET_BIND_REQUIRED.equals(context.ticket().getChallengeType())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "mfa bind is not required");
+        }
+        SysAccountMfaDO mfa = requireMfa(context.account());
+        SysUserDO user = getEnabledUser(context.account().getUserId());
+        String beforePolicy = mfa.getMfaPolicy();
+        String beforeStatus = mfa.getMfaStatus();
+        Long timeStep = verifyTotpOrRecordFailure(app, context.account(), mfa, mfa.getPendingSecretCipher(),
+                request.getTotpCode(), "BIND_CONFIRM", clientIp, userAgent);
+        LocalDateTime now = LocalDateTime.now();
+        mfa.setSecretCipher(mfa.getPendingSecretCipher());
+        mfa.setPendingSecretCipher(null);
+        mfa.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+        mfa.setMfaStatus(AuthConstants.MFA_STATUS_ENABLED);
+        mfa.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        mfa.setBindTime(now);
+        mfa.setLastVerifyTime(now);
+        mfa.setLastSuccessTimeStep(timeStep);
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setUpdatedAt(now);
+        sysAccountMfaMapper.updateById(mfa);
+        markMfaTicketUsed(context.ticket(), now);
+        recordMfaLog(app, context.account(), mfa, "BIND_CONFIRM", MFA_RESULT_SUCCESS,
+                statusChangeReason(beforePolicy, beforeStatus, mfa), null, clientIp, userAgent);
+        return issueLoginSession(app, user, context.account(), context.account().getLoginAccount(), clientIp, userAgent);
+    }
+
+    /**
+     * 验证 OTP 并签发登录会话。
+     *
+     * @param appCode   系统应用编码
+     * @param request   OTP 验证请求
+     * @param clientIp  客户端IP
+     * @param userAgent 客户端 User-Agent
+     * @return 登录响应
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AuthLoginResponse mfaVerify(String appCode,
+                                       AuthMfaVerifyRequest request,
+                                       String clientIp,
+                                       String userAgent) {
+        SysAppDO app = getEnabledApp(appCode);
+        MfaTicketContext context = requireMfaTicket(app, request.getLoginTicket());
+        if (!AuthConstants.MFA_CHALLENGE_VERIFY_REQUIRED.equals(context.ticket().getChallengeType())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "mfa verify is not required");
+        }
+        SysAccountMfaDO mfa = requireMfa(context.account());
+        if (!AuthConstants.MFA_STATUS_ENABLED.equals(mfa.getMfaStatus())) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "mfa is not enabled");
+        }
+        SysUserDO user = getEnabledUser(context.account().getUserId());
+        Long timeStep = verifyTotpOrRecordFailure(app, context.account(), mfa, mfa.getSecretCipher(),
+                request.getTotpCode(), "LOGIN_VERIFY", clientIp, userAgent);
+        LocalDateTime now = LocalDateTime.now();
+        mfa.setLastVerifyTime(now);
+        mfa.setLastSuccessTimeStep(timeStep);
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setUpdatedAt(now);
+        sysAccountMfaMapper.updateById(mfa);
+        markMfaTicketUsed(context.ticket(), now);
+        recordMfaLog(app, context.account(), mfa, "LOGIN_VERIFY", MFA_RESULT_SUCCESS, null, null, clientIp, userAgent);
+        return issueLoginSession(app, user, context.account(), context.account().getLoginAccount(), clientIp, userAgent);
     }
 
     /**
@@ -479,6 +696,86 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         SysAccountDO account = getEnabledAccount(session.getAccountId());
         SysUserDO user = getEnabledUser(session.getUserId());
         return buildLoginResponse(app, user, account, null, session.getExpireAt());
+    }
+
+    /**
+     * 更新当前登录账号个人资料。
+     *
+     * @param appCode 系统应用编码
+     * @param token   登录 token
+     * @param request 个人资料更新请求
+     * @return 更新后的账号、菜单和权限信息
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public AuthLoginResponse updateCurrentProfile(String appCode, String token, AuthProfileUpdateRequest request) {
+        SysAppDO app = getEnabledApp(appCode);
+        SysLoginSessionDO session = getActiveSession(app.getId(), token);
+        SysAccountDO account = getEnabledAccount(session.getAccountId());
+        SysUserDO user = getEnabledUser(session.getUserId());
+        LocalDateTime now = LocalDateTime.now();
+
+        String nickname = requiredText(request.getNickname(), "nickname");
+        String mobile = optionalText(request.getMobile());
+        String email = requiredText(request.getEmail(), "email");
+
+        user.setNickname(nickname);
+        user.setMobile(mobile);
+        user.setEmail(email);
+        user.setUpdatedAt(now);
+        user.setUpdatedBy(account.getId());
+        sysUserMapper.updateById(user);
+
+        account.setMobile(mobile);
+        account.setEmail(email);
+        account.setUpdatedAt(now);
+        account.setUpdatedBy(account.getId());
+        sysAccountMapper.updateById(account);
+
+        if (AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
+            SysMerchantUserDO merchantUser = getEnabledMerchantUser(account);
+            merchantUser.setRealName(nickname);
+            merchantUser.setUpdatedAt(now);
+            merchantUser.setUpdatedBy(account.getId());
+            sysMerchantUserMapper.updateById(merchantUser);
+        }
+
+        return buildLoginResponse(app, user, account, null, session.getExpireAt());
+    }
+
+    /**
+     * 修改当前登录账号密码。
+     *
+     * @param appCode 系统应用编码
+     * @param token   登录 token
+     * @param request 修改密码请求
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void changeCurrentPassword(String appCode, String token, AuthPasswordChangeRequest request) {
+        SysAppDO app = getEnabledApp(appCode);
+        SysLoginSessionDO session = getActiveSession(app.getId(), token);
+        SysAccountDO account = getEnabledAccount(session.getAccountId());
+        String oldPassword = requiredText(request.getOldPassword(), "oldPassword");
+        String newPassword = requiredText(request.getNewPassword(), "newPassword");
+        if (oldPassword.equals(newPassword)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "new password can not equal old password");
+        }
+        if (!PasswordHashUtils.matches(oldPassword, account.getPasswordSalt(), account.getPasswordHash())) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "old password is invalid");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        String salt = PasswordHashUtils.generateSalt();
+        account.setPasswordSalt(salt);
+        account.setPasswordHash(PasswordHashUtils.hashPassword(newPassword, salt));
+        account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
+        account.setPasswordExpired(AuthConstants.DISABLED);
+        account.setPasswordUpdatedAt(now);
+        account.setUpdatedAt(now);
+        account.setUpdatedBy(account.getId());
+        sysAccountMapper.updateById(account);
     }
 
     /**
@@ -678,11 +975,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         if (verifyCode == null
                 || !Objects.equals(verifyCode.getAppId(), app.getId())
                 || !VERIFY_SCENE_LOGIN.equals(verifyCode.getScene())
+                || !VERIFY_CODE_RECEIVER_TYPE_CAPTCHA.equals(verifyCode.getReceiverType())
+                || !VERIFY_CODE_CAPTCHA_RECEIVER.equals(verifyCode.getReceiver())
                 || verifyCode.getUsed() == null
                 || verifyCode.getUsed() == AuthConstants.ENABLED
                 || verifyCode.getExpireAt() == null
                 || verifyCode.getExpireAt().isBefore(LocalDateTime.now())
-                || !resolveReceiver(account).equals(verifyCode.getReceiver())
                 || !Objects.equals(normalizeIp(clientIp), normalizeIp(verifyCode.getSendIp()))) {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is invalid or expired");
         }
@@ -690,7 +988,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code retry limit exceeded");
         }
         verifyCode.setVerifyCount(defaultInt(verifyCode.getVerifyCount()) + 1);
-        if (!PasswordHashUtils.matches(request.getVerifyCode(), verifyCode.getCodeSalt(), verifyCode.getCodeHash())) {
+        if (!PasswordHashUtils.matches(request.getVerifyCode().trim().toLowerCase(), verifyCode.getCodeSalt(), verifyCode.getCodeHash())) {
             sysVerifyCodeMapper.updateById(verifyCode);
             throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "verify code is invalid or expired");
         }
@@ -700,19 +998,18 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
-     * 校验登录验证码发送频率，同一账号同一 IP 在短窗口内只能发送有限次数。
+     * 校验登录页图形验证码刷新频率，同一系统同一 IP 在短窗口内只能刷新有限次数。
      *
      * @param appId    系统应用 ID
-     * @param receiver 验证码接收人
      * @param clientIp 客户端 IP
      * @param now      当前时间
      */
-    private void validateVerifyCodeSendLimit(Long appId, String receiver, String clientIp, LocalDateTime now) {
+    private void validateVerifyCodeSendLimit(Long appId, String clientIp, LocalDateTime now) {
         Long count = sysVerifyCodeMapper.selectCount(
                 Wrappers.<SysVerifyCodeDO>lambdaQuery()
                         .eq(SysVerifyCodeDO::getAppId, appId)
                         .eq(SysVerifyCodeDO::getScene, VERIFY_SCENE_LOGIN)
-                        .eq(SysVerifyCodeDO::getReceiver, receiver)
+                        .eq(SysVerifyCodeDO::getReceiverType, VERIFY_CODE_RECEIVER_TYPE_CAPTCHA)
                         .eq(SysVerifyCodeDO::getSendIp, normalizeIp(clientIp))
                         .ge(SysVerifyCodeDO::getCreatedAt, now.minusSeconds(VERIFY_CODE_SEND_LIMIT_WINDOW_SECONDS))
         );
@@ -746,44 +1043,80 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
-     * 生成 6 位数字验证码。
+     * 生成 5 位图形验证码字符，排除容易混淆的 I、O、0、1。
      *
      * @return 验证码
      */
     private String generateVerifyCode() {
-        return String.format("%06d", VERIFY_CODE_RANDOM.nextInt(1_000_000));
+        StringBuilder code = new StringBuilder(5);
+        for (int i = 0; i < 5; i++) {
+            code.append(CAPTCHA_ALPHABET[VERIFY_CODE_RANDOM.nextInt(CAPTCHA_ALPHABET.length)]);
+        }
+        return code.toString();
     }
 
     /**
-     * 解析验证码接收方式。
+     * 生成登录页图形验证码图片。
      *
-     * @param account 登录账号
-     * @return 接收方式
+     * @param code 验证码明文，仅用于本次响应图片绘制，不落库
+     * @return data URL 图片
      */
-    private String resolveReceiverType(SysAccountDO account) {
-        if (StringUtils.hasText(account.getEmail())) {
-            return "EMAIL";
+    private String generateCaptchaImage(String code) {
+        int width = 150;
+        int height = 50;
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setColor(new Color(245, 249, 255));
+            graphics.fillRoundRect(0, 0, width, height, 10, 10);
+            drawCaptchaNoise(graphics, width, height);
+            graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 28));
+            FontMetrics metrics = graphics.getFontMetrics();
+            int charGap = 24;
+            int startX = Math.max(12, (width - charGap * code.length()) / 2 + 4);
+            int baseY = (height - metrics.getHeight()) / 2 + metrics.getAscent();
+            for (int i = 0; i < code.length(); i++) {
+                graphics.setColor(captchaTextColor(i));
+                double angle = Math.toRadians(VERIFY_CODE_RANDOM.nextInt(25) - 12);
+                graphics.rotate(angle, startX + (double) i * charGap, baseY);
+                graphics.drawString(String.valueOf(code.charAt(i)), startX + i * charGap, baseY + VERIFY_CODE_RANDOM.nextInt(5) - 2);
+                graphics.rotate(-angle, startX + (double) i * charGap, baseY);
+            }
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", output);
+            return CAPTCHA_IMAGE_PREFIX + Base64.getEncoder().encodeToString(output.toByteArray());
+        } catch (IOException exception) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "captcha image can not be generated", exception);
+        } finally {
+            graphics.dispose();
         }
-        if (StringUtils.hasText(account.getMobile())) {
-            return "SMS";
-        }
-        return "TOTP";
     }
 
-    /**
-     * 解析验证码接收人。
-     *
-     * @param account 登录账号
-     * @return 接收人
-     */
-    private String resolveReceiver(SysAccountDO account) {
-        if (StringUtils.hasText(account.getEmail())) {
-            return account.getEmail();
+    private void drawCaptchaNoise(Graphics2D graphics, int width, int height) {
+        for (int i = 0; i < 8; i++) {
+            graphics.setColor(new Color(180 + VERIFY_CODE_RANDOM.nextInt(50), 195 + VERIFY_CODE_RANDOM.nextInt(40), 215 + VERIFY_CODE_RANDOM.nextInt(35)));
+            int x1 = VERIFY_CODE_RANDOM.nextInt(width);
+            int y1 = VERIFY_CODE_RANDOM.nextInt(height);
+            int x2 = VERIFY_CODE_RANDOM.nextInt(width);
+            int y2 = VERIFY_CODE_RANDOM.nextInt(height);
+            graphics.drawLine(x1, y1, x2, y2);
         }
-        if (StringUtils.hasText(account.getMobile())) {
-            return account.getMobile();
+        for (int i = 0; i < 60; i++) {
+            graphics.setColor(new Color(160 + VERIFY_CODE_RANDOM.nextInt(70), 175 + VERIFY_CODE_RANDOM.nextInt(60), 200 + VERIFY_CODE_RANDOM.nextInt(45)));
+            graphics.fillOval(VERIFY_CODE_RANDOM.nextInt(width), VERIFY_CODE_RANDOM.nextInt(height), 2, 2);
         }
-        return account.getLoginAccount();
+    }
+
+    private Color captchaTextColor(int index) {
+        Color[] colors = {
+                new Color(29, 78, 216),
+                new Color(15, 118, 110),
+                new Color(126, 34, 206),
+                new Color(190, 80, 20),
+                new Color(8, 47, 73)
+        };
+        return colors[index % colors.length];
     }
 
     /**
@@ -1092,6 +1425,32 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
+     * 签发登录会话并构建完整登录响应。
+     *
+     * @param app          系统应用
+     * @param user         用户主体
+     * @param account      登录账号
+     * @param loginAccount 登录输入账号
+     * @param clientIp     客户端 IP
+     * @param userAgent    User-Agent
+     * @return 登录响应
+     */
+    private AuthLoginResponse issueLoginSession(SysAppDO app,
+                                                SysUserDO user,
+                                                SysAccountDO account,
+                                                String loginAccount,
+                                                String clientIp,
+                                                String userAgent) {
+        String token = LoginTokenUtils.generateToken();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expireAt = now.plusSeconds(AuthConstants.DEFAULT_TOKEN_TTL_SECONDS);
+        saveLoginSession(app, account, token, clientIp, userAgent, now, expireAt);
+        updateAccountLoginSuccess(account, clientIp, now);
+        recordLoginLog(app, account, loginAccount, clientIp, userAgent, LOGIN_SUCCESS, null);
+        return buildLoginResponse(app, user, account, token, expireAt);
+    }
+
+    /**
      * 保存登录会话。
      *
      * @param app       系统应用
@@ -1122,6 +1481,482 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         session.setCreatedAt(now);
         session.setUpdatedAt(now);
         sysLoginSessionMapper.insert(session);
+    }
+
+    /**
+     * 查询账号 MFA 配置，老账号未初始化时返回 null 并按 OPTIONAL + NOT_ENABLED 兼容。
+     *
+     * @param appId     应用 ID
+     * @param accountId 账号 ID
+     * @return MFA 配置或 null
+     */
+    private SysAccountMfaDO loadMfa(Long appId, Long accountId) {
+        return sysAccountMfaMapper.selectOne(
+                Wrappers.<SysAccountMfaDO>lambdaQuery()
+                        .eq(SysAccountMfaDO::getAppId, appId)
+                        .eq(SysAccountMfaDO::getAccountId, accountId)
+                        .eq(SysAccountMfaDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .last("LIMIT 1")
+        );
+    }
+
+    /**
+     * 查询账号 MFA 配置，不存在时按未启用处理并拒绝二阶段动作。
+     *
+     * @param account 登录账号
+     * @return MFA 配置
+     */
+    private SysAccountMfaDO requireMfa(SysAccountDO account) {
+        SysAccountMfaDO mfa = loadMfa(account.getAppId(), account.getId());
+        if (mfa == null) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "mfa is not enabled");
+        }
+        return mfa;
+    }
+
+    /**
+     * 根据 MFA 策略和状态判断登录是否需要 OTP 二阶段。
+     *
+     * @param mfa MFA 配置
+     * @param now 当前时间
+     * @return 挑战类型，空表示不需要 MFA
+     */
+    private String resolveMfaChallenge(SysAccountMfaDO mfa, LocalDateTime now) {
+        if (mfa == null
+                || AuthConstants.MFA_POLICY_OPTIONAL.equals(mfa.getMfaPolicy())
+                || AuthConstants.MFA_STATUS_NOT_ENABLED.equals(mfa.getMfaStatus())) {
+            return null;
+        }
+        if (AuthConstants.MFA_POLICY_EXEMPT.equals(mfa.getMfaPolicy())) {
+            if (mfa.getExemptUntil() == null || mfa.getExemptUntil().isAfter(now)) {
+                return null;
+            }
+            mfa.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+            mfa.setMfaStatus(AuthConstants.MFA_STATUS_PENDING_BIND);
+            mfa.setUpdatedAt(now);
+            sysAccountMfaMapper.updateById(mfa);
+            return AuthConstants.MFA_CHALLENGE_BIND_REQUIRED;
+        }
+        if (AuthConstants.MFA_STATUS_LOCKED.equals(mfa.getMfaStatus())) {
+            if (mfa.getLockedUntil() != null && mfa.getLockedUntil().isAfter(now)) {
+                return AuthConstants.MFA_CHALLENGE_LOCKED;
+            }
+            recoverExpiredMfaLock(mfa, now);
+        }
+        if (AuthConstants.MFA_STATUS_PENDING_BIND.equals(mfa.getMfaStatus())) {
+            return AuthConstants.MFA_CHALLENGE_BIND_REQUIRED;
+        }
+        if (AuthConstants.MFA_STATUS_RESET_REQUIRED.equals(mfa.getMfaStatus())) {
+            return AuthConstants.MFA_CHALLENGE_RESET_BIND_REQUIRED;
+        }
+        if (AuthConstants.MFA_STATUS_ENABLED.equals(mfa.getMfaStatus())) {
+            return AuthConstants.MFA_CHALLENGE_VERIFY_REQUIRED;
+        }
+        if (AuthConstants.MFA_POLICY_REQUIRED.equals(mfa.getMfaPolicy())
+                && AuthConstants.MFA_STATUS_DISABLED.equals(mfa.getMfaStatus())) {
+            return AuthConstants.MFA_CHALLENGE_BIND_REQUIRED;
+        }
+        return null;
+    }
+
+    /**
+     * 连续失败锁定到期后恢复到可继续验证的状态。
+     *
+     * @param mfa MFA 配置
+     * @param now 当前时间
+     */
+    private void recoverExpiredMfaLock(SysAccountMfaDO mfa, LocalDateTime now) {
+        if (StringUtils.hasText(mfa.getSecretCipher())) {
+            mfa.setMfaStatus(AuthConstants.MFA_STATUS_ENABLED);
+        } else if (StringUtils.hasText(mfa.getPendingSecretCipher())) {
+            mfa.setMfaStatus(AuthConstants.MFA_STATUS_PENDING_BIND);
+        } else {
+            mfa.setMfaStatus(AuthConstants.MFA_STATUS_RESET_REQUIRED);
+        }
+        mfa.setFailedVerifyCount(0);
+        mfa.setLockedUntil(null);
+        mfa.setUpdatedAt(now);
+        sysAccountMfaMapper.updateById(mfa);
+    }
+
+    /**
+     * 待绑定状态缺少临时密钥时生成新的 TOTP 密钥。
+     *
+     * @param app           系统应用
+     * @param account       登录账号
+     * @param mfa           MFA 配置
+     * @param challengeType MFA 挑战类型
+     * @param now           当前时间
+     * @return 可用于绑定的 MFA 配置
+     */
+    private SysAccountMfaDO preparePendingMfaIfNecessary(SysAppDO app,
+                                                         SysAccountDO account,
+                                                         SysAccountMfaDO mfa,
+                                                         String challengeType,
+                                                         LocalDateTime now) {
+        if (!AuthConstants.MFA_CHALLENGE_BIND_REQUIRED.equals(challengeType)
+                && !AuthConstants.MFA_CHALLENGE_RESET_BIND_REQUIRED.equals(challengeType)) {
+            return mfa;
+        }
+        SysAccountMfaDO target = mfa == null ? new SysAccountMfaDO() : mfa;
+        boolean insert = target.getId() == null;
+        target.setAppId(app.getId());
+        target.setAccountId(account.getId());
+        target.setUserId(account.getUserId());
+        target.setMerchantId(account.getMerchantId());
+        target.setMfaPolicy(AuthConstants.MFA_POLICY_REQUIRED);
+        target.setMfaStatus(AuthConstants.MFA_CHALLENGE_RESET_BIND_REQUIRED.equals(challengeType)
+                ? AuthConstants.MFA_STATUS_RESET_REQUIRED
+                : AuthConstants.MFA_STATUS_PENDING_BIND);
+        target.setMfaType(AuthConstants.MFA_TYPE_TOTP);
+        target.setIssuer(resolveMfaIssuer(app));
+        target.setAccountLabel(resolveMfaAccountLabel(app, account));
+        target.setFailedVerifyCount(0);
+        target.setLastSuccessTimeStep(null);
+        target.setLockedUntil(null);
+        target.setUpdatedAt(now);
+        if (!StringUtils.hasText(target.getPendingSecretCipher())) {
+            target.setPendingSecretCipher(MfaSecretCrypto.encrypt(TotpUtils.generateBase32Secret()));
+        }
+        if (insert) {
+            target.setCreatedAt(now);
+            target.setDeleted(AuthConstants.NOT_DELETED);
+            sysAccountMfaMapper.insert(target);
+        } else {
+            sysAccountMfaMapper.updateById(target);
+        }
+        return target;
+    }
+
+    /**
+     * 创建 MFA 登录票据，票据明文只返回给前端，数据库只保存哈希。
+     *
+     * @param app           系统应用
+     * @param account       登录账号
+     * @param challengeType 挑战类型
+     * @param clientIp      客户端 IP
+     * @param userAgent     User-Agent
+     * @param now           当前时间
+     * @return MFA 登录票据
+     */
+    private MfaLoginTicket createMfaLoginTicket(SysAppDO app,
+                                                SysAccountDO account,
+                                                String challengeType,
+                                                String clientIp,
+                                                String userAgent,
+                                                LocalDateTime now) {
+        sysAccountMfaTokenMapper.update(
+                Wrappers.<SysAccountMfaTokenDO>lambdaUpdate()
+                        .set(SysAccountMfaTokenDO::getUsed, AuthConstants.ENABLED)
+                        .set(SysAccountMfaTokenDO::getUsedAt, now)
+                        .set(SysAccountMfaTokenDO::getUpdatedAt, now)
+                        .eq(SysAccountMfaTokenDO::getAppId, app.getId())
+                        .eq(SysAccountMfaTokenDO::getAccountId, account.getId())
+                        .eq(SysAccountMfaTokenDO::getTokenType, MFA_TOKEN_TYPE_LOGIN)
+                        .eq(SysAccountMfaTokenDO::getUsed, AuthConstants.DISABLED)
+                        .eq(SysAccountMfaTokenDO::getDeleted, AuthConstants.NOT_DELETED)
+        );
+        String rawTicket = LoginTokenUtils.generateToken();
+        SysAccountMfaTokenDO token = new SysAccountMfaTokenDO();
+        token.setAppId(app.getId());
+        token.setAccountId(account.getId());
+        token.setTokenType(MFA_TOKEN_TYPE_LOGIN);
+        token.setTokenHash(LoginTokenUtils.hashToken(rawTicket));
+        token.setChallengeType(challengeType);
+        token.setExpireAt(now.plusSeconds(MFA_LOGIN_TICKET_TTL_SECONDS));
+        token.setUsed(AuthConstants.DISABLED);
+        token.setClientIp(normalizeIp(clientIp));
+        token.setUserAgent(userAgent);
+        token.setCreatedAt(now);
+        token.setUpdatedAt(now);
+        token.setDeleted(AuthConstants.NOT_DELETED);
+        sysAccountMfaTokenMapper.insert(token);
+        return new MfaLoginTicket(rawTicket, token);
+    }
+
+    /**
+     * 校验 MFA 登录票据并加载账号。
+     *
+     * @param app         系统应用
+     * @param loginTicket MFA 登录票据明文
+     * @return 票据上下文
+     */
+    private MfaTicketContext requireMfaTicket(SysAppDO app, String loginTicket) {
+        if (!StringUtils.hasText(loginTicket)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "loginTicket is required");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        SysAccountMfaTokenDO ticket = sysAccountMfaTokenMapper.selectOne(
+                Wrappers.<SysAccountMfaTokenDO>lambdaQuery()
+                        .eq(SysAccountMfaTokenDO::getAppId, app.getId())
+                        .eq(SysAccountMfaTokenDO::getTokenType, MFA_TOKEN_TYPE_LOGIN)
+                        .eq(SysAccountMfaTokenDO::getTokenHash, LoginTokenUtils.hashToken(loginTicket))
+                        .eq(SysAccountMfaTokenDO::getUsed, AuthConstants.DISABLED)
+                        .eq(SysAccountMfaTokenDO::getDeleted, AuthConstants.NOT_DELETED)
+                        .gt(SysAccountMfaTokenDO::getExpireAt, now)
+                        .last("LIMIT 1")
+        );
+        if (ticket == null) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "loginTicket is invalid or expired");
+        }
+        SysAccountDO account = getEnabledAccount(ticket.getAccountId());
+        if (!Objects.equals(account.getAppId(), app.getId())) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "loginTicket is invalid or expired");
+        }
+        return new MfaTicketContext(ticket, account);
+    }
+
+    /**
+     * 标记 MFA 登录票据已使用。
+     *
+     * @param ticket 票据实体
+     * @param now    当前时间
+     */
+    private void markMfaTicketUsed(SysAccountMfaTokenDO ticket, LocalDateTime now) {
+        ticket.setUsed(AuthConstants.ENABLED);
+        ticket.setUsedAt(now);
+        ticket.setUpdatedAt(now);
+        sysAccountMfaTokenMapper.updateById(ticket);
+    }
+
+    /**
+     * 验证 TOTP；失败时累计次数、必要时临时锁定并写审计日志。
+     *
+     * @param app          系统应用
+     * @param account      登录账号
+     * @param mfa          MFA 配置
+     * @param secretCipher 密钥密文
+     * @param code         用户输入验证码
+     * @param actionType   操作类型
+     * @param clientIp     客户端 IP
+     * @param userAgent    User-Agent
+     * @return 命中的 TOTP 时间步
+     */
+    private Long verifyTotpOrRecordFailure(SysAppDO app,
+                                           SysAccountDO account,
+                                           SysAccountMfaDO mfa,
+                                           String secretCipher,
+                                           String code,
+                                           String actionType,
+                                           String clientIp,
+                                           String userAgent) {
+        LocalDateTime now = LocalDateTime.now();
+        if (AuthConstants.MFA_STATUS_LOCKED.equals(mfa.getMfaStatus())
+                && mfa.getLockedUntil() != null
+                && mfa.getLockedUntil().isAfter(now)) {
+            recordMfaLog(app, account, mfa, actionType, MFA_RESULT_FAILED, "mfa locked", null, clientIp, userAgent);
+            throw new ServiceException(ApiResultEnum.TOO_MANY_REQUESTS.getCode(), "mfa is temporarily locked");
+        }
+        Long timeStep = TotpUtils.verify(MfaSecretCrypto.decrypt(secretCipher), code, Instant.now(), MFA_TOTP_PERIOD_SECONDS, MFA_TOTP_WINDOW);
+        if (timeStep == null || (mfa.getLastSuccessTimeStep() != null && timeStep <= mfa.getLastSuccessTimeStep())) {
+            increaseMfaFailedCount(app, account, mfa, actionType, clientIp, userAgent, now);
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "mfa code is invalid");
+        }
+        return timeStep;
+    }
+
+    /**
+     * 累计 OTP 失败次数，达到阈值后临时锁定。
+     *
+     * @param app        系统应用
+     * @param account    登录账号
+     * @param mfa        MFA 配置
+     * @param actionType 操作类型
+     * @param clientIp   客户端 IP
+     * @param userAgent  User-Agent
+     * @param now        当前时间
+     */
+    private void increaseMfaFailedCount(SysAppDO app,
+                                        SysAccountDO account,
+                                        SysAccountMfaDO mfa,
+                                        String actionType,
+                                        String clientIp,
+                                        String userAgent,
+                                        LocalDateTime now) {
+        int failedCount = defaultInt(mfa.getFailedVerifyCount()) + 1;
+        mfa.setFailedVerifyCount(failedCount);
+        if (failedCount >= MFA_MAX_FAILED_ATTEMPTS) {
+            mfa.setMfaStatus(AuthConstants.MFA_STATUS_LOCKED);
+            mfa.setLockedUntil(now.plusMinutes(MFA_LOCK_MINUTES));
+        }
+        mfa.setUpdatedAt(now);
+        sysAccountMfaMapper.updateById(mfa);
+        recordMfaLog(app, account, mfa, actionType, MFA_RESULT_FAILED,
+                failedCount >= MFA_MAX_FAILED_ATTEMPTS ? "mfa locked by retry limit" : "mfa code invalid",
+                null, clientIp, userAgent);
+    }
+
+    /**
+     * 构建 MFA 挑战响应，账号密码已通过但尚未签发真实登录会话。
+     *
+     * @param app     系统应用
+     * @param user    用户主体
+     * @param account 登录账号
+     * @param mfa     MFA 配置
+     * @param ticket  MFA 登录票据
+     * @return MFA 挑战响应
+     */
+    private AuthLoginResponse buildMfaChallengeResponse(SysAppDO app,
+                                                        SysUserDO user,
+                                                        SysAccountDO account,
+                                                        SysAccountMfaDO mfa,
+                                                        MfaLoginTicket ticket) {
+        AuthLoginResponse response = new AuthLoginResponse();
+        response.setLoginStatus(AuthConstants.LOGIN_STATUS_MFA_REQUIRED);
+        response.setMfaRequired(Boolean.TRUE);
+        response.setMfaChallengeType(ticket.token().getChallengeType());
+        response.setLoginTicket(ticket.rawTicket());
+        response.setLoginTicketExpireAt(ticket.token().getExpireAt());
+        response.setMfaPolicy(resolveMfaPolicy(mfa));
+        response.setMfaStatus(resolveMfaStatus(mfa));
+        response.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
+        response.setAccount(toAccountDTO(app, user, account));
+        return response;
+    }
+
+    /**
+     * 构建 MFA 锁定响应，不返回登录票据。
+     *
+     * @param app     系统应用
+     * @param user    用户主体
+     * @param account 登录账号
+     * @param mfa     MFA 配置
+     * @return MFA 锁定响应
+     */
+    private AuthLoginResponse buildMfaLockedResponse(SysAppDO app, SysUserDO user, SysAccountDO account, SysAccountMfaDO mfa) {
+        AuthLoginResponse response = new AuthLoginResponse();
+        response.setLoginStatus(AuthConstants.LOGIN_STATUS_MFA_REQUIRED);
+        response.setMfaRequired(Boolean.TRUE);
+        response.setMfaChallengeType(AuthConstants.MFA_CHALLENGE_LOCKED);
+        response.setMfaPolicy(resolveMfaPolicy(mfa));
+        response.setMfaStatus(resolveMfaStatus(mfa));
+        response.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
+        response.setAccount(toAccountDTO(app, user, account));
+        return response;
+    }
+
+    /**
+     * 记录 MFA 安全审计事件。
+     *
+     * @param app                系统应用
+     * @param account            登录账号
+     * @param mfa                MFA 配置
+     * @param actionType         操作类型
+     * @param result             操作结果
+     * @param reason             原因说明
+     * @param operatorAccount    操作人
+     * @param clientIp           客户端 IP
+     * @param userAgent          User-Agent
+     */
+    private void recordMfaLog(SysAppDO app,
+                              SysAccountDO account,
+                              SysAccountMfaDO mfa,
+                              String actionType,
+                              String result,
+                              String reason,
+                              InternalAuthAccount operatorAccount,
+                              String clientIp,
+                              String userAgent) {
+        SysAccountMfaLogDO log = new SysAccountMfaLogDO();
+        log.setAppId(app.getId());
+        log.setAccountId(account == null ? null : account.getId());
+        log.setUserId(account == null ? null : account.getUserId());
+        log.setMerchantId(account == null ? null : account.getMerchantId());
+        log.setActionType(actionType);
+        log.setResult(result);
+        log.setReason(reason);
+        log.setBeforePolicy(resolveMfaPolicy(mfa));
+        log.setBeforeStatus(resolveMfaStatus(mfa));
+        log.setAfterPolicy(resolveMfaPolicy(mfa));
+        log.setAfterStatus(resolveMfaStatus(mfa));
+        log.setOperatorAccountId(operatorAccount == null ? null : operatorAccount.getAccountId());
+        log.setOperatorLoginAccount(operatorAccount == null ? null : operatorAccount.getLoginAccount());
+        log.setClientIp(normalizeIp(clientIp));
+        log.setUserAgent(userAgent);
+        log.setEventTime(LocalDateTime.now());
+        log.setCreatedAt(LocalDateTime.now());
+        sysAccountMfaLogMapper.insert(log);
+    }
+
+    /**
+     * 拼接 MFA 状态变化原因。
+     *
+     * @param beforePolicy 变更前策略
+     * @param beforeStatus 变更前状态
+     * @param mfa          变更后 MFA 配置
+     * @return 状态变化说明
+     */
+    private String statusChangeReason(String beforePolicy, String beforeStatus, SysAccountMfaDO mfa) {
+        return beforePolicy + "/" + beforeStatus + " -> " + resolveMfaPolicy(mfa) + "/" + resolveMfaStatus(mfa);
+    }
+
+    /**
+     * 获取 MFA 策略展示值。
+     *
+     * @param mfa MFA 配置
+     * @return MFA 策略
+     */
+    private String resolveMfaPolicy(SysAccountMfaDO mfa) {
+        return mfa == null ? AuthConstants.MFA_POLICY_OPTIONAL : mfa.getMfaPolicy();
+    }
+
+    /**
+     * 获取 MFA 状态展示值。
+     *
+     * @param mfa MFA 配置
+     * @return MFA 状态
+     */
+    private String resolveMfaStatus(SysAccountMfaDO mfa) {
+        return mfa == null ? AuthConstants.MFA_STATUS_NOT_ENABLED : mfa.getMfaStatus();
+    }
+
+    /**
+     * 解析验证器发行方。
+     *
+     * @param app 系统应用
+     * @return 发行方
+     */
+    private String resolveMfaIssuer(SysAppDO app) {
+        return AuthConstants.APP_ADMIN.equals(app.getAppCode()) ? "Acquiring Admin" : "Acquiring Merchant";
+    }
+
+    /**
+     * 解析验证器账号标签。
+     *
+     * @param app     系统应用
+     * @param account 登录账号
+     * @return 账号标签
+     */
+    private String resolveMfaAccountLabel(SysAppDO app, SysAccountDO account) {
+        if (AuthConstants.APP_MERCHANT.equals(app.getAppCode()) && StringUtils.hasText(account.getMerchantId())) {
+            return account.getMerchantId() + ":" + account.getLoginAccount();
+        }
+        return account.getLoginAccount();
+    }
+
+    /**
+     * 脱敏登录账号。
+     *
+     * @param loginAccount 登录账号
+     * @return 脱敏账号
+     */
+    private String maskLoginAccount(String loginAccount) {
+        if (!StringUtils.hasText(loginAccount)) {
+            return "-";
+        }
+        if (loginAccount.contains("@")) {
+            return maskReceiver(loginAccount, "EMAIL");
+        }
+        if (loginAccount.length() <= 2) {
+            return loginAccount.charAt(0) + "***";
+        }
+        return loginAccount.substring(0, 2) + "***" + loginAccount.substring(loginAccount.length() - 1);
+    }
+
+    private record MfaLoginTicket(String rawTicket, SysAccountMfaTokenDO token) {
+    }
+
+    private record MfaTicketContext(SysAccountMfaTokenDO ticket, SysAccountDO account) {
     }
 
     /**
@@ -1248,6 +2083,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         response.setMenus(queryMenuTree(app, account, roleIds));
         response.setRoles(queryRoleCodes(app, roleIds));
         response.setPermissions(queryPermissionCodes(app, account, roleIds));
+        SysAccountMfaDO mfa = loadMfa(app.getId(), account.getId());
+        response.setLoginStatus(AuthConstants.LOGIN_STATUS_SUCCESS);
+        response.setMfaRequired(Boolean.FALSE);
+        response.setMfaPolicy(resolveMfaPolicy(mfa));
+        response.setMfaStatus(resolveMfaStatus(mfa));
+        response.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
         return response;
     }
 
@@ -1280,6 +2121,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         dto.setAppCode(app.getAppCode());
         dto.setLoginAccount(account.getLoginAccount());
         dto.setRealName(user.getRealName());
+        dto.setNickname(user.getNickname());
         dto.setMobile(firstText(user.getMobile(), account.getMobile()));
         dto.setEmail(firstText(user.getEmail(), account.getEmail()));
         dto.setRoleNames(queryRoleNames(app, roleIds));
@@ -1305,6 +2147,30 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private String firstText(String primary, String secondary) {
         return StringUtils.hasText(primary) ? primary : secondary;
+    }
+
+    /**
+     * 获取必填文本并去除首尾空白。
+     *
+     * @param value     原始文本
+     * @param fieldName 字段名
+     * @return 规范化文本
+     */
+    private String requiredText(String value, String fieldName) {
+        if (!StringUtils.hasText(value)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), fieldName + " is required");
+        }
+        return value.trim();
+    }
+
+    /**
+     * 获取可选文本并去除首尾空白。
+     *
+     * @param value 原始文本
+     * @return 规范化文本或 null
+     */
+    private String optionalText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     /**

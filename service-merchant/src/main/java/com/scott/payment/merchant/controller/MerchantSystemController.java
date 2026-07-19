@@ -7,7 +7,11 @@ import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountBaseSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountDTO;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaActionRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaExemptRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaStatusResponse;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountQueryRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountResetPasswordRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptQueryRequest;
@@ -26,6 +30,7 @@ import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleQueryRequest
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.RoleSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.StatusRequest;
 import com.scott.payment.merchant.service.MerchantSystemService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -255,6 +260,22 @@ public class MerchantSystemController {
     }
 
     /**
+     * 重置商户员工登录密码，并强制注销该账号已有会话。
+     *
+     * @param id      员工账号ID
+     * @param request 重置密码请求
+     * @return 空结果
+     */
+    @PostMapping("/accounts/{id}/reset-password")
+    @RequiresPermission("merchant:system:account:resetPassword")
+    @OperationLog(moduleName = "商户员工管理", businessType = OperationTypeConstants.UPDATE, operation = "重置商户员工密码")
+    public CommonResult<Void> resetAccountPassword(@PathVariable("id") Long id,
+                                                   @Valid @RequestBody AccountResetPasswordRequest request) {
+        merchantSystemService.resetAccountPassword(id, request);
+        return success();
+    }
+
+    /**
      * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
      * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
@@ -304,6 +325,96 @@ public class MerchantSystemController {
     public CommonResult<Void> assignAccountPosts(@PathVariable("id") Long id, @RequestBody IdsRequest request) {
         merchantSystemService.assignAccountPosts(id, request);
         return success();
+    }
+
+    /**
+     * 强制启用商户员工 MFA。
+     *
+     * @param id      账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @PostMapping("/accounts/{id}/mfa/require")
+    @RequiresPermission("merchant:system:account:mfa:require")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "强制启用商户员工 MFA")
+    public CommonResult<AccountMfaStatusResponse> requireAccountMfa(@PathVariable("id") Long id,
+                                                                    @Valid @RequestBody AccountMfaActionRequest request) {
+        return success(merchantSystemService.requireAccountMfa(id, request));
+    }
+
+    /**
+     * 重置商户员工 MFA。
+     *
+     * @param id      账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @PostMapping("/accounts/{id}/mfa/reset")
+    @RequiresPermission("merchant:system:account:mfa:reset")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "重置商户员工 MFA")
+    public CommonResult<AccountMfaStatusResponse> resetAccountMfa(@PathVariable("id") Long id,
+                                                                  @Valid @RequestBody AccountMfaActionRequest request) {
+        return success(merchantSystemService.resetAccountMfa(id, request));
+    }
+
+    /**
+     * 豁免商户员工 MFA。
+     *
+     * @param id      账号ID
+     * @param request 豁免请求
+     * @return MFA 状态
+     */
+    @PostMapping("/accounts/{id}/mfa/exempt")
+    @RequiresPermission("merchant:system:account:mfa:exempt")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "豁免商户员工 MFA")
+    public CommonResult<AccountMfaStatusResponse> exemptAccountMfa(@PathVariable("id") Long id,
+                                                                   @Valid @RequestBody AccountMfaExemptRequest request) {
+        return success(merchantSystemService.exemptAccountMfa(id, request));
+    }
+
+    /**
+     * 停用商户员工 MFA。
+     *
+     * @param id      账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @PostMapping("/accounts/{id}/mfa/disable")
+    @RequiresPermission("merchant:system:account:mfa:disable")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "停用商户员工 MFA")
+    public CommonResult<AccountMfaStatusResponse> disableAccountMfa(@PathVariable("id") Long id,
+                                                                    @Valid @RequestBody AccountMfaActionRequest request) {
+        return success(merchantSystemService.disableAccountMfa(id, request));
+    }
+
+    /**
+     * 解锁商户员工 MFA。
+     *
+     * @param id      账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @PostMapping("/accounts/{id}/mfa/unlock")
+    @RequiresPermission("merchant:system:account:mfa:unlock")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "解锁商户员工 MFA")
+    public CommonResult<AccountMfaStatusResponse> unlockAccountMfa(@PathVariable("id") Long id,
+                                                                   @Valid @RequestBody AccountMfaActionRequest request) {
+        return success(merchantSystemService.unlockAccountMfa(id, request));
+    }
+
+    /**
+     * 重发商户员工 MFA 绑定邮件。
+     *
+     * @param id      账号ID
+     * @param request 操作请求
+     * @return MFA 状态
+     */
+    @PostMapping("/accounts/{id}/mfa/resend-bind-mail")
+    @RequiresPermission("merchant:system:account:mfa:resend")
+    @OperationLog(moduleName = "商户员工 MFA", businessType = OperationTypeConstants.UPDATE, operation = "重发商户员工 MFA 绑定邮件")
+    public CommonResult<AccountMfaStatusResponse> resendAccountMfaBindMail(@PathVariable("id") Long id,
+                                                                          @Valid @RequestBody AccountMfaActionRequest request) {
+        return success(merchantSystemService.resendAccountMfaBindMail(id, request));
     }
 
     /**

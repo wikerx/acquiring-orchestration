@@ -31,9 +31,8 @@ public class AuthVerifyCodeSendRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 登录账号。
+     * 登录账号。图形验证码生成不依赖账号，兼容旧前端传入但不作为身份校验依据。
      */
-    @NotBlank(message = "loginAccount")
     private String loginAccount;
 
     /**

@@ -7,6 +7,7 @@ import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
+import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -55,21 +56,29 @@ public class OpenApiRequestHeaderExtractor {
     private final MerchantIpWhitelistAccessService ipWhitelistAccessService;
 
     /**
+     * 安全拦截事件记录器，仅记录脱敏排查元数据。
+     */
+    private final SecurityInterceptEventRecorder securityInterceptEventRecorder;
+
+    /**
      * 创建开放接口请求头提取器。
      *
      * @param merchantJwtVerifier    商户 JWT 验签器
      * @param merchantKeyProvider    商户密钥提供器
      * @param replayProtectionService JWT 防重放服务
      * @param ipWhitelistAccessService 商户 IP 白名单访问控制服务
+     * @param securityInterceptEventRecorder 安全拦截事件记录器
      */
     public OpenApiRequestHeaderExtractor(MerchantJwtVerifier merchantJwtVerifier,
                                          MerchantKeyProvider merchantKeyProvider,
                                          OpenApiJwtReplayProtectionService replayProtectionService,
-                                         MerchantIpWhitelistAccessService ipWhitelistAccessService) {
+                                         MerchantIpWhitelistAccessService ipWhitelistAccessService,
+                                         SecurityInterceptEventRecorder securityInterceptEventRecorder) {
         this.merchantJwtVerifier = merchantJwtVerifier;
         this.merchantKeyProvider = merchantKeyProvider;
         this.replayProtectionService = replayProtectionService;
         this.ipWhitelistAccessService = ipWhitelistAccessService;
+        this.securityInterceptEventRecorder = securityInterceptEventRecorder;
     }
 
     /**
@@ -80,14 +89,48 @@ public class OpenApiRequestHeaderExtractor {
      * @return 标准化请求头信息
      */
     public OpenApiRequestHeaderDTO extract(HttpServletRequest request, String[] requiredHeaders) {
-        validateRequiredHeaders(request, requiredHeaders);
+        try {
+            validateRequiredHeaders(request, requiredHeaders);
+        } catch (RuntimeException exception) {
+            recordBlocked(request, "OPENAPI_REQUIRED_HEADER_MISSING", SecurityInterceptEventRecorder.RISK_MEDIUM,
+                    null, "OPENAPI_REQUIRED_HEADER", exception);
+            throw exception;
+        }
         String authorization = request.getHeader(HEADER_AUTHORIZATION);
-        String token = resolveToken(authorization);
-        String merchantId = merchantJwtVerifier.peekMerchantId(token);
-        String merchantKey = merchantKeyProvider.getMerchantKey(merchantId);
-        JwtMerchantClaims claims = merchantJwtVerifier.verify(token, merchantKey);
-        String clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
-        replayProtectionService.checkAndMark(claims.getMerchantId(), claims.getJwtId(), claims.getExpiresAt());
+        String token;
+        try {
+            token = resolveToken(authorization);
+        } catch (RuntimeException exception) {
+            recordBlocked(request, "OPENAPI_JWT_INVALID", SecurityInterceptEventRecorder.RISK_MEDIUM,
+                    null, "OPENAPI_JWT", exception);
+            throw exception;
+        }
+        String merchantId = null;
+        JwtMerchantClaims claims;
+        try {
+            merchantId = merchantJwtVerifier.peekMerchantId(token);
+            String merchantKey = merchantKeyProvider.getMerchantKey(merchantId);
+            claims = merchantJwtVerifier.verify(token, merchantKey);
+        } catch (RuntimeException exception) {
+            recordBlocked(request, "OPENAPI_JWT_INVALID", SecurityInterceptEventRecorder.RISK_HIGH,
+                    merchantId, "OPENAPI_JWT", exception);
+            throw exception;
+        }
+        String clientIp;
+        try {
+            clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
+        } catch (RuntimeException exception) {
+            recordBlocked(request, "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
+                    claims.getMerchantId(), "OPENAPI_IP_WHITELIST", exception);
+            throw exception;
+        }
+        try {
+            replayProtectionService.checkAndMark(claims.getMerchantId(), claims.getJwtId(), claims.getExpiresAt());
+        } catch (RuntimeException exception) {
+            recordBlocked(request, resolveReplayEventType(exception), SecurityInterceptEventRecorder.RISK_HIGH,
+                    claims.getMerchantId(), "OPENAPI_JWT_REPLAY", exception);
+            throw exception;
+        }
 
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setAuthorization(token);
@@ -97,6 +140,32 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
         return headerDTO;
+    }
+
+    private void recordBlocked(HttpServletRequest request,
+                               String eventType,
+                               String riskLevel,
+                               String merchantId,
+                               String hitRuleCode,
+                               RuntimeException exception) {
+        securityInterceptEventRecorder.recordBlocked(
+                request,
+                SecurityInterceptEventRecorder.SOURCE_OPENAPI,
+                eventType,
+                riskLevel,
+                merchantId,
+                hitRuleCode,
+                securityInterceptEventRecorder.reasonCode(exception),
+                securityInterceptEventRecorder.reasonMessage(exception)
+        );
+    }
+
+    private String resolveReplayEventType(RuntimeException exception) {
+        String reasonCode = securityInterceptEventRecorder.reasonCode(exception);
+        if (ApiResultEnum.INTERNAL_SERVER_ERROR.getCode().equals(reasonCode)) {
+            return "OPENAPI_REPLAY_UNAVAILABLE";
+        }
+        return "OPENAPI_REPLAY_DENIED";
     }
 
     /**

@@ -3,7 +3,11 @@ package com.scott.payment.merchant.service;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountBaseSaveRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaActionRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaExemptRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaStatusResponse;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountQueryRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountResetPasswordRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptQueryRequest;
@@ -68,6 +72,8 @@ public interface MerchantSystemService {
 
     void deleteAccount(Long id);
 
+    void resetAccountPassword(Long id, AccountResetPasswordRequest request);
+
     void updateAccountStatus(Long id, Integer status);
 
     void assignAccountRoles(Long id, IdsRequest request);
@@ -75,6 +81,18 @@ public interface MerchantSystemService {
     void assignAccountDepts(Long id, IdsRequest request);
 
     void assignAccountPosts(Long id, IdsRequest request);
+
+    AccountMfaStatusResponse requireAccountMfa(Long id, AccountMfaActionRequest request);
+
+    AccountMfaStatusResponse resetAccountMfa(Long id, AccountMfaActionRequest request);
+
+    AccountMfaStatusResponse exemptAccountMfa(Long id, AccountMfaExemptRequest request);
+
+    AccountMfaStatusResponse disableAccountMfa(Long id, AccountMfaActionRequest request);
+
+    AccountMfaStatusResponse unlockAccountMfa(Long id, AccountMfaActionRequest request);
+
+    AccountMfaStatusResponse resendAccountMfaBindMail(Long id, AccountMfaActionRequest request);
 
     List<RoleDTO> listRoles();
 

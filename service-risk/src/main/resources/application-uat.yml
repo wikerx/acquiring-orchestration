@@ -1,0 +1,38 @@
+# 环境接入配置：当前文件只负责连接 UAT 环境的 Nacos 命名空间。
+# service-risk 当前为实时风控骨架服务，只拉取服务专属配置和公共配置；接入规则库、名单库或 MQ 后再显式增加对应 DataId。
+spring:
+  config:
+    import:
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+  cloud:
+    bootstrap:
+      enabled: true
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:nacos-uat:8848}
+        namespace: ${NACOS_NAMESPACE:uat}
+        # UAT/生产环境不得保留 Nacos 默认账号密码，必须由环境变量、K8s Secret 或 CI/CD Secret 注入。
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        register-enabled: true
+      config:
+        server-addr: ${NACOS_SERVER:nacos-uat:8848}
+        namespace: ${spring.cloud.nacos.discovery.namespace}
+        username: ${spring.cloud.nacos.discovery.username}
+        password: ${spring.cloud.nacos.discovery.password}
+        group: DEFAULT_GROUP
+        file-extension: yaml
+        encode: UTF-8
+        refresh-enabled: true
+        config-retry-time: 3
+
+logging:
+  config: classpath:log-config/logback-spring.xml
+
+internal-service:
+  auth:
+    enabled: true
+    # UAT 内部服务 HMAC-SHA256 共享密钥，必须与 service-payment 的 payment.risk-client.internal-secret 保持一致。
+    # 推荐通过 K8s Secret、CI/CD Secret 或主机环境变量注入：INTERNAL_SERVICE_AUTH_SECRET=<32位以上随机高强度密钥>。
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}

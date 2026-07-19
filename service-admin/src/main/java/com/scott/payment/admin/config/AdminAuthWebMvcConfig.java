@@ -68,6 +68,9 @@ public class AdminAuthWebMvcConfig implements WebMvcConfigurer {
         return List.of(
                 "/admin/auth/login",
                 "/admin/auth/verify-code/send",
+                "/admin/auth/mfa/bind-info",
+                "/admin/auth/mfa/bind-confirm",
+                "/admin/auth/mfa/verify",
                 "/admin/health/**",
                 "/actuator/health/**",
                 "/swagger-ui/**",

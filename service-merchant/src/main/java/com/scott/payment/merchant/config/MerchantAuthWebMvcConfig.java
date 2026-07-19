@@ -13,25 +13,16 @@ import java.util.List;
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantAuthWebMvcConfig
- * @date : 2026-06-06 00:00
- * @email : scott_x@163.com
- * @description : 商户后台接口自动鉴权配置
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantAuthWebMvcConfig
  * @date : 2026-07-04 16:30
  * @email : scott_x@163.com
- * @description : 商户管理Merchant Auth Web Mvc 配置，位于 service-merchant 的配置层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : 商户后台鉴权拦截配置，统一注册商户端登录态校验，并放行登录、验证码、MFA 登录前置阶段接口。
  * @status : create
  */
 @Configuration
 public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
 
     /**
-     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 系统鉴权服务，用于拦截器解析和校验商户后台登录态。
      */
     private final SystemAuthService systemAuthService;
 
@@ -49,10 +40,6 @@ public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
      *
      * @param registry 拦截器注册器
      */
-    /**
-     * 创建或保存商户管理数据，保持请求校验、默认值和审计字段一致。
-     * @param registry 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(new InternalAuthInterceptor(AuthConstants.APP_MERCHANT, systemAuthService, whitelist()))
@@ -69,6 +56,9 @@ public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
                 "/merchant/auth/login",
                 "/merchant/auth/default-login-credential",
                 "/merchant/auth/verify-code/send",
+                "/merchant/auth/mfa/bind-info",
+                "/merchant/auth/mfa/bind-confirm",
+                "/merchant/auth/mfa/verify",
                 "/merchant/health/**",
                 "/actuator/health/**",
                 "/swagger-ui/**",
