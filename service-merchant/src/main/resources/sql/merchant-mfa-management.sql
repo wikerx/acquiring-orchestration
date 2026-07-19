@@ -182,6 +182,31 @@ WHERE role.deleted = 0
       'merchant:system:account:mfa:resend'
   );
 
+-- 商户系统权限会先取“角色权限”和“平台开放权限”的交集；新按钮必须同步开放给已有商户，否则前端不会展示 OTP 管理入口。
+INSERT IGNORE INTO sys_merchant_permission_grant (
+    merchant_id, app_id, permission_id, grant_source, status, created_at, updated_at, deleted
+)
+SELECT merchant.merchant_id,
+       permission.app_id,
+       permission.id,
+       'SYSTEM',
+       1,
+       CURRENT_TIMESTAMP(3),
+       CURRENT_TIMESTAMP(3),
+       0
+FROM base_merchant_info merchant
+JOIN sys_app app ON app.app_code = 'MERCHANT' AND app.deleted = 0
+JOIN sys_permission permission ON permission.app_id = app.id AND permission.deleted = 0
+WHERE merchant.deleted = 0
+  AND permission.permission_code IN (
+      'merchant:system:account:mfa:require',
+      'merchant:system:account:mfa:reset',
+      'merchant:system:account:mfa:exempt',
+      'merchant:system:account:mfa:disable',
+      'merchant:system:account:mfa:unlock',
+      'merchant:system:account:mfa:resend'
+  );
+
 INSERT IGNORE INTO sys_dict_data (dict_type, dict_label, dict_value, locale, dict_sort, list_class, is_default, status, deleted)
 VALUES
 ('email_scene_code', '商户 OTP 安全通知', 'MERCHANT_MFA', 'zh-CN', 8, 'danger', 0, 1, 0),

@@ -619,7 +619,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         user.setUserType(AuthConstants.USER_TYPE_MERCHANT);
         user.setRealName(required(request.getRealName(), "realName"));
         user.setMobile(normalize(request.getMobile()));
-        user.setEmail(normalize(request.getEmail()));
+        user.setEmail(required(request.getEmail(), "email"));
         user.setStatus(validStatus(request.getStatus()));
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
@@ -1448,7 +1448,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         SysUserDO user = sysUserMapper.selectById(account.getUserId());
         user.setRealName(required(request.getRealName(), "realName"));
         user.setMobile(normalize(request.getMobile()));
-        user.setEmail(normalize(request.getEmail()));
+        user.setEmail(required(request.getEmail(), "email"));
         user.setStatus(validStatus(request.getStatus()));
         user.setUpdatedAt(LocalDateTime.now());
         user.setUpdatedBy(currentAccountId());
