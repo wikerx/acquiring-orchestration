@@ -179,6 +179,11 @@ WHERE role.app_id = 1
         AND exists_relation.deleted = 0
   );
 
+INSERT IGNORE INTO sys_dict_data (dict_type, dict_label, dict_value, locale, dict_sort, list_class, is_default, status, deleted)
+VALUES
+('email_scene_code', '管理系统 MFA 安全通知', 'ADMIN_MFA', 'zh-CN', 7, 'danger', 0, 1, 0),
+('email_scene_code', 'Admin MFA Security', 'ADMIN_MFA', 'en-US', 7, 'danger', 0, 1, 0);
+
 INSERT INTO msg_email_template (
     template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
     content_template, variable_schema, sensitive_variable_names, status, system_builtin, version_no,
