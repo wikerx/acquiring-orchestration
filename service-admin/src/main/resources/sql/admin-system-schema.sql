@@ -462,6 +462,7 @@ VALUES
 INSERT IGNORE INTO sys_role (id, app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
 VALUES
     (1, 1, 'ADMIN_OPERATOR', '后台操作员', 'SYSTEM', 'ALL', '管理后台默认角色', 1, 1, 0),
+    (3, 1, 'SUPER_ADMIN', '超级管理员', 'SYSTEM', 'ALL', '管理后台超级管理员角色，内置通配权限，仅用于平台最高权限账号', 1, 0, 0),
     (2, 2, 'MERCHANT_ADMIN', '商户管理员', 'SYSTEM', 'SELF', '商户系统默认管理员角色', 1, 1, 0);
 
 INSERT INTO sys_user (user_type, real_name, nickname, mobile, email, country_code, language, timezone, status, remark, created_at, updated_at, deleted)
@@ -542,14 +543,14 @@ INSERT IGNORE INTO sys_account_role (app_id, account_id, role_id, deleted)
 SELECT app.id, account.id, role.id, 0
 FROM sys_app app
 JOIN sys_account account ON account.app_id = app.id AND account.login_account = 'admin' AND account.deleted = 0
-JOIN sys_role role ON role.app_id = app.id AND role.role_code = 'ADMIN_OPERATOR' AND role.deleted = 0
+JOIN sys_role role ON role.app_id = app.id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
 WHERE app.app_code = 'ADMIN' AND app.deleted = 0;
 
 INSERT IGNORE INTO sys_account_role (app_id, account_id, role_id, deleted)
 SELECT app.id, account.id, role.id, 0
 FROM sys_app app
 JOIN sys_account account ON account.app_id = app.id AND account.login_account = 'scott' AND account.deleted = 0
-JOIN sys_role role ON role.app_id = app.id AND role.role_code = 'ADMIN_OPERATOR' AND role.deleted = 0
+JOIN sys_role role ON role.app_id = app.id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
 WHERE app.app_code = 'ADMIN' AND app.deleted = 0;
 
 INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
@@ -668,6 +669,7 @@ VALUES
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
+    (671, 1, NULL, '*:*:*', '超级管理员', 'API', '*', '/**', 1, 0),
     (100, 1, 100, 'admin:system:view', '系统管理目录查看', 'MENU', 'GET', '/system/**', 1, 0),
     (101, 1, 101, 'admin:user:view', '用户管理查看', 'MENU', 'GET', '/system/user', 1, 0),
     (102, 1, 102, 'admin:role:view', '角色管理查看', 'MENU', 'GET', '/system/role', 1, 0),
@@ -959,6 +961,12 @@ INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT app_id, 1, id, 0 FROM sys_menu WHERE app_id = 1 AND status = 1 AND visible = 1 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
+SELECT menu.app_id, role.id, menu.id, 0
+FROM sys_menu menu
+JOIN sys_role role ON role.app_id = menu.app_id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
+WHERE menu.app_id = 1 AND menu.status = 1 AND menu.visible = 1 AND menu.deleted = 0;
+
+INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT app_id, 2, id, 0 FROM sys_menu WHERE app_id = 2 AND deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
@@ -993,7 +1001,13 @@ WHERE r.app_id = 2
                             'merchant:system:role:list');
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
-SELECT app_id, 1, id, 0 FROM sys_permission WHERE app_id = 1 AND status = 1 AND deleted = 0;
+SELECT app_id, 1, id, 0 FROM sys_permission WHERE app_id = 1 AND status = 1 AND permission_code <> '*:*:*' AND deleted = 0;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT permission.app_id, role.id, permission.id, 0
+FROM sys_permission permission
+JOIN sys_role role ON role.app_id = permission.app_id AND role.role_code = 'SUPER_ADMIN' AND role.deleted = 0
+WHERE permission.app_id = 1 AND permission.permission_code = '*:*:*' AND permission.status = 1 AND permission.deleted = 0;
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT app_id, 2, id, 0 FROM sys_permission WHERE app_id = 2 AND deleted = 0;
