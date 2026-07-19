@@ -4,6 +4,9 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
 import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
 import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
@@ -135,6 +138,48 @@ class MerchantAuthApplicationServiceTest {
 
         assertThat(actual).isSameAs(expected);
         verify(systemAuthService).login(AuthConstants.APP_MERCHANT, request, "127.0.0.1", "merchant-browser");
+    }
+
+    @Test
+    void shouldDelegateMfaBindInfoToMerchantApp() {
+        AuthMfaBindInfoResponse expected = new AuthMfaBindInfoResponse();
+        when(systemAuthService.mfaBindInfo(AuthConstants.APP_MERCHANT, "ticket")).thenReturn(expected);
+
+        AuthMfaBindInfoResponse actual = merchantAuthApplicationService.mfaBindInfo("ticket");
+
+        assertThat(actual).isSameAs(expected);
+        verify(systemAuthService).mfaBindInfo(AuthConstants.APP_MERCHANT, "ticket");
+    }
+
+    @Test
+    void shouldDelegateMfaBindConfirmToMerchantApp() {
+        AuthMfaBindConfirmRequest request = new AuthMfaBindConfirmRequest();
+        AuthLoginResponse expected = new AuthLoginResponse();
+        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn("8.8.8.8");
+        when(servletRequest.getHeader("User-Agent")).thenReturn("merchant-browser");
+        when(systemAuthService.mfaBindConfirm(AuthConstants.APP_MERCHANT, request, "8.8.8.8", "merchant-browser"))
+                .thenReturn(expected);
+
+        AuthLoginResponse actual = merchantAuthApplicationService.mfaBindConfirm(request, servletRequest);
+
+        assertThat(actual).isSameAs(expected);
+        verify(systemAuthService).mfaBindConfirm(AuthConstants.APP_MERCHANT, request, "8.8.8.8", "merchant-browser");
+    }
+
+    @Test
+    void shouldDelegateMfaVerifyToMerchantApp() {
+        AuthMfaVerifyRequest request = new AuthMfaVerifyRequest();
+        AuthLoginResponse expected = new AuthLoginResponse();
+        when(servletRequest.getHeader("X-Forwarded-For")).thenReturn(null);
+        when(servletRequest.getRemoteAddr()).thenReturn("127.0.0.2");
+        when(servletRequest.getHeader("User-Agent")).thenReturn("merchant-browser");
+        when(systemAuthService.mfaVerify(AuthConstants.APP_MERCHANT, request, "127.0.0.2", "merchant-browser"))
+                .thenReturn(expected);
+
+        AuthLoginResponse actual = merchantAuthApplicationService.mfaVerify(request, servletRequest);
+
+        assertThat(actual).isSameAs(expected);
+        verify(systemAuthService).mfaVerify(AuthConstants.APP_MERCHANT, request, "127.0.0.2", "merchant-browser");
     }
 
     @Test

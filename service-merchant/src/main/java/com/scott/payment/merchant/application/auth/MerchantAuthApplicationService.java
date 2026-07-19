@@ -6,6 +6,9 @@ import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
 import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
 import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
@@ -189,6 +192,48 @@ public class MerchantAuthApplicationService {
      */
     public AuthLoginResponse login(AuthLoginRequest request, HttpServletRequest servletRequest) {
         return systemAuthService.login(
+                AuthConstants.APP_MERCHANT,
+                request,
+                clientIp(servletRequest),
+                servletRequest.getHeader("User-Agent")
+        );
+    }
+
+    /**
+     * 查询商户系统 OTP 绑定信息。
+     *
+     * @param loginTicket 短期登录票据
+     * @return OTP 绑定信息
+     */
+    public AuthMfaBindInfoResponse mfaBindInfo(String loginTicket) {
+        return systemAuthService.mfaBindInfo(AuthConstants.APP_MERCHANT, loginTicket);
+    }
+
+    /**
+     * 确认商户系统 OTP 绑定并完成登录。
+     *
+     * @param request        绑定确认请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    public AuthLoginResponse mfaBindConfirm(AuthMfaBindConfirmRequest request, HttpServletRequest servletRequest) {
+        return systemAuthService.mfaBindConfirm(
+                AuthConstants.APP_MERCHANT,
+                request,
+                clientIp(servletRequest),
+                servletRequest.getHeader("User-Agent")
+        );
+    }
+
+    /**
+     * 验证商户系统 OTP 并完成登录。
+     *
+     * @param request        OTP 验证请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    public AuthLoginResponse mfaVerify(AuthMfaVerifyRequest request, HttpServletRequest servletRequest) {
+        return systemAuthService.mfaVerify(
                 AuthConstants.APP_MERCHANT,
                 request,
                 clientIp(servletRequest),

@@ -4,6 +4,9 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.db.auth.dto.AuthAccountDTO;
 import com.scott.payment.component.db.auth.dto.AuthLoginRequest;
 import com.scott.payment.component.db.auth.dto.AuthLoginResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindConfirmRequest;
+import com.scott.payment.component.db.auth.dto.AuthMfaBindInfoResponse;
+import com.scott.payment.component.db.auth.dto.AuthMfaVerifyRequest;
 import com.scott.payment.component.db.auth.dto.AuthPasswordChangeRequest;
 import com.scott.payment.component.db.auth.dto.AuthProfileUpdateRequest;
 import com.scott.payment.component.db.auth.dto.AuthRegisterRequest;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -130,6 +134,43 @@ public class MerchantAuthController {
     public CommonResult<AuthLoginResponse> login(@Valid @RequestBody AuthLoginRequest request,
                                                  HttpServletRequest servletRequest) {
         return success(merchantAuthApplicationService.login(request, servletRequest));
+    }
+
+    /**
+     * 获取商户系统 OTP 绑定信息。
+     *
+     * @param loginTicket 短期登录票据
+     * @return OTP 绑定信息
+     */
+    @GetMapping("/mfa/bind-info")
+    public CommonResult<AuthMfaBindInfoResponse> mfaBindInfo(@RequestParam("loginTicket") String loginTicket) {
+        return success(merchantAuthApplicationService.mfaBindInfo(loginTicket));
+    }
+
+    /**
+     * 确认商户系统 OTP 绑定。
+     *
+     * @param request        绑定确认请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    @PostMapping("/mfa/bind-confirm")
+    public CommonResult<AuthLoginResponse> mfaBindConfirm(@Valid @RequestBody AuthMfaBindConfirmRequest request,
+                                                          HttpServletRequest servletRequest) {
+        return success(merchantAuthApplicationService.mfaBindConfirm(request, servletRequest));
+    }
+
+    /**
+     * 验证商户系统 OTP。
+     *
+     * @param request        OTP 验证请求
+     * @param servletRequest Servlet 请求
+     * @return 登录响应
+     */
+    @PostMapping("/mfa/verify")
+    public CommonResult<AuthLoginResponse> mfaVerify(@Valid @RequestBody AuthMfaVerifyRequest request,
+                                                     HttpServletRequest servletRequest) {
+        return success(merchantAuthApplicationService.mfaVerify(request, servletRequest));
     }
 
     /**
