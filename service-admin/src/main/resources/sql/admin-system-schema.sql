@@ -749,6 +749,7 @@ VALUES
     (511, 2, 503, 'merchant:system:account:delete', '员工账号删除', 'BUTTON', 'DELETE', '/merchant/system/accounts/*', 1, 0),
     (512, 2, 503, 'merchant:system:account:status', '员工账号状态', 'BUTTON', 'PUT', '/merchant/system/accounts/*/status', 1, 0),
     (513, 2, 503, 'merchant:system:account:assignRole', '员工分配角色', 'BUTTON', 'POST', '/merchant/system/accounts/*/roles', 1, 0),
+    (549, 2, 503, 'merchant:system:account:resetPassword', '员工重置密码', 'BUTTON', 'POST', '/merchant/system/accounts/*/reset-password', 1, 0),
     (514, 2, 504, 'merchant:system:role:list', '角色查询', 'MENU', 'GET', '/merchant/system/roles', 1, 0),
     (515, 2, 504, 'merchant:system:role:add', '角色新增', 'BUTTON', 'POST', '/merchant/system/roles', 1, 0),
     (516, 2, 504, 'merchant:system:role:edit', '角色编辑', 'BUTTON', 'PUT', '/merchant/system/roles/*', 1, 0),

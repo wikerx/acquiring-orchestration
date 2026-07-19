@@ -62,6 +62,7 @@ import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaAction
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaExemptRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaStatusResponse;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountQueryRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountResetPasswordRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AuthGrantNodeDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptDTO;
@@ -738,6 +739,39 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         merchantUser.setUpdatedAt(LocalDateTime.now());
         merchantUser.setUpdatedBy(currentAccountId());
         sysMerchantUserMapper.updateById(merchantUser);
+    }
+
+    /**
+     * 重置商户员工密码，并注销该员工当前有效会话，避免旧会话继续使用旧凭据授权。
+     *
+     * @param id      员工账号ID
+     * @param request 重置密码请求
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void resetAccountPassword(Long id, AccountResetPasswordRequest request) {
+        SysAppDO app = merchantApp();
+        String merchantId = currentMerchantId();
+        if (Objects.equals(id, currentAccountId())) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "不能重置当前登录账号密码，请在个人中心修改密码");
+        }
+        SysAccountDO account = getAccount(app.getId(), merchantId, id);
+        LocalDateTime now = LocalDateTime.now();
+        String salt = PasswordHashUtils.generateSalt();
+        account.setPasswordSalt(salt);
+        account.setPasswordHash(PasswordHashUtils.hashPassword(required(request.getPassword(), "password"), salt));
+        account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
+        account.setPasswordExpired(AuthConstants.DISABLED);
+        account.setPasswordUpdatedAt(now);
+        account.setFailedLoginCount(0);
+        account.setLocked(AuthConstants.DISABLED);
+        account.setLockedAt(null);
+        account.setLockedReason(null);
+        account.setUpdatedAt(now);
+        account.setUpdatedBy(currentAccountId());
+        sysAccountMapper.updateById(account);
+        logoutSessions(app.getId(), account.getId(), now);
     }
 
     /**

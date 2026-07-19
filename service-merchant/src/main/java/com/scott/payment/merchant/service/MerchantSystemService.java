@@ -7,6 +7,7 @@ import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaAction
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaExemptRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaStatusResponse;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountQueryRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountResetPasswordRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptQueryRequest;
@@ -70,6 +71,8 @@ public interface MerchantSystemService {
     AccountDTO updateAccountBase(Long id, AccountBaseSaveRequest request);
 
     void deleteAccount(Long id);
+
+    void resetAccountPassword(Long id, AccountResetPasswordRequest request);
 
     void updateAccountStatus(Long id, Integer status);
 

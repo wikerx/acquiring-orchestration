@@ -11,6 +11,7 @@ import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaAction
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaExemptRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountMfaStatusResponse;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountQueryRequest;
+import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountResetPasswordRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.AccountSaveRequest;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptDTO;
 import com.scott.payment.merchant.dto.system.MerchantSystemDTOs.DeptQueryRequest;
@@ -255,6 +256,22 @@ public class MerchantSystemController {
     @OperationLog(moduleName = "商户员工管理", businessType = OperationTypeConstants.DELETE, operation = "删除商户员工")
     public CommonResult<Void> deleteAccount(@PathVariable("id") Long id) {
         merchantSystemService.deleteAccount(id);
+        return success();
+    }
+
+    /**
+     * 重置商户员工登录密码，并强制注销该账号已有会话。
+     *
+     * @param id      员工账号ID
+     * @param request 重置密码请求
+     * @return 空结果
+     */
+    @PostMapping("/accounts/{id}/reset-password")
+    @RequiresPermission("merchant:system:account:resetPassword")
+    @OperationLog(moduleName = "商户员工管理", businessType = OperationTypeConstants.UPDATE, operation = "重置商户员工密码")
+    public CommonResult<Void> resetAccountPassword(@PathVariable("id") Long id,
+                                                   @Valid @RequestBody AccountResetPasswordRequest request) {
+        merchantSystemService.resetAccountPassword(id, request);
         return success();
     }
 

@@ -271,6 +271,16 @@ public final class MerchantSystemDTOs {
     }
 
     @Data
+    public static class AccountResetPasswordRequest {
+        /**
+         * 商户员工新登录密码。接口层只接收明文，服务层必须立即哈希后落库，禁止写入日志。
+         */
+        @NotBlank(message = "password is required")
+        @Size(min = 8, max = 64, message = "password length must be between 8 and 64")
+        private String password;
+    }
+
+    @Data
     public static class AccountDTO {
         /**
          * 商户管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
