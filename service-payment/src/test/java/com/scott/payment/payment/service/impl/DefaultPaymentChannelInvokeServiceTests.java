@@ -62,6 +62,30 @@ class DefaultPaymentChannelInvokeServiceTests {
         assertThat(request.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.CAPTURE.getCode());
     }
 
+    /**
+     * 渠道查询勾兑应使用原动作单保存的渠道交易 ID，避免 MPGS RETRIEVE 查询一笔新生成的不存在交易。
+     */
+    @Test
+    void shouldReuseOriginalChannelTransactionIdForQueryRequest() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+        when(executor.execute(any(ChannelPaymentRequest.class))).thenReturn(response);
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+        PaymentCreateCommandDTO commandDTO = followUpCommand();
+        commandDTO.setTransactionType("QUERY");
+
+        invokeService.invoke(commandDTO, routeResult(), "OP260714180001", "CH260714180001", "TX260714180001");
+
+        ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
+        verify(executor).execute(captor.capture());
+        ChannelPaymentRequest request = captor.getValue();
+        assertThat(request.getTransactionId()).isEqualTo("CH260714180001");
+        assertThat(request.getChannelOrderNo()).isEqualTo("TX260714180001");
+        assertThat(request.getChannelTransactionId()).isEqualTo("CH260714180001");
+        assertThat(request.getTransactionType()).isEqualTo("QUERY");
+    }
+
     private PaymentCreateCommandDTO followUpCommand() {
         PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
         commandDTO.setMerchantId("200001");

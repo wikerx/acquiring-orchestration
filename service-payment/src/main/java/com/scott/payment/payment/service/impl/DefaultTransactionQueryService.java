@@ -1,10 +1,16 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.ShardingDataTemplate;
+import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
+import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
+import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.entity.TransactionChannelInteractionLogDO;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
@@ -27,7 +33,6 @@ import com.scott.payment.payment.mapper.TransactionOrderMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.mapper.TransactionStatusHistoryMapper;
 import com.scott.payment.payment.service.TransactionQueryService;
-import com.scott.payment.payment.support.TransactionShardingSupport;
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelCallbackQuery;
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelInteractionResponse;
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelLogQuery;
@@ -89,7 +94,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     private static final String TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE = "transaction_merchant_api_interaction_log";
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
-
     private final TransactionOrderMapper orderMapper;
     private final TransactionOperationMapper operationMapper;
     private final TransactionStatusHistoryMapper statusHistoryMapper;
@@ -103,7 +107,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     private final TransactionMerchantNotificationLogMapper notificationLogMapper;
     private final TransactionMerchantApiInteractionLogMapper merchantApiInteractionLogMapper;
     private final TransactionPaymentMethodInfoMapper paymentMethodInfoMapper;
-    private final TransactionShardingSupport shardingSupport;
+    private final ShardingDataTemplate shardingDataTemplate;
+    private final TransactionShardingKeyParser transactionShardingKeyParser;
 
     /**
      * 创建交易聚合查询服务默认实现。
@@ -120,7 +125,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @param notificationLogMapper 商户通知日志 Mapper
      * @param merchantApiInteractionLogMapper 商户 OpenAPI 交互日志 Mapper
      * @param paymentMethodInfoMapper 支付工具摘要 Mapper
-     * @param shardingSupport 交易分表支撑组件
+     * @param shardingDataTemplate 分表数据访问统一入口
+     * @param transactionShardingKeyParser 交易分表键解析器
      */
     public DefaultTransactionQueryService(TransactionOrderMapper orderMapper,
                                           TransactionOperationMapper operationMapper,
@@ -135,7 +141,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                                           TransactionMerchantNotificationLogMapper notificationLogMapper,
                                           TransactionMerchantApiInteractionLogMapper merchantApiInteractionLogMapper,
                                           TransactionPaymentMethodInfoMapper paymentMethodInfoMapper,
-                                          TransactionShardingSupport shardingSupport) {
+                                          ShardingDataTemplate shardingDataTemplate,
+                                          TransactionShardingKeyParser transactionShardingKeyParser) {
         this.orderMapper = orderMapper;
         this.operationMapper = operationMapper;
         this.statusHistoryMapper = statusHistoryMapper;
@@ -149,7 +156,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         this.notificationLogMapper = notificationLogMapper;
         this.merchantApiInteractionLogMapper = merchantApiInteractionLogMapper;
         this.paymentMethodInfoMapper = paymentMethodInfoMapper;
-        this.shardingSupport = shardingSupport;
+        this.shardingDataTemplate = shardingDataTemplate;
+        this.transactionShardingKeyParser = transactionShardingKeyParser;
     }
 
     /**
@@ -159,13 +167,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 主单分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
         long total = 0L;
         List<TransactionOrderDO> rows = new ArrayList<>();
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_ORDER_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+        for (String table : physicalTablesInRange(TRANSACTION_ORDER_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             long count = orderMapper.countPagePhysical(table, safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(),
                     safeQuery.getTransactionId(), safeQuery.getTransactionStatus(), safeQuery.getBeginTime(), safeQuery.getEndTime());
             total += count;
@@ -188,6 +197,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 动作单分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
         return pageOperationsNormalized(safeQuery);
@@ -200,6 +210,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 动作单分页与统计响应
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
         TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
@@ -213,7 +224,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         List<TransactionOperationDO> rows = new ArrayList<>();
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_OPERATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             String paymentInfoTable = paymentInfoTableForOperationTable(table);
             long count = operationMapper.countPagePhysical(table, paymentInfoTable, safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(),
                     safeQuery.getTransactionId(), safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(),
@@ -257,7 +268,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      */
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery safeQuery) {
         TransactionOperationSummaryAccumulator accumulator = new TransactionOperationSummaryAccumulator();
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_OPERATION_TABLE,
+        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE,
                 safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             String paymentInfoTable = paymentInfoTableForOperationTable(table);
             List<TransactionOperationSummaryRow> amountRows = operationMapper.selectAmountSummaryPhysical(
@@ -289,24 +300,25 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 交易详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public TransactionDetailResponse detail(String transactionId) {
         if (!StringUtils.hasText(transactionId)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        LocalDateTime transactionDateTime = shardingSupport.parseTransactionDateTime(transactionId);
+        LocalDateTime transactionDateTime = parseTransactionDateTime(transactionId);
         if (transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        String operationTable = shardingSupport.physicalTable(TRANSACTION_OPERATION_TABLE, transactionDateTime);
+        String operationTable = physicalTable(TRANSACTION_OPERATION_TABLE, transactionDateTime);
         TransactionOperationDO sourceOperation = operationMapper.selectByTransactionIdPhysical(operationTable, transactionId);
         if (sourceOperation == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        LocalDateTime orderTransactionDateTime = shardingSupport.parseOperationDateTime(sourceOperation.getOperationId());
+        LocalDateTime orderTransactionDateTime = parseOperationDateTime(sourceOperation.getOperationId());
         if (orderTransactionDateTime == null) {
             orderTransactionDateTime = sourceOperation.getTransactionDateTime();
         }
-        String orderTable = shardingSupport.physicalTable(TRANSACTION_ORDER_TABLE, orderTransactionDateTime);
+        String orderTable = physicalTable(TRANSACTION_ORDER_TABLE, orderTransactionDateTime);
         TransactionOrderDO order = orderMapper.selectByOperationIdPhysical(orderTable, sourceOperation.getOperationId());
         if (order == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -373,13 +385,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 渠道交互日志分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<?> pageChannelLogs(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = normalize(query);
         long total = 0L;
         List<TransactionChannelInteractionLogDO> rawRows = new ArrayList<>();
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+        for (String table : physicalTablesInRange(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             long count = interactionLogMapper.countPagePhysical(table, safeQuery.getChannelCode(), safeQuery.getTransactionId(),
                     safeQuery.getInteractionType(), safeQuery.getBeginTime(), safeQuery.getEndTime());
             total += count;
@@ -403,13 +416,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 渠道回调业务记录分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<?> pageChannelCallbacks(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = normalize(query);
         long total = 0L;
         List<Object> rows = new ArrayList<>();
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_CHANNEL_CALLBACK_TABLE,
+        for (String table : physicalTablesInRange(TRANSACTION_CHANNEL_CALLBACK_TABLE,
                 safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             long count = callbackMapper.countPagePhysical(table, safeQuery.getChannelCode(), safeQuery.getTransactionId(),
                     safeQuery.getChannelOrderNo(), safeQuery.getChannelTransactionId(), safeQuery.getCallbackStatus(),
@@ -434,13 +448,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 商户通知任务分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<?> pageMerchantNotifications(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = normalize(query);
         long total = 0L;
         List<Object> rows = new ArrayList<>();
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
+        for (String table : physicalTablesInRange(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             long count = notificationMapper.countPagePhysical(table, safeQuery.getMerchantId(), safeQuery.getTransactionId(),
                     safeQuery.getNotifyStatus(), safeQuery.getBeginTime(), safeQuery.getEndTime());
             total += count;
@@ -722,7 +737,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         response.setChannelResponseCode(row.getChannelResponseCode());
         response.setChannelResponseMessage(row.getChannelResponseMessage());
         response.setAuthCode(row.getAuthCode());
-        response.setAcquirerReferenceNo(row.getAcquirerReferenceNo());
+        response.setAcquirerReferenceNo(firstText(row.getAcquirerReferenceNo(), row.getRrn()));
+        response.setRrn(row.getRrn());
         response.setSettlementStatus(row.getSettlementStatus());
         response.setReconciliationStatus(row.getReconciliationStatus());
         response.setAccountingStatus(row.getAccountingStatus());
@@ -854,7 +870,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
             return Map.of();
         }
         List<TransactionChannelRequestDO> requestRows = new ArrayList<>();
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_CHANNEL_REQUEST_TABLE,
+        for (String table : physicalTablesInRange(TRANSACTION_CHANNEL_REQUEST_TABLE,
                 safeQuery.getBeginTime(), safeQuery.getEndTime())) {
             requestRows.addAll(channelRequestMapper.selectByRequestIdsPhysical(table, requestIds));
         }
@@ -1022,12 +1038,12 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         if (!StringUtils.hasText(transactionId)) {
             return null;
         }
-        LocalDateTime shardTime = transactionDateTime == null ? shardingSupport.parseTransactionDateTime(transactionId) : transactionDateTime;
+        LocalDateTime shardTime = transactionDateTime == null ? parseTransactionDateTime(transactionId) : transactionDateTime;
         if (shardTime == null) {
             return null;
         }
         try {
-            String table = shardingSupport.physicalTable(TRANSACTION_OPERATION_TABLE, shardTime);
+            String table = physicalTable(TRANSACTION_OPERATION_TABLE, shardTime);
             TransactionOperationDO operation = operationMapper.selectByTransactionIdPhysical(table, transactionId);
             return operation == null ? null : operation.getTransactionType();
         } catch (DataAccessException | ServiceException exception) {
@@ -1331,7 +1347,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                     if (transactionIds.isEmpty()) {
                         return List.<TransactionPaymentMethodInfoDO>of().stream();
                     }
-                    String table = shardingSupport.physicalTable(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, entry.getKey());
+                    String table = physicalTable(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, entry.getKey());
                     return paymentMethodInfoMapper.selectByTransactionIdsPhysical(table, transactionIds).stream();
                 })
                 .collect(Collectors.toMap(TransactionPaymentMethodInfoDO::getTransactionId, Function.identity(), (left, right) -> left));
@@ -1369,7 +1385,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                 .filter(Objects::nonNull)
                 .min(LocalDateTime::compareTo)
                 .orElse(null);
-        LocalDateTime rootBeginTime = shardingSupport.parseOperationDateTime(operationId);
+        LocalDateTime rootBeginTime = parseOperationDateTime(operationId);
         LocalDateTime beginTime = rootBeginTime == null ? rowBeginTime : rootBeginTime;
         LocalDateTime endTime = rows.stream()
                 .map(TransactionOperationDO::getTransactionDateTime)
@@ -1379,7 +1395,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         if (beginTime == null || endTime == null) {
             return null;
         }
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, beginTime, endTime)) {
+        for (String table : physicalTablesInRange(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, beginTime, endTime)) {
             List<TransactionPaymentMethodInfoDO> infos = paymentMethodInfoMapper.selectByOperationIdPhysical(table, operationId);
             if (infos == null || infos.isEmpty()) {
                 continue;
@@ -1426,14 +1442,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     private TransactionOrderDO findOrderForOperation(TransactionOperationDO row) {
-        LocalDateTime orderTransactionDateTime = shardingSupport.parseOperationDateTime(row.getOperationId());
+        LocalDateTime orderTransactionDateTime = parseOperationDateTime(row.getOperationId());
         if (orderTransactionDateTime == null) {
             orderTransactionDateTime = row.getTransactionDateTime();
         }
         if (orderTransactionDateTime == null) {
             return null;
         }
-        String table = shardingSupport.physicalTable(TRANSACTION_ORDER_TABLE, orderTransactionDateTime);
+        String table = physicalTable(TRANSACTION_ORDER_TABLE, orderTransactionDateTime);
         return orderMapper.selectByOperationIdPhysical(table, row.getOperationId());
     }
 
@@ -1446,7 +1462,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                 .filter(row -> row.getTransactionDateTime() != null && StringUtils.hasText(row.getTransactionId()))
                 .collect(Collectors.groupingBy(TransactionOperationDO::getTransactionDateTime))
                 .forEach((transactionDateTime, operationRows) -> {
-                    String table = shardingSupport.physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
+                    String table = physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
                     operationRows.stream()
                             .map(TransactionOperationDO::getTransactionId)
                             .distinct()
@@ -1471,7 +1487,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                                                                        LocalDateTime beginTime,
                                                                        LocalDateTime endTime) {
         List<TransactionOperationDO> rows = new ArrayList<>();
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_OPERATION_TABLE, beginTime, endTime)) {
+        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, beginTime, endTime)) {
             rows.addAll(operationMapper.selectByOperationIdPhysical(table, operationId));
         }
         return rows;
@@ -1482,7 +1498,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                                                         LocalDateTime endTime,
                                                         PhysicalTableSelector<T> selector) {
         List<T> rows = new ArrayList<>();
-        for (String table : shardingSupport.physicalTablesInRange(logicalTable, beginTime, endTime)) {
+        for (String table : physicalTablesInRange(logicalTable, beginTime, endTime)) {
             rows.addAll(selector.select(table));
         }
         return rows;
@@ -1495,7 +1511,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         List<T> rows = new ArrayList<>();
         List<String> physicalTables;
         try {
-            physicalTables = shardingSupport.physicalTablesInRange(logicalTable, beginTime, endTime);
+            physicalTables = physicalTablesInRange(logicalTable, beginTime, endTime);
         } catch (ServiceException exception) {
             log.warn("交易详情附属日志分表规则不可用，logicalTable：{}，beginTime：{}，endTime：{}",
                     logicalTable, beginTime, endTime, exception);
@@ -1510,6 +1526,24 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
             }
         }
         return rows;
+    }
+
+    private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
+        return shardingDataTemplate.resolvePhysicalTable(
+                ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.SLAVE));
+    }
+
+    private List<String> physicalTablesInRange(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
+        return shardingDataTemplate.resolvePhysicalTables(
+                ShardingRangeTableContext.of(logicalTable, beginTime, endTime, DataSourceName.SLAVE));
+    }
+
+    private LocalDateTime parseTransactionDateTime(String transactionId) {
+        return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
+    }
+
+    private LocalDateTime parseOperationDateTime(String operationId) {
+        return transactionShardingKeyParser.parseOperationDateTime(operationId);
     }
 
     private record QueryTimeRange(LocalDateTime beginTime, LocalDateTime endTime, String queryTimeZone) {

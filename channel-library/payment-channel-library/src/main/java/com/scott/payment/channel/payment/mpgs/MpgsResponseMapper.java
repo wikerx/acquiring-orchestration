@@ -1,8 +1,10 @@
 package com.scott.payment.channel.payment.mpgs;
 
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
+import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse.PaymentMethodSummary;
 import com.scott.payment.channel.payment.enums.PaymentChannelCode;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /**
  * @author : scott
@@ -64,16 +66,17 @@ public class MpgsResponseMapper {
         target.setRawChannelStatus(response.getResult());
         target.setChannelResponseCode(errorCodeMapper.responseCode(response));
         target.setChannelResponseMessage(errorCodeMapper.responseMessage(response));
+        MpgsResponseSummary summary = responseSummary(response);
         if (response.getOrder() != null && response.getOrder().getId() != null) {
             target.setChannelOrderNo(response.getOrder().getId());
         }
         if (response.getTransaction() != null && response.getTransaction().getId() != null) {
             target.setChannelTransactionId(response.getTransaction().getId());
         }
-        MpgsResponseSummary summary = responseSummary(response);
         target.setAuthCode(summary.getAuthorizationCode());
         target.setRrn(summary.getReceipt());
         target.setAcquirerReferenceNo(summary.getAcquirerReference());
+        target.setPaymentMethodSummary(paymentMethodSummary(summary));
         target.setRawResponse(summary.toRawResponseMap());
         return target;
     }
@@ -88,9 +91,20 @@ public class MpgsResponseMapper {
      */
     MpgsResponseSummary responseSummary(MpgsResponsePayload response) {
         MpgsResponsePayload.Response gatewayResponse = response.getResponse();
+        MpgsResponsePayload.CardSecurityCode cardSecurityCode = gatewayResponse == null ? null : gatewayResponse.getCardSecurityCode();
+        MpgsResponsePayload.AuthorizationResponse authorizationResponse = response.getAuthorizationResponse();
         MpgsResponsePayload.ErrorPayload error = response.getError();
         MpgsResponsePayload.Order order = response.getOrder();
+        MpgsResponsePayload.Chargeback chargeback = order == null ? null : order.getChargeback();
         MpgsResponsePayload.Transaction transaction = response.getTransaction();
+        MpgsResponsePayload.Acquirer acquirer = transaction == null ? null : transaction.getAcquirer();
+        MpgsResponsePayload.SourceOfFunds sourceOfFunds = response.getSourceOfFunds();
+        MpgsResponsePayload.Provided provided = sourceOfFunds == null ? null : sourceOfFunds.getProvided();
+        MpgsResponsePayload.Card card = provided == null ? null : provided.getCard();
+        MpgsResponsePayload.Expiry expiry = card == null ? null : card.getExpiry();
+        MpgsResponsePayload.Risk risk = response.getRisk();
+        MpgsResponsePayload.RiskResponse riskResponse = risk == null ? null : risk.getResponse();
+        MpgsResponsePayload.Review review = riskResponse == null ? null : riskResponse.getReview();
         return MpgsResponseSummary.builder()
                 .result(response.getResult())
                 .gatewayEntryPoint(response.getGatewayEntryPoint())
@@ -100,6 +114,17 @@ public class MpgsResponseMapper {
                 .gatewayRecommendation(gatewayResponse == null ? null : gatewayResponse.getGatewayRecommendation())
                 .acquirerCode(gatewayResponse == null ? null : gatewayResponse.getAcquirerCode())
                 .acquirerMessage(gatewayResponse == null ? null : gatewayResponse.getAcquirerMessage())
+                .cardSecurityGatewayCode(cardSecurityCode == null ? null : cardSecurityCode.getGatewayCode())
+                .cardSecurityAcquirerCode(cardSecurityCode == null ? null : cardSecurityCode.getAcquirerCode())
+                .authorizationResponseCode(authorizationResponse == null ? null : authorizationResponse.getResponseCode())
+                .authorizationStan(authorizationResponse == null ? null : authorizationResponse.getStan())
+                .authorizationTransactionIdentifier(authorizationResponse == null ? null : authorizationResponse.getTransactionIdentifier())
+                .financialNetworkCode(authorizationResponse == null ? null : authorizationResponse.getFinancialNetworkCode())
+                .posEntryMode(authorizationResponse == null ? null : authorizationResponse.getPosEntryMode())
+                .posData(authorizationResponse == null ? null : authorizationResponse.getPosData())
+                .processingCode(authorizationResponse == null ? null : authorizationResponse.getProcessingCode())
+                .commercialCard(authorizationResponse == null ? null : authorizationResponse.getCommercialCard())
+                .commercialCardIndicator(authorizationResponse == null ? null : authorizationResponse.getCommercialCardIndicator())
                 .errorCause(error == null ? null : error.getCause())
                 .errorExplanation(error == null ? null : error.getExplanation())
                 .errorField(error == null ? null : error.getField())
@@ -107,11 +132,95 @@ public class MpgsResponseMapper {
                 .orderId(order == null ? null : order.getId())
                 .orderStatus(order == null ? null : order.getStatus())
                 .orderReference(order == null ? null : order.getReference())
+                .orderAmount(order == null ? null : order.getAmount())
+                .orderCurrency(order == null ? null : order.getCurrency())
+                .orderAuthenticationStatus(order == null ? null : order.getAuthenticationStatus())
+                .orderCreationTime(order == null ? null : order.getCreationTime())
+                .orderLastUpdatedTime(order == null ? null : order.getLastUpdatedTime())
+                .orderMerchantAmount(order == null ? null : order.getMerchantAmount())
+                .orderMerchantCurrency(order == null ? null : order.getMerchantCurrency())
+                .merchantCategoryCode(order == null ? null : order.getMerchantCategoryCode())
+                .totalAuthorizedAmount(order == null ? null : order.getTotalAuthorizedAmount())
+                .totalCapturedAmount(order == null ? null : order.getTotalCapturedAmount())
+                .totalRefundedAmount(order == null ? null : order.getTotalRefundedAmount())
+                .chargebackAmount(chargeback == null ? null : chargeback.getAmount())
+                .chargebackCurrency(chargeback == null ? null : chargeback.getCurrency())
                 .transactionId(transaction == null ? null : transaction.getId())
                 .transactionType(transaction == null ? null : transaction.getType())
+                .transactionAmount(transaction == null ? null : transaction.getAmount())
+                .transactionCurrency(transaction == null ? null : transaction.getCurrency())
+                .transactionAuthenticationStatus(transaction == null ? null : transaction.getAuthenticationStatus())
                 .authorizationCode(transaction == null ? null : transaction.getAuthorizationCode())
-                .acquirerReference(transaction == null ? null : transaction.getReference())
+                .transactionReference(transaction == null ? null : transaction.getReference())
+                .acquirerReference(acquirer == null ? null : acquirer.getTransactionId())
                 .receipt(transaction == null ? null : transaction.getReceipt())
+                .transactionStan(transaction == null ? null : transaction.getStan())
+                .terminal(transaction == null ? null : transaction.getTerminal())
+                .source(transaction == null ? null : transaction.getSource())
+                .acquirerBatch(acquirer == null ? null : acquirer.getBatch())
+                .acquirerDate(acquirer == null ? null : acquirer.getDate())
+                .acquirerId(acquirer == null ? null : acquirer.getId())
+                .acquirerMerchantId(acquirer == null ? null : acquirer.getMerchantId())
+                .acquirerSettlementDate(acquirer == null ? null : acquirer.getSettlementDate())
+                .acquirerTimeZone(acquirer == null ? null : acquirer.getTimeZone())
+                .sourceOfFundsType(sourceOfFunds == null ? null : sourceOfFunds.getType())
+                .cardBrand(card == null ? null : card.getBrand())
+                .cardScheme(card == null ? null : card.getScheme())
+                .cardNumberMasked(card == null ? null : card.getNumber())
+                .cardExpiryMonth(expiry == null ? null : expiry.getMonth())
+                .cardExpiryYear(expiry == null ? null : expiry.getYear())
+                .issuerCountryCode(card == null ? null : card.getIssuerCountryCode())
+                .fundingMethod(card == null ? null : card.getFundingMethod())
+                .storedOnFile(card == null ? null : card.getStoredOnFile())
+                .riskGatewayCode(riskResponse == null ? null : riskResponse.getGatewayCode())
+                .riskProvider(riskResponse == null ? null : riskResponse.getProvider())
+                .riskReviewDecision(review == null ? null : review.getDecision())
+                .riskTotalScore(riskResponse == null ? null : riskResponse.getTotalScore())
+                .timeOfRecord(response.getTimeOfRecord())
+                .timeOfLastUpdate(response.getTimeOfLastUpdate())
                 .build();
+    }
+
+    /**
+     * 将 MPGS 返回的卡摘要映射为渠道统一支付工具摘要。
+     *
+     * @param summary MPGS 响应摘要
+     * @return 渠道统一支付工具摘要；无有效字段时返回 null
+     */
+    private PaymentMethodSummary paymentMethodSummary(MpgsResponseSummary summary) {
+        if (summary == null || !hasPaymentMethodSummary(summary)) {
+            return null;
+        }
+        PaymentMethodSummary paymentMethodSummary = new PaymentMethodSummary();
+        paymentMethodSummary.setPaymentMethod(summary.getSourceOfFundsType());
+        paymentMethodSummary.setPaymentBrand(summary.getCardBrand());
+        paymentMethodSummary.setScheme(summary.getCardScheme());
+        paymentMethodSummary.setCardNumberMasked(summary.getCardNumberMasked());
+        paymentMethodSummary.setExpiryMonth(summary.getCardExpiryMonth());
+        paymentMethodSummary.setExpiryYear(summary.getCardExpiryYear());
+        paymentMethodSummary.setIssuerCountry(summary.getIssuerCountryCode());
+        paymentMethodSummary.setFundingMethod(summary.getFundingMethod());
+        paymentMethodSummary.setStoredOnFile(summary.getStoredOnFile());
+        paymentMethodSummary.setCscResult(firstText(summary.getCardSecurityGatewayCode(), summary.getCardSecurityAcquirerCode()));
+        return paymentMethodSummary;
+    }
+
+    private boolean hasPaymentMethodSummary(MpgsResponseSummary summary) {
+        return StringUtils.hasText(summary.getSourceOfFundsType())
+                || StringUtils.hasText(summary.getCardBrand())
+                || StringUtils.hasText(summary.getCardScheme())
+                || StringUtils.hasText(summary.getCardNumberMasked())
+                || StringUtils.hasText(summary.getIssuerCountryCode())
+                || StringUtils.hasText(summary.getFundingMethod())
+                || StringUtils.hasText(summary.getStoredOnFile());
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 }

@@ -3,8 +3,11 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
+import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
+import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
+import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
@@ -32,7 +35,6 @@ import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
-import com.scott.payment.payment.support.TransactionShardingSupport;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -105,10 +107,8 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionMerchantNotificationMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 paymentMethodInfoMapper,
-                new TransactionShardingSupport(
-                        shardingProperties(),
-                        new ShardingQuarterResolver(),
-                        new ShardingPhysicalTableNameResolver()));
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
 
         recordService.recordInitialTransaction(baseCommand(), routeResult(), channelInvokeResult(), resultDTO(),
                 PaymentRiskDecisionEnum.PASS, 2);
@@ -158,10 +158,8 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionMerchantNotificationMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 mock(TransactionPaymentMethodInfoMapper.class),
-                new TransactionShardingSupport(
-                        shardingProperties(),
-                        new ShardingQuarterResolver(),
-                        new ShardingPhysicalTableNameResolver()));
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
         PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
         invokeResultDTO.getChannelResponse().setRawChannelStatus("ERROR");
         invokeResultDTO.getChannelResponse().setChannelTradeStatus("FAILED");
@@ -230,10 +228,8 @@ class DefaultTransactionRecordServiceTests {
                 notificationMapper,
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 paymentMethodInfoMapper,
-                new TransactionShardingSupport(
-                        shardingProperties(),
-                        new ShardingQuarterResolver(),
-                        new ShardingPhysicalTableNameResolver()));
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
 
         recordService.recordFollowUpTransaction(followUpRecord());
 
@@ -271,10 +267,8 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionMerchantNotificationMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 mock(TransactionPaymentMethodInfoMapper.class),
-                new TransactionShardingSupport(
-                        shardingProperties(),
-                        new ShardingQuarterResolver(),
-                        new ShardingPhysicalTableNameResolver()));
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
 
         TransactionFollowUpRecordDTO recordDTO = followUpRecord();
         recordDTO.getCommandDTO().setTransactionType(PaymentTransactionTypeEnum.VOID.getCode());
@@ -322,10 +316,8 @@ class DefaultTransactionRecordServiceTests {
                 mock(TransactionMerchantNotificationMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 mock(TransactionPaymentMethodInfoMapper.class),
-                new TransactionShardingSupport(
-                        shardingProperties(),
-                        new ShardingQuarterResolver(),
-                        new ShardingPhysicalTableNameResolver()));
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
         TransactionFollowUpRecordDTO recordDTO = followUpRecord();
         recordDTO.getCommandDTO().setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
         recordDTO.getCommandDTO().setAmount(new BigDecimal("20.00"));
@@ -374,10 +366,8 @@ class DefaultTransactionRecordServiceTests {
                 notificationMapper,
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 mock(TransactionPaymentMethodInfoMapper.class),
-                new TransactionShardingSupport(
-                        shardingProperties(),
-                        new ShardingQuarterResolver(),
-                        new ShardingPhysicalTableNameResolver()));
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
 
         boolean changed = recordService.completeByChannelCallback(
                 processingInitialOperation(),
@@ -450,10 +440,8 @@ class DefaultTransactionRecordServiceTests {
                 notificationMapper,
                 merchantApiLogMapper,
                 mock(TransactionPaymentMethodInfoMapper.class),
-                new TransactionShardingSupport(
-                        shardingProperties(),
-                        new ShardingQuarterResolver(),
-                        new ShardingPhysicalTableNameResolver()));
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
         PaymentCreateCommandDTO commandDTO = baseCommand();
         commandDTO.setRequestId(commandDTO.getMerchantOrderId());
         commandDTO.setMerchantRequestCipherMasked("cipher***tail");
@@ -682,6 +670,14 @@ class DefaultTransactionRecordServiceTests {
         properties.getTables().put("transaction_merchant_notification", tableRule("transaction_merchant_notification"));
         properties.getTables().put("transaction_merchant_api_interaction_log", tableRule("transaction_merchant_api_interaction_log"));
         return properties;
+    }
+
+    private ShardingDataTemplate shardingDataTemplate() {
+        ShardingTableRangeResolver rangeResolver = new ShardingTableRangeResolver(
+                shardingProperties(),
+                new ShardingQuarterResolver(),
+                new ShardingPhysicalTableNameResolver());
+        return new ShardingDataTemplate(rangeResolver);
     }
 
     private PaymentQuarterShardingProperties.TableRule tableRule(String logicalTable) {

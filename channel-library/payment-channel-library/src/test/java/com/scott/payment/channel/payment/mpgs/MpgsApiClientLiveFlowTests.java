@@ -41,14 +41,6 @@ class MpgsApiClientLiveFlowTests {
             ChannelTradeStatus.PROCESSING.getCode()
     );
 
-    private final MpgsLiveTestConfig config = MpgsLiveTestConfig.load();
-
-    private final MpgsApiClient client = new MpgsApiClient(
-            config.toProperties(),
-            new MpgsRequestMapper(),
-            new MpgsResponseMapper()
-    );
-
     /**
      * 真实联网验证授权生命周期：AUTHORIZE 成功后查询原交易，再尝试增量授权、请款和退款。
      * <p>
@@ -58,6 +50,8 @@ class MpgsApiClientLiveFlowTests {
     @Test
     @EnabledIfEnvironmentVariable(named = MpgsLiveTestConfig.ENABLED_ENV, matches = "true")
     void shouldRunAuthorizeQueryUpdateCaptureAndRefundAgainstMpgsSandbox() {
+        LiveTestContext context = liveTestContext();
+        MpgsLiveTestConfig config = context.config();
         String orderId = nextId("CODXA");
         BigDecimal authorizeAmount = new BigDecimal(config.amount());
         BigDecimal updateAmount = authorizeAmount.add(new BigDecimal("0.10"));
@@ -66,30 +60,35 @@ class MpgsApiClientLiveFlowTests {
 
         ChannelPaymentResponse authorize = executeAndAssert(
                 "AUTHORIZE授权",
-                cardRequest(new ChannelAuthorizeRequest(), ChannelCapability.AUTHORIZATION, orderId, nextId("AUT"), authorizeAmount)
+                cardRequest(config, new ChannelAuthorizeRequest(), ChannelCapability.AUTHORIZATION, orderId, nextId("AUT"), authorizeAmount),
+                context.client()
         );
         String authorizeTransactionId = authorize.getChannelTransactionId();
 
         executeAndAssert(
                 "QUERY查询授权",
-                queryRequest(orderId, authorizeTransactionId)
+                queryRequest(config, orderId, authorizeTransactionId),
+                context.client()
         );
 
         ChannelPaymentResponse updateAuthorization = executeAndRecord(
                 "UPDATE_AUTHORIZATION增量授权",
-                amountRequest(new ChannelIncrementalAuthorizeRequest(), ChannelCapability.INCREMENTAL_AUTHORIZATION,
-                        orderId, nextId("UPD"), updateAmount)
+                amountRequest(config, new ChannelIncrementalAuthorizeRequest(), ChannelCapability.INCREMENTAL_AUTHORIZATION,
+                        orderId, nextId("UPD"), updateAmount),
+                context.client()
         );
         BigDecimal captureAmount = captureAmount(authorizeAmount, updateAmount, updateAuthorization);
 
         ChannelPaymentResponse capture = executeAndAssert(
                 "CAPTURE请款",
-                amountRequest(new ChannelCaptureRequest(), ChannelCapability.CAPTURE, orderId, nextId("CAP"), captureAmount)
+                amountRequest(config, new ChannelCaptureRequest(), ChannelCapability.CAPTURE, orderId, nextId("CAP"), captureAmount),
+                context.client()
         );
 
         ChannelPaymentResponse refund = executeAndAssert(
                 "REFUND退款",
-                amountRequest(new ChannelRefundRequest(), ChannelCapability.REFUND, orderId, nextId("REF"), captureAmount)
+                amountRequest(config, new ChannelRefundRequest(), ChannelCapability.REFUND, orderId, nextId("REF"), captureAmount),
+                context.client()
         );
 
         log.info("MPGS真实流程测试完成，flow=授权-查询-增量授权-请款-退款，result={}",
@@ -105,24 +104,27 @@ class MpgsApiClientLiveFlowTests {
     @Test
     @EnabledIfEnvironmentVariable(named = MpgsLiveTestConfig.ENABLED_ENV, matches = "true")
     void shouldRunPreAuthorizeAndVoidAgainstMpgsSandbox() {
+        LiveTestContext context = liveTestContext();
+        MpgsLiveTestConfig config = context.config();
         String orderId = nextId("CODXV");
         BigDecimal amount = new BigDecimal(config.amount());
         log.info("MPGS真实流程测试开始，flow=预授权-Void，context={}",
                 JsonUtils.toJsonString(new FlowContext(config.maskedSummary(), orderId)));
 
         ChannelPreAuthorizeRequest preAuthorizeRequest = cardRequest(
+                config,
                 new ChannelPreAuthorizeRequest(),
                 ChannelCapability.PRE_AUTHORIZATION,
                 orderId,
                 nextId("PRE"),
                 amount
         );
-        ChannelPaymentResponse preAuthorize = executeAndAssert("PRE_AUTHORIZATION预授权", preAuthorizeRequest);
+        ChannelPaymentResponse preAuthorize = executeAndAssert("PRE_AUTHORIZATION预授权", preAuthorizeRequest, context.client());
 
-        ChannelVoidRequest voidRequest = amountRequest(new ChannelVoidRequest(), ChannelCapability.VOID, orderId, nextId("VOI"), amount);
+        ChannelVoidRequest voidRequest = amountRequest(config, new ChannelVoidRequest(), ChannelCapability.VOID, orderId, nextId("VOI"), amount);
         voidRequest.setSourceTransactionId(preAuthorize.getTransactionId());
         voidRequest.getExtension().put("targetTransactionId", preAuthorize.getChannelTransactionId());
-        ChannelPaymentResponse voidResponse = executeAndAssert("VOID撤销预授权", voidRequest);
+        ChannelPaymentResponse voidResponse = executeAndAssert("VOID撤销预授权", voidRequest, context.client());
 
         log.info("MPGS真实流程测试完成，flow=预授权-Void，result={}",
                 JsonUtils.toJsonString(new VoidFlowResult(summary(preAuthorize), summary(voidResponse))));
@@ -135,8 +137,8 @@ class MpgsApiClientLiveFlowTests {
      * @param request  渠道请求
      * @return 渠道统一响应
      */
-    private ChannelPaymentResponse executeAndAssert(String caseName, ChannelPaymentRequest request) {
-        ChannelPaymentResponse response = executeAndRecord(caseName, request);
+    private ChannelPaymentResponse executeAndAssert(String caseName, ChannelPaymentRequest request, MpgsApiClient client) {
+        ChannelPaymentResponse response = executeAndRecord(caseName, request, client);
         assertThat(response.getChannelTradeStatus()).as(caseName + " channelTradeStatus").isIn(SUCCESS_OR_PENDING);
         assertThat(response.getChannelResponseCode()).as(caseName + " responseCode").isNotBlank();
         return response;
@@ -149,7 +151,7 @@ class MpgsApiClientLiveFlowTests {
      * @param request  渠道请求
      * @return 渠道统一响应
      */
-    private ChannelPaymentResponse executeAndRecord(String caseName, ChannelPaymentRequest request) {
+    private ChannelPaymentResponse executeAndRecord(String caseName, ChannelPaymentRequest request, MpgsApiClient client) {
         log.info("MPGS真实接口开始，case={}, request={}", caseName, JsonUtils.toJsonString(new LiveCaseRequest(
                 request.getTransactionType(), request.getMerchantOrderNo(), request.getTransactionId(),
                 String.valueOf(request.getAmount()), request.getCurrency(),
@@ -196,12 +198,13 @@ class MpgsApiClientLiveFlowTests {
      * @param <T>           请求类型
      * @return 已填充卡资料和基础交易字段的请求
      */
-    private <T extends ChannelPaymentRequest> T cardRequest(T request,
+    private <T extends ChannelPaymentRequest> T cardRequest(MpgsLiveTestConfig config,
+                                                            T request,
                                                             ChannelCapability capability,
                                                             String orderId,
                                                             String transactionId,
                                                             BigDecimal amount) {
-        fillBase(request, capability, orderId, transactionId, amount);
+        fillBase(config, request, capability, orderId, transactionId, amount);
         request.setCardNo(config.cardNo());
         request.setExpirationMonth(config.expiryMonth());
         request.setExpirationYear(config.expiryYear());
@@ -220,12 +223,13 @@ class MpgsApiClientLiveFlowTests {
      * @param <T>           请求类型
      * @return 已填充基础交易字段的请求
      */
-    private <T extends ChannelPaymentRequest> T amountRequest(T request,
+    private <T extends ChannelPaymentRequest> T amountRequest(MpgsLiveTestConfig config,
+                                                              T request,
                                                               ChannelCapability capability,
                                                               String orderId,
                                                               String transactionId,
                                                               BigDecimal amount) {
-        fillBase(request, capability, orderId, transactionId, amount);
+        fillBase(config, request, capability, orderId, transactionId, amount);
         return request;
     }
 
@@ -236,22 +240,24 @@ class MpgsApiClientLiveFlowTests {
      * @param transactionId 待查询的 MPGS transactionId
      * @return 查询请求
      */
-    private ChannelQueryRequest queryRequest(String orderId, String transactionId) {
+    private ChannelQueryRequest queryRequest(MpgsLiveTestConfig config, String orderId, String transactionId) {
         ChannelQueryRequest request = new ChannelQueryRequest();
-        fillBase(request, ChannelCapability.QUERY, orderId, transactionId, new BigDecimal(config.amount()));
+        fillBase(config, request, ChannelCapability.QUERY, orderId, transactionId, new BigDecimal(config.amount()));
         return request;
     }
 
     /**
      * 填充真实联网测试请求的公共字段。
      *
+     * @param config        MPGS 真实联网测试配置
      * @param request       渠道请求
      * @param capability    渠道交易能力
      * @param orderId       MPGS orderId
      * @param transactionId MPGS transactionId
      * @param amount        交易金额
      */
-    private void fillBase(ChannelPaymentRequest request,
+    private void fillBase(MpgsLiveTestConfig config,
+                          ChannelPaymentRequest request,
                           ChannelCapability capability,
                           String orderId,
                           String transactionId,
@@ -267,6 +273,23 @@ class MpgsApiClientLiveFlowTests {
         request.setAmount(amount);
         request.setCurrency(config.currency());
         request.setTransactionDateTime(LocalDateTime.now());
+    }
+
+    /**
+     * 创建真实联网测试上下文。
+     * <p>
+     * 该方法只能在启用真实 MPGS 测试的用例内部调用，避免默认单元测试提前读取沙箱环境变量。
+     *
+     * @return 真实联网测试配置和客户端
+     */
+    private LiveTestContext liveTestContext() {
+        MpgsLiveTestConfig config = MpgsLiveTestConfig.load();
+        MpgsApiClient client = new MpgsApiClient(
+                config.toProperties(),
+                new MpgsRequestMapper(),
+                new MpgsResponseMapper()
+        );
+        return new LiveTestContext(config, client);
     }
 
     /**
@@ -291,6 +314,9 @@ class MpgsApiClientLiveFlowTests {
     }
 
     private record FlowContext(String config, String orderId) {
+    }
+
+    private record LiveTestContext(MpgsLiveTestConfig config, MpgsApiClient client) {
     }
 
     private record AuthorizationFlowResult(ResponseSummary authorize,

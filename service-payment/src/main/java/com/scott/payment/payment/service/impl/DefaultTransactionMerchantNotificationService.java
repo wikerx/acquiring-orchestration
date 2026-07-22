@@ -6,12 +6,14 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.ShardingDataTemplate;
+import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationDO;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationLogDO;
 import com.scott.payment.payment.mapper.TransactionMerchantNotificationLogMapper;
 import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.service.TransactionMerchantNotificationService;
-import com.scott.payment.payment.support.TransactionShardingSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
@@ -63,7 +65,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
 
     private final TransactionMerchantNotificationLogMapper notificationLogMapper;
 
-    private final TransactionShardingSupport shardingSupport;
+    private final ShardingDataTemplate shardingDataTemplate;
 
     private final RestTemplate restTemplate;
 
@@ -72,16 +74,16 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
      *
      * @param notificationMapper 商户通知任务 Mapper
      * @param notificationLogMapper 商户通知日志 Mapper
-     * @param shardingSupport 交易分表支撑组件
+     * @param shardingDataTemplate 分表数据访问统一入口
      * @param restTemplate 商户通知 HTTP 客户端
      */
     public DefaultTransactionMerchantNotificationService(TransactionMerchantNotificationMapper notificationMapper,
                                                          TransactionMerchantNotificationLogMapper notificationLogMapper,
-                                                         TransactionShardingSupport shardingSupport,
+                                                         ShardingDataTemplate shardingDataTemplate,
                                                          @Qualifier("merchantNotificationRestTemplate") RestTemplate restTemplate) {
         this.notificationMapper = notificationMapper;
         this.notificationLogMapper = notificationLogMapper;
-        this.shardingSupport = shardingSupport;
+        this.shardingDataTemplate = shardingDataTemplate;
         this.restTemplate = restTemplate;
     }
 
@@ -100,7 +102,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         if (limit <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "limit must be greater than zero");
         }
-        String table = shardingSupport.physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
+        String table = physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
         List<TransactionMerchantNotificationDO> dueTasks = notificationMapper.selectDueForNotify(table, LocalDateTime.now(), limit);
         int successCount = 0;
         for (TransactionMerchantNotificationDO task : dueTasks) {
@@ -126,7 +128,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         if (!StringUtils.hasText(transactionId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_id is required");
         }
-        String table = shardingSupport.physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
+        String table = physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
         TransactionMerchantNotificationDO task = notificationMapper.selectReadyByTransactionId(
                 table, transactionId, LocalDateTime.now());
         return task != null && notifySingle(table, task);
@@ -211,7 +213,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         fillTransactionTime(logDO, task.getTransactionDateTime());
         logDO.setCreateTime(finishedTime);
         notificationLogMapper.insertPhysical(
-                shardingSupport.physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, task.getTransactionDateTime()),
+                physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, task.getTransactionDateTime()),
                 logDO);
     }
 
@@ -246,6 +248,11 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
                 .withZoneSameInstant(ZoneOffset.UTC)
                 .toLocalDateTime());
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
+    }
+
+    private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
+        return shardingDataTemplate.resolvePhysicalTable(
+                ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.MASTER));
     }
 
     private String safeLength(String value, int maxLength) {

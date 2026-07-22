@@ -6,6 +6,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionA
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -40,8 +41,9 @@ class AdminTransactionApplicationServiceTests {
     @Test
     void refundShouldBuildPaymentCoreCommand() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        AdminTransactionApplicationService service = buildService(paymentInternalClient);
-        when(paymentInternalClient.detail("TX202607140001")).thenReturn(detail("TX202607140001", "PAYMENT"));
+        AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
+        when(transactionQueryService.detail("TX202607140001")).thenReturn(detail("TX202607140001", "PAYMENT"));
         TransactionActionResponse expected = actionResponse("TX202607140002", "REFUND");
         ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
                 ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
@@ -69,8 +71,9 @@ class AdminTransactionApplicationServiceTests {
     @Test
     void voidShouldBuildPaymentCoreCommand() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        AdminTransactionApplicationService service = buildService(paymentInternalClient);
-        when(paymentInternalClient.detail("TX202607140010")).thenReturn(detail("TX202607140010", "AUTHORIZATION"));
+        AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
+        when(transactionQueryService.detail("TX202607140010")).thenReturn(detail("TX202607140010", "AUTHORIZATION"));
         TransactionActionResponse expected = actionResponse("TX202607140011", "VOID");
         ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
                 ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
@@ -92,8 +95,9 @@ class AdminTransactionApplicationServiceTests {
     @Test
     void refundShouldRejectInvalidAmount() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        AdminTransactionApplicationService service = buildService(paymentInternalClient);
-        when(paymentInternalClient.detail("TX202607140001")).thenReturn(detail("TX202607140001", "PAYMENT"));
+        AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
+        when(transactionQueryService.detail("TX202607140001")).thenReturn(detail("TX202607140001", "PAYMENT"));
         TransactionActionRequest request = new TransactionActionRequest();
         request.setAmount(BigDecimal.ZERO);
 
@@ -107,12 +111,13 @@ class AdminTransactionApplicationServiceTests {
     @Test
     void refundShouldUseCapturedOperationWhenAuthorizationRowSelected() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        AdminTransactionApplicationService service = buildService(paymentInternalClient);
+        AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
+        AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
         TransactionDetailResponse detailResponse = new TransactionDetailResponse();
         TransactionOperationResponse authorization = operation("TX202607140020", "AUTHORIZATION", LocalDateTime.of(2026, 7, 14, 10, 0));
         TransactionOperationResponse capture = operation("TX202607140021", "CAPTURE", LocalDateTime.of(2026, 7, 14, 10, 5));
         detailResponse.setOperations(List.of(authorization, capture));
-        when(paymentInternalClient.detail("TX202607140020")).thenReturn(detailResponse);
+        when(transactionQueryService.detail("TX202607140020")).thenReturn(detailResponse);
         ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
                 ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
         when(paymentInternalClient.refund(captor.capture())).thenReturn(actionResponse("TX202607140022", "REFUND"));
@@ -125,8 +130,14 @@ class AdminTransactionApplicationServiceTests {
     }
 
     private AdminTransactionApplicationService buildService(PaymentInternalClient paymentInternalClient) {
+        return buildService(paymentInternalClient, mock(AdminTransactionQueryService.class));
+    }
+
+    private AdminTransactionApplicationService buildService(PaymentInternalClient paymentInternalClient,
+                                                            AdminTransactionQueryService transactionQueryService) {
         return new AdminTransactionApplicationService(
                 paymentInternalClient,
+                transactionQueryService,
                 mock(ExcelExportService.class),
                 mock(ExcelI18nMessageResolver.class),
                 mock(ExcelLocaleResolver.class)

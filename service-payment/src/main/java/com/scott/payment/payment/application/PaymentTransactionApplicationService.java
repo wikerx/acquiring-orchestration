@@ -5,10 +5,13 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantNotificationNotifyDueCommandDTO;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.payment.service.TransactionCallbackService;
+import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.TransactionMerchantNotificationService;
 import com.scott.payment.payment.service.TransactionQueryService;
@@ -50,6 +53,11 @@ public class PaymentTransactionApplicationService {
     private final TransactionCallbackService transactionCallbackService;
 
     /**
+     * 渠道交易查询勾兑服务。
+     */
+    private final TransactionChannelMatchService transactionChannelMatchService;
+
+    /**
      * 交易聚合查询服务。
      */
     private final TransactionQueryService transactionQueryService;
@@ -69,17 +77,20 @@ public class PaymentTransactionApplicationService {
      *
      * @param paymentTransactionService 收单支付交易服务
      * @param transactionCallbackService 交易渠道回调服务
+     * @param transactionChannelMatchService 渠道交易查询勾兑服务
      * @param transactionQueryService 交易聚合查询服务
      * @param merchantNotificationService 商户交易结果通知服务
      * @param transactionRecordService 交易事实记录服务
      */
     public PaymentTransactionApplicationService(PaymentTransactionService paymentTransactionService,
                                                 TransactionCallbackService transactionCallbackService,
+                                                TransactionChannelMatchService transactionChannelMatchService,
                                                 TransactionQueryService transactionQueryService,
                                                 TransactionMerchantNotificationService merchantNotificationService,
                                                 TransactionRecordService transactionRecordService) {
         this.paymentTransactionService = paymentTransactionService;
         this.transactionCallbackService = transactionCallbackService;
+        this.transactionChannelMatchService = transactionChannelMatchService;
         this.transactionQueryService = transactionQueryService;
         this.merchantNotificationService = merchantNotificationService;
         this.transactionRecordService = transactionRecordService;
@@ -173,6 +184,16 @@ public class PaymentTransactionApplicationService {
      */
     public TransactionChannelCallbackResultDTO recordChannelCallback(TransactionChannelCallbackCommandDTO commandDTO) {
         return transactionCallbackService.recordChannelCallback(commandDTO);
+    }
+
+    /**
+     * 执行渠道交易查询勾兑。
+     *
+     * @param commandDTO 渠道查询勾兑命令
+     * @return 本次处理结果
+     */
+    public TransactionChannelMatchResultDTO matchDueChannelTransactions(TransactionChannelMatchCommandDTO commandDTO) {
+        return transactionChannelMatchService.matchDue(commandDTO);
     }
 
     /**

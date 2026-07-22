@@ -105,17 +105,10 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
     }
 
     private BigDecimal parseAmount(MpgsResponsePayload payload) {
-        String amount = firstText(
-                payload.getTransaction() == null ? null : payload.getTransaction().getAmount(),
-                payload.getOrder() == null ? null : payload.getOrder().getAmount());
-        if (!StringUtils.hasText(amount)) {
-            return null;
+        if (payload.getTransaction() != null && payload.getTransaction().getAmount() != null) {
+            return payload.getTransaction().getAmount();
         }
-        try {
-            return new BigDecimal(amount);
-        } catch (NumberFormatException exception) {
-            return null;
-        }
+        return payload.getOrder() == null ? null : payload.getOrder().getAmount();
     }
 
     private void put(ChannelCallbackResult result, String key, String value) {

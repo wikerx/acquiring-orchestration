@@ -50,6 +50,8 @@ class MpgsPaymentChannelClientAllApiTests {
 
     private static final String TEST_CARD_NO = "5123450000000008";
 
+    private static final String TEST_MASKED_CARD_NO = "512345xxxxxx0008";
+
     private static final String TEST_CVV = "100";
 
     private static final String TEST_AUTHENTICATION_TOKEN = "AAABBIIFmAAAAAAAAAAAAAAAAAA=";
@@ -387,10 +389,11 @@ class MpgsPaymentChannelClientAllApiTests {
                 + "\"merchant\":\"" + TEST_MERCHANT_ID + "\","
                 + "\"version\":\"100\","
                 + "\"response\":{\"gatewayCode\":\"APPROVED\",\"acquirerCode\":\"00\","
-                + "\"acquirerMessage\":\"Approved\",\"cardSecurityCode\":\"MATCH\"},"
+                + "\"acquirerMessage\":\"Approved\","
+                + "\"cardSecurityCode\":{\"gatewayCode\":\"MATCH\",\"acquirerCode\":\"M\"}},"
                 + "\"order\":{\"id\":\"" + orderId + "\",\"amount\":\"10.25\",\"currency\":\"USD\",\"status\":\"AUTHORIZED\",\"reference\":\"" + orderId + "\"},"
                 + "\"transaction\":{\"id\":\"" + transactionId + "\",\"type\":\"" + operation + "\",\"authorizationCode\":\"123456\",\"receipt\":\"RCPT001\"},"
-                + "\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"" + TEST_CARD_NO + "\",\"securityCode\":\"" + TEST_CVV + "\"}}},"
+                + "\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"" + TEST_MASKED_CARD_NO + "\",\"securityCode\":\"" + TEST_CVV + "\"}}},"
                 + "\"authentication\":{\"threeDs\":{\"authenticationToken\":\"" + TEST_AUTHENTICATION_TOKEN + "\"}}"
                 + "}";
     }

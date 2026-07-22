@@ -94,6 +94,11 @@ public class AuthAccountDTO implements Serializable {
     private String merchantId;
 
     /**
+     * 商户业务时区，仅商户系统登录时由商户基础资料返回。
+     */
+    private String timezone;
+
+    /**
      * 是否商户管理员，仅商户系统登录时有业务含义。
      */
     private Boolean merchantAdmin;

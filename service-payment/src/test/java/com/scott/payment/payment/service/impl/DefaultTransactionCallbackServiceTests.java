@@ -1,8 +1,15 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
+import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
+import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
+import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
+import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
+import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.channel.payment.executor.PaymentChannelCallbackExecutor;
 import com.scott.payment.channel.payment.mpgs.MpgsPaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.registry.PaymentChannelCallbackRegistry;
@@ -20,7 +27,6 @@ import com.scott.payment.payment.mapper.TransactionChannelCallbackMapper;
 import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionRecordService;
-import com.scott.payment.payment.support.TransactionShardingSupport;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -33,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -69,7 +76,8 @@ class DefaultTransactionCallbackServiceTests {
                 callbackMapper,
                 recordService,
                 eventOutboxService,
-                new TransactionShardingSupport(shardingProperties(), new ShardingQuarterResolver(), new ShardingPhysicalTableNameResolver()),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
                         Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
 
@@ -85,6 +93,54 @@ class DefaultTransactionCallbackServiceTests {
         assertThat(eventOutboxService.eventDO.getEventType())
                 .isEqualTo(TransactionMqConstants.TRANSACTION_CALLBACK_PROCESSED_TAG);
         assertThat(eventOutboxService.eventDO.getTransactionId()).isEqualTo("TX202607141000000000001");
+    }
+
+    /**
+     * WorldPay 同一订单可能先回调 AUTHORISED 再回调 CAPTURED，幂等键必须区分原始状态，不能吞掉后续 captured 终态事件。
+     */
+    @Test
+    void shouldNotTreatWorldPayCapturedAsDuplicateAfterAuthorisedCallback() {
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackMapper.insertPhysical(anyString(), any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        TransactionOperationDO operationDO = operation();
+        operationDO.setTransactionType(PaymentTransactionTypeEnum.PAYMENT.getCode());
+        when(recordService.findOperationByChannelTransaction("TX202607141000000000001", "CH202607141000000000001"))
+                .thenReturn(operationDO);
+        when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
+                .thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(), eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                any(), any(), eq("CAPTURED"), eq("CAPTURED"), eq("CAPTURED"))).thenReturn(true);
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                mock(TransactionChannelCallbackLogMapper.class),
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new FixedWorldPayCallbackHandler()))))));
+
+        TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
+        commandDTO.setChannelCode("WPGXML");
+        commandDTO.setRequestUri("/channel/v1/callbacks/WPGXML");
+        commandDTO.setRequestBody("AUTHORISED");
+        TransactionChannelCallbackResultDTO authorised = callbackService.recordChannelCallback(commandDTO);
+        commandDTO.setRequestBody("CAPTURED");
+        TransactionChannelCallbackResultDTO captured = callbackService.recordChannelCallback(commandDTO);
+
+        assertThat(authorised.getCallbackStatus()).isEqualTo("RECEIVED");
+        assertThat(authorised.getProcessResult()).isEqualTo("PENDING_STATE_MAPPING");
+        assertThat(captured.getCallbackStatus()).isEqualTo("PROCESSED");
+        assertThat(captured.getProcessResult()).isEqualTo("STATUS_CHANGED");
+        verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORISED"), any(), any());
+        verify(recordService).completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("CAPTURED"), eq("CAPTURED"), eq("CAPTURED"));
     }
 
     private TransactionChannelCallbackCommandDTO callbackCommand() {
@@ -149,6 +205,15 @@ class DefaultTransactionCallbackServiceTests {
         return properties;
     }
 
+    private ShardingDataTemplate shardingDataTemplate() {
+        PaymentQuarterShardingProperties properties = shardingProperties();
+        ShardingTableRangeResolver rangeResolver = new ShardingTableRangeResolver(
+                properties,
+                new ShardingQuarterResolver(),
+                new ShardingPhysicalTableNameResolver());
+        return new ShardingDataTemplate(rangeResolver);
+    }
+
     private PaymentQuarterShardingProperties.TableRule tableRule(String logicalTable) {
         PaymentQuarterShardingProperties.TableRule tableRule = new PaymentQuarterShardingProperties.TableRule();
         tableRule.setLogicalTable(logicalTable);
@@ -186,6 +251,27 @@ class DefaultTransactionCallbackServiceTests {
                                   String failReason,
                                   LocalDateTime now) {
             return true;
+        }
+    }
+
+    private static class FixedWorldPayCallbackHandler implements PaymentChannelCallbackHandler {
+
+        @Override
+        public String channelCode() {
+            return "WPGXML";
+        }
+
+        @Override
+        public ChannelCallbackResult handle(ChannelCallbackRequest request) {
+            ChannelCallbackResult result = new ChannelCallbackResult();
+            result.setChannelCode("WPGXML");
+            result.setChannelOrderNo("TX202607141000000000001");
+            result.setChannelTransactionId("CH202607141000000000001");
+            result.setRawChannelStatus(request.getBody());
+            result.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+            result.setChannelResponseCode(request.getBody());
+            result.setChannelResponseMessage(request.getBody());
+            return result;
         }
     }
 }

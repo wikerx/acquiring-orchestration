@@ -1,13 +1,15 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
+import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
+import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
+import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationDO;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationLogDO;
 import com.scott.payment.payment.mapper.TransactionMerchantNotificationLogMapper;
 import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
-import com.scott.payment.payment.support.TransactionShardingSupport;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpEntity;
@@ -53,7 +55,7 @@ class DefaultTransactionMerchantNotificationServiceTests {
         DefaultTransactionMerchantNotificationService service = new DefaultTransactionMerchantNotificationService(
                 notificationMapper,
                 logMapper,
-                shardingSupport(),
+                shardingDataTemplate(),
                 new StubRestTemplate(HttpStatus.OK, "{\"result\":\"ok\"}"));
 
         int successCount = service.notifyDue(task.getTransactionDateTime(), 10);
@@ -78,7 +80,7 @@ class DefaultTransactionMerchantNotificationServiceTests {
         DefaultTransactionMerchantNotificationService service = new DefaultTransactionMerchantNotificationService(
                 notificationMapper,
                 logMapper,
-                shardingSupport(),
+                shardingDataTemplate(),
                 new StubRestTemplate(HttpStatus.INTERNAL_SERVER_ERROR, "{\"result\":\"failed\"}"));
 
         int successCount = service.notifyDue(task.getTransactionDateTime(), 10);
@@ -107,11 +109,15 @@ class DefaultTransactionMerchantNotificationServiceTests {
         return task;
     }
 
-    private TransactionShardingSupport shardingSupport() {
+    private ShardingDataTemplate shardingDataTemplate() {
         PaymentQuarterShardingProperties properties = new PaymentQuarterShardingProperties();
         properties.getTables().put("transaction_merchant_notification", tableRule("transaction_merchant_notification"));
         properties.getTables().put("transaction_merchant_notification_log", tableRule("transaction_merchant_notification_log"));
-        return new TransactionShardingSupport(properties, new ShardingQuarterResolver(), new ShardingPhysicalTableNameResolver());
+        ShardingTableRangeResolver rangeResolver = new ShardingTableRangeResolver(
+                properties,
+                new ShardingQuarterResolver(),
+                new ShardingPhysicalTableNameResolver());
+        return new ShardingDataTemplate(rangeResolver);
     }
 
     private PaymentQuarterShardingProperties.TableRule tableRule(String logicalTable) {

@@ -23,6 +23,12 @@ public class PaymentInternalClientProperties {
             "http://service-payment/internal/payment/transactions/merchant-notifications/notify-due";
 
     /**
+     * 渠道交易查询勾兑接口地址。
+     */
+    private String channelMatchDueUrl =
+            "http://service-payment/internal/payment/transactions/channel-match/match-due";
+
+    /**
      * 内部服务调用方标识，用于 service-payment 审计调用来源。
      */
     private String internalCaller = "service-job";

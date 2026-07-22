@@ -38,7 +38,11 @@ import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
-import com.scott.payment.payment.support.TransactionShardingSupport;
+import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.ShardingDataTemplate;
+import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
+import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
+import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -219,6 +223,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     private static final String CHANNEL_MATCH_PENDING = "PENDING";
 
     /**
+     * 渠道查询或回调已确认最终结果。
+     */
+    private static final String CHANNEL_MATCH_MATCHED = "MATCHED";
+
+    /**
      * 初始商户通知任务状态。
      */
     private static final String NOTIFY_STATUS_INIT = "INIT";
@@ -309,9 +318,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     private final TransactionPaymentMethodInfoMapper transactionPaymentMethodInfoMapper;
 
     /**
-     * 交易分表支撑组件。
+     * 分表数据访问统一入口。
      */
-    private final TransactionShardingSupport shardingSupport;
+    private final ShardingDataTemplate shardingDataTemplate;
+
+    /**
+     * 交易分表键解析器。
+     */
+    private final TransactionShardingKeyParser transactionShardingKeyParser;
 
     /**
      * 创建交易事实记录服务默认实现。
@@ -326,7 +340,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param transactionMerchantNotificationMapper  商户通知任务 Mapper
      * @param transactionMerchantApiInteractionLogMapper 商户 OpenAPI 交互日志 Mapper
      * @param transactionPaymentMethodInfoMapper     支付工具摘要 Mapper
-     * @param shardingSupport                        交易分表支撑组件
+     * @param shardingDataTemplate                   分表数据访问统一入口
+     * @param transactionShardingKeyParser           交易分表键解析器
      */
     public DefaultTransactionRecordService(TransactionOrderMapper transactionOrderMapper,
                                            TransactionOperationMapper transactionOperationMapper,
@@ -338,7 +353,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                            TransactionMerchantNotificationMapper transactionMerchantNotificationMapper,
                                            TransactionMerchantApiInteractionLogMapper transactionMerchantApiInteractionLogMapper,
                                            TransactionPaymentMethodInfoMapper transactionPaymentMethodInfoMapper,
-                                           TransactionShardingSupport shardingSupport) {
+                                           ShardingDataTemplate shardingDataTemplate,
+                                           TransactionShardingKeyParser transactionShardingKeyParser) {
         this.transactionOrderMapper = transactionOrderMapper;
         this.transactionOperationMapper = transactionOperationMapper;
         this.transactionStatusHistoryMapper = transactionStatusHistoryMapper;
@@ -349,7 +365,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         this.transactionMerchantNotificationMapper = transactionMerchantNotificationMapper;
         this.transactionMerchantApiInteractionLogMapper = transactionMerchantApiInteractionLogMapper;
         this.transactionPaymentMethodInfoMapper = transactionPaymentMethodInfoMapper;
-        this.shardingSupport = shardingSupport;
+        this.shardingDataTemplate = shardingDataTemplate;
+        this.transactionShardingKeyParser = transactionShardingKeyParser;
     }
 
     /**
@@ -417,7 +434,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (sourceOperationDO == null || !StringUtils.hasText(sourceOperationDO.getOperationId())) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        LocalDateTime orderTransactionDateTime = shardingSupport.parseOperationDateTime(sourceOperationDO.getOperationId());
+        LocalDateTime orderTransactionDateTime = parseOperationDateTime(sourceOperationDO.getOperationId());
         if (orderTransactionDateTime == null) {
             orderTransactionDateTime = sourceOperationDO.getTransactionDateTime();
         }
@@ -436,7 +453,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     @Override
     public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
-        LocalDateTime sourceTransactionDateTime = shardingSupport.parseTransactionDateTime(sourceTransactionId);
+        LocalDateTime sourceTransactionDateTime = parseTransactionDateTime(sourceTransactionId);
         if (sourceTransactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -463,7 +480,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(merchantOrderNo)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        LocalDateTime parsedTransactionTime = shardingSupport.parseTransactionDateTime(transactionId);
+        LocalDateTime parsedTransactionTime = parseTransactionDateTime(transactionId);
         if (parsedTransactionTime != null) {
             String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, parsedTransactionTime);
             return transactionOperationMapper.selectByMerchantOrderPhysical(
@@ -471,9 +488,33 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         List<TransactionOperationDO> operations = new java.util.ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
-        for (String operationTable : shardingSupport.physicalTablesInRange(TRANSACTION_OPERATION_TABLE, null, now)) {
+        for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, null, now)) {
             operations.addAll(transactionOperationMapper.selectByMerchantOrderPhysical(
                     operationTable, merchantId, merchantOrderNo, transactionId));
+        }
+        return operations;
+    }
+
+    /**
+     * 按商户订单号查询首次起点动作单。
+     * <p>
+     * 首次起点动作可能分布在历史季度分表，必须按当前分表规则从最小可查表扫描到当前表；调用方只用于创建前互斥校验，
+     * 结果集规模受 merchant_id + merchant_order_no + transaction_type 条件约束。
+     *
+     * @param merchantId      平台商户号
+     * @param merchantOrderNo 商户订单号
+     * @return 首次起点动作单列表
+     */
+    @Override
+    public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
+        if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(merchantOrderNo)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        List<TransactionOperationDO> operations = new java.util.ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, null, now)) {
+            operations.addAll(transactionOperationMapper.selectInitialByMerchantOrderPhysical(
+                    operationTable, merchantId, merchantOrderNo));
         }
         return operations;
     }
@@ -490,12 +531,12 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (!StringUtils.hasText(channelOrderNo) || !StringUtils.hasText(channelTransactionId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "channel_order_no and channel_transaction_id are required");
         }
-        LocalDateTime sourceTransactionDateTime = shardingSupport.parseTransactionDateTime(channelOrderNo);
+        LocalDateTime sourceTransactionDateTime = parseTransactionDateTime(channelOrderNo);
         if (sourceTransactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         LocalDateTime now = LocalDateTime.now();
-        for (String operationTable : shardingSupport.physicalTablesInRange(TRANSACTION_OPERATION_TABLE, sourceTransactionDateTime, now)) {
+        for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, sourceTransactionDateTime, now)) {
             TransactionOperationDO operationDO = transactionOperationMapper.selectByChannelTransactionPhysical(
                     operationTable, channelOrderNo, channelTransactionId);
             if (operationDO != null) {
@@ -503,6 +544,30 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             }
         }
         throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+    }
+
+    /**
+     * 查询待渠道查询确认的动作单。
+     *
+     * @param transactionDateTime 交易业务时间，用于定位物理分表
+     * @param channelCode 渠道编码，可为空
+     * @param now 当前时间
+     * @param limit 最大查询数量
+     * @return 待勾兑动作单列表
+     */
+    @Override
+    public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
+                                                                String channelCode,
+                                                                LocalDateTime now,
+                                                                int limit) {
+        if (transactionDateTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transactionDateTime is required");
+        }
+        return transactionOperationMapper.selectPendingChannelMatchPhysical(
+                resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, transactionDateTime),
+                channelCode,
+                now == null ? LocalDateTime.now() : now,
+                limit);
     }
 
     /**
@@ -607,6 +672,42 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 更新渠道查询勾兑摘要。
+     *
+     * @param operationDO 被勾兑的动作单
+     * @param matchStatus 勾兑状态
+     * @param matchResult 勾兑结果摘要
+     * @param requestId 最近一次渠道查询请求 ID
+     * @param matchTime 最近一次查询时间
+     * @param nextMatchTime 下一次查询时间
+     * @param failReason 失败原因
+     * @return true 表示更新成功
+     */
+    @Override
+    public boolean updateChannelMatch(TransactionOperationDO operationDO,
+                                      String matchStatus,
+                                      String matchResult,
+                                      String requestId,
+                                      LocalDateTime matchTime,
+                                      LocalDateTime nextMatchTime,
+                                      String failReason) {
+        if (operationDO == null || operationDO.getId() == null || operationDO.getTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        int updated = transactionOperationMapper.updateChannelMatchPhysical(
+                resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime()),
+                operationDO.getId(),
+                operationDO.getVersion(),
+                matchStatus,
+                safeLength(matchResult, 256),
+                requestId,
+                matchTime == null ? LocalDateTime.now() : matchTime,
+                nextMatchTime,
+                safeLength(failReason, 512));
+        return updated == 1;
+    }
+
+    /**
      * 回写商户 OpenAPI 响应加密后的密文摘要。
      *
      * @param commandDTO 响应日志回写命令
@@ -617,7 +718,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (commandDTO == null || !StringUtils.hasText(commandDTO.getTransactionId())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        LocalDateTime transactionDateTime = shardingSupport.parseTransactionDateTime(commandDTO.getTransactionId());
+        LocalDateTime transactionDateTime = parseTransactionDateTime(commandDTO.getTransactionId());
         if (transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -933,6 +1034,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
     }
 
+    /**
+     * 按回调或查询勾兑结果更新生命周期主单。
+     * <p>
+     * 首次交易成功直接标记主单成功；后续交易成功只更新对应授权、请款、退款或撤销汇总金额；
+     * 失败终态通过 CAS 更新主单状态，避免终态被重复回调覆盖。
+     *
+     * @param orderTable 主单物理表
+     * @param orderDO 生命周期主单
+     * @param operationDO 被确认的动作单
+     * @param success true 表示动作成功终态
+     * @param targetTransactionStatus 目标交易状态
+     * @param failReasonCode 失败原因码
+     * @param failReasonMessage 失败原因描述
+     * @return true 表示主单更新成功
+     */
     private boolean updateOrderByCallback(String orderTable,
                                           TransactionOrderDO orderDO,
                                           TransactionOperationDO operationDO,
@@ -973,6 +1089,18 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return updated == 1;
     }
 
+    /**
+     * 记录回调或查询勾兑触发的状态历史和流程事件。
+     *
+     * @param operationDO 被确认动作单
+     * @param orderDO 生命周期主单
+     * @param callbackId 回调或勾兑事件 ID
+     * @param targetTransactionStatus 目标交易状态
+     * @param failReasonCode 失败原因码
+     * @param failReasonMessage 失败原因描述
+     * @param orderUpdated 主单是否更新成功
+     * @param now 当前处理时间
+     */
     private void insertCallbackStateAndFlow(TransactionOperationDO operationDO,
                                             TransactionOrderDO orderDO,
                                             String callbackId,
@@ -1013,6 +1141,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 eventDO);
     }
 
+    /**
+     * 记录被终态保护或版本冲突拦截的回调状态历史。
+     *
+     * @param operationDO 被回调动作单
+     * @param callbackId 回调或勾兑事件 ID
+     * @param targetTransactionStatus 目标状态
+     * @param transitionResult 流转结果
+     * @param failReason 拦截原因
+     */
     private void recordCallbackStatusHistory(TransactionOperationDO operationDO,
                                              String callbackId,
                                              String targetTransactionStatus,
@@ -1027,6 +1164,18 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                         transitionResult, failReason, LocalDateTime.now()));
     }
 
+    /**
+     * 构造回调或查询勾兑对应的状态历史。
+     *
+     * @param operationDO 交易动作单
+     * @param statusObject 状态对象，主单或动作单
+     * @param callbackId 回调或勾兑事件 ID
+     * @param targetTransactionStatus 目标状态
+     * @param transitionResult 流转结果
+     * @param failReason 失败或忽略原因
+     * @param now 当前处理时间
+     * @return 状态历史记录
+     */
     private TransactionStatusHistoryDO buildCallbackStatusHistory(TransactionOperationDO operationDO,
                                                                   String statusObject,
                                                                   String callbackId,
@@ -1053,6 +1202,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return historyDO;
     }
 
+    /**
+     * 激活待发送商户通知。
+     * <p>
+     * 只有主单状态或动作终态被成功推进后才激活通知，避免 WorldPay AUTHORISED 这类非终态事件提前通知商户成功。
+     *
+     * @param operationDO 交易动作单
+     * @param targetTransactionStatus 目标交易状态
+     * @param failReasonCode 失败原因码
+     * @param failReasonMessage 失败原因描述
+     * @param now 当前处理时间
+     */
     private void activateMerchantNotification(TransactionOperationDO operationDO,
                                               String targetTransactionStatus,
                                               String failReasonCode,
@@ -1066,10 +1226,22 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 now);
     }
 
+    /**
+     * 根据交易结果判断是否还需要渠道查询勾兑。
+     *
+     * @param resultDTO 交易结果
+     * @return 勾兑状态
+     */
     private String resolveChannelMatchStatus(PaymentCreateResultDTO resultDTO) {
         return resultDTO == null ? CHANNEL_MATCH_PENDING : resolveChannelMatchStatus(resultDTO.getStatus());
     }
 
+    /**
+     * 根据平台状态判断是否还需要渠道查询勾兑。
+     *
+     * @param transactionStatus 平台交易状态
+     * @return 勾兑状态
+     */
     private String resolveChannelMatchStatus(String transactionStatus) {
         return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
@@ -1077,6 +1249,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 : CHANNEL_MATCH_PENDING;
     }
 
+    /**
+     * 成功后续交易回写生命周期汇总金额。
+     *
+     * @param orderTable 主单物理表
+     * @param sourceOrderDO 原生命周期主单
+     * @param resultDTO 后续交易结果
+     */
     private void updateSourceOrderAmount(String orderTable,
                                          TransactionOrderDO sourceOrderDO,
                                          PaymentCreateResultDTO resultDTO) {
@@ -1102,6 +1281,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 从接口返回金额恢复主币种金额。
+     *
+     * @param resultDTO 交易结果
+     * @param sourceOrderDO 原生命周期主单
+     * @return 主币种金额
+     */
     private BigDecimal amountFromResult(PaymentCreateResultDTO resultDTO, TransactionOrderDO sourceOrderDO) {
         if (resultDTO.getAmount() == null) {
             return BigDecimal.ZERO;
@@ -1110,6 +1296,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return BigDecimal.valueOf(resultDTO.getAmount()).movePointLeft(exponent);
     }
 
+    /**
+     * 记录渠道请求和交互审计。
+     * <p>
+     * 即使渠道请求异常也要保留请求摘要和脱敏日志，便于后续查询勾兑、人工排查和资金状态追踪。
+     *
+     * @param commandDTO 交易命令
+     * @param routeResultDTO 渠道路由结果
+     * @param invokeResultDTO 渠道调用上下文
+     * @param resultDTO 平台交易结果
+     * @param now 当前处理时间
+     */
     private void recordChannelAudit(PaymentCreateCommandDTO commandDTO,
                                     PaymentRouteResultDTO routeResultDTO,
                                     PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1176,6 +1373,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         infoDO.setPaymentMethod(resolvePaymentMethod(commandDTO));
         infoDO.setPaymentBrand(resolvePaymentBrand(commandDTO, resultDTO, sourceOrderDO));
         fillCardSummary(infoDO, commandDTO);
+        fillChannelPaymentMethodSummary(infoDO, resultDTO);
         inheritPaymentMethodInfo(infoDO, sourceOrderDO, transactionDateTime);
         fillTransactionTime(infoDO, transactionDateTime);
         infoDO.setCreateTime(now);
@@ -1234,7 +1432,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                                                        LocalDateTime actionTransactionDateTime) {
         LocalDateTime beginTime = sourceOrderDO.getTransactionDateTime();
         LocalDateTime endTime = actionTransactionDateTime == null ? LocalDateTime.now() : actionTransactionDateTime;
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, beginTime, endTime)) {
+        for (String table : resolvePhysicalTables(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, beginTime, endTime)) {
             List<TransactionPaymentMethodInfoDO> rows = transactionPaymentMethodInfoMapper.selectByOperationIdPhysical(
                     table, sourceOrderDO.getOperationId());
             if (rows == null || rows.isEmpty()) {
@@ -1277,6 +1475,41 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO == null ? null : resultDTO.getPaymentBrand(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getCardBrand(),
                 sourceOrderDO == null ? null : sourceOrderDO.getPaymentBrand());
+    }
+
+    /**
+     * 使用渠道返回的支付工具摘要补充落库字段。
+     * <p>
+     * MPGS 等渠道会在响应中返回卡品牌、资金类型、发卡国家、CSC 校验结果和脱敏卡号；
+     * 这些字段用于后台查询、争议和对账排查，禁止从中恢复完整 PAN。
+     *
+     * @param infoDO    支付工具摘要
+     * @param resultDTO 当前交易结果
+     */
+    private void fillChannelPaymentMethodSummary(TransactionPaymentMethodInfoDO infoDO,
+                                                 PaymentCreateResultDTO resultDTO) {
+        if (infoDO == null || resultDTO == null) {
+            return;
+        }
+        infoDO.setPaymentBrand(firstText(resultDTO.getPaymentBrand(), infoDO.getPaymentBrand()));
+        infoDO.setCardNumberMasked(firstText(resultDTO.getCardNumberMasked(), infoDO.getCardNumberMasked()));
+        fillCardPartsFromMaskedNumber(infoDO, resultDTO.getCardNumberMasked());
+        infoDO.setExpiryMonth(firstText(resultDTO.getExpiryMonth(), infoDO.getExpiryMonth()));
+        infoDO.setExpiryYear(firstText(resultDTO.getExpiryYear(), infoDO.getExpiryYear()));
+        infoDO.setIssuerCountry(firstText(resultDTO.getIssuerCountry(), infoDO.getIssuerCountry()));
+        infoDO.setFundingMethod(firstText(resultDTO.getFundingMethod(), infoDO.getFundingMethod()));
+        infoDO.setCscResult(firstText(resultDTO.getCscResult(), infoDO.getCscResult()));
+    }
+
+    private void fillCardPartsFromMaskedNumber(TransactionPaymentMethodInfoDO infoDO, String cardNumberMasked) {
+        if (!StringUtils.hasText(cardNumberMasked)) {
+            return;
+        }
+        String digits = cardNumberMasked.replaceAll("[^0-9]", "");
+        if (digits.length() >= 10) {
+            infoDO.setCardBin(firstText(infoDO.getCardBin(), digits.substring(0, 6)));
+            infoDO.setCardLast4(firstText(infoDO.getCardLast4(), digits.substring(digits.length() - 4)));
+        }
     }
 
     /**
@@ -1330,6 +1563,19 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param invokeResultDTO  渠道调用上下文
      * @param resultDTO        平台交易结果
      * @param now              当前处理时间
+     * @return 渠道请求摘要
+     */
+    /**
+     * 构造渠道请求摘要。
+     * <p>
+     * 该记录用于后台展示、查询勾兑关联和渠道问题排查，只保存脱敏 URL、请求状态、渠道订单号和响应摘要，
+     * 不保存完整卡号、CVV 或渠道密钥。
+     *
+     * @param commandDTO 交易命令
+     * @param routeResultDTO 渠道路由结果
+     * @param invokeResultDTO 渠道调用上下文
+     * @param resultDTO 平台交易结果
+     * @param now 当前处理时间
      * @return 渠道请求摘要
      */
     private TransactionChannelRequestDO buildChannelRequest(PaymentCreateCommandDTO commandDTO,
@@ -1886,7 +2132,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         putIfPresent(transactionInfo, "processStage", operationDO.getProcessStage());
         putIfPresent(transactionInfo, "transactionDateTime", offsetDateTimeString(operationDO.getTransactionDateTime(), operationDO.getTransactionTimeZone()));
         putIfPresent(transactionInfo, "authCode", operationDO.getAuthCode());
-        putIfPresent(transactionInfo, "arn", operationDO.getAcquirerReferenceNo());
+        putIfPresent(transactionInfo, "arn", firstText(operationDO.getAcquirerReferenceNo(), operationDO.getRrn()));
         putIfPresent(transactionInfo, "failReasonCode", merchantVisibleFailureCode(failReasonCode));
         putIfPresent(transactionInfo, "failReasonMessage", merchantVisibleFailureMessage(targetTransactionStatus, failReasonCode));
         putIfPresent(payload, "transactionInfo", transactionInfo);
@@ -2238,7 +2484,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     private String resolvePhysicalTable(String logicalTable, LocalDateTime transactionDateTime) {
-        return shardingSupport.physicalTable(logicalTable, transactionDateTime);
+        return shardingDataTemplate.resolvePhysicalTable(
+                ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.MASTER));
     }
 
     private int countExistingOperations(String operationId, LocalDateTime sourceTransactionDateTime, LocalDateTime actionTransactionDateTime) {
@@ -2249,10 +2496,23 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 ? sourceTransactionDateTime
                 : actionTransactionDateTime;
         int total = 0;
-        for (String table : shardingSupport.physicalTablesInRange(TRANSACTION_OPERATION_TABLE, beginTime, endTime)) {
+        for (String table : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, beginTime, endTime)) {
             total += transactionOperationMapper.countByOperationIdPhysical(table, operationId);
         }
         return total;
+    }
+
+    private List<String> resolvePhysicalTables(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
+        return shardingDataTemplate.resolvePhysicalTables(
+                ShardingRangeTableContext.of(logicalTable, beginTime, endTime, DataSourceName.MASTER));
+    }
+
+    private LocalDateTime parseTransactionDateTime(String transactionId) {
+        return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
+    }
+
+    private LocalDateTime parseOperationDateTime(String operationId) {
+        return transactionShardingKeyParser.parseOperationDateTime(operationId);
     }
 
 }

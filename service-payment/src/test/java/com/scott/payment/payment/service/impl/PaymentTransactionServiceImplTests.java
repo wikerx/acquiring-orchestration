@@ -257,10 +257,10 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
-     * 渠道请求阶段发生异常时应落为失败终态，不能继续显示处理中等待不存在的渠道回调。
+     * 渠道请求阶段发生网络、解析或系统异常时，平台无法确认渠道是否受理，必须落为处理中等待查询勾兑。
      */
     @Test
-    void shouldMarkTransactionFailedWhenChannelRequestThrowsException() {
+    void shouldMarkTransactionProcessingWhenChannelRequestThrowsException() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
         CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
@@ -275,14 +275,13 @@ class PaymentTransactionServiceImplTests {
 
         PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
 
-        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
-        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
-        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
-        assertThat(resultDTO.getFailReasonMessage()).isEqualTo("Payment failed. Please use the transaction ID to query details or contact support.");
-        assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+        assertThat(resultDTO.getFailReasonCode()).isNull();
+        assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
         assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("FAILED");
         assertThat(transactionRecordService.channelInvokeResultDTO.getExceptionMessage()).isEqualTo("MPGS password is required");
-        assertThat(eventOutboxService.eventDO.getPayloadJson()).contains("\"transactionStatus\":\"FAILED\"");
+        assertThat(eventOutboxService.eventDO.getPayloadJson()).contains("\"transactionStatus\":\"PROCESSING\"");
     }
 
     /**
@@ -328,6 +327,97 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
         assertThat(channelInvokeService.commandDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
         assertThat(idempotencyService.records).containsKey("TRANSACTION_OPERATION:200001:AUTH202607120001:PAYMENT");
+    }
+
+    /**
+     * 同一商户订单号已存在有效支付流时，不允许再发起授权流，避免一笔商户订单同时存在两笔支付语义。
+     */
+    @Test
+    void shouldRejectAuthorizationWhenMerchantOrderAlreadyHasPaymentFlow() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.PAYMENT, PaymentTransactionStatusEnum.SUCCESS));
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+
+        assertThatThrownBy(() -> service.createAuthorization(baseCommand()))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode());
+        assertThat(channelInvokeService.commandDTO).isNull();
+    }
+
+    /**
+     * 同一商户订单号已存在有效授权流时，不允许再发起一步支付流。
+     */
+    @Test
+    void shouldRejectPaymentWhenMerchantOrderAlreadyHasAuthorizationFlow() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.AUTHORIZATION, PaymentTransactionStatusEnum.PROCESSING));
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+
+        assertThatThrownBy(() -> service.createPayment(baseCommand()))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode());
+        assertThat(channelInvokeService.commandDTO).isNull();
+    }
+
+    /**
+     * 同一商户订单号已存在有效授权起点时，不允许再次发起新的授权起点；请款、撤销和退款必须作为后续动作进入原生命周期。
+     */
+    @Test
+    void shouldRejectDuplicateAuthorizationWhenMerchantOrderAlreadyHasAuthorizationFlow() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.AUTHORIZATION, PaymentTransactionStatusEnum.SUCCESS));
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+
+        assertThatThrownBy(() -> service.createAuthorization(baseCommand()))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode());
+        assertThat(channelInvokeService.commandDTO).isNull();
+    }
+
+    /**
+     * 已失败的首次起点不占用商户订单号流程，商户修正参数后可继续用同一商户订单号重试。
+     */
+    @Test
+    void shouldAllowRetryWhenExistingInitialFlowFailed() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.PAYMENT, PaymentTransactionStatusEnum.FAILED));
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                channelInvokeService);
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
+
+        assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
+        assertThat(channelInvokeService.commandDTO).isNotNull();
     }
 
     /**
@@ -765,6 +855,43 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
+     * WorldPay 一步支付同步 AUTHORISED 仅表示授权成功，必须等待 captured 回调或查询勾兑后才能标记付款成功。
+     */
+    @Test
+    void shouldKeepWorldPayPaymentPendingWhenSyncAuthorised() {
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(),
+                new CapturingPaymentChannelInvokeService(worldPayResponse("WPGXML", "AUTHORISED")));
+
+        PaymentCreateResultDTO resultDTO = service.createPayment(baseCommand());
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PENDING.getCode());
+        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.WAITING_CALLBACK.getCode());
+        assertThat(resultDTO.getPendingReasonCode()).isEqualTo(PaymentPendingReasonEnum.WAITING_CHANNEL_CALLBACK.getCode());
+    }
+
+    /**
+     * WorldPay 一步支付收到 CAPTURED 才代表资金动作成功，可映射为平台成功终态。
+     */
+    @Test
+    void shouldMarkWorldPayPaymentSuccessWhenCaptured() {
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(),
+                new CapturingPaymentChannelInvokeService(worldPayResponse("WPGXML", "CAPTURED")));
+
+        PaymentCreateResultDTO resultDTO = service.createPayment(baseCommand());
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+    }
+
+    /**
      * 渠道同步返回失败时，平台结果只暴露平台失败码；渠道真实原因后续应落交互日志或交易附属信息。
      */
     @Test
@@ -780,6 +907,31 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
         assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
+        assertThat(resultDTO.getMerchantResponseMessage()).isEqualTo("05: Declined");
+    }
+
+    /**
+     * MPGS result=ERROR 类失败不应把渠道技术或参数错误直接返回给商户，应统一返回模糊拒绝提示。
+     */
+    @Test
+    void shouldReturnGenericMerchantMessageWhenMpgsResultError() {
+        ChannelPaymentResponse response = channelResponse(ChannelTradeStatus.FAILED);
+        response.setRawChannelStatus("ERROR");
+        response.setChannelResponseCode("INVALID_REQUEST");
+        response.setChannelResponseMessage("Unexpected parameter 'authentication.threeDs.acsEci'");
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(),
+                new CapturingPaymentChannelInvokeService(response));
+
+        PaymentCreateResultDTO resultDTO = service.createPayment(baseCommand());
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resultDTO.getMerchantResponseMessage())
+                .isEqualTo("The transaction was declined; please contact your card issuer or try again.");
+        assertThat(resultDTO.getMerchantResponseMessage()).doesNotContain("Unexpected parameter");
     }
 
     /**
@@ -920,6 +1072,38 @@ class PaymentTransactionServiceImplTests {
         return response;
     }
 
+    private ChannelPaymentResponse worldPayResponse(String channelCode, String rawStatus) {
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelCode(channelCode);
+        response.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+        response.setRawChannelStatus(rawStatus);
+        response.setChannelResponseCode(rawStatus);
+        response.setChannelResponseMessage(rawStatus);
+        return response;
+    }
+
+    /**
+     * 构造商户订单号起点动作，用于验证支付流和授权流互斥规则。
+     *
+     * @param typeEnum   起点交易类型
+     * @param statusEnum 起点交易状态
+     * @return 测试动作单
+     */
+    private TransactionOperationDO initialOperation(PaymentTransactionTypeEnum typeEnum,
+                                                    PaymentTransactionStatusEnum statusEnum) {
+        TransactionOperationDO operationDO = new TransactionOperationDO();
+        operationDO.setOperationId(SOURCE_OPERATION_ID);
+        operationDO.setTransactionId(SOURCE_TRANSACTION_ID);
+        operationDO.setMerchantId("200001");
+        operationDO.setMerchantOrderNo("M202607120001");
+        operationDO.setMerchantOrderId("AUTH202607120001");
+        operationDO.setTransactionType(typeEnum.getCode());
+        operationDO.setTransactionStatus(statusEnum.getCode());
+        operationDO.setTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+        operationDO.setOperationTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+        return operationDO;
+    }
+
     private IsoDictionaryService isoDictionaryService() {
         return new IsoDictionaryService() {
             @Override
@@ -1023,6 +1207,8 @@ class PaymentTransactionServiceImplTests {
 
         private BigDecimal sourceAvailableRefundAmount = new BigDecimal("5.00");
 
+        private List<TransactionOperationDO> initialOperations = List.of();
+
         @Override
         public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
@@ -1120,11 +1306,27 @@ class PaymentTransactionServiceImplTests {
         }
 
         @Override
+        public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
+            if (!"200001".equals(merchantId) || !"M202607120001".equals(merchantOrderNo)) {
+                return List.of();
+            }
+            return initialOperations;
+        }
+
+        @Override
         public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
             if (!SOURCE_TRANSACTION_ID.equals(channelOrderNo) || !SOURCE_CHANNEL_TRANSACTION_ID.equals(channelTransactionId)) {
                 return null;
             }
             return findSourceOperationByTransactionId(SOURCE_TRANSACTION_ID);
+        }
+
+        @Override
+        public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
+                                                                    String channelCode,
+                                                                    LocalDateTime now,
+                                                                    int limit) {
+            return List.of();
         }
 
         @Override
@@ -1142,6 +1344,17 @@ class PaymentTransactionServiceImplTests {
                                                  String channelStatus,
                                                  String channelResponseCode,
                                                  String channelResponseMessage) {
+            return true;
+        }
+
+        @Override
+        public boolean updateChannelMatch(TransactionOperationDO operationDO,
+                                          String matchStatus,
+                                          String matchResult,
+                                          String requestId,
+                                          LocalDateTime matchTime,
+                                          LocalDateTime nextMatchTime,
+                                          String failReason) {
             return true;
         }
 

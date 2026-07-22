@@ -680,6 +680,11 @@ public final class TransactionQueryDTOs {
         private String acquirerReferenceNo;
 
         /**
+         * RRN / 渠道回单参考号，可为空；当渠道未返回 ARN 时用于后台展示兜底。
+         */
+        private String rrn;
+
+        /**
          * 结算状态。
          */
         private String settlementStatus;

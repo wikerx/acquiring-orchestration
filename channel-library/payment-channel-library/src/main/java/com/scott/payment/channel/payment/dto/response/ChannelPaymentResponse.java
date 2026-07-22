@@ -86,8 +86,69 @@ public class ChannelPaymentResponse implements Serializable {
     private String redirectUrl;
 
     /**
+     * 渠道返回的支付工具摘要，供 payment 核心补充卡品牌、发卡国家、资金类型等合规展示字段。
+     */
+    private PaymentMethodSummary paymentMethodSummary;
+
+    /**
      * 渠道扩展响应，进入日志或落库前必须脱敏。
      */
     private Map<String, String> rawResponse = new HashMap<>();
+
+    @Data
+    public static class PaymentMethodSummary implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 支付方式，例如 CARD、BANK_CARD。
+         */
+        private String paymentMethod;
+
+        /**
+         * 卡品牌或支付品牌，例如 MASTERCARD、VISA。
+         */
+        private String paymentBrand;
+
+        /**
+         * 卡组织或渠道 scheme。
+         */
+        private String scheme;
+
+        /**
+         * 脱敏卡号，禁止完整 PAN。
+         */
+        private String cardNumberMasked;
+
+        /**
+         * 卡有效期月份。
+         */
+        private String expiryMonth;
+
+        /**
+         * 卡有效期年份。
+         */
+        private String expiryYear;
+
+        /**
+         * 发卡国家或地区代码。
+         */
+        private String issuerCountry;
+
+        /**
+         * 资金类型，例如 CREDIT、DEBIT。
+         */
+        private String fundingMethod;
+
+        /**
+         * 渠道返回的存储凭证标识，例如 STORED 或 NOT_STORED。
+         */
+        private String storedOnFile;
+
+        /**
+         * CSC/CVV 校验结果。
+         */
+        private String cscResult;
+    }
 
 }

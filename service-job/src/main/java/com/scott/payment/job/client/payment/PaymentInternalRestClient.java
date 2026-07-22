@@ -6,6 +6,8 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
+import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientRequestDTO;
+import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientResultDTO;
 import com.scott.payment.job.client.payment.dto.PaymentMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.config.PaymentInternalClientProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -77,6 +79,22 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                 properties.getMerchantNotificationNotifyDueUrl(),
                 requestDTO,
                 new TypeReference<CommonResult<Integer>>() {
+                });
+        return unwrapData(result);
+    }
+
+    /**
+     * 触发指定交易时间分表中的渠道交易查询勾兑。
+     *
+     * @param requestDTO 查询勾兑请求
+     * @return 查询勾兑处理结果
+     */
+    @Override
+    public PaymentChannelMatchClientResultDTO matchDueChannelTransactions(PaymentChannelMatchClientRequestDTO requestDTO) {
+        CommonResult<PaymentChannelMatchClientResultDTO> result = post(
+                properties.getChannelMatchDueUrl(),
+                requestDTO,
+                new TypeReference<CommonResult<PaymentChannelMatchClientResultDTO>>() {
                 });
         return unwrapData(result);
     }

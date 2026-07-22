@@ -2,6 +2,9 @@ package com.scott.payment.channel.payment.mpgs;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+import java.util.List;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -40,6 +43,11 @@ public class MpgsResponsePayload {
     private Response response;
 
     /**
+     * MPGS 授权响应明细，包含收单响应码、STAN、交易识别号等对账排查字段。
+     */
+    private AuthorizationResponse authorizationResponse;
+
+    /**
      * MPGS 当前交易动作信息。
      */
     private Transaction transaction;
@@ -53,6 +61,26 @@ public class MpgsResponsePayload {
      * MPGS 错误信息，result=ERROR 时通常存在。
      */
     private ErrorPayload error;
+
+    /**
+     * MPGS 支付资金来源摘要，例如卡品牌、发卡国家、资金类型和脱敏卡号。
+     */
+    private SourceOfFunds sourceOfFunds;
+
+    /**
+     * MPGS 风险评估结果，当前只作为后台排查字段，不参与平台风控状态机。
+     */
+    private Risk risk;
+
+    /**
+     * MPGS 记录时间，ISO-8601 字符串。
+     */
+    private String timeOfRecord;
+
+    /**
+     * MPGS 最近更新时间，ISO-8601 字符串。
+     */
+    private String timeOfLastUpdate;
 
     @Data
     public static class Response {
@@ -80,7 +108,70 @@ public class MpgsResponsePayload {
         /**
          * 卡安全码校验结果，不是原始 CVV，但仍只作为内部排查字段使用。
          */
-        private String cardSecurityCode;
+        private CardSecurityCode cardSecurityCode;
+    }
+
+    @Data
+    public static class CardSecurityCode {
+
+        /**
+         * MPGS CSC 校验结果。
+         */
+        private String gatewayCode;
+
+        /**
+         * 收单机构 CSC 校验结果。
+         */
+        private String acquirerCode;
+    }
+
+    @Data
+    public static class AuthorizationResponse {
+
+        /**
+         * 商务卡信息。
+         */
+        private String commercialCard;
+
+        /**
+         * 商务卡标识。
+         */
+        private String commercialCardIndicator;
+
+        /**
+         * 金融网络编码。
+         */
+        private String financialNetworkCode;
+
+        /**
+         * POS 数据。
+         */
+        private String posData;
+
+        /**
+         * POS 录入模式。
+         */
+        private String posEntryMode;
+
+        /**
+         * 处理码。
+         */
+        private String processingCode;
+
+        /**
+         * 授权响应码。
+         */
+        private String responseCode;
+
+        /**
+         * 系统跟踪审计号。
+         */
+        private String stan;
+
+        /**
+         * 授权响应交易识别号。
+         */
+        private String transactionIdentifier;
     }
 
     @Data
@@ -99,7 +190,7 @@ public class MpgsResponsePayload {
         /**
          * MPGS 交易金额，原始字符串。
          */
-        private String amount;
+        private BigDecimal amount;
 
         /**
          * MPGS 交易币种。
@@ -117,6 +208,11 @@ public class MpgsResponsePayload {
         private String reference;
 
         /**
+         * 收单机构交易信息，部分 MPGS 响应中包含 batch、date、transactionId 等对账参考。
+         */
+        private Acquirer acquirer;
+
+        /**
          * 渠道交易回单号。
          */
         private String receipt;
@@ -125,6 +221,60 @@ public class MpgsResponsePayload {
          * 交易来源。
          */
         private String source;
+
+        /**
+         * MPGS 认证状态。
+         */
+        private String authenticationStatus;
+
+        /**
+         * 系统跟踪审计号。
+         */
+        private String stan;
+
+        /**
+         * 终端号。
+         */
+        private String terminal;
+    }
+
+    @Data
+    public static class Acquirer {
+
+        /**
+         * 收单批次号。
+         */
+        private String batch;
+
+        /**
+         * 收单交易日期。
+         */
+        private String date;
+
+        /**
+         * 收单机构 ID。
+         */
+        private String id;
+
+        /**
+         * 渠道侧收单商户号。
+         */
+        private String merchantId;
+
+        /**
+         * 收单结算日期。
+         */
+        private String settlementDate;
+
+        /**
+         * 收单时区。
+         */
+        private String timeZone;
+
+        /**
+         * 收单机构交易参考号，渠道返回时可作为平台 ARN/收单参考号使用。
+         */
+        private String transactionId;
     }
 
     @Data
@@ -138,7 +288,7 @@ public class MpgsResponsePayload {
         /**
          * MPGS 订单金额，原始字符串。
          */
-        private String amount;
+        private BigDecimal amount;
 
         /**
          * MPGS 订单币种。
@@ -154,6 +304,222 @@ public class MpgsResponsePayload {
          * MPGS 订单参考号。
          */
         private String reference;
+
+        /**
+         * MPGS 认证状态。
+         */
+        private String authenticationStatus;
+
+        /**
+         * 拒付摘要。
+         */
+        private Chargeback chargeback;
+
+        /**
+         * 订单创建时间，ISO-8601 字符串。
+         */
+        private String creationTime;
+
+        /**
+         * 订单最近更新时间，ISO-8601 字符串。
+         */
+        private String lastUpdatedTime;
+
+        /**
+         * 商户上送订单金额。
+         */
+        private BigDecimal merchantAmount;
+
+        /**
+         * 商户 MCC。
+         */
+        private String merchantCategoryCode;
+
+        /**
+         * 商户上送订单币种。
+         */
+        private String merchantCurrency;
+
+        /**
+         * 生命周期累计授权金额。
+         */
+        private BigDecimal totalAuthorizedAmount;
+
+        /**
+         * 生命周期累计请款金额。
+         */
+        private BigDecimal totalCapturedAmount;
+
+        /**
+         * 生命周期累计出款金额。
+         */
+        private BigDecimal totalDisbursedAmount;
+
+        /**
+         * 生命周期累计退款金额。
+         */
+        private BigDecimal totalRefundedAmount;
+    }
+
+    @Data
+    public static class Chargeback {
+
+        /**
+         * 拒付金额。
+         */
+        private BigDecimal amount;
+
+        /**
+         * 拒付币种。
+         */
+        private String currency;
+    }
+
+    @Data
+    public static class SourceOfFunds {
+
+        /**
+         * 资金来源类型，例如 CARD。
+         */
+        private String type;
+
+        /**
+         * MPGS 返回的资金来源明细。
+         */
+        private Provided provided;
+    }
+
+    @Data
+    public static class Provided {
+
+        /**
+         * 卡信息摘要。
+         */
+        private Card card;
+    }
+
+    @Data
+    public static class Card {
+
+        /**
+         * 卡品牌，例如 MASTERCARD。
+         */
+        private String brand;
+
+        /**
+         * 卡有效期。
+         */
+        private Expiry expiry;
+
+        /**
+         * 资金类型，例如 DEBIT。
+         */
+        private String fundingMethod;
+
+        /**
+         * 发卡国家或地区代码。
+         */
+        private String issuerCountryCode;
+
+        /**
+         * MPGS 返回的脱敏卡号。
+         */
+        private String number;
+
+        /**
+         * 卡组织。
+         */
+        private String scheme;
+
+        /**
+         * 是否已存储凭证。
+         */
+        private String storedOnFile;
+    }
+
+    @Data
+    public static class Expiry {
+
+        /**
+         * 有效期月份。
+         */
+        private String month;
+
+        /**
+         * 有效期年份。
+         */
+        private String year;
+    }
+
+    @Data
+    public static class Risk {
+
+        /**
+         * MPGS 风险响应。
+         */
+        private RiskResponse response;
+    }
+
+    @Data
+    public static class RiskResponse {
+
+        /**
+         * 风险网关码。
+         */
+        private String gatewayCode;
+
+        /**
+         * 风险提供方。
+         */
+        private String provider;
+
+        /**
+         * 风险复核结果。
+         */
+        private Review review;
+
+        /**
+         * 命中或评估规则。
+         */
+        private List<RiskRule> rule;
+
+        /**
+         * 总风险分。
+         */
+        private Integer totalScore;
+    }
+
+    @Data
+    public static class Review {
+
+        /**
+         * 复核决策。
+         */
+        private String decision;
+    }
+
+    @Data
+    public static class RiskRule {
+
+        /**
+         * 规则数据。
+         */
+        private String data;
+
+        /**
+         * 规则名称。
+         */
+        private String name;
+
+        /**
+         * 规则建议。
+         */
+        private String recommendation;
+
+        /**
+         * 规则类型。
+         */
+        private String type;
     }
 
     @Data

@@ -15,6 +15,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
+import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
@@ -90,6 +91,11 @@ public class AdminTransactionApplicationService {
     private final PaymentInternalClient paymentInternalClient;
 
     /**
+     * 管理后台交易只读查询服务。
+     */
+    private final AdminTransactionQueryService transactionQueryService;
+
+    /**
      * 统一 Excel 导出服务。
      */
     private final ExcelExportService excelExportService;
@@ -107,13 +113,16 @@ public class AdminTransactionApplicationService {
     /**
      * 创建管理后台交易查询应用服务。
      *
-     * @param paymentInternalClient service-payment 内部查询客户端
+     * @param paymentInternalClient service-payment 内部状态变更客户端
+     * @param transactionQueryService 管理后台交易只读查询服务
      */
     public AdminTransactionApplicationService(PaymentInternalClient paymentInternalClient,
+                                              AdminTransactionQueryService transactionQueryService,
                                               ExcelExportService excelExportService,
                                               ExcelI18nMessageResolver excelI18nMessageResolver,
                                               ExcelLocaleResolver excelLocaleResolver) {
         this.paymentInternalClient = paymentInternalClient;
+        this.transactionQueryService = transactionQueryService;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
@@ -126,7 +135,7 @@ public class AdminTransactionApplicationService {
      * @return 主单分页结果
      */
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
-        return paymentInternalClient.pageOrders(query);
+        return transactionQueryService.pageOrders(query);
     }
 
     /**
@@ -151,7 +160,7 @@ public class AdminTransactionApplicationService {
      * @return 动作单分页结果
      */
     public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
-        return paymentInternalClient.pageOperations(query);
+        return transactionQueryService.pageOperations(query);
     }
 
     /**
@@ -176,7 +185,7 @@ public class AdminTransactionApplicationService {
      * @return 动作单分页与统计结果
      */
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
-        return paymentInternalClient.searchOperations(query);
+        return transactionQueryService.searchOperations(query);
     }
 
     /**
@@ -240,7 +249,7 @@ public class AdminTransactionApplicationService {
      * @return 交易聚合详情
      */
     public TransactionDetailResponse detail(String transactionId) {
-        return paymentInternalClient.detail(transactionId);
+        return transactionQueryService.detail(transactionId);
     }
 
     /**
@@ -250,7 +259,7 @@ public class AdminTransactionApplicationService {
      * @return 渠道交互日志分页结果
      */
     public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
-        return paymentInternalClient.pageChannelLogs(query);
+        return transactionQueryService.pageChannelLogs(query);
     }
 
     /**
@@ -260,7 +269,7 @@ public class AdminTransactionApplicationService {
      * @return 渠道回调分页结果
      */
     public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
-        return paymentInternalClient.pageChannelCallbacks(query);
+        return transactionQueryService.pageChannelCallbacks(query);
     }
 
     /**
@@ -270,7 +279,7 @@ public class AdminTransactionApplicationService {
      * @return 商户通知任务分页结果
      */
     public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
-        return paymentInternalClient.pageMerchantNotifications(query);
+        return transactionQueryService.pageMerchantNotifications(query);
     }
 
     /**
@@ -292,12 +301,12 @@ public class AdminTransactionApplicationService {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
         query.setPageNo(1);
         query.setPageSize(EXPORT_PAGE_SIZE);
-        PageResult<TransactionOrderResponse> firstPage = paymentInternalClient.pageOrders(query);
+        PageResult<TransactionOrderResponse> firstPage = transactionQueryService.pageOrders(query);
         ensureExportSize(firstPage.getTotal());
         List<TransactionOrderResponse> rows = new ArrayList<>(firstPage.getRecords());
         for (int pageNo = 2; rows.size() < firstPage.getTotal(); pageNo++) {
             query.setPageNo(pageNo);
-            PageResult<TransactionOrderResponse> page = paymentInternalClient.pageOrders(query);
+            PageResult<TransactionOrderResponse> page = transactionQueryService.pageOrders(query);
             if (page.getRecords().isEmpty()) {
                 break;
             }
@@ -310,12 +319,12 @@ public class AdminTransactionApplicationService {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
         query.setPageNo(1);
         query.setPageSize(EXPORT_PAGE_SIZE);
-        PageResult<TransactionOperationResponse> firstPage = paymentInternalClient.pageOperations(query);
+        PageResult<TransactionOperationResponse> firstPage = transactionQueryService.pageOperations(query);
         ensureExportSize(firstPage.getTotal());
         List<TransactionOperationResponse> rows = new ArrayList<>(firstPage.getRecords());
         for (int pageNo = 2; rows.size() < firstPage.getTotal(); pageNo++) {
             query.setPageNo(pageNo);
-            PageResult<TransactionOperationResponse> page = paymentInternalClient.pageOperations(query);
+            PageResult<TransactionOperationResponse> page = transactionQueryService.pageOperations(query);
             if (page.getRecords().isEmpty()) {
                 break;
             }
@@ -328,12 +337,12 @@ public class AdminTransactionApplicationService {
         MerchantNotificationQuery query = copyNotificationQuery(sourceQuery);
         query.setPageNo(1);
         query.setPageSize(EXPORT_PAGE_SIZE);
-        PageResult<Map<String, Object>> firstPage = paymentInternalClient.pageMerchantNotifications(query);
+        PageResult<Map<String, Object>> firstPage = transactionQueryService.pageMerchantNotifications(query);
         ensureExportSize(firstPage.getTotal());
         List<Map<String, Object>> rows = new ArrayList<>(firstPage.getRecords());
         for (int pageNo = 2; rows.size() < firstPage.getTotal(); pageNo++) {
             query.setPageNo(pageNo);
-            PageResult<Map<String, Object>> page = paymentInternalClient.pageMerchantNotifications(query);
+            PageResult<Map<String, Object>> page = transactionQueryService.pageMerchantNotifications(query);
             if (page.getRecords().isEmpty()) {
                 break;
             }
