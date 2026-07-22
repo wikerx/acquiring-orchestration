@@ -87,6 +87,18 @@ public interface TransactionRecordService {
     List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId);
 
     /**
+     * 按商户订单号查询同一订单下的首次起点交易动作。
+     * <p>
+     * 用于支付核心创建首次类交易前校验支付流和授权流互斥；只返回 PAYMENT、AUTHORIZATION、PRE_AUTHORIZATION
+     * 这类生命周期起点动作，后续请款、撤销、退款不参与互斥判断。
+     *
+     * @param merchantId      平台商户号
+     * @param merchantOrderNo 商户订单号
+     * @return 首次起点交易动作列表
+     */
+    List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo);
+
+    /**
      * 按渠道订单号和渠道交易 ID 定位平台交易动作。
      * <p>
      * MPGS 回调的 order.id 对应原始授权/支付平台 transactionId，transaction.id 对应平台生成的
@@ -97,6 +109,20 @@ public interface TransactionRecordService {
      * @return 平台交易动作单
      */
     TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId);
+
+    /**
+     * 查询待渠道查询确认的动作单。
+     *
+     * @param transactionDateTime 交易业务时间，用于定位物理分表
+     * @param channelCode 渠道编码，可为空
+     * @param now 当前时间
+     * @param limit 最大查询数量
+     * @return 待勾兑动作单列表
+     */
+    List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
+                                                         String channelCode,
+                                                         LocalDateTime now,
+                                                         int limit);
 
     /**
      * 记录后续交易动作事实，并在渠道同步成功时使用 CAS 推进主单金额汇总。
@@ -128,6 +154,26 @@ public interface TransactionRecordService {
                                       String channelStatus,
                                       String channelResponseCode,
                                       String channelResponseMessage);
+
+    /**
+     * 更新渠道查询勾兑摘要。
+     *
+     * @param operationDO 被勾兑的动作单
+     * @param matchStatus 勾兑状态
+     * @param matchResult 勾兑结果摘要
+     * @param requestId 最近一次渠道查询请求 ID
+     * @param matchTime 最近一次查询时间
+     * @param nextMatchTime 下一次查询时间
+     * @param failReason 失败原因
+     * @return true 表示更新成功
+     */
+    boolean updateChannelMatch(TransactionOperationDO operationDO,
+                               String matchStatus,
+                               String matchResult,
+                               String requestId,
+                               LocalDateTime matchTime,
+                               LocalDateTime nextMatchTime,
+                               String failReason);
 
     /**
      * 回写商户 OpenAPI 响应加密后的摘要信息。

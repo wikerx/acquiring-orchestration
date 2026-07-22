@@ -214,6 +214,36 @@ public class PaymentCreateResultDTO implements Serializable {
     private String cardBin;
 
     /**
+     * 渠道返回的脱敏卡号，禁止完整 PAN。
+     */
+    private String cardNumberMasked;
+
+    /**
+     * 卡有效期月份，来自商户请求或渠道摘要。
+     */
+    private String expiryMonth;
+
+    /**
+     * 卡有效期年份，来自商户请求或渠道摘要。
+     */
+    private String expiryYear;
+
+    /**
+     * 发卡国家或地区代码，来自渠道或卡 BIN 识别。
+     */
+    private String issuerCountry;
+
+    /**
+     * 资金类型，例如 CREDIT、DEBIT。
+     */
+    private String fundingMethod;
+
+    /**
+     * CSC/CVV 校验结果，来自渠道响应摘要。
+     */
+    private String cscResult;
+
+    /**
      * 授权码，渠道成功返回时填写。
      */
     private String authCode;

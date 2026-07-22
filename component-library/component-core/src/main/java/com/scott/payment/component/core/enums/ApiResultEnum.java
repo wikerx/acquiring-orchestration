@@ -67,7 +67,7 @@ public enum ApiResultEnum implements IResult {
     /**
      * 交易被支付平台或渠道拒绝。
      */
-    PAYMENT_REJECTED("F210", "Rejected"),
+    PAYMENT_REJECTED("F210", "The transaction was declined; please contact your card issuer or try again."),
 
     /**
      * 请求报文不符合开放接口协议。

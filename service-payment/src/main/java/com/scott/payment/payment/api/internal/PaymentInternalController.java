@@ -8,6 +8,8 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
+import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantNotificationNotifyDueCommandDTO;
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelCallbackQuery;
@@ -153,6 +155,18 @@ public class PaymentInternalController {
     public CommonResult<TransactionChannelCallbackResultDTO> recordChannelCallback(
             @Valid @RequestBody TransactionChannelCallbackCommandDTO commandDTO) {
         return success(paymentTransactionApplicationService.recordChannelCallback(commandDTO));
+    }
+
+    /**
+     * 执行渠道交易查询勾兑。
+     *
+     * @param commandDTO 查询勾兑命令
+     * @return 查询勾兑处理结果
+     */
+    @PostMapping("/transactions/channel-match/match-due")
+    public CommonResult<TransactionChannelMatchResultDTO> matchDueChannelTransactions(
+            @RequestBody TransactionChannelMatchCommandDTO commandDTO) {
+        return success(paymentTransactionApplicationService.matchDueChannelTransactions(commandDTO));
     }
 
     /**

@@ -2,10 +2,9 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
-import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
-import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
-import com.scott.payment.component.db.sharding.ShardingQuarter;
-import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
+import com.scott.payment.component.db.constant.DataSourceName;
+import com.scott.payment.component.db.sharding.ShardingDataTemplate;
+import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mapper.TransactionEventOutboxMapper;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
@@ -38,36 +37,20 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     private final TransactionEventOutboxMapper eventOutboxMapper;
 
     /**
-     * 季度分表配置。
+     * 分表数据访问统一入口。
      */
-    private final PaymentQuarterShardingProperties shardingProperties;
-
-    /**
-     * 季度解析器。
-     */
-    private final ShardingQuarterResolver quarterResolver;
-
-    /**
-     * 物理表名解析器。
-     */
-    private final ShardingPhysicalTableNameResolver tableNameResolver;
+    private final ShardingDataTemplate shardingDataTemplate;
 
     /**
      * 创建交易本地消息服务默认实现。
      *
      * @param eventOutboxMapper  交易本地事件 Mapper
-     * @param shardingProperties 季度分表配置
-     * @param quarterResolver    季度解析器
-     * @param tableNameResolver  物理表名解析器
+     * @param shardingDataTemplate 分表数据访问统一入口
      */
     public DefaultTransactionEventOutboxService(TransactionEventOutboxMapper eventOutboxMapper,
-                                               PaymentQuarterShardingProperties shardingProperties,
-                                               ShardingQuarterResolver quarterResolver,
-                                               ShardingPhysicalTableNameResolver tableNameResolver) {
+                                               ShardingDataTemplate shardingDataTemplate) {
         this.eventOutboxMapper = eventOutboxMapper;
-        this.shardingProperties = shardingProperties;
-        this.quarterResolver = quarterResolver;
-        this.tableNameResolver = tableNameResolver;
+        this.shardingDataTemplate = shardingDataTemplate;
     }
 
     /**
@@ -78,7 +61,9 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     @Override
     public void save(TransactionEventOutboxDO eventDO) {
         validateEvent(eventDO);
-        eventOutboxMapper.insertPhysical(resolvePhysicalTable(eventDO.getTransactionDateTime()), eventDO);
+        shardingDataTemplate.insert(
+                shardingContext(eventDO.getTransactionDateTime()),
+                table -> eventOutboxMapper.insertPhysical(table, eventDO));
     }
 
     /**
@@ -91,13 +76,18 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
      */
     @Override
     public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
+        if (eventTime == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "eventTime is required");
+        }
         if (now == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "now is required");
         }
         if (limit <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "limit must be greater than zero");
         }
-        return eventOutboxMapper.selectDueForPublish(resolvePhysicalTable(eventTime), now, limit);
+        return shardingDataTemplate.queryOne(
+                shardingContext(eventTime),
+                table -> eventOutboxMapper.selectDueForPublish(table, now, limit));
     }
 
     /**
@@ -111,11 +101,13 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
         validatePersistedEvent(eventDO);
         LocalDateTime actualSentTime = sentTime == null ? LocalDateTime.now() : sentTime;
-        return eventOutboxMapper.markSent(
-                resolvePhysicalTable(eventDO.getTransactionDateTime()),
-                eventDO.getId(),
-                eventDO.getVersion(),
-                actualSentTime) == 1;
+        return shardingDataTemplate.update(
+                shardingContext(eventDO.getTransactionDateTime()),
+                table -> eventOutboxMapper.markSent(
+                        table,
+                        eventDO.getId(),
+                        eventDO.getVersion(),
+                        actualSentTime) == 1);
     }
 
     /**
@@ -141,13 +133,16 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         if (safeFailReason != null && safeFailReason.length() > 512) {
             safeFailReason = safeFailReason.substring(0, 512);
         }
-        return eventOutboxMapper.markFailed(
-                resolvePhysicalTable(eventDO.getTransactionDateTime()),
-                eventDO.getId(),
-                eventDO.getVersion(),
-                nextRetryTime,
-                safeFailReason,
-                actualNow) == 1;
+        String failureReasonForUpdate = safeFailReason;
+        return shardingDataTemplate.update(
+                shardingContext(eventDO.getTransactionDateTime()),
+                table -> eventOutboxMapper.markFailed(
+                        table,
+                        eventDO.getId(),
+                        eventDO.getVersion(),
+                        nextRetryTime,
+                        failureReasonForUpdate,
+                        actualNow) == 1);
     }
 
     private void validateEvent(TransactionEventOutboxDO eventDO) {
@@ -171,41 +166,7 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         }
     }
 
-    private String resolvePhysicalTable(LocalDateTime transactionDateTime) {
-        PaymentQuarterShardingProperties.TableRule rule = resolveRule();
-        ShardingQuarter quarter = quarterResolver.fromDateTime(transactionDateTime);
-        if (!quarterResolver.inRange(rule, quarter)) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "transaction_date_time is outside sharding table range");
-        }
-        return tableNameResolver.physicalTableName(rule, quarter);
-    }
-
-    private PaymentQuarterShardingProperties.TableRule resolveRule() {
-        if (shardingProperties == null || shardingProperties.getTables() == null) {
-            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding tables config is required");
-        }
-        PaymentQuarterShardingProperties.TableRule rule = shardingProperties.getTables().get(LOGICAL_TABLE);
-        if (rule == null) {
-            rule = shardingProperties.getTables().get("transaction-event-outbox");
-        }
-        if (rule == null) {
-            rule = shardingProperties.getTables().values().stream()
-                    .filter(item -> LOGICAL_TABLE.equals(item.getLogicalTable()))
-                    .findFirst()
-                    .orElse(null);
-        }
-        if (rule == null || Boolean.FALSE.equals(rule.getEnabled())) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "transaction_event_outbox sharding rule is not enabled");
-        }
-        if (!StringUtils.hasText(rule.getLogicalTable())) {
-            rule.setLogicalTable(LOGICAL_TABLE);
-        }
-        if (!StringUtils.hasText(rule.getTemplateTable())) {
-            rule.setTemplateTable(LOGICAL_TABLE);
-        }
-        if (!StringUtils.hasText(rule.getShardingColumn())) {
-            rule.setShardingColumn("transaction_date_time");
-        }
-        return rule;
+    private ShardingSingleTableContext shardingContext(LocalDateTime transactionDateTime) {
+        return ShardingSingleTableContext.of(LOGICAL_TABLE, transactionDateTime, DataSourceName.MASTER);
     }
 }

@@ -11,6 +11,7 @@ import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -116,7 +117,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         request.setTransactionId(transactionId);
         request.setSourceTransactionId(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId());
         request.setChannelOrderNo(channelOrderNo);
-        request.setChannelTransactionId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_TRANSACTION_ID_PREFIX));
+        request.setChannelTransactionId(resolveChannelTransactionId(commandDTO, transactionId));
         request.setMerchantId(commandDTO.getMerchantId());
         request.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
         request.setMerchantOrderId(commandDTO.getMerchantOrderId());
@@ -150,6 +151,23 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             request.getExtension().put("mid." + entry.getKey(), emptyIfNull(entry.getValue()));
         }
         return request;
+    }
+
+    /**
+     * 解析本次渠道交易 ID。
+     * <p>
+     * 正常交易动作必须生成新的渠道交易 ID；查询勾兑需要使用原动作单已保存的渠道交易 ID，否则 MPGS RETRIEVE
+     * 会查询一笔从未创建过的渠道交易。
+     *
+     * @param commandDTO 支付核心交易命令
+     * @param transactionId 平台当前交易唯一标识
+     * @return 渠道交易 ID
+     */
+    private String resolveChannelTransactionId(PaymentCreateCommandDTO commandDTO, String transactionId) {
+        if ("QUERY".equalsIgnoreCase(commandDTO.getTransactionType()) && StringUtils.hasText(transactionId)) {
+            return transactionId;
+        }
+        return PaymentOrderNoGenerator.nextOrderNo(CHANNEL_TRANSACTION_ID_PREFIX);
     }
 
     /**

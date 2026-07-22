@@ -2130,12 +2130,33 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         dto.setStatus(account.getStatus());
         if (AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
             SysMerchantUserDO merchantUser = getEnabledMerchantUser(account);
+            BaseMerchantInfoDO merchantInfo = selectEnabledMerchantInfo(account.getMerchantId());
             dto.setMerchantUserId(merchantUser.getId());
             dto.setLoginAccount(merchantUser.getLoginAccount());
             dto.setRealName(StringUtils.hasText(merchantUser.getRealName()) ? merchantUser.getRealName() : user.getRealName());
+            dto.setTimezone(merchantInfo == null ? null : merchantInfo.getTimezone());
             dto.setMerchantAdmin(isMerchantSuperAdmin(app, account, roleIds));
         }
         return dto;
+    }
+
+    /**
+     * 查询启用商户基础资料，供登录响应补充商户侧展示偏好。
+     *
+     * @param merchantId 平台商户号
+     * @return 商户基础资料；不存在时返回 null
+     */
+    private BaseMerchantInfoDO selectEnabledMerchantInfo(String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return null;
+        }
+        return baseMerchantInfoMapper.selectOne(
+                Wrappers.<BaseMerchantInfoDO>lambdaQuery()
+                        .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
+                        .eq(BaseMerchantInfoDO::getMerchantStatus, AuthConstants.ENABLED)
+                        .eq(BaseMerchantInfoDO::getDeleted, 0)
+                        .last("LIMIT 1")
+        );
     }
 
     /**

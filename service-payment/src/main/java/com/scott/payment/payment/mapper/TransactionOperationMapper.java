@@ -136,6 +136,10 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                 channel_status = #{channelStatus},
                 channel_response_code = #{channelResponseCode},
                 channel_response_message = #{channelResponseMessage},
+                channel_match_status = 'MATCHED',
+                channel_match_result = #{transactionStatus},
+                next_channel_match_time = NULL,
+                channel_match_fail_reason = NULL,
                 complete_time = CURRENT_TIMESTAMP(3),
                 version = version + 1,
                 update_time = CURRENT_TIMESTAMP(3)
@@ -154,6 +158,77 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                @Param("channelStatus") String channelStatus,
                                @Param("channelResponseCode") String channelResponseCode,
                                @Param("channelResponseMessage") String channelResponseMessage);
+
+    /**
+     * 查询待渠道勾兑的动作单。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param channelCode       渠道编码，可为空
+     * @param now               当前时间，用于判断 next_channel_match_time
+     * @param limit             最大查询数量
+     * @return 待勾兑动作单
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE deleted = 0
+              AND channel_match_status = 'PENDING'
+              AND transaction_status NOT IN ('SUCCESS', 'FAILED')
+              AND channel_code IS NOT NULL
+              AND channel_order_no IS NOT NULL
+              AND channel_transaction_id IS NOT NULL
+              AND (next_channel_match_time IS NULL OR next_channel_match_time &lt;= #{now})
+              <if test="channelCode != null and channelCode != ''">
+                AND channel_code = #{channelCode}
+              </if>
+            ORDER BY COALESCE(next_channel_match_time, transaction_date_time) ASC, id ASC
+            LIMIT #{limit}
+            </script>
+            """)
+    List<TransactionOperationDO> selectPendingChannelMatchPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                   @Param("channelCode") String channelCode,
+                                                                   @Param("now") LocalDateTime now,
+                                                                   @Param("limit") int limit);
+
+    /**
+     * 标记本次渠道勾兑结果。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param id                动作单物理主键
+     * @param expectedVersion   读取动作单时的版本号
+     * @param matchStatus       勾兑状态
+     * @param matchResult       勾兑结果摘要
+     * @param requestId         最近一次渠道查询请求 ID
+     * @param matchTime         最近一次渠道查询时间
+     * @param nextMatchTime     下一次渠道查询时间
+     * @param failReason        勾兑失败原因
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE ${physicalTableName}
+            SET channel_match_status = #{matchStatus},
+                channel_match_result = #{matchResult},
+                channel_match_count = COALESCE(channel_match_count, 0) + 1,
+                last_channel_match_request_id = #{requestId},
+                last_channel_match_time = #{matchTime},
+                next_channel_match_time = #{nextMatchTime},
+                channel_match_fail_reason = #{failReason},
+                version = version + 1,
+                update_time = #{matchTime}
+            WHERE id = #{id}
+              AND version = #{expectedVersion}
+              AND deleted = 0
+            """)
+    int updateChannelMatchPhysical(@Param("physicalTableName") String physicalTableName,
+                                   @Param("id") Long id,
+                                   @Param("expectedVersion") Integer expectedVersion,
+                                   @Param("matchStatus") String matchStatus,
+                                   @Param("matchResult") String matchResult,
+                                   @Param("requestId") String requestId,
+                                   @Param("matchTime") LocalDateTime matchTime,
+                                   @Param("nextMatchTime") LocalDateTime nextMatchTime,
+                                   @Param("failReason") String failReason);
 
     /**
      * 查询同一交易生命周期下已有动作数量，用于生成动作序号。
@@ -214,6 +289,30 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                                @Param("merchantId") String merchantId,
                                                                @Param("merchantOrderNo") String merchantOrderNo,
                                                                @Param("transactionId") String transactionId);
+
+    /**
+     * 按商户订单号查询首次起点动作单。
+     * <p>
+     * 同一商户订单号下 PAYMENT 与 AUTHORIZATION/PRE_AUTHORIZATION 两条支付语义互斥；支付核心创建首次类交易前
+     * 通过该查询判断是否已经存在有效起点流程。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param merchantId        平台商户号
+     * @param merchantOrderNo   商户订单号
+     * @return 首次起点动作单列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND merchant_order_no = #{merchantOrderNo}
+              AND transaction_type IN ('PAYMENT', 'AUTHORIZATION', 'PRE_AUTHORIZATION')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectInitialByMerchantOrderPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                      @Param("merchantId") String merchantId,
+                                                                      @Param("merchantOrderNo") String merchantOrderNo);
 
     /**
      * 按交易时间范围查询动作单列表。

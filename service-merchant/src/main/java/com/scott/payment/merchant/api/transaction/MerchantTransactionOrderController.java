@@ -1,0 +1,139 @@
+package com.scott.payment.merchant.api.transaction;
+
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.web.auth.annotation.RequiresPermission;
+import com.scott.payment.component.web.operation.annotation.OperationLog;
+import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
+import com.scott.payment.merchant.application.transaction.MerchantTransactionApplicationService;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionActionRequest;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionActionResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionDetailResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOperationSearchResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import static com.scott.payment.component.core.model.CommonResult.success;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantTransactionOrderController
+ * @date : 2026-07-19 00:00
+ * @email : scott_x@163.com
+ * @description : 商户后台交易查询接口，位于 service-merchant 接口层，以当前登录商户为边界查询交易清单、详情、统计并发起商户退款动作。
+ * @status : create
+ */
+@RestController
+@RequestMapping("/merchant/transactions/orders")
+public class MerchantTransactionOrderController {
+
+    private final MerchantTransactionApplicationService transactionApplicationService;
+
+    /**
+     * 创建商户后台交易查询接口。
+     *
+     * @param transactionApplicationService 商户交易查询应用服务
+     */
+    public MerchantTransactionOrderController(MerchantTransactionApplicationService transactionApplicationService) {
+        this.transactionApplicationService = transactionApplicationService;
+    }
+
+    /**
+     * 分页查询当前商户交易主单。
+     *
+     * @param query 查询条件
+     * @return 当前商户主单分页结果
+     */
+    @PostMapping("/search")
+    @RequiresPermission("merchant:transaction:order:list")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.QUERY, operation = "分页查询商户交易主单")
+    public CommonResult<PageResult<TransactionOrderResponse>> search(@RequestBody(required = false) TransactionPageQuery query) {
+        return success(transactionApplicationService.pageOrders(currentMerchantId(), query));
+    }
+
+    /**
+     * 分页查询当前商户交易动作单并返回统计。
+     *
+     * @param query 查询条件
+     * @return 当前商户动作单分页与统计
+     */
+    @PostMapping("/operations/search")
+    @RequiresPermission("merchant:transaction:order:list")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.QUERY, operation = "查询商户交易动作统计")
+    public CommonResult<TransactionOperationSearchResponse> searchOperations(@RequestBody(required = false) TransactionPageQuery query) {
+        return success(transactionApplicationService.searchOperations(currentMerchantId(), query));
+    }
+
+    /**
+     * 按当前查询条件导出当前商户交易主单。
+     *
+     * @param query    查询条件
+     * @param response HTTP 响应
+     */
+    @PostMapping("/export")
+    @RequiresPermission("merchant:transaction:order:export")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.EXPORT, operation = "导出商户交易主单")
+    public void export(@RequestBody(required = false) TransactionPageQuery query, HttpServletResponse response) {
+        transactionApplicationService.exportOrders(currentMerchantId(), query, currentOperatorName(), response);
+    }
+
+    /**
+     * 查询当前商户交易聚合详情。
+     *
+     * @param transactionId 平台交易 ID
+     * @return 交易聚合详情
+     */
+    @GetMapping("/{transactionId}")
+    @RequiresPermission("merchant:transaction:order:detail")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.QUERY, operation = "查询商户交易详情")
+    public CommonResult<TransactionDetailResponse> detail(@PathVariable("transactionId") String transactionId) {
+        return success(transactionApplicationService.detail(currentMerchantId(), transactionId));
+    }
+
+    /**
+     * 当前商户发起退款动作。
+     *
+     * @param transactionId 原平台交易 ID
+     * @param request       退款请求
+     * @return 退款动作结果
+     */
+    @PostMapping("/{transactionId}/refund")
+    @RequiresPermission("merchant:transaction:order:refund")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.UPDATE, operation = "商户发起交易退款")
+    public CommonResult<TransactionActionResponse> refund(@PathVariable("transactionId") String transactionId,
+                                                          @RequestBody(required = false) TransactionActionRequest request) {
+        return success(transactionApplicationService.refund(currentMerchantId(), transactionId, request));
+    }
+
+    private String currentMerchantId() {
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        if (account == null || !StringUtils.hasText(account.getMerchantId())) {
+            throw new ServiceException(ApiResultEnum.UNAUTHORIZED.getCode(), "merchant context missing");
+        }
+        return account.getMerchantId();
+    }
+
+    private String currentOperatorName() {
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        if (account == null) {
+            return "merchant";
+        }
+        if (StringUtils.hasText(account.getRealName())) {
+            return account.getRealName();
+        }
+        return account.getLoginAccount();
+    }
+}

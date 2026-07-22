@@ -17,7 +17,17 @@ public enum PaymentChannelCode {
     /**
      * Mastercard Payment Gateway Services。
      */
-    MPGS("MPGS");
+    MPGS("MPGS"),
+
+    /**
+     * WorldPay Gateway XML 独立渠道编码；与 WPGJSON 分别配置渠道、MID 和协议实现。
+     */
+    WPGXML("WPGXML"),
+
+    /**
+     * WorldPay Gateway JSON 独立渠道编码；与 WPGXML 分别配置渠道、MID 和协议实现。
+     */
+    WPGJSON("WPGJSON");
 
     private final String code;
 

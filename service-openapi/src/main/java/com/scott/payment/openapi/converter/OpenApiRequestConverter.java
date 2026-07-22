@@ -7,6 +7,7 @@ import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDT
 import com.scott.payment.openapi.dto.body.PaymentCreateRequestDTO;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import com.scott.payment.openapi.vo.payment.PaymentQueryVO;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.springframework.util.StringUtils;
@@ -29,11 +30,6 @@ import java.util.List;
  */
 @Mapper(componentModel = "spring")
 public interface OpenApiRequestConverter {
-
-    /**
-     * 交易失败时返回给商户的统一模糊描述，渠道真实失败原因只保存在后台日志和交易详情。
-     */
-    String TRANSACTION_DECLINED_MESSAGE = "The transaction was declined; please contact your card issuer or try again.";
 
     /**
      * 将普通收单创建 DTO 转换为创建响应。
@@ -323,9 +319,16 @@ public interface OpenApiRequestConverter {
         if (vo == null || vo.getTransactionInfo() == null || responseDTO == null) {
             return;
         }
-        if (isInitialCreateAction(responseDTO.getTransactionType()) && "FAILED".equals(responseDTO.getStatus())) {
-            vo.getTransactionInfo().setMessage(TRANSACTION_DECLINED_MESSAGE);
+        if (isInitialCreateAction(responseDTO.getTransactionType())
+                && "FAILED".equals(responseDTO.getStatus())
+                && shouldUseDefaultRejectedMessage(responseDTO.getMerchantResponseMessage())) {
+            vo.getTransactionInfo().setMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
         }
+    }
+
+    private boolean shouldUseDefaultRejectedMessage(String merchantResponseMessage) {
+        return !StringUtils.hasText(merchantResponseMessage)
+                || "Rejected".equalsIgnoreCase(merchantResponseMessage.trim());
     }
 
     private boolean isInitialCreateAction(String transactionType) {

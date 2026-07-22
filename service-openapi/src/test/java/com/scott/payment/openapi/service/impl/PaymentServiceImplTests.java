@@ -196,6 +196,25 @@ class PaymentServiceImplTests {
     }
 
     @Test
+    void shouldReturnChannelDeclineMessageWhenPaymentFailureIsMerchantVisible() {
+        CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        paymentInternalClient.nextPaymentStatus = "FAILED";
+        paymentInternalClient.nextMerchantResponseCode = "F210";
+        paymentInternalClient.nextMerchantResponseMessage = "05: Declined";
+        paymentInternalClient.nextFailReasonCode = "CHANNEL_DECLINED";
+        paymentInternalClient.nextFailReasonMessage = "MPGS declined by issuer";
+        PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
+        bindRequestContext();
+
+        String responseJson = JsonUtils.toJsonString(paymentService.createPayment("encrypted-body", buildRequest()));
+
+        assertThat(responseJson).contains("\"code\":\"F210\"");
+        assertThat(responseJson).contains("\"message\":\"05: Declined\"");
+        assertThat(responseJson).doesNotContain("MPGS declined by issuer");
+        assertThat(responseJson).doesNotContain("CHANNEL_DECLINED");
+    }
+
+    @Test
     void shouldEchoMerchantRequestAndNormalizeTotalsForSuccessfulAuthorization() {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextAuthorizationStatus = "SUCCESS";
@@ -236,7 +255,7 @@ class PaymentServiceImplTests {
         CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
         paymentInternalClient.nextAuthorizationStatus = "FAILED";
         paymentInternalClient.nextMerchantResponseCode = "F210";
-        paymentInternalClient.nextMerchantResponseMessage = "Channel rejected";
+        paymentInternalClient.nextMerchantResponseMessage = "Rejected";
         paymentInternalClient.nextFailReasonCode = "CHANNEL_REQUEST_FAILED";
         paymentInternalClient.nextFailReasonMessage = "Unexpected parameter 'authentication.threeDs.acsEci'";
         PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);

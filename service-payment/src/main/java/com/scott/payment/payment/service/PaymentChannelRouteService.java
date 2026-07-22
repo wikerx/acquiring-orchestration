@@ -21,4 +21,19 @@ public interface PaymentChannelRouteService {
      * @return 渠道路由结果
      */
     PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO);
+
+    /**
+     * 按已落库的渠道和 MID 配置恢复路由快照。
+     * <p>
+     * 渠道查询勾兑不能重新路由，否则可能使用不同 MID 查询不到原渠道交易；该方法只恢复请求地址、超时和 MID 元数据。
+     *
+     * @param channelCode 渠道编码
+     * @param channelId 渠道信息 ID
+     * @param midConfigId MID 配置 ID
+     * @param fallbackMidNo 历史动作单保存的 MID 或终端号
+     * @return 路由结果快照
+     */
+    default PaymentRouteResultDTO restore(String channelCode, Long channelId, Long midConfigId, String fallbackMidNo) {
+        throw new UnsupportedOperationException("restore route result is not implemented");
+    }
 }

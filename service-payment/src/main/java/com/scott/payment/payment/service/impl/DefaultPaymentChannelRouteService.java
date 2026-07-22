@@ -127,6 +127,49 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return resultDTO;
     }
 
+    /**
+     * 按交易动作单已保存的渠道和 MID 配置恢复渠道调用参数。
+     * <p>
+     * 查询勾兑必须使用原动作单的 channel_mid_config_id 和 channel_transaction_id，
+     * 不能重新执行商户路由，否则绑定调整后可能查错渠道或查不到原交易。
+     *
+     * @param channelCode 渠道编码
+     * @param channelId 渠道信息 ID
+     * @param midConfigId MID 配置 ID
+     * @param fallbackMidNo 历史动作单保存的 MID 或终端号
+     * @return 渠道路由快照
+     */
+    @Override
+    public PaymentRouteResultDTO restore(String channelCode, Long channelId, Long midConfigId, String fallbackMidNo) {
+        String normalizedChannelCode = normalize(channelCode);
+        if (!StringUtils.hasText(normalizedChannelCode) || midConfigId == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channelCode and midConfigId are required");
+        }
+        ChannelMidConfigDO midConfig = midConfigMapper.selectById(midConfigId);
+        if (midConfig == null || NOT_DELETED != safeDeleted(midConfig.getDeleted())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel MID config is not available");
+        }
+        Long resolvedChannelId = channelId == null ? midConfig.getChannelId() : channelId;
+        ChannelInfoDO channelInfo = resolvedChannelId == null ? null : channelInfoMapper.selectById(resolvedChannelId);
+        if (channelInfo == null || NOT_DELETED != safeDeleted(channelInfo.getDeleted())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel info is not available");
+        }
+        String restoredChannelCode = firstText(channelInfo.getChannelCode(), midConfig.getChannelCode(), normalizedChannelCode);
+        if (!normalizedChannelCode.equals(normalize(restoredChannelCode))) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel config does not match operation channel");
+        }
+        PaymentRouteResultDTO resultDTO = PaymentRouteResultDTO.routed(restoredChannelCode);
+        resultDTO.setChannelId(channelInfo.getId());
+        resultDTO.setMidConfigId(midConfig.getId());
+        resultDTO.setMidNo(firstText(midConfig.getChannelMid(), fallbackMidNo));
+        resultDTO.setRequestUrl(channelInfo.getDefaultRequestUrl());
+        resultDTO.setConnectTimeoutSeconds(channelInfo.getConnectTimeoutSeconds());
+        resultDTO.setReadTimeoutSeconds(channelInfo.getReadTimeoutSeconds());
+        resultDTO.setMetadataValues(parseMetadata(midConfig.getMetadataValueJson()));
+        resultDTO.setRouteReason("RESTORED_FROM_TRANSACTION_OPERATION");
+        return resultDTO;
+    }
+
     private RouteCandidate toCandidate(MerchantChannelMidBindingDO binding,
                                        PaymentCreateCommandDTO commandDTO,
                                        LocalDateTime now) {
@@ -249,6 +292,34 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
 
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * 兼容历史记录中 deleted 为空的情况。
+     *
+     * @param deleted 删除标识
+     * @return 可参与比较的删除标识
+     */
+    private long safeDeleted(Long deleted) {
+        return deleted == null ? NOT_DELETED : deleted;
+    }
+
+    /**
+     * 取第一个非空文本，用于恢复路由时优先使用当前配置，缺失时兼容动作单快照。
+     *
+     * @param values 候选文本
+     * @return 第一个非空文本
+     */
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String resolvePaymentMethod(PaymentCreateCommandDTO commandDTO) {
