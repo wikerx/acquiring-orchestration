@@ -1311,6 +1311,11 @@ class PaymentTransactionServiceImplTests {
         }
 
         @Override
+        public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
+            return findOrder(transactionDateTime, operationId);
+        }
+
+        @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
             if (resultDTO != null && sourceTransactionId.equals(resultDTO.getTransactionId())) {
                 TransactionOperationDO operationDO = new TransactionOperationDO();
@@ -1388,6 +1393,15 @@ class PaymentTransactionServiceImplTests {
                 return List.of();
             }
             return initialOperations;
+        }
+
+        @Override
+        public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
+                                                                    String operationId,
+                                                                    String sourceTransactionId,
+                                                                    LocalDateTime beginTime,
+                                                                    LocalDateTime endTime) {
+            return List.of();
         }
 
         @Override
