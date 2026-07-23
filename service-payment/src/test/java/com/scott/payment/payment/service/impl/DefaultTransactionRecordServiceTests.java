@@ -46,6 +46,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -126,6 +127,7 @@ class DefaultTransactionRecordServiceTests {
         assertThat(operationCapture.value.getRrn()).isEqualTo("RCPT001");
         assertThat(operationCapture.value.getAcquirerReferenceNo()).isEqualTo("REF001");
         assertThat(operationCapture.value.getApprovedAmount()).isEqualByComparingTo("12.34");
+        assertThat(operationCapture.value.getMerchantOperationNo()).isEqualTo("M202607140001");
         assertThat(paymentInfoCapture.physicalTable).isEqualTo("transaction_payment_method_info_202603");
         assertThat(paymentInfoCapture.value.getPaymentMethod()).isEqualTo("BANK_CARD");
         assertThat(paymentInfoCapture.value.getPaymentBrand()).isEqualTo("MASTERCARD");
@@ -236,6 +238,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(operationCapture.physicalTable).isEqualTo("transaction_operation_202604");
         assertThat(operationCapture.value.getTransactionId()).isEqualTo("TX202610011000000000001");
         assertThat(operationCapture.value.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 10, 1, 10, 0));
+        assertThat(operationCapture.value.getSourceOperationId()).isEqualTo("OP202607010030000000001");
+        assertThat(operationCapture.value.getMerchantOperationNo()).isEqualTo("CAPTURE202610010001");
         assertThat(historyCapture.physicalTable).isEqualTo("transaction_status_history_202604");
         verify(orderMapper).increaseCapturedAmountPhysical(
                 "transaction_order_202603",
@@ -401,6 +405,55 @@ class DefaultTransactionRecordServiceTests {
         verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertPhysical(anyString(), any());
         verify(notificationMapper).activateByTransactionId(anyString(), anyString(), anyString(), any(), any());
+    }
+
+    /**
+     * T-P0-09：交易动作已经进入成功终态后，迟到失败回调、超时结果或补偿结果不得覆盖成功终态。
+     */
+    @Test
+    void shouldIgnoreCallbackWhenOperationAlreadyTerminalSuccess() {
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        Captured<TransactionStatusHistoryDO> historyCapture = new Captured<>();
+        when(historyMapper.insertPhysical(anyString(), any(TransactionStatusHistoryDO.class))).thenAnswer(invocation -> {
+            historyCapture.physicalTable = invocation.getArgument(0);
+            historyCapture.value = invocation.getArgument(1);
+            return 1;
+        });
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
+        TransactionOperationDO operationDO = processingInitialOperation();
+        operationDO.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+
+        boolean changed = recordService.completeByChannelCallback(
+                operationDO,
+                processingInitialOrder(),
+                "CCB202607010030000000002",
+                PaymentTransactionStatusEnum.FAILED.getCode(),
+                "CHANNEL_REQUEST_FAILED",
+                "late failed callback",
+                "FAILED",
+                "05",
+                "Declined");
+
+        assertThat(changed).isFalse();
+        assertThat(historyCapture.physicalTable).isEqualTo("transaction_status_history_202603");
+        assertThat(historyCapture.value.getTransitionResult()).isEqualTo("IGNORED");
+        assertThat(historyCapture.value.getFailReason()).isEqualTo("operation is already terminal");
+        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any());
+        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any());
     }
 
     /**

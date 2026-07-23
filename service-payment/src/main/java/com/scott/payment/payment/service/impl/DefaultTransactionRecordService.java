@@ -785,6 +785,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setMerchantId(commandDTO.getMerchantId());
         operationDO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
         operationDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
+        operationDO.setMerchantOperationNo(commandDTO.getMerchantOrderNo());
         operationDO.setOperationSequence(INITIAL_OPERATION_SEQUENCE);
         operationDO.setTransactionType(resultDTO.getTransactionType());
         operationDO.setTransactionStatus(resultDTO.getStatus());
@@ -821,9 +822,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setOperationId(sourceOrderDO.getOperationId());
         operationDO.setTransactionId(resultDTO.getTransactionId());
         operationDO.setSourceTransactionId(resultDTO.getSourceTransactionId());
+        operationDO.setSourceOperationId(sourceOrderDO.getOperationId());
         operationDO.setMerchantId(commandDTO.getMerchantId());
         operationDO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
         operationDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
+        operationDO.setMerchantOperationNo(commandDTO.getMerchantOrderId());
         operationDO.setOperationSequence(operationSequence);
         operationDO.setTransactionType(resultDTO.getTransactionType());
         operationDO.setTransactionStatus(resultDTO.getStatus());
@@ -2117,7 +2120,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
 
         Map<String, Object> orderInfo = new LinkedHashMap<>();
         putIfPresent(orderInfo, "orderNo", operationDO.getMerchantOrderNo());
-        putIfPresent(orderInfo, "orderId", operationDO.getMerchantOrderId());
+        putIfPresent(orderInfo, "orderId", firstText(operationDO.getMerchantOrderId(), operationDO.getMerchantOperationNo()));
         putIfPresent(orderInfo, "amount", operationDO.getLabelAmount());
         putIfPresent(orderInfo, "currency", operationDO.getLabelCurrency());
         putIfPresent(payload, "orderInfo", orderInfo);

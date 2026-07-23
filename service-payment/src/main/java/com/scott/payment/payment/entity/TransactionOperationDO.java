@@ -1,6 +1,7 @@
 package com.scott.payment.payment.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -49,6 +50,11 @@ public class TransactionOperationDO implements Serializable {
     private String sourceTransactionId;
 
     /**
+     * 源交易动作 ID，请款关联授权、退款关联请款或原授权时使用。
+     */
+    private String sourceOperationId;
+
+    /**
      * 平台商户号。
      */
     private String merchantId;
@@ -59,9 +65,15 @@ public class TransactionOperationDO implements Serializable {
     private String merchantOrderNo;
 
     /**
-     * 商户本次 API 请求唯一标识，来自 orderInfo.orderId。
+     * 商户本次 API 请求唯一标识，来自 orderInfo.orderId；动作单真实落库字段为 merchant_operation_no。
      */
+    @TableField(exist = false)
     private String merchantOrderId;
+
+    /**
+     * 商户动作单号；首笔交易使用商户订单号，后续动作暂复用 orderInfo.orderId。
+     */
+    private String merchantOperationNo;
 
     /**
      * 生命周期内动作序号，从 1 递增。

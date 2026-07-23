@@ -19,6 +19,7 @@ import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
@@ -214,7 +215,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
         commandDTO.setMerchantId(operationDO.getMerchantId());
         commandDTO.setMerchantOrderNo(operationDO.getMerchantOrderNo());
-        commandDTO.setMerchantOrderId(operationDO.getMerchantOrderId());
+        commandDTO.setMerchantOrderId(firstText(operationDO.getMerchantOrderId(), operationDO.getMerchantOperationNo()));
         commandDTO.setTransactionType("QUERY");
         commandDTO.setTransactionDateTime(operationDO.getTransactionDateTime());
         commandDTO.setAmount(operationDO.getTransactionAmount());
@@ -222,6 +223,10 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         commandDTO.setTransactionAmount(operationDO.getTransactionAmount());
         commandDTO.setTransactionCurrency(operationDO.getTransactionCurrency());
         return commandDTO;
+    }
+
+    private String firstText(String first, String second) {
+        return StringUtils.hasText(first) ? first : second;
     }
 
     /**

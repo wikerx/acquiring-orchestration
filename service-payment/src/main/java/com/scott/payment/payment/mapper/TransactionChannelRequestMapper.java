@@ -5,6 +5,7 @@ import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -55,6 +56,107 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             """)
     int insertPhysical(@Param("physicalTableName") String physicalTableName,
                        @Param("requestDO") TransactionChannelRequestDO requestDO);
+
+    /**
+     * 按 request_id 查询单笔渠道请求。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param requestId 平台渠道请求 ID
+     * @return 渠道请求记录，不存在时返回 null
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE request_id = #{requestId}
+              AND deleted = 0
+            LIMIT 1
+            """)
+    TransactionChannelRequestDO selectByRequestIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                                          @Param("requestId") String requestId);
+
+    /**
+     * 按渠道恢复身份查询单笔渠道请求。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param channelCode 渠道编码
+     * @param channelOrderNo 渠道订单号
+     * @param channelTransactionId 渠道交易 ID
+     * @return 渠道请求记录，不存在时返回 null
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE channel_code = #{channelCode}
+              AND channel_order_no = #{channelOrderNo}
+              AND channel_transaction_id = #{channelTransactionId}
+              AND deleted = 0
+            LIMIT 1
+            """)
+    TransactionChannelRequestDO selectByChannelTransactionPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                   @Param("channelCode") String channelCode,
+                                                                   @Param("channelOrderNo") String channelOrderNo,
+                                                                   @Param("channelTransactionId") String channelTransactionId);
+
+    /**
+     * CAS 推进渠道请求状态。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param requestId 平台渠道请求 ID
+     * @param expectedVersion 读取渠道请求时的版本号
+     * @param expectedStatuses 允许推进的当前请求状态
+     * @param requestStatus 目标请求状态
+     * @param gatewayResult 渠道网关外层结果
+     * @param gatewayCode 渠道网关响应码
+     * @param acquirerCode 收单响应码
+     * @param acquirerMessage 收单响应描述
+     * @param channelStatus 渠道原始状态
+     * @param platformSuccess 平台成功判断
+     * @param platformResultCode 平台统一结果码
+     * @param platformFailReason 平台失败原因
+     * @param responseTime 响应时间
+     * @param durationMillis 请求耗时
+     * @return 影响行数，1 表示状态推进成功
+     */
+    @Update("""
+            <script>
+            UPDATE ${physicalTableName}
+            SET request_status = #{requestStatus},
+                gateway_result = #{gatewayResult},
+                gateway_code = #{gatewayCode},
+                acquirer_code = #{acquirerCode},
+                acquirer_message = #{acquirerMessage},
+                channel_status = #{channelStatus},
+                platform_success = #{platformSuccess},
+                platform_result_code = #{platformResultCode},
+                platform_fail_reason = #{platformFailReason},
+                response_time = #{responseTime},
+                duration_millis = #{durationMillis},
+                version = version + 1,
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE request_id = #{requestId}
+              AND version = #{expectedVersion}
+              AND request_status IN
+              <foreach collection="expectedStatuses" item="expectedStatus" open="(" separator="," close=")">
+                #{expectedStatus}
+              </foreach>
+              AND deleted = 0
+            </script>
+            """)
+    int updateStatusPhysical(@Param("physicalTableName") String physicalTableName,
+                             @Param("requestId") String requestId,
+                             @Param("expectedVersion") Integer expectedVersion,
+                             @Param("expectedStatuses") List<String> expectedStatuses,
+                             @Param("requestStatus") String requestStatus,
+                             @Param("gatewayResult") String gatewayResult,
+                             @Param("gatewayCode") String gatewayCode,
+                             @Param("acquirerCode") String acquirerCode,
+                             @Param("acquirerMessage") String acquirerMessage,
+                             @Param("channelStatus") String channelStatus,
+                             @Param("platformSuccess") Integer platformSuccess,
+                             @Param("platformResultCode") String platformResultCode,
+                             @Param("platformFailReason") String platformFailReason,
+                             @Param("responseTime") LocalDateTime responseTime,
+                             @Param("durationMillis") Integer durationMillis);
 
     /**
      * 按平台交易 ID 查询渠道请求摘要。

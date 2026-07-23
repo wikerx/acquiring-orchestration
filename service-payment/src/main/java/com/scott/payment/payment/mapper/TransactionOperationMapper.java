@@ -32,8 +32,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
     @Insert("""
             INSERT INTO ${physicalTableName}
             (
-              operation_id, transaction_id, source_transaction_id, merchant_id,
-              merchant_order_no, merchant_order_id, operation_sequence, transaction_type, transaction_status,
+              operation_id, transaction_id, source_transaction_id, source_operation_id, merchant_id,
+              merchant_order_no, merchant_operation_no, operation_sequence, transaction_type, transaction_status,
               process_stage, pending_reason_code, fail_reason_code, fail_reason_message, label_currency, label_amount,
               transaction_currency, transaction_amount, approved_currency, approved_amount,
               channel_request_currency, channel_request_amount, settlement_currency, settlement_amount,
@@ -49,7 +49,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             VALUES
             (
               #{operationDO.operationId}, #{operationDO.transactionId}, #{operationDO.sourceTransactionId},
-              #{operationDO.merchantId}, #{operationDO.merchantOrderNo}, #{operationDO.merchantOrderId},
+              #{operationDO.sourceOperationId}, #{operationDO.merchantId}, #{operationDO.merchantOrderNo},
+              #{operationDO.merchantOperationNo},
               #{operationDO.operationSequence}, #{operationDO.transactionType},
               #{operationDO.transactionStatus}, #{operationDO.processStage}, #{operationDO.pendingReasonCode},
               #{operationDO.failReasonCode}, #{operationDO.failReasonMessage}, #{operationDO.labelCurrency}, #{operationDO.labelAmount},
