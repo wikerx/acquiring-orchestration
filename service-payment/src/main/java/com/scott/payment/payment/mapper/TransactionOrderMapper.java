@@ -95,6 +95,24 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                                                    @Param("operationId") String operationId);
 
     /**
+     * 按 operation_id 锁定交易生命周期主单。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param operationId       平台内部生命周期关联标识
+     * @return 交易生命周期主单，不存在时返回 null
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE operation_id = #{operationId}
+              AND deleted = 0
+            LIMIT 1
+            FOR UPDATE
+            """)
+    TransactionOrderDO selectByOperationIdForUpdatePhysical(@Param("physicalTableName") String physicalTableName,
+                                                            @Param("operationId") String operationId);
+
+    /**
      * 按交易时间范围查询交易生命周期主单列表。
      *
      * @param physicalTableName 经分表规则解析器校验后的物理表名

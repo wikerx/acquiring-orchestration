@@ -84,6 +84,17 @@ public interface TransactionRecordService {
     TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId);
 
     /**
+     * 按原交易业务时间和 operation_id 锁定生命周期主单。
+     * <p>
+     * 同一授权下创建 Capture 前使用数据库行锁串行化余额和未终态动作检查，避免并发绕过未恢复 Capture 阻断。
+     *
+     * @param transactionDateTime 原交易业务时间
+     * @param operationId         平台内部生命周期关联标识
+     * @return 加锁后的交易生命周期主单
+     */
+    TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId);
+
+    /**
      * 按平台当前交易 ID 定位原交易动作单。
      * <p>
      * 后续动作需要原动作的渠道交易 ID，例如 MPGS VOID 的 targetTransactionId 必须使用原动作的 channel_transaction_id。
@@ -117,6 +128,24 @@ public interface TransactionRecordService {
      * @return 首次起点交易动作列表
      */
     List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo);
+
+    /**
+     * 查询同一原始交易生命周期下结果尚未明确的请款动作。
+     * <p>
+     * Capture 的 PROCESSING/PENDING 动作可能已被渠道受理；恢复为 SUCCESS/FAILED 前必须阻断新的 Capture 渠道请求。
+     *
+     * @param merchantId           平台商户号
+     * @param operationId          平台内部生命周期关联标识
+     * @param sourceTransactionId  原授权或预授权平台交易 ID
+     * @param beginTime            查询开始时间
+     * @param endTime              查询结束时间
+     * @return 未终态请款动作列表
+     */
+    List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
+                                                         String operationId,
+                                                         String sourceTransactionId,
+                                                         LocalDateTime beginTime,
+                                                         LocalDateTime endTime);
 
     /**
      * 按渠道订单号和渠道交易 ID 定位平台交易动作。

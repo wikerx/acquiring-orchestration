@@ -46,11 +46,14 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -363,6 +366,155 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.paymentInvokeCount())
                 .as("T-P0-13 blocked capture must not call channel")
                 .isZero();
+    }
+
+    /**
+     * S4-02：Capture 已创建且处于渠道请求处理中时，新的动作号不得再次发起 Capture。
+     */
+    @Test
+    void shouldBlockNewCaptureWhenPreviousCaptureStillProcessing() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        recordService.pendingCaptureExists = true;
+        recordService.pendingCaptureStage = PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                new InMemoryTransactionIdempotencyService(),
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        assertThatThrownBy(() -> service.capture(followUpCommand("CAPTURE-0002", new BigDecimal("5.00"))))
+                .as("S4-02 processing capture must block later capture action")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isZero();
+        assertThat(recordService.followUpRecordCount).isZero();
+    }
+
+    /**
+     * S4-04：相同 Capture 动作号重复请求返回原动作快照，不创建第二笔请款，不再次调用渠道。
+     */
+    @Test
+    void shouldReturnOriginalCaptureForDuplicateSameMerchantActionNo() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        PaymentCreateResultDTO first = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+        PaymentCreateResultDTO duplicate = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+
+        assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * S4-05：相同 Capture 动作号但金额不同必须拒绝，不得再次调用渠道。
+     */
+    @Test
+    void shouldRejectSameCaptureActionNoWithDifferentAmountBeforeChannelInvocation() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+
+        assertThatThrownBy(() -> service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("6.00"))))
+                .as("S4-05 same capture action no with different amount must be rejected")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * S4-06：Unknown Capture 在恢复前暂占可请款路径，不能通过剩余余额校验绕过再次请款。
+     */
+    @Test
+    void shouldTreatUnknownCaptureAsOccupyingAvailableCaptureUntilRecovered() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("7.34");
+        recordService.pendingCaptureExists = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                new InMemoryTransactionIdempotencyService(),
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        assertThatThrownBy(() -> service.capture(followUpCommand("CAPTURE-0002", new BigDecimal("7.34"))))
+                .as("S4-06 unknown capture must occupy the capture path even when order available amount looks enough")
+                .isInstanceOf(RuntimeException.class);
+
+        recordService.pendingCaptureExists = false;
+        PaymentCreateResultDTO recoveredThenNewCapture = service.capture(followUpCommand("CAPTURE-0002", new BigDecimal("7.34")));
+
+        assertThat(recoveredThenNewCapture.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * S4-07：并发不同动作号 Capture 针对同一授权时，行锁和持久化未终态查询应阻止第二个渠道请求。
+     */
+    @Test
+    void shouldNotCreateTwoChannelCapturesForConcurrentDifferentCaptureActionNo() throws Exception {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        recordService.markFollowUpProcessingForNewCaptures = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> firstError = new AtomicReference<>();
+        AtomicReference<Throwable> secondError = new AtomicReference<>();
+
+        Thread first = new Thread(() -> runAfterStart(ready, start,
+                () -> service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("7.00"))), firstError));
+        Thread second = new Thread(() -> runAfterStart(ready, start,
+                () -> service.capture(followUpCommand("CAPTURE-0002", new BigDecimal("7.00"))), secondError));
+        first.start();
+        second.start();
+        assertThat(ready.await(2, TimeUnit.SECONDS)).isTrue();
+        start.countDown();
+        first.join(2000);
+        second.join(2000);
+
+        long failures = Stream.of(firstError.get(), secondError.get()).filter(Objects::nonNull).count();
+        assertThat(failures).isEqualTo(1);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
     }
 
     /**
@@ -823,6 +975,14 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean pendingCaptureExists;
 
+        private String pendingCaptureStage = PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode();
+
+        private boolean markFollowUpProcessingForNewCaptures;
+
+        private final ReentrantLock sourceOrderLock = new ReentrantLock();
+
+        private TransactionOperationDO persistedNonTerminalCapture;
+
         private String sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
 
         private String sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
@@ -916,6 +1076,14 @@ class PaymentTransactionConsistencyBaselineTests {
         }
 
         @Override
+        public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
+            if (markFollowUpProcessingForNewCaptures) {
+                sourceOrderLock.lock();
+            }
+            return findSourceOrderByTransactionId("TX202607230001");
+        }
+
+        @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
             if (!"TX202607230001".equals(sourceTransactionId)) {
                 return null;
@@ -960,6 +1128,34 @@ class PaymentTransactionConsistencyBaselineTests {
         }
 
         @Override
+        public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
+                                                                    String operationId,
+                                                                    String sourceTransactionId,
+                                                                    LocalDateTime beginTime,
+                                                                    LocalDateTime endTime) {
+            if (!MERCHANT_ID.equals(merchantId)
+                    || !"OP202607230001".equals(operationId)
+                    || !"TX202607230001".equals(sourceTransactionId)) {
+                return List.of();
+            }
+            if (!pendingCaptureExists && persistedNonTerminalCapture == null) {
+                return List.of();
+            }
+            if (persistedNonTerminalCapture != null) {
+                try {
+                    return List.of(persistedNonTerminalCapture);
+                } finally {
+                    unlockSourceOrderIfHeld();
+                }
+            }
+            try {
+                return List.of(pendingCapture());
+            } finally {
+                unlockSourceOrderIfHeld();
+            }
+        }
+
+        @Override
         public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
             return null;
         }
@@ -972,17 +1168,22 @@ class PaymentTransactionConsistencyBaselineTests {
             if (!pendingCaptureExists) {
                 return List.of();
             }
+            return List.of(pendingCapture());
+        }
+
+        private TransactionOperationDO pendingCapture() {
             TransactionOperationDO operationDO = new TransactionOperationDO();
             operationDO.setId(99L);
-            operationDO.setOperationId("OP-CAPTURE-UNKNOWN");
+            operationDO.setOperationId("OP202607230001");
             operationDO.setTransactionId("TX-CAPTURE-UNKNOWN");
             operationDO.setSourceTransactionId("TX202607230001");
             operationDO.setMerchantId(MERCHANT_ID);
             operationDO.setMerchantOrderNo(MERCHANT_ORDER_NO);
             operationDO.setMerchantOrderId("CAPTURE-0001");
+            operationDO.setMerchantOperationNo("CAPTURE-0001");
             operationDO.setTransactionType(PaymentTransactionTypeEnum.CAPTURE.getCode());
             operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
-            operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+            operationDO.setProcessStage(pendingCaptureStage);
             operationDO.setTransactionAmount(new BigDecimal("5.00"));
             operationDO.setTransactionCurrency("USD");
             operationDO.setChannelCode("MPGS");
@@ -990,12 +1191,47 @@ class PaymentTransactionConsistencyBaselineTests {
             operationDO.setChannelTransactionId("CH-CAPTURE-UNKNOWN");
             operationDO.setTransactionDateTime(TRANSACTION_TIME);
             operationDO.setVersion(0);
-            return List.of(operationDO);
+            return operationDO;
+        }
+
+        private TransactionOperationDO pendingCaptureFromRecord(TransactionFollowUpRecordDTO recordDTO) {
+            TransactionOperationDO operationDO = new TransactionOperationDO();
+            operationDO.setId(100L + followUpRecordCount);
+            operationDO.setOperationId(recordDTO.getSourceOrderDO().getOperationId());
+            operationDO.setTransactionId(recordDTO.getResultDTO().getTransactionId());
+            operationDO.setSourceTransactionId(recordDTO.getResultDTO().getSourceTransactionId());
+            operationDO.setMerchantId(recordDTO.getCommandDTO().getMerchantId());
+            operationDO.setMerchantOrderNo(recordDTO.getSourceOrderDO().getMerchantOrderNo());
+            operationDO.setMerchantOrderId(recordDTO.getCommandDTO().getMerchantOrderId());
+            operationDO.setMerchantOperationNo(recordDTO.getCommandDTO().getMerchantOrderId());
+            operationDO.setTransactionType(recordDTO.getResultDTO().getTransactionType());
+            operationDO.setTransactionStatus(recordDTO.getResultDTO().getStatus());
+            operationDO.setProcessStage(recordDTO.getResultDTO().getProcessStage());
+            operationDO.setTransactionAmount(recordDTO.getCommandDTO().getAmount());
+            operationDO.setTransactionCurrency(recordDTO.getCommandDTO().getCurrency());
+            operationDO.setTransactionDateTime(recordDTO.getCommandDTO().getTransactionDateTime());
+            operationDO.setVersion(0);
+            return operationDO;
         }
 
         @Override
         public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
-            followUpRecordCount++;
+            try {
+                followUpRecordCount++;
+                if (markFollowUpProcessingForNewCaptures
+                        && PaymentTransactionTypeEnum.CAPTURE.getCode().equals(recordDTO.getResultDTO().getTransactionType())) {
+                    persistedNonTerminalCapture = pendingCaptureFromRecord(recordDTO);
+                    pendingCaptureExists = true;
+                }
+            } finally {
+                unlockSourceOrderIfHeld();
+            }
+        }
+
+        private void unlockSourceOrderIfHeld() {
+            if (sourceOrderLock.isHeldByCurrentThread()) {
+                sourceOrderLock.unlock();
+            }
         }
 
         @Override
@@ -1200,6 +1436,11 @@ class PaymentTransactionConsistencyBaselineTests {
         }
 
         @Override
+        public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
+            return order;
+        }
+
+        @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
             return operation;
         }
@@ -1212,6 +1453,15 @@ class PaymentTransactionConsistencyBaselineTests {
         @Override
         public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
             return List.of(operation);
+        }
+
+        @Override
+        public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
+                                                                    String operationId,
+                                                                    String sourceTransactionId,
+                                                                    LocalDateTime beginTime,
+                                                                    LocalDateTime endTime) {
+            return List.of();
         }
 
         @Override

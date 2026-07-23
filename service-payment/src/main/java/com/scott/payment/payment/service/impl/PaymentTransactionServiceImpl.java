@@ -55,12 +55,17 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -500,13 +505,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             commandDTO.setTransactionType(transactionTypeEnum.getCode());
         }
         validateFollowUpCommand(commandDTO, transactionTypeEnum);
-        String idempotencyKey = transactionIdempotencyService.buildTransactionOperationKey(
-                commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), transactionTypeEnum.getCode());
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, transactionTypeEnum);
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        commandDTO.setRequestFingerprint(canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, transactionTypeEnum));
         String lockValue = UUID.randomUUID().toString();
         boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         if (!locked) {
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
-                    .map(this::toDuplicateResult)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
         }
         try {
@@ -534,6 +540,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         TransactionOrderDO sourceOrderDO = resolveSourceOrder(commandDTO);
+        sourceOrderDO = lockSourceOrderForCapture(sourceOrderDO, transactionTypeEnum);
+        commandDTO.setRequestFingerprint(canonicalFollowUpRequestFingerprint(commandDTO, sourceOrderDO, transactionTypeEnum));
+        Optional<TransactionIdempotencyDO> existingRecord = transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey);
+        if (existingRecord.isPresent()) {
+            return resolveDuplicateFollowUp(commandDTO, existingRecord.get());
+        }
+        if (transactionStateMachineService == null) {
+            throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED.getCode(), "transaction state machine is not configured");
+        }
+        transactionStateMachineService.validateFollowUpAction(sourceOrderDO, transactionTypeEnum, commandDTO.getAmount(), commandDTO.getCurrency());
+        validateNoNonTerminalCapture(commandDTO, sourceOrderDO, transactionTypeEnum, LocalDateTime.now());
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
                 TRANSACTION_OPERATION_SCOPE,
@@ -548,13 +565,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 now);
         if (!transactionIdempotencyService.tryBegin(beginRecord)) {
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
-                    .map(this::toDuplicateResult)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
         }
-        if (transactionStateMachineService == null) {
-            throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED.getCode(), "transaction state machine is not configured");
-        }
-        transactionStateMachineService.validateFollowUpAction(sourceOrderDO, transactionTypeEnum, commandDTO.getAmount(), commandDTO.getCurrency());
         TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
                 commandDTO.getTransactionInfo().getSourceTransactionId());
         normalizeFollowUpCommand(commandDTO, sourceOrderDO, sourceOperationDO);
@@ -779,6 +792,144 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 && (commandDTO.getAmount() == null || commandDTO.getAmount().compareTo(BigDecimal.ZERO) <= 0
                 || requiresRequestCurrency(transactionTypeEnum) && !StringUtils.hasText(commandDTO.getCurrency()))) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
+    /**
+     * 构造后续动作幂等键。
+     * <p>
+     * 后续动作必须按 sourceTransactionId 区分授权生命周期，不能把原 Payment/Auth 的 merchantOrderNo 当作 Capture 动作号。
+     *
+     * @param commandDTO 后续动作命令
+     * @param transactionTypeEnum 后续交易类型
+     * @return 后续动作幂等键
+     */
+    private String buildFollowUpIdempotencyKey(PaymentCreateCommandDTO commandDTO,
+                                               PaymentTransactionTypeEnum transactionTypeEnum) {
+        String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
+        String merchantOperationNo = sourceTransactionId + ":" + commandDTO.getMerchantOrderId();
+        return transactionIdempotencyService.buildTransactionOperationKey(
+                commandDTO.getMerchantId(), merchantOperationNo, transactionTypeEnum.getCode());
+    }
+
+    /**
+     * 阻断同一授权生命周期下已有未明确结果的 Capture。
+     * <p>
+     * PROCESSING/PENDING Capture 可能已经被渠道受理，必须先用原渠道身份恢复结果；恢复前不允许新的渠道 Capture。
+     *
+     * @param commandDTO 后续动作命令
+     * @param sourceOrderDO 原交易生命周期主单
+     * @param transactionTypeEnum 后续交易类型
+     * @param now 当前时间
+     */
+    private void validateNoNonTerminalCapture(PaymentCreateCommandDTO commandDTO,
+                                              TransactionOrderDO sourceOrderDO,
+                                              PaymentTransactionTypeEnum transactionTypeEnum,
+                                              LocalDateTime now) {
+        if (PaymentTransactionTypeEnum.CAPTURE != transactionTypeEnum) {
+            return;
+        }
+        String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
+        LocalDateTime beginTime = sourceOrderDO.getTransactionDateTime();
+        LocalDateTime endTime = laterOf(now, commandDTO.getTransactionDateTime());
+        List<TransactionOperationDO> nonTerminalCaptures = transactionRecordService.findNonTerminalCaptures(
+                commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), sourceTransactionId, beginTime, endTime);
+        if (nonTerminalCaptures.isEmpty()) {
+            return;
+        }
+        throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                "source transaction has a pending capture action");
+    }
+
+    private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first.isAfter(second) ? first : second;
+    }
+
+    /**
+     * Capture 创建前锁定原授权生命周期主单，串行化同一授权下余额校验和未终态 Capture 检查。
+     *
+     * @param sourceOrderDO 原交易生命周期主单
+     * @param transactionTypeEnum 后续交易类型
+     * @return 锁定后的生命周期主单
+     */
+    private TransactionOrderDO lockSourceOrderForCapture(TransactionOrderDO sourceOrderDO,
+                                                         PaymentTransactionTypeEnum transactionTypeEnum) {
+        if (PaymentTransactionTypeEnum.CAPTURE != transactionTypeEnum
+                || sourceOrderDO == null
+                || !StringUtils.hasText(sourceOrderDO.getOperationId())
+                || sourceOrderDO.getTransactionDateTime() == null) {
+            return sourceOrderDO;
+        }
+        return transactionRecordService.lockOrder(sourceOrderDO.getTransactionDateTime(), sourceOrderDO.getOperationId());
+    }
+
+    /**
+     * 处理后续动作重复请求。
+     *
+     * @param commandDTO 后续动作命令
+     * @param record 已存在幂等记录
+     * @return 幂等快照结果
+     */
+    private PaymentCreateResultDTO resolveDuplicateFollowUp(PaymentCreateCommandDTO commandDTO,
+                                                            TransactionIdempotencyDO record) {
+        if (StringUtils.hasText(record.getRequestFingerprint())
+                && !Objects.equals(record.getRequestFingerprint(), commandDTO.getRequestFingerprint())) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "merchant operation number already has a different request");
+        }
+        if (!StringUtils.hasText(record.getTransactionId())) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "merchant operation is being processed");
+        }
+        return toDuplicateResult(record);
+    }
+
+    private String canonicalFollowUpRequestFingerprint(PaymentCreateCommandDTO commandDTO,
+                                                       TransactionOrderDO sourceOrderDO,
+                                                       PaymentTransactionTypeEnum transactionTypeEnum) {
+        String sourceTransactionId = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
+        String effectiveCurrency = StringUtils.hasText(commandDTO.getCurrency())
+                ? commandDTO.getCurrency()
+                : sourceOrderDO == null ? null : sourceOrderDO.getTransactionCurrency();
+        String canonical = String.join("|",
+                "v1",
+                "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
+                "merchantOrderNo=" + normalizeFingerprintText(sourceOrderDO == null
+                        ? commandDTO.getMerchantOrderNo()
+                        : sourceOrderDO.getMerchantOrderNo()),
+                "merchantOperationNo=" + normalizeFingerprintText(commandDTO.getMerchantOrderId()),
+                "transactionType=" + normalizeFingerprintText(transactionTypeEnum.getCode()),
+                "sourceTransactionId=" + normalizeFingerprintText(sourceTransactionId),
+                "amount=" + normalizeFingerprintAmount(commandDTO.getAmount()),
+                "currency=" + normalizeFingerprintText(effectiveCurrency));
+        return sha256(canonical);
+    }
+
+    private String normalizeFingerprintText(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String normalizeFingerprintAmount(BigDecimal amount) {
+        if (amount == null) {
+            return "";
+        }
+        return amount.stripTrailingZeros().toPlainString();
+    }
+
+    private String sha256(String source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "request fingerprint can not be calculated", exception);
         }
     }
 

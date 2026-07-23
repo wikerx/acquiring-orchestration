@@ -479,6 +479,26 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 按 operation_id 锁定交易生命周期主单。
+     *
+     * @param transactionDateTime 原交易业务时间
+     * @param operationId         平台内部生命周期关联标识
+     * @return 加锁后的交易生命周期主单
+     */
+    @Override
+    public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
+        if (transactionDateTime == null || !StringUtils.hasText(operationId)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time and operation_id are required");
+        }
+        TransactionOrderDO orderDO = transactionOrderMapper.selectByOperationIdForUpdatePhysical(
+                resolvePhysicalTable(TRANSACTION_ORDER_TABLE, transactionDateTime), operationId);
+        if (orderDO == null) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        return orderDO;
+    }
+
+    /**
      * 按平台当前交易 ID 定位原交易生命周期主单。
      *
      * @param sourceTransactionId 原平台交易 ID
@@ -571,6 +591,37 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, null, now)) {
             operations.addAll(transactionOperationMapper.selectInitialByMerchantOrderPhysical(
                     operationTable, merchantId, merchantOrderNo));
+        }
+        return operations;
+    }
+
+    /**
+     * 查询同一授权生命周期下未恢复为明确结果的 Capture 动作。
+     *
+     * @param merchantId          平台商户号
+     * @param operationId         平台内部生命周期关联标识
+     * @param sourceTransactionId 原授权或预授权平台交易 ID
+     * @param beginTime           查询开始时间
+     * @param endTime             查询结束时间
+     * @return 未终态 Capture 动作列表
+     */
+    @Override
+    public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
+                                                                String operationId,
+                                                                String sourceTransactionId,
+                                                                LocalDateTime beginTime,
+                                                                LocalDateTime endTime) {
+        if (!StringUtils.hasText(merchantId)
+                || !StringUtils.hasText(operationId)
+                || !StringUtils.hasText(sourceTransactionId)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        LocalDateTime safeEndTime = endTime == null ? LocalDateTime.now() : endTime;
+        LocalDateTime safeBeginTime = beginTime == null ? parseTransactionDateTime(sourceTransactionId) : beginTime;
+        List<TransactionOperationDO> operations = new java.util.ArrayList<>();
+        for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, safeBeginTime, safeEndTime)) {
+            operations.addAll(transactionOperationMapper.selectNonTerminalCapturesPhysical(
+                    operationTable, merchantId, operationId, sourceTransactionId));
         }
         return operations;
     }

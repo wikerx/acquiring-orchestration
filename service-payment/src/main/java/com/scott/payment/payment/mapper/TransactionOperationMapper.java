@@ -374,6 +374,33 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                                       @Param("merchantOrderNo") String merchantOrderNo);
 
     /**
+     * 查询同一生命周期下未终态 Capture 动作。
+     * <p>
+     * 该查询只读取真实动作事实，不按商户订单号推断 Capture 动作号，避免把原 Payment/Auth 订单号误作多次请款标识。
+     *
+     * @param physicalTableName   经分表规则解析器校验后的物理表名
+     * @param merchantId          平台商户号
+     * @param operationId         平台内部生命周期关联标识
+     * @param sourceTransactionId 原授权或预授权平台交易 ID
+     * @return 未终态 Capture 动作列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND operation_id = #{operationId}
+              AND source_transaction_id = #{sourceTransactionId}
+              AND transaction_type = 'CAPTURE'
+              AND transaction_status IN ('PROCESSING', 'PENDING')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectNonTerminalCapturesPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                   @Param("merchantId") String merchantId,
+                                                                   @Param("operationId") String operationId,
+                                                                   @Param("sourceTransactionId") String sourceTransactionId);
+
+    /**
      * 按交易时间范围查询动作单列表。
      *
      * @param physicalTableName 经分表规则解析器校验后的物理表名
