@@ -58,6 +58,11 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
     private static final String PRE_AUTHORIZATION = "PRE_AUTHORIZATION";
 
     /**
+     * 首次交易全局幂等分组。
+     */
+    private static final String INITIAL_FLOW_GROUP = "INITIAL";
+
+    /**
      * 交易幂等 Mapper。
      */
     private final TransactionIdempotencyMapper idempotencyMapper;
@@ -85,6 +90,21 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 normalize(merchantId),
                 normalize(merchantOrderId),
                 normalize(transactionType));
+    }
+
+    /**
+     * 构建首次交易全局幂等键。
+     *
+     * @param merchantId      商户号
+     * @param merchantOrderNo 商户订单号
+     * @return 首次交易幂等键
+     */
+    @Override
+    public String buildInitialTransactionKey(String merchantId, String merchantOrderNo) {
+        return String.join(":",
+                normalize(merchantId),
+                normalize(merchantOrderNo),
+                INITIAL_FLOW_GROUP);
     }
 
     /**

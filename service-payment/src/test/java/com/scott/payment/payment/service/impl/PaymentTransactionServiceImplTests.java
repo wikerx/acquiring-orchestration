@@ -30,6 +30,7 @@ import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
@@ -115,7 +116,7 @@ class PaymentTransactionServiceImplTests {
         assertThat(eventOutboxService.eventDO.getMessageKey()).isEqualTo(resultDTO.getTransactionId());
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("INIT");
         assertThat(eventOutboxService.eventDO.getEventType()).isEqualTo("TRANSACTION_CREATED");
-        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:AUTH202607120001:AUTHORIZATION"))
+        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:M202607120001:INITIAL"))
                 .get()
                 .extracting(TransactionIdempotencyDO::getTransactionId)
                 .isEqualTo(resultDTO.getTransactionId());
@@ -251,7 +252,8 @@ class PaymentTransactionServiceImplTests {
         assertThat(transactionRecordService.commandDTO.getMerchantOrderNo()).isEqualTo("M202607120001");
         assertThat(transactionRecordService.resultDTO.getTransactionId()).isEqualTo(resultDTO.getTransactionId());
         assertThat(transactionRecordService.routeResultDTO.getChannelCode()).isEqualTo("MPGS");
-        assertThat(transactionRecordService.channelResponse.getChannelResponseCode()).isEqualTo("00");
+        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
+        assertThat(transactionRecordService.channelResponse).isNull();
         assertThat(transactionRecordService.riskDecisionEnum).isEqualTo(PaymentRiskDecisionEnum.PASS);
         assertThat(transactionRecordService.currencyExponent).isEqualTo(2);
     }
@@ -279,8 +281,7 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
         assertThat(resultDTO.getFailReasonCode()).isNull();
         assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
-        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("FAILED");
-        assertThat(transactionRecordService.channelInvokeResultDTO.getExceptionMessage()).isEqualTo("MPGS password is required");
+        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
         assertThat(eventOutboxService.eventDO.getPayloadJson()).contains("\"transactionStatus\":\"PROCESSING\"");
     }
 
@@ -326,7 +327,7 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
         assertThat(channelInvokeService.commandDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
-        assertThat(idempotencyService.records).containsKey("TRANSACTION_OPERATION:200001:AUTH202607120001:PAYMENT");
+        assertThat(idempotencyService.records).containsKey("TRANSACTION_OPERATION:200001:M202607120001:INITIAL");
     }
 
     /**
@@ -1189,6 +1190,10 @@ class PaymentTransactionServiceImplTests {
 
         private PaymentChannelInvokeResultDTO channelInvokeResultDTO;
 
+        private ChannelPaymentResponse resultChannelResponse;
+
+        private PaymentChannelInvokeResultDTO resultChannelInvokeResultDTO;
+
         private PaymentCreateResultDTO resultDTO;
 
         private PaymentRiskDecisionEnum riskDecisionEnum;
@@ -1226,7 +1231,48 @@ class PaymentTransactionServiceImplTests {
         }
 
         @Override
+        public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
+                                                 PaymentRouteResultDTO routeResultDTO,
+                                                 PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+                                                 PaymentCreateResultDTO resultDTO,
+                                                 PaymentRiskDecisionEnum riskDecisionEnum,
+                                                 int currencyExponent) {
+            this.commandDTO = commandDTO;
+            this.routeResultDTO = routeResultDTO;
+            this.resultChannelInvokeResultDTO = channelInvokeResultDTO;
+            this.resultChannelResponse = channelInvokeResultDTO == null ? null : channelInvokeResultDTO.getChannelResponse();
+            this.resultDTO = resultDTO;
+            this.riskDecisionEnum = riskDecisionEnum;
+            this.currencyExponent = currencyExponent;
+        }
+
+        @Override
         public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
+            if (isRecordedInitialOperation(transactionDateTime, operationId)) {
+                TransactionOrderDO orderDO = new TransactionOrderDO();
+                orderDO.setOperationId(resultDTO.getOperationId());
+                orderDO.setRootTransactionId(resultDTO.getTransactionId());
+                orderDO.setLatestTransactionId(resultDTO.getTransactionId());
+                orderDO.setMerchantId(commandDTO.getMerchantId());
+                orderDO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
+                orderDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
+                orderDO.setTransactionType(resultDTO.getTransactionType());
+                orderDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+                orderDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
+                orderDO.setTransactionCurrency(commandDTO.getTransactionCurrency());
+                orderDO.setTransactionAmount(commandDTO.getTransactionAmount());
+                orderDO.setAuthorizedAmount(BigDecimal.ZERO);
+                orderDO.setCapturedAmount(BigDecimal.ZERO);
+                orderDO.setRefundedAmount(BigDecimal.ZERO);
+                orderDO.setAvailableCaptureAmount(BigDecimal.ZERO);
+                orderDO.setAvailableRefundAmount(BigDecimal.ZERO);
+                orderDO.setCurrencyExponent(2);
+                orderDO.setTransactionDateTime(transactionDateTime);
+                orderDO.setTransactionUtcTime(transactionDateTime);
+                orderDO.setTransactionTimeZone("Asia/Shanghai");
+                orderDO.setVersion(0);
+                return orderDO;
+            }
             if (!LocalDateTime.of(2026, 7, 12, 10, 30).equals(transactionDateTime)
                     || !SOURCE_OPERATION_ID.equals(operationId)) {
                 return null;
@@ -1266,6 +1312,29 @@ class PaymentTransactionServiceImplTests {
 
         @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
+            if (resultDTO != null && sourceTransactionId.equals(resultDTO.getTransactionId())) {
+                TransactionOperationDO operationDO = new TransactionOperationDO();
+                operationDO.setId(1L);
+                operationDO.setOperationId(resultDTO.getOperationId());
+                operationDO.setTransactionId(resultDTO.getTransactionId());
+                operationDO.setMerchantId(commandDTO.getMerchantId());
+                operationDO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
+                operationDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
+                operationDO.setTransactionType(resultDTO.getTransactionType());
+                operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+                operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
+                operationDO.setTransactionAmount(commandDTO.getTransactionAmount());
+                operationDO.setTransactionCurrency(commandDTO.getTransactionCurrency());
+                PaymentChannelInvokeResultDTO invokeResultDTO = resultChannelInvokeResultDTO == null
+                        ? channelInvokeResultDTO : resultChannelInvokeResultDTO;
+                if (invokeResultDTO != null && invokeResultDTO.getChannelRequest() != null) {
+                    operationDO.setChannelOrderNo(invokeResultDTO.getChannelRequest().getChannelOrderNo());
+                    operationDO.setChannelTransactionId(invokeResultDTO.getChannelRequest().getChannelTransactionId());
+                }
+                operationDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+                operationDO.setVersion(0);
+                return operationDO;
+            }
             if (!SOURCE_TRANSACTION_ID.equals(sourceTransactionId) && !CAPTURE_TRANSACTION_ID.equals(sourceTransactionId)) {
                 return null;
             }
@@ -1280,6 +1349,14 @@ class PaymentTransactionServiceImplTests {
                     ? LocalDateTime.of(2026, 7, 12, 10, 30)
                     : LocalDateTime.of(2026, 7, 14, 16, 15));
             return operationDO;
+        }
+
+        private boolean isRecordedInitialOperation(LocalDateTime transactionDateTime, String operationId) {
+            return resultDTO != null
+                    && commandDTO != null
+                    && transactionDateTime != null
+                    && transactionDateTime.equals(commandDTO.getTransactionDateTime())
+                    && resultDTO.getOperationId().equals(operationId);
         }
 
         @Override
@@ -1421,12 +1498,34 @@ class PaymentTransactionServiceImplTests {
                                                     String operationId,
                                                     String transactionId,
                                                     String channelOrderNo) {
+            PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+            prepared.setRequestId("CR-" + transactionId);
+            prepared.setChannelOrderNo(channelOrderNo);
+            prepared.setChannelTransactionId("CH-" + transactionId);
+            return invoke(commandDTO, routeResult, operationId, transactionId, prepared);
+        }
+
+        @Override
+        public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResult,
+                                                    String operationId,
+                                                    String transactionId,
+                                                    PaymentPreparedChannelRequestDTO preparedChannelRequest) {
             this.commandDTO = commandDTO;
             this.routeResultDTO = routeResult;
             this.operationId = operationId;
             this.transactionId = transactionId;
-            this.channelOrderNo = channelOrderNo;
+            this.channelOrderNo = preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo();
             PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
+            resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
+            resultDTO.setChannelRequest(new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest());
+            resultDTO.getChannelRequest().setChannelCode(routeResult.getChannelCode());
+            resultDTO.getChannelRequest().setOperationId(operationId);
+            resultDTO.getChannelRequest().setTransactionId(transactionId);
+            resultDTO.getChannelRequest().setChannelOrderNo(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo());
+            resultDTO.getChannelRequest().setChannelTransactionId(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
+            resultDTO.getChannelRequest().setAmount(commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount());
+            resultDTO.getChannelRequest().setCurrency(commandDTO.getTransactionCurrency() == null ? commandDTO.getCurrency() : commandDTO.getTransactionCurrency());
             resultDTO.setChannelResponse(response);
             resultDTO.setRequestStatus("SUCCESS");
             return resultDTO;
@@ -1441,7 +1540,27 @@ class PaymentTransactionServiceImplTests {
                                                     String operationId,
                                                     String transactionId,
                                                     String channelOrderNo) {
+            PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+            prepared.setRequestId("CR-" + transactionId);
+            prepared.setChannelOrderNo(channelOrderNo);
+            prepared.setChannelTransactionId("CH-" + transactionId);
+            return invoke(commandDTO, routeResult, operationId, transactionId, prepared);
+        }
+
+        @Override
+        public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResult,
+                                                    String operationId,
+                                                    String transactionId,
+                                                    PaymentPreparedChannelRequestDTO preparedChannelRequest) {
             PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
+            resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
+            resultDTO.setChannelRequest(new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest());
+            resultDTO.getChannelRequest().setChannelCode(routeResult.getChannelCode());
+            resultDTO.getChannelRequest().setOperationId(operationId);
+            resultDTO.getChannelRequest().setTransactionId(transactionId);
+            resultDTO.getChannelRequest().setChannelOrderNo(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo());
+            resultDTO.getChannelRequest().setChannelTransactionId(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
             resultDTO.setRequestStatus("FAILED");
             resultDTO.setExceptionType("ChannelRequestException");
             resultDTO.setExceptionMessage("MPGS password is required");
@@ -1527,6 +1646,7 @@ class PaymentTransactionServiceImplTests {
             record.setTransactionDateTime(transactionDateTime);
             record.setTransactionTimeZone(timeZone);
             record.setTransactionUtcTime(transactionDateTime);
+            record.setRequestFingerprint(requestFingerprint);
             return record;
         }
     }

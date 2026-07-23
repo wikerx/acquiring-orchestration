@@ -50,6 +50,24 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         assertThat(eventOutboxService.eventDO.getNextRetryTime()).isNotNull();
     }
 
+    @Test
+    void shouldNotRepublishAlreadySentEventWhenOutboxIsScannedAgain() {
+        TransactionEventOutboxDO eventDO = event();
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(eventDO);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(false);
+        DefaultTransactionEventOutboxRelayService relayService = new DefaultTransactionEventOutboxRelayService(
+                eventOutboxService,
+                mqProducer);
+
+        int firstSuccessCount = relayService.publishDueEvents(LocalDateTime.of(2026, 7, 12, 10, 0), 10);
+        int secondSuccessCount = relayService.publishDueEvents(LocalDateTime.of(2026, 7, 12, 10, 0), 10);
+
+        assertThat(firstSuccessCount).isEqualTo(1);
+        assertThat(secondSuccessCount).isZero();
+        assertThat(mqProducer.sendCount).isEqualTo(1);
+        assertThat(eventDO.getEventStatus()).isEqualTo("SENT");
+    }
+
     private TransactionEventOutboxDO event() {
         TransactionEventMessage message = new TransactionEventMessage();
         message.setMessageId("TX202607121000000010001");
@@ -81,6 +99,8 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         private boolean sent;
 
+        private int sendCount;
+
         private BaseMqMessage message;
 
         private CapturingMqProducer(boolean fail) {
@@ -94,6 +114,7 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             }
             this.message = message;
             this.sent = true;
+            this.sendCount++;
         }
     }
 
@@ -111,7 +132,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
         @Override
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
-            return List.of(eventDO);
+            return "SENT".equals(eventDO.getEventStatus()) || "CLOSED".equals(eventDO.getEventStatus())
+                    ? List.of()
+                    : List.of(eventDO);
         }
 
         @Override

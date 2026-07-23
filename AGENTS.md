@@ -766,3 +766,61 @@ NoopMqProducer
 * 直接修改 `/etc/codex/skills`
 * 直接安装会执行脚本的 Skill
 * 直接安装带未知依赖的 Skill
+
+---
+
+## 仓库级质量门禁补充
+
+### 运行环境
+
+1. 本仓库使用 JDK 17。依据为根 `pom.xml` 中的 `<java.version>17</java.version>` 和 `maven-compiler-plugin` 的 `<release>${java.version}</release>`。
+2. 本地 Maven 运行时必须优先使用 JDK 17；如果 `mvn -v` 显示更高或更低版本，必须在验证报告中记录，不得假装符合基线。
+3. 禁止未经确认升级 Spring Boot、Spring Cloud、Spring Cloud Alibaba、MyBatis-Plus、RocketMQ、XXL-JOB、MapStruct 等依赖版本。
+
+### 修改前扫描
+
+1. 修改前必须先扫描现有实现，包括同模块 Controller/API、ApplicationService、Service、Mapper、DTO/VO/DO、Converter、配置类、测试类。
+2. 不得只根据需求描述新增平行实现；优先复用现有分层、枚举、常量、异常、返回模型和工具类。
+3. 未确认服务职责时，只能引用 `README.md`、`AGENTS.md`、`pom.xml`、启动类、配置类、接口客户端或测试作为依据。
+
+### 分层和实现
+
+1. Spring Boot 代码优先遵循现有分层：`api`、`application`、`service`、`service.impl`、`dto`、`vo`、`entity`/`DO`、`mapper`、`converter`、`config`、`support`、`client`。
+2. Controller/API 只做参数接收、校验触发、认证上下文读取和结果返回，不承载支付核心规则。
+3. ApplicationService 负责编排流程；Service/Domain 服务承载业务规则；Mapper 只做数据访问；Converter 只做对象转换。
+4. 能使用 MapStruct 时优先使用 MapStruct，不手写重复字段搬运；简单且局部的一次性转换可按现有代码风格处理。
+5. 优先最小范围修改，禁止无关重构、批量格式化、跨模块搬迁和顺手修复。
+
+### 支付业务安全
+
+1. 金额、费率、汇率、手续费、保证金、结算金额必须使用 `BigDecimal` 或明确的最小单位整数模型。
+2. 禁止使用 `float` 或 `double` 处理金额、费率、汇率和资金类计算。
+3. 支付、授权、请款、撤销、冲正、退款、代付、回调、MQ 消费等写操作必须考虑幂等。
+4. 资金类幂等不能只依赖 Redis，必须有数据库唯一约束、状态机 CAS 或等价持久化保护。
+5. 交易状态变更必须进行合法性校验，终态不可逆，不允许无条件覆盖终态。
+6. 不允许在核心业务中写死渠道名称；渠道差异必须收敛到渠道编码、渠道配置、渠道适配器或映射规则。
+
+### 敏感信息
+
+禁止在日志、异常、测试输出或文档样例中记录：
+
+```text
+完整卡号
+CVV
+私钥
+JWT
+Token
+API Key
+merchantKey
+完整身份证件号
+银行卡号
+未脱敏手机号和邮箱
+明文敏感请求或响应报文
+```
+
+### 修改后验证
+
+1. 修改后必须执行对应 Maven 模块编译和测试；跨模块影响必须执行受影响模块及其上游依赖验证。
+2. 不得伪造测试通过结果，不得用历史测试报告替代本轮命令输出。
+3. 测试失败时必须如实记录失败命令、退出码、失败原因和未验证风险。
+4. 如果因本地缺少数据库、Redis、RocketMQ、Nacos、XXL-JOB、JDK 版本或依赖缓存导致失败，只记录原因，不擅自大范围修复。

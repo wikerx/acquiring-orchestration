@@ -27,15 +27,19 @@ import com.scott.payment.payment.domain.state.TransactionStateMachineService;
 import com.scott.payment.payment.service.ChannelTransactionStatusResolver;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.PaymentChannelResultTransactionService;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.PaymentTransactionService;
+import com.scott.payment.payment.service.PaymentTransactionPreparationService;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
@@ -153,6 +157,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private final PaymentChannelInvokeService paymentChannelInvokeService;
 
     /**
+     * 首次交易本地准备服务，用于在渠道调用前独立提交幂等、交易事实和渠道请求 INIT。
+     */
+    private final PaymentTransactionPreparationService paymentTransactionPreparationService;
+
+    /**
+     * 渠道同步结果事务服务，用于在渠道调用后通过独立事务保存结果并推进状态。
+     */
+    private final PaymentChannelResultTransactionService paymentChannelResultTransactionService;
+
+    /**
      * 交易汇率服务，用于渠道不支持标签币种时执行 EDC 交易汇率查询。
      */
     private final PaymentExchangeRateService paymentExchangeRateService;
@@ -215,6 +229,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 paymentRiskInvokeService,
                 paymentChannelRouteService,
                 paymentChannelInvokeService,
+                null,
+                null,
                 paymentExchangeRateService,
                 transactionIdempotencyService,
                 transactionEventOutboxService,
@@ -231,6 +247,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @param paymentRiskInvokeService 路由前风控调用服务
      * @param paymentChannelRouteService 收单渠道路由服务
      * @param paymentChannelInvokeService 收单渠道调用服务
+     * @param paymentTransactionPreparationService 首次交易本地准备服务
+     * @param paymentChannelResultTransactionService 渠道同步结果事务服务
      * @param paymentExchangeRateService 交易汇率服务
      * @param transactionIdempotencyService 交易幂等服务
      * @param transactionEventOutboxService 交易本地事件服务
@@ -244,6 +262,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                          PaymentRiskInvokeService paymentRiskInvokeService,
                                          PaymentChannelRouteService paymentChannelRouteService,
                                          PaymentChannelInvokeService paymentChannelInvokeService,
+                                         PaymentTransactionPreparationService paymentTransactionPreparationService,
+                                         PaymentChannelResultTransactionService paymentChannelResultTransactionService,
                                          PaymentExchangeRateService paymentExchangeRateService,
                                          TransactionIdempotencyService transactionIdempotencyService,
                                          TransactionEventOutboxService transactionEventOutboxService,
@@ -259,6 +279,19 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
         this.transactionRecordService = transactionRecordService;
+        this.paymentTransactionPreparationService = paymentTransactionPreparationService == null
+                ? new DefaultPaymentTransactionPreparationService(
+                isoDictionaryService,
+                paymentRiskInvokeService,
+                paymentChannelRouteService,
+                paymentExchangeRateService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService)
+                : paymentTransactionPreparationService;
+        this.paymentChannelResultTransactionService = paymentChannelResultTransactionService == null
+                ? new DefaultPaymentChannelResultTransactionService(transactionRecordService)
+                : paymentChannelResultTransactionService;
         this.transactionStateMachineService = transactionStateMachineService;
         this.channelStatusResolver = channelStatusResolver == null
                 ? new DefaultChannelTransactionStatusResolver()
@@ -273,7 +306,6 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO createPayment(PaymentCreateCommandDTO commandDTO) {
         return createTransaction(commandDTO, PaymentTransactionTypeEnum.PAYMENT);
     }
@@ -285,7 +317,6 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO createAuthorization(PaymentCreateCommandDTO commandDTO) {
         return createTransaction(commandDTO, PaymentTransactionTypeEnum.AUTHORIZATION);
     }
@@ -297,7 +328,6 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO createPreAuthorization(PaymentCreateCommandDTO commandDTO) {
         return createTransaction(commandDTO, PaymentTransactionTypeEnum.PRE_AUTHORIZATION);
     }
@@ -409,8 +439,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
         validateCreateCommand(commandDTO);
         String transactionType = resolveTransactionType(commandDTO);
-        String idempotencyKey = transactionIdempotencyService.buildTransactionOperationKey(
-                commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), transactionType);
+        String idempotencyKey = transactionIdempotencyService.buildInitialTransactionKey(
+                commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
         String flowLockKey = merchantOrderFlowLockKey(commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
         String lockValue = UUID.randomUUID().toString();
         boolean operationLocked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
@@ -423,10 +453,34 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         try {
             flowLocked = tryLock(flowLockKey, lockValue);
             if (!flowLocked) {
-                throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
+                return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                        .map(this::toDuplicateResult)
+                        .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
             }
-            validateMerchantOrderFlow(commandDTO, transactionType);
-            return createTransactionWithIdempotency(commandDTO, transactionType, idempotencyKey);
+            PaymentInitialPreparationResultDTO preparationResultDTO = paymentTransactionPreparationService.prepareInitialTransaction(
+                    commandDTO, transactionType);
+            if (!preparationResultDTO.isCallChannel()) {
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichResult(preparationResultDTO.getCommandDTO(), preparationResultDTO.getRouteResultDTO(), channelResponse, resultDTO);
+            paymentChannelResultTransactionService.recordInitialChannelResult(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    invokeResultDTO,
+                    resultDTO,
+                    preparationResultDTO.getRiskDecisionEnum(),
+                    preparationResultDTO.getCurrencyExponent());
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            return resultDTO;
         } finally {
             unlockAfterTransaction(flowLockKey, lockValue, flowLocked);
             unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, operationLocked);
@@ -662,6 +716,18 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                                               String channelOrderNo) {
         try {
             return paymentChannelInvokeService.invoke(commandDTO, routeResultDTO, operationId, transactionId, channelOrderNo);
+        } catch (PaymentChannelInvokeException exception) {
+            return exception.getInvokeResult();
+        }
+    }
+
+    private PaymentChannelInvokeResultDTO invokeChannelSafely(PaymentCreateCommandDTO commandDTO,
+                                                              PaymentRouteResultDTO routeResultDTO,
+                                                              String operationId,
+                                                              String transactionId,
+                                                              PaymentPreparedChannelRequestDTO preparedChannelRequestDTO) {
+        try {
+            return paymentChannelInvokeService.invoke(commandDTO, routeResultDTO, operationId, transactionId, preparedChannelRequestDTO);
         } catch (PaymentChannelInvokeException exception) {
             return exception.getInvokeResult();
         }
