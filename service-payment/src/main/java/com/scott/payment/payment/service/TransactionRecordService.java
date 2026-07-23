@@ -44,6 +44,26 @@ public interface TransactionRecordService {
                                   int currencyExponent);
 
     /**
+     * 记录首次类交易渠道同步结果。
+     * <p>
+     * 该方法只处理渠道调用后的本地持久化和状态 CAS 推进；调用方必须通过独立 Spring Bean 提供事务边界，
+     * 不得在调用方类中自调用事务方法。
+     *
+     * @param commandDTO       创建交易命令
+     * @param routeResultDTO   渠道路由结果
+     * @param channelInvokeResultDTO 渠道调用结果
+     * @param resultDTO        渠道映射后的平台结果
+     * @param riskDecisionEnum 内风控决策
+     * @param currencyExponent 交易币种默认小数位
+     */
+    void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
+                                      PaymentRouteResultDTO routeResultDTO,
+                                      PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+                                      PaymentCreateResultDTO resultDTO,
+                                      PaymentRiskDecisionEnum riskDecisionEnum,
+                                      int currencyExponent);
+
+    /**
      * 按原交易业务时间和内部 operation_id 定位交易生命周期主单。
      *
      * @param transactionDateTime 原交易业务时间，对应 transaction_date_time 分表字段

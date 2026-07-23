@@ -9,6 +9,7 @@ import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -69,9 +70,34 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                                                 String operationId,
                                                 String transactionId,
                                                 String channelOrderNo) {
-        ChannelPaymentRequest channelRequest = toChannelRequest(commandDTO, routeResult, operationId, transactionId, channelOrderNo);
+        PaymentPreparedChannelRequestDTO preparedChannelRequest = new PaymentPreparedChannelRequestDTO();
+        preparedChannelRequest.setRequestId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_REQUEST_ID_PREFIX, commandDTO.getTransactionDateTime()));
+        preparedChannelRequest.setChannelOrderNo(channelOrderNo);
+        preparedChannelRequest.setChannelTransactionId(resolveChannelTransactionId(commandDTO, transactionId));
+        return invoke(commandDTO, routeResult, operationId, transactionId, preparedChannelRequest);
+    }
+
+    /**
+     * 使用本地准备事务预生成的渠道请求身份调用渠道。
+     *
+     * @param commandDTO             支付核心交易命令
+     * @param routeResult            渠道路由和 MID 配置结果
+     * @param operationId            平台内部生命周期关联标识
+     * @param transactionId          平台当前交易唯一标识
+     * @param preparedChannelRequest 已提交的渠道请求身份
+     * @return 渠道调用上下文和同步响应摘要
+     */
+    @Override
+    public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                PaymentRouteResultDTO routeResult,
+                                                String operationId,
+                                                String transactionId,
+                                                PaymentPreparedChannelRequestDTO preparedChannelRequest) {
+        ChannelPaymentRequest channelRequest = toChannelRequest(commandDTO, routeResult, operationId, transactionId,
+                preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo(),
+                preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
         PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
-        resultDTO.setRequestId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_REQUEST_ID_PREFIX, commandDTO.getTransactionDateTime()));
+        resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
         resultDTO.setChannelRequest(channelRequest);
         resultDTO.setRequestStartTime(LocalDateTime.now());
         resultDTO.setHttpMethod(resolveHttpMethod(commandDTO));
@@ -110,14 +136,17 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                                                    PaymentRouteResultDTO routeResult,
                                                    String operationId,
                                                    String transactionId,
-                                                   String channelOrderNo) {
+                                                   String channelOrderNo,
+                                                   String channelTransactionId) {
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setChannelCode(routeResult.getChannelCode());
         request.setOperationId(operationId);
         request.setTransactionId(transactionId);
         request.setSourceTransactionId(commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId());
         request.setChannelOrderNo(channelOrderNo);
-        request.setChannelTransactionId(resolveChannelTransactionId(commandDTO, transactionId));
+        request.setChannelTransactionId(StringUtils.hasText(channelTransactionId)
+                ? channelTransactionId
+                : resolveChannelTransactionId(commandDTO, transactionId));
         request.setMerchantId(commandDTO.getMerchantId());
         request.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
         request.setMerchantOrderId(commandDTO.getMerchantOrderId());

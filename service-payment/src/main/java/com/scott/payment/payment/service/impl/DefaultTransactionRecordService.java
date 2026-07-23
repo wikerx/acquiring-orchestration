@@ -408,6 +408,62 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 记录首次类交易渠道同步结果。
+     *
+     * @param commandDTO       创建交易命令
+     * @param routeResultDTO   渠道路由结果
+     * @param channelInvokeResultDTO 渠道调用结果
+     * @param resultDTO        渠道映射后的平台结果
+     * @param riskDecisionEnum 内风控决策
+     * @param currencyExponent 交易币种默认小数位
+     */
+    @Override
+    public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
+                                             PaymentRouteResultDTO routeResultDTO,
+                                             PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+                                             PaymentCreateResultDTO resultDTO,
+                                             PaymentRiskDecisionEnum riskDecisionEnum,
+                                             int currencyExponent) {
+        validate(commandDTO, resultDTO);
+        if (channelInvokeResultDTO == null || channelInvokeResultDTO.getChannelRequest() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        TransactionOperationDO operationDO = findSourceOperationByTransactionId(resultDTO.getTransactionId());
+        TransactionOrderDO orderDO = findOrder(commandDTO.getTransactionDateTime(), resultDTO.getOperationId());
+        if (operationDO == null || orderDO == null) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
+                || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus())) {
+            recordCallbackStatusHistory(operationDO, channelInvokeResultDTO.getRequestId(), resultDTO.getStatus(), TRANSITION_IGNORED,
+                    "operation is already terminal or state has changed");
+            return;
+        }
+        updateInitialChannelRequest(commandDTO, routeResultDTO, channelInvokeResultDTO, resultDTO, now);
+        boolean statusChanged = isTerminal(resultDTO)
+                ? completeInitialTerminalStatus(operationDO, orderDO, channelInvokeResultDTO, resultDTO)
+                : updateInitialNonTerminalStatus(operationDO, channelInvokeResultDTO, resultDTO, now);
+        if (!statusChanged) {
+            recordCallbackStatusHistory(operationDO, channelInvokeResultDTO.getRequestId(), resultDTO.getStatus(), TRANSITION_IGNORED,
+                    "operation is already terminal or state has changed");
+            return;
+        }
+        insertCallbackStateAndFlow(
+                mergeOperationResult(operationDO, channelInvokeResultDTO, resultDTO),
+                orderDO,
+                channelInvokeResultDTO.getRequestId(),
+                resultDTO.getStatus(),
+                resultDTO.getFailReasonCode(),
+                resultDTO.getFailReasonMessage(),
+                true,
+                now);
+        if (isTerminal(resultDTO)) {
+            activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage(), now);
+        }
+    }
+
+    /**
      * 按原交易业务时间和 operation_id 定位交易生命周期主单。
      *
      * @param transactionDateTime 原交易业务时间
@@ -1090,6 +1146,154 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 failReasonCode,
                 failReasonCode);
         return updated == 1;
+    }
+
+    private void updateInitialChannelRequest(PaymentCreateCommandDTO commandDTO,
+                                             PaymentRouteResultDTO routeResultDTO,
+                                             PaymentChannelInvokeResultDTO invokeResultDTO,
+                                             PaymentCreateResultDTO resultDTO,
+                                             LocalDateTime now) {
+        String requestTable = resolvePhysicalTable(TRANSACTION_CHANNEL_REQUEST_TABLE, commandDTO.getTransactionDateTime());
+        TransactionChannelRequestDO requestDO = transactionChannelRequestMapper.selectByRequestIdPhysical(
+                requestTable,
+                invokeResultDTO.getRequestId());
+        if (requestDO == null) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND.getCode(), "channel request fact can not be found");
+        }
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        Map<String, String> rawResponse = response == null ? Map.of() : response.getRawResponse();
+        int updated = transactionChannelRequestMapper.updateStatusPhysical(
+                requestTable,
+                invokeResultDTO.getRequestId(),
+                requestDO.getVersion(),
+                List.of("INIT", "SENT", "TIMEOUT", "FAILED"),
+                invokeResultDTO.getRequestStatus(),
+                rawResponse.get("result"),
+                rawResponse.get("gatewayCode"),
+                rawResponse.get("acquirerCode"),
+                rawResponse.get("acquirerMessage"),
+                response == null ? null : response.getRawChannelStatus(),
+                PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus()) ? 1 : 0,
+                resultDTO.getStatus(),
+                firstText(invokeResultDTO.getExceptionMessage(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage()),
+                invokeResultDTO.getResponseTime() == null ? now : invokeResultDTO.getResponseTime(),
+                invokeResultDTO.getDurationMillis());
+        if (updated != 1 && isRequestResultConflict(requestDO, resultDTO)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel request state has changed");
+        }
+    }
+
+    private boolean isRequestResultConflict(TransactionChannelRequestDO requestDO, PaymentCreateResultDTO resultDTO) {
+        return requestDO == null
+                || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(requestDO.getPlatformResultCode())
+                || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
+    }
+
+    private boolean completeInitialTerminalStatus(TransactionOperationDO operationDO,
+                                                  TransactionOrderDO orderDO,
+                                                  PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                  PaymentCreateResultDTO resultDTO) {
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
+        int operationUpdated = transactionOperationMapper.completeStatusPhysical(
+                operationTable,
+                operationDO.getId(),
+                operationDO.getVersion(),
+                resultDTO.getStatus(),
+                resultDTO.getProcessStage(),
+                resultDTO.getFailReasonCode(),
+                resultDTO.getFailReasonMessage(),
+                response == null ? null : response.getRawChannelStatus(),
+                response == null ? null : response.getChannelResponseCode(),
+                response == null ? null : response.getChannelResponseMessage());
+        if (operationUpdated != 1) {
+            return false;
+        }
+        String orderTable = resolvePhysicalTable(TRANSACTION_ORDER_TABLE, orderDO.getTransactionDateTime());
+        boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
+        if (success) {
+            int orderUpdated = transactionOrderMapper.markInitialSuccessPhysical(
+                    orderTable,
+                    orderDO.getOperationId(),
+                    resultDTO.getTransactionId(),
+                    operationDO.getTransactionAmount() == null ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
+                    orderDO.getVersion());
+            if (orderUpdated != 1) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "order state has changed");
+            }
+            return true;
+        }
+        int orderUpdated = transactionOrderMapper.completeStatusPhysical(
+                orderTable,
+                orderDO.getOperationId(),
+                resultDTO.getTransactionId(),
+                orderDO.getVersion(),
+                resultDTO.getStatus(),
+                resultDTO.getProcessStage(),
+                resultDTO.getFailReasonCode(),
+                resultDTO.getFailReasonMessage(),
+                resultDTO.getFailReasonCode(),
+                resultDTO.getFailReasonCode());
+        if (orderUpdated != 1) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "order state has changed");
+        }
+        return true;
+    }
+
+    private boolean updateInitialNonTerminalStatus(TransactionOperationDO operationDO,
+                                                   PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                   PaymentCreateResultDTO resultDTO,
+                                                   LocalDateTime now) {
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
+        int updated = transactionOperationMapper.updateNonTerminalChannelResultPhysical(
+                operationTable,
+                operationDO.getId(),
+                operationDO.getVersion(),
+                resultDTO.getStatus(),
+                resultDTO.getProcessStage(),
+                resultDTO.getPendingReasonCode(),
+                resultDTO.getFailReasonCode(),
+                resultDTO.getFailReasonMessage(),
+                response == null ? null : response.getRawChannelStatus(),
+                response == null ? null : response.getChannelResponseCode(),
+                response == null ? null : response.getChannelResponseMessage(),
+                invokeResultDTO.getRequestId(),
+                now);
+        return updated == 1;
+    }
+
+    private TransactionOperationDO mergeOperationResult(TransactionOperationDO source,
+                                                       PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                       PaymentCreateResultDTO resultDTO) {
+        TransactionOperationDO target = new TransactionOperationDO();
+        target.setId(source.getId());
+        target.setOperationId(source.getOperationId());
+        target.setTransactionId(source.getTransactionId());
+        target.setSourceTransactionId(source.getSourceTransactionId());
+        target.setMerchantId(source.getMerchantId());
+        target.setMerchantOrderNo(source.getMerchantOrderNo());
+        target.setMerchantOrderId(source.getMerchantOrderId());
+        target.setMerchantOperationNo(source.getMerchantOperationNo());
+        target.setTransactionType(source.getTransactionType());
+        target.setTransactionStatus(resultDTO.getStatus());
+        target.setProcessStage(resultDTO.getProcessStage());
+        target.setPendingReasonCode(resultDTO.getPendingReasonCode());
+        target.setFailReasonCode(resultDTO.getFailReasonCode());
+        target.setFailReasonMessage(resultDTO.getFailReasonMessage());
+        target.setTransactionAmount(source.getTransactionAmount());
+        target.setTransactionCurrency(source.getTransactionCurrency());
+        target.setCurrencyExponent(source.getCurrencyExponent());
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        target.setChannelCode(firstText(response == null ? null : response.getChannelCode(), source.getChannelCode()));
+        target.setChannelOrderNo(source.getChannelOrderNo());
+        target.setChannelTransactionId(source.getChannelTransactionId());
+        target.setChannelStatus(response == null ? source.getChannelStatus() : response.getRawChannelStatus());
+        target.setChannelResponseCode(response == null ? source.getChannelResponseCode() : response.getChannelResponseCode());
+        target.setChannelResponseMessage(response == null ? source.getChannelResponseMessage() : response.getChannelResponseMessage());
+        target.setTransactionDateTime(source.getTransactionDateTime());
+        target.setVersion(source.getVersion());
+        return target;
     }
 
     /**

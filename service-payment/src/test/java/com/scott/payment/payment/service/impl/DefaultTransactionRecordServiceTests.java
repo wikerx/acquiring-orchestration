@@ -17,6 +17,7 @@ import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.entity.TransactionAmountChangeLogDO;
+import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionChannelInteractionLogDO;
 import com.scott.payment.payment.entity.TransactionMerchantApiInteractionLogDO;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationDO;
@@ -35,6 +36,7 @@ import com.scott.payment.payment.mapper.TransactionMerchantNotificationMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -408,6 +410,224 @@ class DefaultTransactionRecordServiceTests {
     }
 
     /**
+     * S3-02：首次交易同步结果明确成功时，应在结果事务内先更新渠道请求，再通过动作单和主单 CAS 推进成功终态。
+     */
+    @Test
+    void shouldCompleteInitialChannelResultWithCasWhenChannelApproved() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        when(operationMapper.selectByTransactionIdPhysical("transaction_operation_202603", "202607010030000000001"))
+                .thenReturn(processingInitialOperation());
+        when(orderMapper.selectByOperationIdPhysical("transaction_order_202603", "OP202607010030000000001"))
+                .thenReturn(processingInitialOrder());
+        when(channelRequestMapper.selectByRequestIdPhysical("transaction_channel_request_202603", "CR202607010030000000001"))
+                .thenReturn(channelRequestFact("INIT", 0));
+        when(channelRequestMapper.updateStatusPhysical(anyString(), anyString(), any(), any(), anyString(), any(), any(), any(), any(), any(), any(), anyString(), any(), any(), any()))
+                .thenReturn(1);
+        when(operationMapper.completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(orderMapper.markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any()))
+                .thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                channelRequestMapper,
+                mock(TransactionChannelInteractionLogMapper.class),
+                flowEventMapper,
+                mock(TransactionAmountChangeLogMapper.class),
+                notificationMapper,
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
+
+        recordService.completeInitialChannelResult(
+                baseCommand(),
+                routeResult(),
+                initialResultInvokeResult("SUCCESS", channelResponse()),
+                initialResultDTO(PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentProcessStageEnum.FINISHED.getCode()),
+                PaymentRiskDecisionEnum.PASS,
+                2);
+
+        verify(channelRequestMapper).updateStatusPhysical(
+                "transaction_channel_request_202603",
+                "CR202607010030000000001",
+                0,
+                List.of("INIT", "SENT", "TIMEOUT", "FAILED"),
+                "SUCCESS",
+                null,
+                null,
+                null,
+                null,
+                null,
+                1,
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                null,
+                LocalDateTime.of(2026, 7, 1, 0, 30, 2),
+                1000);
+        verify(operationMapper).completeStatusPhysical(
+                "transaction_operation_202603",
+                11L,
+                0,
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                PaymentProcessStageEnum.FINISHED.getCode(),
+                null,
+                null,
+                null,
+                "00",
+                "Approved");
+        verify(orderMapper).markInitialSuccessPhysical(
+                "transaction_order_202603",
+                "OP202607010030000000001",
+                "202607010030000000001",
+                new BigDecimal("12.34"),
+                0);
+        verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
+        verify(flowEventMapper).insertPhysical(anyString(), any(TransactionFlowEventDO.class));
+        verify(notificationMapper).activateByTransactionId(anyString(), anyString(), anyString(), any(), any());
+    }
+
+    /**
+     * S3-04：首次交易同步结果仍为处理中时，应保留原 requestId 和渠道身份作为后续查询恢复入口。
+     */
+    @Test
+    void shouldKeepInitialChannelResultRecoverableWhenChannelStillProcessing() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        when(operationMapper.selectByTransactionIdPhysical("transaction_operation_202603", "202607010030000000001"))
+                .thenReturn(processingInitialOperation());
+        when(orderMapper.selectByOperationIdPhysical("transaction_order_202603", "OP202607010030000000001"))
+                .thenReturn(processingInitialOrder());
+        when(channelRequestMapper.selectByRequestIdPhysical("transaction_channel_request_202603", "CR202607010030000000001"))
+                .thenReturn(channelRequestFact("INIT", 0));
+        when(channelRequestMapper.updateStatusPhysical(anyString(), anyString(), any(), any(), anyString(), any(), any(), any(), any(), any(), any(), anyString(), any(), any(), any()))
+                .thenReturn(1);
+        when(operationMapper.updateNonTerminalChannelResultPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), anyString(), any()))
+                .thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                channelRequestMapper,
+                mock(TransactionChannelInteractionLogMapper.class),
+                flowEventMapper,
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
+
+        PaymentCreateResultDTO resultDTO = initialResultDTO(
+                PaymentTransactionStatusEnum.PROCESSING.getCode(),
+                PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+        recordService.completeInitialChannelResult(
+                baseCommand(),
+                routeResult(),
+                initialResultInvokeResult("SUCCESS", processingChannelResponse()),
+                resultDTO,
+                PaymentRiskDecisionEnum.PASS,
+                2);
+
+        ArgumentCaptor<LocalDateTime> matchTimeCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(operationMapper).updateNonTerminalChannelResultPhysical(
+                anyString(),
+                any(),
+                any(),
+                anyString(),
+                anyString(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                anyString(),
+                matchTimeCaptor.capture());
+        assertThat(matchTimeCaptor.getValue()).isNotNull();
+        verify(operationMapper).updateNonTerminalChannelResultPhysical(
+                "transaction_operation_202603",
+                11L,
+                0,
+                PaymentTransactionStatusEnum.PROCESSING.getCode(),
+                PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode(),
+                null,
+                null,
+                null,
+                "PENDING",
+                "PENDING",
+                "Processing",
+                "CR202607010030000000001",
+                matchTimeCaptor.getValue());
+        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any());
+        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any());
+        verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
+        verify(flowEventMapper).insertPhysical(anyString(), any(TransactionFlowEventDO.class));
+    }
+
+    /**
+     * S3-03：首次交易已经成功终态时，迟到失败同步结果不得覆盖动作单或主单终态。
+     */
+    @Test
+    void shouldIgnoreInitialChannelResultWhenOperationAlreadyTerminalSuccess() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        Captured<TransactionStatusHistoryDO> historyCapture = new Captured<>();
+        TransactionOperationDO terminalOperation = processingInitialOperation();
+        terminalOperation.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        when(operationMapper.selectByTransactionIdPhysical("transaction_operation_202603", "202607010030000000001"))
+                .thenReturn(terminalOperation);
+        when(orderMapper.selectByOperationIdPhysical("transaction_order_202603", "OP202607010030000000001"))
+                .thenReturn(processingInitialOrder());
+        when(channelRequestMapper.selectByRequestIdPhysical("transaction_channel_request_202603", "CR202607010030000000001"))
+                .thenReturn(channelRequestFact("SUCCESS", 1));
+        when(historyMapper.insertPhysical(anyString(), any(TransactionStatusHistoryDO.class))).thenAnswer(invocation -> {
+            historyCapture.physicalTable = invocation.getArgument(0);
+            historyCapture.value = invocation.getArgument(1);
+            return 1;
+        });
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                channelRequestMapper,
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
+
+        recordService.completeInitialChannelResult(
+                baseCommand(),
+                routeResult(),
+                initialResultInvokeResult("SUCCESS", failedChannelResponse()),
+                initialResultDTO(PaymentTransactionStatusEnum.FAILED.getCode(), PaymentProcessStageEnum.FINISHED.getCode()),
+                PaymentRiskDecisionEnum.PASS,
+                2);
+
+        assertThat(historyCapture.physicalTable).isEqualTo("transaction_status_history_202603");
+        assertThat(historyCapture.value.getTransitionResult()).isEqualTo("IGNORED");
+        assertThat(historyCapture.value.getFailReason()).isEqualTo("operation is already terminal or state has changed");
+        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any());
+        verify(operationMapper, never()).updateNonTerminalChannelResultPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), anyString(), any());
+        verify(orderMapper, never()).completeStatusPhysical(anyString(), anyString(), anyString(), any(), anyString(), anyString(), any(), any(), any(), any());
+        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any());
+    }
+
+    /**
      * T-P0-09：交易动作已经进入成功终态后，迟到失败回调、超时结果或补偿结果不得覆盖成功终态。
      */
     @Test
@@ -697,6 +917,68 @@ class DefaultTransactionRecordServiceTests {
         resultDTO.setChannelRequest(channelRequest());
         resultDTO.setChannelResponse(channelResponse());
         return resultDTO;
+    }
+
+    private PaymentCreateResultDTO initialResultDTO(String status, String processStage) {
+        PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
+        resultDTO.setOperationId("OP202607010030000000001");
+        resultDTO.setTransactionId("202607010030000000001");
+        resultDTO.setMerchantOrderNo("M202607140001");
+        resultDTO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
+        resultDTO.setStatus(status);
+        resultDTO.setProcessStage(processStage);
+        resultDTO.setAmount(1234L);
+        resultDTO.setCurrency("USD");
+        return resultDTO;
+    }
+
+    private PaymentChannelInvokeResultDTO initialResultInvokeResult(String requestStatus, ChannelPaymentResponse response) {
+        PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
+        resultDTO.setRequestId("CR202607010030000000001");
+        resultDTO.setRequestStatus(requestStatus);
+        ChannelPaymentRequest request = channelRequest();
+        request.setChannelOrderNo("202607010030000000001");
+        request.setChannelTransactionId("CH202607010030000000001");
+        resultDTO.setChannelRequest(request);
+        resultDTO.setChannelResponse(response);
+        resultDTO.setResponseTime(LocalDateTime.of(2026, 7, 1, 0, 30, 2));
+        resultDTO.setDurationMillis(1000);
+        return resultDTO;
+    }
+
+    private TransactionChannelRequestDO channelRequestFact(String requestStatus, int version) {
+        TransactionChannelRequestDO requestDO = new TransactionChannelRequestDO();
+        requestDO.setRequestId("CR202607010030000000001");
+        requestDO.setRequestStatus(requestStatus);
+        requestDO.setPlatformResultCode(PaymentTransactionStatusEnum.SUCCESS.getCode().equals(requestStatus)
+                ? PaymentTransactionStatusEnum.SUCCESS.getCode()
+                : PaymentTransactionStatusEnum.PROCESSING.getCode());
+        requestDO.setVersion(version);
+        return requestDO;
+    }
+
+    private ChannelPaymentResponse processingChannelResponse() {
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelCode("MPGS");
+        response.setChannelOrderNo("202607010030000000001");
+        response.setChannelTransactionId("CH202607010030000000001");
+        response.setChannelTradeStatus("PROCESSING");
+        response.setRawChannelStatus("PENDING");
+        response.setChannelResponseCode("PENDING");
+        response.setChannelResponseMessage("Processing");
+        return response;
+    }
+
+    private ChannelPaymentResponse failedChannelResponse() {
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelCode("MPGS");
+        response.setChannelOrderNo("202607010030000000001");
+        response.setChannelTransactionId("CH202607010030000000001");
+        response.setChannelTradeStatus("FAILED");
+        response.setRawChannelStatus("FAILED");
+        response.setChannelResponseCode("05");
+        response.setChannelResponseMessage("Declined");
+        return response;
     }
 
     private ChannelPaymentRequest channelRequest() {

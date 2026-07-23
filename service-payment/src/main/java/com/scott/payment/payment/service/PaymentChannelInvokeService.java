@@ -2,6 +2,7 @@ package com.scott.payment.payment.service;
 
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 
 /**
@@ -30,4 +31,26 @@ public interface PaymentChannelInvokeService {
                                          String operationId,
                                          String transactionId,
                                          String channelOrderNo);
+
+    /**
+     * 使用已提交的渠道请求身份调用收单渠道。
+     * <p>
+     * 首次交易准备事务会先生成并保存 request_id 与 channel_transaction_id；渠道调用必须复用这些值，
+     * 避免重复请求或恢复查询时产生第二个渠道资金动作身份。
+     *
+     * @param commandDTO             创建交易命令
+     * @param routeResult            路由结果
+     * @param operationId            平台内部生命周期关联标识
+     * @param transactionId          平台当前交易 ID
+     * @param preparedChannelRequest 已提交的渠道请求身份
+     * @return 渠道调用结果，包含统一请求、同步响应、请求 ID 和耗时
+     */
+    default PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                 PaymentRouteResultDTO routeResult,
+                                                 String operationId,
+                                                 String transactionId,
+                                                 PaymentPreparedChannelRequestDTO preparedChannelRequest) {
+        String channelOrderNo = preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo();
+        return invoke(commandDTO, routeResult, operationId, transactionId, channelOrderNo);
+    }
 }

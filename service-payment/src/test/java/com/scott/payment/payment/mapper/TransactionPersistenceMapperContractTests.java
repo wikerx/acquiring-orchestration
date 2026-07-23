@@ -67,6 +67,32 @@ class TransactionPersistenceMapperContractTests {
         assertThat(updateStatusSql).contains("version = version + 1");
     }
 
+    @Test
+    void operationMapperShouldCasUpdateNonTerminalChannelResultForRecovery() throws NoSuchMethodException {
+        String sql = annotationValue(TransactionOperationMapper.class.getMethod(
+                "updateNonTerminalChannelResultPhysical",
+                String.class,
+                Long.class,
+                Integer.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                String.class,
+                java.time.LocalDateTime.class), Update.class);
+
+        assertThat(sql).contains("version = #{expectedVersion}");
+        assertThat(sql).contains("transaction_status NOT IN ('SUCCESS', 'FAILED')");
+        assertThat(sql).contains("channel_match_status = 'PENDING'");
+        assertThat(sql).contains("last_channel_match_request_id = #{requestId}");
+        assertThat(sql).contains("next_channel_match_time = COALESCE(next_channel_match_time, #{matchTime})");
+        assertThat(sql).doesNotContain("complete_time");
+    }
+
     private static <A extends java.lang.annotation.Annotation> String annotationValue(Method method, Class<A> annotationType) {
         java.lang.annotation.Annotation annotation = method.getAnnotation(annotationType);
         assertThat(annotation).isNotNull();

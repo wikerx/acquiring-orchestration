@@ -28,6 +28,27 @@ public interface TransactionIdempotencyService {
     String buildTransactionOperationKey(String merchantId, String merchantOrderId, String transactionType);
 
     /**
+     * 构建首次交易全局幂等键。
+     * <p>
+     * Payment/Auth/PreAuth 起点动作以 merchantId + merchantOrderNo + INITIAL 作为持久化幂等维度，
+     * 不能依赖单次 API 请求号 merchantOrderId 或 Redis 锁作为最终兜底。
+     *
+     * @param merchantId       商户号
+     * @param merchantOrderNo  商户订单号
+     * @return 首次交易幂等键
+     */
+    default String buildInitialTransactionKey(String merchantId, String merchantOrderNo) {
+        return String.join(":",
+                normalizeKeyPart(merchantId),
+                normalizeKeyPart(merchantOrderNo),
+                "INITIAL");
+    }
+
+    private static String normalizeKeyPart(String value) {
+        return value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    /**
      * 查询幂等记录。
      *
      * @param scope 幂等范围
