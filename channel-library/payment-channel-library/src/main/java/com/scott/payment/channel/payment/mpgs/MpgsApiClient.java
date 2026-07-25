@@ -59,6 +59,18 @@ public class MpgsApiClient {
 
     private static final String EXT_MPGS_API_VERSION = "mid.version";
 
+    private static final String RAW_HTTP_METHOD = "httpMethod";
+
+    private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
+
+    private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
+
+    private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
+
+    private static final String RAW_RESPONSE_HEADER_JSON_MASKED = "responseHeaderJsonMasked";
+
+    private static final String RAW_RESPONSE_BODY_JSON_MASKED = "responseBodyJsonMasked";
+
     private static final Pattern MPGS_CARD_NUMBER_PATTERN = Pattern.compile(
             "(\"number\"\\s*:\\s*\")([0-9]{6})([0-9]{1,19})([0-9]{4})(\")",
             Pattern.CASE_INSENSITIVE
@@ -147,6 +159,7 @@ public class MpgsApiClient {
                 httpMethod = HTTP_METHOD_GET;
                 operation = MpgsApiOperation.RETRIEVE;
                 logRequest(request, httpMethod, operation, url, null);
+                fillRawRequestAudit(request, httpMethod, url, null);
                 response = sendGet(request, url);
             } else {
                 MpgsRequestPayload payload = requestMapper.toMpgsRequest(request);
@@ -154,9 +167,10 @@ public class MpgsApiClient {
                 httpMethod = HTTP_METHOD_PUT;
                 operation = payload.getApiOperation();
                 logRequest(request, httpMethod, operation, url, payload);
+                fillRawRequestAudit(request, httpMethod, url, requestBody);
                 response = sendPut(request, url, requestBody);
             }
-            return handleResponse(request, response, httpMethod, operation, startNanos);
+            return handleResponse(request, response, httpMethod, operation, url, startNanos);
         } catch (java.net.http.HttpTimeoutException e) {
             logRequestException(request, httpMethod, operation, url, startNanos, e);
             throw new ChannelTimeoutException("MPGS request timed out", e);
@@ -184,6 +198,7 @@ public class MpgsApiClient {
                                                   HttpResponse<String> response,
                                                   String httpMethod,
                                                   String operation,
+                                                  String requestUrl,
                                                   long startNanos) {
         String body = response.body();
         log.info("MPGS渠道响应上下文，context={}", JsonUtils.toJsonString(new ResponseLogContext(
@@ -202,7 +217,58 @@ public class MpgsApiClient {
         if ((response.statusCode() < 200 || response.statusCode() >= 300) && !hasMpgsResult(payload)) {
             throw new ChannelResponseException("MPGS HTTP response is not successful, status=" + response.statusCode());
         }
-        return responseMapper.toChannelResponse(request, payload);
+        ChannelPaymentResponse channelResponse = responseMapper.toChannelResponse(request, payload);
+        fillRawResponseAudit(channelResponse, request, response, httpMethod, requestUrl);
+        return channelResponse;
+    }
+
+    private void fillRawRequestAudit(ChannelPaymentRequest request, String httpMethod, String requestUrl, String requestBody) {
+        if (request == null) {
+            return;
+        }
+        request.getExtension().put(RAW_HTTP_METHOD, httpMethod);
+        request.getExtension().put(RAW_REQUEST_URL_MASKED, requestUrl);
+        request.getExtension().put(RAW_REQUEST_HEADER_JSON_MASKED, JsonUtils.toJsonString(Collections.singletonMap("Authorization", "Basic ***")));
+        request.getExtension().put(RAW_REQUEST_BODY_JSON_MASKED, StringUtils.hasText(requestBody)
+                ? maskMpgsJson(requestBody)
+                : JsonUtils.toJsonString(Collections.emptyMap()));
+    }
+
+    private void fillRawResponseAudit(ChannelPaymentResponse channelResponse,
+                                      ChannelPaymentRequest request,
+                                      HttpResponse<String> response,
+                                      String httpMethod,
+                                      String requestUrl) {
+        if (channelResponse == null || response == null) {
+            return;
+        }
+        channelResponse.setHttpStatus(response.statusCode());
+        channelResponse.setHttpMethod(firstText(httpMethod, auditValue(request, RAW_HTTP_METHOD)));
+        channelResponse.setRequestUrlMasked(firstText(requestUrl, auditValue(request, RAW_REQUEST_URL_MASKED)));
+        channelResponse.setRequestHeaderJsonMasked(auditValue(request, RAW_REQUEST_HEADER_JSON_MASKED));
+        channelResponse.setRequestBodyJsonMasked(auditValue(request, RAW_REQUEST_BODY_JSON_MASKED));
+        channelResponse.setResponseHeaderJsonMasked(JsonUtils.toJsonString(Collections.emptyMap()));
+        channelResponse.setResponseBodyJsonMasked(maskMpgsJson(response.body()));
+        channelResponse.getRawResponse().put("httpStatus", String.valueOf(response.statusCode()));
+        putIfText(channelResponse, RAW_HTTP_METHOD, channelResponse.getHttpMethod());
+        putIfText(channelResponse, RAW_REQUEST_URL_MASKED, channelResponse.getRequestUrlMasked());
+        putIfText(channelResponse, RAW_REQUEST_HEADER_JSON_MASKED, channelResponse.getRequestHeaderJsonMasked());
+        putIfText(channelResponse, RAW_REQUEST_BODY_JSON_MASKED, channelResponse.getRequestBodyJsonMasked());
+        putIfText(channelResponse, RAW_RESPONSE_HEADER_JSON_MASKED, channelResponse.getResponseHeaderJsonMasked());
+        putIfText(channelResponse, RAW_RESPONSE_BODY_JSON_MASKED, channelResponse.getResponseBodyJsonMasked());
+    }
+
+    private void putIfText(ChannelPaymentResponse channelResponse, String key, String value) {
+        if (channelResponse != null && StringUtils.hasText(value)) {
+            channelResponse.getRawResponse().put(key, value);
+        }
+    }
+
+    private String auditValue(ChannelPaymentRequest request, String key) {
+        if (request == null || request.getExtension() == null) {
+            return null;
+        }
+        return request.getExtension().get(key);
     }
 
     private MpgsResponsePayload parseResponseBody(String body, int httpStatus) {
@@ -420,6 +486,15 @@ public class MpgsApiClient {
             return request.getExtension().get(key);
         }
         return fallback;
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     /**

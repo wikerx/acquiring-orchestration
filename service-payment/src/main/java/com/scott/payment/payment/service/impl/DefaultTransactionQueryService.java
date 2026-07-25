@@ -737,7 +737,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         response.setChannelResponseCode(row.getChannelResponseCode());
         response.setChannelResponseMessage(row.getChannelResponseMessage());
         response.setAuthCode(row.getAuthCode());
-        response.setAcquirerReferenceNo(firstText(row.getAcquirerReferenceNo(), row.getRrn()));
+        response.setAcquirerReferenceNo(row.getAcquirerReferenceNo());
         response.setRrn(row.getRrn());
         response.setSettlementStatus(row.getSettlementStatus());
         response.setReconciliationStatus(row.getReconciliationStatus());

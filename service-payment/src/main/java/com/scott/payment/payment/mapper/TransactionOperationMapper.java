@@ -126,6 +126,10 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @param channelStatus         渠道原始状态
      * @param channelResponseCode   渠道响应码
      * @param channelResponseMessage 渠道响应描述
+     * @param authCode              授权码
+     * @param rrn                   检索参考号或渠道回单号
+     * @param acquirerReferenceNo   收单机构参考号
+     * @param channelMatchStatus    渠道勾兑状态；同步终态为 NOT_REQUIRED，回调/主动查询确认为 MATCHED
      * @return 影响行数，1 表示状态推进成功
      */
     @Update("""
@@ -137,7 +141,10 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                 channel_status = #{channelStatus},
                 channel_response_code = #{channelResponseCode},
                 channel_response_message = #{channelResponseMessage},
-                channel_match_status = 'MATCHED',
+                auth_code = #{authCode},
+                rrn = #{rrn},
+                acquirer_reference_no = #{acquirerReferenceNo},
+                channel_match_status = #{channelMatchStatus},
                 channel_match_result = #{transactionStatus},
                 next_channel_match_time = NULL,
                 channel_match_fail_reason = NULL,
@@ -158,7 +165,11 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                @Param("failReasonMessage") String failReasonMessage,
                                @Param("channelStatus") String channelStatus,
                                @Param("channelResponseCode") String channelResponseCode,
-                               @Param("channelResponseMessage") String channelResponseMessage);
+                               @Param("channelResponseMessage") String channelResponseMessage,
+                               @Param("authCode") String authCode,
+                               @Param("rrn") String rrn,
+                               @Param("acquirerReferenceNo") String acquirerReferenceNo,
+                               @Param("channelMatchStatus") String channelMatchStatus);
 
     /**
      * CAS 记录渠道同步非终态结果。

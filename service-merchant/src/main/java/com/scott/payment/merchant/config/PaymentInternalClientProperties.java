@@ -17,9 +17,19 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class PaymentInternalClientProperties {
 
     /**
+     * 请款动作接口地址。
+     */
+    private String captureUrl = "http://service-payment/internal/payment/capture";
+
+    /**
      * 退款动作接口地址。
      */
     private String refundUrl = "http://service-payment/internal/payment/refund";
+
+    /**
+     * 撤销动作接口地址。
+     */
+    private String voidUrl = "http://service-payment/internal/payment/void";
 
     /**
      * 内部服务调用方标识，用于 service-payment 审计调用来源。

@@ -22,13 +22,14 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -59,14 +60,34 @@ public class MerchantTransactionApplicationService {
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
+     * 商户后台请款动作幂等号前缀。
+     */
+    private static final String MERCHANT_CAPTURE_ORDER_ID_PREFIX = "MCHCP";
+
+    /**
      * 商户后台退款动作幂等号前缀。
      */
     private static final String MERCHANT_REFUND_ORDER_ID_PREFIX = "MCHRF";
 
     /**
+     * 商户后台撤销动作幂等号前缀。
+     */
+    private static final String MERCHANT_VOID_ORDER_ID_PREFIX = "MCHVD";
+
+    /**
      * 可作为退款源的交易动作类型。
      */
     private static final Set<String> REFUND_SOURCE_TYPES = Set.of("PAYMENT", "CAPTURE");
+
+    /**
+     * 可作为请款源的授权类动作类型。
+     */
+    private static final Set<String> CAPTURE_SOURCE_TYPES = Set.of("AUTHORIZATION", "PRE_AUTHORIZATION");
+
+    /**
+     * 可作为撤销源的授权类动作类型。
+     */
+    private static final Set<String> VOID_SOURCE_TYPES = Set.of("AUTHORIZATION", "PRE_AUTHORIZATION");
 
     /**
      * UTF-8 BOM，便于 Excel 正确识别 CSV 中文。
@@ -123,6 +144,36 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
+     * 当前商户发起全额请款动作。
+     *
+     * @param merchantId    当前登录商户号
+     * @param transactionId 原授权平台交易 ID
+     * @param request       请款请求
+     * @return 请款动作结果
+     */
+    public TransactionActionResponse capture(String merchantId, String transactionId, TransactionActionRequest request) {
+        TransactionDetailResponse detailResponse = detail(merchantId, transactionId);
+        ensureBelongsToMerchant(merchantId, detailResponse);
+        TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
+        if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED, "only successful authorizations can be captured");
+        }
+        if (!CAPTURE_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        }
+        BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
+        BigDecimal transactionAmount = fullTransactionAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
+        PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
+                merchantId,
+                sourceOperation,
+                request,
+                labelAmount,
+                transactionAmount,
+                MERCHANT_CAPTURE_ORDER_ID_PREFIX);
+        return paymentInternalClient.capture(requestDTO);
+    }
+
+    /**
      * 发起当前商户退款动作。
      *
      * @param merchantId    当前登录商户号
@@ -132,21 +183,59 @@ public class MerchantTransactionApplicationService {
      */
     public TransactionActionResponse refund(String merchantId, String transactionId, TransactionActionRequest request) {
         TransactionDetailResponse detailResponse = detail(merchantId, transactionId);
+        ensureBelongsToMerchant(merchantId, detailResponse);
         TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
         if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED, "only successful transactions can be refunded");
         }
-        sourceOperation = resolveRefundSourceOperation(detailResponse, sourceOperation);
+        if (!REFUND_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        }
         BigDecimal amount = request == null ? null : request.getAmount();
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount must be greater than 0");
         }
+        BigDecimal transactionAmount = toTransactionAmount(sourceOperation, amount);
         BigDecimal availableRefundAmount = sourceOperation.getAvailableRefundAmount();
-        if (availableRefundAmount != null && amount.compareTo(availableRefundAmount) > 0) {
+        if (availableRefundAmount != null && transactionAmount.compareTo(availableRefundAmount) > 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount exceeds available refund amount");
         }
-        PaymentTransactionActionClientRequestDTO requestDTO = buildRefundRequest(merchantId, sourceOperation, request, amount);
+        PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
+                merchantId,
+                sourceOperation,
+                request,
+                amount,
+                transactionAmount,
+                MERCHANT_REFUND_ORDER_ID_PREFIX);
         return paymentInternalClient.refund(requestDTO);
+    }
+
+    /**
+     * 当前商户发起全额撤销动作。
+     *
+     * @param merchantId    当前登录商户号
+     * @param transactionId 原授权平台交易 ID
+     * @param request       撤销请求
+     * @return 撤销动作结果
+     */
+    public TransactionActionResponse voidPayment(String merchantId, String transactionId, TransactionActionRequest request) {
+        TransactionDetailResponse detailResponse = detail(merchantId, transactionId);
+        ensureBelongsToMerchant(merchantId, detailResponse);
+        TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
+        if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED, "only successful authorizations can be voided");
+        }
+        if (!VOID_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        }
+        PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
+                merchantId,
+                sourceOperation,
+                request,
+                fullLabelAmount(sourceOperation, sourceOperation.getTransactionAmount()),
+                fullTransactionAmount(sourceOperation, sourceOperation.getTransactionAmount()),
+                MERCHANT_VOID_ORDER_ID_PREFIX);
+        return paymentInternalClient.voidPayment(requestDTO);
     }
 
     /**
@@ -284,37 +373,26 @@ public class MerchantTransactionApplicationService {
                 .orElseThrow(() -> new ApiException(ApiResultEnum.ORDER_NOT_FOUND));
     }
 
-    private TransactionOperationResponse resolveRefundSourceOperation(TransactionDetailResponse detailResponse,
-                                                                     TransactionOperationResponse selectedOperation) {
-        if (REFUND_SOURCE_TYPES.contains(selectedOperation.getTransactionType())) {
-            return selectedOperation;
-        }
-        return detailResponse.getOperations().stream()
-                .filter(operation -> REFUND_SOURCE_TYPES.contains(operation.getTransactionType()))
-                .filter(operation -> "SUCCESS".equals(operation.getTransactionStatus()))
-                .max(Comparator.comparing(TransactionOperationResponse::getOperationTime,
-                        Comparator.nullsLast(LocalDateTime::compareTo)))
-                .orElseThrow(() -> new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED));
-    }
-
-    private PaymentTransactionActionClientRequestDTO buildRefundRequest(String merchantId,
+    private PaymentTransactionActionClientRequestDTO buildActionRequest(String merchantId,
                                                                        TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
-                                                                       BigDecimal amount) {
+                                                                       BigDecimal labelAmount,
+                                                                       BigDecimal transactionAmount,
+                                                                       String orderIdPrefix) {
         LocalDateTime transactionDateTime = LocalDateTime.now();
         String merchantOrderId = request == null ? null : request.getMerchantOrderId();
         if (!StringUtils.hasText(merchantOrderId)) {
-            merchantOrderId = PaymentOrderNoGenerator.nextOrderNo(MERCHANT_REFUND_ORDER_ID_PREFIX, transactionDateTime);
+            merchantOrderId = PaymentOrderNoGenerator.nextOrderNo(orderIdPrefix, transactionDateTime);
         }
         PaymentTransactionActionClientRequestDTO requestDTO = new PaymentTransactionActionClientRequestDTO();
         requestDTO.setMerchantId(merchantId);
         requestDTO.setMerchantOrderNo(sourceOperation.getMerchantOrderNo());
         requestDTO.setMerchantOrderId(merchantOrderId);
         requestDTO.setRequestId(merchantOrderId);
-        requestDTO.setAmount(amount);
-        requestDTO.setCurrency(StringUtils.hasText(request == null ? null : request.getCurrency())
-                ? request.getCurrency()
-                : sourceOperation.getTransactionCurrency());
+        requestDTO.setAmount(transactionAmount);
+        requestDTO.setCurrency(sourceOperation.getTransactionCurrency());
+        requestDTO.setLabelAmount(labelAmount);
+        requestDTO.setLabelCurrency(resolveLabelCurrency(sourceOperation, request));
         requestDTO.setTransactionDateTime(transactionDateTime);
         PaymentTransactionActionClientRequestDTO.TransactionInfoDTO transactionInfoDTO =
                 new PaymentTransactionActionClientRequestDTO.TransactionInfoDTO();
@@ -322,6 +400,48 @@ public class MerchantTransactionApplicationService {
         transactionInfoDTO.setDescription(request == null ? null : request.getReason());
         requestDTO.setTransactionInfo(transactionInfoDTO);
         return requestDTO;
+    }
+
+    private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {
+        if (StringUtils.hasText(request == null ? null : request.getCurrency())) {
+            return request.getCurrency().trim().toUpperCase(Locale.ROOT);
+        }
+        if (StringUtils.hasText(sourceOperation.getLabelCurrency())) {
+            return sourceOperation.getLabelCurrency();
+        }
+        return sourceOperation.getTransactionCurrency();
+    }
+
+    private BigDecimal fullTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal preferredAmount) {
+        BigDecimal amount = preferredAmount == null ? sourceOperation.getTransactionAmount() : preferredAmount;
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
+        }
+        return amount;
+    }
+
+    private BigDecimal fullLabelAmount(TransactionOperationResponse sourceOperation, BigDecimal transactionAmount) {
+        BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
+        BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
+        if (sourceTransactionAmount == null || sourceTransactionAmount.compareTo(BigDecimal.ZERO) <= 0
+                || sourceLabelAmount == null || sourceLabelAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return fullTransactionAmount(sourceOperation, transactionAmount);
+        }
+        BigDecimal amount = fullTransactionAmount(sourceOperation, transactionAmount);
+        return amount.multiply(sourceLabelAmount).divide(sourceTransactionAmount, 6, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
+        if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
+        }
+        BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
+        BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
+        if (sourceLabelAmount == null || sourceLabelAmount.compareTo(BigDecimal.ZERO) <= 0
+                || sourceTransactionAmount == null || sourceTransactionAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return labelAmount;
+        }
+        return labelAmount.multiply(sourceTransactionAmount).divide(sourceLabelAmount, 6, RoundingMode.HALF_UP);
     }
 
     private String toOperationCsvLine(TransactionOperationResponse row) {

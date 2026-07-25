@@ -32,14 +32,15 @@ class MpgsResponseMapperTests {
 
         assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.SUCCESS.getCode());
         assertThat(response.getRawChannelStatus()).isEqualTo("SUCCESS");
-        assertThat(response.getChannelResponseCode()).isEqualTo("APPROVED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("00");
         assertThat(response.getChannelResponseMessage()).isEqualTo("Approved");
         assertThat(response.getAuthCode()).isEqualTo("123456");
-        assertThat(response.getRrn()).isEqualTo("RCPT001");
-        assertThat(response.getAcquirerReferenceNo()).isEqualTo("ACQ001");
+        assertThat(response.getRrn()).isNull();
+        assertThat(response.getAcquirerReferenceNo()).isNull();
         assertThat(response.getRawResponse()).containsEntry("transactionId", "TX-001");
         assertThat(response.getRawResponse()).containsEntry("transactionReference", "PLATFORM-REF-001");
         assertThat(response.getRawResponse()).containsEntry("acquirerReference", "ACQ001");
+        assertThat(response.getRawResponse()).containsEntry("receipt", "RCPT001");
         assertThat(response.getRawResponse()).containsEntry("acquirerCode", "00");
     }
 
@@ -72,7 +73,7 @@ class MpgsResponseMapperTests {
         ChannelPaymentResponse response = mapper.toChannelResponse(request(), payload);
 
         assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.FAILED.getCode());
-        assertThat(response.getChannelResponseCode()).isEqualTo("DECLINED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("14");
         assertThat(response.getChannelResponseMessage()).isEqualTo("Invalid card number");
         assertThat(response.getRawResponse()).containsEntry("acquirerCode", "14");
         assertThat(response.getRawResponse()).containsEntry("acquirerMessage", "Invalid card number");
@@ -122,8 +123,8 @@ class MpgsResponseMapperTests {
 
         assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.SUCCESS.getCode());
         assertThat(response.getAuthCode()).isEqualTo("283425");
-        assertThat(response.getRrn()).isEqualTo("620108283425");
-        assertThat(response.getAcquirerReferenceNo()).isEqualTo("123456789");
+        assertThat(response.getRrn()).isNull();
+        assertThat(response.getAcquirerReferenceNo()).isNull();
         assertThat(response.getChannelOrderNo()).isEqualTo("20260720162721508735");
         assertThat(response.getChannelTransactionId()).isEqualTo("20260720162721508735");
         assertThat(response.getPaymentMethodSummary()).isNotNull();
@@ -140,6 +141,8 @@ class MpgsResponseMapperTests {
         assertThat(response.getRawResponse()).containsEntry("authorizationResponseCode", "00");
         assertThat(response.getRawResponse()).containsEntry("authorizationStan", "283425");
         assertThat(response.getRawResponse()).containsEntry("authorizationTransactionIdentifier", "123456789");
+        assertThat(response.getRawResponse()).containsEntry("acquirerReference", "123456789");
+        assertThat(response.getRawResponse()).containsEntry("receipt", "620108283425");
         assertThat(response.getRawResponse()).containsEntry("transactionStan", "283425");
         assertThat(response.getRawResponse()).containsEntry("terminal", "2222");
         assertThat(response.getRawResponse()).containsEntry("acquirerSettlementDate", "2026-07-20");

@@ -88,6 +88,21 @@ public class AdminTransactionOperationController {
     }
 
     /**
+     * 发起交易请款。
+     *
+     * @param transactionId 原授权平台交易 ID
+     * @param request 请款动作请求
+     * @return 请款动作结果
+     */
+    @PostMapping("/{transactionId}/capture")
+    @RequiresPermission("transaction:operation:capture")
+    @OperationLog(moduleName = "交易管理", businessType = OperationTypeConstants.UPDATE, operation = "发起交易请款")
+    public CommonResult<TransactionActionResponse> capture(@PathVariable("transactionId") String transactionId,
+                                                           @RequestBody(required = false) TransactionActionRequest request) {
+        return success(transactionApplicationService.capture(transactionId, request));
+    }
+
+    /**
      * 发起交易退款。
      *
      * @param transactionId 原平台交易 ID

@@ -178,7 +178,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = normalize(query);
-        return pageMaps(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, channelLogWhereSql(safeQuery), channelLogParams(safeQuery), safeQuery);
+        return pageChannelLogsNormalized(safeQuery);
     }
 
     @Override
@@ -233,6 +233,26 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
     }
 
+    private PageResult<Map<String, Object>> pageChannelLogsNormalized(ChannelLogQuery query) {
+        long total = 0L;
+        long offset = offset(query);
+        long limit = query.safePageSize();
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (String table : physicalTablesInRange(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, query.getBeginTime(), query.getEndTime())) {
+            String requestTable = channelRequestTableForInteractionLogTable(table);
+            String operationTable = operationTableForInteractionLogTable(table);
+            long count = countChannelLogs(table, requestTable, operationTable, query);
+            total += count;
+            if (rows.size() < limit && offset < count) {
+                rows.addAll(selectChannelLogs(table, requestTable, operationTable, query, offset, limit - rows.size()));
+                offset = 0;
+            } else {
+                offset = Math.max(0, offset - count);
+            }
+        }
+        return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
+    }
+
     private long count(String table, String whereSql, MapSqlParameterSource params) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(1)
@@ -266,6 +286,54 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 """.formatted(table, softDeleteCondition(softDeleteTable), whereSql), pageParams));
     }
 
+    private long countChannelLogs(String table, String requestTable, String operationTable, ChannelLogQuery query) {
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(1)
+                FROM %s l
+                LEFT JOIN %s r ON r.request_id = l.request_id AND r.deleted = 0
+                LEFT JOIN %s o ON o.transaction_id = l.transaction_id AND o.deleted = 0
+                WHERE l.transaction_date_time >= :beginTime
+                  AND l.transaction_date_time <= :endTime
+                %s
+                """.formatted(table, requestTable, operationTable, channelLogWhereSql(query)), channelLogParams(query), Long.class);
+        return count == null ? 0L : count;
+    }
+
+    private List<Map<String, Object>> selectChannelLogs(String table,
+                                                        String requestTable,
+                                                        String operationTable,
+                                                        ChannelLogQuery query,
+                                                        long offset,
+                                                        long limit) {
+        MapSqlParameterSource params = channelLogParams(query)
+                .addValue("offset", offset)
+                .addValue("limit", limit);
+        return toCamelCaseRows(jdbcTemplate.queryForList("""
+                SELECT l.*,
+                       COALESCE(r.transaction_type, o.transaction_type) AS transaction_type,
+                       r.request_status AS request_status,
+                       r.gateway_result AS gateway_result,
+                       r.gateway_code AS gateway_code,
+                       r.acquirer_code AS acquirer_code,
+                       r.acquirer_message AS acquirer_message,
+                       r.channel_status AS channel_trade_status,
+                       COALESCE(r.channel_order_no, o.channel_order_no) AS channel_order_no,
+                       COALESCE(r.channel_transaction_id, o.channel_transaction_id) AS channel_transaction_id,
+                       COALESCE(r.platform_result_code, o.transaction_status) AS platform_result_code,
+                       r.platform_fail_reason AS platform_fail_reason,
+                       COALESCE(r.acquirer_code, r.gateway_code, o.channel_response_code) AS channel_response_code,
+                       COALESCE(r.acquirer_message, o.channel_response_message, r.platform_fail_reason) AS channel_response_message
+                FROM %s l
+                LEFT JOIN %s r ON r.request_id = l.request_id AND r.deleted = 0
+                LEFT JOIN %s o ON o.transaction_id = l.transaction_id AND o.deleted = 0
+                WHERE l.transaction_date_time >= :beginTime
+                  AND l.transaction_date_time <= :endTime
+                %s
+                ORDER BY l.interaction_time DESC, l.id DESC
+                LIMIT :offset, :limit
+                """.formatted(table, requestTable, operationTable, channelLogWhereSql(query)), params));
+    }
+
     private List<TransactionOrderResponse> selectOrders(String table, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = orderParams(query).addValue("offset", offset).addValue("limit", limit);
         return jdbcTemplate.query("""
@@ -290,19 +358,26 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
 
     private List<TransactionOperationResponse> selectOperations(String table, String paymentTable, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = operationParams(query).addValue("offset", offset).addValue("limit", limit);
+        String orderTable = orderTableForOperationTable(table);
         return jdbcTemplate.query("""
                 SELECT o.*,
+                       lifecycle.authorized_amount AS lifecycle_authorized_amount,
+                       lifecycle.captured_amount AS lifecycle_captured_amount,
+                       lifecycle.refunded_amount AS lifecycle_refunded_amount,
+                       lifecycle.available_capture_amount AS lifecycle_available_capture_amount,
+                       lifecycle.available_refund_amount AS lifecycle_available_refund_amount,
                        p.payment_method AS joined_payment_method,
                        p.payment_brand AS joined_payment_brand,
                        p.card_bin AS joined_card_bin,
                        p.card_number_masked AS joined_card_number_masked
                 FROM %s o
                 LEFT JOIN %s p ON p.transaction_id = o.transaction_id AND p.transaction_date_time = o.transaction_date_time
+                LEFT JOIN %s lifecycle ON lifecycle.operation_id = o.operation_id AND lifecycle.deleted = 0
                 WHERE o.deleted = 0
                 %s
                 ORDER BY o.transaction_date_time DESC, o.id DESC
                 LIMIT :offset, :limit
-                """.formatted(table, paymentTable, operationWhereSql(query, paymentTable)), params, operationMapper(true));
+                """.formatted(table, paymentTable, orderTable, operationWhereSql(query, paymentTable)), params, operationMapper(true));
     }
 
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery query) {
@@ -388,11 +463,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     private String channelLogWhereSql(ChannelLogQuery query) {
-        StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time <= :endTime");
-        append(sql, query.getChannelCode(), "AND channel_code = :channelCode");
-        append(sql, query.getTransactionId(), "AND transaction_id = :transactionId");
-        append(sql, query.getChannelOrderNo(), "AND channel_order_no = :channelOrderNo");
-        append(sql, query.getInteractionType(), "AND interaction_type = :interactionType");
+        StringBuilder sql = new StringBuilder();
+        append(sql, query.getChannelCode(), "AND l.channel_code = :channelCode");
+        append(sql, query.getTransactionId(), "AND l.transaction_id = :transactionId");
+        append(sql, query.getChannelOrderNo(), "AND COALESCE(r.channel_order_no, o.channel_order_no) = :channelOrderNo");
+        append(sql, query.getRequestStatus(), "AND r.request_status = :requestStatus");
+        if (StringUtils.hasText(query.getInteractionType())) {
+            if ("REQUEST".equals(query.getInteractionType()) || "RESPONSE".equals(query.getInteractionType())) {
+                sql.append(" AND l.interaction_type IN (:interactionType, 'REQUEST_RESPONSE')");
+            } else {
+                sql.append(" AND l.interaction_type = :interactionType");
+            }
+        }
         return sql.toString();
     }
 
@@ -450,6 +532,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 .addValue("channelCode", query.getChannelCode())
                 .addValue("transactionId", query.getTransactionId())
                 .addValue("channelOrderNo", query.getChannelOrderNo())
+                .addValue("requestStatus", query.getRequestStatus())
                 .addValue("interactionType", query.getInteractionType());
     }
 
@@ -671,6 +754,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
             row.setPaymentBrand(joinedPaymentInfo ? rs.getString("joined_payment_brand") : null);
             row.setCardBin(joinedPaymentInfo ? rs.getString("joined_card_bin") : null);
             row.setCardNumberMasked(joinedPaymentInfo ? rs.getString("joined_card_number_masked") : null);
+            row.setAuthorizedAmount(getBigDecimalIfExists(rs, "lifecycle_authorized_amount"));
+            row.setCapturedAmount(getBigDecimalIfExists(rs, "lifecycle_captured_amount"));
+            row.setRefundedAmount(getBigDecimalIfExists(rs, "lifecycle_refunded_amount"));
+            row.setAvailableCaptureAmount(getBigDecimalIfExists(rs, "lifecycle_available_capture_amount"));
+            row.setAvailableRefundAmount(getBigDecimalIfExists(rs, "lifecycle_available_refund_amount"));
             row.setChannelCode(rs.getString("channel_code"));
             row.setChannelOrderNo(rs.getString("channel_order_no"));
             row.setChannelTransactionId(rs.getString("channel_transaction_id"));
@@ -784,6 +872,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
 
     private String paymentInfoTableForOperationTable(String operationPhysicalTable) {
         return operationPhysicalTable.replaceFirst("^" + TRANSACTION_OPERATION_TABLE, TRANSACTION_PAYMENT_METHOD_INFO_TABLE);
+    }
+
+    private String orderTableForOperationTable(String operationPhysicalTable) {
+        return operationPhysicalTable.replaceFirst("^" + TRANSACTION_OPERATION_TABLE, TRANSACTION_ORDER_TABLE);
+    }
+
+    private String channelRequestTableForInteractionLogTable(String interactionLogPhysicalTable) {
+        return interactionLogPhysicalTable.replaceFirst("^" + TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, TRANSACTION_CHANNEL_REQUEST_TABLE);
+    }
+
+    private String operationTableForInteractionLogTable(String interactionLogPhysicalTable) {
+        return interactionLogPhysicalTable.replaceFirst("^" + TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, TRANSACTION_OPERATION_TABLE);
     }
 
     /**
@@ -921,6 +1021,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     private String getStringIfExists(ResultSet rs, String column) {
         try {
             return rs.getString(column);
+        } catch (SQLException exception) {
+            return null;
+        }
+    }
+
+    private BigDecimal getBigDecimalIfExists(ResultSet rs, String column) {
+        try {
+            return rs.getBigDecimal(column);
         } catch (SQLException exception) {
             return null;
         }

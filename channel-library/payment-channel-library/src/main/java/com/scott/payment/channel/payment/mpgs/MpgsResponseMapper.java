@@ -74,8 +74,6 @@ public class MpgsResponseMapper {
             target.setChannelTransactionId(response.getTransaction().getId());
         }
         target.setAuthCode(summary.getAuthorizationCode());
-        target.setRrn(summary.getReceipt());
-        target.setAcquirerReferenceNo(summary.getAcquirerReference());
         target.setPaymentMethodSummary(paymentMethodSummary(summary));
         target.setRawResponse(summary.toRawResponseMap());
         return target;

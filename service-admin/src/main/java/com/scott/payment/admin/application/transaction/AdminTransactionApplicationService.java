@@ -29,10 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -66,6 +66,11 @@ public class AdminTransactionApplicationService {
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
+     * 管理端请款动作幂等号前缀。
+     */
+    private static final String ADMIN_CAPTURE_ORDER_ID_PREFIX = "ADMCP";
+
+    /**
      * 管理端退款动作幂等号前缀。
      */
     private static final String ADMIN_REFUND_ORDER_ID_PREFIX = "ADMRF";
@@ -79,6 +84,11 @@ public class AdminTransactionApplicationService {
      * 可作为退款源的交易动作类型。
      */
     private static final Set<String> REFUND_SOURCE_TYPES = Set.of("PAYMENT", "CAPTURE");
+
+    /**
+     * 可作为请款源的授权类动作类型。
+     */
+    private static final Set<String> CAPTURE_SOURCE_TYPES = Set.of("AUTHORIZATION", "PRE_AUTHORIZATION");
 
     /**
      * 可作为撤销源的授权类动作类型。
@@ -189,6 +199,35 @@ public class AdminTransactionApplicationService {
     }
 
     /**
+     * 管理后台发起全额请款动作。
+     * <p>
+     * 后台只允许授权类成功交易做全额请款；页面展示标签币种，调用支付核心时按交易币种金额发起渠道请求。
+     *
+     * @param transactionId 原授权平台交易 ID
+     * @param request 请款动作请求
+     * @return 请款动作结果
+     */
+    public TransactionActionResponse capture(String transactionId, TransactionActionRequest request) {
+        TransactionDetailResponse detailResponse = detail(transactionId);
+        TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
+        if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED, "only successful authorizations can be captured");
+        }
+        if (!CAPTURE_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        }
+        BigDecimal labelAmount = fullLabelAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
+        BigDecimal transactionAmount = fullTransactionAmount(sourceOperation, sourceOperation.getAvailableCaptureAmount());
+        PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
+                sourceOperation,
+                request,
+                labelAmount,
+                transactionAmount,
+                ADMIN_CAPTURE_ORDER_ID_PREFIX);
+        return paymentInternalClient.capture(requestDTO);
+    }
+
+    /**
      * 管理后台发起退款动作。
      * <p>
      * 后台不直接修改交易表，统一转换为 service-payment 后续动作命令，由支付核心执行幂等、状态机和渠道调用。
@@ -203,15 +242,23 @@ public class AdminTransactionApplicationService {
         if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED, "only successful transactions can be refunded");
         }
+        if (!REFUND_SOURCE_TYPES.contains(sourceOperation.getTransactionType())) {
+            throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+        }
         BigDecimal amount = request == null ? null : request.getAmount();
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount must be greater than 0");
         }
-        sourceOperation = resolveRefundSourceOperation(detailResponse, sourceOperation);
+        BigDecimal transactionAmount = toTransactionAmount(sourceOperation, amount);
+        BigDecimal availableRefundAmount = sourceOperation.getAvailableRefundAmount();
+        if (availableRefundAmount != null && transactionAmount.compareTo(availableRefundAmount) > 0) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "refund amount exceeds available refund amount");
+        }
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 sourceOperation,
                 request,
                 amount,
+                transactionAmount,
                 ADMIN_REFUND_ORDER_ID_PREFIX);
         return paymentInternalClient.refund(requestDTO);
     }
@@ -237,7 +284,8 @@ public class AdminTransactionApplicationService {
         PaymentTransactionActionClientRequestDTO requestDTO = buildActionRequest(
                 sourceOperation,
                 request,
-                request == null ? null : request.getAmount(),
+                fullLabelAmount(sourceOperation, sourceOperation.getTransactionAmount()),
+                fullTransactionAmount(sourceOperation, sourceOperation.getTransactionAmount()),
                 ADMIN_VOID_ORDER_ID_PREFIX);
         return paymentInternalClient.voidPayment(requestDTO);
     }
@@ -577,7 +625,8 @@ public class AdminTransactionApplicationService {
 
     private PaymentTransactionActionClientRequestDTO buildActionRequest(TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
-                                                                       BigDecimal amount,
+                                                                       BigDecimal labelAmount,
+                                                                       BigDecimal transactionAmount,
                                                                        String orderIdPrefix) {
         LocalDateTime transactionDateTime = LocalDateTime.now();
         String merchantOrderId = request == null ? null : request.getMerchantOrderId();
@@ -589,10 +638,10 @@ public class AdminTransactionApplicationService {
         requestDTO.setMerchantOrderNo(sourceOperation.getMerchantOrderNo());
         requestDTO.setMerchantOrderId(merchantOrderId);
         requestDTO.setRequestId(merchantOrderId);
-        requestDTO.setAmount(amount);
-        requestDTO.setCurrency(StringUtils.hasText(request == null ? null : request.getCurrency())
-                ? request.getCurrency()
-                : sourceOperation.getTransactionCurrency());
+        requestDTO.setAmount(transactionAmount);
+        requestDTO.setCurrency(sourceOperation.getTransactionCurrency());
+        requestDTO.setLabelAmount(labelAmount);
+        requestDTO.setLabelCurrency(resolveLabelCurrency(sourceOperation, request));
         requestDTO.setTransactionDateTime(transactionDateTime);
         PaymentTransactionActionClientRequestDTO.TransactionInfoDTO transactionInfoDTO =
                 new PaymentTransactionActionClientRequestDTO.TransactionInfoDTO();
@@ -612,16 +661,45 @@ public class AdminTransactionApplicationService {
                 .orElseThrow(() -> new ApiException(ApiResultEnum.ORDER_NOT_FOUND));
     }
 
-    private TransactionOperationResponse resolveRefundSourceOperation(TransactionDetailResponse detailResponse,
-                                                                     TransactionOperationResponse selectedOperation) {
-        if (REFUND_SOURCE_TYPES.contains(selectedOperation.getTransactionType())) {
-            return selectedOperation;
+    private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {
+        if (StringUtils.hasText(request == null ? null : request.getCurrency())) {
+            return request.getCurrency().trim().toUpperCase(Locale.ROOT);
         }
-        return detailResponse.getOperations().stream()
-                .filter(operation -> REFUND_SOURCE_TYPES.contains(operation.getTransactionType()))
-                .filter(operation -> "SUCCESS".equals(operation.getTransactionStatus()))
-                .max(Comparator.comparing(TransactionOperationResponse::getOperationTime,
-                        Comparator.nullsLast(LocalDateTime::compareTo)))
-                .orElseThrow(() -> new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED));
+        if (StringUtils.hasText(sourceOperation.getLabelCurrency())) {
+            return sourceOperation.getLabelCurrency();
+        }
+        return sourceOperation.getTransactionCurrency();
+    }
+
+    private BigDecimal fullTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal preferredAmount) {
+        BigDecimal amount = preferredAmount == null ? sourceOperation.getTransactionAmount() : preferredAmount;
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
+        }
+        return amount;
+    }
+
+    private BigDecimal fullLabelAmount(TransactionOperationResponse sourceOperation, BigDecimal transactionAmount) {
+        BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
+        BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
+        if (sourceTransactionAmount == null || sourceTransactionAmount.compareTo(BigDecimal.ZERO) <= 0
+                || sourceLabelAmount == null || sourceLabelAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return fullTransactionAmount(sourceOperation, transactionAmount);
+        }
+        BigDecimal amount = fullTransactionAmount(sourceOperation, transactionAmount);
+        return amount.multiply(sourceLabelAmount).divide(sourceTransactionAmount, 6, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
+        if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "action amount must be greater than 0");
+        }
+        BigDecimal sourceLabelAmount = sourceOperation.getLabelAmount();
+        BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
+        if (sourceLabelAmount == null || sourceLabelAmount.compareTo(BigDecimal.ZERO) <= 0
+                || sourceTransactionAmount == null || sourceTransactionAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            return labelAmount;
+        }
+        return labelAmount.multiply(sourceTransactionAmount).divide(sourceLabelAmount, 6, RoundingMode.HALF_UP);
     }
 }

@@ -107,6 +107,10 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             ChannelPaymentResponse channelResponse = paymentChannelExecutor.execute(channelRequest);
             LocalDateTime responseTime = LocalDateTime.now();
             resultDTO.setChannelResponse(channelResponse);
+            if (channelResponse != null) {
+                resultDTO.setHttpMethod(firstText(channelResponse.getHttpMethod(), resultDTO.getHttpMethod()));
+                resultDTO.setRequestUrlMasked(firstText(channelResponse.getRequestUrlMasked(), resultDTO.getRequestUrlMasked()));
+            }
             resultDTO.setRequestStatus("SUCCESS");
             resultDTO.setResponseTime(responseTime);
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
@@ -333,6 +337,15 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
      */
     private String emptyIfNull(String value) {
         return value == null ? "" : value;
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
     }
 
     /**

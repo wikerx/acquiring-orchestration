@@ -48,6 +48,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -121,9 +123,12 @@ class DefaultTransactionRecordServiceTests {
         assertThat(historyCapture.physicalTable).isEqualTo("transaction_status_history_202603");
         assertThat(orderCapture.value.getOperationId()).isEqualTo("OP260714180001");
         assertThat(orderCapture.value.getRootTransactionId()).isEqualTo("TX260714180001");
+        assertThat(orderCapture.value.getChannelOrderNo()).isEqualTo("CODX260714180001");
         assertThat(orderCapture.value.getTransactionUtcTime()).isEqualTo(LocalDateTime.of(2026, 6, 30, 16, 30));
         assertThat(orderCapture.value.getAuthorizedAmount()).isEqualByComparingTo("12.34");
         assertThat(orderCapture.value.getAvailableCaptureAmount()).isEqualByComparingTo("12.34");
+        assertThat(operationCapture.value.getChannelOrderNo()).isEqualTo("CODX260714180001");
+        assertThat(operationCapture.value.getChannelTransactionId()).isEqualTo("CH260714180001");
         assertThat(operationCapture.value.getChannelResponseCode()).isEqualTo("00");
         assertThat(operationCapture.value.getAuthCode()).isEqualTo("123456");
         assertThat(operationCapture.value.getRrn()).isEqualTo("RCPT001");
@@ -357,7 +362,7 @@ class DefaultTransactionRecordServiceTests {
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionAmountChangeLogMapper amountChangeLogMapper = mock(TransactionAmountChangeLogMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
-        when(operationMapper.completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any()))
+        when(operationMapper.completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1)
                 .thenReturn(0);
         when(orderMapper.increaseAuthorizedAmountPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any()))
@@ -414,7 +419,7 @@ class DefaultTransactionRecordServiceTests {
         assertThat(callbackChanged).isTrue();
         assertThat(queryChanged).isFalse();
         verify(operationMapper, times(2)).completeStatusPhysical(
-                anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any());
+                anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
         verify(orderMapper, times(1)).increaseAuthorizedAmountPhysical(
                 "transaction_order_202603",
                 "OP202607010030000000001",
@@ -434,9 +439,9 @@ class DefaultTransactionRecordServiceTests {
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
-        when(operationMapper.completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any()))
+        when(operationMapper.completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString()))
                 .thenReturn(1);
-        when(orderMapper.markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any()))
+        when(orderMapper.markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any(), anyString()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -474,13 +479,18 @@ class DefaultTransactionRecordServiceTests {
                 null,
                 "AUTHORIZED",
                 "00",
-                "Approved");
+                "Approved",
+                null,
+                null,
+                null,
+                "MATCHED");
         verify(orderMapper).markInitialSuccessPhysical(
                 "transaction_order_202603",
                 "OP202607010030000000001",
                 "TX202607010030000000001",
                 new BigDecimal("12.34"),
-                0);
+                0,
+                "MATCHED");
         verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertPhysical(anyString(), any());
         verify(notificationMapper).activateByTransactionId(anyString(), anyString(), anyString(), any(), any());
@@ -495,8 +505,10 @@ class DefaultTransactionRecordServiceTests {
         TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
         TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
         TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        TransactionMerchantApiInteractionLogMapper merchantApiLogMapper = mock(TransactionMerchantApiInteractionLogMapper.class);
         when(operationMapper.selectByTransactionIdPhysical("transaction_operation_202603", "202607010030000000001"))
                 .thenReturn(processingInitialOperation());
         when(orderMapper.selectByOperationIdPhysical("transaction_order_202603", "OP202607010030000000001"))
@@ -505,26 +517,32 @@ class DefaultTransactionRecordServiceTests {
                 .thenReturn(channelRequestFact("INIT", 0));
         when(channelRequestMapper.updateStatusPhysical(anyString(), anyString(), any(), any(), anyString(), any(), any(), any(), any(), any(), any(), anyString(), any(), any(), any()))
                 .thenReturn(1);
-        when(operationMapper.completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any()))
+        when(interactionLogMapper.updateByRequestIdPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(1);
-        when(orderMapper.markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any()))
+        when(operationMapper.completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString()))
+                .thenReturn(1);
+        when(orderMapper.markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any(), anyString()))
                 .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
                 operationMapper,
                 historyMapper,
                 channelRequestMapper,
-                mock(TransactionChannelInteractionLogMapper.class),
+                interactionLogMapper,
                 flowEventMapper,
                 mock(TransactionAmountChangeLogMapper.class),
                 notificationMapper,
-                mock(TransactionMerchantApiInteractionLogMapper.class),
+                merchantApiLogMapper,
                 mock(TransactionPaymentMethodInfoMapper.class),
                 shardingDataTemplate(),
                 new TransactionShardingKeyParser());
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        commandDTO.setRequestId(commandDTO.getMerchantOrderId());
+        commandDTO.setMerchantRequestPlainJsonMasked("{\"orderInfo\":{\"orderNo\":\"M202607140001\"}}");
+        commandDTO.setOpenApiRequestTime(LocalDateTime.of(2026, 7, 1, 0, 29, 59));
 
         recordService.completeInitialChannelResult(
-                baseCommand(),
+                commandDTO,
                 routeResult(),
                 initialResultInvokeResult("SUCCESS", channelResponse()),
                 initialResultDTO(PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentProcessStageEnum.FINISHED.getCode()),
@@ -547,6 +565,21 @@ class DefaultTransactionRecordServiceTests {
                 null,
                 LocalDateTime.of(2026, 7, 1, 0, 30, 2),
                 1000);
+        verify(interactionLogMapper).updateByRequestIdPhysical(
+                eq("transaction_channel_interaction_log_202603"),
+                eq("CR202607010030000000001"),
+                eq("REQUEST_RESPONSE"),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                any(),
+                eq(1000),
+                eq(LocalDateTime.of(2026, 7, 1, 0, 30, 2)));
         verify(operationMapper).completeStatusPhysical(
                 "transaction_operation_202603",
                 11L,
@@ -557,16 +590,32 @@ class DefaultTransactionRecordServiceTests {
                 null,
                 null,
                 "00",
-                "Approved");
+                "Approved",
+                "123456",
+                "RCPT001",
+                "REF001",
+                "NOT_REQUIRED");
         verify(orderMapper).markInitialSuccessPhysical(
                 "transaction_order_202603",
                 "OP202607010030000000001",
                 "202607010030000000001",
                 new BigDecimal("12.34"),
-                0);
+                0,
+                "NOT_REQUIRED");
         verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertPhysical(anyString(), any(TransactionFlowEventDO.class));
         verify(notificationMapper).activateByTransactionId(anyString(), anyString(), anyString(), any(), any());
+        verify(merchantApiLogMapper).updateFinalResultPhysical(
+                eq("transaction_merchant_api_interaction_log_202603"),
+                eq("202607010030000000001"),
+                eq("AUTH202607140001"),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                eq("T200"),
+                eq("Success"),
+                contains("\"transactionStatus\":\"SUCCESS\""),
+                any(),
+                any());
     }
 
     /**
@@ -644,8 +693,8 @@ class DefaultTransactionRecordServiceTests {
                 "Processing",
                 "CR202607010030000000001",
                 matchTimeCaptor.getValue());
-        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any());
-        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any());
+        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any(), anyString());
+        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
         verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertPhysical(anyString(), any(TransactionFlowEventDO.class));
     }
@@ -698,10 +747,10 @@ class DefaultTransactionRecordServiceTests {
         assertThat(historyCapture.physicalTable).isEqualTo("transaction_status_history_202603");
         assertThat(historyCapture.value.getTransitionResult()).isEqualTo("IGNORED");
         assertThat(historyCapture.value.getFailReason()).isEqualTo("operation is already terminal or state has changed");
-        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any());
+        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
         verify(operationMapper, never()).updateNonTerminalChannelResultPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), anyString(), any());
-        verify(orderMapper, never()).completeStatusPhysical(anyString(), anyString(), anyString(), any(), anyString(), anyString(), any(), any(), any(), any());
-        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any());
+        verify(orderMapper, never()).completeStatusPhysical(anyString(), anyString(), anyString(), any(), anyString(), anyString(), any(), any(), any(), any(), anyString());
+        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any(), anyString());
     }
 
     /**
@@ -749,8 +798,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(historyCapture.physicalTable).isEqualTo("transaction_status_history_202603");
         assertThat(historyCapture.value.getTransitionResult()).isEqualTo("IGNORED");
         assertThat(historyCapture.value.getFailReason()).isEqualTo("operation is already terminal");
-        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any());
-        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any());
+        verify(operationMapper, never()).completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
+        verify(orderMapper, never()).markInitialSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any(), anyString());
     }
 
     /**
@@ -803,7 +852,23 @@ class DefaultTransactionRecordServiceTests {
         commandDTO.setOpenApiRequestTime(LocalDateTime.of(2026, 7, 1, 0, 29, 59));
         commandDTO.setCallbackUrl("https://merchant.example/callback?token=secret");
         PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
+        invokeResultDTO.setHttpMethod("POST");
+        invokeResultDTO.setRequestUrlMasked("https://test-gateway.mastercard.com/api/rest/order/CODX260714180001/transaction/CH260714180001");
+        invokeResultDTO.getChannelResponse().setHttpStatus(201);
+        invokeResultDTO.getChannelResponse().setHttpMethod("PUT");
+        invokeResultDTO.getChannelResponse().setRequestUrlMasked(
+                "https://test-gateway.mastercard.com/api/rest/version/100/merchant/TESTDEVMER031/order/CODX260714180001/transaction/CH260714180001");
+        invokeResultDTO.getChannelResponse().setRequestHeaderJsonMasked("{\"Authorization\":\"Basic ***\"}");
+        invokeResultDTO.getChannelResponse().setRequestBodyJsonMasked(
+                "{\"apiOperation\":\"AUTHORIZE\",\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"512345******0008\",\"securityCode\":\"***\"}}}}");
+        invokeResultDTO.getChannelResponse().setResponseBodyJsonMasked(
+                "{\"result\":\"SUCCESS\",\"order\":{\"id\":\"CODX260714180001\"},\"transaction\":{\"id\":\"CH260714180001\"},\"response\":{\"gatewayCode\":\"APPROVED\",\"acquirerCode\":\"00\"}}");
         invokeResultDTO.getChannelResponse().getRawResponse().put("httpStatus", "200");
+        invokeResultDTO.getChannelResponse().getRawResponse().put("requestHeaderJsonMasked", "{\"Authorization\":\"Basic ***\"}");
+        invokeResultDTO.getChannelResponse().getRawResponse().put("requestBodyJsonMasked",
+                "{\"apiOperation\":\"AUTHORIZE\",\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"512345******0008\",\"securityCode\":\"***\"}}}}");
+        invokeResultDTO.getChannelResponse().getRawResponse().put("responseBodyJsonMasked",
+                "{\"result\":\"SUCCESS\",\"order\":{\"id\":\"CODX260714180001\"},\"transaction\":{\"id\":\"CH260714180001\"},\"response\":{\"gatewayCode\":\"APPROVED\",\"acquirerCode\":\"00\"}}");
         invokeResultDTO.setRequestStartTime(LocalDateTime.of(2026, 7, 1, 0, 30, 1));
         invokeResultDTO.setResponseTime(LocalDateTime.of(2026, 7, 1, 0, 30, 2));
         invokeResultDTO.setDurationMillis(1000);
@@ -830,9 +895,14 @@ class DefaultTransactionRecordServiceTests {
 
         assertThat(interactionCapture.physicalTable).isEqualTo("transaction_channel_interaction_log_202603");
         assertThat(interactionCapture.value.getInteractionType()).isEqualTo("REQUEST_RESPONSE");
-        assertThat(interactionCapture.value.getRequestBodyJsonMasked()).contains("\"channelOrderNo\"");
-        assertThat(interactionCapture.value.getResponseBodyJsonMasked()).contains("\"channelResponseCode\":\"00\"");
-        assertThat(interactionCapture.value.getResponseBodyJsonMasked()).contains("\"httpStatus\":\"200\"");
+        assertThat(interactionCapture.value.getHttpMethod()).isEqualTo("PUT");
+        assertThat(interactionCapture.value.getRequestUrlMasked()).contains("/version/100/merchant/TESTDEVMER031/order/CODX260714180001/transaction/CH260714180001");
+        assertThat(interactionCapture.value.getRequestUrlMasked()).doesNotContain("/api/rest/order/");
+        assertThat(interactionCapture.value.getHttpStatus()).isEqualTo(201);
+        assertThat(interactionCapture.value.getRequestHeaderJsonMasked()).contains("Basic ***");
+        assertThat(interactionCapture.value.getRequestBodyJsonMasked()).contains("\"apiOperation\":\"AUTHORIZE\"");
+        assertThat(interactionCapture.value.getResponseBodyJsonMasked()).contains("\"result\":\"SUCCESS\"");
+        assertThat(interactionCapture.value.getResponseBodyJsonMasked()).contains("\"transaction\":{\"id\":\"CH260714180001\"}");
         assertThat(interactionCapture.value.getDurationMillis()).isEqualTo(1000);
         assertThat(merchantApiCapture.physicalTable).isEqualTo("transaction_merchant_api_interaction_log_202603");
         assertNestedMerchantPayload(merchantApiCapture.value.getResponsePlainJsonMasked());
@@ -849,6 +919,7 @@ class DefaultTransactionRecordServiceTests {
         PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
         commandDTO.setMerchantId("200001");
         commandDTO.setMerchantOrderNo("M202607140001");
+        commandDTO.setMerchantOrderId("AUTH202607140001");
         commandDTO.setPaymentMethod("BANK_CARD");
         commandDTO.setAmount(new BigDecimal("12.34"));
         commandDTO.setCurrency("USD");

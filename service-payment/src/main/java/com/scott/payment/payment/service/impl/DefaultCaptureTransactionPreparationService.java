@@ -303,22 +303,34 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     private void normalizeCaptureCommand(PaymentCreateCommandDTO commandDTO,
                                          TransactionOrderDO sourceOrderDO,
                                          TransactionOperationDO sourceOperationDO) {
+        BigDecimal transactionAmount = commandDTO.getAmount();
         commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
-        commandDTO.setLabelCurrency(StringUtils.hasText(commandDTO.getCurrency())
-                ? normalizeCurrency(commandDTO.getCurrency())
-                : sourceOrderDO.getTransactionCurrency());
-        commandDTO.setLabelAmount(commandDTO.getAmount());
+        commandDTO.setLabelCurrency(resolveLabelCurrency(commandDTO, sourceOrderDO));
+        commandDTO.setLabelAmount(commandDTO.getLabelAmount() == null ? transactionAmount : commandDTO.getLabelAmount());
         commandDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
         if (commandDTO.getTransactionInfo() != null && sourceOperationDO != null) {
             commandDTO.getTransactionInfo().setSourceChannelTransactionId(sourceOperationDO.getChannelTransactionId());
         }
         commandDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setTransactionAmount(commandDTO.getAmount());
+        commandDTO.setTransactionAmount(transactionAmount);
         commandDTO.setTransactionRate(defaultTransactionRate());
         commandDTO.setRateSource(null);
         commandDTO.setRateTime(null);
         commandDTO.setDccEnabled(0);
         commandDTO.setEdcEnabled(0);
+    }
+
+    private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
+        if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
+            return normalizeCurrency(commandDTO.getLabelCurrency());
+        }
+        if (StringUtils.hasText(commandDTO.getCurrency())) {
+            return normalizeCurrency(commandDTO.getCurrency());
+        }
+        if (StringUtils.hasText(sourceOrderDO.getLabelCurrency())) {
+            return sourceOrderDO.getLabelCurrency();
+        }
+        return sourceOrderDO.getTransactionCurrency();
     }
 
     private PaymentCreateResultDTO buildCaptureResult(PaymentCreateCommandDTO commandDTO,

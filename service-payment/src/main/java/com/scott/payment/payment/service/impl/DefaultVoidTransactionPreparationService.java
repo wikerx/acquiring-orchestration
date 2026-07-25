@@ -278,11 +278,12 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
     private void normalizeVoidCommand(PaymentCreateCommandDTO commandDTO,
                                       TransactionOrderDO sourceOrderDO,
                                       TransactionOperationDO sourceOperationDO) {
+        BigDecimal transactionAmount = commandDTO.getAmount() == null ? sourceOrderDO.getTransactionAmount() : commandDTO.getAmount();
         commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
-        commandDTO.setLabelCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setLabelAmount(sourceOrderDO.getTransactionAmount());
+        commandDTO.setLabelCurrency(resolveLabelCurrency(commandDTO, sourceOrderDO));
+        commandDTO.setLabelAmount(commandDTO.getLabelAmount() == null ? transactionAmount : commandDTO.getLabelAmount());
         commandDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setAmount(sourceOrderDO.getTransactionAmount());
+        commandDTO.setAmount(transactionAmount);
         if (sourceOperationDO == null || !StringUtils.hasText(sourceOperationDO.getChannelTransactionId())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "source channel transaction id is required for VOID");
@@ -291,12 +292,25 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
             commandDTO.getTransactionInfo().setSourceChannelTransactionId(sourceOperationDO.getChannelTransactionId());
         }
         commandDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
-        commandDTO.setTransactionAmount(sourceOrderDO.getTransactionAmount());
+        commandDTO.setTransactionAmount(transactionAmount);
         commandDTO.setTransactionRate(defaultTransactionRate());
         commandDTO.setRateSource(null);
         commandDTO.setRateTime(null);
         commandDTO.setDccEnabled(0);
         commandDTO.setEdcEnabled(0);
+    }
+
+    private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
+        if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
+            return normalizeCurrency(commandDTO.getLabelCurrency());
+        }
+        if (StringUtils.hasText(commandDTO.getCurrency())) {
+            return normalizeCurrency(commandDTO.getCurrency());
+        }
+        if (StringUtils.hasText(sourceOrderDO.getLabelCurrency())) {
+            return sourceOrderDO.getLabelCurrency();
+        }
+        return sourceOrderDO.getTransactionCurrency();
     }
 
     private PaymentCreateResultDTO buildVoidResult(PaymentCreateCommandDTO commandDTO,
@@ -587,6 +601,10 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
 
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
+    }
+
+    private String normalizeCurrency(String currency) {
+        return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
 
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
