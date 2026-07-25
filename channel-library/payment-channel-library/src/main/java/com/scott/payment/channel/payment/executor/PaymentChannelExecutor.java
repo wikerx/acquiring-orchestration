@@ -79,6 +79,19 @@ public class PaymentChannelExecutor {
         throw new ChannelUnsupportedOperationException(client.channelCode(), transactionType);
     }
 
+    /**
+     * 判断渠道是否支持使用当前查询请求中的持久化身份。
+     *
+     * @param request 渠道查询请求
+     * @return true 表示当前查询引用可被渠道识别
+     */
+    public boolean supportsQueryReference(ChannelPaymentRequest request) {
+        PaymentChannelClient client = channelRegistry.getRequired(request.getChannelCode());
+        ChannelQueryRequest queryRequest = copy(request, new ChannelQueryRequest());
+        queryRequest.setRequestId(request.getExtension() == null ? null : request.getExtension().get("requestId"));
+        return client.supportsQueryReference(queryRequest);
+    }
+
     private <T extends ChannelPaymentRequest> T copy(ChannelPaymentRequest source, T target) {
         target.setChannelCode(source.getChannelCode());
         target.setOperationId(source.getOperationId());
@@ -102,6 +115,9 @@ public class PaymentChannelExecutor {
         target.setBillingInfo(source.getBillingInfo());
         target.setThreeDsInfo(source.getThreeDsInfo());
         target.setExtension(source.getExtension());
+        if (target instanceof ChannelQueryRequest queryRequest) {
+            queryRequest.setRequestId(source.getExtension() == null ? null : source.getExtension().get("requestId"));
+        }
         return target;
     }
 }

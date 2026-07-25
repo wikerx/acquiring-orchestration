@@ -235,8 +235,6 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               AND channel_match_status = 'PENDING'
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND channel_code IS NOT NULL
-              AND channel_order_no IS NOT NULL
-              AND channel_transaction_id IS NOT NULL
               AND (next_channel_match_time IS NULL OR next_channel_match_time &lt;= #{now})
               <if test="channelCode != null and channelCode != ''">
                 AND channel_code = #{channelCode}
@@ -277,6 +275,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                 update_time = #{matchTime}
             WHERE id = #{id}
               AND version = #{expectedVersion}
+              AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND deleted = 0
             """)
     int updateChannelMatchPhysical(@Param("physicalTableName") String physicalTableName,
@@ -399,6 +398,79 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                                    @Param("merchantId") String merchantId,
                                                                    @Param("operationId") String operationId,
                                                                    @Param("sourceTransactionId") String sourceTransactionId);
+
+    /**
+     * 查询同一生命周期下未终态 Refund 动作。
+     * <p>
+     * Refund 额度按生命周期共享，PROCESSING/PENDING 动作恢复为 SUCCESS/FAILED 前必须纳入占用。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param merchantId        平台商户号
+     * @param operationId       平台内部生命周期关联标识
+     * @return 未终态 Refund 动作列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND operation_id = #{operationId}
+              AND transaction_type = 'REFUND'
+              AND transaction_status IN ('PROCESSING', 'PENDING')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectNonTerminalRefundsPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                  @Param("merchantId") String merchantId,
+                                                                  @Param("operationId") String operationId);
+
+    /**
+     * 查询同一生命周期下未终态 Void 动作。
+     * <p>
+     * Void / Authorization Cancel 恢复为明确终态前必须阻断 Capture、Refund 和新的 Void，避免重复释放授权或重复返还资金。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param merchantId        平台商户号
+     * @param operationId       平台内部生命周期关联标识
+     * @return 未终态 Void 动作列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND operation_id = #{operationId}
+              AND transaction_type = 'VOID'
+              AND transaction_status IN ('PROCESSING', 'PENDING')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectNonTerminalVoidsPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                @Param("merchantId") String merchantId,
+                                                                @Param("operationId") String operationId);
+
+    /**
+     * 查询同一授权生命周期下未终态 Incremental Authorization 动作。
+     * <p>
+     * PROCESSING/PENDING 动作恢复为明确终态前必须阻断新的增量授权，避免 timeout/unknown 重发渠道请求后重复加授权金额。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param merchantId        平台商户号
+     * @param operationId       平台内部生命周期关联标识
+     * @return 未终态 Incremental Authorization 动作列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND operation_id = #{operationId}
+              AND transaction_type = 'INCREMENTAL_AUTHORIZATION'
+              AND transaction_status IN ('PROCESSING', 'PENDING')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectNonTerminalIncrementalAuthorizationsPhysical(
+            @Param("physicalTableName") String physicalTableName,
+            @Param("merchantId") String merchantId,
+            @Param("operationId") String operationId);
 
     /**
      * 按交易时间范围查询动作单列表。

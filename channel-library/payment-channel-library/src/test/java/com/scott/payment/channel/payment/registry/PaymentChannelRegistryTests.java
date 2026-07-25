@@ -2,6 +2,7 @@ package com.scott.payment.channel.payment.registry;
 
 import com.scott.payment.channel.payment.api.PaymentChannelClient;
 import com.scott.payment.channel.payment.dto.request.ChannelAuthorizeRequest;
+import com.scott.payment.channel.payment.dto.request.ChannelQueryRequest;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.exception.ChannelException;
 import com.scott.payment.channel.payment.exception.ChannelUnsupportedOperationException;
@@ -40,6 +41,20 @@ class PaymentChannelRegistryTests {
         assertThatThrownBy(() -> client.authorize(new ChannelAuthorizeRequest()))
                 .isInstanceOf(ChannelUnsupportedOperationException.class)
                 .hasMessageContaining("当前渠道[MPGS]不支持交易能力[AUTHORIZATION]");
+    }
+
+    @Test
+    void defaultClientShouldSupportAnyPersistedQueryReference() {
+        PaymentChannelClient client = new StubChannelClient("WPGXML");
+        ChannelQueryRequest byRequestId = new ChannelQueryRequest();
+        byRequestId.getExtension().put("requestId", "CR-LOCAL-001");
+        ChannelQueryRequest byOrder = new ChannelQueryRequest();
+        byOrder.setChannelOrderNo("ORDER-001");
+        ChannelQueryRequest missing = new ChannelQueryRequest();
+
+        assertThat(client.supportsQueryReference(byRequestId)).isTrue();
+        assertThat(client.supportsQueryReference(byOrder)).isTrue();
+        assertThat(client.supportsQueryReference(missing)).isFalse();
     }
 
     private static class StubChannelClient implements PaymentChannelClient {

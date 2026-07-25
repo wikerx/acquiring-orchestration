@@ -53,4 +53,24 @@ public interface PaymentChannelInvokeService {
         String channelOrderNo = preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo();
         return invoke(commandDTO, routeResult, operationId, transactionId, channelOrderNo);
     }
+
+    /**
+     * 判断当前渠道是否支持使用已持久化渠道身份发起查询。
+     * <p>
+     * 默认保持兼容，具体实现可委托渠道 SPI 判断渠道差异。
+     *
+     * @param commandDTO 查询命令
+     * @param routeResult 渠道路由快照
+     * @param operationId 平台内部生命周期关联标识
+     * @param transactionId 平台当前交易 ID
+     * @param preparedChannelRequest 已持久化查询身份
+     * @return true 表示渠道可以识别当前查询身份
+     */
+    default boolean supportsQueryReference(PaymentCreateCommandDTO commandDTO,
+                                           PaymentRouteResultDTO routeResult,
+                                           String operationId,
+                                           String transactionId,
+                                           PaymentPreparedChannelRequestDTO preparedChannelRequest) {
+        return preparedChannelRequest != null;
+    }
 }

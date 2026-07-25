@@ -1,6 +1,7 @@
 package com.scott.payment.channel.payment.mpgs;
 
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
+import com.scott.payment.channel.payment.dto.request.ChannelQueryRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import lombok.extern.slf4j.Slf4j;
@@ -98,6 +99,54 @@ class MpgsApiClientMaskingTests {
         assertThat(httpClient.decodedAuthorization()).isEqualTo("merchant.TESTDEVMER031:metadata-password");
     }
 
+    /**
+     * MPGS RETRIEVE 查询必须使用 order.id 和 transaction.id 组成 URL，不能用平台 transactionId 或本地 requestId 替代。
+     */
+    @Test
+    void shouldBuildQueryUrlFromChannelOrderNoAndChannelTransactionId() {
+        CapturingHttpClient httpClient = new CapturingHttpClient();
+        MpgsChannelProperties properties = new MpgsChannelProperties();
+        properties.setEnabled(true);
+        properties.setBaseUrl("https://test-gateway.mastercard.com/api/rest");
+        properties.setVersion("100");
+        properties.setMerchantId("TESTDEVMER031");
+        properties.setReadTimeoutMillis(30000);
+        properties.setConnectTimeoutMillis(10000);
+        MpgsApiClient client = new MpgsApiClient(properties, new MpgsRequestMapper(), new MpgsResponseMapper(), httpClient);
+        ChannelPaymentRequest request = paymentRequest();
+        request.setTransactionType(ChannelCapability.QUERY.getCode());
+        request.setTransactionId("TX-PLATFORM-QUERY-001");
+        request.setChannelOrderNo("ORDER-MPGS-QUERY-001");
+        request.setChannelTransactionId("CH-MPGS-QUERY-001");
+        request.getExtension().put("mid.password", "metadata-password");
+
+        client.execute(request);
+
+        assertThat(httpClient.lastRequest().method()).isEqualTo("GET");
+        assertThat(httpClient.lastRequest().uri().toString())
+                .contains("/order/ORDER-MPGS-QUERY-001/transaction/CH-MPGS-QUERY-001");
+        assertThat(httpClient.lastRequest().uri().toString()).doesNotContain("TX-PLATFORM-QUERY-001");
+    }
+
+    @Test
+    void shouldRequireOrderAndTransactionIdForMpgsQueryReference() {
+        MpgsPaymentChannelClient client = new MpgsPaymentChannelClient(null);
+        ChannelQueryRequest requestIdOnly = new ChannelQueryRequest();
+        requestIdOnly.setRequestId("CR-LOCAL-001");
+        ChannelQueryRequest orderOnly = new ChannelQueryRequest();
+        orderOnly.setChannelOrderNo("ORDER-MPGS-001");
+        ChannelQueryRequest transactionOnly = new ChannelQueryRequest();
+        transactionOnly.setChannelTransactionId("CH-MPGS-001");
+        ChannelQueryRequest complete = new ChannelQueryRequest();
+        complete.setChannelOrderNo("ORDER-MPGS-001");
+        complete.setChannelTransactionId("CH-MPGS-001");
+
+        assertThat(client.supportsQueryReference(requestIdOnly)).isFalse();
+        assertThat(client.supportsQueryReference(orderOnly)).isFalse();
+        assertThat(client.supportsQueryReference(transactionOnly)).isFalse();
+        assertThat(client.supportsQueryReference(complete)).isTrue();
+    }
+
     private ChannelPaymentRequest paymentRequest() {
         ChannelPaymentRequest request = new ChannelPaymentRequest();
         request.setChannelCode("MPGS");
@@ -124,8 +173,14 @@ class MpgsApiClientMaskingTests {
 
         private String authorizationHeader;
 
+        private HttpRequest lastRequest;
+
         private String authorizationHeader() {
             return authorizationHeader;
+        }
+
+        private HttpRequest lastRequest() {
+            return lastRequest;
         }
 
         private String decodedAuthorization() {
@@ -186,6 +241,7 @@ class MpgsApiClientMaskingTests {
         @Override
         public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler)
                 throws IOException, InterruptedException {
+            this.lastRequest = request;
             this.authorizationHeader = request.headers().firstValue("Authorization").orElse(null);
             @SuppressWarnings("unchecked")
             T body = (T) ("{\"result\":\"SUCCESS\",\"response\":{\"gatewayCode\":\"APPROVED\",\"gatewayRecommendation\":\"NO_ACTION\","

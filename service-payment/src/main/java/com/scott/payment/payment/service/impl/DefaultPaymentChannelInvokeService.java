@@ -73,7 +73,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         PaymentPreparedChannelRequestDTO preparedChannelRequest = new PaymentPreparedChannelRequestDTO();
         preparedChannelRequest.setRequestId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_REQUEST_ID_PREFIX, commandDTO.getTransactionDateTime()));
         preparedChannelRequest.setChannelOrderNo(channelOrderNo);
-        preparedChannelRequest.setChannelTransactionId(resolveChannelTransactionId(commandDTO, transactionId));
+        preparedChannelRequest.setChannelTransactionId(resolveChannelTransactionId(commandDTO));
         return invoke(commandDTO, routeResult, operationId, transactionId, preparedChannelRequest);
     }
 
@@ -123,6 +123,31 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
     }
 
     /**
+     * 判断当前渠道是否支持使用已持久化渠道身份发起查询。
+     *
+     * @param commandDTO 查询命令
+     * @param routeResult 渠道路由快照
+     * @param operationId 平台内部生命周期关联标识
+     * @param transactionId 平台当前交易 ID
+     * @param preparedChannelRequest 已持久化查询身份
+     * @return true 表示渠道可以识别当前查询身份
+     */
+    @Override
+    public boolean supportsQueryReference(PaymentCreateCommandDTO commandDTO,
+                                          PaymentRouteResultDTO routeResult,
+                                          String operationId,
+                                          String transactionId,
+                                          PaymentPreparedChannelRequestDTO preparedChannelRequest) {
+        ChannelPaymentRequest channelRequest = toChannelRequest(commandDTO, routeResult, operationId, transactionId,
+                preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo(),
+                preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
+        if (preparedChannelRequest != null && StringUtils.hasText(preparedChannelRequest.getRequestId())) {
+            channelRequest.getExtension().put("requestId", preparedChannelRequest.getRequestId());
+        }
+        return paymentChannelExecutor.supportsQueryReference(channelRequest);
+    }
+
+    /**
      * 构造渠道统一请求。
      *
      * @param commandDTO  创建交易命令
@@ -146,7 +171,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         request.setChannelOrderNo(channelOrderNo);
         request.setChannelTransactionId(StringUtils.hasText(channelTransactionId)
                 ? channelTransactionId
-                : resolveChannelTransactionId(commandDTO, transactionId));
+                : resolveChannelTransactionId(commandDTO));
         request.setMerchantId(commandDTO.getMerchantId());
         request.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
         request.setMerchantOrderId(commandDTO.getMerchantOrderId());
@@ -185,16 +210,15 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
     /**
      * 解析本次渠道交易 ID。
      * <p>
-     * 正常交易动作必须生成新的渠道交易 ID；查询勾兑需要使用原动作单已保存的渠道交易 ID，否则 MPGS RETRIEVE
-     * 会查询一笔从未创建过的渠道交易。
+     * 正常交易动作必须生成新的渠道交易 ID；查询勾兑必须由调用方通过 preparedChannelRequest 传入原动作单已保存的
+     * 渠道交易 ID，不能回退使用平台 transactionId。
      *
      * @param commandDTO 支付核心交易命令
-     * @param transactionId 平台当前交易唯一标识
      * @return 渠道交易 ID
      */
-    private String resolveChannelTransactionId(PaymentCreateCommandDTO commandDTO, String transactionId) {
-        if ("QUERY".equalsIgnoreCase(commandDTO.getTransactionType()) && StringUtils.hasText(transactionId)) {
-            return transactionId;
+    private String resolveChannelTransactionId(PaymentCreateCommandDTO commandDTO) {
+        if ("QUERY".equalsIgnoreCase(commandDTO.getTransactionType())) {
+            return null;
         }
         return PaymentOrderNoGenerator.nextOrderNo(CHANNEL_TRANSACTION_ID_PREFIX);
     }

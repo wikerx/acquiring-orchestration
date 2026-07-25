@@ -20,21 +20,34 @@ import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.entity.TransactionIdempotencyDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
+import com.scott.payment.payment.service.CaptureChannelResultTransactionService;
+import com.scott.payment.payment.service.CaptureTransactionPreparationService;
+import com.scott.payment.payment.service.IncrementalAuthorizationChannelResultTransactionService;
+import com.scott.payment.payment.service.IncrementalAuthorizationTransactionPreparationService;
 import com.scott.payment.payment.service.PaymentChannelResultTransactionService;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
+import com.scott.payment.payment.service.RefundChannelResultTransactionService;
+import com.scott.payment.payment.service.RefundTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.service.VoidChannelResultTransactionService;
+import com.scott.payment.payment.service.VoidTransactionPreparationService;
+import com.scott.payment.payment.service.dto.CapturePreparationResultDTO;
+import com.scott.payment.payment.service.dto.IncrementalAuthorizationPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
+import com.scott.payment.payment.service.dto.RefundPreparationResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
+import com.scott.payment.payment.service.dto.VoidPreparationResultDTO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.annotation.Propagation;
@@ -261,6 +274,10 @@ class PaymentTransactionConsistencyBaselineTests {
         assertThat(channelService.transactionId)
                 .as("T-P0-07 query recovery must use original platform transaction id")
                 .isEqualTo(recordService.operation.getTransactionId());
+        assertThat(channelService.channelTransactionId)
+                .as("T-P0-07 query recovery must use persisted channel transaction id instead of platform transaction id")
+                .isEqualTo(recordService.operation.getChannelTransactionId());
+        assertThat(channelService.channelTransactionId).isNotEqualTo(channelService.transactionId);
         assertThat(channelService.invokeCount.get())
                 .as("T-P0-07 recovery query must not issue an extra Payment call")
                 .isEqualTo(1);
@@ -518,6 +535,1000 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     /**
+     * 05C-CAP-01：Capture 渠道调用前必须已提交动作事实、幂等快照、Outbox 和渠道请求 INIT。
+     */
+    @Test
+    void shouldCommitCaptureFactsBeforeCallingChannel() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CommittedFactsView committedFactsView = new CommittedFactsView(idempotencyService, recordService, outboxService);
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS),
+                () -> {
+                    CommittedFactsSnapshot snapshot = committedFactsView.readUsingIndependentTransaction();
+                    assertThat(snapshot.followUpRecordCount()).isEqualTo(1);
+                    assertThat(snapshot.outboxSavedCount()).isEqualTo(1);
+                    assertThat(snapshot.idempotencyCompletedCount()).isEqualTo(1);
+                    assertThat(snapshot.channelRequestCount()).isEqualTo(1);
+                });
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, committedFactsView::commit),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService));
+
+        PaymentCreateResultDTO resultDTO = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
+    }
+
+    /**
+     * 05C-CAP-02：Capture 渠道成功后结果事务失败，重复同动作号只能返回已提交的 PROCESSING 事实，不能重新发起 Capture。
+     */
+    @Test
+    void shouldKeepCaptureRecoverableFactsWhenResultTransactionFailsAfterChannelSuccess() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CapturingCaptureChannelResultTransactionService captureResultService =
+                new CapturingCaptureChannelResultTransactionService(recordService);
+        captureResultService.failResultRecord = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                captureResultService,
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService));
+
+        assertThatThrownBy(() -> service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00"))))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(recordService.channelRequestCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+
+        PaymentCreateResultDTO duplicate = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+
+        assertThat(duplicate.getTransactionId()).isEqualTo(recordService.lastFollowUpOperation.getTransactionId());
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(captureResultService.recordCount).isEqualTo(1);
+    }
+
+    /**
+     * 05C-CAP-03：Capture timeout/unknown 后重复同动作号不得重新发起 Capture。
+     */
+    @Test
+    void shouldNotReissueCaptureAfterTimeoutForSameMerchantActionNo() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        channelService.timeoutOnFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        PaymentCreateResultDTO first = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+        PaymentCreateResultDTO duplicate = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+
+        assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * 05C-CAP-04：Capture 同步成功后重复同动作号必须返回终态快照，不得停留在准备阶段 PROCESSING。
+     */
+    @Test
+    void shouldRefreshCaptureIdempotencySnapshotAfterSuccessfulResultTransaction() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        PaymentCreateResultDTO first = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+        PaymentCreateResultDTO duplicate = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+
+        assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * 05C-CAP-05：Capture 明确失败也必须刷新幂等快照，同动作号重复返回失败终态且不重发渠道。
+     */
+    @Test
+    void shouldRefreshCaptureIdempotencySnapshotAfterFailedResultTransaction() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.FAILED));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        PaymentCreateResultDTO first = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+        PaymentCreateResultDTO duplicate = service.capture(followUpCommand("CAPTURE-0001", new BigDecimal("5.00")));
+
+        assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * 05C-CAP-06：Capture 渠道结果必须经独立 Spring Bean 的 REQUIRES_NEW 事务入口。
+     */
+    @Test
+    void shouldUseRequiresNewTransactionForCaptureChannelResultPersistence() throws NoSuchMethodException {
+        Method method = DefaultCaptureChannelResultTransactionService.class.getMethod(
+                "recordCaptureChannelResult",
+                CapturePreparationResultDTO.class,
+                PaymentChannelInvokeResultDTO.class);
+
+        Transactional transactional = method.getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
+    }
+
+    /**
+     * 05C-CAP-07：Capture 入口自身不得用大事务包住渠道调用。
+     */
+    @Test
+    void shouldNotWrapCaptureEntryInDatabaseTransaction() throws NoSuchMethodException {
+        Method method = PaymentTransactionServiceImpl.class.getMethod("capture", PaymentCreateCommandDTO.class);
+
+        assertThat(method.getAnnotation(Transactional.class)).isNull();
+    }
+
+    /**
+     * 05D-REF-01：Refund 渠道调用前必须已提交动作事实、幂等快照、Outbox 和渠道请求 INIT。
+     */
+    @Test
+    void shouldCommitRefundFactsBeforeCallingChannel() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CommittedFactsView committedFactsView = new CommittedFactsView(idempotencyService, recordService, outboxService);
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS),
+                () -> {
+                    CommittedFactsSnapshot snapshot = committedFactsView.readUsingIndependentTransaction();
+                    assertThat(snapshot.followUpRecordCount()).isEqualTo(1);
+                    assertThat(snapshot.outboxSavedCount()).isEqualTo(1);
+                    assertThat(snapshot.idempotencyCompletedCount()).isEqualTo(1);
+                    assertThat(snapshot.channelRequestCount()).isEqualTo(1);
+                });
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, committedFactsView::commit),
+                new CapturingRefundChannelResultTransactionService(recordService));
+
+        PaymentCreateResultDTO resultDTO = service.refund(followUpCommand("REFUND-0001", new BigDecimal("5.00")));
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.lastFollowUpOperation.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.REFUND.getCode());
+        assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
+    }
+
+    /**
+     * 05D-REF-02：Refund 渠道成功后结果事务失败，重复同动作号只能返回已提交的 PROCESSING 事实，不能重新发起 Refund。
+     */
+    @Test
+    void shouldKeepRefundRecoverableFactsWhenResultTransactionFailsAfterChannelSuccess() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CapturingRefundChannelResultTransactionService refundResultService =
+                new CapturingRefundChannelResultTransactionService(recordService);
+        refundResultService.failResultRecord = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                refundResultService);
+
+        assertThatThrownBy(() -> service.refund(followUpCommand("REFUND-0001", new BigDecimal("5.00"))))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(recordService.channelRequestCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+
+        PaymentCreateResultDTO duplicate = service.refund(followUpCommand("REFUND-0001", new BigDecimal("5.00")));
+
+        assertThat(duplicate.getTransactionId()).isEqualTo(recordService.lastFollowUpOperation.getTransactionId());
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(refundResultService.recordCount).isEqualTo(1);
+    }
+
+    /**
+     * 05D-REF-03：Refund timeout/unknown 后重复同动作号不得重新发起 Refund。
+     */
+    @Test
+    void shouldNotReissueRefundAfterTimeoutForSameMerchantActionNo() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        channelService.timeoutOnFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        PaymentCreateResultDTO first = service.refund(followUpCommand("REFUND-0001", new BigDecimal("5.00")));
+        PaymentCreateResultDTO duplicate = service.refund(followUpCommand("REFUND-0001", new BigDecimal("5.00")));
+
+        assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * 05D-REF-04：相同 Refund 动作号不同金额必须拒绝，且不得再次调用渠道。
+     */
+    @Test
+    void shouldRejectSameRefundActionNoWithDifferentAmountBeforeChannelInvocation() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        service.refund(followUpCommand("REFUND-0001", new BigDecimal("5.00")));
+
+        assertThatThrownBy(() -> service.refund(followUpCommand("REFUND-0001", new BigDecimal("6.00"))))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+    }
+
+    /**
+     * 05D-REF-05：Unknown/Processing Refund 必须占用可退额度，新的动作号也不能超过真实剩余额度。
+     */
+    @Test
+    void shouldReserveRefundCapacityForNonTerminalRefunds() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("10.00");
+        recordService.pendingRefundAmount = new BigDecimal("7.00");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        assertThatThrownBy(() -> service.refund(followUpCommand("REFUND-0002", new BigDecimal("4.00"))))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(0);
+        assertThat(recordService.followUpRecordCount).isEqualTo(0);
+    }
+
+    /**
+     * 05D-REF-06：Refund 渠道结果必须经独立 Spring Bean 的 REQUIRES_NEW 事务入口。
+     */
+    @Test
+    void shouldUseRequiresNewTransactionForRefundChannelResultPersistence() throws NoSuchMethodException {
+        Method method = DefaultRefundChannelResultTransactionService.class.getMethod(
+                "recordRefundChannelResult",
+                RefundPreparationResultDTO.class,
+                PaymentChannelInvokeResultDTO.class);
+
+        Transactional transactional = method.getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
+    }
+
+    /**
+     * 05D-REF-07：Refund 入口自身不得用大事务包住渠道调用。
+     */
+    @Test
+    void shouldNotWrapRefundEntryInDatabaseTransaction() throws NoSuchMethodException {
+        Method method = PaymentTransactionServiceImpl.class.getMethod("refund", PaymentCreateCommandDTO.class);
+
+        assertThat(method.getAnnotation(Transactional.class)).isNull();
+    }
+
+    /**
+     * 05E-VOID-01：Void / Authorization Cancel 渠道调用前必须已提交动作事实、幂等快照、Outbox 和渠道请求 INIT。
+     */
+    @Test
+    void shouldCommitVoidFactsBeforeCallingChannel() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CommittedFactsView committedFactsView = new CommittedFactsView(idempotencyService, recordService, outboxService);
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS),
+                () -> {
+                    CommittedFactsSnapshot snapshot = committedFactsView.readUsingIndependentTransaction();
+                    assertThat(snapshot.followUpRecordCount()).isEqualTo(1);
+                    assertThat(snapshot.outboxSavedCount()).isEqualTo(1);
+                    assertThat(snapshot.idempotencyCompletedCount()).isEqualTo(1);
+                    assertThat(snapshot.channelRequestCount()).isEqualTo(1);
+                });
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService),
+                voidPreparationService(idempotencyService, recordService, outboxService, committedFactsView::commit),
+                new CapturingVoidChannelResultTransactionService(recordService));
+
+        PaymentCreateResultDTO resultDTO = service.voidPayment(voidCommand("VOID-0001"));
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.lastFollowUpOperation.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.VOID.getCode());
+        assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
+        assertThat(channelService.lastTargetTransactionId)
+                .as("05E Void must send the source channel transaction id as MPGS targetTransactionId")
+                .isEqualTo("CH-TX202607230001");
+    }
+
+    /**
+     * 05E-VOID-02：Void 渠道成功后结果事务失败，重复同动作号只能返回已提交的 PROCESSING 事实，不能重新发起 Void。
+     */
+    @Test
+    void shouldKeepVoidRecoverableFactsWhenResultTransactionFailsAfterChannelSuccess() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CapturingVoidChannelResultTransactionService voidResultService =
+                new CapturingVoidChannelResultTransactionService(recordService);
+        voidResultService.failResultRecord = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService),
+                voidPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                voidResultService);
+
+        assertThatThrownBy(() -> service.voidPayment(voidCommand("VOID-0001")))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(recordService.channelRequestCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+
+        PaymentCreateResultDTO duplicate = service.voidPayment(voidCommand("VOID-0001"));
+
+        assertThat(duplicate.getTransactionId()).isEqualTo(recordService.lastFollowUpOperation.getTransactionId());
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(voidResultService.recordCount).isEqualTo(1);
+    }
+
+    /**
+     * 05E-VOID-03：Void timeout/unknown 后重复同动作号不得重新发起 Void / Authorization Cancel。
+     */
+    @Test
+    void shouldNotReissueVoidAfterTimeoutForSameMerchantActionNo() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        channelService.timeoutOnFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        PaymentCreateResultDTO first = service.voidPayment(voidCommand("VOID-0001"));
+        PaymentCreateResultDTO duplicate = service.voidPayment(voidCommand("VOID-0001"));
+
+        assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * 05E-VOID-04：相同 Void 动作号不同源交易必须拒绝，且不得再次调用渠道。
+     */
+    @Test
+    void shouldRejectSameVoidActionNoWithDifferentSourceBeforeChannelInvocation() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        service.voidPayment(voidCommand("VOID-0001"));
+        PaymentCreateCommandDTO changed = voidCommand("VOID-0001");
+        changed.getTransactionInfo().setSourceTransactionId("TX202607230009");
+
+        assertThatThrownBy(() -> service.voidPayment(changed))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+    }
+
+    /**
+     * 05E-VOID-05：Void 渠道结果必须经独立 Spring Bean 的 REQUIRES_NEW 事务入口。
+     */
+    @Test
+    void shouldUseRequiresNewTransactionForVoidChannelResultPersistence() throws NoSuchMethodException {
+        Method method = DefaultVoidChannelResultTransactionService.class.getMethod(
+                "recordVoidChannelResult",
+                VoidPreparationResultDTO.class,
+                PaymentChannelInvokeResultDTO.class);
+
+        Transactional transactional = method.getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
+    }
+
+    /**
+     * 05E-VOID-06：Void 入口自身不得用大事务包住渠道调用。
+     */
+    @Test
+    void shouldNotWrapVoidEntryInDatabaseTransaction() throws NoSuchMethodException {
+        Method method = PaymentTransactionServiceImpl.class.getMethod("voidPayment", PaymentCreateCommandDTO.class);
+
+        assertThat(method.getAnnotation(Transactional.class)).isNull();
+    }
+
+    /**
+     * 05E-VOID-07：Capture 与 Authorization Cancel 并发时，未终态 Capture 必须阻止 Cancel 进入渠道。
+     */
+    @Test
+    void shouldBlockAuthorizationCancelWhenCaptureIsPending() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        recordService.pendingCaptureExists = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                new InMemoryTransactionIdempotencyService(),
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        assertThatThrownBy(() -> service.voidPayment(voidCommand("VOID-0002")))
+                .as("05E pending capture must block authorization cancel before channel call")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isZero();
+        assertThat(recordService.followUpRecordCount).isZero();
+    }
+
+    /**
+     * 05E-VOID-07B：未终态 Authorization Cancel 必须阻止 Capture，避免取消和请款并发释放/占用同一授权额度。
+     */
+    @Test
+    void shouldBlockCaptureWhenAuthorizationCancelIsPending() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        recordService.pendingVoidExists = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                new InMemoryTransactionIdempotencyService(),
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        assertThatThrownBy(() -> service.capture(followUpCommand("CAPTURE-VOID-CONFLICT", new BigDecimal("5.00"))))
+                .as("05E pending authorization cancel must block capture before channel call")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isZero();
+        assertThat(recordService.followUpRecordCount).isZero();
+    }
+
+    /**
+     * 05E-VOID-08：Payment Void 与 Refund 互斥，未终态 Refund 必须阻止 Void，避免重复资金返还。
+     */
+    @Test
+    void shouldBlockPaymentVoidWhenRefundIsPending() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = BigDecimal.ZERO;
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        recordService.pendingRefundAmount = new BigDecimal("5.00");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                new InMemoryTransactionIdempotencyService(),
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        assertThatThrownBy(() -> service.voidPayment(voidCommand("VOID-0003")))
+                .as("05E pending refund must block payment void before channel call")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isZero();
+        assertThat(recordService.followUpRecordCount).isZero();
+    }
+
+    /**
+     * 05E-VOID-09：未终态 Payment Void 必须阻止 Refund，避免退款和撤销双重返还。
+     */
+    @Test
+    void shouldBlockRefundWhenPaymentVoidIsPending() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        recordService.pendingVoidExists = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                new InMemoryTransactionIdempotencyService(),
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        assertThatThrownBy(() -> service.refund(followUpCommand("REFUND-VOID-CONFLICT", new BigDecimal("5.00"))))
+                .as("05E pending payment void must block refund before channel call")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isZero();
+        assertThat(recordService.followUpRecordCount).isZero();
+    }
+
+    /**
+     * 05F-INC-AUTH-01：Incremental Authorization 渠道调用前必须已提交动作事实、幂等快照、Outbox 和渠道请求 INIT。
+     */
+    @Test
+    void shouldCommitIncrementalAuthorizationFactsBeforeCallingChannel() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CommittedFactsView committedFactsView = new CommittedFactsView(idempotencyService, recordService, outboxService);
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS),
+                () -> {
+                    CommittedFactsSnapshot snapshot = committedFactsView.readUsingIndependentTransaction();
+                    assertThat(snapshot.followUpRecordCount()).isEqualTo(1);
+                    assertThat(snapshot.outboxSavedCount()).isEqualTo(1);
+                    assertThat(snapshot.idempotencyCompletedCount()).isEqualTo(1);
+                    assertThat(snapshot.channelRequestCount()).isEqualTo(1);
+                });
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService),
+                voidPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingVoidChannelResultTransactionService(recordService),
+                incrementalAuthorizationPreparationService(idempotencyService, recordService, outboxService, committedFactsView::commit),
+                new CapturingIncrementalAuthorizationChannelResultTransactionService(recordService));
+
+        PaymentCreateResultDTO resultDTO = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0001", new BigDecimal("3.00")));
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.lastFollowUpOperation.getTransactionType())
+                .isEqualTo(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
+        assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).startsWith("CH");
+    }
+
+    /**
+     * 05F-INC-AUTH-02：渠道成功后结果事务失败，重复同动作号只能返回已提交 PROCESSING 事实，不能重新发起增量授权。
+     */
+    @Test
+    void shouldKeepIncrementalAuthorizationRecoverableFactsWhenResultTransactionFailsAfterChannelSuccess() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        CapturingIncrementalAuthorizationChannelResultTransactionService incrementalResultService =
+                new CapturingIncrementalAuthorizationChannelResultTransactionService(recordService);
+        incrementalResultService.failResultRecord = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingPaymentChannelResultTransactionService(recordService),
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService),
+                voidPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingVoidChannelResultTransactionService(recordService),
+                incrementalAuthorizationPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                incrementalResultService);
+
+        assertThatThrownBy(() -> service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0001", new BigDecimal("3.00"))))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(recordService.channelRequestCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+
+        PaymentCreateResultDTO duplicate = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0001", new BigDecimal("3.00")));
+
+        assertThat(duplicate.getTransactionId()).isEqualTo(recordService.lastFollowUpOperation.getTransactionId());
+        assertThat(duplicate.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(incrementalResultService.recordCount).isEqualTo(1);
+    }
+
+    /**
+     * 05F-INC-AUTH-03：Incremental Authorization timeout/unknown 后重复同动作号不得重新发起渠道请求。
+     */
+    @Test
+    void shouldNotReissueIncrementalAuthorizationAfterTimeoutForSameMerchantActionNo() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        channelService.timeoutOnFirstPayment = true;
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        PaymentCreateResultDTO first = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0001", new BigDecimal("3.00")));
+        PaymentCreateResultDTO duplicate = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0001", new BigDecimal("3.00")));
+
+        assertThat(first.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * 05F-INC-AUTH-04：相同 Incremental Authorization 动作号相同参数返回原动作，不创建第二笔且不调用渠道。
+     */
+    @Test
+    void shouldReturnOriginalIncrementalAuthorizationForDuplicateSameMerchantActionNo() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        PaymentCreateResultDTO first = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0001", new BigDecimal("3.00")));
+        PaymentCreateResultDTO duplicate = service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0001", new BigDecimal("3.00")));
+
+        assertThat(duplicate.getTransactionId()).isEqualTo(first.getTransactionId());
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+    }
+
+    /**
+     * 05F-INC-AUTH-05：相同 Incremental Authorization 动作号不同金额必须拒绝，且不得再次调用渠道。
+     */
+    @Test
+    void shouldRejectSameIncrementalAuthorizationActionNoWithDifferentAmountBeforeChannelInvocation() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                idempotencyService,
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        service.createIncrementalAuthorization(followUpCommand("INC-AUTH-0001", new BigDecimal("3.00")));
+
+        assertThatThrownBy(() -> service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0001", new BigDecimal("4.00"))))
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+    }
+
+    /**
+     * 05F-INC-AUTH-06：Incremental Authorization 渠道结果必须经独立 Spring Bean 的 REQUIRES_NEW 事务入口。
+     */
+    @Test
+    void shouldUseRequiresNewTransactionForIncrementalAuthorizationChannelResultPersistence() throws NoSuchMethodException {
+        Method method = DefaultIncrementalAuthorizationChannelResultTransactionService.class.getMethod(
+                "recordIncrementalAuthorizationChannelResult",
+                IncrementalAuthorizationPreparationResultDTO.class,
+                PaymentChannelInvokeResultDTO.class);
+
+        Transactional transactional = method.getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRES_NEW);
+    }
+
+    /**
+     * 05F-INC-AUTH-07：Incremental Authorization 入口自身不得用大事务包住渠道调用。
+     */
+    @Test
+    void shouldNotWrapIncrementalAuthorizationEntryInDatabaseTransaction() throws NoSuchMethodException {
+        Method method = PaymentTransactionServiceImpl.class.getMethod(
+                "createIncrementalAuthorization", PaymentCreateCommandDTO.class);
+
+        assertThat(method.getAnnotation(Transactional.class)).isNull();
+    }
+
+    /**
+     * 05F-INC-AUTH-08：同步结果、回调和主动查询并发成功时，授权金额更新只能由动作终态 CAS 成功的一方执行一次。
+     */
+    @Test
+    void shouldIncreaseAuthorizedAmountOnlyOnceWhenIncrementalAuthorizationTerminalResultRaces() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        PaymentCreateCommandDTO commandDTO = followUpCommand("INC-AUTH-0001", new BigDecimal("3.00"));
+        PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
+        resultDTO.setTransactionId("TX-INCREMENTAL-AUTH-0001");
+        resultDTO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
+        resultDTO.setStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+        TransactionOperationDO operationDO = new TransactionOperationDO();
+        operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+
+        boolean first = recordService.completeIncrementalAuthorizationChannelResult(
+                operationDO,
+                recordService.findSourceOrderByTransactionId("TX202607230001"),
+                commandDTO,
+                routeService().route(commandDTO),
+                preparedInvokeResult("TX-INCREMENTAL-AUTH-0001"),
+                resultDTO,
+                2);
+        boolean callbackRace = recordService.completeIncrementalAuthorizationChannelResult(
+                operationDO,
+                recordService.findSourceOrderByTransactionId("TX202607230001"),
+                commandDTO,
+                routeService().route(commandDTO),
+                preparedInvokeResult("TX-INCREMENTAL-AUTH-0001"),
+                resultDTO,
+                2);
+
+        assertThat(first).isTrue();
+        assertThat(callbackRace).isFalse();
+        assertThat(recordService.incrementalAuthorizationAmountIncreaseCount).isEqualTo(1);
+    }
+
+    /**
+     * 05F-INC-AUTH-09：未终态 Incremental Authorization 必须阻止新的增量授权、Capture 和 Authorization Cancel 进入渠道。
+     */
+    @Test
+    void shouldBlockIncrementalAuthorizationCaptureAndCancelWhenIncrementalAuthorizationIsPending() {
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        recordService.pendingIncrementalAuthorizationExists = true;
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                new InMemoryTransactionIdempotencyService(),
+                recordService,
+                new CapturingTransactionEventOutboxService(),
+                channelService);
+
+        assertThatThrownBy(() -> service.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-0002", new BigDecimal("3.00"))))
+                .as("05F pending incremental authorization must block later incremental authorization")
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> service.capture(followUpCommand("CAPTURE-INC-AUTH-CONFLICT", new BigDecimal("5.00"))))
+                .as("05F pending incremental authorization must block capture before channel call")
+                .isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> service.voidPayment(voidCommand("VOID-INC-AUTH-CONFLICT")))
+                .as("05F pending incremental authorization must block authorization cancel before channel call")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(channelService.paymentInvokeCount()).isZero();
+        assertThat(recordService.followUpRecordCount).isZero();
+    }
+
+    /**
+     * 05F-INC-AUTH-10：未终态 Capture 或 Authorization Cancel 必须阻止 Incremental Authorization 进入渠道。
+     */
+    @Test
+    void shouldBlockIncrementalAuthorizationWhenCaptureOrCancelIsPending() {
+        CapturingTransactionRecordService capturePendingRecordService = new CapturingTransactionRecordService();
+        capturePendingRecordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        capturePendingRecordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        capturePendingRecordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        capturePendingRecordService.pendingCaptureExists = true;
+        InspectingPaymentChannelInvokeService captureChannelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl captureConflictService = newService(
+                new InMemoryTransactionIdempotencyService(),
+                capturePendingRecordService,
+                new CapturingTransactionEventOutboxService(),
+                captureChannelService);
+
+        assertThatThrownBy(() -> captureConflictService.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-CAPTURE-CONFLICT", new BigDecimal("3.00"))))
+                .as("05F pending capture must block incremental authorization before channel call")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(captureChannelService.paymentInvokeCount()).isZero();
+
+        CapturingTransactionRecordService cancelPendingRecordService = new CapturingTransactionRecordService();
+        cancelPendingRecordService.sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
+        cancelPendingRecordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        cancelPendingRecordService.sourceAvailableCaptureAmount = new BigDecimal("12.34");
+        cancelPendingRecordService.pendingVoidExists = true;
+        InspectingPaymentChannelInvokeService cancelChannelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl cancelConflictService = newService(
+                new InMemoryTransactionIdempotencyService(),
+                cancelPendingRecordService,
+                new CapturingTransactionEventOutboxService(),
+                cancelChannelService);
+
+        assertThatThrownBy(() -> cancelConflictService.createIncrementalAuthorization(
+                followUpCommand("INC-AUTH-CANCEL-CONFLICT", new BigDecimal("3.00"))))
+                .as("05F pending authorization cancel must block incremental authorization before channel call")
+                .isInstanceOf(RuntimeException.class);
+        assertThat(cancelChannelService.paymentInvokeCount()).isZero();
+    }
+
+    /**
      * T-P0-05：渠道已明确成功但本地记录失败时，交易不能丢失到只能重新发起 Payment 的状态。
      */
     @Test
@@ -639,6 +1650,24 @@ class PaymentTransactionConsistencyBaselineTests {
         return commandDTO;
     }
 
+    private PaymentCreateCommandDTO voidCommand(String merchantActionNo) {
+        PaymentCreateCommandDTO commandDTO = followUpCommand(merchantActionNo, null);
+        commandDTO.setCurrency(null);
+        return commandDTO;
+    }
+
+    private PaymentChannelInvokeResultDTO preparedInvokeResult(String transactionId) {
+        PaymentChannelInvokeResultDTO invokeResultDTO = new PaymentChannelInvokeResultDTO();
+        invokeResultDTO.setRequestId("CR-" + transactionId);
+        invokeResultDTO.setRequestStatus("SUCCESS");
+        invokeResultDTO.setChannelRequest(new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest());
+        invokeResultDTO.getChannelRequest().setTransactionId(transactionId);
+        invokeResultDTO.getChannelRequest().setChannelOrderNo("TX202607230001");
+        invokeResultDTO.getChannelRequest().setChannelTransactionId("CH-" + transactionId);
+        invokeResultDTO.setChannelResponse(channelResponse(ChannelTradeStatus.SUCCESS));
+        return invokeResultDTO;
+    }
+
     private PaymentTransactionServiceImpl newService(InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionRecordService recordService,
                                                      CapturingTransactionEventOutboxService outboxService,
@@ -668,6 +1697,94 @@ class PaymentTransactionConsistencyBaselineTests {
                                                      PaymentChannelInvokeService channelService,
                                                      DefaultPaymentTransactionPreparationService preparationService,
                                                      PaymentChannelResultTransactionService resultTransactionService) {
+        return newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService,
+                resultTransactionService,
+                capturePreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingCaptureChannelResultTransactionService(recordService),
+                refundPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingRefundChannelResultTransactionService(recordService));
+    }
+
+    private PaymentTransactionServiceImpl newService(InMemoryTransactionIdempotencyService idempotencyService,
+                                                     CapturingTransactionRecordService recordService,
+                                                     CapturingTransactionEventOutboxService outboxService,
+                                                     PaymentChannelInvokeService channelService,
+                                                     DefaultPaymentTransactionPreparationService preparationService,
+                                                     PaymentChannelResultTransactionService resultTransactionService,
+                                                     CaptureTransactionPreparationService capturePreparationService,
+                                                     CaptureChannelResultTransactionService captureResultTransactionService,
+                                                     RefundTransactionPreparationService refundPreparationService,
+                                                     RefundChannelResultTransactionService refundResultTransactionService) {
+        return newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService,
+                resultTransactionService,
+                capturePreparationService,
+                captureResultTransactionService,
+                refundPreparationService,
+                refundResultTransactionService,
+                voidPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingVoidChannelResultTransactionService(recordService),
+                incrementalAuthorizationPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingIncrementalAuthorizationChannelResultTransactionService(recordService));
+    }
+
+    private PaymentTransactionServiceImpl newService(InMemoryTransactionIdempotencyService idempotencyService,
+                                                     CapturingTransactionRecordService recordService,
+                                                     CapturingTransactionEventOutboxService outboxService,
+                                                     PaymentChannelInvokeService channelService,
+                                                     DefaultPaymentTransactionPreparationService preparationService,
+                                                     PaymentChannelResultTransactionService resultTransactionService,
+                                                     CaptureTransactionPreparationService capturePreparationService,
+                                                     CaptureChannelResultTransactionService captureResultTransactionService,
+                                                     RefundTransactionPreparationService refundPreparationService,
+                                                     RefundChannelResultTransactionService refundResultTransactionService,
+                                                     VoidTransactionPreparationService voidPreparationService,
+                                                     VoidChannelResultTransactionService voidResultTransactionService) {
+        return newService(
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService,
+                preparationService,
+                resultTransactionService,
+                capturePreparationService,
+                captureResultTransactionService,
+                refundPreparationService,
+                refundResultTransactionService,
+                voidPreparationService,
+                voidResultTransactionService,
+                incrementalAuthorizationPreparationService(idempotencyService, recordService, outboxService, () -> {
+                }),
+                new CapturingIncrementalAuthorizationChannelResultTransactionService(recordService));
+    }
+
+    private PaymentTransactionServiceImpl newService(InMemoryTransactionIdempotencyService idempotencyService,
+                                                     CapturingTransactionRecordService recordService,
+                                                     CapturingTransactionEventOutboxService outboxService,
+                                                     PaymentChannelInvokeService channelService,
+                                                     DefaultPaymentTransactionPreparationService preparationService,
+                                                     PaymentChannelResultTransactionService resultTransactionService,
+                                                     CaptureTransactionPreparationService capturePreparationService,
+                                                     CaptureChannelResultTransactionService captureResultTransactionService,
+                                                     RefundTransactionPreparationService refundPreparationService,
+                                                     RefundChannelResultTransactionService refundResultTransactionService,
+                                                     VoidTransactionPreparationService voidPreparationService,
+                                                     VoidChannelResultTransactionService voidResultTransactionService,
+                                                     IncrementalAuthorizationTransactionPreparationService incrementalAuthorizationPreparationService,
+                                                     IncrementalAuthorizationChannelResultTransactionService incrementalAuthorizationResultTransactionService) {
         return new PaymentTransactionServiceImpl(
                 isoDictionaryService(),
                 riskDecision(PaymentRiskDecisionEnum.PASS),
@@ -675,6 +1792,14 @@ class PaymentTransactionConsistencyBaselineTests {
                 channelService,
                 preparationService,
                 resultTransactionService,
+                capturePreparationService,
+                captureResultTransactionService,
+                refundPreparationService,
+                refundResultTransactionService,
+                voidPreparationService,
+                voidResultTransactionService,
+                incrementalAuthorizationPreparationService,
+                incrementalAuthorizationResultTransactionService,
                 exchangeRateService(),
                 idempotencyService,
                 outboxService,
@@ -702,6 +1827,81 @@ class PaymentTransactionConsistencyBaselineTests {
                 afterCommit.run();
                 return resultDTO;
             }
+        };
+    }
+
+    private CaptureTransactionPreparationService capturePreparationService(InMemoryTransactionIdempotencyService idempotencyService,
+                                                                          CapturingTransactionRecordService recordService,
+                                                                          CapturingTransactionEventOutboxService outboxService,
+                                                                          Runnable afterCommit) {
+        DefaultCaptureTransactionPreparationService delegate = new DefaultCaptureTransactionPreparationService(
+                isoDictionaryService(),
+                routeService(),
+                idempotencyService,
+                outboxService,
+                recordService,
+                new DefaultTransactionStateMachineService());
+        return (commandDTO, idempotencyKey) -> {
+            CapturePreparationResultDTO resultDTO = delegate.prepareCapture(commandDTO, idempotencyKey);
+            afterCommit.run();
+            return resultDTO;
+        };
+    }
+
+    private IncrementalAuthorizationTransactionPreparationService incrementalAuthorizationPreparationService(
+            InMemoryTransactionIdempotencyService idempotencyService,
+            CapturingTransactionRecordService recordService,
+            CapturingTransactionEventOutboxService outboxService,
+            Runnable afterCommit) {
+        DefaultIncrementalAuthorizationTransactionPreparationService delegate =
+                new DefaultIncrementalAuthorizationTransactionPreparationService(
+                        isoDictionaryService(),
+                        routeService(),
+                        idempotencyService,
+                        outboxService,
+                        recordService,
+                        new DefaultTransactionStateMachineService());
+        return (commandDTO, idempotencyKey) -> {
+            IncrementalAuthorizationPreparationResultDTO resultDTO =
+                    delegate.prepareIncrementalAuthorization(commandDTO, idempotencyKey);
+            afterCommit.run();
+            return resultDTO;
+        };
+    }
+
+    private RefundTransactionPreparationService refundPreparationService(InMemoryTransactionIdempotencyService idempotencyService,
+                                                                        CapturingTransactionRecordService recordService,
+                                                                        CapturingTransactionEventOutboxService outboxService,
+                                                                        Runnable afterCommit) {
+        DefaultRefundTransactionPreparationService delegate = new DefaultRefundTransactionPreparationService(
+                isoDictionaryService(),
+                routeService(),
+                idempotencyService,
+                outboxService,
+                recordService,
+                new DefaultTransactionStateMachineService());
+        return (commandDTO, idempotencyKey) -> {
+            RefundPreparationResultDTO resultDTO = delegate.prepareRefund(commandDTO, idempotencyKey);
+            afterCommit.run();
+            return resultDTO;
+        };
+    }
+
+    private VoidTransactionPreparationService voidPreparationService(InMemoryTransactionIdempotencyService idempotencyService,
+                                                                    CapturingTransactionRecordService recordService,
+                                                                    CapturingTransactionEventOutboxService outboxService,
+                                                                    Runnable afterCommit) {
+        DefaultVoidTransactionPreparationService delegate = new DefaultVoidTransactionPreparationService(
+                isoDictionaryService(),
+                routeService(),
+                idempotencyService,
+                outboxService,
+                recordService,
+                new DefaultTransactionStateMachineService());
+        return (commandDTO, idempotencyKey) -> {
+            VoidPreparationResultDTO resultDTO = delegate.prepareVoid(commandDTO, idempotencyKey);
+            afterCommit.run();
+            return resultDTO;
         };
     }
 
@@ -927,6 +2127,7 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     private record CommittedFactsSnapshot(int initialRecordCount,
+                                          int followUpRecordCount,
                                           int outboxSavedCount,
                                           int idempotencyCompletedCount,
                                           int channelRequestCount) {
@@ -940,7 +2141,7 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private final CapturingTransactionEventOutboxService outboxService;
 
-        private volatile CommittedFactsSnapshot committedSnapshot = new CommittedFactsSnapshot(0, 0, 0, 0);
+        private volatile CommittedFactsSnapshot committedSnapshot = new CommittedFactsSnapshot(0, 0, 0, 0, 0);
 
         private CommittedFactsView(InMemoryTransactionIdempotencyService idempotencyService,
                                    CapturingTransactionRecordService recordService,
@@ -953,6 +2154,7 @@ class PaymentTransactionConsistencyBaselineTests {
         private void commit() {
             committedSnapshot = new CommittedFactsSnapshot(
                     recordService.initialRecordCount,
+                    recordService.followUpRecordCount,
                     outboxService.savedCount,
                     idempotencyService.completedCount,
                     recordService.channelRequestCount);
@@ -989,7 +2191,19 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private BigDecimal sourceAvailableCaptureAmount = new BigDecimal("12.34");
 
+        private BigDecimal sourceAvailableRefundAmount = BigDecimal.ZERO;
+
+        private BigDecimal pendingRefundAmount = BigDecimal.ZERO;
+
+        private boolean pendingVoidExists;
+
+        private boolean pendingIncrementalAuthorizationExists;
+
+        private int incrementalAuthorizationAmountIncreaseCount;
+
         private TransactionOperationDO lastInitialOperation;
+
+        private TransactionOperationDO lastFollowUpOperation;
 
         @Override
         public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
@@ -1066,8 +2280,9 @@ class PaymentTransactionConsistencyBaselineTests {
             orderDO.setTransactionCurrency("USD");
             orderDO.setAuthorizedAmount(new BigDecimal("12.34"));
             orderDO.setCapturedAmount(BigDecimal.ZERO);
+            orderDO.setRefundedAmount(BigDecimal.ZERO);
             orderDO.setAvailableCaptureAmount(sourceAvailableCaptureAmount);
-            orderDO.setAvailableRefundAmount(BigDecimal.ZERO);
+            orderDO.setAvailableRefundAmount(sourceAvailableRefundAmount);
             orderDO.setCurrencyExponent(2);
             orderDO.setTransactionDateTime(TRANSACTION_TIME);
             orderDO.setTransactionTimeZone("Asia/Shanghai");
@@ -1156,6 +2371,103 @@ class PaymentTransactionConsistencyBaselineTests {
         }
 
         @Override
+        public List<TransactionOperationDO> findNonTerminalRefunds(String merchantId,
+                                                                   String operationId,
+                                                                   LocalDateTime beginTime,
+                                                                   LocalDateTime endTime) {
+            if (!MERCHANT_ID.equals(merchantId)
+                    || !"OP202607230001".equals(operationId)
+                    || pendingRefundAmount == null
+                    || pendingRefundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                return List.of();
+            }
+            TransactionOperationDO operationDO = new TransactionOperationDO();
+            operationDO.setId(199L);
+            operationDO.setOperationId(operationId);
+            operationDO.setTransactionId("TX-REFUND-UNKNOWN");
+            operationDO.setSourceTransactionId("TX202607230001");
+            operationDO.setMerchantId(merchantId);
+            operationDO.setMerchantOrderNo(MERCHANT_ORDER_NO);
+            operationDO.setMerchantOrderId("REFUND-PENDING");
+            operationDO.setMerchantOperationNo("REFUND-PENDING");
+            operationDO.setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+            operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+            operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+            operationDO.setTransactionAmount(pendingRefundAmount);
+            operationDO.setTransactionCurrency("USD");
+            operationDO.setChannelCode("MPGS");
+            operationDO.setChannelOrderNo("TX202607230001");
+            operationDO.setChannelTransactionId("CH-REFUND-UNKNOWN");
+            operationDO.setTransactionDateTime(TRANSACTION_TIME);
+            operationDO.setVersion(0);
+            return List.of(operationDO);
+        }
+
+        @Override
+        public List<TransactionOperationDO> findNonTerminalVoids(String merchantId,
+                                                                 String operationId,
+                                                                 LocalDateTime beginTime,
+                                                                 LocalDateTime endTime) {
+            if (!MERCHANT_ID.equals(merchantId)
+                    || !"OP202607230001".equals(operationId)
+                    || !pendingVoidExists) {
+                return List.of();
+            }
+            TransactionOperationDO operationDO = new TransactionOperationDO();
+            operationDO.setId(299L);
+            operationDO.setOperationId(operationId);
+            operationDO.setTransactionId("TX-VOID-UNKNOWN");
+            operationDO.setSourceTransactionId("TX202607230001");
+            operationDO.setMerchantId(merchantId);
+            operationDO.setMerchantOrderNo(MERCHANT_ORDER_NO);
+            operationDO.setMerchantOrderId("VOID-PENDING");
+            operationDO.setMerchantOperationNo("VOID-PENDING");
+            operationDO.setTransactionType(PaymentTransactionTypeEnum.VOID.getCode());
+            operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+            operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+            operationDO.setTransactionAmount(new BigDecimal("12.34"));
+            operationDO.setTransactionCurrency("USD");
+            operationDO.setChannelCode("MPGS");
+            operationDO.setChannelOrderNo("TX202607230001");
+            operationDO.setChannelTransactionId("CH-VOID-UNKNOWN");
+            operationDO.setTransactionDateTime(TRANSACTION_TIME);
+            operationDO.setVersion(0);
+            return List.of(operationDO);
+        }
+
+        @Override
+        public List<TransactionOperationDO> findNonTerminalIncrementalAuthorizations(String merchantId,
+                                                                                     String operationId,
+                                                                                     LocalDateTime beginTime,
+                                                                                     LocalDateTime endTime) {
+            if (!MERCHANT_ID.equals(merchantId)
+                    || !"OP202607230001".equals(operationId)
+                    || !pendingIncrementalAuthorizationExists) {
+                return List.of();
+            }
+            TransactionOperationDO operationDO = new TransactionOperationDO();
+            operationDO.setId(399L);
+            operationDO.setOperationId(operationId);
+            operationDO.setTransactionId("TX-INCREMENTAL-AUTH-UNKNOWN");
+            operationDO.setSourceTransactionId("TX202607230001");
+            operationDO.setMerchantId(merchantId);
+            operationDO.setMerchantOrderNo(MERCHANT_ORDER_NO);
+            operationDO.setMerchantOrderId("INCREMENTAL-AUTH-PENDING");
+            operationDO.setMerchantOperationNo("INCREMENTAL-AUTH-PENDING");
+            operationDO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
+            operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+            operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+            operationDO.setTransactionAmount(new BigDecimal("3.00"));
+            operationDO.setTransactionCurrency("USD");
+            operationDO.setChannelCode("MPGS");
+            operationDO.setChannelOrderNo("TX202607230001");
+            operationDO.setChannelTransactionId("CH-INCREMENTAL-AUTH-UNKNOWN");
+            operationDO.setTransactionDateTime(TRANSACTION_TIME);
+            operationDO.setVersion(0);
+            return List.of(operationDO);
+        }
+
+        @Override
         public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
             return null;
         }
@@ -1209,6 +2521,11 @@ class PaymentTransactionConsistencyBaselineTests {
             operationDO.setProcessStage(recordDTO.getResultDTO().getProcessStage());
             operationDO.setTransactionAmount(recordDTO.getCommandDTO().getAmount());
             operationDO.setTransactionCurrency(recordDTO.getCommandDTO().getCurrency());
+            if (recordDTO.getChannelInvokeResultDTO() != null && recordDTO.getChannelInvokeResultDTO().getChannelRequest() != null) {
+                operationDO.setChannelCode(recordDTO.getChannelInvokeResultDTO().getChannelRequest().getChannelCode());
+                operationDO.setChannelOrderNo(recordDTO.getChannelInvokeResultDTO().getChannelRequest().getChannelOrderNo());
+                operationDO.setChannelTransactionId(recordDTO.getChannelInvokeResultDTO().getChannelRequest().getChannelTransactionId());
+            }
             operationDO.setTransactionDateTime(recordDTO.getCommandDTO().getTransactionDateTime());
             operationDO.setVersion(0);
             return operationDO;
@@ -1218,9 +2535,13 @@ class PaymentTransactionConsistencyBaselineTests {
         public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
             try {
                 followUpRecordCount++;
+                lastFollowUpOperation = pendingCaptureFromRecord(recordDTO);
+                if (recordDTO.getChannelInvokeResultDTO() != null && recordDTO.getChannelInvokeResultDTO().getChannelRequest() != null) {
+                    channelRequestCount++;
+                }
                 if (markFollowUpProcessingForNewCaptures
                         && PaymentTransactionTypeEnum.CAPTURE.getCode().equals(recordDTO.getResultDTO().getTransactionType())) {
-                    persistedNonTerminalCapture = pendingCaptureFromRecord(recordDTO);
+                    persistedNonTerminalCapture = lastFollowUpOperation;
                     pendingCaptureExists = true;
                 }
             } finally {
@@ -1245,6 +2566,75 @@ class PaymentTransactionConsistencyBaselineTests {
                                                  String channelResponseCode,
                                                  String channelResponseMessage) {
             return false;
+        }
+
+        @Override
+        public boolean completeCaptureChannelResult(TransactionOperationDO operationDO,
+                                                    TransactionOrderDO sourceOrderDO,
+                                                    PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResultDTO,
+                                                    PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                    PaymentCreateResultDTO resultDTO,
+                                                    int currencyExponent) {
+            if (lastFollowUpOperation != null) {
+                lastFollowUpOperation.setTransactionStatus(resultDTO.getStatus());
+                lastFollowUpOperation.setProcessStage(resultDTO.getProcessStage());
+                if (invokeResultDTO != null && invokeResultDTO.getChannelRequest() != null) {
+                    lastFollowUpOperation.setChannelOrderNo(invokeResultDTO.getChannelRequest().getChannelOrderNo());
+                    lastFollowUpOperation.setChannelTransactionId(invokeResultDTO.getChannelRequest().getChannelTransactionId());
+                }
+                if (invokeResultDTO != null && invokeResultDTO.getChannelResponse() != null) {
+                    lastFollowUpOperation.setChannelStatus(invokeResultDTO.getChannelResponse().getRawChannelStatus());
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public boolean completeRefundChannelResult(TransactionOperationDO operationDO,
+                                                   TransactionOrderDO sourceOrderDO,
+                                                   PaymentCreateCommandDTO commandDTO,
+                                                   PaymentRouteResultDTO routeResultDTO,
+                                                   PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                   PaymentCreateResultDTO resultDTO,
+                                                   int currencyExponent) {
+            return completeCaptureChannelResult(operationDO, sourceOrderDO, commandDTO, routeResultDTO, invokeResultDTO, resultDTO, currencyExponent);
+        }
+
+        @Override
+        public boolean completeVoidChannelResult(TransactionOperationDO operationDO,
+                                                 TransactionOrderDO sourceOrderDO,
+                                                 PaymentCreateCommandDTO commandDTO,
+                                                 PaymentRouteResultDTO routeResultDTO,
+                                                 PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                 PaymentCreateResultDTO resultDTO,
+                                                 int currencyExponent) {
+            return completeCaptureChannelResult(operationDO, sourceOrderDO, commandDTO, routeResultDTO, invokeResultDTO, resultDTO, currencyExponent);
+        }
+
+        @Override
+        public boolean completeIncrementalAuthorizationChannelResult(TransactionOperationDO operationDO,
+                                                                     TransactionOrderDO sourceOrderDO,
+                                                                     PaymentCreateCommandDTO commandDTO,
+                                                                     PaymentRouteResultDTO routeResultDTO,
+                                                                     PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                                     PaymentCreateResultDTO resultDTO,
+                                                                     int currencyExponent) {
+            if (operationDO != null
+                    && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(operationDO.getTransactionStatus())
+                    || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus()))) {
+                return false;
+            }
+            boolean changed = completeCaptureChannelResult(
+                    operationDO, sourceOrderDO, commandDTO, routeResultDTO, invokeResultDTO, resultDTO, currencyExponent);
+            if (changed && operationDO != null) {
+                operationDO.setTransactionStatus(resultDTO.getStatus());
+                operationDO.setProcessStage(resultDTO.getProcessStage());
+            }
+            if (changed && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
+                incrementalAuthorizationAmountIncreaseCount++;
+            }
+            return changed;
         }
 
         @Override
@@ -1297,6 +2687,136 @@ class PaymentTransactionConsistencyBaselineTests {
         }
     }
 
+    private static class CapturingCaptureChannelResultTransactionService implements CaptureChannelResultTransactionService {
+
+        private final TransactionRecordService recordService;
+
+        private int recordCount;
+
+        private boolean failResultRecord;
+
+        private CapturingCaptureChannelResultTransactionService(TransactionRecordService recordService) {
+            this.recordService = recordService;
+        }
+
+        @Override
+        public void recordCaptureChannelResult(CapturePreparationResultDTO preparationResultDTO,
+                                               PaymentChannelInvokeResultDTO invokeResultDTO) {
+            recordCount++;
+            if (failResultRecord) {
+                throw new IllegalStateException("simulated capture result transaction failure");
+            }
+            recordService.completeCaptureChannelResult(
+                    preparationResultDTO.getResultDTO() == null
+                            ? null
+                            : ((CapturingTransactionRecordService) recordService).lastFollowUpOperation,
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    invokeResultDTO,
+                    preparationResultDTO.getResultDTO(),
+                    preparationResultDTO.getCurrencyExponent());
+        }
+    }
+
+    private static class CapturingRefundChannelResultTransactionService implements RefundChannelResultTransactionService {
+
+        private final TransactionRecordService recordService;
+
+        private int recordCount;
+
+        private boolean failResultRecord;
+
+        private CapturingRefundChannelResultTransactionService(TransactionRecordService recordService) {
+            this.recordService = recordService;
+        }
+
+        @Override
+        public void recordRefundChannelResult(RefundPreparationResultDTO preparationResultDTO,
+                                              PaymentChannelInvokeResultDTO invokeResultDTO) {
+            recordCount++;
+            if (failResultRecord) {
+                throw new IllegalStateException("simulated refund result transaction failure");
+            }
+            recordService.completeRefundChannelResult(
+                    preparationResultDTO.getResultDTO() == null
+                            ? null
+                            : ((CapturingTransactionRecordService) recordService).lastFollowUpOperation,
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    invokeResultDTO,
+                    preparationResultDTO.getResultDTO(),
+                    preparationResultDTO.getCurrencyExponent());
+        }
+    }
+
+    private static class CapturingVoidChannelResultTransactionService implements VoidChannelResultTransactionService {
+
+        private final TransactionRecordService recordService;
+
+        private int recordCount;
+
+        private boolean failResultRecord;
+
+        private CapturingVoidChannelResultTransactionService(TransactionRecordService recordService) {
+            this.recordService = recordService;
+        }
+
+        @Override
+        public void recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
+                                            PaymentChannelInvokeResultDTO invokeResultDTO) {
+            recordCount++;
+            if (failResultRecord) {
+                throw new IllegalStateException("simulated void result transaction failure");
+            }
+            recordService.completeVoidChannelResult(
+                    preparationResultDTO.getResultDTO() == null
+                            ? null
+                            : ((CapturingTransactionRecordService) recordService).lastFollowUpOperation,
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    invokeResultDTO,
+                    preparationResultDTO.getResultDTO(),
+                    preparationResultDTO.getCurrencyExponent());
+        }
+    }
+
+    private static class CapturingIncrementalAuthorizationChannelResultTransactionService
+            implements IncrementalAuthorizationChannelResultTransactionService {
+
+        private final TransactionRecordService recordService;
+
+        private int recordCount;
+
+        private boolean failResultRecord;
+
+        private CapturingIncrementalAuthorizationChannelResultTransactionService(TransactionRecordService recordService) {
+            this.recordService = recordService;
+        }
+
+        @Override
+        public void recordIncrementalAuthorizationChannelResult(
+                IncrementalAuthorizationPreparationResultDTO preparationResultDTO,
+                PaymentChannelInvokeResultDTO invokeResultDTO) {
+            recordCount++;
+            if (failResultRecord) {
+                throw new IllegalStateException("simulated incremental authorization result transaction failure");
+            }
+            recordService.completeIncrementalAuthorizationChannelResult(
+                    preparationResultDTO.getResultDTO() == null
+                            ? null
+                            : ((CapturingTransactionRecordService) recordService).lastFollowUpOperation,
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    invokeResultDTO,
+                    preparationResultDTO.getResultDTO(),
+                    preparationResultDTO.getCurrencyExponent());
+        }
+    }
+
     private static class CapturingTransactionEventOutboxService implements TransactionEventOutboxService {
 
         private int savedCount;
@@ -1337,6 +2857,8 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private boolean blockFirstPayment;
 
+        private String lastTargetTransactionId;
+
         private InspectingPaymentChannelInvokeService(ChannelPaymentResponse response) {
             this(response, () -> {
             });
@@ -1374,11 +2896,56 @@ class PaymentTransactionConsistencyBaselineTests {
             resultDTO.getChannelRequest().setChannelTransactionId("CH-" + transactionId);
             resultDTO.getChannelRequest().setAmount(commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount());
             resultDTO.getChannelRequest().setCurrency(commandDTO.getTransactionCurrency() == null ? commandDTO.getCurrency() : commandDTO.getTransactionCurrency());
+            lastTargetTransactionId = commandDTO.getTransactionInfo() == null
+                    ? null : commandDTO.getTransactionInfo().getSourceChannelTransactionId();
             if (timeoutOnFirstPayment && invokeCount.get() == 1) {
                 resultDTO.setRequestStatus("TIMEOUT");
                 resultDTO.setExceptionType(ChannelTimeoutException.class.getSimpleName());
                 resultDTO.setExceptionMessage("simulated timeout");
                 throw new PaymentChannelInvokeException(resultDTO, new ChannelTimeoutException("simulated timeout"));
+            }
+            resultDTO.setChannelResponse(response);
+            return resultDTO;
+        }
+
+        @Override
+        public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResult,
+                                                    String operationId,
+                                                    String transactionId,
+                                                    PaymentPreparedChannelRequestDTO preparedChannelRequest) {
+            beforeInvokeAssertion.run();
+            invokeCount.incrementAndGet();
+            if (blockFirstPayment && invokeCount.get() == 1) {
+                try {
+                    Thread.sleep(150);
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(interruptedException);
+                }
+            }
+            PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
+            resultDTO.setRequestId(preparedChannelRequest.getRequestId());
+            resultDTO.setRequestStatus("SUCCESS");
+            resultDTO.setChannelRequest(new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest());
+            resultDTO.getChannelRequest().setChannelCode(routeResult.getChannelCode());
+            resultDTO.getChannelRequest().setOperationId(operationId);
+            resultDTO.getChannelRequest().setTransactionId(transactionId);
+            resultDTO.getChannelRequest().setChannelOrderNo(preparedChannelRequest.getChannelOrderNo());
+            resultDTO.getChannelRequest().setChannelTransactionId(preparedChannelRequest.getChannelTransactionId());
+            resultDTO.getChannelRequest().setAmount(commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount());
+            resultDTO.getChannelRequest().setCurrency(commandDTO.getTransactionCurrency() == null ? commandDTO.getCurrency() : commandDTO.getTransactionCurrency());
+            lastTargetTransactionId = commandDTO.getTransactionInfo() == null
+                    ? null : commandDTO.getTransactionInfo().getSourceChannelTransactionId();
+            if (timeoutOnFirstPayment && invokeCount.get() == 1) {
+                resultDTO.setRequestStatus("TIMEOUT");
+                resultDTO.setExceptionType(ChannelTimeoutException.class.getSimpleName());
+                resultDTO.setExceptionMessage("simulated timeout");
+                throw new PaymentChannelInvokeException(resultDTO, new ChannelTimeoutException("simulated timeout"));
+            }
+            if (response != null) {
+                response.setChannelOrderNo(preparedChannelRequest.getChannelOrderNo());
+                response.setChannelTransactionId(preparedChannelRequest.getChannelTransactionId());
             }
             resultDTO.setChannelResponse(response);
             return resultDTO;
@@ -1566,6 +3133,8 @@ class PaymentTransactionConsistencyBaselineTests {
 
         private String channelOrderNo;
 
+        private String channelTransactionId;
+
         private QueryOnlyPaymentChannelInvokeService(ChannelTradeStatus queryStatus) {
             this.queryStatus = queryStatus;
         }
@@ -1586,6 +3155,31 @@ class PaymentTransactionConsistencyBaselineTests {
             response.setChannelCode(routeResult.getChannelCode());
             response.setChannelOrderNo(channelOrderNo);
             response.setChannelTransactionId("CHT-REQ202607230001");
+            response.setChannelTradeStatus(queryStatus.getCode());
+            response.setRawChannelStatus(queryStatus.getCode());
+            response.setChannelResponseCode(ChannelTradeStatus.SUCCESS == queryStatus ? "00" : "05");
+            response.setChannelResponseMessage(ChannelTradeStatus.SUCCESS == queryStatus ? "Approved by query" : "Declined by query");
+            resultDTO.setChannelResponse(response);
+            return resultDTO;
+        }
+
+        @Override
+        public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResult,
+                                                    String operationId,
+                                                    String transactionId,
+                                                    com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO preparedChannelRequest) {
+            invokeCount.incrementAndGet();
+            this.transactionId = transactionId;
+            this.channelOrderNo = preparedChannelRequest.getChannelOrderNo();
+            this.channelTransactionId = preparedChannelRequest.getChannelTransactionId();
+            PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
+            resultDTO.setRequestId(preparedChannelRequest.getRequestId());
+            resultDTO.setRequestStatus("SUCCESS");
+            ChannelPaymentResponse response = new ChannelPaymentResponse();
+            response.setChannelCode(routeResult.getChannelCode());
+            response.setChannelOrderNo(preparedChannelRequest.getChannelOrderNo());
+            response.setChannelTransactionId(preparedChannelRequest.getChannelTransactionId());
             response.setChannelTradeStatus(queryStatus.getCode());
             response.setRawChannelStatus(queryStatus.getCode());
             response.setChannelResponseCode(ChannelTradeStatus.SUCCESS == queryStatus ? "00" : "05");

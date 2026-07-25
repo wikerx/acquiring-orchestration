@@ -7,6 +7,7 @@ import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -74,16 +75,68 @@ class DefaultPaymentChannelInvokeServiceTests {
         DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
         PaymentCreateCommandDTO commandDTO = followUpCommand();
         commandDTO.setTransactionType("QUERY");
+        PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+        prepared.setRequestId("CR-ORIGINAL");
+        prepared.setChannelOrderNo("ORDER-MPGS-001");
+        prepared.setChannelTransactionId("CH-MPGS-001");
 
-        invokeService.invoke(commandDTO, routeResult(), "OP260714180001", "CH260714180001", "TX260714180001");
+        invokeService.invoke(commandDTO, routeResult(), "OP260714180001", "TX260714180099", prepared);
 
         ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
         verify(executor).execute(captor.capture());
         ChannelPaymentRequest request = captor.getValue();
-        assertThat(request.getTransactionId()).isEqualTo("CH260714180001");
-        assertThat(request.getChannelOrderNo()).isEqualTo("TX260714180001");
-        assertThat(request.getChannelTransactionId()).isEqualTo("CH260714180001");
+        assertThat(request.getTransactionId()).isEqualTo("TX260714180099");
+        assertThat(request.getChannelOrderNo()).isEqualTo("ORDER-MPGS-001");
+        assertThat(request.getChannelTransactionId()).isEqualTo("CH-MPGS-001");
+        assertThat(request.getChannelTransactionId()).isNotEqualTo(request.getTransactionId());
         assertThat(request.getTransactionType()).isEqualTo("QUERY");
+    }
+
+    /**
+     * QUERY 缺少已持久化渠道交易 ID 时，通用调用服务不得把平台 transactionId 回填成 channelTransactionId。
+     */
+    @Test
+    void shouldNotFallbackPlatformTransactionIdAsChannelTransactionIdForQueryRequest() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+        when(executor.execute(any(ChannelPaymentRequest.class))).thenReturn(response);
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+        PaymentCreateCommandDTO commandDTO = followUpCommand();
+        commandDTO.setTransactionType("QUERY");
+
+        invokeService.invoke(commandDTO, routeResult(), "OP260714180001", "TX260714180099", "ORDER-MPGS-001");
+
+        ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
+        verify(executor).execute(captor.capture());
+        ChannelPaymentRequest request = captor.getValue();
+        assertThat(request.getTransactionId()).isEqualTo("TX260714180099");
+        assertThat(request.getChannelOrderNo()).isEqualTo("ORDER-MPGS-001");
+        assertThat(request.getChannelTransactionId()).isNull();
+    }
+
+    @Test
+    void shouldDelegateQueryReferenceSupportToChannelExecutor() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        when(executor.supportsQueryReference(any(ChannelPaymentRequest.class))).thenReturn(true);
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+        PaymentCreateCommandDTO commandDTO = followUpCommand();
+        commandDTO.setTransactionType("QUERY");
+        PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+        prepared.setRequestId("CR-ORIGINAL");
+        prepared.setChannelOrderNo("ORDER-MPGS-001");
+        prepared.setChannelTransactionId("CH-MPGS-001");
+
+        boolean supported = invokeService.supportsQueryReference(
+                commandDTO, routeResult(), "OP260714180001", "TX260714180099", prepared);
+
+        assertThat(supported).isTrue();
+        ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
+        verify(executor).supportsQueryReference(captor.capture());
+        assertThat(captor.getValue().getTransactionId()).isEqualTo("TX260714180099");
+        assertThat(captor.getValue().getChannelOrderNo()).isEqualTo("ORDER-MPGS-001");
+        assertThat(captor.getValue().getChannelTransactionId()).isEqualTo("CH-MPGS-001");
+        assertThat(captor.getValue().getExtension()).containsEntry("requestId", "CR-ORIGINAL");
     }
 
     private PaymentCreateCommandDTO followUpCommand() {

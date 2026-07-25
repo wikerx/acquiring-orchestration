@@ -177,6 +177,28 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
                                                                     @Param("transactionId") String transactionId);
 
     /**
+     * 按平台交易 ID 和渠道编码查询原资金动作渠道请求。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param transactionId 平台当前交易 ID
+     * @param channelCode 渠道编码
+     * @return 原资金动作渠道请求，不存在时返回 null
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE transaction_id = #{transactionId}
+              AND channel_code = #{channelCode}
+              AND channel_match_flag = 0
+              AND deleted = 0
+            ORDER BY request_start_time ASC, id ASC
+            LIMIT 1
+            """)
+    TransactionChannelRequestDO selectOriginalByTransactionPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                    @Param("transactionId") String transactionId,
+                                                                    @Param("channelCode") String channelCode);
+
+    /**
      * 按 operation_id 查询同一生命周期的渠道请求摘要。
      *
      * @param physicalTableName 经分表规则解析器校验后的物理表名

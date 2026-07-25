@@ -116,7 +116,7 @@ global-payment:
         end-quarter: 4
         table-name-format: "%s_%d%02d"
         actual-data-source: master
-        description: 交易动作单；每个动作使用独立 transaction_id，并通过 operation_id 关联同一生命周期。
+        description: 交易动作单；授权、增量授权、请款、退款、Void、拒付等每一个动作一条记录。
       transaction-merchant-snapshot:
         enabled: true
         logical-table: transaction_merchant_snapshot
@@ -351,6 +351,19 @@ global-payment:
         table-name-format: "%s_%d%02d"
         actual-data-source: master
         description: 保存每一次商户通知请求/响应日志。
+      transaction-merchant-api-interaction-log:
+        enabled: true
+        logical-table: transaction_merchant_api_interaction_log
+        template-table: transaction_merchant_api_interaction_log
+        id-column: id
+        sharding-column: transaction_date_time
+        start-year: 2026
+        start-quarter: 1
+        end-year: 2035
+        end-quarter: 4
+        table-name-format: "%s_%d%02d"
+        actual-data-source: master
+        description: 保存商户 OpenAPI 请求和平台响应的脱敏审计日志。
       transaction-event-outbox:
         enabled: true
         logical-table: transaction_event_outbox

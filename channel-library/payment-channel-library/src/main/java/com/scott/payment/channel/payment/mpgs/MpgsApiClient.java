@@ -186,12 +186,12 @@ public class MpgsApiClient {
                                                   String operation,
                                                   long startNanos) {
         String body = response.body();
-        log.info("MPGS渠道响应上下文，context={}", JsonUtils.toJsonString(new ResponseLogContext(
+        log.info("MPGS渠道响应上下文，context: {}", JsonUtils.toJsonString(new ResponseLogContext(
                 httpMethod, operation, request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
                 response.statusCode(), elapsedMillis(startNanos)
         )));
-        log.info("MPGS渠道响应报文，response={}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
+        log.info("MPGS渠道响应报文，response: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
         if (!StringUtils.hasText(body)) {
             throw new ChannelResponseException("MPGS response body is empty");
         }
@@ -200,7 +200,7 @@ public class MpgsApiClient {
             throw new ChannelResponseException("MPGS parsed response is empty");
         }
         if ((response.statusCode() < 200 || response.statusCode() >= 300) && !hasMpgsResult(payload)) {
-            throw new ChannelResponseException("MPGS HTTP response is not successful, status=" + response.statusCode());
+            throw new ChannelResponseException("MPGS HTTP response is not successful, status: " + response.statusCode());
         }
         return responseMapper.toChannelResponse(request, payload);
     }
@@ -210,7 +210,7 @@ public class MpgsApiClient {
             return JsonUtils.parseObject(body, MpgsResponsePayload.class);
         } catch (RuntimeException e) {
             if (httpStatus < 200 || httpStatus >= 300) {
-                throw new ChannelResponseException("MPGS HTTP response is not successful, status=" + httpStatus, e);
+                throw new ChannelResponseException("MPGS HTTP response is not successful, status: " + httpStatus, e);
             }
             throw new ChannelResponseException("MPGS response parse failed", e);
         }
@@ -346,13 +346,13 @@ public class MpgsApiClient {
                             String operation,
                             String url,
                             MpgsRequestPayload payload) {
-        log.info("MPGS渠道请求上下文，context={}", JsonUtils.toJsonString(new RequestLogContext(
+        log.info("MPGS渠道请求上下文，context: {}", JsonUtils.toJsonString(new RequestLogContext(
                 httpMethod, operation, url, request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getChannelTransactionId(),
                 request.getMerchantId(), request.getMerchantOrderNo(), request.getMerchantOrderId(), request.getTransactionType(),
                 String.valueOf(request.getAmount()), request.getCurrency()
         )));
-        log.info("MPGS渠道请求报文，request={}", JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
+        log.info("MPGS渠道请求报文，request: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
     }
 
     /**
@@ -371,8 +371,8 @@ public class MpgsApiClient {
                                      String url,
                                      long startNanos,
                                      Exception exception) {
-        log.warn("MPGS渠道请求异常，method={}, operation={}, url={}, operationId={}, transactionId={}, "
-                        + "channelOrderNo={}, channelTransactionId={}, merchantOrderNo={}, durationMillis={}, errorType={}, errorMessage={}",
+        log.warn("MPGS渠道请求异常，method: {}, operation: {}, url: {}, operationId: {}, transactionId: {}, "
+                        + "channelOrderNo: {}, channelTransactionId: {}, merchantOrderNo: {}, durationMillis: {}, errorType: {}, errorMessage: {}",
                 httpMethod, operation, url, safeOperationId(request), safeTransactionId(request),
                 safeChannelOrderNo(request), safeChannelTransactionId(request), safeMerchantOrderNo(request),
                 elapsedMillis(startNanos), exception.getClass().getSimpleName(),
