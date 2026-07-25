@@ -348,6 +348,83 @@ class DefaultTransactionRecordServiceTests {
     }
 
     /**
+     * Incremental Authorization 回调和主动查询并发确认成功时，只允许 CAS 成功的一方增加授权金额。
+     */
+    @Test
+    void shouldIncreaseIncrementalAuthorizationAmountOnlyOnceWhenCallbackAndQueryRace() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionAmountChangeLogMapper amountChangeLogMapper = mock(TransactionAmountChangeLogMapper.class);
+        TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        when(operationMapper.completeStatusPhysical(anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any()))
+                .thenReturn(1)
+                .thenReturn(0);
+        when(orderMapper.increaseAuthorizedAmountPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any()))
+                .thenReturn(1);
+        when(historyMapper.insertPhysical(anyString(), any(TransactionStatusHistoryDO.class))).thenReturn(1);
+        when(amountChangeLogMapper.insertPhysical(anyString(), any(TransactionAmountChangeLogDO.class))).thenReturn(1);
+        when(flowEventMapper.insertPhysical(anyString(), any(TransactionFlowEventDO.class))).thenReturn(1);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                flowEventMapper,
+                amountChangeLogMapper,
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
+        TransactionOperationDO operationDO = processingInitialOperation();
+        operationDO.setTransactionId("TX202610011000000000003");
+        operationDO.setSourceTransactionId("TX202607010030000000001");
+        operationDO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
+        operationDO.setTransactionAmount(new BigDecimal("20.00"));
+        operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        operationDO.setTransactionDateTime(LocalDateTime.of(2026, 10, 1, 10, 0));
+        TransactionOrderDO orderDO = processingInitialOrder();
+        orderDO.setTransactionStatus(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        orderDO.setAuthorizedAmount(new BigDecimal("12.34"));
+        orderDO.setAvailableCaptureAmount(new BigDecimal("12.34"));
+
+        boolean callbackChanged = recordService.completeByChannelCallback(
+                operationDO,
+                orderDO,
+                "CCB202610011000000000003",
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                null,
+                null,
+                "AUTHORIZED",
+                "00",
+                "Approved");
+        boolean queryChanged = recordService.completeByChannelCallback(
+                operationDO,
+                orderDO,
+                "CR202610011000000000003",
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                null,
+                null,
+                "AUTHORIZED",
+                "00",
+                "Approved by query");
+
+        assertThat(callbackChanged).isTrue();
+        assertThat(queryChanged).isFalse();
+        verify(operationMapper, times(2)).completeStatusPhysical(
+                anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any());
+        verify(orderMapper, times(1)).increaseAuthorizedAmountPhysical(
+                "transaction_order_202603",
+                "OP202607010030000000001",
+                "TX202610011000000000003",
+                new BigDecimal("20.00"),
+                0);
+        verify(amountChangeLogMapper, times(1)).insertPhysical(anyString(), any(TransactionAmountChangeLogDO.class));
+    }
+
+    /**
      * 首次授权同步处理中时，渠道回调成功应按动作时间推进动作单，并初始化主单授权金额和可请款金额。
      */
     @Test
