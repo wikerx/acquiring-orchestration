@@ -46,6 +46,16 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     private BigDecimal amount;
 
     /**
+     * 页面标签币种金额，供支付核心保留商户展示口径。
+     */
+    private BigDecimal labelAmount;
+
+    /**
+     * 页面标签币种，供支付核心保留商户展示口径。
+     */
+    private String labelCurrency;
+
+    /**
      * 动作币种，ISO 4217 三位代码。
      */
     private String currency;

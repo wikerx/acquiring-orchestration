@@ -143,6 +143,22 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @return 退款动作结果
      */
     @Override
+    public TransactionActionResponse capture(PaymentTransactionActionClientRequestDTO requestDTO) {
+        CommonResult<TransactionActionResponse> result = post(
+                properties.getCaptureUrl(),
+                requestDTO,
+                new TypeReference<CommonResult<TransactionActionResponse>>() {
+                });
+        return unwrapData(result);
+    }
+
+    /**
+     * 通过支付核心发起退款动作。
+     *
+     * @param requestDTO 支付核心内部退款命令
+     * @return 退款动作结果
+     */
+    @Override
     public TransactionActionResponse refund(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
                 properties.getRefundUrl(),

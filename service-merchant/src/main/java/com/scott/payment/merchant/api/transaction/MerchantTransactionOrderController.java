@@ -104,6 +104,21 @@ public class MerchantTransactionOrderController {
     }
 
     /**
+     * 当前商户发起请款动作。
+     *
+     * @param transactionId 原授权平台交易 ID
+     * @param request       请款请求
+     * @return 请款动作结果
+     */
+    @PostMapping("/{transactionId}/capture")
+    @RequiresPermission("merchant:transaction:order:capture")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.UPDATE, operation = "商户发起交易请款")
+    public CommonResult<TransactionActionResponse> capture(@PathVariable("transactionId") String transactionId,
+                                                           @RequestBody(required = false) TransactionActionRequest request) {
+        return success(transactionApplicationService.capture(currentMerchantId(), transactionId, request));
+    }
+
+    /**
      * 当前商户发起退款动作。
      *
      * @param transactionId 原平台交易 ID
@@ -116,6 +131,21 @@ public class MerchantTransactionOrderController {
     public CommonResult<TransactionActionResponse> refund(@PathVariable("transactionId") String transactionId,
                                                           @RequestBody(required = false) TransactionActionRequest request) {
         return success(transactionApplicationService.refund(currentMerchantId(), transactionId, request));
+    }
+
+    /**
+     * 当前商户发起撤销动作。
+     *
+     * @param transactionId 原授权平台交易 ID
+     * @param request       撤销请求
+     * @return 撤销动作结果
+     */
+    @PostMapping("/{transactionId}/void")
+    @RequiresPermission("merchant:transaction:order:void")
+    @OperationLog(moduleName = "商户交易查询", businessType = OperationTypeConstants.UPDATE, operation = "商户发起交易撤销")
+    public CommonResult<TransactionActionResponse> voidPayment(@PathVariable("transactionId") String transactionId,
+                                                               @RequestBody(required = false) TransactionActionRequest request) {
+        return success(transactionApplicationService.voidPayment(currentMerchantId(), transactionId, request));
     }
 
     private String currentMerchantId() {

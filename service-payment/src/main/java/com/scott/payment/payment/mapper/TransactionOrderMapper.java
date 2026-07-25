@@ -353,6 +353,10 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                 fail_reason_message = #{failReasonMessage},
                 merchant_visible_message = #{merchantVisibleMessage},
                 payer_visible_message = #{payerVisibleMessage},
+                channel_match_status = #{channelMatchStatus},
+                channel_match_result = #{transactionStatus},
+                next_channel_match_time = NULL,
+                channel_match_fail_reason = NULL,
                 last_status_time = CURRENT_TIMESTAMP(3),
                 version = version + 1,
                 update_time = CURRENT_TIMESTAMP(3)
@@ -370,7 +374,8 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                                @Param("failReasonCode") String failReasonCode,
                                @Param("failReasonMessage") String failReasonMessage,
                                @Param("merchantVisibleMessage") String merchantVisibleMessage,
-                               @Param("payerVisibleMessage") String payerVisibleMessage);
+                               @Param("payerVisibleMessage") String payerVisibleMessage,
+                               @Param("channelMatchStatus") String channelMatchStatus);
 
     /**
      * CAS 推进首次类交易成功并初始化主单金额汇总。
@@ -387,6 +392,10 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
             SET latest_transaction_id = #{latestTransactionId},
                 transaction_status = 'SUCCESS',
                 process_stage = 'FINISHED',
+                channel_match_status = #{channelMatchStatus},
+                channel_match_result = 'SUCCESS',
+                next_channel_match_time = NULL,
+                channel_match_fail_reason = NULL,
                 authorized_amount = CASE
                     WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION') THEN #{amount}
                     ELSE authorized_amount
@@ -415,5 +424,6 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                                    @Param("operationId") String operationId,
                                    @Param("latestTransactionId") String latestTransactionId,
                                    @Param("amount") BigDecimal amount,
-                                   @Param("expectedVersion") Integer expectedVersion);
+                                   @Param("expectedVersion") Integer expectedVersion,
+                                   @Param("channelMatchStatus") String channelMatchStatus);
 }

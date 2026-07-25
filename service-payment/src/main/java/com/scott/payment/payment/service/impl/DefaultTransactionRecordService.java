@@ -157,6 +157,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     private static final String MERCHANT_API_LOG_PREFIX = "MAL";
 
+    private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
+
+    private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
+
+    private static final String RAW_RESPONSE_HEADER_JSON_MASKED = "responseHeaderJsonMasked";
+
+    private static final String RAW_RESPONSE_BODY_JSON_MASKED = "responseBodyJsonMasked";
+
+    private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
+
     /**
      * 未换汇交易默认汇率，商户响应和后台日志统一保留 8 位小数。
      */
@@ -389,8 +399,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         validate(commandDTO, resultDTO);
         LocalDateTime now = LocalDateTime.now();
         ChannelPaymentResponse channelResponse = channelInvokeResultDTO == null ? null : channelInvokeResultDTO.getChannelResponse();
-        TransactionOrderDO orderDO = buildOrder(commandDTO, routeResultDTO, channelResponse, resultDTO, riskDecisionEnum, currencyExponent, now);
-        TransactionOperationDO operationDO = buildOperation(commandDTO, routeResultDTO, channelResponse, resultDTO, currencyExponent, now);
+        TransactionOrderDO orderDO = buildOrder(commandDTO, routeResultDTO, channelInvokeResultDTO, channelResponse,
+                resultDTO, riskDecisionEnum, currencyExponent, now);
+        TransactionOperationDO operationDO = buildOperation(commandDTO, routeResultDTO, channelInvokeResultDTO,
+                channelResponse, resultDTO, currencyExponent, now);
         TransactionStatusHistoryDO orderHistoryDO = buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_ORDER, commandDTO.getTransactionDateTime(), now);
         TransactionStatusHistoryDO operationHistoryDO = buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_OPERATION, commandDTO.getTransactionDateTime(), now);
 
@@ -461,6 +473,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (isTerminal(resultDTO)) {
             activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage(), now);
         }
+        updateMerchantApiFinalResult(commandDTO, resultDTO, now);
     }
 
     /**
@@ -978,7 +991,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 failReasonMessage,
                 channelStatus,
                 channelResponseCode,
-                channelResponseMessage);
+                channelResponseMessage,
+                null,
+                null,
+                null,
+                CHANNEL_MATCH_MATCHED);
         if (operationUpdated != 1) {
             recordCallbackStatusHistory(operationDO, callbackId, targetTransactionStatus, TRANSITION_IGNORED,
                     "operation state has changed");
@@ -1107,6 +1124,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
 
     private TransactionOrderDO buildOrder(PaymentCreateCommandDTO commandDTO,
                                           PaymentRouteResultDTO routeResultDTO,
+                                          PaymentChannelInvokeResultDTO invokeResultDTO,
                                           ChannelPaymentResponse channelResponse,
                                           PaymentCreateResultDTO resultDTO,
                                           PaymentRiskDecisionEnum riskDecisionEnum,
@@ -1132,6 +1150,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setPayerVisibleMessage(resultDTO.getFailReasonCode());
         fillAmountFields(orderDO, commandDTO, resultDTO, currencyExponent);
         fillOrderRouteFields(orderDO, routeResultDTO, channelResponse, riskDecisionEnum);
+        fillOrderRouteFieldsFromRequest(orderDO, invokeResultDTO);
         orderDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
         orderDO.setTransactionUtcTime(toUtcTime(commandDTO.getTransactionDateTime(), DEFAULT_TIME_ZONE));
         orderDO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
@@ -1146,6 +1165,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
 
     private TransactionOperationDO buildOperation(PaymentCreateCommandDTO commandDTO,
                                                   PaymentRouteResultDTO routeResultDTO,
+                                                  PaymentChannelInvokeResultDTO invokeResultDTO,
                                                   ChannelPaymentResponse channelResponse,
                                                   PaymentCreateResultDTO resultDTO,
                                                   int currencyExponent,
@@ -1167,6 +1187,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setFailReasonMessage(channelResponse == null ? resultDTO.getFailReasonCode() : channelResponse.getChannelResponseMessage());
         fillAmountFields(operationDO, commandDTO, resultDTO, currencyExponent);
         fillOperationRouteFields(operationDO, routeResultDTO, channelResponse);
+        fillOperationRouteFieldsFromRequest(operationDO, invokeResultDTO);
         operationDO.setSettlementStatus(NOT_SETTLED);
         operationDO.setReconciliationStatus(NOT_RECONCILED);
         operationDO.setAccountingStatus(NOT_ACCOUNTED);
@@ -1236,6 +1257,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setChannelCode(firstText(operationDO.getChannelCode(), invokeResultDTO.getChannelRequest().getChannelCode()));
         operationDO.setChannelOrderNo(firstText(operationDO.getChannelOrderNo(), invokeResultDTO.getChannelRequest().getChannelOrderNo()));
         operationDO.setChannelTransactionId(firstText(operationDO.getChannelTransactionId(), invokeResultDTO.getChannelRequest().getChannelTransactionId()));
+    }
+
+    private void fillOrderRouteFieldsFromRequest(TransactionOrderDO orderDO,
+                                                 PaymentChannelInvokeResultDTO invokeResultDTO) {
+        if (orderDO == null || invokeResultDTO == null || invokeResultDTO.getChannelRequest() == null) {
+            return;
+        }
+        orderDO.setChannelCode(firstText(orderDO.getChannelCode(), invokeResultDTO.getChannelRequest().getChannelCode()));
+        orderDO.setChannelOrderNo(firstText(orderDO.getChannelOrderNo(), invokeResultDTO.getChannelRequest().getChannelOrderNo()));
     }
 
     private TransactionStatusHistoryDO buildStatusHistory(PaymentCreateCommandDTO commandDTO,
@@ -1448,8 +1478,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                         orderTable,
                         orderDO.getOperationId(),
                         operationDO.getTransactionId(),
-                        operationDO.getTransactionAmount() == null ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
-                        orderDO.getVersion());
+                operationDO.getTransactionAmount() == null ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
+                        orderDO.getVersion(),
+                        CHANNEL_MATCH_MATCHED);
                 return updated == 1;
             }
             PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
@@ -1475,7 +1506,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 failReasonCode,
                 failReasonMessage,
                 failReasonCode,
-                failReasonCode);
+                failReasonCode,
+                CHANNEL_MATCH_MATCHED);
         return updated == 1;
     }
 
@@ -1512,12 +1544,65 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (updated != 1 && isRequestResultConflict(requestDO, resultDTO)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel request state has changed");
         }
+        updateChannelInteractionLog(commandDTO, invokeResultDTO, resultDTO, now);
+    }
+
+    private void updateChannelInteractionLog(PaymentCreateCommandDTO commandDTO,
+                                             PaymentChannelInvokeResultDTO invokeResultDTO,
+                                             PaymentCreateResultDTO resultDTO,
+                                             LocalDateTime now) {
+        if (commandDTO == null || invokeResultDTO == null || !StringUtils.hasText(invokeResultDTO.getRequestId())) {
+            return;
+        }
+        TransactionChannelInteractionLogDO logDO = buildChannelInteractionLog(commandDTO, invokeResultDTO, resultDTO, now);
+        int updated = transactionChannelInteractionLogMapper.updateByRequestIdPhysical(
+                resolvePhysicalTable(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime()),
+                invokeResultDTO.getRequestId(),
+                logDO.getInteractionType(),
+                logDO.getHttpMethod(),
+                logDO.getRequestUrlMasked(),
+                logDO.getHttpStatus(),
+                logDO.getRequestHeaderJsonMasked(),
+                logDO.getRequestBodyJsonMasked(),
+                logDO.getResponseHeaderJsonMasked(),
+                logDO.getResponseBodyJsonMasked(),
+                logDO.getExceptionType(),
+                logDO.getExceptionMessage(),
+                logDO.getDurationMillis(),
+                logDO.getInteractionTime());
+        if (updated < 1) {
+            transactionChannelInteractionLogMapper.insertPhysical(
+                    resolvePhysicalTable(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime()),
+                    logDO);
+        }
     }
 
     private boolean isRequestResultConflict(TransactionChannelRequestDO requestDO, PaymentCreateResultDTO resultDTO) {
         return requestDO == null
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(requestDO.getPlatformResultCode())
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
+    }
+
+    private void updateMerchantApiFinalResult(PaymentCreateCommandDTO commandDTO,
+                                              PaymentCreateResultDTO resultDTO,
+                                              LocalDateTime now) {
+        if (transactionMerchantApiInteractionLogMapper == null
+                || commandDTO == null
+                || resultDTO == null
+                || !StringUtils.hasText(commandDTO.getMerchantRequestPlainJsonMasked())) {
+            return;
+        }
+        transactionMerchantApiInteractionLogMapper.updateFinalResultPhysical(
+                resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime()),
+                resultDTO.getTransactionId(),
+                commandDTO.getRequestId(),
+                resultDTO.getStatus(),
+                resultDTO.getStatus(),
+                resolveMerchantResponseCode(resultDTO),
+                resolveMerchantResponseMessage(resultDTO),
+                safeLength(maskedJson(merchantVisiblePayload(commandDTO, resultDTO)), 16_000),
+                now,
+                resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
     }
 
     private boolean isOriginalRequestResultConflict(TransactionChannelRequestDO requestDO, String platformResultCode) {
@@ -1542,7 +1627,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO.getFailReasonMessage(),
                 response == null ? null : response.getRawChannelStatus(),
                 response == null ? null : response.getChannelResponseCode(),
-                response == null ? null : response.getChannelResponseMessage());
+                response == null ? null : response.getChannelResponseMessage(),
+                response == null ? null : response.getAuthCode(),
+                response == null ? null : response.getRrn(),
+                response == null ? null : response.getAcquirerReferenceNo(),
+                CHANNEL_MATCH_NOT_REQUIRED);
         if (operationUpdated != 1) {
             return false;
         }
@@ -1554,7 +1643,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                     orderDO.getOperationId(),
                     resultDTO.getTransactionId(),
                     operationDO.getTransactionAmount() == null ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
-                    orderDO.getVersion());
+                    orderDO.getVersion(),
+                    CHANNEL_MATCH_NOT_REQUIRED);
             if (orderUpdated != 1) {
                 throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "order state has changed");
             }
@@ -1570,7 +1660,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO.getFailReasonCode(),
                 resultDTO.getFailReasonMessage(),
                 resultDTO.getFailReasonCode(),
-                resultDTO.getFailReasonCode());
+                resultDTO.getFailReasonCode(),
+                CHANNEL_MATCH_NOT_REQUIRED);
         if (orderUpdated != 1) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "order state has changed");
         }
@@ -1620,7 +1711,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resultDTO.getFailReasonMessage(),
                 response == null ? null : response.getRawChannelStatus(),
                 response == null ? null : response.getChannelResponseCode(),
-                response == null ? null : response.getChannelResponseMessage());
+                response == null ? null : response.getChannelResponseMessage(),
+                response == null ? null : response.getAuthCode(),
+                response == null ? null : response.getRrn(),
+                response == null ? null : response.getAcquirerReferenceNo(),
+                CHANNEL_MATCH_NOT_REQUIRED);
         if (operationUpdated != 1) {
             return false;
         }
@@ -1693,6 +1788,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         target.setChannelStatus(response == null ? source.getChannelStatus() : response.getRawChannelStatus());
         target.setChannelResponseCode(response == null ? source.getChannelResponseCode() : response.getChannelResponseCode());
         target.setChannelResponseMessage(response == null ? source.getChannelResponseMessage() : response.getChannelResponseMessage());
+        target.setAuthCode(response == null ? source.getAuthCode() : response.getAuthCode());
+        target.setRrn(response == null ? source.getRrn() : response.getRrn());
+        target.setAcquirerReferenceNo(response == null ? source.getAcquirerReferenceNo() : response.getAcquirerReferenceNo());
         target.setTransactionDateTime(source.getTransactionDateTime());
         target.setVersion(source.getVersion());
         return target;
@@ -2204,8 +2302,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         requestDO.setRequestScene(invokeResultDTO.getRequestScene());
         requestDO.setChannelMatchFlag(0);
         requestDO.setRequestStatus(invokeResultDTO.getRequestStatus());
-        requestDO.setHttpMethod(invokeResultDTO.getHttpMethod());
-        requestDO.setRequestUrlMasked(invokeResultDTO.getRequestUrlMasked());
+        requestDO.setHttpMethod(resolveChannelHttpMethod(invokeResultDTO));
+        requestDO.setRequestUrlMasked(resolveChannelRequestUrl(invokeResultDTO));
         requestDO.setRequestCurrency(invokeResultDTO.getChannelRequest().getCurrency());
         requestDO.setRequestAmount(invokeResultDTO.getChannelRequest().getAmount());
         requestDO.setChannelOrderNo(response == null ? invokeResultDTO.getChannelRequest().getChannelOrderNo() : response.getChannelOrderNo());
@@ -2254,15 +2352,23 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setOperationId(resultDTO.getOperationId());
         logDO.setChannelCode(invokeResultDTO.getChannelRequest().getChannelCode());
         logDO.setInteractionType(StringUtils.hasText(invokeResultDTO.getExceptionType()) ? "EXCEPTION" : "REQUEST_RESPONSE");
-        logDO.setHttpMethod(invokeResultDTO.getHttpMethod());
-        logDO.setRequestUrlMasked(invokeResultDTO.getRequestUrlMasked());
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        logDO.setHttpMethod(resolveChannelHttpMethod(invokeResultDTO));
+        logDO.setRequestUrlMasked(resolveChannelRequestUrl(invokeResultDTO));
         logDO.setHttpStatus(resolveChannelHttpStatus(invokeResultDTO));
-        logDO.setRequestBodyJsonMasked(maskedJson(invokeResultDTO.getChannelRequest()));
-        logDO.setResponseBodyJsonMasked(maskedJson(invokeResultDTO.getChannelResponse()));
+        logDO.setRequestHeaderJsonMasked(safeLength(channelRawAudit(response, RAW_REQUEST_HEADER_JSON_MASKED), 16_000));
+        logDO.setRequestBodyJsonMasked(firstText(
+                safeLength(channelRawAudit(response, RAW_REQUEST_BODY_JSON_MASKED), 16_000),
+                maskedJson(invokeResultDTO.getChannelRequest())));
+        logDO.setResponseHeaderJsonMasked(safeLength(channelRawAudit(response, RAW_RESPONSE_HEADER_JSON_MASKED), 16_000));
+        logDO.setResponseBodyJsonMasked(firstText(
+                safeLength(channelRawAudit(response, RAW_RESPONSE_BODY_JSON_MASKED), 16_000),
+                maskedJson(response)));
         logDO.setExceptionType(invokeResultDTO.getExceptionType());
         logDO.setExceptionMessage(safeLength(invokeResultDTO.getExceptionMessage(), 1024));
         logDO.setDurationMillis(invokeResultDTO.getDurationMillis());
-        logDO.setInteractionTime(defaultTime(invokeResultDTO.getRequestStartTime(), now));
+        logDO.setInteractionTime(defaultTime(invokeResultDTO.getResponseTime(),
+                defaultTime(invokeResultDTO.getRequestStartTime(), now)));
         fillTransactionTime(logDO, commandDTO.getTransactionDateTime());
         logDO.setCreateTime(now);
         return logDO;
@@ -2275,11 +2381,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @return HTTP 状态码，无法解析时为空
      */
     private Integer resolveChannelHttpStatus(PaymentChannelInvokeResultDTO invokeResultDTO) {
-        if (invokeResultDTO == null || invokeResultDTO.getChannelResponse() == null
-                || invokeResultDTO.getChannelResponse().getRawResponse() == null) {
+        if (invokeResultDTO == null || invokeResultDTO.getChannelResponse() == null) {
             return null;
         }
-        String httpStatus = invokeResultDTO.getChannelResponse().getRawResponse().get("httpStatus");
+        if (invokeResultDTO.getChannelResponse().getHttpStatus() != null) {
+            return invokeResultDTO.getChannelResponse().getHttpStatus();
+        }
+        String httpStatus = invokeResultDTO.getChannelResponse().getRawResponse() == null
+                ? null
+                : invokeResultDTO.getChannelResponse().getRawResponse().get("httpStatus");
         if (!StringUtils.hasText(httpStatus)) {
             return null;
         }
@@ -2288,6 +2398,51 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         } catch (NumberFormatException exception) {
             return null;
         }
+    }
+
+    private String resolveChannelHttpMethod(PaymentChannelInvokeResultDTO invokeResultDTO) {
+        if (invokeResultDTO == null) {
+            return null;
+        }
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        return firstText(response == null ? null : response.getHttpMethod(), invokeResultDTO.getHttpMethod());
+    }
+
+    private String resolveChannelRequestUrl(PaymentChannelInvokeResultDTO invokeResultDTO) {
+        if (invokeResultDTO == null) {
+            return null;
+        }
+        ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
+        return firstText(
+                response == null ? null : response.getRequestUrlMasked(),
+                channelRawAudit(response, RAW_REQUEST_URL_MASKED),
+                invokeResultDTO.getRequestUrlMasked());
+    }
+
+    private String channelRawAudit(ChannelPaymentResponse response, String key) {
+        if (response == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        if (RAW_REQUEST_HEADER_JSON_MASKED.equals(key)) {
+            return firstText(response.getRequestHeaderJsonMasked(), rawResponseValue(response, key));
+        }
+        if (RAW_REQUEST_BODY_JSON_MASKED.equals(key)) {
+            return firstText(response.getRequestBodyJsonMasked(), rawResponseValue(response, key));
+        }
+        if (RAW_RESPONSE_HEADER_JSON_MASKED.equals(key)) {
+            return firstText(response.getResponseHeaderJsonMasked(), rawResponseValue(response, key));
+        }
+        if (RAW_RESPONSE_BODY_JSON_MASKED.equals(key)) {
+            return firstText(response.getResponseBodyJsonMasked(), rawResponseValue(response, key));
+        }
+        return rawResponseValue(response, key);
+    }
+
+    private String rawResponseValue(ChannelPaymentResponse response, String key) {
+        if (response == null || response.getRawResponse() == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        return response.getRawResponse().get(key);
     }
 
     /**
@@ -2741,7 +2896,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         putIfPresent(transactionInfo, "processStage", operationDO.getProcessStage());
         putIfPresent(transactionInfo, "transactionDateTime", offsetDateTimeString(operationDO.getTransactionDateTime(), operationDO.getTransactionTimeZone()));
         putIfPresent(transactionInfo, "authCode", operationDO.getAuthCode());
-        putIfPresent(transactionInfo, "arn", firstText(operationDO.getAcquirerReferenceNo(), operationDO.getRrn()));
+        putIfPresent(transactionInfo, "arn", operationDO.getAcquirerReferenceNo());
         putIfPresent(transactionInfo, "failReasonCode", merchantVisibleFailureCode(failReasonCode));
         putIfPresent(transactionInfo, "failReasonMessage", merchantVisibleFailureMessage(targetTransactionStatus, failReasonCode));
         putIfPresent(payload, "transactionInfo", transactionInfo);

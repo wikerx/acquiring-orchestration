@@ -60,6 +60,11 @@ public class GatewayRouteConfig {
     private static final String PAYOUT_OPENAPI_PATH = "/api/rest/payout/**";
 
     /**
+     * ISO 基础资料 API 路径，形如 /api/rest/iso/v1/countries/query。
+     */
+    private static final String ISO_OPENAPI_PATH = "/api/rest/iso/**";
+
+    /**
      * 渠道回调路径，当前由 service-openapi 统一承接后再转发到支付或代付服务。
      */
     private static final String CHANNEL_CALLBACK_PATH = "/channel/**";
@@ -121,6 +126,7 @@ public class GatewayRouteConfig {
         return builder.routes()
                 .route("merchant-payment-openapi", route -> route.path(PAYMENT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("merchant-payout-openapi", route -> route.path(PAYOUT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("merchant-iso-openapi", route -> route.path(ISO_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("channel-callback-openapi", route -> route.path(CHANNEL_CALLBACK_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("openapi-support", route -> route.path(OPENAPI_SUPPORT_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("admin-api", route -> route.path(ADMIN_API_PATH).uri(SERVICE_ADMIN_URI))

@@ -5,6 +5,7 @@ import com.scott.payment.payment.entity.TransactionChannelInteractionLogDO;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,6 +51,58 @@ public interface TransactionChannelInteractionLogMapper extends BaseMapper<Trans
             """)
     int insertPhysical(@Param("physicalTableName") String physicalTableName,
                        @Param("logDO") TransactionChannelInteractionLogDO logDO);
+
+    /**
+     * 按平台渠道请求 ID 回写真实渠道 HTTP 交互日志。
+     * <p>
+     * 首次准备事务会先保留一条平台内部请求快照；渠道同步结果返回后必须用渠道适配器提供的脱敏原始 HTTP
+     * 请求/响应覆盖该快照，确保管理后台详情看到 MPGS 等渠道的真实交互报文。
+     *
+     * @param physicalTableName  经分表规则解析器校验后的物理表名
+     * @param requestId          平台渠道请求 ID
+     * @param httpMethod         渠道真实 HTTP 方法
+     * @param requestUrlMasked   脱敏后的渠道真实请求 URL
+     * @param httpStatus         渠道 HTTP 状态码
+     * @param requestHeaderJsonMasked 脱敏请求头
+     * @param requestBodyJsonMasked   脱敏请求体
+     * @param responseHeaderJsonMasked 脱敏响应头
+     * @param responseBodyJsonMasked   脱敏响应体
+     * @param exceptionType      异常类型
+     * @param exceptionMessage   异常摘要
+     * @param durationMillis     渠道调用耗时
+     * @param interactionTime    渠道响应或异常时间
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE ${physicalTableName}
+            SET interaction_type = #{interactionType},
+                http_method = #{httpMethod},
+                request_url_masked = #{requestUrlMasked},
+                http_status = #{httpStatus},
+                request_header_json_masked = #{requestHeaderJsonMasked},
+                request_body_json_masked = #{requestBodyJsonMasked},
+                response_header_json_masked = #{responseHeaderJsonMasked},
+                response_body_json_masked = #{responseBodyJsonMasked},
+                exception_type = #{exceptionType},
+                exception_message = #{exceptionMessage},
+                duration_millis = #{durationMillis},
+                interaction_time = #{interactionTime}
+            WHERE request_id = #{requestId}
+            """)
+    int updateByRequestIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                  @Param("requestId") String requestId,
+                                  @Param("interactionType") String interactionType,
+                                  @Param("httpMethod") String httpMethod,
+                                  @Param("requestUrlMasked") String requestUrlMasked,
+                                  @Param("httpStatus") Integer httpStatus,
+                                  @Param("requestHeaderJsonMasked") String requestHeaderJsonMasked,
+                                  @Param("requestBodyJsonMasked") String requestBodyJsonMasked,
+                                  @Param("responseHeaderJsonMasked") String responseHeaderJsonMasked,
+                                  @Param("responseBodyJsonMasked") String responseBodyJsonMasked,
+                                  @Param("exceptionType") String exceptionType,
+                                  @Param("exceptionMessage") String exceptionMessage,
+                                  @Param("durationMillis") Integer durationMillis,
+                                  @Param("interactionTime") LocalDateTime interactionTime);
 
     /**
      * 按平台交易 ID 查询渠道交互日志。

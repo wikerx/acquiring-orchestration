@@ -96,7 +96,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -109,7 +109,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -122,7 +122,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -135,7 +135,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -148,7 +148,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -161,7 +161,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -174,7 +174,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -187,7 +187,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -200,7 +200,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -213,7 +213,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -226,7 +226,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -239,7 +239,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -252,7 +252,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -265,7 +265,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -278,7 +278,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -291,7 +291,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -304,7 +304,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -317,7 +317,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -330,7 +330,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -343,7 +343,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -356,7 +356,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -369,7 +369,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"
@@ -382,7 +382,7 @@ global-payment:
         id-column: id
         sharding-column: transaction_date_time
         start-year: 2026
-        start-quarter: 1
+        start-quarter: 3
         end-year: 2035
         end-quarter: 4
         table-name-format: "%s_%d%02d"

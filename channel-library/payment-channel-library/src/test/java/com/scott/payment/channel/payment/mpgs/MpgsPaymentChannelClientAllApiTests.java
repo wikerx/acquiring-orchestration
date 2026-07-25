@@ -120,7 +120,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.PAY);
-        assertSuccessResponse(response, request, MpgsApiOperation.PAY);
+        assertSuccessResponse(response, request, MpgsApiOperation.PAY, 201);
         logCaseEnd("PAY一步支付", response, recordedRequest);
         assertMaskedLogs(output, MpgsApiOperation.PAY);
     }
@@ -139,7 +139,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.AUTHORIZE);
-        assertSuccessResponse(response, request, MpgsApiOperation.AUTHORIZE);
+        assertSuccessResponse(response, request, MpgsApiOperation.AUTHORIZE, 201);
         logCaseEnd("AUTHORIZE授权", response, recordedRequest);
         assertMaskedLogs(output, MpgsApiOperation.AUTHORIZE);
     }
@@ -158,7 +158,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.AUTHORIZE);
-        assertSuccessResponse(response, request, MpgsApiOperation.AUTHORIZE);
+        assertSuccessResponse(response, request, MpgsApiOperation.AUTHORIZE, 201);
         logCaseEnd("PRE_AUTHORIZATION预授权", response, recordedRequest);
         assertMaskedLogs(output, MpgsApiOperation.AUTHORIZE);
     }
@@ -177,7 +177,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.CAPTURE);
-        assertSuccessResponse(response, request, MpgsApiOperation.CAPTURE);
+        assertSuccessResponse(response, request, MpgsApiOperation.CAPTURE, 201);
         logCaseEnd("CAPTURE请款", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.CAPTURE);
     }
@@ -196,7 +196,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.CAPTURE);
-        assertSuccessResponse(response, request, MpgsApiOperation.CAPTURE);
+        assertSuccessResponse(response, request, MpgsApiOperation.CAPTURE, 201);
         logCaseEnd("PRE_AUTH_COMPLETION预授权完成", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.CAPTURE);
     }
@@ -215,7 +215,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.REFUND);
-        assertSuccessResponse(response, request, MpgsApiOperation.REFUND);
+        assertSuccessResponse(response, request, MpgsApiOperation.REFUND, 201);
         logCaseEnd("REFUND退款", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.REFUND);
     }
@@ -238,7 +238,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.UPDATE_AUTHORIZATION);
-        assertSuccessResponse(response, request, MpgsApiOperation.UPDATE_AUTHORIZATION);
+        assertSuccessResponse(response, request, MpgsApiOperation.UPDATE_AUTHORIZATION, 201);
         logCaseEnd("UPDATE_AUTHORIZATION增量授权", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.UPDATE_AUTHORIZATION);
     }
@@ -288,7 +288,7 @@ class MpgsPaymentChannelClientAllApiTests {
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.VOID);
         assertThat(recordedRequest.body()).contains("\"targetTransactionId\":\"CH-AUTH-ORIGINAL\"");
-        assertSuccessResponse(response, request, MpgsApiOperation.VOID);
+        assertSuccessResponse(response, request, MpgsApiOperation.VOID, 201);
         logCaseEnd("VOID撤销", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.VOID);
     }
@@ -309,7 +309,7 @@ class MpgsPaymentChannelClientAllApiTests {
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.VOID);
         assertThat(recordedRequest.body()).contains("\"targetTransactionId\":\"TX-PAY-ORIGINAL\"");
-        assertSuccessResponse(response, request, MpgsApiOperation.VOID);
+        assertSuccessResponse(response, request, MpgsApiOperation.VOID, 201);
         logCaseEnd("REVERSAL冲正", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.VOID);
     }
@@ -332,7 +332,7 @@ class MpgsPaymentChannelClientAllApiTests {
                 + "/transaction/" + request.getChannelTransactionId());
         assertThat(recordedRequest.body()).isEmpty();
         assertBasicAuth(recordedRequest);
-        assertSuccessResponse(response, request, MpgsApiOperation.RETRIEVE);
+        assertSuccessResponse(response, request, MpgsApiOperation.RETRIEVE, 200);
         logCaseEnd("RETRIEVE查询", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.RETRIEVE);
     }
@@ -482,9 +482,9 @@ class MpgsPaymentChannelClientAllApiTests {
      * @param request   原始渠道请求
      * @param operation 预期 MPGS 交易类型
      */
-    private void assertSuccessResponse(ChannelPaymentResponse response, ChannelPaymentRequest request, String operation) {
+    private void assertSuccessResponse(ChannelPaymentResponse response, ChannelPaymentRequest request, String operation, int expectedHttpStatus) {
         assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.SUCCESS.getCode());
-        assertThat(response.getChannelResponseCode()).isEqualTo("APPROVED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("00");
         assertThat(response.getChannelResponseMessage()).isEqualTo("Approved");
         assertThat(response.getOperationId()).isEqualTo(request.getOperationId());
         assertThat(response.getTransactionId()).isEqualTo(request.getTransactionId());
@@ -492,6 +492,29 @@ class MpgsPaymentChannelClientAllApiTests {
         assertThat(response.getChannelTransactionId()).isEqualTo(request.getChannelTransactionId());
         assertThat(response.getRawResponse()).containsEntry("transactionType", operation);
         assertThat(response.getRawResponse()).containsEntry("acquirerCode", "00");
+        assertThat(response.getRawResponse()).containsEntry("httpStatus", String.valueOf(expectedHttpStatus));
+        assertThat(response.getRawResponse()).containsEntry("httpMethod", MpgsApiOperation.RETRIEVE.equals(operation) ? "GET" : "PUT");
+        assertThat(response.getRawResponse().get("requestUrlMasked")).contains("/version/100/merchant/TESTMID/order/"
+                + request.getChannelOrderNo() + "/transaction/" + request.getChannelTransactionId());
+        assertThat(response.getHttpStatus()).isEqualTo(expectedHttpStatus);
+        assertThat(response.getHttpMethod()).isEqualTo(MpgsApiOperation.RETRIEVE.equals(operation) ? "GET" : "PUT");
+        assertThat(response.getRequestUrlMasked()).contains("/version/100/merchant/TESTMID/order/"
+                + request.getChannelOrderNo() + "/transaction/" + request.getChannelTransactionId());
+        assertThat(response.getRequestHeaderJsonMasked()).contains("Basic ***");
+        assertThat(response.getRequestHeaderJsonMasked()).doesNotContain(TEST_PASSWORD);
+        assertThat(response.getResponseBodyJsonMasked()).contains("\"result\":\"SUCCESS\"");
+        assertThat(response.getResponseBodyJsonMasked()).contains("\"order\"");
+        assertThat(response.getResponseBodyJsonMasked()).contains("\"transaction\"");
+        assertThat(response.getResponseBodyJsonMasked()).doesNotContain("\"securityCode\":\"" + TEST_CVV + "\"");
+        assertThat(response.getResponseBodyJsonMasked()).doesNotContain(TEST_AUTHENTICATION_TOKEN);
+        if (MpgsApiOperation.RETRIEVE.equals(operation)) {
+            assertThat(response.getRequestBodyJsonMasked()).isEqualTo("{}");
+        } else {
+            assertThat(response.getRequestBodyJsonMasked()).contains("\"apiOperation\":\"" + operation + "\"");
+            assertThat(response.getRequestBodyJsonMasked()).doesNotContain(TEST_CARD_NO);
+            assertThat(response.getRequestBodyJsonMasked()).doesNotContain("\"securityCode\":\"" + TEST_CVV + "\"");
+            assertThat(response.getRequestBodyJsonMasked()).doesNotContain(TEST_AUTHENTICATION_TOKEN);
+        }
     }
 
     /**
@@ -533,7 +556,8 @@ class MpgsPaymentChannelClientAllApiTests {
         assertThat(logs).doesNotContain("\"securityCode\":\"" + TEST_CVV + "\"");
         assertThat(logs).doesNotContain(TEST_AUTHENTICATION_TOKEN);
         assertThat(logs).doesNotContain(TEST_PASSWORD);
-        assertThat(logs).doesNotContain("Basic ");
+        assertThat(logs).doesNotContain("Basic " + Base64.getEncoder()
+                .encodeToString((TEST_USERNAME + ":" + TEST_PASSWORD).getBytes(StandardCharsets.UTF_8)));
         return logs;
     }
 

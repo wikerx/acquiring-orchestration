@@ -95,6 +95,41 @@ public class ChannelPaymentResponse implements Serializable {
      */
     private Map<String, String> rawResponse = new HashMap<>();
 
+    /**
+     * 渠道 HTTP 状态码，渠道未暴露或请求异常时允许为空。
+     */
+    private Integer httpStatus;
+
+    /**
+     * 渠道真实 HTTP 方法，例如 MPGS 交易变更类接口为 PUT，查询接口为 GET。
+     */
+    private String httpMethod;
+
+    /**
+     * 脱敏后的渠道真实请求 URL，不包含认证头或密钥。
+     */
+    private String requestUrlMasked;
+
+    /**
+     * 脱敏后的渠道请求头 JSON，禁止保存 Authorization、API Key 等完整敏感值。
+     */
+    private String requestHeaderJsonMasked;
+
+    /**
+     * 脱敏后的渠道请求体 JSON，卡号、CVV、密码等敏感字段必须脱敏。
+     */
+    private String requestBodyJsonMasked;
+
+    /**
+     * 脱敏后的渠道响应头 JSON。
+     */
+    private String responseHeaderJsonMasked;
+
+    /**
+     * 脱敏后的渠道原始响应体 JSON。
+     */
+    private String responseBodyJsonMasked;
+
     @Data
     public static class PaymentMethodSummary implements Serializable {
 

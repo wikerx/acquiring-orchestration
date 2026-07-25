@@ -28,6 +28,9 @@ public class MpgsErrorCodeMapper {
         if (response.getError() != null && StringUtils.hasText(response.getError().getCause())) {
             return response.getError().getCause();
         }
+        if (response.getResponse() != null && StringUtils.hasText(response.getResponse().getAcquirerCode())) {
+            return response.getResponse().getAcquirerCode();
+        }
         if (response.getResponse() != null && StringUtils.hasText(response.getResponse().getGatewayCode())) {
             return response.getResponse().getGatewayCode();
         }
@@ -51,13 +54,10 @@ public class MpgsErrorCodeMapper {
             return response.getResult();
         }
         String acquirerMessage = response.getResponse().getAcquirerMessage();
-        String gatewayRecommendation = response.getResponse().getGatewayRecommendation();
-        if (StringUtils.hasText(acquirerMessage) && StringUtils.hasText(gatewayRecommendation)) {
-            return acquirerMessage + ", " + gatewayRecommendation;
-        }
         if (StringUtils.hasText(acquirerMessage)) {
             return acquirerMessage;
         }
+        String gatewayRecommendation = response.getResponse().getGatewayRecommendation();
         if (StringUtils.hasText(gatewayRecommendation)) {
             return gatewayRecommendation;
         }

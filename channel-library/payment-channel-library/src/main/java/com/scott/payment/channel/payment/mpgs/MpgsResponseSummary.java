@@ -251,12 +251,12 @@ public class MpgsResponseSummary {
     String transactionReference;
 
     /**
-     * 渠道真实返回的收单参考号，例如 MPGS transaction.acquirer.transactionId。
+     * MPGS transaction.acquirer.transactionId，仅用于后台排查；MPGS 未明确返回 ARN 时不能映射为平台 ARN/RRN。
      */
     String acquirerReference;
 
     /**
-     * 渠道回单号。
+     * MPGS transaction.receipt，仅用于后台排查；不能当作 RRN 返回给商户或管理端 ARN 字段。
      */
     String receipt;
 

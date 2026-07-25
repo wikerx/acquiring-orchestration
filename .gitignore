@@ -46,7 +46,14 @@ audit/*secret*.json
 # Generated
 coverage/
 reports/
-docs/sql/
+outputs/
+docs/sql/*
+!docs/sql/
+!docs/sql/transaction-core-schema.sql
+!docs/sql/bug-001-05g-ddl-persistence-alignment-migration.sql
+!docs/sql/bug-001-06b-sharding-registry-evidence.sql
+!docs/sql/bug-001-06b-sharding-registry-migration.sql
+!docs/sql/bug-001-06b-sharding-registry-rollback.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md

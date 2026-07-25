@@ -1498,7 +1498,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         target.setCardBrand(orderDO.getPaymentBrand());
         target.setCardBin(null);
         target.setAuthCode(operationDO.getAuthCode());
-        target.setArn(firstText(operationDO.getAcquirerReferenceNo(), operationDO.getRrn()));
+        target.setArn(operationDO.getAcquirerReferenceNo());
         target.setDescription(null);
         target.setCallbackUrl(null);
         return target;
@@ -1658,7 +1658,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         if (channelResponse != null) {
             resultDTO.setAuthCode(channelResponse.getAuthCode());
-            resultDTO.setAcquirerReferenceNo(firstText(channelResponse.getAcquirerReferenceNo(), channelResponse.getRrn()));
+            resultDTO.setAcquirerReferenceNo(channelResponse.getAcquirerReferenceNo());
         }
         enrichMerchantResponse(resultDTO, channelResponse);
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {

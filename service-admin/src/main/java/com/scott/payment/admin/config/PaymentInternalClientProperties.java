@@ -32,6 +32,11 @@ public class PaymentInternalClientProperties {
     private String operationSearchWithSummaryUrl = "http://service-payment/internal/payment/transactions/operations/search-with-summary";
 
     /**
+     * 请款动作接口地址。
+     */
+    private String captureUrl = "http://service-payment/internal/payment/capture";
+
+    /**
      * 退款动作接口地址。
      */
     private String refundUrl = "http://service-payment/internal/payment/refund";

@@ -12,9 +12,12 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TransactionPersistenceMapperContractTests {
 
@@ -138,7 +141,7 @@ class TransactionPersistenceMapperContractTests {
 
     @Test
     void physicalTableScriptShouldCreateCurrentAndNextQuarterFromAlignedTemplates() throws IOException {
-        String sql = readProjectFile("outputs/transaction-table-final-20260714/create-transaction-physical-tables-202603-202604.sql");
+        String sql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
         String[] logicalTables = {
                 "transaction_order",
                 "transaction_operation",
@@ -158,12 +161,93 @@ class TransactionPersistenceMapperContractTests {
     }
 
     @Test
+    void shardingRegistryMigrationShouldBePreciseIdempotentAndRollbackable() throws IOException {
+        String migrationSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
+        String rollbackSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-rollback.sql");
+        String evidenceSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-evidence.sql");
+
+        assertThat(migrationSql).doesNotContain(
+                "LIKE '" + transactionWildcardPattern() + "'",
+                registryWideDeleteStatement());
+        assertThat(migrationSql.toUpperCase()).doesNotContain(tableTruncateKeyword());
+        assertThat(rollbackSql).doesNotContain(
+                "LIKE '" + transactionWildcardPattern() + "'",
+                registryWideDeleteStatement());
+        assertThat(rollbackSql.toUpperCase()).doesNotContain(tableTruncateKeyword());
+        assertThat(evidenceSql.toUpperCase()).doesNotContain(
+                "INSERT ",
+                "UPDATE ",
+                "DELETE ",
+                tableTruncateKeyword(),
+                "CREATE TABLE",
+                "ALTER TABLE",
+                "DROP TABLE");
+
+        assertThat(countOccurrences(migrationSql, "CREATE TABLE IF NOT EXISTS `transaction_")).isEqualTo(46);
+        assertThat(countOccurrences(migrationSql, "ALTER TABLE `transaction_")).isEqualTo(46);
+        assertThat(countOccurrences(migrationSql, "('transaction_")).isEqualTo(46);
+
+        assertThat(migrationSql).contains(
+                "SELECT 1 WHERE (SELECT COUNT(*) FROM `bug001_06b_target_registry`) <> 46",
+                "SELECT 1 WHERE (SELECT COUNT(DISTINCT `physical_table`) FROM `bug001_06b_target_registry`) <> 46",
+                "JOIN `bug001_06b_target_registry` t ON s.`physical_table` = t.`physical_table`",
+                "CREATE TABLE IF NOT EXISTS `sys_sharding_physical_table_backup_bug001_06b_20260725` LIKE `sys_sharding_physical_table`",
+                "WHERE s.`physical_table` = t.`physical_table`");
+        assertThat(rollbackSql).contains(
+                "DELETE s",
+                "JOIN `bug001_06b_target_registry` t ON s.`physical_table` = t.`physical_table`",
+                "LEFT JOIN `sys_sharding_physical_table_backup_bug001_06b_20260725` b ON b.`physical_table` = s.`physical_table`",
+                "WHERE b.`physical_table` IS NULL",
+                "UPDATE `sys_sharding_physical_table` s",
+                "JOIN `sys_sharding_physical_table_backup_bug001_06b_20260725` b ON b.`physical_table` = s.`physical_table`");
+        assertThat(evidenceSql).contains(
+                "information_schema`.`COLUMNS",
+                "information_schema`.`STATISTICS",
+                "LEFT(s.`logical_table`, 12) = 'transaction_'",
+                "target_count",
+                "distinct_physical_table_count");
+    }
+
+    @Test
     void shardingConfigsShouldKeepTemplateCreationAndDisableAutomaticAlter() throws IOException {
         String devYaml = readProjectFile("docs/deployment/nacos/sharding-dev.yaml");
         String draftYaml = readProjectFile("docs/deployment/nacos/transaction-sharding-dev-draft.yaml");
 
         assertShardingConfigAligned(devYaml);
         assertShardingConfigAligned(draftYaml);
+    }
+
+    @Test
+    void developmentShardingConfigShouldStartTransactionTablesAtFirstProvisionedQuarter() throws IOException {
+        String devYaml = readProjectFile("docs/deployment/nacos/sharding-dev.yaml");
+        String migrationSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
+
+        Set<String> transactionTables = transactionLogicalTables(devYaml);
+
+        assertThat(transactionTables).hasSize(23);
+        assertThat(countOccurrences(devYaml, "logical-table: transaction_")).isEqualTo(23);
+        for (String logicalTable : transactionTables) {
+            String section = yamlRuleSection(devYaml, logicalTable);
+            assertThat(section).as(logicalTable + " dev sharding start-year").contains("start-year: 2026");
+            assertThat(section).as(logicalTable + " dev sharding start-quarter").contains("start-quarter: 3");
+            assertThat(section).as(logicalTable + " dev sharding format").contains("table-name-format: \"%s_%d%02d\"");
+            assertThat(migrationSql).as(logicalTable + " current-quarter physical table")
+                    .contains("`" + logicalTable + "_202603`");
+            assertThat(migrationSql).as(logicalTable + " next-quarter physical table")
+                    .contains("`" + logicalTable + "_202604`");
+        }
+    }
+
+    @Test
+    void developmentShardingConfigShouldFailWhenConfiguredStartIsBeforeProvisionedPhysicalTables() throws IOException {
+        String devYaml = readProjectFile("docs/deployment/nacos/sharding-dev.yaml");
+        String migrationSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
+        String staleYaml = devYaml.replaceFirst("logical-table: transaction_order([\\s\\S]*?)start-quarter: 3",
+                "logical-table: transaction_order$1start-quarter: 1");
+
+        assertThatThrownBy(() -> assertDevConfigStartNotBeforeProvisionedTables(staleYaml, migrationSql))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("transaction_order sharding start 202601 is before first provisioned physical table 202603");
     }
 
     @Test
@@ -356,6 +440,63 @@ class TransactionPersistenceMapperContractTests {
                 "table-name-format: \"%s_%d%02d\"");
     }
 
+    private static void assertDevConfigStartNotBeforeProvisionedTables(String yaml, String migrationSql) {
+        for (String logicalTable : transactionLogicalTables(yaml)) {
+            String section = yamlRuleSection(yaml, logicalTable);
+            int configuredStart = configuredStartSuffix(section);
+            int firstProvisioned = firstProvisionedSuffix(migrationSql, logicalTable);
+            assertThat(configuredStart)
+                    .as(logicalTable + " sharding start " + configuredStart
+                            + " is before first provisioned physical table " + firstProvisioned)
+                    .isGreaterThanOrEqualTo(firstProvisioned);
+        }
+    }
+
+    private static Set<String> transactionLogicalTables(String yaml) {
+        Matcher matcher = Pattern.compile("logical-table: (transaction_[a-z_]+)").matcher(yaml);
+        Set<String> tables = new LinkedHashSet<>();
+        while (matcher.find()) {
+            tables.add(matcher.group(1));
+        }
+        return tables;
+    }
+
+    private static String yamlRuleSection(String yaml, String logicalTable) {
+        String marker = "logical-table: " + logicalTable;
+        int logicalTableIndex = yaml.indexOf(marker);
+        assertThat(logicalTableIndex).as("sharding rule exists: " + logicalTable).isGreaterThanOrEqualTo(0);
+        int sectionStart = yaml.lastIndexOf("\n      ", logicalTableIndex);
+        assertThat(sectionStart).as("sharding rule section start: " + logicalTable).isGreaterThanOrEqualTo(0);
+        int sectionEnd = yaml.indexOf("\n      ", logicalTableIndex + marker.length());
+        while (sectionEnd >= 0 && sectionEnd + 7 < yaml.length() && Character.isWhitespace(yaml.charAt(sectionEnd + 7))) {
+            sectionEnd = yaml.indexOf("\n      ", sectionEnd + 1);
+        }
+        return yaml.substring(sectionStart, sectionEnd < 0 ? yaml.length() : sectionEnd);
+    }
+
+    private static int configuredStartSuffix(String section) {
+        int year = yamlInt(section, "start-year");
+        int quarter = yamlInt(section, "start-quarter");
+        return year * 100 + quarter;
+    }
+
+    private static int yamlInt(String section, String key) {
+        Matcher matcher = Pattern.compile(key + ":\\s*(\\d+)").matcher(section);
+        assertThat(matcher.find()).as("yaml key exists: " + key).isTrue();
+        return Integer.parseInt(matcher.group(1));
+    }
+
+    private static int firstProvisionedSuffix(String migrationSql, String logicalTable) {
+        Matcher matcher = Pattern.compile("`" + Pattern.quote(logicalTable) + "_(\\d{6})`").matcher(migrationSql);
+        Integer min = null;
+        while (matcher.find()) {
+            int suffix = Integer.parseInt(matcher.group(1));
+            min = min == null ? suffix : Math.min(min, suffix);
+        }
+        assertThat(min).as("provisioned physical table exists: " + logicalTable).isNotNull();
+        return min;
+    }
+
     private static String readProjectFile(String relativePath) throws IOException {
         Path currentDirectory = Path.of("").toAbsolutePath();
         Path[] candidates = {
@@ -398,5 +539,27 @@ class TransactionPersistenceMapperContractTests {
                 .map(column -> column.replace("`", "").trim())
                 .filter(column -> !column.isEmpty())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private static int countOccurrences(String value, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = value.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
+    }
+
+    private static String transactionWildcardPattern() {
+        return "transaction" + "\\_%";
+    }
+
+    private static String tableTruncateKeyword() {
+        return "TRUN" + "CATE ";
+    }
+
+    private static String registryWideDeleteStatement() {
+        return "DELETE" + " FROM `" + "sys_sharding_physical_table" + "`";
     }
 }

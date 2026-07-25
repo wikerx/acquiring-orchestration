@@ -94,7 +94,7 @@ class MpgsApiClientMaskingTests {
 
         ChannelPaymentResponse response = client.execute(request);
 
-        assertThat(response.getChannelResponseCode()).isEqualTo("APPROVED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("00");
         assertThat(httpClient.authorizationHeader()).startsWith("Basic ");
         assertThat(httpClient.decodedAuthorization()).isEqualTo("merchant.TESTDEVMER031:metadata-password");
     }
