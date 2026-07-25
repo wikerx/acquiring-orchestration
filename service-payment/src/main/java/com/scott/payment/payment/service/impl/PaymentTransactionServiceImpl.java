@@ -25,6 +25,10 @@ import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.domain.state.TransactionStateMachineService;
 import com.scott.payment.payment.service.ChannelTransactionStatusResolver;
+import com.scott.payment.payment.service.CaptureChannelResultTransactionService;
+import com.scott.payment.payment.service.CaptureTransactionPreparationService;
+import com.scott.payment.payment.service.IncrementalAuthorizationChannelResultTransactionService;
+import com.scott.payment.payment.service.IncrementalAuthorizationTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.PaymentChannelResultTransactionService;
@@ -32,17 +36,25 @@ import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
+import com.scott.payment.payment.service.RefundChannelResultTransactionService;
+import com.scott.payment.payment.service.RefundTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.PaymentTransactionService;
 import com.scott.payment.payment.service.PaymentTransactionPreparationService;
+import com.scott.payment.payment.service.VoidChannelResultTransactionService;
+import com.scott.payment.payment.service.VoidTransactionPreparationService;
+import com.scott.payment.payment.service.dto.CapturePreparationResultDTO;
+import com.scott.payment.payment.service.dto.IncrementalAuthorizationPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
+import com.scott.payment.payment.service.dto.RefundPreparationResultDTO;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
+import com.scott.payment.payment.service.dto.VoidPreparationResultDTO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
@@ -172,6 +184,46 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private final PaymentChannelResultTransactionService paymentChannelResultTransactionService;
 
     /**
+     * Capture 本地准备事务服务，用于在渠道 Capture 前提交幂等、动作事实和渠道请求 INIT。
+     */
+    private final CaptureTransactionPreparationService captureTransactionPreparationService;
+
+    /**
+     * Capture 渠道结果事务服务，用于在渠道调用后独立保存结果并 CAS 推进动作。
+     */
+    private final CaptureChannelResultTransactionService captureChannelResultTransactionService;
+
+    /**
+     * Refund 本地准备事务服务，用于在渠道 Refund 前提交幂等、退款事实和渠道请求 INIT。
+     */
+    private final RefundTransactionPreparationService refundTransactionPreparationService;
+
+    /**
+     * Refund 渠道结果事务服务，用于在渠道调用后独立保存结果并 CAS 推进退款动作。
+     */
+    private final RefundChannelResultTransactionService refundChannelResultTransactionService;
+
+    /**
+     * Void 本地准备事务服务，用于在渠道 Void 前提交幂等、撤销事实和渠道请求 INIT。
+     */
+    private final VoidTransactionPreparationService voidTransactionPreparationService;
+
+    /**
+     * Void 渠道结果事务服务，用于在渠道调用后独立保存结果并 CAS 推进撤销动作。
+     */
+    private final VoidChannelResultTransactionService voidChannelResultTransactionService;
+
+    /**
+     * Incremental Authorization 本地准备事务服务，用于在渠道增量授权前提交幂等、动作事实和渠道请求 INIT。
+     */
+    private final IncrementalAuthorizationTransactionPreparationService incrementalAuthorizationTransactionPreparationService;
+
+    /**
+     * Incremental Authorization 渠道结果事务服务，用于在渠道调用后独立保存结果并 CAS 推进增量授权动作。
+     */
+    private final IncrementalAuthorizationChannelResultTransactionService incrementalAuthorizationChannelResultTransactionService;
+
+    /**
      * 交易汇率服务，用于渠道不支持标签币种时执行 EDC 交易汇率查询。
      */
     private final PaymentExchangeRateService paymentExchangeRateService;
@@ -236,6 +288,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 paymentChannelInvokeService,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 paymentExchangeRateService,
                 transactionIdempotencyService,
                 transactionEventOutboxService,
@@ -262,6 +322,67 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @param channelStatusResolver 渠道状态解析服务
      * @param redisLockServices Redis 分布式锁服务列表
      */
+    public PaymentTransactionServiceImpl(IsoDictionaryService isoDictionaryService,
+                                         PaymentRiskInvokeService paymentRiskInvokeService,
+                                         PaymentChannelRouteService paymentChannelRouteService,
+                                         PaymentChannelInvokeService paymentChannelInvokeService,
+                                         PaymentTransactionPreparationService paymentTransactionPreparationService,
+                                         PaymentChannelResultTransactionService paymentChannelResultTransactionService,
+                                         PaymentExchangeRateService paymentExchangeRateService,
+                                         TransactionIdempotencyService transactionIdempotencyService,
+                                         TransactionEventOutboxService transactionEventOutboxService,
+                                         TransactionRecordService transactionRecordService,
+                                         TransactionStateMachineService transactionStateMachineService,
+                                         ChannelTransactionStatusResolver channelStatusResolver,
+                                         List<RedisLockService> redisLockServices) {
+        this(isoDictionaryService,
+                paymentRiskInvokeService,
+                paymentChannelRouteService,
+                paymentChannelInvokeService,
+                paymentTransactionPreparationService,
+                paymentChannelResultTransactionService,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                paymentExchangeRateService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService,
+                channelStatusResolver,
+                redisLockServices);
+    }
+
+    /**
+     * 创建收单支付交易服务。
+     *
+     * @param isoDictionaryService        ISO 币种字典服务
+     * @param paymentRiskInvokeService 路由前风控调用服务
+     * @param paymentChannelRouteService 收单渠道路由服务
+     * @param paymentChannelInvokeService 收单渠道调用服务
+     * @param paymentTransactionPreparationService 首次交易本地准备服务
+     * @param paymentChannelResultTransactionService 渠道同步结果事务服务
+     * @param captureTransactionPreparationService Capture 本地准备事务服务
+     * @param captureChannelResultTransactionService Capture 渠道结果事务服务
+     * @param refundTransactionPreparationService Refund 本地准备事务服务
+     * @param refundChannelResultTransactionService Refund 渠道结果事务服务
+     * @param voidTransactionPreparationService Void 本地准备事务服务
+     * @param voidChannelResultTransactionService Void 渠道结果事务服务
+     * @param incrementalAuthorizationTransactionPreparationService Incremental Authorization 本地准备事务服务
+     * @param incrementalAuthorizationChannelResultTransactionService Incremental Authorization 渠道结果事务服务
+     * @param paymentExchangeRateService 交易汇率服务
+     * @param transactionIdempotencyService 交易幂等服务
+     * @param transactionEventOutboxService 交易本地事件服务
+     * @param transactionRecordService 交易事实记录服务
+     * @param transactionStateMachineService 交易状态机服务
+     * @param channelStatusResolver 渠道状态解析服务
+     * @param redisLockServices Redis 分布式锁服务列表
+     */
     @Autowired
     public PaymentTransactionServiceImpl(IsoDictionaryService isoDictionaryService,
                                          PaymentRiskInvokeService paymentRiskInvokeService,
@@ -269,6 +390,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                          PaymentChannelInvokeService paymentChannelInvokeService,
                                          PaymentTransactionPreparationService paymentTransactionPreparationService,
                                          PaymentChannelResultTransactionService paymentChannelResultTransactionService,
+                                         CaptureTransactionPreparationService captureTransactionPreparationService,
+                                         CaptureChannelResultTransactionService captureChannelResultTransactionService,
+                                         RefundTransactionPreparationService refundTransactionPreparationService,
+                                         RefundChannelResultTransactionService refundChannelResultTransactionService,
+                                         VoidTransactionPreparationService voidTransactionPreparationService,
+                                         VoidChannelResultTransactionService voidChannelResultTransactionService,
+                                         IncrementalAuthorizationTransactionPreparationService incrementalAuthorizationTransactionPreparationService,
+                                         IncrementalAuthorizationChannelResultTransactionService incrementalAuthorizationChannelResultTransactionService,
                                          PaymentExchangeRateService paymentExchangeRateService,
                                          TransactionIdempotencyService transactionIdempotencyService,
                                          TransactionEventOutboxService transactionEventOutboxService,
@@ -297,6 +426,54 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         this.paymentChannelResultTransactionService = paymentChannelResultTransactionService == null
                 ? new DefaultPaymentChannelResultTransactionService(transactionRecordService)
                 : paymentChannelResultTransactionService;
+        this.captureTransactionPreparationService = captureTransactionPreparationService == null
+                ? new DefaultCaptureTransactionPreparationService(
+                isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService)
+                : captureTransactionPreparationService;
+        this.captureChannelResultTransactionService = captureChannelResultTransactionService == null
+                ? new DefaultCaptureChannelResultTransactionService(transactionRecordService)
+                : captureChannelResultTransactionService;
+        this.refundTransactionPreparationService = refundTransactionPreparationService == null
+                ? new DefaultRefundTransactionPreparationService(
+                isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService)
+                : refundTransactionPreparationService;
+        this.refundChannelResultTransactionService = refundChannelResultTransactionService == null
+                ? new DefaultRefundChannelResultTransactionService(transactionRecordService)
+                : refundChannelResultTransactionService;
+        this.voidTransactionPreparationService = voidTransactionPreparationService == null
+                ? new DefaultVoidTransactionPreparationService(
+                isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService)
+                : voidTransactionPreparationService;
+        this.voidChannelResultTransactionService = voidChannelResultTransactionService == null
+                ? new DefaultVoidChannelResultTransactionService(transactionRecordService)
+                : voidChannelResultTransactionService;
+        this.incrementalAuthorizationTransactionPreparationService = incrementalAuthorizationTransactionPreparationService == null
+                ? new DefaultIncrementalAuthorizationTransactionPreparationService(
+                isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService)
+                : incrementalAuthorizationTransactionPreparationService;
+        this.incrementalAuthorizationChannelResultTransactionService = incrementalAuthorizationChannelResultTransactionService == null
+                ? new DefaultIncrementalAuthorizationChannelResultTransactionService(transactionRecordService)
+                : incrementalAuthorizationChannelResultTransactionService;
         this.transactionStateMachineService = transactionStateMachineService;
         this.channelStatusResolver = channelStatusResolver == null
                 ? new DefaultChannelTransactionStatusResolver()
@@ -346,23 +523,21 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO createIncrementalAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return createFollowUpTransaction(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
+        return createIncrementalAuthorizationTransaction(commandDTO);
     }
 
     /**
      * 发起请款交易。
      * <p>
-     * 请款先按 transaction_id 解析原交易时间并定位原交易，再校验可请款金额和幂等，最后通过渠道统一执行器发起渠道请求。
+     * 请款先在本地准备事务中提交动作事实、幂等和渠道请求 INIT，再在事务外调用渠道，最后用独立结果事务 CAS 推进状态。
      *
      * @param commandDTO 请款命令
      * @return 请款结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO capture(PaymentCreateCommandDTO commandDTO) {
-        return createFollowUpTransaction(commandDTO, PaymentTransactionTypeEnum.CAPTURE);
+        return createCaptureTransaction(commandDTO);
     }
 
     /**
@@ -374,23 +549,21 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 退款结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO refund(PaymentCreateCommandDTO commandDTO) {
-        return createFollowUpTransaction(commandDTO, PaymentTransactionTypeEnum.REFUND);
+        return createRefundTransaction(commandDTO);
     }
 
     /**
      * 发起撤销交易。
      * <p>
-     * 撤销先按 transaction_id 解析原交易时间并定位原交易，再校验未请款未退款状态，最后通过渠道统一执行器发起渠道请求。
+     * 撤销先在本地准备事务中提交动作事实、幂等和渠道请求 INIT，再在事务外调用渠道，最后用独立结果事务 CAS 推进状态。
      *
      * @param commandDTO 撤销命令
      * @return 撤销结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO voidPayment(PaymentCreateCommandDTO commandDTO) {
-        return createFollowUpTransaction(commandDTO, PaymentTransactionTypeEnum.VOID);
+        return createVoidTransaction(commandDTO);
     }
 
     /**
@@ -490,6 +663,187 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             unlockAfterTransaction(flowLockKey, lockValue, flowLocked);
             unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, operationLocked);
         }
+    }
+
+    private PaymentCreateResultDTO createCaptureTransaction(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO != null) {
+            commandDTO.setTransactionType(PaymentTransactionTypeEnum.CAPTURE.getCode());
+        }
+        validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.CAPTURE);
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.CAPTURE);
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
+        if (!locked) {
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        }
+        try {
+            CapturePreparationResultDTO preparationResultDTO = captureTransactionPreparationService.prepareCapture(commandDTO, idempotencyKey);
+            if (!preparationResultDTO.isCallChannel()) {
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichFollowUpResult(preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    channelResponse,
+                    resultDTO);
+            captureChannelResultTransactionService.recordCaptureChannelResult(preparationResultDTO, invokeResultDTO);
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            return resultDTO;
+        } finally {
+            unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, locked);
+        }
+    }
+
+    private PaymentCreateResultDTO createRefundTransaction(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO != null) {
+            commandDTO.setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+        }
+        validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.REFUND);
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.REFUND);
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
+        if (!locked) {
+            commandDTO.setRequestFingerprint(resolveRefundRequestFingerprint(commandDTO));
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        }
+        try {
+            RefundPreparationResultDTO preparationResultDTO = refundTransactionPreparationService.prepareRefund(commandDTO, idempotencyKey);
+            if (!preparationResultDTO.isCallChannel()) {
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichFollowUpResult(preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    channelResponse,
+                    resultDTO);
+            refundChannelResultTransactionService.recordRefundChannelResult(preparationResultDTO, invokeResultDTO);
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            return resultDTO;
+        } finally {
+            unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, locked);
+        }
+    }
+
+    private PaymentCreateResultDTO createVoidTransaction(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO != null) {
+            commandDTO.setTransactionType(PaymentTransactionTypeEnum.VOID.getCode());
+        }
+        validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.VOID);
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.VOID);
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
+        if (!locked) {
+            commandDTO.setRequestFingerprint(resolveVoidRequestFingerprint(commandDTO));
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        }
+        try {
+            VoidPreparationResultDTO preparationResultDTO = voidTransactionPreparationService.prepareVoid(commandDTO, idempotencyKey);
+            if (!preparationResultDTO.isCallChannel()) {
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichFollowUpResult(preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    channelResponse,
+                    resultDTO);
+            voidChannelResultTransactionService.recordVoidChannelResult(preparationResultDTO, invokeResultDTO);
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            return resultDTO;
+        } finally {
+            unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, locked);
+        }
+    }
+
+    private PaymentCreateResultDTO createIncrementalAuthorizationTransaction(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO != null) {
+            commandDTO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
+        }
+        validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
+        if (!locked) {
+            commandDTO.setRequestFingerprint(resolveIncrementalAuthorizationRequestFingerprint(commandDTO));
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        }
+        try {
+            IncrementalAuthorizationPreparationResultDTO preparationResultDTO =
+                    incrementalAuthorizationTransactionPreparationService.prepareIncrementalAuthorization(commandDTO, idempotencyKey);
+            if (!preparationResultDTO.isCallChannel()) {
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichFollowUpResult(preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    channelResponse,
+                    resultDTO);
+            incrementalAuthorizationChannelResultTransactionService.recordIncrementalAuthorizationChannelResult(
+                    preparationResultDTO, invokeResultDTO);
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            return resultDTO;
+        } finally {
+            unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, locked);
+        }
+    }
+
+    private String resolveRefundRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        return canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, PaymentTransactionTypeEnum.REFUND);
+    }
+
+    private String resolveVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        return canonicalVoidRequestFingerprint(commandDTO, fingerprintSourceOrderDO);
+    }
+
+    private String resolveIncrementalAuthorizationRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        return canonicalFollowUpRequestFingerprint(
+                commandDTO, fingerprintSourceOrderDO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
     }
 
     /**
@@ -909,6 +1263,22 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 "sourceTransactionId=" + normalizeFingerprintText(sourceTransactionId),
                 "amount=" + normalizeFingerprintAmount(commandDTO.getAmount()),
                 "currency=" + normalizeFingerprintText(effectiveCurrency));
+        return sha256(canonical);
+    }
+
+    private String canonicalVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO,
+                                                   TransactionOrderDO sourceOrderDO) {
+        String sourceTransactionId = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
+        String canonical = String.join("|",
+                "v1",
+                "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
+                "merchantOrderNo=" + normalizeFingerprintText(sourceOrderDO == null
+                        ? commandDTO.getMerchantOrderNo()
+                        : sourceOrderDO.getMerchantOrderNo()),
+                "merchantOperationNo=" + normalizeFingerprintText(commandDTO.getMerchantOrderId()),
+                "transactionType=" + PaymentTransactionTypeEnum.VOID.getCode(),
+                "sourceTransactionId=" + normalizeFingerprintText(sourceTransactionId));
         return sha256(canonical);
     }
 

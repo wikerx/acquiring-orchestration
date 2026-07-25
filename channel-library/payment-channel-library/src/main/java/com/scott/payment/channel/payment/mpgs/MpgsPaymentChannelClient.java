@@ -14,6 +14,7 @@ import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.enums.PaymentChannelCode;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -178,5 +179,19 @@ public class MpgsPaymentChannelClient extends AbstractPaymentChannelClient {
     public ChannelPaymentResponse query(ChannelQueryRequest request) {
         requireCapability(ChannelCapability.QUERY);
         return mpgsApiClient.execute(request);
+    }
+
+    /**
+     * MPGS RETRIEVE 交易级查询要求同时具备 order.id 与 transaction.id。
+     *
+     * @param request 渠道查询请求
+     * @return true 表示当前查询引用满足 MPGS REST URL 身份要求
+     */
+    @Override
+    public boolean supportsQueryReference(ChannelQueryRequest request) {
+        return supports(ChannelCapability.QUERY)
+                && request != null
+                && StringUtils.hasText(request.getChannelOrderNo())
+                && StringUtils.hasText(request.getChannelTransactionId());
     }
 }
