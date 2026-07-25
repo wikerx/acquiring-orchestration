@@ -1,0 +1,52 @@
+package com.scott.payment.payment.service.impl;
+
+import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.service.IncrementalAuthorizationChannelResultTransactionService;
+import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.service.dto.IncrementalAuthorizationPreparationResultDTO;
+import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultIncrementalAuthorizationChannelResultTransactionService
+ * @date : 2026-07-24 00:00
+ * @description : Incremental Authorization 渠道结果默认事务实现，使用 REQUIRES_NEW 保存同步结果并通过 CAS 推进增量授权动作。
+ * @status : create
+ */
+@Service
+public class DefaultIncrementalAuthorizationChannelResultTransactionService implements IncrementalAuthorizationChannelResultTransactionService {
+
+    private final TransactionRecordService transactionRecordService;
+
+    public DefaultIncrementalAuthorizationChannelResultTransactionService(TransactionRecordService transactionRecordService) {
+        this.transactionRecordService = transactionRecordService;
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void recordIncrementalAuthorizationChannelResult(
+            IncrementalAuthorizationPreparationResultDTO preparationResultDTO,
+            PaymentChannelInvokeResultDTO invokeResultDTO) {
+        if (preparationResultDTO == null || preparationResultDTO.getResultDTO() == null) {
+            return;
+        }
+        PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(resultDTO.getTransactionId());
+        if (operationDO == null) {
+            return;
+        }
+        transactionRecordService.completeIncrementalAuthorizationChannelResult(
+                operationDO,
+                preparationResultDTO.getSourceOrderDO(),
+                preparationResultDTO.getCommandDTO(),
+                preparationResultDTO.getRouteResultDTO(),
+                invokeResultDTO,
+                resultDTO,
+                preparationResultDTO.getCurrencyExponent());
+    }
+}
