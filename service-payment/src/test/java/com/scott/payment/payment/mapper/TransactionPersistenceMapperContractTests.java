@@ -12,9 +12,12 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TransactionPersistenceMapperContractTests {
 
@@ -215,6 +218,39 @@ class TransactionPersistenceMapperContractTests {
     }
 
     @Test
+    void developmentShardingConfigShouldStartTransactionTablesAtFirstProvisionedQuarter() throws IOException {
+        String devYaml = readProjectFile("docs/deployment/nacos/sharding-dev.yaml");
+        String migrationSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
+
+        Set<String> transactionTables = transactionLogicalTables(devYaml);
+
+        assertThat(transactionTables).hasSize(23);
+        assertThat(countOccurrences(devYaml, "logical-table: transaction_")).isEqualTo(23);
+        for (String logicalTable : transactionTables) {
+            String section = yamlRuleSection(devYaml, logicalTable);
+            assertThat(section).as(logicalTable + " dev sharding start-year").contains("start-year: 2026");
+            assertThat(section).as(logicalTable + " dev sharding start-quarter").contains("start-quarter: 3");
+            assertThat(section).as(logicalTable + " dev sharding format").contains("table-name-format: \"%s_%d%02d\"");
+            assertThat(migrationSql).as(logicalTable + " current-quarter physical table")
+                    .contains("`" + logicalTable + "_202603`");
+            assertThat(migrationSql).as(logicalTable + " next-quarter physical table")
+                    .contains("`" + logicalTable + "_202604`");
+        }
+    }
+
+    @Test
+    void developmentShardingConfigShouldFailWhenConfiguredStartIsBeforeProvisionedPhysicalTables() throws IOException {
+        String devYaml = readProjectFile("docs/deployment/nacos/sharding-dev.yaml");
+        String migrationSql = readProjectFile("docs/sql/bug-001-06b-sharding-registry-migration.sql");
+        String staleYaml = devYaml.replaceFirst("logical-table: transaction_order([\\s\\S]*?)start-quarter: 3",
+                "logical-table: transaction_order$1start-quarter: 1");
+
+        assertThatThrownBy(() -> assertDevConfigStartNotBeforeProvisionedTables(staleYaml, migrationSql))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("transaction_order sharding start 202601 is before first provisioned physical table 202603");
+    }
+
+    @Test
     void migrationRunbookShouldContainManualChecksBackfillValidationAndRollback() throws IOException {
         String sql = readProjectFile("docs/sql/bug-001-05g-ddl-persistence-alignment-migration.sql");
 
@@ -402,6 +438,63 @@ class TransactionPersistenceMapperContractTests {
                 "logical-table: transaction_merchant_api_interaction_log",
                 "template-table: transaction_merchant_api_interaction_log",
                 "table-name-format: \"%s_%d%02d\"");
+    }
+
+    private static void assertDevConfigStartNotBeforeProvisionedTables(String yaml, String migrationSql) {
+        for (String logicalTable : transactionLogicalTables(yaml)) {
+            String section = yamlRuleSection(yaml, logicalTable);
+            int configuredStart = configuredStartSuffix(section);
+            int firstProvisioned = firstProvisionedSuffix(migrationSql, logicalTable);
+            assertThat(configuredStart)
+                    .as(logicalTable + " sharding start " + configuredStart
+                            + " is before first provisioned physical table " + firstProvisioned)
+                    .isGreaterThanOrEqualTo(firstProvisioned);
+        }
+    }
+
+    private static Set<String> transactionLogicalTables(String yaml) {
+        Matcher matcher = Pattern.compile("logical-table: (transaction_[a-z_]+)").matcher(yaml);
+        Set<String> tables = new LinkedHashSet<>();
+        while (matcher.find()) {
+            tables.add(matcher.group(1));
+        }
+        return tables;
+    }
+
+    private static String yamlRuleSection(String yaml, String logicalTable) {
+        String marker = "logical-table: " + logicalTable;
+        int logicalTableIndex = yaml.indexOf(marker);
+        assertThat(logicalTableIndex).as("sharding rule exists: " + logicalTable).isGreaterThanOrEqualTo(0);
+        int sectionStart = yaml.lastIndexOf("\n      ", logicalTableIndex);
+        assertThat(sectionStart).as("sharding rule section start: " + logicalTable).isGreaterThanOrEqualTo(0);
+        int sectionEnd = yaml.indexOf("\n      ", logicalTableIndex + marker.length());
+        while (sectionEnd >= 0 && sectionEnd + 7 < yaml.length() && Character.isWhitespace(yaml.charAt(sectionEnd + 7))) {
+            sectionEnd = yaml.indexOf("\n      ", sectionEnd + 1);
+        }
+        return yaml.substring(sectionStart, sectionEnd < 0 ? yaml.length() : sectionEnd);
+    }
+
+    private static int configuredStartSuffix(String section) {
+        int year = yamlInt(section, "start-year");
+        int quarter = yamlInt(section, "start-quarter");
+        return year * 100 + quarter;
+    }
+
+    private static int yamlInt(String section, String key) {
+        Matcher matcher = Pattern.compile(key + ":\\s*(\\d+)").matcher(section);
+        assertThat(matcher.find()).as("yaml key exists: " + key).isTrue();
+        return Integer.parseInt(matcher.group(1));
+    }
+
+    private static int firstProvisionedSuffix(String migrationSql, String logicalTable) {
+        Matcher matcher = Pattern.compile("`" + Pattern.quote(logicalTable) + "_(\\d{6})`").matcher(migrationSql);
+        Integer min = null;
+        while (matcher.find()) {
+            int suffix = Integer.parseInt(matcher.group(1));
+            min = min == null ? suffix : Math.min(min, suffix);
+        }
+        assertThat(min).as("provisioned physical table exists: " + logicalTable).isNotNull();
+        return min;
     }
 
     private static String readProjectFile(String relativePath) throws IOException {

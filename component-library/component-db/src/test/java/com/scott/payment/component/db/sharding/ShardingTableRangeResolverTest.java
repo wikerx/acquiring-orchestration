@@ -40,6 +40,39 @@ class ShardingTableRangeResolverTest {
     }
 
     /**
+     * 验证开发环境真实启用季度为 2026-Q3 时，范围查询不会解析出未启用的 2026-Q1/Q2 物理表。
+     */
+    @Test
+    void shouldClipOpenBeginTimeToConfiguredDevelopmentStartQuarter() {
+        ShardingTableRangeResolver resolver = resolver(propertiesWithRule("transaction_operation", 3));
+
+        List<String> tables = resolver.physicalTablesInRange(
+                "transaction_operation",
+                null,
+                LocalDateTime.of(2026, 7, 25, 12, 0, 0));
+
+        assertThat(tables).containsExactly("transaction_operation_202603");
+        assertThat(tables).doesNotContain(
+                "transaction_operation_202601",
+                "transaction_operation_202602");
+    }
+
+    /**
+     * 验证当前季度和下一季度单表路由仍可按 yyyyQQ 季度后缀生成目标物理表。
+     */
+    @Test
+    void shouldRouteCurrentNextAndNextYearQuarterWhenStartIsDevelopmentQuarter() {
+        ShardingTableRangeResolver resolver = resolver(propertiesWithRule("transaction_order", 3));
+
+        assertThat(resolver.physicalTable("transaction_order", LocalDateTime.of(2026, 7, 1, 0, 0, 0)))
+                .isEqualTo("transaction_order_202603");
+        assertThat(resolver.physicalTable("transaction_order", LocalDateTime.of(2026, 10, 1, 0, 0, 0)))
+                .isEqualTo("transaction_order_202604");
+        assertThat(resolver.physicalTable("transaction_order", LocalDateTime.of(2027, 1, 1, 0, 0, 0)))
+                .isEqualTo("transaction_order_202701");
+    }
+
+    /**
      * 验证配置 key 与 logicalTable 不一致时仍可通过规则中的 logicalTable 查找。
      */
     @Test
@@ -74,13 +107,17 @@ class ShardingTableRangeResolverTest {
     }
 
     private PaymentQuarterShardingProperties propertiesWithRule(String logicalTable) {
+        return propertiesWithRule(logicalTable, 1);
+    }
+
+    private PaymentQuarterShardingProperties propertiesWithRule(String logicalTable, int startQuarter) {
         PaymentQuarterShardingProperties properties = new PaymentQuarterShardingProperties();
         PaymentQuarterShardingProperties.TableRule rule = new PaymentQuarterShardingProperties.TableRule();
         rule.setLogicalTable(logicalTable);
         rule.setTemplateTable(logicalTable);
         rule.setStartYear(2026);
-        rule.setStartQuarter(1);
-        rule.setEndYear(2026);
+        rule.setStartQuarter(startQuarter);
+        rule.setEndYear(2027);
         rule.setEndQuarter(4);
         rule.setTableNameFormat("%s_%d%02d");
         properties.getTables().put(logicalTable, rule);
