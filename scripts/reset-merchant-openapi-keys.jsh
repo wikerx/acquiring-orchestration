@@ -20,6 +20,7 @@ import java.util.List;
 
 record Merchant(String merchantId, String merchantName) {}
 
+String sdkLiveMerchantId = "200045";
 String url = "jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai";
 String username = "root";
 String password = "scott123456";
@@ -68,6 +69,12 @@ String fingerprint(String value) throws Exception {
     return encoded.substring(0, 24);
 }
 
+void rejectSdkLiveMerchant(String merchantId) {
+    if (sdkLiveMerchantId.equals(merchantId)) {
+        throw new IllegalStateException("SDK live merchant " + sdkLiveMerchantId + " must not be reset by this script");
+    }
+}
+
 Long selectExistingKeyRow(Connection connection, String table, String merchantId) throws SQLException {
     try (PreparedStatement statement = connection.prepareStatement(
             "select id from " + table + " where merchant_id = ? and deleted = 0 order by id desc limit 1")) {
@@ -82,6 +89,7 @@ Long selectExistingKeyRow(Connection connection, String table, String merchantId
 }
 
 void upsertPlatformKey(Connection connection, String merchantId, String publicKey, String privateKey) throws SQLException {
+    rejectSdkLiveMerchant(merchantId);
     Long rowId = selectExistingKeyRow(connection, "base_platform_payload_key", merchantId);
     if (rowId == null) {
         try (PreparedStatement statement = connection.prepareStatement("""
@@ -117,6 +125,7 @@ void upsertPlatformKey(Connection connection, String merchantId, String publicKe
 }
 
 void upsertResponseKey(Connection connection, String merchantId, String publicKey, String privateKey) throws SQLException {
+    rejectSdkLiveMerchant(merchantId);
     Long rowId = selectExistingKeyRow(connection, "base_merchant_response_key", merchantId);
     if (rowId == null) {
         try (PreparedStatement statement = connection.prepareStatement("""
@@ -152,6 +161,7 @@ void upsertResponseKey(Connection connection, String merchantId, String publicKe
 }
 
 void insertJwtKey(Connection connection, String merchantId, String merchantKey) throws SQLException {
+    rejectSdkLiveMerchant(merchantId);
     try (PreparedStatement statement = connection.prepareStatement("""
             update base_merchant_jwt_key
             set enabled = 0, expire_time = ?, gmt_modified = ?
@@ -202,7 +212,14 @@ try (Connection connection = DriverManager.getConnection(url, username, password
     connection.setAutoCommit(false);
     try {
         int index = 0;
+        int skipped = 0;
+        int reset = 0;
         for (Merchant merchant : merchants) {
+            if (sdkLiveMerchantId.equals(merchant.merchantId())) {
+                skipped++;
+                System.out.println("Skip SDK live merchant OpenAPI keys: " + merchant.merchantId());
+                continue;
+            }
             String merchantKey = base64UrlSecret(32);
             KeyPair platformPair = rsaKeyPair();
             KeyPair responsePair = rsaKeyPair();
@@ -235,8 +252,11 @@ try (Connection connection = DriverManager.getConnection(url, username, password
             json.append(jsonField("merchantResponsePublicKeyFingerprint", fingerprint(responsePublic), true));
             json.append("  }");
             index++;
+            reset++;
         }
         connection.commit();
+        System.out.println("Skipped SDK live merchants: " + skipped);
+        System.out.println("Reset merchant OpenAPI keys: " + reset);
     } catch (Exception exception) {
         connection.rollback();
         throw exception;
@@ -245,7 +265,6 @@ try (Connection connection = DriverManager.getConnection(url, username, password
 json.append("\n]\n");
 Files.createDirectories(auditFile.getParent());
 Files.writeString(auditFile, json.toString(), StandardCharsets.UTF_8);
-System.out.println("Reset merchant OpenAPI keys: " + merchants.size());
 System.out.println("Audit file: " + auditFile.toAbsolutePath());
 
 try (Connection connection = DriverManager.getConnection(url, username, password);

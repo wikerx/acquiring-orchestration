@@ -17,6 +17,7 @@ import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecuritySeedDTO;
 import com.scott.payment.openapi.enums.MerchantRiskLevelEnum;
 import com.scott.payment.openapi.service.MerchantSecurityService;
+import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,14 +61,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MerchantSecurityDatabaseFlowTests {
 
     /**
-     * 主测试商户号，模拟真实外卡收单商户。
+     * 主测试商户号，避免污染 SDK live 联调商户 200045。
      */
-    private static final String MERCHANT_ID = "200045";
+    private static final String MERCHANT_ID = "240045";
 
     /**
      * 第二个测试商户号，用于证明数据库可以承载多个商户的独立密钥材料。
      */
-    private static final String SECOND_MERCHANT_ID = "200046";
+    private static final String SECOND_MERCHANT_ID = "240046";
 
     /**
      * OpenAPI 授权接口路径。
@@ -133,10 +134,10 @@ class MerchantSecurityDatabaseFlowTests {
      */
     @BeforeEach
     void cleanMerchantSecurityData() {
-        jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM base_merchant_info WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
+        MerchantOpenApiTestSupport.cleanMerchantSecurityData(
+                jdbcTemplate,
+                List.of(MERCHANT_ID, SECOND_MERCHANT_ID)
+        );
     }
 
     /**

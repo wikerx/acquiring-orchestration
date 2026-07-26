@@ -1,6 +1,7 @@
 package com.scott.payment.openapi;
 
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.openapi.dto.security.MerchantInfoDTO;
 import com.scott.payment.openapi.dto.security.MerchantKeyRevisionDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
@@ -19,6 +20,7 @@ import org.springframework.test.context.jdbc.Sql;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @author : scott
@@ -162,6 +164,31 @@ class MerchantOnboardingFlowTests {
                 beforeRevisionList.size(),
                 afterRevisionList.size(),
                 rotatedRevision.getKeyFingerprint());
+    }
+
+    /**
+     * 验证 SDK live 联调商户不会被测试开户服务误重建密钥。
+     */
+    @Test
+    void shouldRejectProvisionForSdkLiveMerchant() {
+        assertThatThrownBy(() -> merchantSecurityService.provisionMerchantSecurityMaterial(
+                MerchantOpenApiTestSupport.buildMerchantSeed(MerchantOpenApiTestSupport.SDK_LIVE_MERCHANT_ID)
+        ))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("reserved for SDK live tests");
+    }
+
+    /**
+     * 验证测试数据清理工具不会误删 SDK live 联调商户。
+     */
+    @Test
+    void shouldRejectCleanupForSdkLiveMerchant() {
+        assertThatThrownBy(() -> MerchantOpenApiTestSupport.cleanMerchantSecurityData(
+                jdbcTemplate,
+                List.of(MerchantOpenApiTestSupport.SDK_LIVE_MERCHANT_ID)
+        ))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("must not be cleaned by automated tests");
     }
 
     /**

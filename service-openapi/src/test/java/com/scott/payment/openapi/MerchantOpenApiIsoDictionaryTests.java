@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @classname : MerchantOpenApiIsoDictionaryTests
  * @date : 2026-06-03 15:50
  * @email : scott_x@163.com
- * @description : 商户 200045 加密调用 ISO 国家地区与币种 OpenAPI 接口测试
+ * @description : 测试专用商户加密调用 ISO 国家地区与币种 OpenAPI 接口测试
  * @status : create
  */
 @Slf4j
@@ -49,9 +49,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MerchantOpenApiIsoDictionaryTests {
 
     /**
-     * 测试商户号，模拟商户 200045 调用开放接口。
+     * 测试专用商户号，避免污染 SDK live 联调商户 200045。
      */
-    private static final String MERCHANT_ID = "200045";
+    private static final String MERCHANT_ID = "240047";
 
     /**
      * 国家地区查询接口地址。
@@ -69,7 +69,7 @@ class MerchantOpenApiIsoDictionaryTests {
     private final MockMvc mockMvc;
 
     /**
-     * 商户安全材料服务，用于准备 200045 商户的 JWT 密钥、平台公钥和商户响应私钥。
+     * 商户安全材料服务，用于准备测试商户的 JWT 密钥、平台公钥和商户响应私钥。
      */
     private final MerchantSecurityService merchantSecurityService;
 
@@ -102,7 +102,7 @@ class MerchantOpenApiIsoDictionaryTests {
     }
 
     /**
-     * 模拟商户 200045 加密查询国家地区列表，平台解密处理后加密响应，商户再解密响应 data。
+     * 模拟测试商户加密查询国家地区列表，平台解密处理后加密响应，商户再解密响应 data。
      *
      * @throws Exception MockMvc 调用异常
      */
@@ -114,7 +114,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 COUNTRY_PATH,
                 plainRequestJson,
                 merchantMaterial,
-                MerchantOpenApiTestSupport.uniqueJwtId("iso-country-200045")
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-country-" + MERCHANT_ID)
         );
         List<IsoCountryVO> countryList = decryptDataList(
                 mvcResult.getResponse().getContentAsString(),
@@ -128,7 +128,7 @@ class MerchantOpenApiIsoDictionaryTests {
     }
 
     /**
-     * 模拟商户 200045 加密查询币种列表，平台解密处理后加密响应，商户再解密响应 data。
+     * 模拟测试商户加密查询币种列表，平台解密处理后加密响应，商户再解密响应 data。
      *
      * @throws Exception MockMvc 调用异常
      */
@@ -140,7 +140,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 CURRENCY_PATH,
                 plainRequestJson,
                 merchantMaterial,
-                MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-200045")
+                MerchantOpenApiTestSupport.uniqueJwtId("iso-currency-" + MERCHANT_ID)
         );
         List<IsoCurrencyVO> currencyList = decryptDataList(
                 mvcResult.getResponse().getContentAsString(),
@@ -202,7 +202,7 @@ class MerchantOpenApiIsoDictionaryTests {
     }
 
     /**
-     * 准备商户 200045 的安全材料。
+     * 准备测试商户的安全材料。
      * <p>
      * 当前测试通过服务端开户流程幂等写入数据库，确保测试库存在 JWT、平台请求体 RSA 密钥和商户响应公钥。
      *
@@ -212,7 +212,8 @@ class MerchantOpenApiIsoDictionaryTests {
         MerchantSecurityMaterialDTO merchantMaterial = merchantSecurityService.provisionMerchantSecurityMaterial(
                 MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID)
         );
-        log.info("商户200045安全材料准备完成，merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
+        log.info("测试商户安全材料准备完成，merchantId: {}，merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
+                merchantMaterial.getMerchantId(),
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantKey()),
                 keyMaterialFactory.fingerprint(merchantMaterial.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));

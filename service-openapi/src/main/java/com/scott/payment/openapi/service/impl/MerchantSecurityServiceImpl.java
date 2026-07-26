@@ -107,6 +107,11 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     private static final String DEFAULT_JWT_KEY_VERSION = "jwt-v1";
 
     /**
+     * SDK live 联调专属商户号。该服务的初始化/轮换能力主要用于测试开户链路，不允许自动化流程改写此商户密钥。
+     */
+    private static final String SDK_LIVE_MERCHANT_ID = "200045";
+
+    /**
      * 商户基础信息 Mapper。
      */
     private final MerchantInfoMapper merchantInfoMapper;
@@ -171,6 +176,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     @Transactional(rollbackFor = Exception.class)
     public MerchantSecurityMaterialDTO provisionMerchantSecurityMaterial(MerchantSecuritySeedDTO seedDTO) {
         validateSeed(seedDTO);
+        rejectSdkLiveMerchantMutation(seedDTO.getMerchantId());
         LocalDateTime now = LocalDateTime.now();
         RsaKeyMaterial platformPayloadKey = keyMaterialFactory.generatePlatformPayloadRsaKey(seedDTO.getMerchantId());
         RsaKeyMaterial merchantResponseKey = keyMaterialFactory.generateMerchantResponseRsaKey(seedDTO.getMerchantId());
@@ -293,6 +299,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     @Transactional(rollbackFor = Exception.class)
     public MerchantKeyRevisionDTO rotateMerchantJwtKey(String merchantId, String keyVersion) {
         validateMerchantId(merchantId);
+        rejectSdkLiveMerchantMutation(merchantId);
         if (!StringUtils.hasText(keyVersion)) {
             throw new ApiException(ApiResultEnum.PARAM_MISSING, "keyVersion");
         }
@@ -801,6 +808,17 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     private void validateMerchantId(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ApiException(ApiResultEnum.MERCHANT_INVALID);
+        }
+    }
+
+    /**
+     * 阻止测试初始化服务误改 SDK live 联调商户密钥。
+     *
+     * @param merchantId 支付框架颁发的商户号
+     */
+    private void rejectSdkLiveMerchantMutation(String merchantId) {
+        if (SDK_LIVE_MERCHANT_ID.equals(merchantId)) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID, "merchant 200045 is reserved for SDK live tests");
         }
     }
 
