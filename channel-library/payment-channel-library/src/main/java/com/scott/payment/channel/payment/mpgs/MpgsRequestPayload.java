@@ -40,6 +40,15 @@ public class MpgsRequestPayload {
     private Authentication authentication;
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Order
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Order Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class Order {
 
         /**
@@ -59,6 +68,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Transaction
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Transaction Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class Transaction {
 
         /**
@@ -83,6 +101,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : SourceOfFunds
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : SourceOfFunds Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class SourceOfFunds {
 
         /**
@@ -97,6 +124,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Provided
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Provided Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class Provided {
 
         /**
@@ -106,6 +142,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Card
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Card Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class Card {
 
         /**
@@ -125,6 +170,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Expiry
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Expiry Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class Expiry {
 
         /**
@@ -139,6 +193,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Authentication
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Authentication Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class Authentication {
 
         /**
@@ -158,6 +221,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ThreeDs
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : ThreeDs Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class ThreeDs {
 
         /**
@@ -177,6 +249,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ThreeDs1
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : ThreeDs1 Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class ThreeDs1 {
 
         /**
@@ -191,6 +272,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ThreeDs2
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : ThreeDs2 Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class ThreeDs2 {
 
         /**

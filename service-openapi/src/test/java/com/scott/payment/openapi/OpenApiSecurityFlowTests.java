@@ -68,11 +68,11 @@ class OpenApiSecurityFlowTests {
         RsaKeyMaterial platformPayloadKey = keyFactory.generatePlatformPayloadRsaKey(MERCHANT_ID);
         RsaKeyMaterial merchantResponseKey = keyFactory.generateMerchantResponseRsaKey(MERCHANT_ID);
 
-        log.info("系统生成密钥-给商户：merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+        log.info("系统生成密钥-给商户：JWT共享密钥指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
                 keyFactory.fingerprint(merchantJwtKey.merchantKey()),
                 keyFactory.fingerprint(platformPayloadKey.publicKeyX509Base64()),
                 keyFactory.fingerprint(merchantResponseKey.privateKeyPkcs8Base64()));
-        log.info("系统生成密钥-平台保留：merchantKey用于验签，平台私钥指纹={}，商户响应公钥指纹={}",
+        log.info("系统生成密钥-平台保留：JWT共享密钥用于验签，平台私钥指纹={}，商户响应公钥指纹={}",
                 keyFactory.fingerprint(platformPayloadKey.privateKeyPkcs8Base64()),
                 keyFactory.fingerprint(merchantResponseKey.publicKeyX509Base64()));
 
@@ -143,7 +143,7 @@ class OpenApiSecurityFlowTests {
         assertThatThrownBy(() -> jwtVerifier.verify(authorization, "wrong-merchant-key"))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getMessage());
-        log.info("异常分支-错误merchantKey验签失败，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getCode());
+        log.info("异常分支-错误JWT共享密钥验签失败，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getCode());
 
         String expiredJwt = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,

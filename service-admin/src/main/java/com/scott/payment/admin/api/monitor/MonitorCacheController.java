@@ -23,20 +23,15 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @description : 管理后台 Redis 缓存监控控制器
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorCacheController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Monitor Cache 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/monitor/cache")
 public class MonitorCacheController {
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Monitor Cache Application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final AdminMonitorCacheApplicationService adminMonitorCacheApplicationService;
 
@@ -53,10 +48,6 @@ public class MonitorCacheController {
      * 查询 Redis 基础运行信息。
      *
      * @return Redis 基础信息、命令统计和内存信息
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/info")
     @RequiresPermission("system:cache:list")
@@ -86,11 +77,6 @@ public class MonitorCacheController {
      * @param key Redis Key
      * @return 缓存详情
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/value")
     @RequiresPermission("system:cache:query")
     public CommonResult<Map<String, Object>> value(@RequestParam("key") String key) {
@@ -102,11 +88,6 @@ public class MonitorCacheController {
      *
      * @param key Redis Key
      * @return 删除结果
-     */
-    /**
-     * 删除监控治理数据，按业务规则处理引用校验和删除边界。
-     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/key")
     @RequiresPermission("system:cache:clear")

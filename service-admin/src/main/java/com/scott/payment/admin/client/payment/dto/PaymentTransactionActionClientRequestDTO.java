@@ -76,6 +76,15 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     private TransactionInfoDTO transactionInfo;
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : TransactionInfoDTO
+     * @date : 2026-07-14 23:59
+     * @email : scott_x@163.com
+     * @description : TransactionInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class TransactionInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;

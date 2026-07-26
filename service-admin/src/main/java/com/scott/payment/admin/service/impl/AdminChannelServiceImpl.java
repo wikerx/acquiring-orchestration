@@ -62,16 +62,17 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminChannelServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 16:10
  * @email : scott_x@163.com
- * @description : 管理后台渠道配置服务实现，负责维护渠道基础信息、支付能力、MID 参数模板和限额规则。
+ * @description : AdminChannelServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class AdminChannelServiceImpl implements AdminChannelService {
 
     /**
@@ -202,6 +203,22 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      */
     private final SysDictDataMapper dictDataMapper;
 
+/**
+ * 创建 AdminChannelServiceImpl 实例并注入其运行所需依赖。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param channelInfoMapper channel Info Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param metadataSchemaMapper metadata Schema Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param capabilityMapper capability Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param capabilityCurrencyMapper 币种代码，格式为 ISO 4217 三位大写字母
+ * @param capabilityCardBrandMapper 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+ * @param limitRuleMapper limit Rule Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param midConfigMapper mid Config Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param midBindingMapper mid Binding Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param dictDataMapper dict Data Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ */
     public AdminChannelServiceImpl(ChannelInfoMapper channelInfoMapper,
                                    ChannelMetadataSchemaMapper metadataSchemaMapper,
                                    ChannelPaymentCapabilityMapper capabilityMapper,
@@ -854,6 +871,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         midBindingMapper.updateById(entity);
     }
 
+    /**
+     * 校验 validate Channel Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateChannelRequest(ChannelInfoSaveRequest request, Long id) {
         String code = normalizeCode(request.getChannelCode());
         if (!CHANNEL_CODE_PATTERN.matcher(code).matches()) {
@@ -882,6 +908,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         validateMetadataSchemas(request.getMetadataSchemas());
     }
 
+    /**
+     * 校验 validate Mid Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ChannelInfoDO validateMidRequest(ChannelMidConfigSaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
         String businessType = normalizeCode(request.getBusinessType());
@@ -916,6 +952,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return channel;
     }
 
+    /**
+     * 校验 validate Mid Binding Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ChannelMidConfigDO validateMidBindingRequest(MerchantChannelMidBindingSaveRequest request, Long id) {
         validateStatus(request.getBindingStatus());
         if (request.getEffectiveTime() != null && request.getExpireTime() != null
@@ -937,6 +983,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return mid;
     }
 
+    /**
+     * 校验 validate Metadata Schemas 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param schemas schemas 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateMetadataSchemas(List<ChannelMetadataSchemaItem> schemas) {
         if (schemas == null || schemas.isEmpty()) {
             return;
@@ -973,6 +1027,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 校验 validate Capability Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ChannelInfoDO validateCapabilityRequest(CapabilitySaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
         String businessType = normalizeCode(request.getBusinessType());
@@ -1031,6 +1095,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return channel;
     }
 
+    /**
+     * 校验 validate Limit Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ChannelInfoDO validateLimitRequest(LimitSaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
         String businessType = normalizeCode(request.getBusinessType());
@@ -1064,6 +1138,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return channel;
     }
 
+    /**
+     * 校验 validate Limit Batch Items 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<LimitSaveRequest> validateLimitBatchItems(LimitBatchSaveRequest request) {
         List<LimitSaveRequest> items = request == null ? List.of() : request.getItems();
         if (items == null || items.isEmpty()) {
@@ -1072,6 +1155,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return items;
     }
 
+    /**
+     * 校验 validate Same Limit Dimension 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param items items 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateSameLimitDimension(List<LimitSaveRequest> items) {
         LimitSaveRequest first = items.get(0);
         String businessType = normalizeCode(first.getBusinessType());
@@ -1087,6 +1178,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 校验 validate Limit Batch Amount Relations 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param items items 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateLimitBatchAmountRelations(List<LimitSaveRequest> items) {
         Map<LimitScope, Map<String, BigDecimal>> limitAmountsByScope = new LinkedHashMap<>();
         for (LimitSaveRequest item : items) {
@@ -1102,12 +1201,30 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         limitAmountsByScope.values().forEach(this::validateLimitAmountRelations);
     }
 
+    /**
+     * 校验 validate Limit Amount Relations 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateLimitAmountRelations(LimitSaveRequest request, Long id) {
         Map<String, BigDecimal> amounts = existingLimitAmounts(limitScope(request), id);
         amounts.put(request.getLimitType(), request.getLimitAmount());
         validateLimitAmountRelations(amounts);
     }
 
+    /**
+     * 校验 validate Limit Amount Relations 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+     * @param amounts 金额值，单位由关联币种决定，调用前必须完成币种精度校验
+     */
     private void validateLimitAmountRelations(Map<String, BigDecimal> amounts) {
         BigDecimal daily = amounts.get(LIMIT_DAILY);
         BigDecimal weekly = amounts.get(LIMIT_WEEKLY);
@@ -1120,6 +1237,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 完成 existing Limit Amounts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
+     * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     */
     private Map<String, BigDecimal> existingLimitAmounts(LimitScope scope, Long excludeId) {
         if (scope.channelId() == null || !StringUtils.hasText(scope.businessType())) {
             return new LinkedHashMap<>();
@@ -1143,6 +1270,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return amounts;
     }
 
+    /**
+     * 完成 limit Scope 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LimitScope limitScope(LimitSaveRequest request) {
         return new LimitScope(
                 request.getChannelId(),
@@ -1152,6 +1288,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         );
     }
 
+    /**
+     * 查询 find Limit By Scope 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 解析或查询得到的业务值
+     */
     private ChannelLimitRuleDO findLimitByScope(LimitSaveRequest request) {
         return limitRuleMapper.selectOne(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
                 .eq(ChannelLimitRuleDO::getDeleted, NOT_DELETED)
@@ -1162,6 +1307,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelLimitRuleDO::getLimitType, normalizeCode(request.getLimitType())));
     }
 
+    /**
+     * 校验 validate Channel Supports Limit Business 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param ruleStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     */
     private void validateChannelSupportsLimitBusiness(ChannelInfoDO channel, String businessType, Integer ruleStatus) {
         if (BUSINESS_ACQUIRING.equals(businessType) && defaultZero(channel.getSupportAcquiring()) != ENABLED) {
             throw badRequest("渠道未开启收单能力");
@@ -1174,6 +1329,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 校验 validate Limit Payment Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
+     * @param cardBrand 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     */
     private void validateLimitPaymentScope(Long channelId, String businessType, String paymentMethod, String cardBrand) {
         if (ALL.equals(paymentMethod)) {
             if (!ALL.equals(cardBrand)) {
@@ -1210,6 +1376,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 填充 fill Channel 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillChannel(ChannelInfoDO entity, ChannelInfoSaveRequest request, LocalDateTime now) {
         entity.setChannelCode(normalizeCode(request.getChannelCode()));
         entity.setChannelCnName(trim(request.getChannelCnName()));
@@ -1227,6 +1403,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 填充 fill Mid 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillMid(ChannelMidConfigDO entity, ChannelMidConfigSaveRequest request, ChannelInfoDO channel, LocalDateTime now) {
         String operatorName = currentOperatorName();
         entity.setChannelId(channel.getId());
@@ -1258,6 +1445,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateTime(now);
     }
 
+/**
+ * 填充 fill Mid Binding 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param mid mid 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void fillMidBinding(MerchantChannelMidBindingDO entity, MerchantChannelMidBindingSaveRequest request,
                                 ChannelMidConfigDO mid, LocalDateTime now) {
         String operatorName = currentOperatorName();
@@ -1277,6 +1475,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateTime(now);
     }
 
+/**
+ * 填充 fill Capability 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void fillCapability(ChannelPaymentCapabilityDO entity, CapabilitySaveRequest request,
                                 ChannelInfoDO channel, LocalDateTime now) {
         entity.setChannelId(channel.getId());
@@ -1292,6 +1501,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 填充 fill Limit 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillLimit(ChannelLimitRuleDO entity, LimitSaveRequest request, ChannelInfoDO channel, LocalDateTime now) {
         String operatorName = currentOperatorName();
         entity.setChannelId(channel.getId());
@@ -1311,6 +1531,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 转换生成 to Channel Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ChannelInfoResponse toChannelResponse(ChannelInfoDO entity) {
         ChannelInfoResponse response = new ChannelInfoResponse();
         response.setId(entity.getId());
@@ -1336,6 +1565,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return response;
     }
 
+    /**
+     * 转换生成 to Mid Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ChannelMidConfigResponse toMidResponse(ChannelMidConfigDO entity, ChannelInfoDO channel) {
         ChannelMidConfigResponse response = new ChannelMidConfigResponse();
         response.setId(entity.getId());
@@ -1367,6 +1606,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return response;
     }
 
+/**
+ * 转换生成 to Mid Binding Response 对应的传输对象、导出行或协议字段。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+ * @param mid mid 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private MerchantChannelMidBindingResponse toMidBindingResponse(MerchantChannelMidBindingDO entity,
                                                                    ChannelInfoDO channel,
                                                                    ChannelMidConfigDO mid) {
@@ -1388,6 +1638,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return response;
     }
 
+    /**
+     * 转换生成 to Capability Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private CapabilityResponse toCapabilityResponse(ChannelPaymentCapabilityDO entity, ChannelInfoDO channel) {
         CapabilityResponse response = new CapabilityResponse();
         response.setId(entity.getId());
@@ -1410,6 +1670,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return response;
     }
 
+    /**
+     * 转换生成 to Limit Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private LimitResponse toLimitResponse(ChannelLimitRuleDO entity, ChannelInfoDO channel) {
         LimitResponse response = new LimitResponse();
         response.setId(entity.getId());
@@ -1431,6 +1701,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return response;
     }
 
+    /**
+     * 构建 build Capability Query 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private LambdaQueryWrapper<ChannelPaymentCapabilityDO> buildCapabilityQuery(CapabilityQuery query) {
         LambdaQueryWrapper<ChannelPaymentCapabilityDO> wrapper = Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -1456,6 +1735,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return wrapper;
     }
 
+    /**
+     * 构建 build Limit Query 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private LambdaQueryWrapper<ChannelLimitRuleDO> buildLimitQuery(LimitQuery query) {
         return Wrappers.<ChannelLimitRuleDO>lambdaQuery()
                 .eq(ChannelLimitRuleDO::getDeleted, NOT_DELETED)
@@ -1468,6 +1756,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .orderByDesc(ChannelLimitRuleDO::getUpdateTime);
     }
 
+    /**
+     * 构建 build Mid Query 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private LambdaQueryWrapper<ChannelMidConfigDO> buildMidQuery(ChannelMidConfigQuery query) {
         return Wrappers.<ChannelMidConfigDO>lambdaQuery()
                 .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
@@ -1479,6 +1776,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .orderByDesc(ChannelMidConfigDO::getUpdateTime);
     }
 
+    /**
+     * 构建 build Mid Binding Query 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private LambdaQueryWrapper<MerchantChannelMidBindingDO> buildMidBindingQuery(MerchantChannelMidBindingQuery query) {
         return Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
                 .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
@@ -1490,6 +1796,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .orderByDesc(MerchantChannelMidBindingDO::getUpdateTime);
     }
 
+    /**
+     * 完成 capability Ids By Currency Or Brand 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的 ISO 4217 币种代码
+     */
     private List<Long> capabilityIdsByCurrencyOrBrand(CapabilityQuery query) {
         boolean filterCurrency = StringUtils.hasText(query.getCurrencyCode());
         boolean filterBrand = StringUtils.hasText(query.getCardBrand());
@@ -1517,6 +1832,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return new ArrayList<>(ids == null ? Set.of() : ids);
     }
 
+    /**
+     * 完成 replace Capability Currencies 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param capability capability 输入值，含义由调用方法名称和所属业务对象限定
+     * @param currencies currencies 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void replaceCapabilityCurrencies(ChannelPaymentCapabilityDO capability, List<String> currencies) {
         capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
                         .eq(ChannelCapabilityCurrencyDO::getDeleted, NOT_DELETED)
@@ -1540,6 +1864,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 完成 replace Capability Card Brands 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param capability capability 输入值，含义由调用方法名称和所属业务对象限定
+     * @param cardBrands 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     */
     private void replaceCapabilityCardBrands(ChannelPaymentCapabilityDO capability, List<String> cardBrands) {
         capabilityCardBrandMapper.selectList(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
                         .eq(ChannelCapabilityCardBrandDO::getDeleted, NOT_DELETED)
@@ -1565,6 +1898,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 完成 soft Delete Capability Children 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void softDeleteCapabilityChildren(Long capabilityId) {
         capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
                         .eq(ChannelCapabilityCurrencyDO::getDeleted, NOT_DELETED)
@@ -1584,6 +1925,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 });
     }
 
+    /**
+     * 完成 replace Metadata Schemas 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @param schemas schemas 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void replaceMetadataSchemas(ChannelInfoDO channel, List<ChannelMetadataSchemaItem> schemas) {
         LocalDateTime now = LocalDateTime.now();
         String operatorName = currentOperatorName();
@@ -1624,6 +1974,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 完成 list Metadata Schemas 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<ChannelMetadataSchemaItem> listMetadataSchemas(Long channelId) {
         return metadataSchemaMapper.selectList(Wrappers.<ChannelMetadataSchemaDO>lambdaQuery()
                         .eq(ChannelMetadataSchemaDO::getDeleted, NOT_DELETED)
@@ -1635,6 +1994,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .toList();
     }
 
+    /**
+     * 转换生成 to Metadata Schema Item 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ChannelMetadataSchemaItem toMetadataSchemaItem(ChannelMetadataSchemaDO row) {
         ChannelMetadataSchemaItem item = new ChannelMetadataSchemaItem();
         item.setId(row.getId());
@@ -1651,6 +2019,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return item;
     }
 
+    /**
+     * 完成 list Capability Currencies 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> listCapabilityCurrencies(Long capabilityId) {
         return capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
                         .eq(ChannelCapabilityCurrencyDO::getDeleted, NOT_DELETED)
@@ -1659,6 +2036,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .stream().map(ChannelCapabilityCurrencyDO::getCurrencyCode).toList();
     }
 
+    /**
+     * 完成 list Capability Card Brands 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> listCapabilityCardBrands(Long capabilityId) {
         return capabilityCardBrandMapper.selectList(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
                         .eq(ChannelCapabilityCardBrandDO::getDeleted, NOT_DELETED)
@@ -1668,6 +2054,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .stream().map(ChannelCapabilityCardBrandDO::getCardBrand).toList();
     }
 
+    /**
+     * 完成 capability Methods 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, List<String>> capabilityMethods(Long channelId) {
         return capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                         .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -1682,6 +2077,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 ));
     }
 
+    /**
+     * 完成 channel Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelIds channel Ids 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<Long, ChannelInfoDO> channelMap(List<Long> channelIds) {
         if (channelIds == null || channelIds.isEmpty()) {
             return Map.of();
@@ -1690,6 +2094,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .collect(Collectors.toMap(ChannelInfoDO::getId, row -> row, (left, right) -> left));
     }
 
+    /**
+     * 完成 mid Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param midIds mid Ids 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<Long, ChannelMidConfigDO> midMap(List<Long> midIds) {
         if (midIds == null || midIds.isEmpty()) {
             return Map.of();
@@ -1698,6 +2111,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .collect(Collectors.toMap(ChannelMidConfigDO::getId, row -> row, (left, right) -> left));
     }
 
+    /**
+     * 查询 find Channel 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ChannelInfoDO findChannel(Long id) {
         ChannelInfoDO entity = channelInfoMapper.selectOne(Wrappers.<ChannelInfoDO>lambdaQuery()
                 .eq(ChannelInfoDO::getDeleted, NOT_DELETED)
@@ -1708,6 +2130,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return entity;
     }
 
+    /**
+     * 查询 find Capability 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ChannelPaymentCapabilityDO findCapability(Long id) {
         ChannelPaymentCapabilityDO entity = capabilityMapper.selectOne(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -1718,6 +2149,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return entity;
     }
 
+    /**
+     * 查询 find Limit 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ChannelLimitRuleDO findLimit(Long id) {
         ChannelLimitRuleDO entity = limitRuleMapper.selectOne(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
                 .eq(ChannelLimitRuleDO::getDeleted, NOT_DELETED)
@@ -1728,6 +2168,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return entity;
     }
 
+    /**
+     * 查询 find Mid 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ChannelMidConfigDO findMid(Long id) {
         ChannelMidConfigDO entity = midConfigMapper.selectOne(Wrappers.<ChannelMidConfigDO>lambdaQuery()
                 .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
@@ -1738,6 +2187,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return entity;
     }
 
+    /**
+     * 查询 find Mid Binding 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private MerchantChannelMidBindingDO findMidBinding(Long id) {
         MerchantChannelMidBindingDO entity = midBindingMapper.selectOne(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
                 .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
@@ -1748,6 +2206,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return entity;
     }
 
+    /**
+     * 判断 has Active Capability 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasActiveCapability(Long channelId) {
         return capabilityMapper.selectCount(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -1755,6 +2222,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)) > 0;
     }
 
+    /**
+     * 判断 has Enabled Capability 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasEnabledCapability(Long channelId, String businessType, String paymentMethod) {
         return capabilityMapper.selectCount(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -1764,6 +2242,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)) > 0;
     }
 
+    /**
+     * 查询 find Enabled Capability 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ChannelPaymentCapabilityDO findEnabledCapability(Long channelId, String businessType, String paymentMethod) {
         return capabilityMapper.selectOne(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -1773,6 +2262,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED));
     }
 
+    /**
+     * 判断 has Active Limit 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasActiveLimit(Long channelId) {
         return limitRuleMapper.selectCount(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
                 .eq(ChannelLimitRuleDO::getDeleted, NOT_DELETED)
@@ -1780,6 +2278,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(ChannelLimitRuleDO::getRuleStatus, ENABLED)) > 0;
     }
 
+    /**
+     * 判断 has Active Mid Binding 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param midConfigId mid Config Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasActiveMidBinding(Long midConfigId) {
         return midBindingMapper.selectCount(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
                 .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
@@ -1787,6 +2294,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .eq(MerchantChannelMidBindingDO::getBindingStatus, ENABLED)) > 0;
     }
 
+    /**
+     * 完成 refresh Binding Channel Mid 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param mid mid 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void refreshBindingChannelMid(ChannelMidConfigDO mid) {
         List<MerchantChannelMidBindingDO> bindings = midBindingMapper.selectList(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
                 .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
@@ -1802,6 +2317,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 校验 validate Channel Supports Business 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateChannelSupportsBusiness(ChannelInfoDO channel, String businessType) {
         if (BUSINESS_ACQUIRING.equals(businessType) && defaultZero(channel.getSupportAcquiring()) != ENABLED) {
             throw badRequest("渠道未开启收单能力");
@@ -1814,12 +2338,31 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 完成 channel Supports3ds 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean channelSupports3ds(ChannelInfoDO channel, String businessType) {
         return BUSINESS_ACQUIRING.equals(businessType)
                 && defaultZero(channel.getSupportAcquiring()) == ENABLED
                 && defaultZero(channel.getSupport3ds()) == ENABLED;
     }
 
+    /**
+     * 校验 validate Payment Method 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validatePaymentMethod(String businessType, String paymentMethod) {
         if (BUSINESS_ACQUIRING.equals(businessType)) {
             assertDictValue("acquiring_payment_method", paymentMethod, true);
@@ -1828,6 +2371,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 完成 list Enabled Capabilities 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<ChannelPaymentCapabilityDO> listEnabledCapabilities(Long channelId, String businessType) {
         return capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
                 .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
@@ -1838,6 +2391,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .orderByAsc(ChannelPaymentCapabilityDO::getId));
     }
 
+    /**
+     * 解析 resolve Mid Transaction Type Scope 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param paymentMethodScope payment Method Scope 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveMidTransactionTypeScope(Long channelId, String businessType, String paymentMethodScope) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
             return NONE;
@@ -1853,6 +2417,18 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return joinTransactionTypes(transactionTypes);
     }
 
+    /**
+     * 解析 resolve Mid Card Brand Scope 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param paymentMethodScope payment Method Scope 输入值，含义由调用方法名称和所属业务对象限定
+     * @param cardBrandScope 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     * @return 解析或查询得到的业务值
+     */
     private String resolveMidCardBrandScope(Long channelId, String businessType, String paymentMethodScope, String cardBrandScope) {
         boolean includesBankCard = ALL.equals(paymentMethodScope)
                 || splitScope(paymentMethodScope).contains(PAYMENT_BANK_CARD);
@@ -1881,6 +2457,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return normalizedScope;
     }
 
+    /**
+     * 完成 filter Mid Capabilities 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param paymentMethodScope payment Method Scope 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<ChannelPaymentCapabilityDO> filterMidCapabilities(Long channelId, String businessType, String paymentMethodScope) {
         List<ChannelPaymentCapabilityDO> capabilities = listEnabledCapabilities(channelId, businessType);
         if (capabilities.isEmpty()) {
@@ -1903,6 +2490,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return selected;
     }
 
+    /**
+     * 完成 assert Dict Value 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param dictType dict Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param value 待校验或转换的原始值
+     * @param required required 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void assertDictValue(String dictType, String value, boolean required) {
         if (!StringUtils.hasText(value)) {
             if (required) {
@@ -1923,28 +2520,73 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 校验 validate Business Type 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateBusinessType(String businessType) {
         if (!BUSINESS_ACQUIRING.equals(businessType) && !BUSINESS_PAYOUT.equals(businessType)) {
             throw badRequest("业务类型必须为 ACQUIRING 或 PAYOUT");
         }
     }
 
+    /**
+     * 校验 validate Status 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     */
     private void validateStatus(Integer status) {
         if (status == null || (status != ENABLED && status != DISABLED)) {
             throw badRequest("状态必须为0停用或1启用");
         }
     }
 
+    /**
+     * 校验 validate Timeout Seconds 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param seconds seconds 输入值，含义由调用方法名称和所属业务对象限定
+     * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateTimeoutSeconds(Integer seconds, String fieldName) {
         if (seconds != null && (seconds <= 0 || seconds > 300)) {
             throw badRequest(fieldName + "必须在1到300秒之间");
         }
     }
 
+    /**
+     * 完成 default Timeout 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param seconds seconds 输入值，含义由调用方法名称和所属业务对象限定
+     * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int defaultTimeout(Integer seconds, int defaultValue) {
         return seconds == null ? defaultValue : seconds;
     }
 
+    /**
+     * 标准化 normalize Scope 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private String normalizeScope(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
             throw badRequest(fieldName + "不能为空");
@@ -1955,10 +2597,28 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return String.join(TRANSACTION_TYPE_SEPARATOR, normalizeCodes(List.of(value.split(TRANSACTION_TYPE_SEPARATOR))));
     }
 
+    /**
+     * 校验 validate Payment Method Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validatePaymentMethodScope(Long channelId, String businessType, String scope) {
         filterMidCapabilities(channelId, businessType, scope);
     }
 
+    /**
+     * 校验 validate Currency Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateCurrencyScope(String scope) {
         if (ALL.equals(scope)) {
             return;
@@ -1968,6 +2628,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 标准化 normalize Settlement Cycle 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 标准化后的业务字段值
+     */
     private String normalizeSettlementCycle(String value) {
         if (!StringUtils.hasText(value)) {
             throw badRequest("结算周期不能为空");
@@ -1979,6 +2648,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         throw badRequest("结算周期必须为 T+N 格式");
     }
 
+    /**
+     * 完成 split Scope 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> splitScope(String scope) {
         if (!StringUtils.hasText(scope) || ALL.equals(scope)) {
             return List.of();
@@ -1987,6 +2665,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * 校验 validate Metadata Values 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateMetadataValues(Long channelId, String metadataValueJson) {
         Map<String, Object> values = StringUtils.hasText(metadataValueJson)
                 ? JsonUtils.parseObject(metadataValueJson, Map.class)
@@ -2009,6 +2696,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 解析 resolve Channel Mid 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 解析或查询得到的业务值
+     */
     private String resolveChannelMid(ChannelMidConfigSaveRequest request) {
         String value = firstTextMetadataValue(request.getMetadataValueJson(),
                 "merchantId", "merchant_id", "channelMid", "channel_mid", "mid", "midNo", "mid_no", "merchantNo", "merchant_no");
@@ -2021,6 +2717,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         throw badRequest("MID元数据中缺少渠道MID或商户号");
     }
 
+    /**
+     * 完成 first Text Metadata Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
+     * @param keys keys 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String firstTextMetadataValue(String metadataValueJson, String... keys) {
         Map<String, Object> values = parseMetadataMap(metadataValueJson);
         for (String key : keys) {
@@ -2033,6 +2739,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * 完成 merge Metadata Values For Update 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     */
     private void mergeMetadataValuesForUpdate(ChannelMidConfigDO entity, ChannelMidConfigSaveRequest request) {
         Map<String, Object> incoming = parseMetadataMap(request.getMetadataValueJson());
         if (incoming.isEmpty() || !StringUtils.hasText(entity.getMetadataValueJson())) {
@@ -2057,6 +2772,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     @SuppressWarnings("unchecked")
+    /**
+     * 解析 parse Metadata Map 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析后的内部数据结构或业务值
+     */
     private Map<String, Object> parseMetadataMap(String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {
             return Map.of();
@@ -2065,6 +2789,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return values == null ? Map.of() : values;
     }
 
+    /**
+     * 完成 mask Metadata Json 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String maskMetadataJson(Long channelId, String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {
             return metadataValueJson;
@@ -2083,14 +2817,42 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return JsonUtils.toJsonString(masked);
     }
 
+    /**
+     * 完成 should Mask Metadata 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param schema schema 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean shouldMaskMetadata(ChannelMetadataSchemaItem schema) {
         return defaultZero(schema.getSensitiveFlag()) == ENABLED || isSensitiveMetadataType(schema.getFieldType());
     }
 
+    /**
+     * 判断 is Sensitive Metadata Type 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param fieldType field Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isSensitiveMetadataType(String fieldType) {
         return Set.of("PASSWORD", "PRIVATE_KEY").contains(normalizeCode(fieldType));
     }
 
+    /**
+     * 标准化 normalize Transaction Type 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @return 标准化后的业务字段值
+     */
     private String normalizeTransactionType(String businessType, String transactionType) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
             return NONE;
@@ -2098,6 +2860,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return normalizeCode(transactionType);
     }
 
+    /**
+     * 标准化 normalize Transaction Types 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionTypes 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @return 标准化后的业务字段值
+     */
     private List<String> normalizeTransactionTypes(String businessType, List<String> transactionTypes, String transactionType) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
             return List.of(NONE);
@@ -2112,10 +2885,29 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return normalizeCodes(values);
     }
 
+    /**
+     * 完成 join Transaction Types 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionTypes 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String joinTransactionTypes(List<String> transactionTypes) {
         return String.join(TRANSACTION_TYPE_SEPARATOR, transactionTypes);
     }
 
+    /**
+     * 完成 split Transaction Types 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> splitTransactionTypes(String businessType, String transactionType) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
             return List.of(NONE);
@@ -2126,14 +2918,41 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return normalizeCodes(List.of(transactionType.split(TRANSACTION_TYPE_SEPARATOR)));
     }
 
+    /**
+     * 完成 default Scope 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String defaultScope(String value) {
         return StringUtils.hasText(value) ? normalizeCode(value) : ALL;
     }
 
+    /**
+     * 标准化 normalize Code 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 标准化后的业务字段值
+     */
     private String normalizeCode(String value) {
         return trim(value).toUpperCase();
     }
 
+    /**
+     * 标准化 normalize Codes 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private List<String> normalizeCodes(List<String> values) {
         if (values == null) {
             return new ArrayList<>();
@@ -2146,22 +2965,67 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 .toList();
     }
 
+    /**
+     * 完成 default Zero 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int defaultZero(Integer value) {
         return value == null ? 0 : value;
     }
 
+    /**
+     * 完成 default One 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int defaultOne(Integer value) {
         return value == null ? 1 : value;
     }
 
+    /**
+     * 完成 trim 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String trim(String value) {
         return value == null ? "" : value.trim();
     }
 
+    /**
+     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 完成 channel Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String channelName(ChannelInfoDO channel) {
         if (channel == null) {
             return "";
@@ -2169,6 +3033,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return StringUtils.hasText(channel.getChannelCnName()) ? channel.getChannelCnName() : channel.getChannelEnName();
     }
 
+    /**
+     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -2186,6 +3058,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     private record LimitScope(Long channelId, String businessType, String paymentMethod, String cardBrand) {
     }
 
+    /**
+     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

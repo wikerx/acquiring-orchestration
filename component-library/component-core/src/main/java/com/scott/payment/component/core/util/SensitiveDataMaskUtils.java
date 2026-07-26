@@ -3,16 +3,22 @@ package com.scott.payment.component.core.util;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SensitiveDataMaskUtils
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:48
  * @email : scott_x@163.com
- * @description : 日志敏感数据脱敏工具，统一处理卡号、CVV、JWT、渠道凭据、商户密钥和个人联系信息，避免明文进入日志或审计表。
+ * @description : SensitiveDataMaskUtils 通用能力封装，用于提供无状态的格式转换、校验或安全处理函数，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public final class SensitiveDataMaskUtils {
+
+    /**
+     * 脱敏失败时返回固定占位符，禁止回退输出原文。
+     */
+    private static final String MASK_FAILED_PLACEHOLDER = "***MASK_FAILED***";
 
     /**
      * 密钥类字段统一替换为固定星号，禁止日志中出现任何明文片段。
@@ -93,6 +99,22 @@ public final class SensitiveDataMaskUtils {
         masked = maskEmailField(masked);
         masked = SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
         return ID_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+    }
+
+    /**
+     * 对 JSON 文本执行安全脱敏。
+     * <p>
+     * 该方法用于日志落库和审计日志输出；一旦脱敏流程出现异常，返回固定占位符而不是原始报文。
+     *
+     * @param json 原始 JSON 文本
+     * @return 脱敏文本或固定失败占位符
+     */
+    public static String maskJsonSafely(String json) {
+        try {
+            return maskJson(json);
+        } catch (RuntimeException exception) {
+            return MASK_FAILED_PLACEHOLDER;
+        }
     }
 
     /**
@@ -178,12 +200,30 @@ public final class SensitiveDataMaskUtils {
         return cardNo.substring(0, 6) + "******" + cardNo.substring(cardNo.length() - 4);
     }
 
+    /**
+     * 完成 mask Mobile Field 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static String maskMobileField(String value) {
         return MOBILE_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
                 matchResult.group(1) + maskMobile(matchResult.group(2)) + matchResult.group(3)
         ));
     }
 
+    /**
+     * 完成 mask Email Field 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static String maskEmailField(String value) {
         return EMAIL_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
                 matchResult.group(1) + maskEmail(matchResult.group(2) + matchResult.group(3)) + matchResult.group(4)

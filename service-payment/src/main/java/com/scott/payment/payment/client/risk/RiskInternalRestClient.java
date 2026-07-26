@@ -110,6 +110,15 @@ public class RiskInternalRestClient implements RiskInternalClient {
         }
     }
 
+    /**
+     * 完成 choose Rest Template 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param evaluateUrl evaluate Url 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private RestTemplate chooseRestTemplate(String evaluateUrl) {
         URI uri = URI.create(evaluateUrl);
         String host = uri.getHost();
@@ -123,6 +132,16 @@ public class RiskInternalRestClient implements RiskInternalClient {
         return loadBalancedRestTemplate;
     }
 
+    /**
+     * 构建 build Signed Entity 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param uri uri 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 转换或构建后的目标对象
+     */
     private HttpEntity<RiskPaymentEvaluateClientRequestDTO> buildSignedEntity(URI uri, RiskPaymentEvaluateClientRequestDTO requestDTO) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
@@ -143,6 +162,15 @@ public class RiskInternalRestClient implements RiskInternalClient {
         return new HttpEntity<>(requestDTO, headers);
     }
 
+    /**
+     * 完成 unwrap Result 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private RiskPaymentEvaluateClientResponseDTO unwrapResult(CommonResult<RiskPaymentEvaluateClientResponseDTO> result) {
         if (result == null) {
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-risk response is empty");

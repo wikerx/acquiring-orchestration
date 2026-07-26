@@ -145,6 +145,14 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
                         actualNow) == 1);
     }
 
+    /**
+     * 校验 validate Event 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateEvent(TransactionEventOutboxDO eventDO) {
         if (eventDO == null
                 || !StringUtils.hasText(eventDO.getEventNo())
@@ -160,12 +168,29 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         }
     }
 
+    /**
+     * 校验 validate Persisted Event 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validatePersistedEvent(TransactionEventOutboxDO eventDO) {
         if (eventDO == null || eventDO.getId() == null || eventDO.getVersion() == null || eventDO.getTransactionDateTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
 
+    /**
+     * 完成 sharding Context 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ShardingSingleTableContext shardingContext(LocalDateTime transactionDateTime) {
         return ShardingSingleTableContext.of(LOGICAL_TABLE, transactionDateTime, DataSourceName.MASTER);
     }

@@ -34,15 +34,6 @@ import java.util.Set;
  *
  * <p>负责系统参数配置的持久化规则、唯一键校验与软删除处理，不承担接口协议适配或权限控制逻辑。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminConfigServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Admin Config Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminConfigServiceImpl implements AdminConfigService {
 
@@ -83,11 +74,6 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @param request 系统参数配置保存请求
      * @return 保存后的配置
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public SysConfigDTO saveConfig(SysConfigSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
@@ -113,11 +99,6 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      *
      * @param configKey 参数键名
      * @return 参数配置
-     */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param configKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public SysConfigDTO getConfigByKey(String configKey) {
@@ -158,11 +139,6 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @param request 查询条件
      * @return 系统参数配置列表
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PageResult<SysConfigDTO> pageConfigs(SysConfigQueryRequest request) {
         SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
@@ -178,12 +154,16 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         );
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 list Configs 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<SysConfigDTO> listConfigs(SysConfigQueryRequest request) {
         SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
         return sysConfigMapper.selectList(buildConfigQueryWrapper(query))
@@ -212,10 +192,6 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * 软删除指定配置。
      *
      * @param configKey 参数键名
-     */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param configKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void deleteConfig(String configKey) {

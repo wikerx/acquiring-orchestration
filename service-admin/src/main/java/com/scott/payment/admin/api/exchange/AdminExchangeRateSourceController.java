@@ -25,24 +25,36 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+@RestController
+@RequestMapping("/admin/exchange")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminExchangeRateSourceController
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 汇率管理Admin Exchange Rate Source 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminExchangeRateSourceController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
-@RequestMapping("/admin/exchange")
 public class AdminExchangeRateSourceController {
 
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final AdminExchangeRateApplicationService applicationService;
 
+    /**
+     * 创建 AdminExchangeRateSourceController 实例并注入其运行所需依赖。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param applicationService application Service 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public AdminExchangeRateSourceController(AdminExchangeRateApplicationService applicationService) {
         this.applicationService = applicationService;
     }
@@ -79,11 +91,6 @@ public class AdminExchangeRateSourceController {
      * @param id 汇率源主键
      * @return 汇率源详情
      */
-    /**
-     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/sources/{id}")
     @RequiresPermission("exchange:source:detail")
     public CommonResult<SourceResponse> getSource(@PathVariable("id") Long id) {
@@ -95,11 +102,6 @@ public class AdminExchangeRateSourceController {
      *
      * @param request 汇率源保存请求
      * @return 新增后的汇率源详情
-     */
-    /**
-     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/sources")
     @RequiresPermission("exchange:source:add")
@@ -114,12 +116,6 @@ public class AdminExchangeRateSourceController {
      * @param id      汇率源主键
      * @param request 汇率源保存请求
      * @return 修改后的汇率源详情
-     */
-    /**
-     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/sources/{id}")
     @RequiresPermission("exchange:source:edit")
@@ -136,12 +132,6 @@ public class AdminExchangeRateSourceController {
      * @param request 状态请求，1 表示启用，0 表示停用
      * @return 切换状态后的汇率源详情
      */
-    /**
-     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/sources/{id}/status")
     @RequiresPermission("exchange:source:status")
     @OperationLog(moduleName = "汇率源管理", businessType = OperationTypeConstants.UPDATE, operation = "切换汇率源状态")
@@ -155,11 +145,6 @@ public class AdminExchangeRateSourceController {
      *
      * @param id 汇率源主键
      * @return 空结果
-     */
-    /**
-     * 删除汇率管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/sources/{id}")
     @RequiresPermission("exchange:source:remove")

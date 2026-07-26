@@ -72,6 +72,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             )
             """)
     int insertPhysical(@Param("physicalTableName") String physicalTableName,
+                       /**
+                        * 完成 m 分支的校验或状态更新。
+                        * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                        * <p>
+                        * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                        * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                        * </p>
+                        * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+                        */
                        @Param("operationDO") TransactionOperationDO operationDO);
 
     /**
@@ -89,6 +98,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             LIMIT 1
             """)
     TransactionOperationDO selectByTransactionIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                                         /**
+                                                          * 完成 m 分支的校验或状态更新。
+                                                          * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                          * <p>
+                                                          * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                          * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                          * </p>
+                                                          * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+                                                          */
                                                          @Param("transactionId") String transactionId);
 
     /**
@@ -109,6 +127,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             """)
     TransactionOperationDO selectByChannelTransactionPhysical(@Param("physicalTableName") String physicalTableName,
                                                               @Param("channelOrderNo") String channelOrderNo,
+                                                              /**
+                                                               * 完成 m 分支的校验或状态更新。
+                                                               * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                               * <p>
+                                                               * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                               * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                               * </p>
+                                                               * @param channelTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+                                                               */
                                                               @Param("channelTransactionId") String channelTransactionId);
 
     /**
@@ -169,6 +196,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                @Param("authCode") String authCode,
                                @Param("rrn") String rrn,
                                @Param("acquirerReferenceNo") String acquirerReferenceNo,
+                               /**
+                                * 完成 m 分支的校验或状态更新。
+                                * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                * <p>
+                                * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                * </p>
+                                * @param channelMatchStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+                                */
                                @Param("channelMatchStatus") String channelMatchStatus);
 
     /**
@@ -227,6 +263,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                @Param("channelResponseCode") String channelResponseCode,
                                                @Param("channelResponseMessage") String channelResponseMessage,
                                                @Param("requestId") String requestId,
+                                               /**
+                                                * 完成 m 分支的校验或状态更新。
+                                                * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                * <p>
+                                                * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                * </p>
+                                                * @param matchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+                                                */
                                                @Param("matchTime") LocalDateTime matchTime);
 
     /**
@@ -257,6 +302,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
     List<TransactionOperationDO> selectPendingChannelMatchPhysical(@Param("physicalTableName") String physicalTableName,
                                                                    @Param("channelCode") String channelCode,
                                                                    @Param("now") LocalDateTime now,
+                                                                   /**
+                                                                    * 完成 m 分支的校验或状态更新。
+                                                                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                    * <p>
+                                                                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                    * </p>
+                                                                    * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
+                                                                    */
                                                                    @Param("limit") int limit);
 
     /**
@@ -297,6 +351,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                    @Param("requestId") String requestId,
                                    @Param("matchTime") LocalDateTime matchTime,
                                    @Param("nextMatchTime") LocalDateTime nextMatchTime,
+                                   /**
+                                    * 完成 m 分支的校验或状态更新。
+                                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                    * <p>
+                                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                    * </p>
+                                    * @param failReason fail Reason 输入值，含义由调用方法名称和所属业务对象限定
+                                    */
                                    @Param("failReason") String failReason);
 
     /**
@@ -313,6 +376,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               AND deleted = 0
             """)
     int countByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                   /**
+                                    * 完成 m 分支的校验或状态更新。
+                                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                    * <p>
+                                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                    * </p>
+                                    * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+                                    */
                                    @Param("operationId") String operationId);
 
     /**
@@ -330,6 +402,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             ORDER BY operation_sequence ASC, operation_time ASC
             """)
     List<TransactionOperationDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                                             /**
+                                                              * 完成 m 分支的校验或状态更新。
+                                                              * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                              * <p>
+                                                              * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                              * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                              * </p>
+                                                              * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+                                                              */
                                                              @Param("operationId") String operationId);
 
     /**
@@ -357,6 +438,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
     List<TransactionOperationDO> selectByMerchantOrderPhysical(@Param("physicalTableName") String physicalTableName,
                                                                @Param("merchantId") String merchantId,
                                                                @Param("merchantOrderNo") String merchantOrderNo,
+                                                               /**
+                                                                * 完成 m 分支的校验或状态更新。
+                                                                * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                * <p>
+                                                                * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                * </p>
+                                                                * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+                                                                */
                                                                @Param("transactionId") String transactionId);
 
     /**
@@ -381,6 +471,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             """)
     List<TransactionOperationDO> selectInitialByMerchantOrderPhysical(@Param("physicalTableName") String physicalTableName,
                                                                       @Param("merchantId") String merchantId,
+                                                                      /**
+                                                                       * 完成 m 分支的校验或状态更新。
+                                                                       * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                       * <p>
+                                                                       * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                       * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                       * </p>
+                                                                       * @param merchantOrderNo 商户订单号，用于商户侧幂等校验和订单查询
+                                                                       */
                                                                       @Param("merchantOrderNo") String merchantOrderNo);
 
     /**
@@ -408,6 +507,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
     List<TransactionOperationDO> selectNonTerminalCapturesPhysical(@Param("physicalTableName") String physicalTableName,
                                                                    @Param("merchantId") String merchantId,
                                                                    @Param("operationId") String operationId,
+                                                                   /**
+                                                                    * 完成 m 分支的校验或状态更新。
+                                                                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                    * <p>
+                                                                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                    * </p>
+                                                                    * @param sourceTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+                                                                    */
                                                                    @Param("sourceTransactionId") String sourceTransactionId);
 
     /**
@@ -432,6 +540,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             """)
     List<TransactionOperationDO> selectNonTerminalRefundsPhysical(@Param("physicalTableName") String physicalTableName,
                                                                   @Param("merchantId") String merchantId,
+                                                                  /**
+                                                                   * 完成 m 分支的校验或状态更新。
+                                                                   * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                   * <p>
+                                                                   * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                   * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                   * </p>
+                                                                   * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+                                                                   */
                                                                   @Param("operationId") String operationId);
 
     /**
@@ -456,6 +573,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             """)
     List<TransactionOperationDO> selectNonTerminalVoidsPhysical(@Param("physicalTableName") String physicalTableName,
                                                                 @Param("merchantId") String merchantId,
+                                                                /**
+                                                                 * 完成 m 分支的校验或状态更新。
+                                                                 * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                 * <p>
+                                                                 * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                 * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                 * </p>
+                                                                 * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+                                                                 */
                                                                 @Param("operationId") String operationId);
 
     /**
@@ -481,6 +607,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
     List<TransactionOperationDO> selectNonTerminalIncrementalAuthorizationsPhysical(
             @Param("physicalTableName") String physicalTableName,
             @Param("merchantId") String merchantId,
+            /**
+             * 完成 m 分支的校验或状态更新。
+             * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+             * <p>
+             * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+             * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+             * </p>
+             * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+             */
             @Param("operationId") String operationId);
 
     /**
@@ -610,6 +745,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                     @Param("beginTime") LocalDateTime beginTime,
                                                     @Param("endTime") LocalDateTime endTime,
                                                     @Param("offset") long offset,
+                                                    /**
+                                                     * 完成 m 分支的校验或状态更新。
+                                                     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                     * <p>
+                                                     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                     * </p>
+                                                     * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
+                                                     */
                                                     @Param("limit") long limit);
 
     /**
@@ -733,6 +877,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                            @Param("paymentBrand") String paymentBrand,
                            @Param("cardBin") String cardBin,
                            @Param("beginTime") LocalDateTime beginTime,
+                           /**
+                            * 完成 m 分支的校验或状态更新。
+                            * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                            * <p>
+                            * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                            * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                            * </p>
+                            * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+                            */
                            @Param("endTime") LocalDateTime endTime);
 
     /**
@@ -862,6 +1015,15 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                                      @Param("paymentBrand") String paymentBrand,
                                                                      @Param("cardBin") String cardBin,
                                                                      @Param("beginTime") LocalDateTime beginTime,
+                                                                     /**
+                                                                      * 完成 m 分支的校验或状态更新。
+                                                                      * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                      * <p>
+                                                                      * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                      * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                      * </p>
+                                                                      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+                                                                      */
                                                                      @Param("endTime") LocalDateTime endTime);
 
     /**
@@ -981,5 +1143,14 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                                             @Param("paymentBrand") String paymentBrand,
                                                                             @Param("cardBin") String cardBin,
                                                                             @Param("beginTime") LocalDateTime beginTime,
+                                                                            /**
+                                                                             * 完成 m 分支的校验或状态更新。
+                                                                             * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                             * <p>
+                                                                             * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                             * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                             * </p>
+                                                                             * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+                                                                             */
                                                                             @Param("endTime") LocalDateTime endTime);
 }

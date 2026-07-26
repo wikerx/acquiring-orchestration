@@ -13,7 +13,6 @@ import java.util.concurrent.CompletableFuture;
  * @description : 调度中心异步任务处理器协议
  * @status : create
  */
-
 public interface AsyncJobHandler extends JobHandler {
 
     /**

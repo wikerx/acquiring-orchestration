@@ -21,15 +21,6 @@ import java.util.List;
  * @description : 任务执行器节点服务实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Executor Node Service Impl，位于 service-job 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Slf4j
 @Service
 public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
@@ -50,11 +41,19 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
     private static final long DEADLOCK_RETRY_BACKOFF_MILLIS = 50L;
 
     /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     * sys Job Executor Node Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysJobExecutorNodeMapper sysJobExecutorNodeMapper;
     /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     * job Node Context 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final JobNodeContext jobNodeContext;
 
@@ -69,10 +68,14 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
         this.jobNodeContext = jobNodeContext;
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     */
     @Override
+    /**
+     * 完成 report Heartbeat 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     */
     public void reportHeartbeat() {
         LocalDateTime now = LocalDateTime.now();
         SysJobExecutorNodeDO node = new SysJobExecutorNodeDO();
@@ -122,17 +125,30 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
         }
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 list Nodes 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<SysJobExecutorNodeDO> listNodes() {
         return sysJobExecutorNodeMapper.selectList(new LambdaQueryWrapper<SysJobExecutorNodeDO>()
                 .orderByDesc(SysJobExecutorNodeDO::getLastHeartbeatTime)
                 .orderByAsc(SysJobExecutorNodeDO::getNodeId));
     }
 
+    /**
+     * 完成 sleep Before Retry 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param attempt attempt 输入值，含义由调用方法名称和所属业务对象限定
+     * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void sleepBeforeRetry(int attempt, PessimisticLockingFailureException exception) {
         long backoffMillis = DEADLOCK_RETRY_BACKOFF_MILLIS * attempt;
         log.warn("超时任务节点离线扫描遇到锁冲突，准备重试，attempt：{}，backoffMillis：{}，原因：{}",

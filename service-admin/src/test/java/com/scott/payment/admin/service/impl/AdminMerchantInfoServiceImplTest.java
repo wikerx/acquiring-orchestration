@@ -43,22 +43,17 @@ import static org.mockito.Mockito.when;
  * @description : 管理后台商户资料服务测试，覆盖商户新增和编辑表单基础选项组装规则
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantInfoServiceImplTest
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Admin Merchant Info Service Impl Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @ExtendWith(MockitoExtension.class)
 class AdminMerchantInfoServiceImplTest {
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * merchant Info Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMerchantInfoMapper merchantInfoMapper;
     /**
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
@@ -75,25 +70,41 @@ class AdminMerchantInfoServiceImplTest {
      */
     @Mock
     private BaseMerchantResponseKeyMapper responseKeyMapper;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * mcc Level1 Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMccLevel1Mapper mccLevel1Mapper;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * mcc Level2 Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMccLevel2Mapper mccLevel2Mapper;
-    /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
-     */
     @Mock
+    /**
+     * mcc Code Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMccCodeMapper mccCodeMapper;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * iso Country Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private IsoCountryMapper isoCountryMapper;
     /**
      * 收单支付币种字段，通常使用 ISO 4217 三位字母代码，不能为空时由上层校验。
@@ -107,7 +118,11 @@ class AdminMerchantInfoServiceImplTest {
     private OpenApiKeyMaterialFactory keyMaterialFactory;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private AdminMerchantInfoServiceImpl service;
 

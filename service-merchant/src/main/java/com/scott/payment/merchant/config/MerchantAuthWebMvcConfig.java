@@ -9,16 +9,17 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.List;
 
+
+@Configuration
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantAuthWebMvcConfig
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-06 12:00
  * @email : scott_x@163.com
- * @description : 商户后台鉴权拦截配置，统一注册商户端登录态校验，并放行登录、验证码、MFA 登录前置阶段接口。
+ * @description : MerchantAuthWebMvcConfig Spring 配置类，用于注册当前模块所需 Bean、客户端和拦截器，位于 商户后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Configuration
 public class MerchantAuthWebMvcConfig implements WebMvcConfigurer {
 
     /**

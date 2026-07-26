@@ -24,17 +24,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+@RestController
+@RequestMapping("/admin/email/accounts")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminEmailAccountController
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-04 16:11
  * @email : scott_x@163.com
- * @description : 邮件管理Admin Email Account 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminEmailAccountController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
-@RequestMapping("/admin/email/accounts")
 public class AdminEmailAccountController {
 
     /**
@@ -42,101 +42,146 @@ public class AdminEmailAccountController {
      */
     private final AdminEmailApplicationService emailApplicationService;
 
+    /**
+     * 创建 AdminEmailAccountController 实例并注入其运行所需依赖。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param emailApplicationService email Application Service 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public AdminEmailAccountController(AdminEmailApplicationService emailApplicationService) {
         this.emailApplicationService = emailApplicationService;
     }
 
     @PostMapping("/search")
     @RequiresPermission("email:account:list")
+    /**
+     * 完成 page Accounts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<PageResult<EmailAccountResponse>> pageAccounts(@RequestBody(required = false) EmailAccountQuery query) {
         return success(emailApplicationService.pageAccounts(query));
     }
 
-    /**
-     * 获取邮件管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/{id}")
     @RequiresPermission("email:account:detail")
+    /**
+     * 完成 get Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<EmailAccountResponse> getAccount(@PathVariable("id") Long id) {
         return success(emailApplicationService.getAccount(id));
     }
 
-    /**
-     * 创建或保存邮件管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping
     @RequiresPermission("email:account:add")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.CREATE, operation = "新增邮件发件账户")
+    /**
+     * 完成 create Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<EmailAccountResponse> createAccount(@Valid @RequestBody EmailAccountSaveRequest request) {
         return success(emailApplicationService.createAccount(request));
     }
 
-    /**
-     * 更新邮件管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}")
     @RequiresPermission("email:account:edit")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.UPDATE, operation = "修改邮件发件账户")
+/**
+ * 写入或更新 update Account 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @return 当前方法计算或转换后的业务结果
+ */
     public CommonResult<EmailAccountResponse> updateAccount(@PathVariable("id") Long id,
                                                             @Valid @RequestBody EmailAccountSaveRequest request) {
         return success(emailApplicationService.updateAccount(id, request));
     }
 
-    /**
-     * 更新邮件管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}/status")
     @RequiresPermission("email:account:status")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.UPDATE, operation = "切换邮件发件账户状态")
+/**
+ * 写入或更新 update Account Status 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @return 当前方法计算或转换后的业务结果
+ */
     public CommonResult<EmailAccountResponse> updateAccountStatus(@PathVariable("id") Long id,
                                                                   @Valid @RequestBody EmailStatusRequest request) {
         return success(emailApplicationService.updateAccountStatus(id, request.getStatus()));
     }
 
-    /**
-     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}/default")
     @RequiresPermission("email:account:default")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.UPDATE, operation = "设置默认邮件发件账户")
+    /**
+     * 完成 set Default Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<EmailAccountResponse> setDefaultAccount(@PathVariable("id") Long id) {
         return success(emailApplicationService.setDefaultAccount(id));
     }
 
-    /**
-     * 发送邮件管理消息或外部请求，并记录必要的执行结果。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/{id}/test")
     @RequiresPermission("email:account:test")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.UPDATE, operation = "测试发送邮件")
+/**
+ * 发送 send Test Email 对应的外部通知、内部消息或远程请求。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @return 当前方法计算或转换后的业务结果
+ */
     public CommonResult<EmailSendResult> sendTestEmail(@PathVariable("id") Long id,
                                                        @Valid @RequestBody EmailAccountTestRequest request) {
         return success(emailApplicationService.sendTestEmail(id, request));
     }
 
-    /**
-     * 删除邮件管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @DeleteMapping("/{id}")
     @RequiresPermission("email:account:remove")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.DELETE, operation = "删除邮件发件账户")
+    /**
+     * 完成 delete Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<Void> deleteAccount(@PathVariable("id") Long id) {
         emailApplicationService.deleteAccount(id);
         return success();

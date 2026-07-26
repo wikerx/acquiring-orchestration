@@ -11,25 +11,33 @@ import com.scott.payment.job.dto.exchange.ExchangeRateFetchDTOs.ExchangeRateFetc
 import com.scott.payment.job.exchange.service.ExchangeRateFetchService;
 import org.springframework.stereotype.Component;
 
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : BocExchangeRateFetchJob
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 汇率管理Boc Exchange Rate Fetch Job，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : BocExchangeRateFetchJob 调度任务组件，用于执行定时扫描、异步任务或后台补偿流程，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Component
 public class BocExchangeRateFetchJob implements JobHandler {
 
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * HANDLER CODE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     public static final String HANDLER_CODE = "bocExchangeRateFetchJob";
 
     /**
-     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     * exchange Rate Fetch Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeRateFetchService exchangeRateFetchService;
 
@@ -47,10 +55,6 @@ public class BocExchangeRateFetchJob implements JobHandler {
      *
      * @return 任务处理器描述
      */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public JobHandlerDescriptor descriptor() {
         return JobHandlerDescriptor.sync(
@@ -66,11 +70,6 @@ public class BocExchangeRateFetchJob implements JobHandler {
      *
      * @param context 任务执行上下文，包含运行 ID 和任务参数
      * @return 调度中心可识别的执行结果
-     */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public JobExecuteResult execute(JobExecuteContext context) {

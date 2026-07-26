@@ -35,11 +35,46 @@ import java.util.stream.Collectors;
 @Service
 public class AdminMerchantIpWhitelistApplicationService {
 
+    /**
+     * EXPORT TIME FORMATTER 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    /**
+     * whitelist Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final AdminMerchantIpWhitelistService whitelistService;
+    /**
+     * excel Export Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * excel I18n Message Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * excel Locale Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -162,6 +197,16 @@ public class AdminMerchantIpWhitelistApplicationService {
         return whitelistService.updateConfig(request);
     }
 
+    /**
+     * 转换生成 to Export Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private MerchantIpWhitelistExportRow toExportRow(MerchantIpWhitelistResponse source, Locale locale) {
         MerchantIpWhitelistExportRow row = new MerchantIpWhitelistExportRow();
         row.setMerchantId(source.getMerchantId());
@@ -175,6 +220,16 @@ public class AdminMerchantIpWhitelistApplicationService {
         return row;
     }
 
+    /**
+     * 完成 format Ip Whitelists 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param items items 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String formatIpWhitelists(List<MerchantIpWhitelistItem> items, Locale locale) {
         if (items == null || items.isEmpty()) {
             return excelI18nMessageResolver.resolve("excel.common.noData", locale);
@@ -184,6 +239,16 @@ public class AdminMerchantIpWhitelistApplicationService {
                 .collect(Collectors.joining("; "));
     }
 
+    /**
+     * 构建 build Query Summary 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private String buildQuerySummary(MerchantIpWhitelistQuery query, Locale locale) {
         MerchantIpWhitelistQuery condition = query == null ? new MerchantIpWhitelistQuery() : query;
         StringBuilder builder = new StringBuilder();
@@ -195,6 +260,17 @@ public class AdminMerchantIpWhitelistApplicationService {
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 
+    /**
+     * 计算 add Condition 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param builder builder 输入值，含义由调用方法名称和所属业务对象限定
+     * @param labelKey label Key 输入值，含义由调用方法名称和所属业务对象限定
+     * @param value 待校验或转换的原始值
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void addCondition(StringBuilder builder, String labelKey, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return;
@@ -205,14 +281,43 @@ public class AdminMerchantIpWhitelistApplicationService {
         builder.append(excelI18nMessageResolver.resolve(labelKey, locale)).append("=").append(value.trim());
     }
 
+    /**
+     * 解析 resolve Nullable Status Text 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveNullableStatusText(Integer status, Locale locale) {
         return status == null ? null : resolveStatusText(status, locale);
     }
 
+    /**
+     * 解析 resolve Status Text 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveStatusText(Integer status, Locale locale) {
         return excelI18nMessageResolver.resolve(status != null && status == 1 ? "excel.common.enabled" : "excel.common.disabled", locale);
     }
 
+    /**
+     * 完成 blank To Placeholder 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String blankToPlaceholder(String value) {
         return StringUtils.hasText(value) ? value : "-";
     }

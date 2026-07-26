@@ -5,16 +5,17 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.Map;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentChannelRequest
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 11:10
  * @email : scott_x@163.com
- * @description : 早期收单渠道请求模型，位于 channel-library 渠道模型层，仅保留基础渠道路由字段；正式交易调用优先使用 dto.request.ChannelPaymentRequest。
+ * @description : PaymentChannelRequest 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class PaymentChannelRequest implements Serializable {
 
     /**

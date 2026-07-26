@@ -3,13 +3,14 @@ package com.scott.payment.job.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.job.entity.SysShardingPhysicalTableDO;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysShardingPhysicalTableMapper
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 分表物理表登记 Mapper。 <p>只负责分表治理登记表的数据访问，不承载建表业务判断。</p>
+ * @description : SysShardingPhysicalTableMapper MyBatis 数据访问接口，用于映射数据库表读写语句和领域查询条件，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public interface SysShardingPhysicalTableMapper extends BaseMapper<SysShardingPhysicalTableDO> {

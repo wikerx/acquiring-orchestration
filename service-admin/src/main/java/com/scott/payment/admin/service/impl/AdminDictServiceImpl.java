@@ -35,15 +35,6 @@ import java.util.List;
  *
  * <p>该类只负责字典主表和字典项的持久化规则、唯一键约束与软删除处理，不承担权限控制或页面交互逻辑。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDictServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Admin Dict Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminDictServiceImpl implements AdminDictService {
 
@@ -103,11 +94,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param request 字典类型保存请求
      * @return 保存后的字典类型
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public SysDictTypeDTO saveDictType(SysDictTypeSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
@@ -134,11 +120,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param request 查询条件
      * @return 字典类型列表
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PageResult<SysDictTypeDTO> pageDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
@@ -154,12 +135,16 @@ public class AdminDictServiceImpl implements AdminDictService {
         );
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 list Dict Types 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<SysDictTypeDTO> listDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
         return dictTypeMapper.selectList(buildDictTypeQueryWrapper(query))
@@ -172,10 +157,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      * 软删除字典类型。
      *
      * @param dictType 字典类型编码
-     */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void deleteDictType(String dictType) {
@@ -193,11 +174,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      *
      * @param request 字典数据保存请求
      * @return 保存后的字典数据
-     */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public SysDictDataDTO saveDictData(SysDictDataSaveRequest request) {
@@ -228,11 +204,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param request 查询条件
      * @return 字典数据列表
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PageResult<SysDictDataDTO> pageDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
@@ -248,12 +219,16 @@ public class AdminDictServiceImpl implements AdminDictService {
         );
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 list Dict Data 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<SysDictDataDTO> listDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;
         return dictDataMapper.selectList(buildDictDataQueryWrapper(query))
@@ -268,11 +243,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param id 字典数据主键
      * @return 字典数据详情
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public SysDictDataDTO getDictDataById(Long id) {
         SysDictDataDO entity = findDictDataById(id);
@@ -285,12 +255,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param id      字典数据主键
      * @param request 字典数据保存请求
      * @return 更新后的字典数据
-     */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public SysDictDataDTO updateDictDataById(Long id, SysDictDataSaveRequest request) {
@@ -343,12 +307,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      * @param dictValue 字典键值
      * @param locale    语言区域
      */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param dictValue 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param locale 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void deleteDictData(String dictType, String dictValue, String locale) {
         SysDictDataDO entity = findDictDataOrThrowWhenBlank(dictType, dictValue, defaultIfBlank(locale, DEFAULT_LOCALE));
@@ -364,10 +322,6 @@ public class AdminDictServiceImpl implements AdminDictService {
      * 按主键删除字典数据。
      *
      * @param id 字典数据主键
-     */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void deleteDictDataById(Long id) {

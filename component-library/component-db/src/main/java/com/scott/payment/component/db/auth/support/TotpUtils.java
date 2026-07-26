@@ -94,6 +94,16 @@ public final class TotpUtils {
                 + "&algorithm=SHA1&digits=6&period=30";
     }
 
+    /**
+     * 完成 generate Code 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param secret secret 输入值，含义由调用方法名称和所属业务对象限定
+     * @param step step 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static String generateCode(byte[] secret, long step) {
         try {
             Mac mac = Mac.getInstance("HmacSHA1");
@@ -110,6 +120,15 @@ public final class TotpUtils {
         }
     }
 
+    /**
+     * 完成 base32 Encode 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param bytes bytes 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static String base32Encode(byte[] bytes) {
         StringBuilder result = new StringBuilder((bytes.length * 8 + 4) / 5);
         int buffer = 0;
@@ -128,6 +147,15 @@ public final class TotpUtils {
         return result.toString();
     }
 
+    /**
+     * 完成 base32 Decode 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static byte[] base32Decode(String value) {
         String normalized = value.replace("=", "").replace(" ", "").toUpperCase(Locale.ROOT);
         int buffer = 0;
@@ -146,6 +174,15 @@ public final class TotpUtils {
         return Arrays.copyOf(output, count);
     }
 
+    /**
+     * 完成 base32 Digit 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param ch ch 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static int base32Digit(char ch) {
         for (int i = 0; i < BASE32_ALPHABET.length; i++) {
             if (BASE32_ALPHABET[i] == ch) {
@@ -155,6 +192,15 @@ public final class TotpUtils {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "totp secret is invalid");
     }
 
+    /**
+     * 完成 url Encode 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static String urlEncode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
     }

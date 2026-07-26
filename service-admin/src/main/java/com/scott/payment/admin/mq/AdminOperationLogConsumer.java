@@ -4,6 +4,7 @@ import com.scott.payment.admin.converter.OperLogMessageConverter;
 import com.scott.payment.admin.dto.SysOperLogRecordRequest;
 import com.scott.payment.admin.service.AdminOperLogService;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.OperationLogMessage;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
@@ -38,9 +39,9 @@ import org.springframework.stereotype.Component;
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminOperationLogConsumer
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-20 01:54
  * @email : scott_x@163.com
- * @description : 收单支付Admin Operation Log Consumer，位于 service-admin 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminOperationLogConsumer 消息消费组件，用于解析 MQ 消息、绑定链路上下文并触发后续处理，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public class AdminOperationLogConsumer implements RocketMQListener<String> {
@@ -87,25 +88,31 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
      *
      * @param payload 操作日志消息 JSON 字符串
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param payload 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void onMessage(String payload) {
         OperationLogMessage message = JsonUtils.parseObject(payload, OperationLogMessage.class);
         if (message == null) {
-            log.warn("后台操作日志消息体为空或无法解析，payload：{}", payload);
+            log.warn("event=ADMIN_OPERATION_LOG_CONSUME_SKIP reason=messageInvalid payloadLength={}",
+                    payload == null ? 0 : payload.length());
             return;
         }
-        String idempotentKey = "operation-log:consume:admin:" + message.getIdempotentKey();
-        if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
-            log.info("后台操作日志重复消息已跳过，messageId：{}，idempotentKey：{}",
+        TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
+        try {
+            String idempotentKey = "operation-log:consume:admin:" + message.getIdempotentKey();
+            if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
+                log.info("event=ADMIN_OPERATION_LOG_DUPLICATE messageId={} idempotentKey={}",
+                        message.getMessageId(),
+                        message.getIdempotentKey());
+                return;
+            }
+            SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
+            adminOperLogService.recordOperLog(request);
+            log.info("event=ADMIN_OPERATION_LOG_CONSUMED messageId={} operationModule={} operationType={}",
                     message.getMessageId(),
-                    message.getIdempotentKey());
-            return;
+                    message.getOperationModule(),
+                    message.getOperationType());
+        } finally {
+            TraceContext.clear();
         }
-        SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
-        adminOperLogService.recordOperLog(request);
     }
 }

@@ -37,49 +37,81 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMerchantMenuGrantServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : 收单支付Admin Merchant Menu Grant Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminMerchantMenuGrantServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrantService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ROOT PARENT ID 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final long ROOT_PARENT_ID = 0L;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * GRANT SOURCE ADMIN 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String GRANT_SOURCE_ADMIN = "ADMIN";
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys App Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysAppMapper sysAppMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Menu Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMenuMapper sysMenuMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Permission Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysPermissionMapper sysPermissionMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Menu Grant Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Permission Grant Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * base Merchant Info Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
 
@@ -113,11 +145,6 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
      * @param merchantId 商户号
      * @return 授权查询响应
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public AdminMerchantMenuGrantQueryResponse queryGrant(String merchantId) {
@@ -144,11 +171,6 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
      * @param merchantId 商户号
      * @param request    保存请求
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -168,6 +190,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         permissionIds.forEach(permissionId -> insertPermissionGrant(merchantApp.getId(), normalizedMerchantId, permissionId, now));
     }
 
+    /**
+     * 校验 validate Merchant 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String validateMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchantId is required");
@@ -185,6 +216,14 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return normalized;
     }
 
+    /**
+     * 完成 get Merchant App 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private SysAppDO getMerchantApp() {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()
@@ -198,6 +237,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return app;
     }
 
+    /**
+     * 查询 load Merchant Menu Tree 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private List<SysMenuDTO> loadMerchantMenuTree(Long appId) {
         List<SysMenuDTO> menus = sysMenuMapper.selectList(
                         Wrappers.<SysMenuDO>lambdaQuery()
@@ -211,6 +259,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return buildMenuTree(menus);
     }
 
+    /**
+     * 查询 load Merchant Permissions 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private List<SysPermissionDTO> loadMerchantPermissions(Long appId) {
         return sysPermissionMapper.selectList(
                         Wrappers.<SysPermissionDO>lambdaQuery()
@@ -224,6 +281,16 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
                 .toList();
     }
 
+    /**
+     * 查询 load Checked Menu Ids 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 解析或查询得到的业务值
+     */
     private List<Long> loadCheckedMenuIds(Long appId, String merchantId) {
         return sysMerchantMenuGrantMapper.selectList(
                         Wrappers.<SysMerchantMenuGrantDO>lambdaQuery()
@@ -237,6 +304,16 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
                 .toList();
     }
 
+    /**
+     * 查询 load Checked Permissions 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 解析或查询得到的业务值
+     */
     private List<SysPermissionDO> loadCheckedPermissions(Long appId, String merchantId) {
         List<Long> permissionIds = sysMerchantPermissionGrantMapper.selectList(
                         Wrappers.<SysMerchantPermissionGrantDO>lambdaQuery()
@@ -259,6 +336,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         );
     }
 
+    /**
+     * 校验 validate Menu Ids 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param menuIds menu Ids 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateMenuIds(Long appId, Set<Long> menuIds) {
         if (menuIds.isEmpty()) {
             return;
@@ -275,6 +361,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         }
     }
 
+    /**
+     * 校验 validate Permission Ids 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param permissionIds permission Ids 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validatePermissionIds(Long appId, Set<Long> permissionIds) {
         if (permissionIds.isEmpty()) {
             return;
@@ -291,6 +386,16 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         }
     }
 
+    /**
+     * 校验 validate Permission Menu Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param menuIds menu Ids 输入值，含义由调用方法名称和所属业务对象限定
+     * @param permissionIds permission Ids 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validatePermissionMenuScope(Long appId, Set<Long> menuIds, Set<Long> permissionIds) {
         if (permissionIds.isEmpty()) {
             return;
@@ -311,6 +416,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         }
     }
 
+    /**
+     * 完成 soft Delete Menu Grants 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     */
     private void softDeleteMenuGrants(Long appId, String merchantId) {
         sysMerchantMenuGrantMapper.selectList(
                 Wrappers.<SysMerchantMenuGrantDO>lambdaQuery()
@@ -325,6 +439,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         });
     }
 
+    /**
+     * 完成 soft Delete Permission Grants 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     */
     private void softDeletePermissionGrants(Long appId, String merchantId) {
         sysMerchantPermissionGrantMapper.selectList(
                 Wrappers.<SysMerchantPermissionGrantDO>lambdaQuery()
@@ -339,6 +462,17 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         });
     }
 
+    /**
+     * 写入或更新 insert Menu Grant 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @param menuId menu Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void insertMenuGrant(Long appId, String merchantId, Long menuId, LocalDateTime now) {
         SysMerchantMenuGrantDO grant = new SysMerchantMenuGrantDO();
         grant.setMerchantId(merchantId);
@@ -352,6 +486,17 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         sysMerchantMenuGrantMapper.insert(grant);
     }
 
+    /**
+     * 写入或更新 insert Permission Grant 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @param permissionId permission Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void insertPermissionGrant(Long appId, String merchantId, Long permissionId, LocalDateTime now) {
         SysMerchantPermissionGrantDO grant = new SysMerchantPermissionGrantDO();
         grant.setMerchantId(merchantId);
@@ -365,6 +510,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         sysMerchantPermissionGrantMapper.insert(grant);
     }
 
+    /**
+     * 标准化 normalize Ids 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param ids ids 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private Set<Long> normalizeIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptySet();
@@ -375,6 +529,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 转换生成 to Menu DTO 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private SysMenuDTO toMenuDTO(SysMenuDO menu) {
         SysMenuDTO dto = new SysMenuDTO();
         dto.setMenuId(menu.getId());
@@ -395,6 +558,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return dto;
     }
 
+    /**
+     * 转换生成 to Permission DTO 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param permission permission 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private SysPermissionDTO toPermissionDTO(SysPermissionDO permission) {
         SysPermissionDTO dto = new SysPermissionDTO();
         dto.setPermissionId(permission.getId());
@@ -408,6 +580,15 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return dto;
     }
 
+    /**
+     * 构建 build Menu Tree 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param menus menus 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private List<SysMenuDTO> buildMenuTree(List<SysMenuDTO> menus) {
         Map<Long, SysMenuDTO> nodeMap = menus.stream()
                 .collect(Collectors.toMap(SysMenuDTO::getMenuId, item -> item, (left, right) -> left, LinkedHashMap::new));

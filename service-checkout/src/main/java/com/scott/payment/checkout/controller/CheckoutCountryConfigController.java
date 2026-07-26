@@ -8,16 +8,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@RestController
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : CheckoutCountryConfigController
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : 收单支付Checkout Country Config 管理接口，位于 service-checkout 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : CheckoutCountryConfigController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 收银台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
 public class CheckoutCountryConfigController {
 
     /**
@@ -38,10 +38,6 @@ public class CheckoutCountryConfigController {
      * 查询收银台国家地区下拉配置。
      *
      * @return 国家地区配置列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/checkout/config/countries")
     public ApiResult<List<CheckoutCountryConfigResponse>> listCountries() {

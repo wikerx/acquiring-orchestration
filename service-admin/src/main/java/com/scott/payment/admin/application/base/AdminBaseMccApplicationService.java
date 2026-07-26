@@ -47,106 +47,201 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminBaseMccApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-27 16:49
  * @email : scott_x@163.com
- * @description : 基础数据Admin Base Mcc Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminBaseMccApplicationService 应用服务，用于编排接口请求、权限上下文、领域服务和外部依赖，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class AdminBaseMccApplicationService {
 
+    /**
+     * EXPORT TIME FORMATTER 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ENABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int ENABLED = 1;
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DISABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int DISABLED = 0;
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * LEVEL1 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String LEVEL1 = "LEVEL1";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * LEVEL2 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String LEVEL2 = "LEVEL2";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MCC CODE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String MCC_CODE = "MCC_CODE";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * APPLY SCOPE ALL 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String APPLY_SCOPE_ALL = "ALL";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * APPLY SCOPE SPECIFIC 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String APPLY_SCOPE_SPECIFIC = "SPECIFIC";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * CARD BRAND DICT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String CARD_BRAND_DICT = "card_brand";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DEFAULT LOCALE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String DEFAULT_LOCALE = "zh-CN";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * FOUR DIGIT MCC 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String FOUR_DIGIT_MCC = "^[0-9]{4}$";
 
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * level1 Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final BaseMccLevel1Mapper level1Mapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * level2 Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final BaseMccLevel2Mapper level2Mapper;
     /**
-     * 基础数据编码或编号字段，用于业务识别、查询和幂等关联。
+     * code Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final BaseMccCodeMapper codeMapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * risk Policy Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final BaseMccRiskPolicyMapper riskPolicyMapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * dict Data Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysDictDataMapper dictDataMapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Dict Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final AdminDictService adminDictService;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * iso Country Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final IsoCountryMapper isoCountryMapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * merchant Info Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final BaseMerchantInfoMapper merchantInfoMapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Export Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelExportService excelExportService;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel I18n Message Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Locale Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
@@ -182,11 +277,6 @@ public class AdminBaseMccApplicationService {
      *
      * <p>搜索命中 MCC Code 时会保留对应二级和一级分类，保证页面仍展示完整树路径。</p>
      */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public List<MccVO.MccTreeNodeVO> tree(MccRequests.MccTreeQueryRequest request) {
         MccRequests.MccTreeQueryRequest query = request == null ? new MccRequests.MccTreeQueryRequest() : request;
         List<MccEntities.BaseMccLevel1DO> level1Rows = level1Mapper.selectList(baseLevel1Query());
@@ -213,11 +303,6 @@ public class AdminBaseMccApplicationService {
     /**
      * 新增或编辑 MCC 一级、二级分类。
      */
-    /**
-     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccTreeNodeVO saveCategory(MccRequests.MccCategorySaveRequest request) {
         String nodeType = normalizeRequired(request.getNodeType(), "nodeType is required");
@@ -230,10 +315,6 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 删除 MCC 分类。存在下级分类或 MCC Code 时不允许删除。
-     */
-    /**
-     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteCategory(MccRequests.MccDeleteRequest request) {
@@ -261,10 +342,6 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 更新分类或 MCC 编码状态。
-     */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(MccRequests.MccStatusUpdateRequest request) {
@@ -294,11 +371,6 @@ public class AdminBaseMccApplicationService {
     /**
      * 新增 MCC 编码。
      */
-    /**
-     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccCodeVO createCode(MccRequests.MccCodeSaveRequest request) {
         validateCodeRequest(request, true);
@@ -316,11 +388,6 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 编辑 MCC 编码。编码本身创建后不允许修改，避免破坏风险策略和商户资料引用。
-     */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccCodeVO updateCode(MccRequests.MccCodeSaveRequest request) {
@@ -341,21 +408,12 @@ public class AdminBaseMccApplicationService {
     /**
      * 查询 MCC 编码详情。
      */
-    /**
-     * 获取基础数据明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public MccVO.MccCodeVO getCode(Long id) {
         return toCodeVO(getCodeById(id));
     }
 
     /**
      * 删除 MCC 编码。存在风险策略或商户资料引用时不允许删除。
-     */
-    /**
-     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteCode(MccRequests.MccDeleteRequest request) {
@@ -380,11 +438,6 @@ public class AdminBaseMccApplicationService {
     /**
      * 分页查询 MCC 风险策略。
      */
-    /**
-     * 查询基础数据列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<MccVO.MccRiskPolicyVO> pagePolicies(MccRequests.MccRiskPolicyQueryRequest request) {
         MccRequests.MccRiskPolicyQueryRequest query = request == null ? new MccRequests.MccRiskPolicyQueryRequest() : request;
         Page<MccEntities.BaseMccRiskPolicyDO> page = riskPolicyMapper.selectPage(
@@ -397,11 +450,6 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 新增 MCC 风险策略。card_brand 不允许保存 ALL，页面“所有卡品牌”会展开为真实卡品牌。
-     */
-    /**
-     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Transactional(rollbackFor = Exception.class)
     public List<MccVO.MccRiskPolicyVO> createPolicies(MccRequests.MccRiskPolicySaveRequest request) {
@@ -425,11 +473,6 @@ public class AdminBaseMccApplicationService {
     /**
      * 编辑单条 MCC 风险策略。
      */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Transactional(rollbackFor = Exception.class)
     public MccVO.MccRiskPolicyVO updatePolicy(MccRequests.MccRiskPolicySaveRequest request) {
         if (request.getId() == null) {
@@ -452,21 +495,12 @@ public class AdminBaseMccApplicationService {
     /**
      * 查询风险策略详情。
      */
-    /**
-     * 获取基础数据明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public MccVO.MccRiskPolicyVO getPolicyDetail(Long id) {
         return toPolicyVO(getPolicy(id));
     }
 
     /**
      * 更新风险策略状态。
-     */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Transactional(rollbackFor = Exception.class)
     public void updatePolicyStatus(MccRequests.MccStatusUpdateRequest request) {
@@ -481,10 +515,6 @@ public class AdminBaseMccApplicationService {
     /**
      * 删除风险策略。
      */
-    /**
-     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Transactional(rollbackFor = Exception.class)
     public void deletePolicy(MccRequests.MccDeleteRequest request) {
         MccEntities.BaseMccRiskPolicyDO row = getPolicy(request.getId());
@@ -497,10 +527,6 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 查询 MCC 概览统计。
-     */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public MccVO.MccOverviewVO overview() {
         MccVO.MccOverviewVO overview = new MccVO.MccOverviewVO();
@@ -516,10 +542,6 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 查询页面下拉选项。
-     */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public Map<String, Object> options() {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -537,12 +559,6 @@ public class AdminBaseMccApplicationService {
 
     /**
      * 导出 MCC 编码。
-     */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportCodes(MccRequests.MccTreeQueryRequest request, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -568,6 +584,15 @@ public class AdminBaseMccApplicationService {
         );
     }
 
+    /**
+     * 写入或更新 save Level1 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MccEntities.BaseMccLevel1DO saveLevel1(MccRequests.MccCategorySaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         String code = normalizeRequired(request.getCategoryCode(), "categoryCode is required");
@@ -585,6 +610,15 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 写入或更新 save Level2 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MccEntities.BaseMccLevel2DO saveLevel2(MccRequests.MccCategorySaveRequest request) {
         if (request.getParentId() == null || level1Mapper.selectCount(baseLevel1Query().eq(MccEntities.BaseMccLevel1DO::getId, request.getParentId())) == 0) {
             throw badRequest("新增二级分类时一级分类必须存在");
@@ -606,6 +640,16 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 填充 fill Level1 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillLevel1(MccEntities.BaseMccLevel1DO row, MccRequests.MccCategorySaveRequest request, LocalDateTime now) {
         row.setNameCn(normalizeRequired(request.getNameCn(), "nameCn is required"));
         row.setNameEn(normalizeRequired(request.getNameEn(), "nameEn is required"));
@@ -615,6 +659,16 @@ public class AdminBaseMccApplicationService {
         row.setUpdateTime(now);
     }
 
+    /**
+     * 填充 fill Level2 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillLevel2(MccEntities.BaseMccLevel2DO row, MccRequests.MccCategorySaveRequest request, LocalDateTime now) {
         row.setNameCn(normalizeRequired(request.getNameCn(), "nameCn is required"));
         row.setNameEn(normalizeRequired(request.getNameEn(), "nameEn is required"));
@@ -624,6 +678,15 @@ public class AdminBaseMccApplicationService {
         row.setUpdateTime(now);
     }
 
+    /**
+     * 校验 validate Code Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param creating creating 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateCodeRequest(MccRequests.MccCodeSaveRequest request, boolean creating) {
         if (creating && !StringUtils.hasText(request.getMccCode())) {
             throw badRequest("MCC 编码不能为空");
@@ -648,6 +711,15 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 填充 fill Code 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     */
     private void fillCode(MccEntities.BaseMccCodeDO row, MccRequests.MccCodeSaveRequest request) {
         if (StringUtils.hasText(request.getMccCode())) {
             row.setMccCode(request.getMccCode().trim());
@@ -668,6 +740,14 @@ public class AdminBaseMccApplicationService {
         row.setRemark(trimToNull(request.getRemark()));
     }
 
+    /**
+     * 校验 validate Policy Base 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     */
     private void validatePolicyBase(MccRequests.MccRiskPolicySaveRequest request) {
         if (!existsMccCode(request.getMccCode(), null)) {
             throw badRequest("MCC 编码不存在");
@@ -681,6 +761,15 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 解析 resolve Card Schemes 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 解析或查询得到的业务值
+     */
     private List<String> resolveCardSchemes(MccRequests.MccRiskPolicySaveRequest request) {
         Set<String> allowed = cardBrandValues();
         List<String> schemes = Boolean.TRUE.equals(request.getSelectAllCardSchemes())
@@ -700,6 +789,16 @@ public class AdminBaseMccApplicationService {
         return schemes;
     }
 
+    /**
+     * 填充 fill Policy 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param cardScheme 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     */
     private void fillPolicy(MccEntities.BaseMccRiskPolicyDO row, MccRequests.MccRiskPolicySaveRequest request, String cardScheme) {
         String channelScope = request.getChannelScope().trim();
         String countryScope = request.getCountryScope().trim();
@@ -719,6 +818,16 @@ public class AdminBaseMccApplicationService {
         row.setRemark(trimToNull(request.getRemark()));
     }
 
+    /**
+     * 完成 assert Policy Not Exists 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param cardScheme 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     */
     private void assertPolicyNotExists(Long excludeId, MccRequests.MccRiskPolicySaveRequest request, String cardScheme) {
         String channelScope = request.getChannelScope().trim();
         String channelCode = APPLY_SCOPE_SPECIFIC.equals(channelScope) ? request.getChannelCode().trim() : "";
@@ -737,6 +846,15 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 构建 build Policy Query 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccRiskPolicyDO> buildPolicyQuery(MccRequests.MccRiskPolicyQueryRequest query) {
         LambdaQueryWrapper<MccEntities.BaseMccRiskPolicyDO> wrapper = basePolicyQuery()
                 .eq(StringUtils.hasText(query.getMccCode()), MccEntities.BaseMccRiskPolicyDO::getMccCode, trimToNull(query.getMccCode()))
@@ -765,6 +883,16 @@ public class AdminBaseMccApplicationService {
         return wrapper;
     }
 
+    /**
+     * 校验 validate Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
+     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param codeFieldName code Field Name 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateScope(String scope, String code, String codeFieldName) {
         if (!APPLY_SCOPE_ALL.equals(scope) && !APPLY_SCOPE_SPECIFIC.equals(scope)) {
             throw badRequest(scope + " is not supported");
@@ -777,11 +905,27 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 完成 card Brand Values 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Set<String> cardBrandValues() {
         List<SysDictDataDO> rows = cardBrandDictRows();
         return rows.stream().map(SysDictDataDO::getDictValue).filter(StringUtils::hasText).collect(Collectors.toSet());
     }
 
+    /**
+     * 完成 card Brand Dict Rows 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<SysDictDataDO> cardBrandDictRows() {
         List<SysDictDataDO> rows = dictDataMapper.selectList(Wrappers.<SysDictDataDO>lambdaQuery()
                 .eq(SysDictDataDO::getDictType, CARD_BRAND_DICT)
@@ -794,6 +938,15 @@ public class AdminBaseMccApplicationService {
         return rows == null ? List.of() : rows;
     }
 
+    /**
+     * 判断 exists Country Alpha2 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param alpha2 alpha2 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean existsCountryAlpha2(String alpha2) {
         if (!StringUtils.hasText(alpha2)) {
             return false;
@@ -804,6 +957,17 @@ public class AdminBaseMccApplicationService {
         return count != null && count > 0;
     }
 
+    /**
+     * 完成 assert Category Code Not Exists 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param nodeType node Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param parentId parent Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void assertCategoryCodeNotExists(String nodeType, String code, Long parentId, Long excludeId) {
         Long count;
         if (LEVEL1.equals(nodeType)) {
@@ -821,6 +985,16 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 判断 exists Mcc Code 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param mccCode mcc Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean existsMccCode(String mccCode, Long excludeId) {
         if (!StringUtils.hasText(mccCode)) {
             return false;
@@ -831,6 +1005,16 @@ public class AdminBaseMccApplicationService {
         return count != null && count > 0;
     }
 
+    /**
+     * 完成 filter Tree 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param node node 输入值，含义由调用方法名称和所属业务对象限定
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MccVO.MccTreeNodeVO filterTree(MccVO.MccTreeNodeVO node, MccRequests.MccTreeQueryRequest query) {
         List<MccVO.MccTreeNodeVO> children = node.getChildren().stream()
                 .map(child -> filterTree(child, query))
@@ -844,6 +1028,16 @@ public class AdminBaseMccApplicationService {
         return node;
     }
 
+    /**
+     * 完成 matches 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param node node 输入值，含义由调用方法名称和所属业务对象限定
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean matches(MccVO.MccTreeNodeVO node, MccRequests.MccTreeQueryRequest query) {
         return containsAny(node, query.getKeyword())
                 && fieldContains(node.getMccCode(), query.getMccCode())
@@ -854,6 +1048,16 @@ public class AdminBaseMccApplicationService {
                 && (query.getStatus() == null || Objects.equals(node.getStatus(), query.getStatus()));
     }
 
+    /**
+     * 完成 contains Any 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param node node 输入值，含义由调用方法名称和所属业务对象限定
+     * @param keyword keyword 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean containsAny(MccVO.MccTreeNodeVO node, String keyword) {
         if (!StringUtils.hasText(keyword)) {
             return true;
@@ -866,22 +1070,69 @@ public class AdminBaseMccApplicationService {
                 || fieldContains(node.getRiskLevel(), keyword);
     }
 
+    /**
+     * 完成 field Contains 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean fieldContains(String source, String target) {
         return !StringUtils.hasText(target) || (source != null && source.toLowerCase(Locale.ROOT).contains(target.trim().toLowerCase(Locale.ROOT)));
     }
 
+    /**
+     * 完成 field Equals 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean fieldEquals(String source, String target) {
         return !StringUtils.hasText(target) || Objects.equals(source, target.trim());
     }
 
+    /**
+     * 转换生成 to Level1 Node 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private MccVO.MccTreeNodeVO toLevel1Node(MccEntities.BaseMccLevel1DO row) {
         return baseNode(LEVEL1, row.getId(), null, 1, row.getLevel1Code(), row.getNameCn(), row.getNameEn(), row.getStatus(), row.getSortNo(), row.getRemark(), row.getCreateTime(), row.getUpdateTime());
     }
 
+    /**
+     * 转换生成 to Level2 Node 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private MccVO.MccTreeNodeVO toLevel2Node(MccEntities.BaseMccLevel2DO row) {
         return baseNode(LEVEL2, row.getId(), LEVEL1 + ":" + row.getLevel1Id(), 2, row.getLevel2Code(), row.getNameCn(), row.getNameEn(), row.getStatus(), row.getSortNo(), row.getRemark(), row.getCreateTime(), row.getUpdateTime());
     }
 
+    /**
+     * 转换生成 to Mcc Code Node 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private MccVO.MccTreeNodeVO toMccCodeNode(MccEntities.BaseMccCodeDO row) {
         MccVO.MccTreeNodeVO node = baseNode(MCC_CODE, row.getLevel2Id(), LEVEL2 + ":" + row.getLevel2Id(), 3, row.getMccCode(), row.getNameCn(), row.getNameEn(), row.getStatus(), row.getSortNo(), row.getRemark(), row.getCreateTime(), row.getUpdateTime());
         node.setNodeKey(MCC_CODE + ":" + row.getId());
@@ -900,6 +1151,26 @@ public class AdminBaseMccApplicationService {
         return node;
     }
 
+/**
+ * 完成 base Node 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param type type 输入值，含义由调用方法名称和所属业务对象限定
+ * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param parentNodeKey parent Node Key 输入值，含义由调用方法名称和所属业务对象限定
+ * @param level level 输入值，含义由调用方法名称和所属业务对象限定
+ * @param code code 输入值，含义由调用方法名称和所属业务对象限定
+ * @param nameCn name Cn 输入值，含义由调用方法名称和所属业务对象限定
+ * @param nameEn name En 输入值，含义由调用方法名称和所属业务对象限定
+ * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param sortNo sort No 输入值，含义由调用方法名称和所属业务对象限定
+ * @param remark remark 输入值，含义由调用方法名称和所属业务对象限定
+ * @param createTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @param updateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @return 当前方法计算或转换后的业务结果
+ */
     private MccVO.MccTreeNodeVO baseNode(String type, Long id, String parentNodeKey, Integer level, String code,
                                          String nameCn, String nameEn, Integer status, Integer sortNo, String remark,
                                          LocalDateTime createTime, LocalDateTime updateTime) {
@@ -921,6 +1192,15 @@ public class AdminBaseMccApplicationService {
         return node;
     }
 
+    /**
+     * 计算 add Child 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param parent parent 输入值，含义由调用方法名称和所属业务对象限定
+     * @param child child 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void addChild(MccVO.MccTreeNodeVO parent, MccVO.MccTreeNodeVO child) {
         if (parent == null || child == null) {
             return;
@@ -929,6 +1209,15 @@ public class AdminBaseMccApplicationService {
         parent.getChildren().sort(Comparator.comparing(MccVO.MccTreeNodeVO::getSortNo, Comparator.nullsLast(Integer::compareTo)));
     }
 
+    /**
+     * 转换生成 to Code VO 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private MccVO.MccCodeVO toCodeVO(MccEntities.BaseMccCodeDO row) {
         MccVO.MccCodeVO vo = new MccVO.MccCodeVO();
         vo.setId(row.getId());
@@ -953,6 +1242,16 @@ public class AdminBaseMccApplicationService {
         return vo;
     }
 
+    /**
+     * 填充 fill Category Path 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param vo vo 输入值，含义由调用方法名称和所属业务对象限定
+     * @param level1Id level1 Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param level2Id level2 Id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillCategoryPath(MccVO.MccCodeVO vo, Long level1Id, Long level2Id) {
         if (level2Id != null) {
             MccEntities.BaseMccLevel2DO level2 = level2Mapper.selectById(level2Id);
@@ -970,6 +1269,15 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 转换生成 to Policy VO 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private MccVO.MccRiskPolicyVO toPolicyVO(MccEntities.BaseMccRiskPolicyDO row) {
         MccVO.MccRiskPolicyVO vo = new MccVO.MccRiskPolicyVO();
         vo.setId(row.getId());
@@ -997,6 +1305,15 @@ public class AdminBaseMccApplicationService {
         return vo;
     }
 
+    /**
+     * 填充 fill Country Name 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param vo vo 输入值，含义由调用方法名称和所属业务对象限定
+     * @param countryCode country Code 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillCountryName(MccVO.MccRiskPolicyVO vo, String countryCode) {
         if (!StringUtils.hasText(countryCode)) {
             return;
@@ -1011,6 +1328,15 @@ public class AdminBaseMccApplicationService {
         }
     }
 
+    /**
+     * 完成 card Scheme Label 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param cardScheme 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String cardSchemeLabel(String cardScheme) {
         SysDictDataQueryRequest query = new SysDictDataQueryRequest();
         query.setDictType(CARD_BRAND_DICT);
@@ -1020,6 +1346,16 @@ public class AdminBaseMccApplicationService {
         return rows.isEmpty() ? cardScheme : rows.get(0).getDictLabel();
     }
 
+    /**
+     * 转换生成 to Export Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private MccCodeExportRow toExportRow(MccEntities.BaseMccCodeDO row, Locale locale) {
         MccVO.MccCodeVO code = toCodeVO(row);
         MccCodeExportRow exportRow = new MccCodeExportRow();
@@ -1043,6 +1379,20 @@ public class AdminBaseMccApplicationService {
         return exportRow;
     }
 
+    /**
+     * 完成 option 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param nameCn name Cn 输入值，含义由调用方法名称和所属业务对象限定
+     * @param nameEn name En 输入值，含义由调用方法名称和所属业务对象限定
+     * @param nodeType node Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param parentId parent Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MccVO.MccOptionVO option(Long id, String code, String nameCn, String nameEn, String nodeType, Long parentId) {
         MccVO.MccOptionVO option = new MccVO.MccOptionVO();
         option.setId(id);
@@ -1055,6 +1405,14 @@ public class AdminBaseMccApplicationService {
         return option;
     }
 
+    /**
+     * 完成 soft Delete Level1 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void softDeleteLevel1(MccEntities.BaseMccLevel1DO row) {
         row.setStatus(DISABLED);
         row.setDeleted(row.getId());
@@ -1062,6 +1420,14 @@ public class AdminBaseMccApplicationService {
         level1Mapper.updateById(row);
     }
 
+    /**
+     * 完成 soft Delete Level2 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void softDeleteLevel2(MccEntities.BaseMccLevel2DO row) {
         row.setStatus(DISABLED);
         row.setDeleted(row.getId());
@@ -1069,6 +1435,15 @@ public class AdminBaseMccApplicationService {
         level2Mapper.updateById(row);
     }
 
+    /**
+     * 完成 get Level1 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MccEntities.BaseMccLevel1DO getLevel1(Long id) {
         MccEntities.BaseMccLevel1DO row = level1Mapper.selectById(id);
         if (row == null || !Objects.equals(row.getDeleted(), NOT_DELETED)) {
@@ -1077,6 +1452,15 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 完成 get Level2 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MccEntities.BaseMccLevel2DO getLevel2(Long id) {
         MccEntities.BaseMccLevel2DO row = level2Mapper.selectById(id);
         if (row == null || !Objects.equals(row.getDeleted(), NOT_DELETED)) {
@@ -1085,6 +1469,15 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 完成 get Code By Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MccEntities.BaseMccCodeDO getCodeById(Long id) {
         MccEntities.BaseMccCodeDO row = codeMapper.selectById(id);
         if (row == null || !Objects.equals(row.getDeleted(), NOT_DELETED)) {
@@ -1093,6 +1486,15 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 完成 get Policy 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MccEntities.BaseMccRiskPolicyDO getPolicy(Long id) {
         MccEntities.BaseMccRiskPolicyDO row = riskPolicyMapper.selectById(id);
         if (row == null || !Objects.equals(row.getDeleted(), NOT_DELETED)) {
@@ -1101,6 +1503,14 @@ public class AdminBaseMccApplicationService {
         return row;
     }
 
+    /**
+     * 完成 base Level1 Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccLevel1DO> baseLevel1Query() {
         return Wrappers.<MccEntities.BaseMccLevel1DO>lambdaQuery()
                 .eq(MccEntities.BaseMccLevel1DO::getDeleted, NOT_DELETED)
@@ -1108,6 +1518,14 @@ public class AdminBaseMccApplicationService {
                 .orderByAsc(MccEntities.BaseMccLevel1DO::getId);
     }
 
+    /**
+     * 完成 base Level2 Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccLevel2DO> baseLevel2Query() {
         return Wrappers.<MccEntities.BaseMccLevel2DO>lambdaQuery()
                 .eq(MccEntities.BaseMccLevel2DO::getDeleted, NOT_DELETED)
@@ -1115,16 +1533,42 @@ public class AdminBaseMccApplicationService {
                 .orderByAsc(MccEntities.BaseMccLevel2DO::getId);
     }
 
+    /**
+     * 完成 base Code Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccCodeDO> baseCodeQuery() {
         return Wrappers.<MccEntities.BaseMccCodeDO>lambdaQuery()
                 .eq(MccEntities.BaseMccCodeDO::getDeleted, NOT_DELETED);
     }
 
+    /**
+     * 完成 base Policy Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LambdaQueryWrapper<MccEntities.BaseMccRiskPolicyDO> basePolicyQuery() {
         return Wrappers.<MccEntities.BaseMccRiskPolicyDO>lambdaQuery()
                 .eq(MccEntities.BaseMccRiskPolicyDO::getDeleted, NOT_DELETED);
     }
 
+    /**
+     * 标准化 normalize Required 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @return 标准化后的业务字段值
+     */
     private String normalizeRequired(String value, String message) {
         if (!StringUtils.hasText(value)) {
             throw badRequest(message);
@@ -1132,22 +1576,68 @@ public class AdminBaseMccApplicationService {
         return value.trim();
     }
 
+    /**
+     * 完成 default If Blank 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value.trim() : defaultValue;
     }
 
+    /**
+     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 完成 default Sort 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sortNo sort No 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int defaultSort(Integer sortNo) {
         return sortNo == null ? 100 : sortNo;
     }
 
+    /**
+     * 完成 default Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int defaultStatus(Integer status) {
         return status == null ? ENABLED : validStatus(status);
     }
 
+    /**
+     * 完成 valid Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int validStatus(Integer status) {
         if (!Objects.equals(status, ENABLED) && !Objects.equals(status, DISABLED)) {
             throw badRequest("status must be 0 or 1");
@@ -1155,6 +1645,16 @@ public class AdminBaseMccApplicationService {
         return status;
     }
 
+    /**
+     * 完成 default Flag 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param flag flag 输入值，含义由调用方法名称和所属业务对象限定
+     * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int defaultFlag(Integer flag, int defaultValue) {
         if (flag == null) {
             return defaultValue;
@@ -1165,10 +1665,28 @@ public class AdminBaseMccApplicationService {
         return flag;
     }
 
+    /**
+     * 完成 non Null Count 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param count count 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private long nonNullCount(Long count) {
         return count == null ? 0L : count;
     }
 
+    /**
+     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);
     }

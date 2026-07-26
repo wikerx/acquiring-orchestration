@@ -18,8 +18,22 @@ import org.springframework.util.StringUtils;
 @Component
 public class MpgsResponseMapper {
 
+    /**
+     * trade Status Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final MpgsTradeStatusMapper tradeStatusMapper;
 
+    /**
+     * error Code Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final MpgsErrorCodeMapper errorCodeMapper;
 
     /**
@@ -203,6 +217,15 @@ public class MpgsResponseMapper {
         return paymentMethodSummary;
     }
 
+    /**
+     * 判断 has Payment Method Summary 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param summary summary 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasPaymentMethodSummary(MpgsResponseSummary summary) {
         return StringUtils.hasText(summary.getSourceOfFundsType())
                 || StringUtils.hasText(summary.getCardBrand())
@@ -213,6 +236,15 @@ public class MpgsResponseMapper {
                 || StringUtils.hasText(summary.getStoredOnFile());
     }
 
+    /**
+     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {

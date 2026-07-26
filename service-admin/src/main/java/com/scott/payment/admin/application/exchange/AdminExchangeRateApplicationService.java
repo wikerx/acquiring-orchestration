@@ -36,37 +36,74 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminExchangeRateApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 汇率管理Admin Exchange Rate Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminExchangeRateApplicationService 应用服务，用于编排接口请求、权限上下文、领域服务和外部依赖，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class AdminExchangeRateApplicationService {
 
+    /**
+     * EXPORT TIME FORMATTER 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
-     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     * admin Exchange Rate Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final AdminExchangeRateService adminExchangeRateService;
+
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Export Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelExportService excelExportService;
+
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel I18n Message Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Locale Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
+/**
+ * 创建 AdminExchangeRateApplicationService 实例并注入其运行所需依赖。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param adminExchangeRateService admin Exchange Rate Service 输入值，含义由调用方法名称和所属业务对象限定
+ * @param excelExportService excel Export Service 输入值，含义由调用方法名称和所属业务对象限定
+ * @param excelI18nMessageResolver 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+ * @param excelLocaleResolver excel Locale Resolver 输入值，含义由调用方法名称和所属业务对象限定
+ */
     public AdminExchangeRateApplicationService(AdminExchangeRateService adminExchangeRateService,
                                                ExcelExportService excelExportService,
                                                ExcelI18nMessageResolver excelI18nMessageResolver,
@@ -83,11 +120,6 @@ public class AdminExchangeRateApplicationService {
      * @param query 查询条件，允许为空
      * @return 汇率源分页结果
      */
-    /**
-     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<SourceResponse> pageSources(SourceQuery query) {
         return adminExchangeRateService.pageSources(query);
     }
@@ -98,12 +130,6 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportSources(SourceQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -119,11 +145,6 @@ public class AdminExchangeRateApplicationService {
      * @param id 汇率源主键
      * @return 汇率源详情
      */
-    /**
-     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SourceResponse getSource(Long id) {
         return adminExchangeRateService.getSource(id);
     }
@@ -133,11 +154,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 保存请求
      * @return 新增后的汇率源详情
-     */
-    /**
-     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public SourceResponse createSource(SourceSaveRequest request) {
         return adminExchangeRateService.createSource(request);
@@ -150,12 +166,6 @@ public class AdminExchangeRateApplicationService {
      * @param request 保存请求
      * @return 修改后的汇率源详情
      */
-    /**
-     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SourceResponse updateSource(Long id, SourceSaveRequest request) {
         return adminExchangeRateService.updateSource(id, request);
     }
@@ -167,12 +177,6 @@ public class AdminExchangeRateApplicationService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的汇率源详情
      */
-    /**
-     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SourceResponse updateSourceStatus(Long id, Integer status) {
         return adminExchangeRateService.updateSourceStatus(id, status);
     }
@@ -181,10 +185,6 @@ public class AdminExchangeRateApplicationService {
      * 删除未被引用的汇率源。
      *
      * @param id 汇率源主键
-     */
-    /**
-     * 删除汇率管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void deleteSource(Long id) {
         adminExchangeRateService.deleteSource(id);
@@ -196,11 +196,6 @@ public class AdminExchangeRateApplicationService {
      * @param query 查询条件，允许为空
      * @return 原始汇率分页结果
      */
-    /**
-     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<RawRateResponse> pageRawRates(RawRateQuery query) {
         return adminExchangeRateService.pageRawRates(query);
     }
@@ -211,12 +206,6 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportRawRates(RawRateQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -232,11 +221,6 @@ public class AdminExchangeRateApplicationService {
      * @param id 原始汇率主键
      * @return 原始汇率详情
      */
-    /**
-     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public RawRateResponse getRawRate(Long id) {
         return adminExchangeRateService.getRawRate(id);
     }
@@ -246,11 +230,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 原始汇率保存请求
      * @return 新增后的原始汇率详情
-     */
-    /**
-     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public RawRateResponse createManualRawRate(RawRateSaveRequest request) {
         return adminExchangeRateService.createManualRawRate(request);
@@ -263,12 +242,6 @@ public class AdminExchangeRateApplicationService {
      * @param voidReason 作废原因
      * @return 作废后的原始汇率详情
      */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param voidReason 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public RawRateResponse voidRawRate(Long id, String voidReason) {
         return adminExchangeRateService.voidRawRate(id, voidReason);
     }
@@ -278,11 +251,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param query 查询条件，允许为空
      * @return 汇率规则分页结果
-     */
-    /**
-     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<RuleResponse> pageRules(RuleQuery query) {
         return adminExchangeRateService.pageRules(query);
@@ -294,12 +262,6 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportRules(RuleQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -315,11 +277,6 @@ public class AdminExchangeRateApplicationService {
      * @param id 规则主键
      * @return 汇率规则详情
      */
-    /**
-     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public RuleResponse getRule(Long id) {
         return adminExchangeRateService.getRule(id);
     }
@@ -329,11 +286,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 规则保存请求
      * @return 新增后的规则详情
-     */
-    /**
-     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public RuleResponse createRule(RuleSaveRequest request) {
         return adminExchangeRateService.createRule(request);
@@ -346,12 +298,6 @@ public class AdminExchangeRateApplicationService {
      * @param request 规则保存请求
      * @return 修改后的规则详情
      */
-    /**
-     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public RuleResponse updateRule(Long id, RuleSaveRequest request) {
         return adminExchangeRateService.updateRule(id, request);
     }
@@ -363,12 +309,6 @@ public class AdminExchangeRateApplicationService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的规则详情
      */
-    /**
-     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public RuleResponse updateRuleStatus(Long id, Integer status) {
         return adminExchangeRateService.updateRuleStatus(id, status);
     }
@@ -378,11 +318,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param query 查询条件，允许为空
      * @return 业务汇率分页结果
-     */
-    /**
-     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<BusinessRateResponse> pageBusinessRates(BusinessRateQuery query) {
         return adminExchangeRateService.pageBusinessRates(query);
@@ -394,12 +329,6 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportBusinessRates(BusinessRateQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -415,11 +344,6 @@ public class AdminExchangeRateApplicationService {
      * @param id 业务汇率主键
      * @return 业务汇率详情
      */
-    /**
-     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public BusinessRateResponse getBusinessRate(Long id) {
         return adminExchangeRateService.getBusinessRate(id);
     }
@@ -429,11 +353,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 业务汇率保存请求
      * @return 新增后的业务汇率
-     */
-    /**
-     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public BusinessRateResponse createManualBusinessRate(BusinessRateSaveRequest request) {
         return adminExchangeRateService.createManualBusinessRate(request);
@@ -445,11 +364,6 @@ public class AdminExchangeRateApplicationService {
      * @param request 批量保存请求
      * @return 新增后的业务汇率列表
      */
-    /**
-     * 创建或保存汇率管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public List<BusinessRateResponse> createManualBusinessRates(BusinessRateBatchSaveRequest request) {
         return adminExchangeRateService.createManualBusinessRates(request);
     }
@@ -459,11 +373,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param request 业务汇率生成请求
      * @return 生成后的业务汇率详情
-     */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public BusinessRateResponse generateBusinessRate(GenerateBusinessRateRequest request) {
         return adminExchangeRateService.generateBusinessRate(request);
@@ -476,12 +385,6 @@ public class AdminExchangeRateApplicationService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的业务汇率详情
      */
-    /**
-     * 更新汇率管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public BusinessRateResponse updateBusinessRateStatus(Long id, Integer status) {
         return adminExchangeRateService.updateBusinessRateStatus(id, status);
     }
@@ -491,11 +394,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param query 查询条件，允许为空
      * @return 汇率使用快照分页结果
-     */
-    /**
-     * 查询汇率管理列表或分页数据，供页面筛选和展示使用。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<UsageSnapshotResponse> pageUsageSnapshots(UsageSnapshotQuery query) {
         return adminExchangeRateService.pageUsageSnapshots(query);
@@ -507,12 +405,6 @@ public class AdminExchangeRateApplicationService {
      * @param query    查询条件，允许为空
      * @param operator 导出人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportUsageSnapshots(UsageSnapshotQuery query, String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -527,11 +419,6 @@ public class AdminExchangeRateApplicationService {
      *
      * @param id 快照主键
      * @return 汇率使用快照详情
-     */
-    /**
-     * 获取汇率管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public UsageSnapshotResponse getUsageSnapshot(Long id) {
         return adminExchangeRateService.getUsageSnapshot(id);
@@ -556,6 +443,16 @@ public class AdminExchangeRateApplicationService {
         );
     }
 
+    /**
+     * 转换生成 to Source Export Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ExchangeRateSourceExportRow toSourceExportRow(SourceResponse source, Locale locale) {
         ExchangeRateSourceExportRow row = new ExchangeRateSourceExportRow();
         row.setSourceCode(source.getSourceCode());
@@ -574,6 +471,16 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 转换生成 to Raw Rate Export Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ExchangeRawRateExportRow toRawRateExportRow(RawRateResponse source, Locale locale) {
         ExchangeRawRateExportRow row = new ExchangeRawRateExportRow();
         row.setSourceCode(source.getSourceCode());
@@ -595,6 +502,16 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 转换生成 to Rule Export Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ExchangeRateRuleExportRow toRuleExportRow(RuleResponse source, Locale locale) {
         ExchangeRateRuleExportRow row = new ExchangeRateRuleExportRow();
         row.setRateType(resolveEnum("rateType", source.getRateType(), locale));
@@ -616,6 +533,16 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 转换生成 to Business Rate Export Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ExchangeBusinessRateExportRow toBusinessRateExportRow(BusinessRateResponse source, Locale locale) {
         ExchangeBusinessRateExportRow row = new ExchangeBusinessRateExportRow();
         row.setRateType(resolveEnum("rateType", source.getRateType(), locale));
@@ -636,6 +563,16 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 转换生成 to Usage Snapshot Export Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ExchangeRateUsageSnapshotExportRow toUsageSnapshotExportRow(UsageSnapshotResponse source, Locale locale) {
         ExchangeRateUsageSnapshotExportRow row = new ExchangeRateUsageSnapshotExportRow();
         row.setRateType(resolveEnum("rateType", source.getRateType(), locale));
@@ -654,6 +591,17 @@ public class AdminExchangeRateApplicationService {
         return row;
     }
 
+    /**
+     * 解析 resolve Enum 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param group group 输入值，含义由调用方法名称和所属业务对象限定
+     * @param value 待校验或转换的原始值
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveEnum(String group, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -661,18 +609,55 @@ public class AdminExchangeRateApplicationService {
         return excelI18nMessageResolver.resolve("excel.exchange.enum." + group + "." + value, locale);
     }
 
+    /**
+     * 解析 resolve Status 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveStatus(Integer status, Locale locale) {
         return excelI18nMessageResolver.resolve(status != null && status == 1 ? "excel.common.enabled" : "excel.common.disabled", locale);
     }
 
+    /**
+     * 解析 resolve Boolean 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveBoolean(Integer value, Locale locale) {
         return excelI18nMessageResolver.resolve(value != null && value == 1 ? "excel.common.yes" : "excel.common.no", locale);
     }
 
+    /**
+     * 完成 query Summary 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String querySummary(Locale locale) {
         return excelI18nMessageResolver.resolve("excel.common.noCondition", locale);
     }
 
+    /**
+     * 完成 timestamp Suffix 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String timestampSuffix() {
         return EXPORT_TIME_FORMATTER.format(LocalDateTime.now());
     }

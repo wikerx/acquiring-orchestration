@@ -23,15 +23,6 @@ import java.util.Map;
  * <p>负责管理后台服务器监控用例编排，采集当前节点的 CPU、JVM、系统与磁盘等运行指标，
  * 并组装为前端监控页面可直接消费的结构化数据。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorServerApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Admin Monitor Server Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminMonitorServerApplicationService {
 
@@ -39,10 +30,6 @@ public class AdminMonitorServerApplicationService {
      * 采集当前节点的 CPU、JVM、系统和磁盘运行信息。
      *
      * @return 服务器监控摘要
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public Map<String, Object> serverInfo() {
         Map<String, Object> result = new LinkedHashMap<>();

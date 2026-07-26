@@ -4,16 +4,17 @@ import lombok.Data;
 
 import java.io.Serializable;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : JwtMerchantClaims
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : 商户 JWT 授权声明，位于 component-security 安全组件层，只保存已验签 token 中允许在请求上下文传递的非敏感声明。
+ * @description : JwtMerchantClaims Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class JwtMerchantClaims implements Serializable {
 
     /**

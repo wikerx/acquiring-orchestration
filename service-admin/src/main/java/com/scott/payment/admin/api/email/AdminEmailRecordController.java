@@ -18,17 +18,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+@RestController
+@RequestMapping("/admin/email/records")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminEmailRecordController
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-04 16:11
  * @email : scott_x@163.com
- * @description : 邮件管理Admin Email Record 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminEmailRecordController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
-@RequestMapping("/admin/email/records")
 public class AdminEmailRecordController {
 
     /**
@@ -36,35 +36,60 @@ public class AdminEmailRecordController {
      */
     private final AdminEmailApplicationService emailApplicationService;
 
+    /**
+     * 创建 AdminEmailRecordController 实例并注入其运行所需依赖。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param emailApplicationService email Application Service 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public AdminEmailRecordController(AdminEmailApplicationService emailApplicationService) {
         this.emailApplicationService = emailApplicationService;
     }
 
     @PostMapping("/search")
     @RequiresPermission("email:record:list")
+    /**
+     * 完成 page Records 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<PageResult<EmailRecordResponse>> pageRecords(@RequestBody(required = false) EmailRecordQuery query) {
         return success(emailApplicationService.pageRecords(query));
     }
 
-    /**
-     * 获取邮件管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/{id}")
     @RequiresPermission("email:record:detail")
+    /**
+     * 完成 get Record 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<EmailRecordResponse> getRecord(@PathVariable("id") Long id) {
         return success(emailApplicationService.getRecord(id));
     }
 
-    /**
-     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/{id}/resend")
     @RequiresPermission("email:record:resend")
     @OperationLog(moduleName = "邮件发送记录", businessType = OperationTypeConstants.UPDATE, operation = "重新发送邮件")
+    /**
+     * 完成 resend 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<EmailSendResult> resend(@PathVariable("id") Long id) {
         return success(emailApplicationService.resend(id));
     }

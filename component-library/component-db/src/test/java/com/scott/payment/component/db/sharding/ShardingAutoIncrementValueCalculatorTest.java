@@ -6,13 +6,14 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingAutoIncrementValueCalculatorTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 分表 AUTO_INCREMENT 起始值计算测试。 <p>验证 yyyyQQ + 12 位自增序号的边界，避免超过 MySQL BIGINT 有符号范围。</p>
+ * @description : ShardingAutoIncrementValueCalculatorTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 class ShardingAutoIncrementValueCalculatorTest {

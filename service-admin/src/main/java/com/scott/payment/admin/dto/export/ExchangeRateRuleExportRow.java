@@ -6,28 +6,36 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ExchangeRateRuleExportRow
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 收单支付Exchange Rate Rule Export Row，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ExchangeRateRuleExportRow 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class ExchangeRateRuleExportRow {
 
-    /**
-     * 收单支付金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
-     */
     @ExcelExportColumn(order = 1, headerKey = "excel.exchange.common.rateType", width = 18)
+    /**
+     * rate Type 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String rateType;
 
-    /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
-     */
     @ExcelExportColumn(order = 2, headerKey = "excel.exchange.common.sourceCode", width = 18)
+    /**
+     * source Code 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String sourceCode;
 
     /**
@@ -42,64 +50,104 @@ public class ExchangeRateRuleExportRow {
     @ExcelExportColumn(order = 4, headerKey = "excel.exchange.common.quoteCurrency", width = 14)
     private String quoteCurrency;
 
-    /**
-     * 收单支付金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
-     */
     @ExcelExportColumn(order = 5, headerKey = "excel.exchange.rule.rateField", width = 18)
+    /**
+     * rate Field 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String rateField;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 6, headerKey = "excel.exchange.rule.adjustDirection", width = 16)
+    /**
+     * adjust Direction 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String adjustDirection;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 7, headerKey = "excel.exchange.rule.adjustMethod", width = 16)
+    /**
+     * adjust Method 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String adjustMethod;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 8, headerKey = "excel.exchange.rule.adjustValue", width = 18)
+    /**
+     * adjust Value 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BigDecimal adjustValue;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 9, headerKey = "excel.exchange.rule.decimalScale", width = 14)
+    /**
+     * decimal Scale 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer decimalScale;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 10, headerKey = "excel.exchange.rule.roundingMode", width = 18)
+    /**
+     * rounding Mode 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String roundingMode;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 11, headerKey = "excel.exchange.source.priority", width = 12)
+    /**
+     * priority 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer priority;
 
-    /**
-     * 收单支付时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
-     */
     @ExcelExportColumn(order = 12, headerKey = "excel.exchange.rule.effectiveStartTime", width = 22)
+    /**
+     * effective Start Time 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private LocalDateTime effectiveStartTime;
 
-    /**
-     * 收单支付时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
-     */
     @ExcelExportColumn(order = 13, headerKey = "excel.exchange.rule.effectiveEndTime", width = 22)
+    /**
+     * effective End Time 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private LocalDateTime effectiveEndTime;
 
-    /**
-     * 收单支付状态字段，取值需与数据字典或枚举约定保持一致。
-     */
     @ExcelExportColumn(order = 14, headerKey = "excel.exchange.rule.ruleStatus", width = 12)
+    /**
+     * rule Status 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String ruleStatus;
 
     /**
@@ -108,9 +156,13 @@ public class ExchangeRateRuleExportRow {
     @ExcelExportColumn(order = 15, headerKey = "excel.exchange.common.remark", width = 30)
     private String remark;
 
-    /**
-     * 收单支付时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
-     */
     @ExcelExportColumn(order = 16, headerKey = "excel.exchange.common.updateTime", width = 22)
+    /**
+     * update Time 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private LocalDateTime updateTime;
 }

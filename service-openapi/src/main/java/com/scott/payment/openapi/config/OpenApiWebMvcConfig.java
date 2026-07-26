@@ -10,17 +10,18 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.List;
 
+
+@Configuration
+@EnableConfigurationProperties(OpenApiCallbackProperties.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiWebMvcConfig
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI Web MVC 配置，注册安全拦截器和解密 DTO 参数解析器，确保商户接口统一进入安全链路。
+ * @description : OpenApiWebMvcConfig Spring 配置类，用于注册当前模块所需 Bean、客户端和拦截器，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Configuration
-@EnableConfigurationProperties(OpenApiCallbackProperties.class)
 public class OpenApiWebMvcConfig implements WebMvcConfigurer {
 
     /**

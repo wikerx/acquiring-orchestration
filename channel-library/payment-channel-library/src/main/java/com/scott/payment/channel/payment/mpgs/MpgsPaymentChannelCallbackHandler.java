@@ -23,8 +23,22 @@ import java.math.BigDecimal;
 @Component
 public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallbackHandler {
 
+    /**
+     * trade Status Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final MpgsTradeStatusMapper tradeStatusMapper;
 
+    /**
+     * error Code Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final MpgsErrorCodeMapper errorCodeMapper;
 
     /**
@@ -47,6 +61,14 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
     }
 
     @Override
+    /**
+     * 完成 channel Code 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     public String channelCode() {
         return PaymentChannelCode.MPGS.getCode();
     }
@@ -91,12 +113,30 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         return result;
     }
 
+    /**
+     * 完成 callback Event Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param payload payload 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String callbackEventId(MpgsResponsePayload payload) {
         String orderId = payload.getOrder() == null ? null : payload.getOrder().getId();
         String transactionId = payload.getTransaction() == null ? null : payload.getTransaction().getId();
         return firstText(transactionId, orderId);
     }
 
+    /**
+     * 完成 channel Response Code 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param payload payload 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String channelResponseCode(MpgsResponsePayload payload) {
         if (payload.getResponse() != null && StringUtils.hasText(payload.getResponse().getAcquirerCode())) {
             return payload.getResponse().getAcquirerCode();
@@ -104,6 +144,15 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         return errorCodeMapper.responseCode(payload);
     }
 
+    /**
+     * 解析 parse Amount 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param payload payload 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     */
     private BigDecimal parseAmount(MpgsResponsePayload payload) {
         if (payload.getTransaction() != null && payload.getTransaction().getAmount() != null) {
             return payload.getTransaction().getAmount();
@@ -111,12 +160,31 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         return payload.getOrder() == null ? null : payload.getOrder().getAmount();
     }
 
+    /**
+     * 完成 put 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @param value 待校验或转换的原始值
+     */
     private void put(ChannelCallbackResult result, String key, String value) {
         if (StringUtils.hasText(value)) {
             result.getExtension().put(key, value);
         }
     }
 
+    /**
+     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;

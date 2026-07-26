@@ -31,6 +31,7 @@ import com.scott.payment.payment.service.ChannelTransactionStatusResolver;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +54,7 @@ import java.util.Optional;
  * @status : create
  */
 @Service
+@Slf4j
 public class DefaultTransactionCallbackService implements TransactionCallbackService {
 
     /**
@@ -150,18 +152,67 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      */
     private static final int NOT_DELETED = 0;
 
+    /**
+     * callback Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionChannelCallbackLogMapper callbackLogMapper;
 
+    /**
+     * callback Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionChannelCallbackMapper callbackMapper;
 
+    /**
+     * transaction Record Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionRecordService transactionRecordService;
 
+    /**
+     * transaction Event Outbox Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionEventOutboxService transactionEventOutboxService;
 
+    /**
+     * sharding Data Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ShardingDataTemplate shardingDataTemplate;
 
+    /**
+     * transaction Sharding Key Parser 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionShardingKeyParser transactionShardingKeyParser;
 
+    /**
+     * callback Executor 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final Optional<PaymentChannelCallbackExecutor> callbackExecutor;
 
     /**
@@ -240,6 +291,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     @Transactional(rollbackFor = Exception.class)
     public TransactionChannelCallbackResultDTO recordChannelCallback(TransactionChannelCallbackCommandDTO commandDTO) {
         validate(commandDTO);
+        long startNanos = System.nanoTime();
+        log.info("event=PAYMENT_CHANNEL_CALLBACK_START channelCode={} callbackType={} requestUri={} sourceIp={} signatureValid={} ipAllowed={}",
+                normalizeChannelCode(commandDTO.getChannelCode()),
+                resolveCallbackType(commandDTO),
+                commandDTO.getRequestUri(),
+                commandDTO.getSourceIp(),
+                commandDTO.getSignatureValid(),
+                commandDTO.getIpAllowed());
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime receivedTime = commandDTO.getReceivedTime() == null ? now : commandDTO.getReceivedTime();
         ChannelCallbackResult channelCallbackResult = parseByChannelHandler(commandDTO);
@@ -254,6 +313,15 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         TransactionChannelCallbackDO existed = callbackMapper.selectByIdempotencyPhysical(
                 callbackTable, normalizeChannelCode(commandDTO.getChannelCode()), idempotencyKey);
         if (existed != null) {
+            log.info("event=PAYMENT_CHANNEL_CALLBACK_DUPLICATE channelCode={} callbackLogId={} callbackId={} transactionId={} operationId={} idempotencyKey={} callbackStatus={} durationMs={}",
+                    normalizeChannelCode(commandDTO.getChannelCode()),
+                    callbackLogId,
+                    existed.getCallbackId(),
+                    existed.getTransactionId(),
+                    existed.getOperationId(),
+                    idempotencyKey,
+                    existed.getCallbackStatus(),
+                    elapsedMillis(startNanos));
             return duplicateResult(callbackLogId, existed);
         }
         callbackMapper.insertPhysical(callbackTable,
@@ -266,9 +334,33 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         resultDTO.setCallbackStatus(outcome.callbackStatus());
         resultDTO.setProcessResult(outcome.processResult());
         resultDTO.setFailReason(outcome.failReason());
+        log.info("event=PAYMENT_CHANNEL_CALLBACK_END channelCode={} callbackLogId={} callbackId={} transactionId={} operationId={} channelOrderNo={} channelTransactionId={} callbackStatus={} processResult={} durationMs={}",
+                normalizeChannelCode(commandDTO.getChannelCode()),
+                callbackLogId,
+                callbackId,
+                context.transactionId(),
+                context.operationId(),
+                context.channelOrderNo(),
+                context.channelTransactionId(),
+                outcome.callbackStatus(),
+                outcome.processResult(),
+                elapsedMillis(startNanos));
         return resultDTO;
     }
 
+/**
+ * 构建 build Callback Log 对应的领域对象、请求对象或日志对象。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param context context 输入值，含义由调用方法名称和所属业务对象限定
+ * @param callbackLogId callback Log Id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param receivedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private TransactionChannelCallbackLogDO buildCallbackLog(TransactionChannelCallbackCommandDTO commandDTO,
                                                             CallbackContext context,
                                                             String callbackLogId,
@@ -286,7 +378,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         logDO.setHttpMethod(commandDTO.getHttpMethod());
         logDO.setSourceIp(commandDTO.getSourceIp());
         logDO.setRequestHeaderJsonMasked(maskedJson(commandDTO.getRequestHeaders()));
-        logDO.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJson(commandDTO.getRequestBody()));
+        logDO.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(commandDTO.getRequestBody()));
         logDO.setSignatureValid(Boolean.TRUE.equals(commandDTO.getSignatureValid()) ? 1 : 0);
         logDO.setIpAllowed(Boolean.TRUE.equals(commandDTO.getIpAllowed()) ? 1 : 0);
         logDO.setPlatformResponseCode("ACCEPTED");
@@ -297,6 +389,21 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return logDO;
     }
 
+/**
+ * 构建 build Callback 对应的领域对象、请求对象或日志对象。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param context context 输入值，含义由调用方法名称和所属业务对象限定
+ * @param callbackLogId callback Log Id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param callbackId callback Id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param idempotencyKey idempotency Key 输入值，含义由调用方法名称和所属业务对象限定
+ * @param receivedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private TransactionChannelCallbackDO buildCallback(TransactionChannelCallbackCommandDTO commandDTO,
                                                        CallbackContext context,
                                                        String callbackLogId,
@@ -330,6 +437,20 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return callbackDO;
     }
 
+/**
+ * 完成 process Callback If Possible 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param callbackTable callback Table 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelCallbackResult channel Callback Result 输入值，含义由调用方法名称和所属业务对象限定
+ * @param context context 输入值，含义由调用方法名称和所属业务对象限定
+ * @param callbackId callback Id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
     private CallbackProcessOutcome processCallbackIfPossible(String callbackTable,
                                                              TransactionChannelCallbackCommandDTO commandDTO,
                                                              ChannelCallbackResult channelCallbackResult,
@@ -337,16 +458,36 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                              String callbackId,
                                                              LocalDateTime now) {
         if (!context.transactionIdResolved() || context.operationDO() == null || context.orderDO() == null) {
+            log.warn("event=PAYMENT_CHANNEL_CALLBACK_UNRESOLVED channelCode={} transactionId={} channelOrderNo={} channelTransactionId={}",
+                    normalizeChannelCode(commandDTO.getChannelCode()),
+                    context.transactionId(),
+                    context.channelOrderNo(),
+                    context.channelTransactionId());
             return updateCallbackProcessResult(callbackTable, callbackId, CALLBACK_STATUS_FAILED, null, null,
                     null, null, "transaction_id can not be resolved from callback", now);
         }
         ParsedCallbackStatus parsedStatus = parseCallbackStatus(commandDTO, channelCallbackResult, context.operationDO().getTransactionType());
         if (parsedStatus.targetStatus() == null) {
+            log.warn("event=PAYMENT_CHANNEL_CALLBACK_STATUS_UNMAPPED channelCode={} callbackId={} transactionId={} operationId={} rawChannelStatus={} channelTradeStatus={}",
+                    normalizeChannelCode(commandDTO.getChannelCode()),
+                    callbackId,
+                    context.operationDO().getTransactionId(),
+                    context.operationDO().getOperationId(),
+                    channelCallbackResult == null ? null : channelCallbackResult.getRawChannelStatus(),
+                    channelCallbackResult == null ? null : channelCallbackResult.getChannelTradeStatus());
             return updateCallbackProcessResult(callbackTable, callbackId, CALLBACK_STATUS_RECEIVED, null,
                     context.operationDO().getTransactionStatus(), null, PROCESS_RESULT_PENDING,
                     "callback status can not be mapped yet", now);
         }
         if (!isTerminalStatus(parsedStatus.targetStatus())) {
+            log.info("event=PAYMENT_CHANNEL_CALLBACK_NON_TERMINAL channelCode={} callbackId={} transactionId={} operationId={} currentStatus={} parsedStatus={} channelStatus={}",
+                    normalizeChannelCode(commandDTO.getChannelCode()),
+                    callbackId,
+                    context.operationDO().getTransactionId(),
+                    context.operationDO().getOperationId(),
+                    context.operationDO().getTransactionStatus(),
+                    parsedStatus.targetStatus(),
+                    parsedStatus.channelStatus());
             return updateCallbackProcessResult(callbackTable, callbackId, CALLBACK_STATUS_RECEIVED,
                     parsedStatus.targetStatus(),
                     context.operationDO().getTransactionStatus(),
@@ -365,6 +506,16 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 parsedStatus.channelStatus(),
                 parsedStatus.channelResponseCode(),
                 parsedStatus.channelResponseMessage());
+        log.info("event=PAYMENT_CHANNEL_CALLBACK_STATUS_APPLY channelCode={} callbackId={} transactionId={} operationId={} previousStatus={} targetStatus={} changed={} channelStatus={} channelResponseCode={}",
+                normalizeChannelCode(commandDTO.getChannelCode()),
+                callbackId,
+                context.operationDO().getTransactionId(),
+                context.operationDO().getOperationId(),
+                context.operationDO().getTransactionStatus(),
+                parsedStatus.targetStatus(),
+                changed,
+                parsedStatus.channelStatus(),
+                parsedStatus.channelResponseCode());
         if (changed) {
             saveCallbackProcessedEvent(context, parsedStatus, callbackId, now);
         }
@@ -392,6 +543,17 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus);
     }
 
+/**
+ * 写入或更新 save Callback Processed Event 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param context context 输入值，含义由调用方法名称和所属业务对象限定
+ * @param parsedStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param callbackId callback Id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void saveCallbackProcessedEvent(CallbackContext context,
                                             ParsedCallbackStatus parsedStatus,
                                             String callbackId,
@@ -440,8 +602,32 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         eventDO.setCreateTime(now);
         eventDO.setUpdateTime(now);
         transactionEventOutboxService.save(eventDO);
+        log.info("event=PAYMENT_CALLBACK_OUTBOX_SAVED callbackId={} transactionId={} operationId={} eventType={} topic={} tag={}",
+                callbackId,
+                operationDO.getTransactionId(),
+                operationDO.getOperationId(),
+                eventDO.getEventType(),
+                eventDO.getTopic(),
+                eventDO.getTag());
     }
 
+/**
+ * 写入或更新 update Callback Process Result 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param callbackTable callback Table 输入值，含义由调用方法名称和所属业务对象限定
+ * @param callbackId callback Id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param callbackStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param parsedTransactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param previousTransactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param targetTransactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param processResult process Result 输入值，含义由调用方法名称和所属业务对象限定
+ * @param failReason fail Reason 输入值，含义由调用方法名称和所属业务对象限定
+ * @param processedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @return 当前方法计算或转换后的业务结果
+ */
     private CallbackProcessOutcome updateCallbackProcessResult(String callbackTable,
                                                                String callbackId,
                                                                String callbackStatus,
@@ -463,6 +649,16 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return new CallbackProcessOutcome(callbackStatus, processResult, failReason);
     }
 
+    /**
+     * 完成 duplicate Result 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param callbackLogId callback Log Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param existed existed 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private TransactionChannelCallbackResultDTO duplicateResult(String callbackLogId, TransactionChannelCallbackDO existed) {
         TransactionChannelCallbackResultDTO resultDTO = new TransactionChannelCallbackResultDTO();
         resultDTO.setCallbackLogId(callbackLogId);
@@ -474,6 +670,16 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return resultDTO;
     }
 
+/**
+ * 解析 resolve Context 对应的业务值，按优先级从上下文、请求或配置中取值。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelCallbackResult channel Callback Result 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 解析或查询得到的业务值
+ */
     private CallbackContext resolveContext(TransactionChannelCallbackCommandDTO commandDTO,
                                            ChannelCallbackResult channelCallbackResult) {
         CallbackPayload payload = parsePayload(commandDTO, channelCallbackResult);
@@ -518,6 +724,17 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         );
     }
 
+/**
+ * 解析 resolve Callback Operation 对应的业务值，按优先级从上下文、请求或配置中取值。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+ * @param channelOrderNo channel Order No 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+ * @return 渠道 API 操作类型或平台操作映射结果
+ */
     private TransactionOperationDO resolveCallbackOperation(String transactionId,
                                                             String channelOrderNo,
                                                             String channelTransactionId) {
@@ -531,6 +748,16 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return transactionRecordService.findSourceOperationByTransactionId(transactionId);
     }
 
+/**
+ * 解析 parse Payload 输入文本并转换为内部可校验的数据结构。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelCallbackResult channel Callback Result 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 解析后的内部数据结构或业务值
+ */
     private CallbackPayload parsePayload(TransactionChannelCallbackCommandDTO commandDTO,
                                          ChannelCallbackResult channelCallbackResult) {
         return new CallbackPayload(
@@ -633,50 +860,154 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 channelCallbackResult.getChannelTradeStatus());
     }
 
+    /**
+     * 解析 resolve Callback Type 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveCallbackType(TransactionChannelCallbackCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getCallbackType()) ? commandDTO.getCallbackType() : DEFAULT_CALLBACK_TYPE;
     }
 
+    /**
+     * 标准化 normalize Channel Code 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelCode channel Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private String normalizeChannelCode(String channelCode) {
         return channelCode == null ? null : channelCode.toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 完成 masked Json 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String maskedJson(Object value) {
         if (value == null) {
             return null;
         }
-        return SensitiveDataMaskUtils.maskJson(JsonUtils.toJsonString(value));
+        return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(value));
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionChannelCallbackLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionChannelCallbackDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 转换生成 to Utc Time 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 转换或构建后的目标对象
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime) {
         return transactionDateTime.atZone(ZoneId.of(DEFAULT_TIME_ZONE)).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
+    /**
+     * 完成 physical Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
                 ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.MASTER));
     }
 
+    /**
+     * 解析 parse Transaction Date Time 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+     * @return 解析后的内部数据结构或业务值
+     */
     private LocalDateTime parseTransactionDateTime(String transactionId) {
         return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
     }
 
+    /**
+     * 解析 parse Operation Date Time 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private LocalDateTime parseOperationDateTime(String operationId) {
         return transactionShardingKeyParser.parseOperationDateTime(operationId);
     }
 
+    /**
+     * 完成 elapsed Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param startNanos start Nanos 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
+    }
+
+    /**
+     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -689,6 +1020,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return null;
     }
 
+    /**
+     * 校验 validate 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validate(TransactionChannelCallbackCommandDTO commandDTO) {
         if (commandDTO == null || !StringUtils.hasText(commandDTO.getChannelCode())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);

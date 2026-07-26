@@ -19,44 +19,64 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminJobSchedulerApplicationServiceTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-19 23:36
  * @email : scott_x@163.com
- * @description : 监控治理Admin Job Scheduler Application Service Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminJobSchedulerApplicationServiceTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@ExtendWith(MockitoExtension.class)
 class AdminJobSchedulerApplicationServiceTest {
 
-    /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * job Scheduler Internal Client 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private JobSchedulerInternalClient jobSchedulerInternalClient;
 
-    /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel Export Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExcelExportService excelExportService;
 
-    /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel I18n Message Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExcelI18nMessageResolver excelI18nMessageResolver;
 
-    /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel Locale Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExcelLocaleResolver excelLocaleResolver;
 
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Job Scheduler Application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private AdminJobSchedulerApplicationService adminJobSchedulerApplicationService;
 

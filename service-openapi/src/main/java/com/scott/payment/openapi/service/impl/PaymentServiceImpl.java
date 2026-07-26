@@ -136,41 +136,121 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    /**
+     * 完成 create Payment 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PaymentCreateVO createPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitPayment(encryptedData, requestDTO);
     }
 
     @Override
+    /**
+     * 完成 create Authorization 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PaymentCreateVO createAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.AUTHORIZATION);
     }
 
     @Override
+    /**
+     * 完成 create Pre Authorization 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PaymentCreateVO createPreAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.PRE_AUTHORIZATION);
     }
 
     @Override
+    /**
+     * 完成 create Incremental Authorization 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PaymentCreateVO createIncrementalAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION);
     }
 
     @Override
+    /**
+     * 完成 capture 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PaymentCreateVO capture(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.CAPTURE);
     }
 
     @Override
+    /**
+     * 完成 pre Auth Completion 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PaymentCreateVO preAuthCompletion(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
     }
 
     @Override
+    /**
+     * 完成 refund 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PaymentCreateVO refund(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.REFUND);
     }
 
     @Override
+    /**
+     * 完成 void Payment 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PaymentCreateVO voidPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.VOID);
     }
@@ -432,7 +512,7 @@ public class PaymentServiceImpl implements PaymentService {
         clientRequestDTO.setOpenApiRequestPath(resolveRequestPath());
         clientRequestDTO.setOpenApiRequestTime(LocalDateTime.now());
         clientRequestDTO.setMerchantRequestCipherMasked(maskCipher(encryptedData));
-        clientRequestDTO.setMerchantRequestPlainJsonMasked(SensitiveDataMaskUtils.maskJson(JsonUtils.toJsonString(requestDTO)));
+        clientRequestDTO.setMerchantRequestPlainJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(requestDTO)));
         clientRequestDTO.setSubMerchantInfo(converter.toPaymentClientSubMerchantInfo(
                 requestDTO.getMerchantInfo() == null ? null : requestDTO.getMerchantInfo().getSubMerchantInfo()));
         clientRequestDTO.setBillingCardHolderInfo(converter.toPaymentClientBillingCardHolderInfo(requestDTO.getBillingCardHolderInfo()));
@@ -587,6 +667,15 @@ public class PaymentServiceImpl implements PaymentService {
         return normalized.substring(0, 8) + "***" + normalized.substring(normalized.length() - 8);
     }
 
+    /**
+     * 完成 mask Card Bin 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String maskCardBin(ApiMerchantPaymentRequestDTO requestDTO) {
         if (requestDTO == null || requestDTO.getCardInfo() == null || !StringUtils.hasText(requestDTO.getCardInfo().getCardNo())) {
             return null;

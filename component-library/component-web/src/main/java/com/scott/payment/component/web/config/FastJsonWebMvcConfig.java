@@ -22,15 +22,6 @@ import java.util.List;
  * @description : Web 层统一 fastjson2 报文转换配置
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : FastJsonWebMvcConfig
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Fast Json Web Mvc 配置，位于 component-library/component-web 的配置层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Configuration
 public class FastJsonWebMvcConfig implements WebMvcConfigurer {
 
@@ -39,16 +30,21 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
      *
      * @param converters Spring MVC 当前注册的消息转换器列表
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param converters 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
         converters.removeIf(converter -> converter instanceof MappingJackson2HttpMessageConverter);
         converters.add(resolveFastJsonConverterIndex(converters), fastJsonHttpMessageConverter());
     }
 
+    /**
+     * 解析 resolve Fast Json Converter Index 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param converters converters 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private int resolveFastJsonConverterIndex(List<HttpMessageConverter<?>> converters) {
         for (int index = 0; index < converters.size(); index++) {
             if (converters.get(index) instanceof StringHttpMessageConverter) {
@@ -58,6 +54,14 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
         return 0;
     }
 
+    /**
+     * 完成 fast Json Http Message Converter 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private FastJsonHttpMessageConverter fastJsonHttpMessageConverter() {
         FastJsonHttpMessageConverter converter = new FastJsonHttpMessageConverter();
         converter.setSupportedMediaTypes(List.of(MediaType.APPLICATION_JSON));
@@ -65,6 +69,14 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
         return converter;
     }
 
+    /**
+     * 完成 fast Json Config 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private FastJsonConfig fastJsonConfig() {
         FastJsonConfig config = new FastJsonConfig();
         config.setReaderFeatures(JSONReader.Feature.FieldBased);

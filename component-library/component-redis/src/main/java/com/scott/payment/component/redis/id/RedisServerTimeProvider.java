@@ -7,13 +7,14 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.concurrent.TimeUnit;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : RedisServerTimeProvider
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : Redis Server Time 提供器，确保分布式编号使用 Redis 服务端时间。
+ * @description : RedisServerTimeProvider Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public class RedisServerTimeProvider {
@@ -36,10 +37,6 @@ public class RedisServerTimeProvider {
      * 获取 Redis 服务端毫秒时间。
      *
      * @return Redis 服务端 epochMillis
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public long currentTimeMillis() {
         try {

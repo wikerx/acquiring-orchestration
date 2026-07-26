@@ -30,17 +30,18 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+
+@RestController
+@RequestMapping("/internal/payment")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentInternalController
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : 收单支付内部交易接口，位于 service-payment 接口层，为每个交易动作提供独立内部入口并委托应用服务完成交易受理。
+ * @description : PaymentInternalController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
-@RequestMapping("/internal/payment")
 public class PaymentInternalController {
 
     /**

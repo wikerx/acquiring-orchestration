@@ -45,28 +45,112 @@ import java.util.Map;
 @Service
 public class DefaultTransactionMerchantNotificationService implements TransactionMerchantNotificationService {
 
+    /**
+     * TRANSACTION MERCHANT NOTIFICATION TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_TABLE = "transaction_merchant_notification";
 
+    /**
+     * TRANSACTION MERCHANT NOTIFICATION LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE = "transaction_merchant_notification_log";
 
+    /**
+     * NOTIFY LOG PREFIX 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String NOTIFY_LOG_PREFIX = "TNL";
 
+    /**
+     * DEFAULT TIME ZONE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
+    /**
+     * STATUS FAILED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String STATUS_FAILED = "FAILED";
 
+    /**
+     * STATUS CLOSED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String STATUS_CLOSED = "CLOSED";
 
+    /**
+     * BASE RETRY DELAY SECONDS 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final long BASE_RETRY_DELAY_SECONDS = 60L;
 
+    /**
+     * MAX FAIL REASON LENGTH 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final int MAX_FAIL_REASON_LENGTH = 512;
 
+    /**
+     * notification Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionMerchantNotificationMapper notificationMapper;
 
+    /**
+     * notification Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionMerchantNotificationLogMapper notificationLogMapper;
 
+    /**
+     * sharding Data Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ShardingDataTemplate shardingDataTemplate;
 
+    /**
+     * rest Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final RestTemplate restTemplate;
 
     /**
@@ -102,14 +186,27 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         if (limit <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "limit must be greater than zero");
         }
+        long startNanos = System.nanoTime();
         String table = physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
         List<TransactionMerchantNotificationDO> dueTasks = notificationMapper.selectDueForNotify(table, LocalDateTime.now(), limit);
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_DUE_START table={} transactionDateTime={} limit={} taskCount={}",
+                table,
+                transactionDateTime,
+                limit,
+                dueTasks.size());
         int successCount = 0;
         for (TransactionMerchantNotificationDO task : dueTasks) {
             if (notifySingle(table, task)) {
                 successCount++;
             }
         }
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_DUE_END table={} transactionDateTime={} limit={} taskCount={} successCount={} durationMs={}",
+                table,
+                transactionDateTime,
+                limit,
+                dueTasks.size(),
+                successCount,
+                elapsedMillis(startNanos));
         return successCount;
     }
 
@@ -128,24 +225,61 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         if (!StringUtils.hasText(transactionId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_id is required");
         }
+        long startNanos = System.nanoTime();
         String table = physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
         TransactionMerchantNotificationDO task = notificationMapper.selectReadyByTransactionId(
                 table, transactionId, LocalDateTime.now());
-        return task != null && notifySingle(table, task);
+        boolean notified = task != null && notifySingle(table, task);
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_TRANSACTION_END table={} transactionId={} taskFound={} notified={} durationMs={}",
+                table,
+                transactionId,
+                task != null,
+                notified,
+                elapsedMillis(startNanos));
+        return notified;
     }
 
+    /**
+     * 发送 notify Single 对应的外部通知、内部消息或远程请求。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param notificationTable notification Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param task task 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean notifySingle(String notificationTable, TransactionMerchantNotificationDO task) {
         LocalDateTime beginTime = LocalDateTime.now();
         if (notificationMapper.markProcessing(notificationTable, task.getId(), task.getVersion(), beginTime) != 1) {
+            log.info("event=PAYMENT_MERCHANT_NOTIFY_SKIP notifyId={} transactionId={} operationId={} reason=processingLockMiss",
+                    task.getNotifyId(),
+                    task.getTransactionId(),
+                    task.getOperationId());
             return false;
         }
         int processingVersion = task.getVersion() == null ? 1 : task.getVersion() + 1;
         int attemptNo = task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1;
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_START notifyId={} transactionId={} operationId={} merchantId={} merchantOrderNo={} attemptNo={} maxRetryCount={}",
+                task.getNotifyId(),
+                task.getTransactionId(),
+                task.getOperationId(),
+                task.getMerchantId(),
+                task.getMerchantOrderNo(),
+                attemptNo,
+                safeMaxRetry(task));
         NotifyAttemptResult result = executeHttpNotify(task, beginTime);
         LocalDateTime finishedTime = LocalDateTime.now();
         insertNotifyLog(task, attemptNo, result, beginTime, finishedTime);
         if (result.success()) {
             notificationMapper.markSuccess(notificationTable, task.getId(), processingVersion, finishedTime);
+            log.info("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId={} transactionId={} operationId={} attemptNo={} httpStatus={} success=true durationMs={}",
+                    task.getNotifyId(),
+                    task.getTransactionId(),
+                    task.getOperationId(),
+                    attemptNo,
+                    result.httpStatus(),
+                    durationMillis(beginTime, finishedTime));
             return true;
         }
         boolean exhausted = attemptNo >= safeMaxRetry(task);
@@ -157,9 +291,28 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
                 exhausted ? null : nextRetryTime(finishedTime, attemptNo),
                 safeLength(result.errorMessage(), MAX_FAIL_REASON_LENGTH),
                 finishedTime);
+        log.warn("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId={} transactionId={} operationId={} attemptNo={} httpStatus={} success=false nextStatus={} exhausted={} durationMs={}",
+                task.getNotifyId(),
+                task.getTransactionId(),
+                task.getOperationId(),
+                attemptNo,
+                result.httpStatus(),
+                exhausted ? STATUS_CLOSED : STATUS_FAILED,
+                exhausted,
+                durationMillis(beginTime, finishedTime));
         return false;
     }
 
+    /**
+     * 完成 execute Http Notify 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param task task 输入值，含义由调用方法名称和所属业务对象限定
+     * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private NotifyAttemptResult executeHttpNotify(TransactionMerchantNotificationDO task, LocalDateTime beginTime) {
         String targetUrl = resolveTargetUrl(task);
         if (!StringUtils.hasText(targetUrl)) {
@@ -177,15 +330,30 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
             return new NotifyAttemptResult(
                     success,
                     response.getStatusCode().value(),
-                    SensitiveDataMaskUtils.maskJson(responseBody),
+                    SensitiveDataMaskUtils.maskJsonSafely(responseBody),
                     success ? null : "merchant callback http status " + response.getStatusCode().value());
         } catch (RestClientException exception) {
-            log.warn("商户通知请求失败，notifyId：{}，transactionId：{}，原因：{}",
-                    task.getNotifyId(), task.getTransactionId(), exception.getMessage());
+            log.warn("event=PAYMENT_MERCHANT_NOTIFY_HTTP_FAILED notifyId={} transactionId={} operationId={} exceptionType={}",
+                    task.getNotifyId(),
+                    task.getTransactionId(),
+                    task.getOperationId(),
+                    exception.getClass().getSimpleName());
             return new NotifyAttemptResult(false, null, null, exception.getMessage());
         }
     }
 
+/**
+ * 写入或更新 insert Notify Log 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param task task 输入值，含义由调用方法名称和所属业务对象限定
+ * @param attemptNo attempt No 输入值，含义由调用方法名称和所属业务对象限定
+ * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+ * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @param finishedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ */
     private void insertNotifyLog(TransactionMerchantNotificationDO task,
                                  int attemptNo,
                                  NotifyAttemptResult result,
@@ -204,8 +372,8 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
                 "Content-Type", MediaType.APPLICATION_JSON_VALUE,
                 "X-OPGS-Notify-Id", task.getNotifyId(),
                 "X-OPGS-Transaction-Id", task.getTransactionId())));
-        logDO.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJson(task.getPayloadJsonMasked()));
-        logDO.setResponseBodyJsonMasked(SensitiveDataMaskUtils.maskJson(result.responseBody()));
+        logDO.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(task.getPayloadJsonMasked()));
+        logDO.setResponseBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(result.responseBody()));
         logDO.setSuccess(result.success() ? 1 : 0);
         logDO.setErrorMessage(safeLength(result.errorMessage(), 1024));
         logDO.setNotifyTime(beginTime);
@@ -217,6 +385,15 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
                 logDO);
     }
 
+    /**
+     * 解析 resolve Target Url 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param task task 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveTargetUrl(TransactionMerchantNotificationDO task) {
         if (!StringUtils.hasText(task.getNotifyConfigSnapshotJson())) {
             return null;
@@ -225,15 +402,44 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         return snapshot == null ? null : snapshot.getString("callbackUrl");
     }
 
+    /**
+     * 完成 next Retry Time 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param baseTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param attemptNo attempt No 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LocalDateTime nextRetryTime(LocalDateTime baseTime, int attemptNo) {
         long delaySeconds = BASE_RETRY_DELAY_SECONDS * Math.max(1, Math.min(attemptNo, 30));
         return baseTime.plusSeconds(delaySeconds);
     }
 
+    /**
+     * 完成 safe Max Retry 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param task task 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int safeMaxRetry(TransactionMerchantNotificationDO task) {
         return task.getMaxRetryCount() == null || task.getMaxRetryCount() <= 0 ? 1 : task.getMaxRetryCount();
     }
 
+    /**
+     * 完成 duration Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param startTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int durationMillis(LocalDateTime startTime, LocalDateTime endTime) {
         if (startTime == null || endTime == null) {
             return 0;
@@ -242,6 +448,15 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         return millis > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) millis;
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionMerchantNotificationLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(transactionDateTime.atZone(ZoneId.of(DEFAULT_TIME_ZONE))
@@ -250,16 +465,49 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 完成 physical Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
                 ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.MASTER));
     }
 
+    /**
+     * 完成 safe Length 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param maxLength max Length 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String safeLength(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
         }
         return value.substring(0, maxLength);
+    }
+
+    /**
+     * 完成 elapsed Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param startNanos start Nanos 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     private record NotifyAttemptResult(boolean success,

@@ -29,8 +29,22 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
      */
     public static final String HEADER_GATEWAY_CLIENT_IP = "X-Gateway-Client-Ip";
 
+    /**
+     * HEADER X FORWARDED FOR 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String HEADER_X_FORWARDED_FOR = "X-Forwarded-For";
 
+    /**
+     * client Ip Properties 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final GatewayClientIpProperties clientIpProperties;
 
     /**
@@ -70,6 +84,15 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE + 20;
     }
 
+    /**
+     * 解析 resolve Client Ip 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 解析或查询得到的业务值
+     */
     private String resolveClientIp(ServerHttpRequest request) {
         if (clientIpProperties.isTrustForwardedHeader()) {
             String forwardedFor = request.getHeaders().getFirst(HEADER_X_FORWARDED_FOR);
@@ -85,6 +108,15 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
         return remoteAddress.getAddress().getHostAddress();
     }
 
+    /**
+     * 完成 first Forwarded Ip 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param forwardedFor forwarded For 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String firstForwardedIp(String forwardedFor) {
         if (!StringUtils.hasText(forwardedFor)) {
             return null;

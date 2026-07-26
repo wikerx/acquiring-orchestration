@@ -61,6 +61,16 @@ public class TransactionShardingKeyParser {
         return parseBusinessDateTime(operationId, OPERATION_ID_PREFIX);
     }
 
+    /**
+     * 解析 parse Business Date Time 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param prefix prefix 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析后的内部数据结构或业务值
+     */
     private LocalDateTime parseBusinessDateTime(String value, String prefix) {
         if (!StringUtils.hasText(value) || value.length() < prefix.length() + ORDER_TIME_PART_LENGTH) {
             return null;

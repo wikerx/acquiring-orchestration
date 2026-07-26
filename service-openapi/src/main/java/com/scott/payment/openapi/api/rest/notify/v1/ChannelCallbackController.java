@@ -5,6 +5,7 @@ import com.scott.payment.openapi.client.payment.PaymentInternalClient;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -31,6 +32,7 @@ import static com.scott.payment.component.core.model.ApiResult.success;
  */
 @RestController
 @RequestMapping("/channel/v1/callbacks")
+@Slf4j
 public class ChannelCallbackController {
 
     /**
@@ -67,12 +69,36 @@ public class ChannelCallbackController {
     public ApiResult<String> receive(@PathVariable("channelCode") String channelCode,
                                      HttpServletRequest request,
                                      @RequestBody(required = false) String rawBody) {
+        long startNanos = System.nanoTime();
+        log.info("event=OPENAPI_CHANNEL_CALLBACK_RECEIVE_START channelCode={} method={} path={} sourceIp={} bodyLength={}",
+                channelCode,
+                request.getMethod(),
+                request.getRequestURI(),
+                resolveClientIp(request),
+                rawBody == null ? 0 : rawBody.length());
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
         paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, request, rawBody, securityResult));
+        log.info("event=OPENAPI_CHANNEL_CALLBACK_RECEIVE_END channelCode={} signatureValid={} ipAllowed={} durationMs={}",
+                channelCode,
+                securityResult.signatureValid(),
+                securityResult.ipAllowed(),
+                elapsedMillis(startNanos));
         return success(channelCode + " accepted");
     }
 
+/**
+ * 构建 build Callback Request 对应的领域对象、请求对象或日志对象。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param channelCode channel Code 输入值，含义由调用方法名称和所属业务对象限定
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param rawBody raw Body 输入值，含义由调用方法名称和所属业务对象限定
+ * @param securityResult security Result 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private TransactionChannelCallbackClientRequestDTO buildCallbackRequest(
             String channelCode,
             HttpServletRequest request,
@@ -92,6 +118,15 @@ public class ChannelCallbackController {
         return requestDTO;
     }
 
+    /**
+     * 完成 headers 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, String> headers(HttpServletRequest request) {
         Enumeration<String> headerNames = request.getHeaderNames();
         if (headerNames == null) {
@@ -108,6 +143,15 @@ public class ChannelCallbackController {
         return headers;
     }
 
+    /**
+     * 解析 resolve Client Ip 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 解析或查询得到的业务值
+     */
     private String resolveClientIp(HttpServletRequest request) {
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (StringUtils.hasText(forwardedFor)) {
@@ -118,5 +162,18 @@ public class ChannelCallbackController {
             return realIp;
         }
         return request.getRemoteAddr();
+    }
+
+    /**
+     * 完成 elapsed Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param startNanos start Nanos 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 }

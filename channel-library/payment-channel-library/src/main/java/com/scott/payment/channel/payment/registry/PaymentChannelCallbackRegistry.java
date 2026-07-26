@@ -24,6 +24,13 @@ import java.util.Optional;
 @Component
 public class PaymentChannelCallbackRegistry {
 
+    /**
+     * handlers 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final Map<String, PaymentChannelCallbackHandler> handlers;
 
     /**
@@ -70,6 +77,15 @@ public class PaymentChannelCallbackRegistry {
         return handlers;
     }
 
+    /**
+     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelCode channel Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private String normalize(String channelCode) {
         return channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);
     }

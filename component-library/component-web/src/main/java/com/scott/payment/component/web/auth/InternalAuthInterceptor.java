@@ -47,15 +47,27 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     * app Code 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final String appCode;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * auth Checker 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final InternalAuthChecker authChecker;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * whitelist Patterns 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final List<String> whitelistPatterns;
 
@@ -80,14 +92,6 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
      * @param handler  处理器
      * @return true 表示放行
      * @throws IOException 写响应失败
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param handler 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     * @throws Exception 当下游调用、数据访问或业务校验失败时抛出。
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
@@ -130,22 +134,33 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
      * @param handler  处理器
      * @param ex       请求异常
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param handler 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param ex 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
         InternalAuthContextHolder.clear();
     }
 
+    /**
+     * 判断 is Whitelisted 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestPath request Path 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isWhitelisted(String requestPath) {
         return whitelistPatterns.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, requestPath));
     }
 
+    /**
+     * 强制校验 required Permission 必填值，缺失时中断当前业务流程。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param handler handler 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String requiredPermission(Object handler) {
         if (!(handler instanceof HandlerMethod handlerMethod)) {
             return null;
@@ -158,10 +173,31 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
         return typePermission == null ? null : typePermission.value();
     }
 
+    /**
+     * 完成 write Error 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+     * @param httpStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void writeError(HttpServletResponse response, int httpStatus, ApiResultEnum result) throws IOException {
         writeError(response, httpStatus, result.getCode(), result.getMessage());
     }
 
+    /**
+     * 完成 write Error 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+     * @param httpStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     */
     private void writeError(HttpServletResponse response, int httpStatus, String code, String message) throws IOException {
         response.setStatus(httpStatus);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

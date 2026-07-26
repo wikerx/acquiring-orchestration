@@ -5,16 +5,17 @@ import com.scott.payment.admin.dto.export.SysUserAccountExportRow;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+
+@Mapper(componentModel = "spring")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : UserExportConverter
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-20 01:15
  * @email : scott_x@163.com
- * @description : 后台用户导出转换器，位于 service-admin 转换层；负责用户 DTO 到 Excel 行对象的普通字段映射，导出展示文案由应用层补充。
+ * @description : UserExportConverter 转换组件，用于在实体、DTO、VO 和外部协议对象之间转换字段，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Mapper(componentModel = "spring")
 public interface UserExportConverter {
 
     /**

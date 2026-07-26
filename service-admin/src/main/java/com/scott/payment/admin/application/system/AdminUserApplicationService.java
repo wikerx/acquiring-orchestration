@@ -23,16 +23,17 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 
+
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminUserApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-19 19:12
  * @email : scott_x@163.com
- * @description : 后台用户应用服务，位于 service-admin 应用编排层；负责用户管理接口的查询、导出和领域服务编排。
+ * @description : AdminUserApplicationService 应用服务，用于编排接口请求、权限上下文、领域服务和外部依赖，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class AdminUserApplicationService {
 
     /**

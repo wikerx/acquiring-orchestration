@@ -40,10 +40,6 @@ public final class LoginTokenUtils {
      *
      * @return Base64Url token 明文
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String generateToken() {
         byte[] tokenBytes = new byte[TOKEN_BYTES];
         SECURE_RANDOM.nextBytes(tokenBytes);
@@ -55,11 +51,6 @@ public final class LoginTokenUtils {
      *
      * @param token 登录 token 明文
      * @return SHA-256 十六进制哈希
-     */
-    /**
-     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
-     * @param token 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String hashToken(String token) {
         if (token == null || token.isBlank()) {

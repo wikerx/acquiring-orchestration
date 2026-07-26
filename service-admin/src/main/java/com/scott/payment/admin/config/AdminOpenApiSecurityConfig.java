@@ -19,27 +19,23 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.Set;
 
+@Configuration
+@EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminOpenApiSecurityConfig
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-13 17:17
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIAdmin Open Api Security 配置，位于 service-admin 的配置层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminOpenApiSecurityConfig Spring 配置类，用于注册当前模块所需 Bean、客户端和拦截器，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Configuration
-@EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)
 public class AdminOpenApiSecurityConfig {
 
     /**
      * 注册 OpenAPI 密钥材料工厂，供后台商户管理场景生成与轮换密钥。
      *
      * @return 密钥材料工厂
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     public OpenApiKeyMaterialFactory openApiKeyMaterialFactory() {
@@ -51,10 +47,6 @@ public class AdminOpenApiSecurityConfig {
      *
      * @return OpenAPI 报文加密组件
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Bean
     public OpenApiPayloadCrypto openApiPayloadCrypto() {
         return new OpenApiPayloadCrypto();
@@ -65,11 +57,6 @@ public class AdminOpenApiSecurityConfig {
      *
      * @param exportProperties OpenAPI 商户接入材料导出配置
      * @return OpenAPI 接入材料导出服务
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param exportProperties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     public OpenApiKeyExportService openApiKeyExportService(OpenApiBaseUrlResolver openApiBaseUrlResolver) {
@@ -93,10 +80,6 @@ public class AdminOpenApiSecurityConfig {
      *
      * @return OpenAPI 密钥审计辅助服务
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Bean
     public OpenApiKeyAuditService openApiKeyAuditService() {
         return new OpenApiKeyAuditService();
@@ -113,17 +96,6 @@ public class AdminOpenApiSecurityConfig {
      * @param keyExportService         OpenAPI 接入材料导出服务
      * @param exportProperties         OpenAPI 商户接入材料导出配置
      * @return OpenAPI 商户密钥材料服务
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantInfoMapper 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param jwtKeyMapper 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param platformPayloadKeyMapper 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param responseKeyMapper 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyMaterialFactory 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyExportService 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param exportProperties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Bean
     public OpenApiMerchantKeyMaterialService openApiMerchantKeyMaterialService(BaseMerchantInfoMapper merchantInfoMapper,

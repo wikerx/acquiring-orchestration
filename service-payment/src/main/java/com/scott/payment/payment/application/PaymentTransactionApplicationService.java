@@ -38,8 +38,22 @@ import org.springframework.stereotype.Service;
 @Service
 public class PaymentTransactionApplicationService {
 
+    /**
+     * DEFAULT MERCHANT NOTIFICATION NOTIFY LIMIT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final int DEFAULT_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 100;
 
+    /**
+     * MAX MERCHANT NOTIFICATION NOTIFY LIMIT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final int MAX_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 500;
 
     /**

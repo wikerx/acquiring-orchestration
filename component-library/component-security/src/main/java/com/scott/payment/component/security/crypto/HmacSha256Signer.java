@@ -69,6 +69,16 @@ public class HmacSha256Signer {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(hmacSha256(content, secret));
     }
 
+    /**
+     * 完成 hmac Sha256 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param content content 输入值，含义由调用方法名称和所属业务对象限定
+     * @param secret secret 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private byte[] hmacSha256(String content, String secret) {
         try {
             Mac mac = Mac.getInstance(HMAC_SHA256);
@@ -79,6 +89,16 @@ public class HmacSha256Signer {
         }
     }
 
+    /**
+     * 构建 build Canonical Text 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+     * @param parameters parameters 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private String buildCanonicalText(Map<String, String> parameters) {
         TreeMap<String, String> sortedParameters = new TreeMap<>(parameters);
         StringBuilder builder = new StringBuilder();
@@ -91,6 +111,15 @@ public class HmacSha256Signer {
         return builder.toString();
     }
 
+    /**
+     * 转换生成 to Hex 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 转换或构建后的目标对象
+     */
     private String toHex(byte[] value) {
         StringBuilder builder = new StringBuilder(value.length * 2);
         for (byte item : value) {

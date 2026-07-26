@@ -37,11 +37,6 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      * @param other 其他版本条件
      * @return 合并后的版本条件
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param other 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public ApiVersionCondition combine(ApiVersionCondition other) {
         return other;
@@ -54,11 +49,6 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      *
      * @param request HTTP 请求
      * @return 匹配成功返回当前条件，不匹配返回 null
-     */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public ApiVersionCondition getMatchingCondition(HttpServletRequest request) {
@@ -76,17 +66,20 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      * @param request HTTP 请求
      * @return 排序结果
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param other 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public int compareTo(ApiVersionCondition other, HttpServletRequest request) {
         return other.apiVersion - this.apiVersion;
     }
 
+    /**
+     * 解析 resolve Request Version 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 解析或查询得到的业务值
+     */
     private Integer resolveRequestVersion(HttpServletRequest request) {
         Object attributes = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
         if (attributes instanceof Map<?, ?> variables) {
@@ -98,6 +91,15 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
         return resolveVersionFromUri(request);
     }
 
+    /**
+     * 解析 resolve Version From Uri 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 解析或查询得到的业务值
+     */
     private Integer resolveVersionFromUri(HttpServletRequest request) {
         String uri = request.getRequestURI();
         String contextPath = request.getContextPath();
@@ -113,6 +115,15 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
         return null;
     }
 
+    /**
+     * 解析 parse Version 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param version version 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析后的内部数据结构或业务值
+     */
     private Integer parseVersion(String version) {
         String value = version.trim();
         if (value.startsWith("v") || value.startsWith("V")) {

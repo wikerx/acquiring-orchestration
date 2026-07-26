@@ -7,17 +7,17 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+@Data
+@TableName("sys_user_post")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserPostDO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 系统管理Sys User Post 数据库实体，位于 component-library/component-db 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : SysUserPostDO 数据库实体，用于映射持久化表字段、审计字段和业务状态，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
-@TableName("sys_user_post")
 public class SysUserPostDO {
 
     /**

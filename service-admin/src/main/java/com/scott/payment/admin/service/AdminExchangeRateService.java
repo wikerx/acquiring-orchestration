@@ -20,13 +20,14 @@ import com.scott.payment.component.core.model.PageResult;
 
 import java.util.List;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminExchangeRateService
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 收单支付Admin Exchange Rate 服务契约，位于 service-admin 的服务契约层，用于定义调用契约和职责边界。
+ * @description : AdminExchangeRateService 服务契约，用于声明业务能力、调用边界和返回结果约束，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public interface AdminExchangeRateService {

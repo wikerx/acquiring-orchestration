@@ -11,16 +11,17 @@ import lombok.Getter;
  * @description : 商户状态枚举，数据库使用数字码存储，代码层通过枚举表达业务语义
  * @status : create
  */
+
+@Getter
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantStatusEnum
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-05 00:00
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIMerchant Status 枚举，位于 service-openapi 的业务组件层，用于收敛页面、接口或业务流程中的固定取值。
+ * @description : MerchantStatusEnum 枚举类型，用于限定业务状态、配置选项或协议取值范围，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Getter
 public enum MerchantStatusEnum {
 
     /**

@@ -48,6 +48,15 @@ public interface BaseCardBinRangeMapper extends BaseMapper<CardBinEntities.BaseC
                OR card_bin_end IS NULL
                OR card_bin_start > card_bin_end
             """)
+    /**
+     * 完成 count Invalid Legacy Rows 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     int countInvalidLegacyRows();
 
     /**
@@ -78,5 +87,14 @@ public interface BaseCardBinRangeMapper extends BaseMapper<CardBinEntities.BaseC
               AND card_bin_start <= card_bin_end
             ORDER BY pk_id ASC
             """)
+    /**
+     * 查询 select Valid Legacy Rows 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 解析或查询得到的业务值
+     */
     List<Map<String, Object>> selectValidLegacyRows();
 }

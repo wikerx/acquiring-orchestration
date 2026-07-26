@@ -8,13 +8,14 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Objects;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiKeyMaterialFactory
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-29 22:38
  * @email : scott_x@163.com
- * @description : OpenAPI 商户密钥材料生成工厂，负责生成 JWT 密钥和 RSA 密钥对的原始材料。
+ * @description : OpenApiKeyMaterialFactory 工厂组件，用于创建领域对象、密钥材料、客户端参数或运行时配置，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public class OpenApiKeyMaterialFactory {

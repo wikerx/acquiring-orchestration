@@ -197,64 +197,252 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String userAgent;
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : SubMerchantInfoDTO
+     * @date : 2026-05-31 21:00
+     * @email : scott_x@163.com
+     * @description : SubMerchantInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class SubMerchantInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * sub Name 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subName;
 
+        /**
+         * sub Company Name 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subCompanyName;
 
+        /**
+         * sub Id 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subId;
 
+        /**
+         * sub Street 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subStreet;
 
+        /**
+         * sub City 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subCity;
 
+        /**
+         * sub State 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subState;
 
+        /**
+         * sub Country Code 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subCountryCode;
 
+        /**
+         * sub Email 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subEmail;
 
+        /**
+         * sub Phone 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subPhone;
 
+        /**
+         * sub Postal 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subPostal;
 
+        /**
+         * sub Tax Id 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String subTaxId;
 
+        /**
+         * merchant Category 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String merchantCategory;
 
+        /**
+         * intes Code 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String intesCode;
 
+        /**
+         * charge Type 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String chargeType;
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : BillingCardHolderInfoDTO
+     * @date : 2026-05-31 21:00
+     * @email : scott_x@163.com
+     * @description : BillingCardHolderInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class BillingCardHolderInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * first Name 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String firstName;
 
+        /**
+         * last Name 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String lastName;
 
+        /**
+         * phone 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String phone;
 
+        /**
+         * email 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String email;
 
+        /**
+         * country 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String country;
 
+        /**
+         * state 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String state;
 
+        /**
+         * city 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String city;
 
+        /**
+         * street 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String street;
 
+        /**
+         * postal 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String postal;
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : CardInfoDTO
+     * @date : 2026-05-31 21:00
+     * @email : scott_x@163.com
+     * @description : CardInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class CardInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
@@ -264,8 +452,22 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String cardNo;
 
+        /**
+         * expiration Month 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String expirationMonth;
 
+        /**
+         * expiration Year 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String expirationYear;
 
         /**
@@ -275,10 +477,26 @@ public class PaymentCreateCommandDTO implements Serializable {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ThreeDsInfoDTO
+     * @date : 2026-05-31 21:00
+     * @email : scott_x@163.com
+     * @description : ThreeDsInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class ThreeDsInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * eci 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String eci;
 
         /**
@@ -286,12 +504,35 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String cavv;
 
+        /**
+         * ds Transaction Id 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String dsTransactionId;
 
+        /**
+         * three Ds Version 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String threeDsVersion;
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : TransactionInfoDTO
+     * @date : 2026-05-31 21:00
+     * @email : scott_x@163.com
+     * @description : TransactionInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class TransactionInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
@@ -301,6 +542,13 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String transactionId;
 
+        /**
+         * source Transaction Id 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String sourceTransactionId;
 
         /**
@@ -313,10 +561,31 @@ public class PaymentCreateCommandDTO implements Serializable {
          */
         private String sourceChannelTransactionId;
 
+        /**
+         * description 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String description;
 
+        /**
+         * callback Url 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String callbackUrl;
 
+        /**
+         * card Brand 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String cardBrand;
     }
 }

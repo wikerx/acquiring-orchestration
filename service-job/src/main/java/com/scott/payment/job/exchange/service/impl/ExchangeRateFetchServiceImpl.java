@@ -35,93 +35,169 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ExchangeRateFetchServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 汇率管理Exchange Rate Fetch Service Impl，位于 service-job 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ExchangeRateFetchServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
 
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ENABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int ENABLED = 1;
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * BOC 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String BOC = "BOC";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * AUTO 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String AUTO = "AUTO";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * RATE STATUS ENABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String RATE_STATUS_ENABLED = "ENABLED";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * RATE STATUS EXPIRED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String RATE_STATUS_EXPIRED = "EXPIRED";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * SUCCESS 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String SUCCESS = "SUCCESS";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * FAILED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String FAILED = "FAILED";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * PARTIAL SUCCESS 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String PARTIAL_SUCCESS = "PARTIAL_SUCCESS";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ALL 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String ALL = "ALL";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * UP 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String UP = "UP";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NONE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String NONE = "NONE";
     /**
-     * 汇率管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * BP 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String BP = "BP";
 
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * source Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeJobRateSourceMapper sourceMapper;
     /**
-     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     * raw Rate Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeJobRawRateMapper rawRateMapper;
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * rule Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeJobRateRuleMapper ruleMapper;
     /**
-     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     * business Rate Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeJobBusinessRateMapper businessRateMapper;
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * fetch Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeRateFetchLogMapper fetchLogMapper;
     /**
-     * 汇率管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * provider Registry 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeRateProviderRegistry providerRegistry;
 
@@ -158,12 +234,6 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
      * @param request 拉取请求，允许为空，默认使用 BOC
      * @param context 任务执行上下文，可为空
      * @return 拉取结果统计
-     */
-    /**
-     * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -203,6 +273,18 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         return result;
     }
 
+/**
+ * 完成 process Item 分支的校验或状态更新。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+ * @param item item 输入值，含义由调用方法名称和所属业务对象限定
+ * @param batchNo batch No 输入值，含义由调用方法名称和所属业务对象限定
+ * @param dryRun dry Run 输入值，含义由调用方法名称和所属业务对象限定
+ * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void processItem(ExchangeRateSourceDO source,
                              RawRateItem item,
                              String batchNo,
@@ -254,6 +336,18 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         result.setSuccessCount(result.getSuccessCount() + 1);
     }
 
+/**
+ * 完成 backfill Missing Business Rates 分支的校验或状态更新。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+ * @param baseCurrency 币种代码，格式为 ISO 4217 三位大写字母
+ * @param quoteCurrency 币种代码，格式为 ISO 4217 三位大写字母
+ * @param publishTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void backfillMissingBusinessRates(String sourceCode,
                                               String baseCurrency,
                                               String quoteCurrency,
@@ -283,6 +377,15 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         }
     }
 
+    /**
+     * 完成 generate Business Rates 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void generateBusinessRates(ExchangeRawRateDO rawRate, ExchangeRateFetchResult result) {
         LocalDateTime generateTime = LocalDateTime.now();
         List<ExchangeRateRuleDO> rules = findMatchedRules(rawRate, generateTime);
@@ -298,6 +401,16 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
                 .forEach(rule -> generateBusinessRate(rawRate, rule, generateTime));
     }
 
+    /**
+     * 查询 find Matched Rules 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param generateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 解析或查询得到的业务值
+     */
     private List<ExchangeRateRuleDO> findMatchedRules(ExchangeRawRateDO rawRate, LocalDateTime generateTime) {
         return ruleMapper.selectList(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
                         .eq(ExchangeRateRuleDO::getDeleted, NOT_DELETED)
@@ -317,6 +430,16 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
                 .toList();
     }
 
+    /**
+     * 完成 better Rule 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param left left 输入值，含义由调用方法名称和所属业务对象限定
+     * @param right right 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ExchangeRateRuleDO betterRule(ExchangeRateRuleDO left, ExchangeRateRuleDO right) {
         int priorityCompare = Integer.compare(priority(left), priority(right));
         if (priorityCompare < 0) {
@@ -335,10 +458,28 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         return left.getId() != null && right.getId() != null && right.getId() < left.getId() ? right : left;
     }
 
+    /**
+     * 完成 priority 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int priority(ExchangeRateRuleDO rule) {
         return rule.getPriority() == null ? 100 : rule.getPriority();
     }
 
+    /**
+     * 完成 specificity 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int specificity(ExchangeRateRuleDO rule) {
         int score = 0;
         score += ALL.equals(rule.getSourceCode()) ? 0 : 1;
@@ -347,6 +488,16 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         return score;
     }
 
+    /**
+     * 完成 generate Business Rate 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @param generateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void generateBusinessRate(ExchangeRawRateDO rawRate, ExchangeRateRuleDO rule, LocalDateTime generateTime) {
         BigDecimal originalRate = selectRawRateValue(rawRate, rule.getRateField());
         if (originalRate == null || originalRate.compareTo(BigDecimal.ZERO) <= 0) {
@@ -376,6 +527,18 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         businessRateMapper.insert(entity);
     }
 
+    /**
+     * 推进 expire Current Business Rate 对应的状态或处理结果，并保留后续查询所需信息。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rateType rate Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param baseCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param quoteCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param expireTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void expireCurrentBusinessRate(String rateType, String sourceCode, String baseCurrency, String quoteCurrency, LocalDateTime expireTime) {
         businessRateMapper.selectList(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                         .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)
@@ -393,6 +556,16 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
                 });
     }
 
+    /**
+     * 判断 exists Business Rate 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRateId raw Rate Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param ruleId rule Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean existsBusinessRate(Long rawRateId, Long ruleId) {
         if (rawRateId == null || ruleId == null) {
             return false;
@@ -403,6 +576,17 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
                 .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 完成 business Effective Time 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @param generateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LocalDateTime businessEffectiveTime(ExchangeRawRateDO rawRate, ExchangeRateRuleDO rule, LocalDateTime generateTime) {
         LocalDateTime rawEffectiveTime = rawRate.getEffectiveTime() == null ? generateTime : rawRate.getEffectiveTime();
         if (rule.getEffectiveStartTime() != null && rawEffectiveTime.isBefore(rule.getEffectiveStartTime())) {
@@ -411,6 +595,15 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         return rawEffectiveTime;
     }
 
+    /**
+     * 查询 find Enabled Source 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ExchangeRateSourceDO findEnabledSource(String sourceCode) {
         ExchangeRateSourceDO source = sourceMapper.selectOne(Wrappers.<ExchangeRateSourceDO>lambdaQuery()
                 .eq(ExchangeRateSourceDO::getSourceCode, sourceCode)
@@ -422,6 +615,18 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         return source;
     }
 
+    /**
+     * 判断 exists Raw Rate 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param baseCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param quoteCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param publishTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean existsRawRate(String sourceCode, String baseCurrency, String quoteCurrency, LocalDateTime publishTime) {
         return rawRateMapper.selectCount(Wrappers.<ExchangeRawRateDO>lambdaQuery()
                 .eq(ExchangeRawRateDO::getSourceCode, sourceCode)
@@ -431,6 +636,17 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
                 .eq(ExchangeRawRateDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 写入或更新 insert Fetch Log 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param startTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void insertFetchLog(ExchangeRateFetchResult result, ExchangeRateSourceDO source, LocalDateTime startTime, LocalDateTime endTime) {
         ExchangeRateFetchLogDO log = new ExchangeRateFetchLogDO();
         log.setBatchNo(result.getBatchNo());
@@ -448,6 +664,16 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         fetchLogMapper.insert(log);
     }
 
+    /**
+     * 写入或更新 update Source Fetch Status 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param fetchStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void updateSourceFetchStatus(ExchangeRateSourceDO source, String fetchStatus, LocalDateTime endTime) {
         source.setLastFetchTime(endTime);
         source.setLastFetchStatus(fetchStatus);
@@ -456,6 +682,15 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         sourceMapper.updateById(source);
     }
 
+    /**
+     * 判断 has Any Rate 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param item item 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasAnyRate(RawRateItem item) {
         return positive(item.getCashBuyRate())
                 || positive(item.getCashSellRate())
@@ -464,15 +699,43 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
                 || positive(item.getMiddleRate());
     }
 
+    /**
+     * 完成 positive 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean positive(BigDecimal value) {
         return value != null && value.compareTo(BigDecimal.ZERO) > 0;
     }
 
+    /**
+     * 完成 skip 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+     * @param warning warning 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void skip(ExchangeRateFetchResult result, String warning) {
         result.setSkipCount(result.getSkipCount() + 1);
         result.getWarnings().add(warning);
     }
 
+    /**
+     * 查询 select Raw Rate Value 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param rateField rate Field 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private BigDecimal selectRawRateValue(ExchangeRawRateDO rawRate, String rateField) {
         return switch (rateField) {
             case "SPOT_BUY_RATE" -> rawRate.getSpotBuyRate();
@@ -484,6 +747,16 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         };
     }
 
+    /**
+     * 计算 calculate Final Rate 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param originalRate original Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private BigDecimal calculateFinalRate(BigDecimal originalRate, ExchangeRateRuleDO rule) {
         BigDecimal multiplier = BigDecimal.ONE;
         if (!NONE.equals(rule.getAdjustDirection())) {
@@ -499,6 +772,16 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
                 .setScale(rule.getDecimalScale(), toRoundingMode(rule.getRoundingMode()));
     }
 
+    /**
+     * 完成 adjust Ratio 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param adjustMethod adjust Method 输入值，含义由调用方法名称和所属业务对象限定
+     * @param adjustValue adjust Value 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private BigDecimal adjustRatio(String adjustMethod, BigDecimal adjustValue) {
         if (adjustValue == null) {
             return BigDecimal.ZERO;
@@ -509,6 +792,15 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         return adjustValue.divide(new BigDecimal("100"), 12, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 转换生成 to Rounding Mode 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param roundingMode rounding Mode 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private RoundingMode toRoundingMode(String roundingMode) {
         return switch (roundingMode) {
             case "ROUND_UP" -> RoundingMode.UP;
@@ -517,6 +809,17 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         };
     }
 
+    /**
+     * 构建 build Adjust Description 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @param originalRate original Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param finalRate final Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private String buildAdjustDescription(ExchangeRateRuleDO rule, BigDecimal originalRate, BigDecimal finalRate) {
         return rule.getRateField() + " " + originalRate.toPlainString()
                 + ", " + rule.getAdjustDirection() + " " + rule.getAdjustValue().toPlainString()

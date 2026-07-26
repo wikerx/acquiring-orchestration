@@ -97,6 +97,14 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
     }
 
+    /**
+     * 校验 validate Source Order 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateSourceOrder(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -109,6 +117,16 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+/**
+ * 校验 validate Type 相关输入，发现不满足业务约束时抛出明确异常。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param allowedSourceTypes allowed Source Types 输入值，含义由调用方法名称和所属业务对象限定
+ * @param nextTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+ */
     private void validateType(TransactionOrderDO sourceOrderDO,
                               Set<String> allowedSourceTypes,
                               PaymentTransactionTypeEnum nextTransactionType) {
@@ -118,12 +136,31 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+    /**
+     * 校验 validate Positive Amount 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
+     * @param nextTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     */
     private void validatePositiveAmount(BigDecimal requestAmount, PaymentTransactionTypeEnum nextTransactionType) {
         if (requestAmount == null || requestAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), nextTransactionType.getCode() + " amount must be greater than zero");
         }
     }
 
+/**
+ * 校验 validate Currency 相关输入，发现不满足业务约束时抛出明确异常。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param requestCurrency 币种代码，格式为 ISO 4217 三位大写字母
+ * @param nextTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+ */
     private void validateCurrency(TransactionOrderDO sourceOrderDO,
                                   String requestCurrency,
                                   PaymentTransactionTypeEnum nextTransactionType) {
@@ -135,6 +172,16 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+/**
+ * 校验 validate Optional Currency 相关输入，发现不满足业务约束时抛出明确异常。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param requestCurrency 币种代码，格式为 ISO 4217 三位大写字母
+ * @param nextTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+ */
     private void validateOptionalCurrency(TransactionOrderDO sourceOrderDO,
                                           String requestCurrency,
                                           PaymentTransactionTypeEnum nextTransactionType) {
@@ -146,6 +193,16 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+/**
+ * 校验 validate Available Amount 相关输入，发现不满足业务约束时抛出明确异常。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param requestAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
+ * @param availableAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
+ * @param nextTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+ */
     private void validateAvailableAmount(BigDecimal requestAmount,
                                          BigDecimal availableAmount,
                                          PaymentTransactionTypeEnum nextTransactionType) {
@@ -156,6 +213,14 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+    /**
+     * 校验 validate Void Amount 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateVoidAmount(TransactionOrderDO sourceOrderDO) {
         BigDecimal capturedAmount = sourceOrderDO.getCapturedAmount() == null ? BigDecimal.ZERO : sourceOrderDO.getCapturedAmount();
         BigDecimal refundedAmount = sourceOrderDO.getRefundedAmount() == null ? BigDecimal.ZERO : sourceOrderDO.getRefundedAmount();

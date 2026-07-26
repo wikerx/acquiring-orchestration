@@ -21,21 +21,25 @@ import java.util.List;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+@RestController
+@RequestMapping("/admin/merchant/menus")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMerchantMenuController
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : 商户管理Admin Merchant Menu 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminMerchantMenuController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
-@RequestMapping("/admin/merchant/menus")
 public class AdminMerchantMenuController {
 
     /**
-     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Menu Application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final AdminMenuApplicationService adminMenuApplicationService;
 
@@ -67,11 +71,6 @@ public class AdminMerchantMenuController {
      * @param request 新增请求
      * @return 新增后的菜单
      */
-    /**
-     * 创建或保存商户管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/create")
     @RequiresPermission("merchant:menu-manage:add")
     @OperationLog(moduleName = "商户系统菜单管理", businessType = OperationTypeConstants.CREATE, operation = "新增商户系统菜单")
@@ -84,11 +83,6 @@ public class AdminMerchantMenuController {
      *
      * @param request 更新请求
      * @return 更新后的菜单
-     */
-    /**
-     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/update")
     @RequiresPermission("merchant:menu-manage:edit")
@@ -103,11 +97,6 @@ public class AdminMerchantMenuController {
      * @param request 状态更新请求
      * @return 空响应
      */
-    /**
-     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/status")
     @RequiresPermission("merchant:menu-manage:edit")
     @OperationLog(moduleName = "商户系统菜单管理", businessType = OperationTypeConstants.UPDATE, operation = "更新商户系统菜单状态")
@@ -121,11 +110,6 @@ public class AdminMerchantMenuController {
      *
      * @param request 删除请求
      * @return 空响应
-     */
-    /**
-     * 删除商户管理数据，按业务规则处理引用校验和删除边界。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/delete")
     @RequiresPermission("merchant:menu-manage:remove")

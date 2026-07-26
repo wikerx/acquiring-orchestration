@@ -12,16 +12,17 @@ import lombok.Getter;
  * @description : 支付框架 OpenAPI 统一响应枚举
  * @status : create
  */
+
+@Getter
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ApiResultEnum
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 18:16
  * @email : scott_x@163.com
- * @description : 收单支付Api Result 枚举，位于 component-library/component-core 的业务组件层，用于收敛页面、接口或业务流程中的固定取值。
+ * @description : ApiResultEnum 枚举类型，用于限定业务状态、配置选项或协议取值范围，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Getter
 public enum ApiResultEnum implements IResult {
 
     /**
@@ -251,11 +252,6 @@ public enum ApiResultEnum implements IResult {
      *
      * @param code 响应码
      * @return 响应枚举，不存在时返回 null
-     */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param code 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static ApiResultEnum getInstanceByCode(String code) {
         for (ApiResultEnum value : ApiResultEnum.values()) {

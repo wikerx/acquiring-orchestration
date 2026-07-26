@@ -10,13 +10,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentOrderShardingAlgorithm
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : 支付订单季度分表算法。 <p>该算法只负责按 {@code transaction_date_time} 计算物理表名和配置范围内的物理表清单。 表名格式统一为 {@code logical_table_yyyyQQ}，其中 QQ 是季度编号，不是月份。</p>
+ * @description : PaymentOrderShardingAlgorithm Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public class PaymentOrderShardingAlgorithm {
@@ -40,12 +41,6 @@ public class PaymentOrderShardingAlgorithm {
      * @param transactionDateTime 交易时间，数据库统一按 UTC+8 保存和路由
      * @return 物理表名，例如 test_transaction_202602
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String tableName(String logicalTableName, LocalDateTime transactionDateTime) {
         return tableName(DEFAULT_PROPERTIES, logicalTableName, transactionDateTime);
     }
@@ -58,12 +53,6 @@ public class PaymentOrderShardingAlgorithm {
      * @param logicalTableName    逻辑表名
      * @param transactionDateTime 交易时间
      * @return 物理表名
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public String tableName(String logicalTableName, Instant transactionDateTime) {
         if (transactionDateTime == null) {
@@ -79,13 +68,6 @@ public class PaymentOrderShardingAlgorithm {
      * @param logicalTableName    逻辑表名
      * @param transactionDateTime 交易时间，必须是数据库统一时区语义下的时间
      * @return 物理表名
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public String tableName(PaymentQuarterShardingProperties properties,
                             String logicalTableName,
@@ -117,13 +99,6 @@ public class PaymentOrderShardingAlgorithm {
      * @param transactionDateTime 交易时间
      * @return 物理表名
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String tableName(PaymentQuarterShardingProperties properties,
                             String logicalTableName,
                             Instant transactionDateTime) {
@@ -142,12 +117,6 @@ public class PaymentOrderShardingAlgorithm {
      * @param properties       Nacos sharding-{env}.yaml 映射后的分表配置
      * @param logicalTableName 逻辑表名
      * @return 物理表名列表，按时间从早到晚排序
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public List<String> physicalTables(PaymentQuarterShardingProperties properties, String logicalTableName) {
         PaymentQuarterShardingProperties.TableRule tableRule = getTableRule(properties, logicalTableName);
@@ -170,12 +139,6 @@ public class PaymentOrderShardingAlgorithm {
      * @param logicalTableName 逻辑表名
      * @return true 表示该表参与季度分表
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param logicalTableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public boolean containsShardingTable(PaymentQuarterShardingProperties properties, String logicalTableName) {
         if (properties == null || properties.getTables() == null || logicalTableName == null) {
             return false;
@@ -185,10 +148,27 @@ public class PaymentOrderShardingAlgorithm {
                 .anyMatch(rule -> logicalTableName.equals(rule.getLogicalTable()));
     }
 
+    /**
+     * 完成 quarter 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int quarter(LocalDateTime transactionDateTime) {
         return (transactionDateTime.getMonthValue() - 1) / 3 + 1;
     }
 
+    /**
+     * 构建 build Default Properties 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 转换或构建后的目标对象
+     */
     private static PaymentQuarterShardingProperties buildDefaultProperties() {
         PaymentQuarterShardingProperties properties = new PaymentQuarterShardingProperties();
         addDefaultRule(properties, "test_transaction", "测试交易主表");
@@ -198,6 +178,16 @@ public class PaymentOrderShardingAlgorithm {
         return properties;
     }
 
+    /**
+     * 计算 add Default Rule 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param properties properties 输入值，含义由调用方法名称和所属业务对象限定
+     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param description description 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private static void addDefaultRule(PaymentQuarterShardingProperties properties, String logicalTable, String description) {
         PaymentQuarterShardingProperties.TableRule tableRule = new PaymentQuarterShardingProperties.TableRule();
         tableRule.setLogicalTable(logicalTable);
@@ -209,6 +199,15 @@ public class PaymentOrderShardingAlgorithm {
         properties.getTables().put(logicalTable, tableRule);
     }
 
+    /**
+     * 校验 validate Required 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param logicalTableName logical Table Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void validateRequired(String logicalTableName, LocalDateTime transactionDateTime) {
         if (logicalTableName == null || logicalTableName.trim().isEmpty()) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "logicalTableName is required");
@@ -218,6 +217,16 @@ public class PaymentOrderShardingAlgorithm {
         }
     }
 
+/**
+ * 完成 get Table Rule 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param properties properties 输入值，含义由调用方法名称和所属业务对象限定
+ * @param logicalTableName logical Table Name 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
     private PaymentQuarterShardingProperties.TableRule getTableRule(PaymentQuarterShardingProperties properties,
                                                                     String logicalTableName) {
         if (properties == null || properties.getTables() == null) {
@@ -244,6 +253,16 @@ public class PaymentOrderShardingAlgorithm {
         return tableRule;
     }
 
+    /**
+     * 校验 validate Quarter 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param year year 输入值，含义由调用方法名称和所属业务对象限定
+     * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
+     * @param label label 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateQuarter(Integer year, Integer quarter, String label) {
         if (year == null || quarter == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(),
@@ -255,6 +274,16 @@ public class PaymentOrderShardingAlgorithm {
         }
     }
 
+    /**
+     * 完成 quarter Index 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param year year 输入值，含义由调用方法名称和所属业务对象限定
+     * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int quarterIndex(int year, int quarter) {
         return year * 4 + quarter - 1;
     }

@@ -10,16 +10,17 @@ import com.scott.payment.openapi.security.OpenApiPayloadKeyProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiPayloadDecoder
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 请求体解密器，位于 service-openapi 支撑层，负责从 data 密文恢复业务 DTO；禁止在该层打印密文明文和私钥材料。
+ * @description : OpenApiPayloadDecoder Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Component
 public class OpenApiPayloadDecoder {
 
     /**

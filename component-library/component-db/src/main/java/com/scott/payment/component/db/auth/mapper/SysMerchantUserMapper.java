@@ -4,15 +4,16 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
 import org.apache.ibatis.annotations.Mapper;
 
+
+@Mapper
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysMerchantUserMapper
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : 系统管理Sys Merchant User 数据访问 Mapper，位于 component-library/component-db 的数据访问层，用于定义调用契约和职责边界。
+ * @description : SysMerchantUserMapper MyBatis 数据访问接口，用于映射数据库表读写语句和领域查询条件，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Mapper
 public interface SysMerchantUserMapper extends BaseMapper<SysMerchantUserDO> {
 }

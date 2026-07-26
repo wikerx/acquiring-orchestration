@@ -38,24 +38,27 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>Controller 只处理权限、参数接收和 HTTP 协议映射，具体业务编排交由
  * {@link AdminDictApplicationService}。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDictController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Admin Dict 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/system/dicts")
 public class AdminDictController {
 
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Dict Application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final AdminDictApplicationService adminDictApplicationService;
 
+    /**
+     * 创建 AdminDictController 实例并注入其运行所需依赖。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param adminDictApplicationService admin Dict Application Service 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public AdminDictController(AdminDictApplicationService adminDictApplicationService) {
         this.adminDictApplicationService = adminDictApplicationService;
     }
@@ -65,11 +68,6 @@ public class AdminDictController {
      *
      * @param request 保存请求
      * @return 保存后的字典类型
-     */
-    /**
-     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/types")
     @RequiresPermission("system:dict:add")
@@ -84,12 +82,6 @@ public class AdminDictController {
      * @param dictType 字典类型编码
      * @param request  保存请求
      * @return 保存后的字典类型
-     */
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/types/{dictType}")
     @RequiresPermission("system:dict:edit")
@@ -120,11 +112,6 @@ public class AdminDictController {
      * @param dictType 字典类型编码
      * @return 删除结果
      */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @DeleteMapping("/types/{dictType}")
     @RequiresPermission("system:dict:remove")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.DELETE, operation = "删除字典类型")
@@ -153,10 +140,6 @@ public class AdminDictController {
      *
      * @return 空响应
      */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/refresh-cache")
     @RequiresPermission("system:dict:refresh")
     @OperationLog(moduleName = "数据字典", businessType = OperationTypeConstants.UPDATE, operation = "刷新字典缓存")
@@ -169,11 +152,6 @@ public class AdminDictController {
      *
      * @param request 保存请求
      * @return 保存后的字典数据
-     */
-    /**
-     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/data")
     @RequiresPermission("system:dictData:add")
@@ -188,11 +166,6 @@ public class AdminDictController {
      * @param id 字典数据主键
      * @return 字典数据详情
      */
-    /**
-     * 获取系统管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/data/id/{id}")
     @RequiresPermission("system:dictData:query")
     public CommonResult<SysDictDataDTO> getDictDataById(@PathVariable("id") Long id) {
@@ -205,12 +178,6 @@ public class AdminDictController {
      * @param id      字典数据主键
      * @param request 保存请求
      * @return 更新后的字典数据
-     */
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/data/id/{id}")
     @RequiresPermission("system:dictData:edit")
@@ -227,13 +194,6 @@ public class AdminDictController {
      * @param dictValue 字典键值
      * @param request   保存请求
      * @return 保存后的字典数据
-     */
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param dictValue 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/data/{dictType}/{dictValue}")
     @RequiresPermission("system:dictData:edit")
@@ -310,11 +270,6 @@ public class AdminDictController {
      *
      * @param id 字典数据主键
      * @return 删除结果
-     */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/data/id/{id}")
     @RequiresPermission("system:dictData:remove")

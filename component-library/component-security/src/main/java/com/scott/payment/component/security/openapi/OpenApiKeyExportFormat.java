@@ -1,12 +1,13 @@
 package com.scott.payment.component.security.openapi;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiKeyExportFormat
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : OpenAPI 密钥材料导出格式。
+ * @description : OpenApiKeyExportFormat 枚举类型，用于限定业务状态、配置选项或协议取值范围，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public enum OpenApiKeyExportFormat {

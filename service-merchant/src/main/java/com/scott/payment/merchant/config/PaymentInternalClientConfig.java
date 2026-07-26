@@ -1,5 +1,7 @@
 package com.scott.payment.merchant.config;
 
+import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
+import com.scott.payment.component.web.trace.TraceIdRestTemplateInterceptor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -40,12 +42,12 @@ public class PaymentInternalClientConfig {
      * @return 直连 RestTemplate
      */
     @Bean("merchantPaymentInternalRestTemplate")
-    public RestTemplate merchantPaymentInternalRestTemplate() {
+    public RestTemplate merchantPaymentInternalRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setProxy(Proxy.NO_PROXY);
         requestFactory.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
         requestFactory.setReadTimeout(READ_TIMEOUT_MILLIS);
-        return new RestTemplate(requestFactory);
+        return traceIdRestTemplateCustomizer.customize(new RestTemplate(requestFactory));
     }
 
     /**
@@ -56,10 +58,12 @@ public class PaymentInternalClientConfig {
      */
     @Bean("merchantPaymentInternalLoadBalancedRestTemplate")
     @LoadBalanced
-    public RestTemplate merchantPaymentInternalLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder) {
+    public RestTemplate merchantPaymentInternalLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder,
+                                                                        TraceIdRestTemplateInterceptor traceIdRestTemplateInterceptor) {
         return restTemplateBuilder
                 .setConnectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
                 .setReadTimeout(Duration.ofMillis(READ_TIMEOUT_MILLIS))
+                .additionalInterceptors(traceIdRestTemplateInterceptor)
                 .build();
     }
 }

@@ -201,6 +201,16 @@ public interface OpenApiRequestConverter {
         return vo;
     }
 
+    /**
+     * 转换生成 to Merchant Info VO 对应的传输对象、导出行或协议字段。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private PaymentCreateVO.MerchantInfoVO toMerchantInfoVO(ApiMerchantPaymentRequestDTO.MerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -211,6 +221,16 @@ public interface OpenApiRequestConverter {
         return merchantInfoVO;
     }
 
+    /**
+     * 转换生成 to Merchant Info VO 对应的传输对象、导出行或协议字段。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param responseDTO response DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private PaymentCreateVO.MerchantInfoVO toMerchantInfoVO(PaymentCreateClientResponseDTO responseDTO) {
         if (!StringUtils.hasText(responseDTO.getMerchantId()) && responseDTO.getSubMerchantInfo() == null) {
             return null;
@@ -221,6 +241,16 @@ public interface OpenApiRequestConverter {
         return merchantInfoVO;
     }
 
+    /**
+     * 转换生成 to Sub Merchant Info VO 对应的传输对象、导出行或协议字段。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private PaymentCreateVO.SubMerchantInfoVO toSubMerchantInfoVO(PaymentCreateClientResponseDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -243,6 +273,16 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
+    /**
+     * 转换生成 to Sub Merchant Info VO 对应的传输对象、导出行或协议字段。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private PaymentCreateVO.SubMerchantInfoVO toSubMerchantInfoVO(ApiMerchantPaymentRequestDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -265,6 +305,16 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
+    /**
+     * 转换生成 to Billing Card Holder Info VO 对应的传输对象、导出行或协议字段。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private PaymentCreateVO.BillingCardHolderInfoVO toBillingCardHolderInfoVO(ApiMerchantPaymentRequestDTO.BillingCardHolderInfoDTO source) {
         if (source == null) {
             return null;
@@ -282,6 +332,16 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
+    /**
+     * 完成 override Settlement Currency 分支的校验或状态更新。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param vo vo 输入值，含义由调用方法名称和所属业务对象限定
+     * @param merchantSettlementCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     */
     private void overrideSettlementCurrency(PaymentCreateVO vo, String merchantSettlementCurrency) {
         if (!StringUtils.hasText(merchantSettlementCurrency)) {
             return;
@@ -292,6 +352,16 @@ public interface OpenApiRequestConverter {
         vo.setBillingInfo(billingInfoVO);
     }
 
+    /**
+     * 标准化 normalize Create Action Totals 输入值，统一大小写、空白字符或协议格式。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param orderInfoVO order Info VO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param responseDTO response DTO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void normalizeCreateActionTotals(PaymentCreateVO.OrderInfoVO orderInfoVO, PaymentCreateClientResponseDTO responseDTO) {
         if (orderInfoVO == null || responseDTO == null || !isInitialCreateAction(responseDTO.getTransactionType())) {
             return;
@@ -315,6 +385,16 @@ public interface OpenApiRequestConverter {
         }
     }
 
+    /**
+     * 标准化 normalize Merchant Failure Message 输入值，统一大小写、空白字符或协议格式。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param vo vo 输入值，含义由调用方法名称和所属业务对象限定
+     * @param responseDTO response DTO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void normalizeMerchantFailureMessage(PaymentCreateVO vo, PaymentCreateClientResponseDTO responseDTO) {
         if (vo == null || vo.getTransactionInfo() == null || responseDTO == null) {
             return;
@@ -326,21 +406,61 @@ public interface OpenApiRequestConverter {
         }
     }
 
+    /**
+     * 完成 should Use Default Rejected Message 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean shouldUseDefaultRejectedMessage(String merchantResponseMessage) {
         return !StringUtils.hasText(merchantResponseMessage)
                 || "Rejected".equalsIgnoreCase(merchantResponseMessage.trim());
     }
 
+    /**
+     * 判断 is Initial Create Action 条件是否成立，用于控制后续业务分支。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isInitialCreateAction(String transactionType) {
         return "PAYMENT".equals(transactionType)
                 || "AUTHORIZATION".equals(transactionType)
                 || "PRE_AUTHORIZATION".equals(transactionType);
     }
 
+    /**
+     * 完成 default Zero 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private BigDecimal defaultZero(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /**
+     * 转换生成 to Billing Info VO 对应的传输对象、导出行或协议字段。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param responseDTO response DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private PaymentCreateVO.BillingInfoVO toBillingInfoVO(PaymentCreateClientResponseDTO responseDTO) {
         if (responseDTO.getLabelAmount() == null
                 && !StringUtils.hasText(responseDTO.getLabelCurrency())
@@ -366,6 +486,16 @@ public interface OpenApiRequestConverter {
         return billingInfoVO;
     }
 
+    /**
+     * 转换生成 to Billing Info VO 对应的传输对象、导出行或协议字段。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param responseDTO response DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private PaymentCreateVO.BillingInfoVO toBillingInfoVO(PaymentQueryClientResponseDTO responseDTO) {
         if (responseDTO == null
                 || (responseDTO.getLabelAmount() == null
@@ -392,6 +522,17 @@ public interface OpenApiRequestConverter {
         return billingInfoVO;
     }
 
+/**
+ * 转换生成 to Query Transaction Info VO 对应的传输对象、导出行或协议字段。
+ * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+ * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @return 转换或构建后的目标对象
+ */
     private PaymentQueryVO.TransactionInfoVO toQueryTransactionInfoVO(PaymentQueryClientResponseDTO.TransactionInfoDTO source,
                                                                       String timeZone) {
         PaymentQueryVO.TransactionInfoVO target = new PaymentQueryVO.TransactionInfoVO();
@@ -414,10 +555,31 @@ public interface OpenApiRequestConverter {
         return target;
     }
 
+    /**
+     * 标准化 normalize Rate 输入值，统一大小写、空白字符或协议格式。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rate rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private BigDecimal normalizeRate(BigDecimal rate) {
         return rate == null ? null : rate.setScale(8, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 转换生成 to Offset Date Time 对应的传输对象、导出行或协议字段。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param dateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 转换或构建后的目标对象
+     */
     private OffsetDateTime toOffsetDateTime(LocalDateTime dateTime, String timeZone) {
         if (dateTime == null) {
             return null;

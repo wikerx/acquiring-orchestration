@@ -15,15 +15,6 @@ import java.time.LocalDateTime;
  *
  * <p>用于商户列表或详情页展示当前生效密钥的轻量摘要，不包含完整敏感材料原文。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantKeySummaryDTO
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户管理Admin Merchant Key Summary 数据传输对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 public class AdminMerchantKeySummaryDTO {
 

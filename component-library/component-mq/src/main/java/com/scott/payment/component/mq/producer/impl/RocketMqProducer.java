@@ -1,6 +1,7 @@
 package com.scott.payment.component.mq.producer.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import lombok.extern.slf4j.Slf4j;
@@ -14,17 +15,18 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
+
+@Slf4j
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : RocketMqProducer
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : RocketMQ 消息发送实现，位于 component-library/component-mq 基础组件层，负责补齐公共消息元数据并同步投递消息。
+ * @description : RocketMqProducer 消息投递组件，用于补齐消息元数据并发送 MQ 事件，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Slf4j
-@Service
 public class RocketMqProducer implements MqProducer {
 
     /**
@@ -54,6 +56,7 @@ public class RocketMqProducer implements MqProducer {
         if (!StringUtils.hasText(topic)) {
             throw new IllegalArgumentException("rocketmq topic can not be blank");
         }
+        fillMessageMetadata(message);
         RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
         if (rocketMQTemplate == null) {
             log.warn("RocketMQTemplate未就绪，消息发送已跳过，topic：{}，tag：{}，messageId：{}",
@@ -62,7 +65,6 @@ public class RocketMqProducer implements MqProducer {
                     message.getMessageId());
             return;
         }
-        fillMessageMetadata(message);
         String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;
         rocketMQTemplate.syncSend(destination, MessageBuilder.withPayload(JsonUtils.toJsonString(message)).build());
     }
@@ -78,6 +80,9 @@ public class RocketMqProducer implements MqProducer {
         }
         if (message.getCreatedAt() == null) {
             message.setCreatedAt(LocalDateTime.now());
+        }
+        if (!StringUtils.hasText(message.getTraceId())) {
+            message.setTraceId(TraceContext.getOrCreateTraceId());
         }
     }
 }

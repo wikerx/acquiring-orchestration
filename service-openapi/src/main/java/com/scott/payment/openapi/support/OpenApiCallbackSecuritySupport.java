@@ -167,6 +167,19 @@ public class OpenApiCallbackSecuritySupport {
         return new CallbackSecurityResult(true, true);
     }
 
+/**
+ * 写入或更新 record And Return Open Api Exception 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
+ * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
+ * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
+ * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+ * @return 当前方法计算或转换后的业务结果
+ */
     private ApiException recordAndReturnOpenApiException(HttpServletRequest request,
                                                          String eventType,
                                                          String riskLevel,
@@ -186,6 +199,19 @@ public class OpenApiCallbackSecuritySupport {
         return exception;
     }
 
+/**
+ * 写入或更新 record And Return Channel Exception 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
+ * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
+ * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
+ * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+ * @return 当前方法计算或转换后的业务结果
+ */
     private ApiException recordAndReturnChannelException(HttpServletRequest request,
                                                          String eventType,
                                                          String riskLevel,
@@ -205,6 +231,15 @@ public class OpenApiCallbackSecuritySupport {
         return exception;
     }
 
+    /**
+     * 解析 parse Timestamp 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param timestampText 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 解析后的内部数据结构或业务值
+     */
     private long parseTimestamp(String timestampText) {
         try {
             return Long.parseLong(timestampText);
@@ -213,6 +248,15 @@ public class OpenApiCallbackSecuritySupport {
         }
     }
 
+    /**
+     * 完成 sha256 Hex 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawBody raw Body 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String sha256Hex(String rawBody) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

@@ -6,18 +6,25 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigInteger;
 
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingAutoIncrementValueCalculator
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 收单支付Sharding Auto Increment Value Calculator，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ShardingAutoIncrementValueCalculator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Component
 public class ShardingAutoIncrementValueCalculator {
 
+    /**
+     * BIGINT MAX VALUE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final BigInteger BIGINT_MAX_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
 
     /**
@@ -26,12 +33,6 @@ public class ShardingAutoIncrementValueCalculator {
      * @param properties 分表配置
      * @param quarter    目标季度
      * @return AUTO_INCREMENT 范围
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param quarter 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingAutoIncrementRange calculate(PaymentQuarterShardingProperties properties, ShardingQuarter quarter) {
         if (quarter == null) {
@@ -58,6 +59,16 @@ public class ShardingAutoIncrementValueCalculator {
         return new ShardingAutoIncrementRange(prefix, startValue.longValueExact(), maxValue.longValueExact());
     }
 
+    /**
+     * 校验 validate Sequence 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sequenceWidth sequence Width 输入值，含义由调用方法名称和所属业务对象限定
+     * @param startSequence start Sequence 输入值，含义由调用方法名称和所属业务对象限定
+     * @param maxSequence max Sequence 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateSequence(int sequenceWidth, long startSequence, long maxSequence) {
         if (sequenceWidth < 1 || sequenceWidth > 12) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "sequence width must be between 1 and 12");

@@ -7,13 +7,14 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingQuarterResolverTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 分表季度解析器测试。 <p>重点覆盖 yyyyQQ 季度后缀和 Q4 跨年逻辑，避免把季度编号误当成月份。</p>
+ * @description : ShardingQuarterResolverTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 class ShardingQuarterResolverTest {

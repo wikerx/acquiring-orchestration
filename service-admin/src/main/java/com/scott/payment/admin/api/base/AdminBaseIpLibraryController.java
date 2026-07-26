@@ -15,21 +15,25 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+@RestController
+@RequestMapping("/admin/base/ip-library")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminBaseIpLibraryController
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-05 00:34
  * @email : scott_x@163.com
- * @description : 基础数据Admin Base Ip Library 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminBaseIpLibraryController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
-@RequestMapping("/admin/base/ip-library")
 public class AdminBaseIpLibraryController {
 
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * ip Library Application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final AdminBaseIpLibraryApplicationService ipLibraryApplicationService;
 
@@ -52,11 +56,6 @@ public class AdminBaseIpLibraryController {
 
     /**
      * 查询单个 IP 命中的归属区间。
-     */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/lookup")
     @RequiresPermission("base:ip-library:list")

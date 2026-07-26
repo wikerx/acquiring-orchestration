@@ -44,79 +44,146 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminExchangeRateServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 收单支付Admin Exchange Rate Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminExchangeRateServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ENABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int ENABLED = 1;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DISABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int DISABLED = 0;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ALL 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String ALL = "ALL";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * AUTO 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String AUTO = "AUTO";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MANUAL 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String MANUAL = "MANUAL";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * RATE STATUS ENABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String RATE_STATUS_ENABLED = "ENABLED";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * RATE STATUS VOIDED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String RATE_STATUS_VOIDED = "VOIDED";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * RATE STATUS DISABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String RATE_STATUS_DISABLED = "DISABLED";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * RATE STATUS EXPIRED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String RATE_STATUS_EXPIRED = "EXPIRED";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * UP 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String UP = "UP";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DOWN 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String DOWN = "DOWN";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NONE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String NONE = "NONE";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * BP 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String BP = "BP";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * PERCENT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String PERCENT = "PERCENT";
     private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Z0-9_]{2,64}$");
+    /**
+     * CURRENCY PATTERN 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：ISO 4217 三位币种代码；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final Pattern CURRENCY_PATTERN = Pattern.compile("^[A-Z]{3}$|^ALL$");
     private static final Set<String> SOURCE_TYPES = Set.of("WEB", "API", "MANUAL", "IMPORT");
     private static final Set<String> RATE_TYPES = Set.of("TRANSACTION_RATE", "SETTLEMENT_RATE");
@@ -127,26 +194,60 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     private static final Set<String> MANUAL_BUSINESS_RATE_STATUSES = Set.of(RATE_STATUS_ENABLED, RATE_STATUS_DISABLED);
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * source Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeRateSourceMapper sourceMapper;
     /**
-     * 收单支付金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     * raw Rate Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeRawRateMapper rawRateMapper;
+
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * rule Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeRateRuleMapper ruleMapper;
     /**
-     * 收单支付金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
+     * business Rate Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeBusinessRateMapper businessRateMapper;
+
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * usage Snapshot Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExchangeRateUsageSnapshotMapper usageSnapshotMapper;
 
+/**
+ * 创建 AdminExchangeRateServiceImpl 实例并注入其运行所需依赖。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param sourceMapper source Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param rawRateMapper raw Rate Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param ruleMapper rule Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param businessRateMapper business Rate Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param usageSnapshotMapper usage Snapshot Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ */
     public AdminExchangeRateServiceImpl(ExchangeRateSourceMapper sourceMapper,
                                         ExchangeRawRateMapper rawRateMapper,
                                         ExchangeRateRuleMapper ruleMapper,
@@ -164,11 +265,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 汇率源分页结果
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<SourceResponse> pageSources(SourceQuery request) {
@@ -191,11 +287,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 汇率源列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<SourceResponse> listSources(SourceQuery request) {
@@ -220,11 +311,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 汇率源主键
      * @return 汇率源详情
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public SourceResponse getSource(Long id) {
         return toSourceResponse(findSource(id));
@@ -235,11 +321,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 保存请求
      * @return 新增后的汇率源详情
-     */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -260,12 +341,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param request 保存请求
      * @return 修改后的汇率源详情
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse updateSource(Long id, SourceSaveRequest request) {
@@ -283,12 +358,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的汇率源详情
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SourceResponse updateSourceStatus(Long id, Integer status) {
@@ -304,10 +373,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * 软删除未被原始汇率、规则或业务汇率引用的汇率源。
      *
      * @param id 汇率源主键
-     */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -326,11 +391,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 原始汇率分页结果
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<RawRateResponse> pageRawRates(RawRateQuery request) {
@@ -357,11 +417,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 原始汇率列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<RawRateResponse> listRawRates(RawRateQuery request) {
@@ -390,11 +445,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 原始汇率主键
      * @return 原始汇率详情
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public RawRateResponse getRawRate(Long id) {
         return toRawRateResponse(findRawRate(id));
@@ -405,11 +455,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 原始汇率保存请求
      * @return 新增后的原始汇率详情
-     */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -431,12 +476,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id         原始汇率主键
      * @param voidReason 作废原因
      * @return 作废后的原始汇率详情
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param voidReason 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -464,11 +503,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param request 查询条件，允许为空
      * @return 汇率规则分页结果
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PageResult<RuleResponse> pageRules(RuleQuery request) {
         RuleQuery query = request == null ? new RuleQuery() : request;
@@ -492,11 +526,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 汇率规则列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<RuleResponse> listRules(RuleQuery request) {
@@ -523,11 +552,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 规则主键
      * @return 汇率规则详情
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public RuleResponse getRule(Long id) {
         return toRuleResponse(findRule(id));
@@ -538,11 +562,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 规则保存请求
      * @return 新增后的规则详情
-     */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -563,12 +582,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param request 规则保存请求
      * @return 修改后的规则详情
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse updateRule(Long id, RuleSaveRequest request) {
@@ -586,12 +599,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的规则详情
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RuleResponse updateRuleStatus(Long id, Integer status) {
@@ -608,11 +615,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 业务汇率分页结果
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<BusinessRateResponse> pageBusinessRates(BusinessRateQuery request) {
@@ -636,11 +638,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 业务汇率列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<BusinessRateResponse> listBusinessRates(BusinessRateQuery request) {
@@ -666,11 +663,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 业务汇率主键
      * @return 业务汇率详情
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public BusinessRateResponse getBusinessRate(Long id) {
         return toBusinessRateResponse(findBusinessRate(id));
@@ -681,11 +673,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 业务汇率保存请求
      * @return 新增后的业务汇率
-     */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -700,11 +687,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 批量保存请求
      * @return 新增后的业务汇率列表
-     */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -728,11 +710,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 业务汇率生成请求
      * @return 生成后的业务汇率详情
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -775,12 +752,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param status 状态值，1 表示启用，0 表示停用
      * @return 切换状态后的业务汇率详情
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BusinessRateResponse updateBusinessRateStatus(Long id, Integer status) {
@@ -797,11 +768,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 汇率使用快照分页结果
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<UsageSnapshotResponse> pageUsageSnapshots(UsageSnapshotQuery request) {
@@ -827,11 +793,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      *
      * @param request 查询条件，允许为空
      * @return 使用快照列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<UsageSnapshotResponse> listUsageSnapshots(UsageSnapshotQuery request) {
@@ -859,11 +820,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param id 快照主键
      * @return 使用快照详情
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public UsageSnapshotResponse getUsageSnapshot(Long id) {
         ExchangeRateUsageSnapshotDO entity = usageSnapshotMapper.selectOne(Wrappers.<ExchangeRateUsageSnapshotDO>lambdaQuery()
@@ -881,12 +837,6 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
      * @param originalRate 原始报价字段值
      * @param rule         汇率规则
      * @return 最终业务汇率
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param originalRate 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public BigDecimal calculateFinalRate(BigDecimal originalRate, ExchangeRateRuleDO rule) {
         if (originalRate == null || originalRate.compareTo(BigDecimal.ZERO) <= 0) {
@@ -908,6 +858,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return originalRate.multiply(multiplier).setScale(rule.getDecimalScale(), toRoundingMode(rule.getRoundingMode()));
     }
 
+    /**
+     * 校验 validate Source Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateSourceRequest(SourceSaveRequest request, Long excludeId) {
         if (request == null) {
             throw badRequest("汇率源请求不能为空");
@@ -932,6 +891,14 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 校验 validate Raw Rate Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     */
     private void validateRawRateRequest(RawRateSaveRequest request) {
         if (request == null) {
             throw badRequest("原始汇率请求不能为空");
@@ -961,6 +928,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 校验 validate Rule Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateRuleRequest(RuleSaveRequest request, Long excludeId) {
         if (request == null) {
             throw badRequest("汇率规则请求不能为空");
@@ -1005,6 +981,14 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 校验 validate Business Rate Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     */
     private void validateBusinessRateRequest(BusinessRateSaveRequest request) {
         if (request == null) {
             throw badRequest("业务汇率请求不能为空");
@@ -1029,6 +1013,16 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 判断 has Overlapped Enabled Rule 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasOverlappedEnabledRule(RuleSaveRequest request, Long excludeId) {
         return ruleMapper.selectList(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
                         .eq(ExchangeRateRuleDO::getDeleted, NOT_DELETED)
@@ -1043,6 +1037,18 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
                         existing.getEffectiveStartTime(), existing.getEffectiveEndTime()));
     }
 
+    /**
+     * 完成 time Range Overlaps 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param start1 start1 输入值，含义由调用方法名称和所属业务对象限定
+     * @param end1 end1 输入值，含义由调用方法名称和所属业务对象限定
+     * @param start2 start2 输入值，含义由调用方法名称和所属业务对象限定
+     * @param end2 end2 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean timeRangeOverlaps(LocalDateTime start1, LocalDateTime end1, LocalDateTime start2, LocalDateTime end2) {
         LocalDateTime min = LocalDateTime.of(1900, 1, 1, 0, 0);
         LocalDateTime max = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
@@ -1053,6 +1059,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return !leftEnd.isBefore(rightStart) && !rightEnd.isBefore(leftStart);
     }
 
+    /**
+     * 校验 validate Business Rate Source 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateBusinessRateSource(ExchangeRawRateDO rawRate, ExchangeRateRuleDO rule) {
         if (!RATE_STATUS_ENABLED.equals(rawRate.getRateStatus())) {
             throw badRequest("只有启用状态的原始汇率可以生成业务汇率");
@@ -1078,10 +1093,32 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 推进 expire Current Business Rate 对应的状态或处理结果，并保留后续查询所需信息。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param expireTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void expireCurrentBusinessRate(ExchangeRateRuleDO rule, ExchangeRawRateDO rawRate, LocalDateTime expireTime) {
         expireCurrentBusinessRate(rule.getRateType(), rawRate.getSourceCode(), rawRate.getBaseCurrency(), rawRate.getQuoteCurrency(), expireTime);
     }
 
+    /**
+     * 推进 expire Current Business Rate 对应的状态或处理结果，并保留后续查询所需信息。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rateType rate Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param baseCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param quoteCurrency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param expireTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void expireCurrentBusinessRate(String rateType, String sourceCode, String baseCurrency, String quoteCurrency, LocalDateTime expireTime) {
         businessRateMapper.selectList(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                         .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)
@@ -1098,6 +1135,16 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
                 });
     }
 
+    /**
+     * 写入或更新 insert Manual Business Rate 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ExchangeBusinessRateDO insertManualBusinessRate(BusinessRateSaveRequest request, LocalDateTime now) {
         String rateType = trimUpper(request.getRateType());
         String sourceCode = trimUpper(request.getSourceCode());
@@ -1127,6 +1174,16 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 查询 select Raw Rate Value 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param rateField rate Field 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private BigDecimal selectRawRateValue(ExchangeRawRateDO rawRate, String rateField) {
         BigDecimal value = switch (rateField) {
             case "SPOT_BUY_RATE" -> rawRate.getSpotBuyRate();
@@ -1142,6 +1199,16 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return value;
     }
 
+    /**
+     * 完成 adjust Ratio 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param adjustMethod adjust Method 输入值，含义由调用方法名称和所属业务对象限定
+     * @param adjustValue adjust Value 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private BigDecimal adjustRatio(String adjustMethod, BigDecimal adjustValue) {
         if (adjustValue == null) {
             return BigDecimal.ZERO;
@@ -1152,6 +1219,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return adjustValue.divide(new BigDecimal("100"), 12, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 转换生成 to Rounding Mode 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param roundingMode rounding Mode 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private RoundingMode toRoundingMode(String roundingMode) {
         return switch (roundingMode) {
             case "ROUND_UP" -> RoundingMode.UP;
@@ -1160,6 +1236,17 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         };
     }
 
+    /**
+     * 构建 build Adjust Description 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @param originalRate original Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param finalRate final Rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private String buildAdjustDescription(ExchangeRateRuleDO rule, BigDecimal originalRate, BigDecimal finalRate) {
         return rule.getRateField() + " " + originalRate.toPlainString()
                 + ", " + rule.getAdjustDirection() + " " + rule.getAdjustValue().toPlainString()
@@ -1167,6 +1254,16 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
                 + ", " + rule.getRoundingMode() + ", final " + finalRate.toPlainString();
     }
 
+    /**
+     * 填充 fill Source 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillSource(ExchangeRateSourceDO entity, SourceSaveRequest request, LocalDateTime now) {
         entity.setSourceCode(trimUpper(request.getSourceCode()));
         entity.setSourceName(trim(request.getSourceName()));
@@ -1180,6 +1277,16 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 填充 fill Raw Rate 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillRawRate(ExchangeRawRateDO entity, RawRateSaveRequest request, LocalDateTime now) {
         entity.setSourceCode(trimUpper(request.getSourceCode()));
         entity.setBaseCurrency(trimUpper(request.getBaseCurrency()));
@@ -1196,6 +1303,16 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 填充 fill Rule 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillRule(ExchangeRateRuleDO entity, RuleSaveRequest request, LocalDateTime now) {
         entity.setRateType(trimUpper(request.getRateType()));
         entity.setSourceCode(trimUpper(request.getSourceCode()));
@@ -1215,6 +1332,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         entity.setUpdateTime(now);
     }
 
+    /**
+     * 转换生成 to Source Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private SourceResponse toSourceResponse(ExchangeRateSourceDO entity) {
         SourceResponse response = new SourceResponse();
         response.setId(entity.getId());
@@ -1234,6 +1360,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return response;
     }
 
+    /**
+     * 转换生成 to Raw Rate Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private RawRateResponse toRawRateResponse(ExchangeRawRateDO entity) {
         RawRateResponse response = new RawRateResponse();
         response.setId(entity.getId());
@@ -1257,6 +1392,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return response;
     }
 
+    /**
+     * 转换生成 to Rule Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private RuleResponse toRuleResponse(ExchangeRateRuleDO entity) {
         RuleResponse response = new RuleResponse();
         response.setId(entity.getId());
@@ -1280,6 +1424,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return response;
     }
 
+    /**
+     * 转换生成 to Business Rate Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private BusinessRateResponse toBusinessRateResponse(ExchangeBusinessRateDO entity) {
         BusinessRateResponse response = new BusinessRateResponse();
         response.setId(entity.getId());
@@ -1302,6 +1455,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return response;
     }
 
+    /**
+     * 转换生成 to Usage Snapshot Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private UsageSnapshotResponse toUsageSnapshotResponse(ExchangeRateUsageSnapshotDO entity) {
         UsageSnapshotResponse response = new UsageSnapshotResponse();
         response.setId(entity.getId());
@@ -1321,6 +1483,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return response;
     }
 
+    /**
+     * 查询 find Source 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ExchangeRateSourceDO findSource(Long id) {
         ExchangeRateSourceDO entity = sourceMapper.selectOne(Wrappers.<ExchangeRateSourceDO>lambdaQuery()
                 .eq(ExchangeRateSourceDO::getId, id)
@@ -1331,6 +1502,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 查询 find Raw Rate 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ExchangeRawRateDO findRawRate(Long id) {
         ExchangeRawRateDO entity = rawRateMapper.selectOne(Wrappers.<ExchangeRawRateDO>lambdaQuery()
                 .eq(ExchangeRawRateDO::getId, id)
@@ -1341,6 +1521,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 查询 find Rule 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ExchangeRateRuleDO findRule(Long id) {
         ExchangeRateRuleDO entity = ruleMapper.selectOne(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
                 .eq(ExchangeRateRuleDO::getId, id)
@@ -1351,6 +1540,15 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 查询 find Business Rate 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private ExchangeBusinessRateDO findBusinessRate(Long id) {
         ExchangeBusinessRateDO entity = businessRateMapper.selectOne(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                 .eq(ExchangeBusinessRateDO::getId, id)
@@ -1361,6 +1559,14 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return entity;
     }
 
+    /**
+     * 强制校验 require Source Exists 必填值，缺失时中断当前业务流程。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void requireSourceExists(String sourceCode) {
         Long count = sourceMapper.selectCount(Wrappers.<ExchangeRateSourceDO>lambdaQuery()
                 .eq(ExchangeRateSourceDO::getSourceCode, sourceCode)
@@ -1370,42 +1576,104 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         }
     }
 
+    /**
+     * 判断 has Raw Rate 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasRawRate(String sourceCode) {
         return rawRateMapper.selectCount(Wrappers.<ExchangeRawRateDO>lambdaQuery()
                 .eq(ExchangeRawRateDO::getSourceCode, sourceCode)
                 .eq(ExchangeRawRateDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 判断 has Rule 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasRule(String sourceCode) {
         return ruleMapper.selectCount(Wrappers.<ExchangeRateRuleDO>lambdaQuery()
                 .eq(ExchangeRateRuleDO::getSourceCode, sourceCode)
                 .eq(ExchangeRateRuleDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 判断 has Business Rate 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasBusinessRate(String sourceCode) {
         return businessRateMapper.selectCount(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                 .eq(ExchangeBusinessRateDO::getSourceCode, sourceCode)
                 .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 判断 has Business Rate By Raw Rate 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rawRateId raw Rate Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasBusinessRateByRawRate(Long rawRateId) {
         return businessRateMapper.selectCount(Wrappers.<ExchangeBusinessRateDO>lambdaQuery()
                 .eq(ExchangeBusinessRateDO::getRawRateId, rawRateId)
                 .eq(ExchangeBusinessRateDO::getDeleted, NOT_DELETED)) > 0;
     }
 
+    /**
+     * 校验 validate Status 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     */
     private void validateStatus(Integer status) {
         if (status == null || (status != ENABLED && status != DISABLED)) {
             throw badRequest("状态必须为0停用或1启用");
         }
     }
 
+    /**
+     * 校验 validate Currency 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
+     * @param allowAll allow All 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateCurrency(String currency, boolean allowAll) {
         if (!StringUtils.hasText(currency) || !CURRENCY_PATTERN.matcher(currency).matches() || (!allowAll && ALL.equals(currency))) {
             throw badRequest("币种必须为 ISO 4217 三位字母代码" + (allowAll ? "或 ALL" : ""));
         }
     }
 
+    /**
+     * 判断 has Any Rate 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rates rates 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasAnyRate(BigDecimal... rates) {
         for (BigDecimal rate : rates) {
             if (rate != null && rate.compareTo(BigDecimal.ZERO) > 0) {
@@ -1415,30 +1683,84 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
         return false;
     }
 
+    /**
+     * 校验 validate Positive Rate 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rate rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validatePositiveRate(BigDecimal rate, String fieldName) {
         if (rate != null && rate.compareTo(BigDecimal.ZERO) <= 0) {
             throw badRequest(fieldName + "必须大于0");
         }
     }
 
+    /**
+     * 校验 validate Positive Required Rate 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rate rate 输入值，含义由调用方法名称和所属业务对象限定
+     * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validatePositiveRequiredRate(BigDecimal rate, String fieldName) {
         if (rate == null || rate.compareTo(BigDecimal.ZERO) <= 0) {
             throw badRequest(fieldName + "必须大于0");
         }
     }
 
+    /**
+     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
+    /**
+     * 完成 not Found 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ServiceException notFound(String message) {
         return new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), message);
     }
 
+    /**
+     * 完成 trim 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
+    /**
+     * 完成 trim Upper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String trimUpper(String value) {
         return trim(value) == null ? null : trim(value).toUpperCase(Locale.ROOT);
     }

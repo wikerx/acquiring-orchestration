@@ -32,44 +32,78 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 import java.util.Map;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminShardingGovernanceApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 监控治理Admin Sharding Governance Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminShardingGovernanceApplicationService 应用服务，用于编排接口请求、权限上下文、领域服务和外部依赖，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class AdminShardingGovernanceApplicationService {
 
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sharding Properties 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final PaymentQuarterShardingProperties shardingProperties;
+
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * quarter Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingQuarterResolver quarterResolver;
+
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * table Name Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingPhysicalTableNameResolver tableNameResolver;
+
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * auto Increment Value Calculator 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingAutoIncrementValueCalculator autoIncrementValueCalculator;
+
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * physical Table Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysShardingPhysicalTableMapper physicalTableMapper;
+
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * create Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysShardingTableCreateLogMapper createLogMapper;
+
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Scheduler Internal Client 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final JobSchedulerInternalClient jobSchedulerInternalClient;
     /**
@@ -112,10 +146,6 @@ public class AdminShardingGovernanceApplicationService {
      *
      * @return 分表规则列表
      */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public List<ShardingRuleResponse> listRules() {
         return shardingProperties.getTables().entrySet().stream()
                 .map(this::toRuleResponse)
@@ -128,11 +158,6 @@ public class AdminShardingGovernanceApplicationService {
      * @param logicalTable 逻辑表或规则 key
      * @return 分表规则
      */
-    /**
-     * 获取监控治理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param logicalTable 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingRuleResponse getRule(String logicalTable) {
         Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry = findRule(logicalTable);
         return toRuleResponse(entry);
@@ -143,11 +168,6 @@ public class AdminShardingGovernanceApplicationService {
      *
      * @param request 查询条件
      * @return 物理表分页结果
-     */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<ShardingPhysicalTableResponse> pagePhysicalTables(ShardingPhysicalTableQueryRequest request) {
         ShardingPhysicalTableQueryRequest query = request == null ? new ShardingPhysicalTableQueryRequest() : request;
@@ -171,11 +191,6 @@ public class AdminShardingGovernanceApplicationService {
      * @param id 物理表登记主键
      * @return 物理表详情
      */
-    /**
-     * 获取监控治理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingPhysicalTableResponse getPhysicalTable(Long id) {
         SysShardingPhysicalTableDO entity = physicalTableMapper.selectById(id);
         if (entity == null) {
@@ -193,13 +208,6 @@ public class AdminShardingGovernanceApplicationService {
      * @param operatorId   操作人 ID
      * @param operatorName 操作人名称
      * @return 刷新结果
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingTablePreCreateResultResponse refreshPhysicalTables(ShardingTableCreateRequest request,
                                                                       String operatorId,
@@ -219,13 +227,6 @@ public class AdminShardingGovernanceApplicationService {
      * @param operatorName 操作人名称
      * @return 检查结果
      */
-    /**
-     * 校验监控治理业务规则，发现不符合要求的数据时抛出业务异常。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingTablePreCreateResultResponse checkPhysicalTableSchema(ShardingTableCreateRequest request,
                                                                          String operatorId,
                                                                          String operatorName) {
@@ -239,11 +240,6 @@ public class AdminShardingGovernanceApplicationService {
      *
      * @param request 查询条件
      * @return 建表日志分页结果
-     */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<ShardingTableCreateLogResponse> pageCreateLogs(ShardingTableCreateLogQueryRequest request) {
         ShardingTableCreateLogQueryRequest query = request == null ? new ShardingTableCreateLogQueryRequest() : request;
@@ -267,11 +263,6 @@ public class AdminShardingGovernanceApplicationService {
      * @param id 建表日志主键
      * @return 建表日志详情
      */
-    /**
-     * 获取监控治理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingTableCreateLogResponse getCreateLog(Long id) {
         SysShardingTableCreateLogDO entity = createLogMapper.selectById(id);
         if (entity == null) {
@@ -288,13 +279,6 @@ public class AdminShardingGovernanceApplicationService {
      * @param operatorName 操作人名称
      * @return 预演结果
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingTablePreCreateResultResponse dryRun(ShardingTableCreateRequest request,
                                                        String operatorId,
                                                        String operatorName) {
@@ -309,13 +293,6 @@ public class AdminShardingGovernanceApplicationService {
      * @param operatorName 操作人名称
      * @return 建表结果
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingTablePreCreateResultResponse execute(ShardingTableCreateRequest request,
                                                         String operatorId,
                                                         String operatorName) {
@@ -326,10 +303,6 @@ public class AdminShardingGovernanceApplicationService {
      * 查询分表 ID 规则。
      *
      * @return ID 规则说明
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingIdRuleResponse idRule() {
         ShardingQuarter currentQuarter = quarterResolver.currentQuarter(shardingProperties);
@@ -347,6 +320,16 @@ public class AdminShardingGovernanceApplicationService {
         return response;
     }
 
+    /**
+     * 转换生成 to Rule Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+     * @param entry entry 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private ShardingRuleResponse toRuleResponse(Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry) {
         PaymentQuarterShardingProperties.TableRule rule = entry.getValue();
         ShardingQuarter currentQuarter = quarterResolver.currentQuarter(shardingProperties);
@@ -372,12 +355,31 @@ public class AdminShardingGovernanceApplicationService {
         return response;
     }
 
+    /**
+     * 解析 resolve Physical Tables 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private List<String> resolvePhysicalTables(PaymentQuarterShardingProperties.TableRule rule) {
         return quarterResolver.quartersInRange(rule).stream()
                 .map(quarter -> tableNameResolver.physicalTableName(rule, quarter))
                 .toList();
     }
 
+    /**
+     * 解析 resolve Physical Table Name 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
+     * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolvePhysicalTableName(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
         if (!quarterResolver.inRange(rule, quarter)) {
             return null;
@@ -385,6 +387,15 @@ public class AdminShardingGovernanceApplicationService {
         return tableNameResolver.physicalTableName(rule, quarter);
     }
 
+    /**
+     * 查询 find Rule 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private Map.Entry<String, PaymentQuarterShardingProperties.TableRule> findRule(String logicalTable) {
         if (!StringUtils.hasText(logicalTable)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "logicalTable is required");
@@ -396,6 +407,15 @@ public class AdminShardingGovernanceApplicationService {
                 .orElseThrow(() -> new ServiceException(ApiResultEnum.NOT_FOUND));
     }
 
+    /**
+     * 构建 build Physical Table Wrapper 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private LambdaQueryWrapper<SysShardingPhysicalTableDO> buildPhysicalTableWrapper(ShardingPhysicalTableQueryRequest query) {
         return new LambdaQueryWrapper<SysShardingPhysicalTableDO>()
                 .eq(StringUtils.hasText(query.getLogicalTable()), SysShardingPhysicalTableDO::getLogicalTable, trim(query.getLogicalTable()))
@@ -410,6 +430,15 @@ public class AdminShardingGovernanceApplicationService {
                 .orderByAsc(SysShardingPhysicalTableDO::getPhysicalTable);
     }
 
+    /**
+     * 构建 build Create Log Wrapper 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private LambdaQueryWrapper<SysShardingTableCreateLogDO> buildCreateLogWrapper(ShardingTableCreateLogQueryRequest query) {
         return new LambdaQueryWrapper<SysShardingTableCreateLogDO>()
                 .like(StringUtils.hasText(query.getBatchNo()), SysShardingTableCreateLogDO::getBatchNo, trim(query.getBatchNo()))
@@ -420,6 +449,18 @@ public class AdminShardingGovernanceApplicationService {
                 .orderByDesc(SysShardingTableCreateLogDO::getId);
     }
 
+/**
+ * 转换生成 to Remote Request 对应的传输对象、导出行或协议字段。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param dryRun dry Run 输入值，含义由调用方法名称和所属业务对象限定
+ * @param operatorId operator Id 输入值，含义由调用方法名称和所属业务对象限定
+ * @param operatorName operator Name 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private ShardingTablePreCreateRemoteRequest toRemoteRequest(ShardingTableCreateRequest request,
                                                                 boolean dryRun,
                                                                 String operatorId,
@@ -435,6 +476,15 @@ public class AdminShardingGovernanceApplicationService {
         return remoteRequest;
     }
 
+    /**
+     * 完成 copy Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ShardingTableCreateRequest copyRequest(ShardingTableCreateRequest request) {
         ShardingTableCreateRequest source = request == null ? new ShardingTableCreateRequest() : request;
         ShardingTableCreateRequest target = new ShardingTableCreateRequest();
@@ -445,6 +495,15 @@ public class AdminShardingGovernanceApplicationService {
         return target;
     }
 
+    /**
+     * 完成 trim 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }

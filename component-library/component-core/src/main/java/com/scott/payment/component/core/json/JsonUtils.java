@@ -75,6 +75,15 @@ public final class JsonUtils {
         return JSON.parseArray(json, clazz);
     }
 
+    /**
+     * 判断 is Blank 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }

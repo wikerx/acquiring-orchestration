@@ -29,15 +29,6 @@ import java.util.List;
  *
  * <p>负责岗位查询、维护和 admin 应用归属校验等领域规则，不承担权限控制或页面交互逻辑。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPostServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Admin Post Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminPostServiceImpl implements AdminPostService {
 
@@ -62,16 +53,20 @@ public class AdminPostServiceImpl implements AdminPostService {
         this.sysAppMapper = sysAppMapper;
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param postCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param postName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 page Posts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param pageNo page No 输入值，含义由调用方法名称和所属业务对象限定
+     * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
+     * @param postCode post Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param postName post Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PageResult<SysPostDO> pagePosts(int pageNo, int pageSize, String postCode, String postName, Integer status) {
         LambdaQueryWrapper<SysPostDO> queryWrapper = Wrappers.<SysPostDO>lambdaQuery()
                 .like(StringUtils.hasText(postCode), SysPostDO::getPostCode, postCode)
@@ -83,11 +78,15 @@ public class AdminPostServiceImpl implements AdminPostService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 list Enabled Posts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<SysPostDO> listEnabledPosts() {
         return sysPostMapper.selectList(
                 Wrappers.<SysPostDO>lambdaQuery()
@@ -97,21 +96,29 @@ public class AdminPostServiceImpl implements AdminPostService {
         );
     }
 
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 get Post 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysPostDO getPost(Long id) {
         return sysPostMapper.selectById(id);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 export Posts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<SysPostDO> exportPosts() {
         return sysPostMapper.selectList(
                 Wrappers.<SysPostDO>lambdaQuery()
@@ -120,12 +127,16 @@ public class AdminPostServiceImpl implements AdminPostService {
         );
     }
 
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param post 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 create Post 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param post post 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysPostDO createPost(SysPostDO post) {
         if (!StringUtils.hasText(post.getPostCode())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "岗位编码不能为空");
@@ -149,13 +160,17 @@ public class AdminPostServiceImpl implements AdminPostService {
         return post;
     }
 
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 写入或更新 update Post 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param input input 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysPostDO updatePost(Long id, SysPostDO input) {
         SysPostDO post = sysPostMapper.selectById(id);
         if (post == null) {
@@ -181,11 +196,15 @@ public class AdminPostServiceImpl implements AdminPostService {
         return post;
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
+    /**
+     * 完成 remove Post 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public void removePost(Long id) {
         SysPostDO post = sysPostMapper.selectById(id);
         if (post == null) {

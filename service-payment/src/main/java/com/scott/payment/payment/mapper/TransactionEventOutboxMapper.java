@@ -50,6 +50,15 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
             )
             """)
     int insertPhysical(@Param("physicalTableName") String physicalTableName,
+                       /**
+                        * 完成 m 分支的校验或状态更新。
+                        * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                        * <p>
+                        * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                        * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                        * </p>
+                        * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
+                        */
                        @Param("eventDO") TransactionEventOutboxDO eventDO);
 
     /**
@@ -72,6 +81,15 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
             """)
     List<TransactionEventOutboxDO> selectDueForPublish(@Param("physicalTableName") String physicalTableName,
                                                        @Param("now") LocalDateTime now,
+                                                       /**
+                                                        * 完成 m 分支的校验或状态更新。
+                                                        * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                        * <p>
+                                                        * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                        * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                        * </p>
+                                                        * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
+                                                        */
                                                        @Param("limit") int limit);
 
     /**
@@ -98,6 +116,15 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
     int markSent(@Param("physicalTableName") String physicalTableName,
                  @Param("id") Long id,
                  @Param("version") Integer version,
+                 /**
+                  * 完成 m 分支的校验或状态更新。
+                  * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                  * <p>
+                  * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                  * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                  * </p>
+                  * @param sentTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+                  */
                  @Param("sentTime") LocalDateTime sentTime);
 
     /**
@@ -130,5 +157,14 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
                    @Param("version") Integer version,
                    @Param("nextRetryTime") LocalDateTime nextRetryTime,
                    @Param("failReason") String failReason,
+                   /**
+                    * 完成 m 分支的校验或状态更新。
+                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                    * <p>
+                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                    * </p>
+                    * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+                    */
                    @Param("now") LocalDateTime now);
 }

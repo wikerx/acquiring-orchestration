@@ -101,15 +101,6 @@ import java.util.stream.Collectors;
  * @description : 管理类系统登录注册与权限服务实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemAuthServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理System Auth Service Impl，位于 component-library/component-db 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class SystemAuthServiceImpl implements SystemAuthService {
 
@@ -267,67 +258,131 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys App Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysAppMapper sysAppMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys User Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysUserMapper sysUserMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Account Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysAccountMapper sysAccountMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysRoleMapper sysRoleMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Account Role Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysAccountRoleMapper sysAccountRoleMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Menu Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysRoleMenuMapper sysRoleMenuMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Permission Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysRolePermissionMapper sysRolePermissionMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Menu Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMenuMapper sysMenuMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Permission Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysPermissionMapper sysPermissionMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Menu Grant Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Permission Grant Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant User Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMerchantUserMapper sysMerchantUserMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant User Role Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Login Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysLoginLogMapper sysLoginLogMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Login Session Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysLoginSessionMapper sysLoginSessionMapper;
     /**
-     * 系统管理编码或编号字段，用于业务识别、查询和幂等关联。
+     * sys Verify Code Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysVerifyCodeMapper sysVerifyCodeMapper;
     /**
@@ -343,7 +398,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private final SysAccountMfaLogMapper sysAccountMfaLogMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * base Merchant Info Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
     /**
@@ -418,12 +477,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param appCode 系统应用编码
      * @param request 注册请求
      * @return 注册后的账号信息
-     */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -501,14 +554,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param clientIp  客户端IP
      * @param userAgent 客户端 User-Agent
      * @return 登录响应
-     */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param clientIp 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param userAgent 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -682,12 +727,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param token   登录 token
      * @return 当前账号和权限信息
      */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param token 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     public AuthLoginResponse currentUser(String appCode, String token) {
@@ -784,11 +823,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param appCode 系统应用编码
      * @param token   登录 token
      */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param token 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     public void logout(String appCode, String token) {
@@ -810,15 +844,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param requestPath   请求路径
      * @param permissionCode 接口显式声明的权限编码
      * @return 当前登录账号上下文
-     */
-    /**
-     * 校验系统管理业务规则，发现不符合要求的数据时抛出业务异常。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param requestMethod 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param requestPath 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param permissionCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -1093,6 +1118,16 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         }
     }
 
+    /**
+     * 完成 draw Captcha Noise 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param graphics graphics 输入值，含义由调用方法名称和所属业务对象限定
+     * @param width width 输入值，含义由调用方法名称和所属业务对象限定
+     * @param height height 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void drawCaptchaNoise(Graphics2D graphics, int width, int height) {
         for (int i = 0; i < 8; i++) {
             graphics.setColor(new Color(180 + VERIFY_CODE_RANDOM.nextInt(50), 195 + VERIFY_CODE_RANDOM.nextInt(40), 215 + VERIFY_CODE_RANDOM.nextInt(35)));
@@ -1108,6 +1143,15 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         }
     }
 
+    /**
+     * 完成 captcha Text Color 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param index index 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Color captchaTextColor(int index) {
         Color[] colors = {
                 new Color(29, 78, 216),

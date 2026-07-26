@@ -6,13 +6,14 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingPhysicalTableNameResolverTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 分表物理表名解析器测试。 <p>表名会进入 DDL 拼接，因此必须覆盖正常生成和非法字符拦截。</p>
+ * @description : ShardingPhysicalTableNameResolverTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 class ShardingPhysicalTableNameResolverTest {

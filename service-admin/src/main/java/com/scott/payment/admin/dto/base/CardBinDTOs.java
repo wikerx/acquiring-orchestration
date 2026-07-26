@@ -16,7 +16,7 @@ import java.util.List;
  * @classname : CardBinDTOs
  * @date : 2026-07-04 00:00
  * @email : scott_x@163.com
- * @description : 卡 BIN 管理请求和响应对象集合，位于 service-admin 接口传输层，约束 BIN 输入、匹配测试和页面展示数据。
+ * @description : 卡 BIN 管理请求和响应对象集合，位于 service-admin 接口传输层，约束 BIN 输入、匹配测试和发卡行识别结果。
  * @status : create
  */
 public final class CardBinDTOs {

@@ -30,15 +30,6 @@ import jakarta.validation.ConstraintViolationException;
  * @description : 全局异常处理器
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : GlobalExceptionHandler
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Global Exception Handler，位于 component-library/component-web 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -48,11 +39,6 @@ public class GlobalExceptionHandler {
      *
      * @param exception 开放 API 异常
      * @return 统一错误响应
-     */
-    /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @ExceptionHandler(ApiException.class)
     public CommonResult<Void> handleApiException(ApiException exception) {
@@ -66,11 +52,6 @@ public class GlobalExceptionHandler {
      * @param exception 服务异常
      * @return 统一错误响应
      */
-    /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @ExceptionHandler(ServiceException.class)
     public CommonResult<Void> handleServiceException(ServiceException exception) {
         log.warn("Service exception, code: {}, message: {}", exception.getCode(), exception.getMessage());
@@ -82,11 +63,6 @@ public class GlobalExceptionHandler {
      *
      * @param exception 旧业务异常
      * @return 统一错误响应
-     */
-    /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @ExceptionHandler(BizException.class)
     public CommonResult<Void> handleBizException(BizException exception) {
@@ -100,11 +76,6 @@ public class GlobalExceptionHandler {
      * @param exception 参数校验异常
      * @return 统一错误响应
      */
-    /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public CommonResult<Void> handleValidException(MethodArgumentNotValidException exception) {
         log.warn("Request parameter validation failed: {}", exception.getMessage());
@@ -116,11 +87,6 @@ public class GlobalExceptionHandler {
      *
      * @param exception 请求方法异常
      * @return 统一错误响应
-     */
-    /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public CommonResult<Void> handleMethodNotSupportedException(HttpRequestMethodNotSupportedException exception) {
@@ -142,11 +108,16 @@ public class GlobalExceptionHandler {
             NoHandlerFoundException.class,
             NoResourceFoundException.class
     })
+
     /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 handle Route Not Found Exception 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
      */
     public CommonResult<Void> handleRouteNotFoundException(Exception exception, HttpServletRequest request) {
         String requestPath = resolveRouteNotFoundPath(exception, request);
@@ -168,10 +139,15 @@ public class GlobalExceptionHandler {
             ServletRequestBindingException.class,
             HttpMessageNotReadableException.class
     })
+
     /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 handle Request Parameter Exception 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
      */
     public CommonResult<Void> handleRequestParameterException(Exception exception) {
         log.warn("Request parameter exception: {}", exception.getMessage());
@@ -183,11 +159,6 @@ public class GlobalExceptionHandler {
      *
      * @param exception 系统异常
      * @return 统一错误响应
-     */
-    /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param exception 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @ExceptionHandler(Exception.class)
     public CommonResult<Void> handleException(Exception exception) {

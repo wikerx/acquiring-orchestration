@@ -4,16 +4,17 @@ import lombok.Data;
 
 import java.io.Serializable;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestHeaderDTO
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 17:48
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 请求头上下文 DTO，位于 service-openapi 接口传输层，只承载已验签 JWT 中允许下游使用的非敏感声明。
+ * @description : OpenApiRequestHeaderDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class OpenApiRequestHeaderDTO implements Serializable {
 
     /**

@@ -33,33 +33,40 @@ import java.util.List;
  * @description : 任务任务服务实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Task Service Impl，位于 service-job 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class JobTaskServiceImpl implements JobTaskService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int NOT_DELETED = 0;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Job Task Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysJobTaskMapper sysJobTaskMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Task Timing Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final JobTaskTimingService jobTaskTimingService;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Handler Registry 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final JobHandlerRegistry jobHandlerRegistry;
 
@@ -78,12 +85,16 @@ public class JobTaskServiceImpl implements JobTaskService {
         this.jobHandlerRegistry = jobHandlerRegistry;
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 page Tasks 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PageResult<SysJobTaskDO> pageTasks(JobTaskQueryRequest request) {
         JobTaskQueryRequest query = request == null ? new JobTaskQueryRequest() : request;
         Page<SysJobTaskDO> page = sysJobTaskMapper.selectPage(
@@ -101,12 +112,16 @@ public class JobTaskServiceImpl implements JobTaskService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 create Task 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysJobTaskDO createTask(JobTaskSaveRequest request) {
         validateRequest(request);
         if (existsByJobCode(request.getJobCode(), null)) {
@@ -130,13 +145,17 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 写入或更新 update Task 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysJobTaskDO updateTask(Long taskId, JobTaskSaveRequest request) {
         validateRequest(request);
         SysJobTaskDO task = getRequiredTask(taskId);
@@ -151,14 +170,18 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 change Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysJobTaskDO changeStatus(Long taskId, String status, String operator) {
         SysJobTaskDO task = getRequiredTask(taskId);
         task.setStatus(JobStatusEnum.valueOf(status).name());
@@ -169,12 +192,16 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
+    /**
+     * 完成 delete Task 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public void deleteTask(Long taskId, String operator) {
         SysJobTaskDO task = getRequiredTask(taskId);
         task.setDeleted(1);
@@ -184,12 +211,16 @@ public class JobTaskServiceImpl implements JobTaskService {
         sysJobTaskMapper.updateById(task);
     }
 
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 get Required Task 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysJobTaskDO getRequiredTask(Long taskId) {
         SysJobTaskDO task = sysJobTaskMapper.selectById(taskId);
         if (task == null || task.getDeleted() != null && task.getDeleted() != NOT_DELETED) {
@@ -198,37 +229,49 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param triggerTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param limit 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 查询 select Due Tasks 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param triggerTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     public List<SysJobTaskDO> selectDueTasks(LocalDateTime triggerTime, int limit) {
         return sysJobTaskMapper.selectDueTasks(triggerTime, limit);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param task 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param nodeId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param currentTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 try Acquire Lock 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param task task 输入值，含义由调用方法名称和所属业务对象限定
+     * @param nodeId node Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param currentTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     public boolean tryAcquireLock(SysJobTaskDO task, String nodeId, LocalDateTime currentTime) {
         LocalDateTime lockUntil = currentTime.plusSeconds(Math.max(task.getTimeoutSeconds(), 30));
         return sysJobTaskMapper.acquireLock(task.getId(), nodeId, lockUntil, task.getVersion()) > 0;
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param lastTriggerTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param nextTriggerTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
+    /**
+     * 推进 mark Scheduled 对应的状态或处理结果，并保留后续查询所需信息。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param lastTriggerTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param nextTriggerTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     public void markScheduled(Long taskId, LocalDateTime lastTriggerTime, LocalDateTime nextTriggerTime) {
         SysJobTaskDO task = getRequiredTask(taskId);
         task.setLastTriggerTime(lastTriggerTime);
@@ -237,23 +280,31 @@ public class JobTaskServiceImpl implements JobTaskService {
         sysJobTaskMapper.updateById(task);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param nodeId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param lockUntil 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
+    /**
+     * 完成 extend Lock 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param nodeId node Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param lockUntil lock Until 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public void extendLock(Long taskId, String nodeId, LocalDateTime lockUntil) {
         sysJobTaskMapper.extendLock(taskId, nodeId, lockUntil);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param lastRunStatus 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
+    /**
+     * 完成 finish Task Run 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param lastRunStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     */
     public void finishTaskRun(Long taskId, JobRunStatusEnum lastRunStatus) {
         SysJobTaskDO task = getRequiredTask(taskId);
         task.setLastRunStatus(lastRunStatus.name());

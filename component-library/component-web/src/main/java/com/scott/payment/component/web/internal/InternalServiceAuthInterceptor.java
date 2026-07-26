@@ -25,6 +25,13 @@ import java.time.Duration;
  */
 public class InternalServiceAuthInterceptor implements HandlerInterceptor {
 
+    /**
+     * PATH MATCHER 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
@@ -89,16 +96,44 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
         return true;
     }
 
+    /**
+     * 判断 is Whitelisted 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestPath request Path 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isWhitelisted(String requestPath) {
         return properties.getWhitelist().stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, requestPath));
     }
 
+    /**
+     * 判断 is Expired 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param timestamp 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isExpired(long timestamp) {
         Duration allowedClockSkew = properties.getAllowedClockSkew();
         long skewMillis = allowedClockSkew == null ? Duration.ofMinutes(5).toMillis() : allowedClockSkew.toMillis();
         return Math.abs(InternalServiceSignature.currentTimeMillis() - timestamp) > skewMillis;
     }
 
+    /**
+     * 解析 parse Timestamp 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param timestampText 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析后的内部数据结构或业务值
+     */
     private long parseTimestamp(String timestampText, HttpServletResponse response) throws IOException {
         try {
             return Long.parseLong(timestampText);
@@ -108,6 +143,16 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
         }
     }
 
+    /**
+     * 完成 write Error 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     */
     private void writeError(HttpServletResponse response, String code, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

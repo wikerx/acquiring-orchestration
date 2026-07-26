@@ -55,6 +55,15 @@ public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<T
             )
             """)
     int insertPhysical(@Param("physicalTableName") String physicalTableName,
+                       /**
+                        * 完成 m 分支的校验或状态更新。
+                        * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                        * <p>
+                        * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                        * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                        * </p>
+                        * @param logDO log DO 输入值，含义由调用方法名称和所属业务对象限定
+                        */
                        @Param("logDO") TransactionMerchantApiInteractionLogDO logDO);
 
     /**
@@ -72,6 +81,15 @@ public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<T
             LIMIT 500
             """)
     List<TransactionMerchantApiInteractionLogDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                             /**
+                                                                              * 完成 m 分支的校验或状态更新。
+                                                                              * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                              * <p>
+                                                                              * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                              * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                              * </p>
+                                                                              * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+                                                                              */
                                                                              @Param("operationId") String operationId);
 
     /**
@@ -107,6 +125,15 @@ public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<T
                                      @Param("responsePlainJsonMasked") String responsePlainJsonMasked,
                                      @Param("responseCipherDigest") String responseCipherDigest,
                                      @Param("responseCipherMasked") String responseCipherMasked,
+                                     /**
+                                      * 完成 m 分支的校验或状态更新。
+                                      * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                      * <p>
+                                      * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                      * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                      * </p>
+                                      * @param responseTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+                                      */
                                      @Param("responseTime") LocalDateTime responseTime);
 
     /**
@@ -151,5 +178,14 @@ public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<T
                                   @Param("merchantResponseMessage") String merchantResponseMessage,
                                   @Param("responsePlainJsonMasked") String responsePlainJsonMasked,
                                   @Param("responseTime") LocalDateTime responseTime,
+                                  /**
+                                   * 完成 m 分支的校验或状态更新。
+                                   * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                   * <p>
+                                   * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                   * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                   * </p>
+                                   * @param durationMillis duration Millis 输入值，含义由调用方法名称和所属业务对象限定
+                                   */
                                   @Param("durationMillis") Integer durationMillis);
 }

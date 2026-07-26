@@ -31,7 +31,21 @@ import static org.mockito.Mockito.mock;
  */
 class OpenApiCallbackSecuritySupportTests {
 
+    /**
+     * CHANNEL CODE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String CHANNEL_CODE = "mpgs";
+    /**
+     * SECRET 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；高敏感字段，禁止打印日志、禁止写入异常消息，持久化前需确认安全要求。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String SECRET = "test-channel-callback-secret";
     private static final String RAW_BODY = "{\"result\":\"SUCCESS\",\"response\":{\"acquirerCode\":\"00\"}}";
 

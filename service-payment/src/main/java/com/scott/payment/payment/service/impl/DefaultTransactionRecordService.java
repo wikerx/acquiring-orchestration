@@ -157,14 +157,49 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     private static final String MERCHANT_API_LOG_PREFIX = "MAL";
 
+    /**
+     * RAW REQUEST HEADER JSON MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
 
+    /**
+     * RAW REQUEST BODY JSON MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
 
+    /**
+     * RAW RESPONSE HEADER JSON MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_RESPONSE_HEADER_JSON_MASKED = "responseHeaderJsonMasked";
 
+    /**
+     * RAW RESPONSE BODY JSON MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_RESPONSE_BODY_JSON_MASKED = "responseBodyJsonMasked";
 
+    /**
+     * RAW REQUEST URL MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
 
     /**
@@ -851,6 +886,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     @Override
+/**
+ * 推进 complete Capture Channel Result 对应的状态或处理结果，并保留后续查询所需信息。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ * @return 当前方法计算或转换后的业务结果
+ */
     public boolean completeCaptureChannelResult(TransactionOperationDO operationDO,
                                                 TransactionOrderDO sourceOrderDO,
                                                 PaymentCreateCommandDTO commandDTO,
@@ -875,6 +925,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     @Override
+/**
+ * 推进 complete Refund Channel Result 对应的状态或处理结果，并保留后续查询所需信息。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ * @return 当前方法计算或转换后的业务结果
+ */
     public boolean completeRefundChannelResult(TransactionOperationDO operationDO,
                                                TransactionOrderDO sourceOrderDO,
                                                PaymentCreateCommandDTO commandDTO,
@@ -899,6 +964,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     @Override
+/**
+ * 推进 complete Void Channel Result 对应的状态或处理结果，并保留后续查询所需信息。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ * @return 当前方法计算或转换后的业务结果
+ */
     public boolean completeVoidChannelResult(TransactionOperationDO operationDO,
                                              TransactionOrderDO sourceOrderDO,
                                              PaymentCreateCommandDTO commandDTO,
@@ -923,6 +1003,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     @Override
+/**
+ * 推进 complete Incremental Authorization Channel Result 对应的状态或处理结果，并保留后续查询所需信息。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ * @return 当前方法计算或转换后的业务结果
+ */
     public boolean completeIncrementalAuthorizationChannelResult(TransactionOperationDO operationDO,
                                                                  TransactionOrderDO sourceOrderDO,
                                                                  PaymentCreateCommandDTO commandDTO,
@@ -1122,6 +1217,22 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return updated > 0;
     }
 
+/**
+ * 构建 build Order 对应的领域对象、请求对象或日志对象。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param riskDecisionEnum risk Decision Enum 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private TransactionOrderDO buildOrder(PaymentCreateCommandDTO commandDTO,
                                           PaymentRouteResultDTO routeResultDTO,
                                           PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1163,6 +1274,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return orderDO;
     }
 
+/**
+ * 构建 build Operation 对应的领域对象、请求对象或日志对象。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 渠道 API 操作类型或平台操作映射结果
+ */
     private TransactionOperationDO buildOperation(PaymentCreateCommandDTO commandDTO,
                                                   PaymentRouteResultDTO routeResultDTO,
                                                   PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1205,6 +1331,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return operationDO;
     }
 
+/**
+ * 构建 build Follow Up Operation 对应的领域对象、请求对象或日志对象。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param recordDTO record DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @param operationSequence operation Sequence 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 渠道 API 操作类型或平台操作映射结果
+ */
     private TransactionOperationDO buildFollowUpOperation(TransactionFollowUpRecordDTO recordDTO,
                                                           LocalDateTime now,
                                                           int operationSequence) {
@@ -1249,6 +1386,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return operationDO;
     }
 
+/**
+ * 填充 fill Operation Route Fields From Request 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void fillOperationRouteFieldsFromRequest(TransactionOperationDO operationDO,
                                                      PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (operationDO == null || invokeResultDTO == null || invokeResultDTO.getChannelRequest() == null) {
@@ -1259,6 +1405,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setChannelTransactionId(firstText(operationDO.getChannelTransactionId(), invokeResultDTO.getChannelRequest().getChannelTransactionId()));
     }
 
+/**
+ * 填充 fill Order Route Fields From Request 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param orderDO order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void fillOrderRouteFieldsFromRequest(TransactionOrderDO orderDO,
                                                  PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (orderDO == null || invokeResultDTO == null || invokeResultDTO.getChannelRequest() == null) {
@@ -1268,6 +1423,19 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setChannelOrderNo(firstText(orderDO.getChannelOrderNo(), invokeResultDTO.getChannelRequest().getChannelOrderNo()));
     }
 
+/**
+ * 构建 build Status History 对应的领域对象、请求对象或日志对象。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param statusObject 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private TransactionStatusHistoryDO buildStatusHistory(PaymentCreateCommandDTO commandDTO,
                                                           PaymentCreateResultDTO resultDTO,
                                                           String statusObject,
@@ -1292,6 +1460,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return historyDO;
     }
 
+/**
+ * 填充 fill Amount Fields 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param orderDO order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ */
     private void fillAmountFields(TransactionOrderDO orderDO,
                                   PaymentCreateCommandDTO commandDTO,
                                   PaymentCreateResultDTO resultDTO,
@@ -1324,6 +1503,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setAvailableRefundAmount(success && PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType()) ? transactionAmount : zero);
     }
 
+/**
+ * 填充 fill Amount Fields 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ */
     private void fillAmountFields(TransactionOperationDO operationDO,
                                   PaymentCreateCommandDTO commandDTO,
                                   PaymentCreateResultDTO resultDTO,
@@ -1347,6 +1537,18 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setTransactionRate(resolveTransactionRate(commandDTO));
     }
 
+/**
+ * 填充 fill Follow Up Amount Fields 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ */
     private void fillFollowUpAmountFields(TransactionOperationDO operationDO,
                                           TransactionOrderDO sourceOrderDO,
                                           PaymentCreateCommandDTO commandDTO,
@@ -1370,31 +1572,96 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setTransactionRate(resolveTransactionRate(commandDTO));
     }
 
+    /**
+     * 解析 resolve Label Currency 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的 ISO 4217 币种代码
+     */
     private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getLabelCurrency()) ? commandDTO.getLabelCurrency() : commandDTO.getCurrency();
     }
 
+    /**
+     * 解析 resolve Label Amount 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     */
     private BigDecimal resolveLabelAmount(PaymentCreateCommandDTO commandDTO) {
         return commandDTO.getLabelAmount() == null ? commandDTO.getAmount() : commandDTO.getLabelAmount();
     }
 
+    /**
+     * 解析 resolve Transaction Currency 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的 ISO 4217 币种代码
+     */
     private String resolveTransactionCurrency(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getTransactionCurrency()) ? commandDTO.getTransactionCurrency() : commandDTO.getCurrency();
     }
 
+    /**
+     * 解析 resolve Transaction Amount 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     */
     private BigDecimal resolveTransactionAmount(PaymentCreateCommandDTO commandDTO) {
         BigDecimal amount = commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount();
         return amount == null ? BigDecimal.ZERO : amount;
     }
 
+    /**
+     * 解析 resolve Transaction Rate 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private BigDecimal resolveTransactionRate(PaymentCreateCommandDTO commandDTO) {
         return commandDTO.getTransactionRate() == null ? new BigDecimal("1.00000000") : commandDTO.getTransactionRate();
     }
 
+    /**
+     * 完成 flag Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private int flagValue(Integer value) {
         return value != null && ENABLED == value ? ENABLED : DISABLED;
     }
 
+/**
+ * 填充 fill Order Route Fields 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param orderDO order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
+ * @param riskDecisionEnum risk Decision Enum 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void fillOrderRouteFields(TransactionOrderDO orderDO,
                                       PaymentRouteResultDTO routeResultDTO,
                                       ChannelPaymentResponse channelResponse,
@@ -1417,6 +1684,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setInternalRiskDecision(riskDecisionEnum == null ? PaymentRiskDecisionEnum.UNKNOWN.getCode() : riskDecisionEnum.getCode());
     }
 
+/**
+ * 填充 fill Operation Route Fields 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void fillOperationRouteFields(TransactionOperationDO operationDO,
                                           PaymentRouteResultDTO routeResultDTO,
                                           ChannelPaymentResponse channelResponse) {
@@ -1438,15 +1715,42 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 解析 resolve Payment Method 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolvePaymentMethod(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getPaymentMethod()) ? commandDTO.getPaymentMethod() : DEFAULT_PAYMENT_METHOD;
     }
 
+    /**
+     * 判断 is Authorization Like 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isAuthorizationLike(String transactionType) {
         return Objects.equals(PaymentTransactionTypeEnum.AUTHORIZATION.getCode(), transactionType)
                 || Objects.equals(PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode(), transactionType);
     }
 
+    /**
+     * 判断 is Terminal 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
@@ -1513,6 +1817,18 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return updated == 1;
     }
 
+/**
+ * 写入或更新 update Initial Channel Request 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void updateInitialChannelRequest(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
                                              PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1549,6 +1865,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         updateChannelInteractionLog(commandDTO, invokeResultDTO, resultDTO, now);
     }
 
+/**
+ * 写入或更新 update Channel Interaction Log 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void updateChannelInteractionLog(PaymentCreateCommandDTO commandDTO,
                                              PaymentChannelInvokeResultDTO invokeResultDTO,
                                              PaymentCreateResultDTO resultDTO,
@@ -1579,12 +1906,32 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 判断 is Request Result Conflict 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestDO request DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isRequestResultConflict(TransactionChannelRequestDO requestDO, PaymentCreateResultDTO resultDTO) {
         return requestDO == null
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(requestDO.getPlatformResultCode())
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
     }
 
+/**
+ * 写入或更新 update Merchant Api Final Result 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void updateMerchantApiFinalResult(PaymentCreateCommandDTO commandDTO,
                                               PaymentCreateResultDTO resultDTO,
                                               LocalDateTime now) {
@@ -1607,12 +1954,34 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
     }
 
+    /**
+     * 判断 is Original Request Result Conflict 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestDO request DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param platformResultCode platform Result Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isOriginalRequestResultConflict(TransactionChannelRequestDO requestDO, String platformResultCode) {
         return requestDO == null
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(requestDO.getPlatformResultCode())
                 || !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(platformResultCode);
     }
 
+/**
+ * 推进 complete Initial Terminal Status 对应的状态或处理结果，并保留后续查询所需信息。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param orderDO order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
     private boolean completeInitialTerminalStatus(TransactionOperationDO operationDO,
                                                   TransactionOrderDO orderDO,
                                                   PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1670,6 +2039,18 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return true;
     }
 
+/**
+ * 写入或更新 update Initial Non Terminal Status 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
     private boolean updateInitialNonTerminalStatus(TransactionOperationDO operationDO,
                                                    PaymentChannelInvokeResultDTO invokeResultDTO,
                                                    PaymentCreateResultDTO resultDTO,
@@ -1693,6 +2074,22 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return updated == 1;
     }
 
+/**
+ * 推进 complete Capture Terminal Status 对应的状态或处理结果，并保留后续查询所需信息。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
     private boolean completeCaptureTerminalStatus(TransactionOperationDO operationDO,
                                                   TransactionOrderDO sourceOrderDO,
                                                   PaymentCreateCommandDTO commandDTO,
@@ -1739,6 +2136,22 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return true;
     }
 
+/**
+ * 写入或更新 update Capture Non Terminal Status 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
     private boolean updateCaptureNonTerminalStatus(TransactionOperationDO operationDO,
                                                    TransactionOrderDO sourceOrderDO,
                                                    PaymentCreateCommandDTO commandDTO,
@@ -1762,6 +2175,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return true;
     }
 
+/**
+ * 完成 merge Operation Result 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+ * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 渠道 API 操作类型或平台操作映射结果
+ */
     private TransactionOperationDO mergeOperationResult(TransactionOperationDO source,
                                                        PaymentChannelInvokeResultDTO invokeResultDTO,
                                                        PaymentCreateResultDTO resultDTO) {
@@ -2007,6 +2431,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return BigDecimal.valueOf(resultDTO.getAmount()).movePointLeft(exponent);
     }
 
+    /**
+     * 完成 remaining Authorized Amount 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     */
     private BigDecimal remainingAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         BigDecimal authorizedAmount = sourceOrderDO.getAuthorizedAmount() == null
                 ? BigDecimal.ZERO : sourceOrderDO.getAuthorizedAmount();
@@ -2220,6 +2653,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         infoDO.setCscResult(firstText(resultDTO.getCscResult(), infoDO.getCscResult()));
     }
 
+    /**
+     * 填充 fill Card Parts From Masked Number 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param infoDO info DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param cardNumberMasked 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     */
     private void fillCardPartsFromMaskedNumber(TransactionPaymentMethodInfoDO infoDO, String cardNumberMasked) {
         if (!StringUtils.hasText(cardNumberMasked)) {
             return;
@@ -2271,19 +2713,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
-    /**
-     * 构造渠道请求摘要。
-     * <p>
-     * 该表保存一次渠道请求的核心字段和平台成功判断；完整请求/响应 JSON 放入
-     * transaction_channel_interaction_log，避免列表查询扫描大报文。
-     *
-     * @param commandDTO       支付核心交易命令
-     * @param routeResultDTO   渠道路由结果
-     * @param invokeResultDTO  渠道调用上下文
-     * @param resultDTO        平台交易结果
-     * @param now              当前处理时间
-     * @return 渠道请求摘要
-     */
     /**
      * 构造渠道请求摘要。
      * <p>
@@ -2412,6 +2841,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 解析 resolve Channel Http Method 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveChannelHttpMethod(PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (invokeResultDTO == null) {
             return null;
@@ -2420,6 +2858,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return firstText(response == null ? null : response.getHttpMethod(), invokeResultDTO.getHttpMethod());
     }
 
+    /**
+     * 解析 resolve Channel Request Url 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveChannelRequestUrl(PaymentChannelInvokeResultDTO invokeResultDTO) {
         if (invokeResultDTO == null) {
             return null;
@@ -2431,6 +2878,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 invokeResultDTO.getRequestUrlMasked());
     }
 
+    /**
+     * 完成 channel Raw Audit 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String channelRawAudit(ChannelPaymentResponse response, String key) {
         if (response == null || !StringUtils.hasText(key)) {
             return null;
@@ -2450,6 +2907,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return rawResponseValue(response, key);
     }
 
+    /**
+     * 完成 raw Response Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String rawResponseValue(ChannelPaymentResponse response, String key) {
         if (response == null || response.getRawResponse() == null || !StringUtils.hasText(key)) {
             return null;
@@ -2884,6 +3351,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return compactMap(payload);
     }
 
+/**
+ * 完成 merchant Visible Payload 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param targetTransactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param failReasonCode fail Reason Code 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
     private Map<String, Object> merchantVisiblePayload(TransactionOperationDO operationDO,
                                                        String targetTransactionStatus,
                                                        String failReasonCode) {
@@ -2926,6 +3404,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return compactMap(payload);
     }
 
+    /**
+     * 完成 merchant Info Payload 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, Object> merchantInfoPayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         Map<String, Object> merchantInfo = new LinkedHashMap<>();
         putIfPresent(merchantInfo, "merchantId", firstText(resultDTO.getMerchantId(), commandDTO.getMerchantId()));
@@ -2933,6 +3421,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return compactMap(merchantInfo);
     }
 
+    /**
+     * 完成 sub Merchant Info Payload 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, Object> subMerchantInfoPayload(PaymentCreateResultDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return Map.of();
@@ -2951,6 +3448,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return compactMap(subMerchantInfo);
     }
 
+    /**
+     * 完成 order Info Payload 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, Object> orderInfoPayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         Map<String, Object> orderInfo = new LinkedHashMap<>();
         putIfPresent(orderInfo, "orderNo", firstText(resultDTO.getMerchantOrderNo(), commandDTO.getMerchantOrderNo()));
@@ -2965,6 +3472,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return compactMap(orderInfo);
     }
 
+    /**
+     * 完成 transaction Info Payload 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, Object> transactionInfoPayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         Map<String, Object> transactionInfo = new LinkedHashMap<>();
         putIfPresent(transactionInfo, "code", resolveMerchantResponseCode(resultDTO));
@@ -2988,6 +3505,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return compactMap(transactionInfo);
     }
 
+    /**
+     * 完成 billing Info Payload 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, Object> billingInfoPayload(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         Map<String, Object> billingInfo = new LinkedHashMap<>();
         putIfPresent(billingInfo, "labelAmount", firstAmount(resultDTO.getLabelAmount(), commandDTO.getLabelAmount(), commandDTO.getAmount()));
@@ -3002,6 +3529,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return compactMap(billingInfo);
     }
 
+    /**
+     * 完成 put If Present 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @param value 待校验或转换的原始值
+     */
     private void putIfPresent(Map<String, Object> target, String key, Object value) {
         if (value == null) {
             return;
@@ -3015,6 +3553,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         target.put(key, value);
     }
 
+    /**
+     * 完成 compact Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, Object> compactMap(Map<String, Object> source) {
         Map<String, Object> compact = new LinkedHashMap<>();
         source.forEach((key, value) -> {
@@ -3033,6 +3581,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return compact;
     }
 
+    /**
+     * 完成 first Amount 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     */
     private BigDecimal firstAmount(BigDecimal... values) {
         for (BigDecimal value : values) {
             if (value != null) {
@@ -3042,11 +3599,30 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return null;
     }
 
+    /**
+     * 标准化 normalize Rate 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 标准化后的业务字段值
+     */
     private BigDecimal normalizeRate(BigDecimal value) {
         BigDecimal rate = value == null ? DEFAULT_TRANSACTION_RATE : value;
         return rate.setScale(8, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 完成 offset Date Time String 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param dateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String offsetDateTimeString(LocalDateTime dateTime, String timeZone) {
         if (dateTime == null) {
             return null;
@@ -3055,6 +3631,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return dateTime.atZone(zoneId).toOffsetDateTime().toString();
     }
 
+    /**
+     * 解析 resolve Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveMerchantResponseCode(PaymentCreateResultDTO resultDTO) {
         if (resultDTO != null && StringUtils.hasText(resultDTO.getMerchantResponseCode())) {
             return resultDTO.getMerchantResponseCode();
@@ -3062,6 +3647,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return resolveMerchantResponseCode(resultDTO == null ? null : resultDTO.getStatus());
     }
 
+    /**
+     * 解析 resolve Merchant Response Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO) {
         if (resultDTO != null && StringUtils.hasText(resultDTO.getMerchantResponseMessage())) {
             return resultDTO.getMerchantResponseMessage();
@@ -3069,10 +3663,29 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return resolveMerchantResponseMessage(resultDTO == null ? null : resultDTO.getStatus());
     }
 
+    /**
+     * 完成 merchant Visible Failure Code 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param failReasonCode fail Reason Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String merchantVisibleFailureCode(String failReasonCode) {
         return StringUtils.hasText(failReasonCode) ? "PAYMENT_FAILED" : null;
     }
 
+    /**
+     * 完成 merchant Visible Failure Message 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param failReasonCode fail Reason Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String merchantVisibleFailureMessage(String transactionStatus, String failReasonCode) {
         if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
                 || !StringUtils.hasText(failReasonCode)) {
@@ -3081,6 +3694,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return "Payment failed. Please use the transaction ID to query details or contact support.";
     }
 
+    /**
+     * 解析 resolve Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 解析或查询得到的业务值
+     */
     private String resolveMerchantResponseCode(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getCode();
@@ -3094,6 +3716,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return ApiResultEnum.PROCESSING.getCode();
     }
 
+    /**
+     * 解析 resolve Merchant Response Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 解析或查询得到的业务值
+     */
     private String resolveMerchantResponseMessage(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
@@ -3107,6 +3738,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return ApiResultEnum.PROCESSING.getMessage();
     }
 
+    /**
+     * 解析 resolve Channel Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveChannelCode(PaymentRouteResultDTO routeResultDTO, ChannelPaymentResponse response) {
         if (response != null && StringUtils.hasText(response.getChannelCode())) {
             return response.getChannelCode();
@@ -3114,6 +3755,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return routeResultDTO == null ? null : routeResultDTO.getChannelCode();
     }
 
+    /**
+     * 解析 resolve Callback Url 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
             return commandDTO.getCallbackUrl();
@@ -3124,13 +3774,31 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return null;
     }
 
+    /**
+     * 完成 masked Json 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String maskedJson(Object value) {
         if (value == null) {
             return null;
         }
-        return SensitiveDataMaskUtils.maskJson(JsonUtils.toJsonString(value));
+        return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(value));
     }
 
+    /**
+     * 完成 mask Url 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param url url 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String maskUrl(String url) {
         if (!StringUtils.hasText(url)) {
             return null;
@@ -3139,6 +3807,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return queryIndex < 0 ? url : url.substring(0, queryIndex) + "?***";
     }
 
+    /**
+     * 完成 sha256 Hex 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -3153,10 +3830,30 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 完成 default Time 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param fallback fallback 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LocalDateTime defaultTime(LocalDateTime value, LocalDateTime fallback) {
         return value == null ? fallback : value;
     }
 
+    /**
+     * 完成 safe Length 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param maxLength max Length 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String safeLength(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
             return value;
@@ -3164,68 +3861,177 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return value.substring(0, maxLength);
     }
 
+    /**
+     * 判断 is Non Terminal 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isNonTerminal(PaymentCreateResultDTO resultDTO) {
         return !PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 && !PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
     }
 
+    /**
+     * 完成 zero If Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /**
+     * 转换生成 to Utc Time 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 转换或构建后的目标对象
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionChannelRequestDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionChannelInteractionLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionFlowEventDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionStatusHistoryDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionAmountChangeLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionMerchantNotificationDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionMerchantApiInteractionLogDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param target target 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     */
     private void fillTransactionTime(TransactionPaymentMethodInfoDO target, LocalDateTime transactionDateTime) {
         target.setTransactionDateTime(transactionDateTime);
         target.setTransactionUtcTime(toUtcTime(transactionDateTime, DEFAULT_TIME_ZONE));
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
+    /**
+     * 校验 validate 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validate(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         if (commandDTO == null
                 || resultDTO == null
@@ -3243,6 +4049,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 校验 validate Follow Up Record 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param recordDTO record DTO 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateFollowUpRecord(TransactionFollowUpRecordDTO recordDTO) {
         if (recordDTO == null
                 || recordDTO.getSourceOrderDO() == null
@@ -3260,11 +4074,32 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
     }
 
+    /**
+     * 解析 resolve Physical Table 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 解析或查询得到的业务值
+     */
     private String resolvePhysicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
                 ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.MASTER));
     }
 
+    /**
+     * 完成 count Existing Operations 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+     * @param sourceTransactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param actionTransactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private int countExistingOperations(String operationId, LocalDateTime sourceTransactionDateTime, LocalDateTime actionTransactionDateTime) {
         LocalDateTime beginTime = sourceTransactionDateTime.isAfter(actionTransactionDateTime)
                 ? actionTransactionDateTime
@@ -3279,15 +4114,44 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return total;
     }
 
+    /**
+     * 解析 resolve Physical Tables 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 解析或查询得到的业务值
+     */
     private List<String> resolvePhysicalTables(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
         return shardingDataTemplate.resolvePhysicalTables(
                 ShardingRangeTableContext.of(logicalTable, beginTime, endTime, DataSourceName.MASTER));
     }
 
+    /**
+     * 解析 parse Transaction Date Time 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+     * @return 解析后的内部数据结构或业务值
+     */
     private LocalDateTime parseTransactionDateTime(String transactionId) {
         return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
     }
 
+    /**
+     * 解析 parse Operation Date Time 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private LocalDateTime parseOperationDateTime(String operationId) {
         return transactionShardingKeyParser.parseOperationDateTime(operationId);
     }

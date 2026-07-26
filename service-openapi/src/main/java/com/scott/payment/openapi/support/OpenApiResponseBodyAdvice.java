@@ -32,17 +32,18 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 
+
+@Slf4j
+@RestControllerAdvice
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiResponseBodyAdvice
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-02 11:14
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 响应 data 加密处理器，位于 service-openapi 支撑层，确保成功响应 data 加密并回写商户交互日志密文摘要。
+ * @description : OpenApiResponseBodyAdvice Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Slf4j
-@RestControllerAdvice
 public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
 
     /**
@@ -149,7 +150,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO =
                 new TransactionMerchantApiResponseLogUpdateClientRequestDTO();
         requestDTO.setTransactionId(transactionInfo.getTransactionId());
-        requestDTO.setResponsePlainJsonMasked(SensitiveDataMaskUtils.maskJson(plainDataJson));
+        requestDTO.setResponsePlainJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(plainDataJson));
         requestDTO.setResponseCipherDigest(sha256Hex(encryptedData));
         requestDTO.setResponseCipherMasked(maskCipher(encryptedData));
         requestDTO.setResponseTime(LocalDateTime.now());
@@ -164,6 +165,15 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         }
     }
 
+    /**
+     * 解析 resolve Transaction Info 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param data data 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private PaymentCreateVO.TransactionInfoVO resolveTransactionInfo(Object data) {
         if (data instanceof PaymentCreateVO createVO) {
             return createVO.getTransactionInfo();
@@ -171,6 +181,15 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         return null;
     }
 
+    /**
+     * 完成 mask Cipher 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String maskCipher(String encryptedData) {
         if (!StringUtils.hasText(encryptedData)) {
             return null;
@@ -182,6 +201,15 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         return normalized.substring(0, 8) + "***" + normalized.substring(normalized.length() - 8);
     }
 
+    /**
+     * 完成 sha256 Hex 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");

@@ -22,34 +22,57 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminBaseIpLibraryApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-05 00:34
  * @email : scott_x@163.com
- * @description : 基础数据Admin Base Ip Library Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminBaseIpLibraryApplicationService 应用服务，用于编排接口请求、权限上下文、领域服务和外部依赖，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class AdminBaseIpLibraryApplicationService {
 
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * IPV4 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String IPV4 = "IPV4";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * IPV6 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String IPV6 = "IPV6";
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ACTIVE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int ACTIVE = 1;
     /**
-     * 基础数据固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * IPV4 MAX 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final long IPV4_MAX = 4_294_967_295L;
+    /**
+     * IPV6 MAX 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final BigInteger IPV6_MAX = BigInteger.ONE.shiftLeft(128).subtract(BigInteger.ONE);
     private static final Set<String> ALLOWED_TABLES = IntStream.rangeClosed(1, 8)
             .mapToObj(index -> String.format("%02d", index))
@@ -57,11 +80,19 @@ public class AdminBaseIpLibraryApplicationService {
             .collect(Collectors.toUnmodifiableSet());
 
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * split Model Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final IpLibrarySplitModelMapper splitModelMapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * data Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final IpLibraryDataMapper dataMapper;
 
@@ -76,11 +107,6 @@ public class AdminBaseIpLibraryApplicationService {
 
     /**
      * 分页查询 IP 库区间。
-     */
-    /**
-     * 查询基础数据列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<IpLibraryDTOs.IpLibraryRecordResponse> page(IpLibraryDTOs.IpLibraryQueryRequest request) {
         IpLibraryDTOs.IpLibraryQueryRequest query = request == null ? new IpLibraryDTOs.IpLibraryQueryRequest() : request;
@@ -124,11 +150,6 @@ public class AdminBaseIpLibraryApplicationService {
     /**
      * 查询单个 IP 命中的归属区间。
      */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public IpLibraryDTOs.IpLibraryRecordResponse lookup(IpLibraryDTOs.IpLibraryLookupRequest request) {
         String ipType = normalizeIpType(request.getIpType(), request.getIpAddress());
         String ipNumber = ipToNumber(request.getIpAddress(), ipType);
@@ -147,12 +168,6 @@ public class AdminBaseIpLibraryApplicationService {
 
     /**
      * 将 IP 地址转换为无符号数值字符串。
-     */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param ipAddress 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param expectedIpType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public String ipToNumber(String ipAddress, String expectedIpType) {
         String normalized = trimToNull(ipAddress);
@@ -181,6 +196,16 @@ public class AdminBaseIpLibraryApplicationService {
         }
     }
 
+    /**
+     * 完成 route Shards 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param ipNumber ip Number 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<IpLibraryEntities.IpLibrarySplitModelDO> routeShards(String ipType, String ipNumber) {
         List<IpLibraryEntities.IpLibrarySplitModelDO> shards = splitModelMapper.selectList(
                 Wrappers.<IpLibraryEntities.IpLibrarySplitModelDO>lambdaQuery()
@@ -197,10 +222,31 @@ public class AdminBaseIpLibraryApplicationService {
                 .toList();
     }
 
+    /**
+     * 完成 between 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param current current 输入值，含义由调用方法名称和所属业务对象限定
+     * @param start start 输入值，含义由调用方法名称和所属业务对象限定
+     * @param end end 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean between(BigInteger current, String start, String end) {
         return current.compareTo(new BigInteger(start)) >= 0 && current.compareTo(new BigInteger(end)) <= 0;
     }
 
+    /**
+     * 标准化 normalize Ip Type 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param ipAddress ip Address 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private String normalizeIpType(String ipType, String ipAddress) {
         String normalized = trimToNull(ipType);
         if (normalized != null) {
@@ -216,6 +262,15 @@ public class AdminBaseIpLibraryApplicationService {
         return IPV4;
     }
 
+    /**
+     * 完成 checked Table Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String checkedTableName(String tableName) {
         if (!ALLOWED_TABLES.contains(tableName)) {
             throw badRequest("IP 库分片表未在白名单中");
@@ -223,11 +278,30 @@ public class AdminBaseIpLibraryApplicationService {
         return tableName;
     }
 
+    /**
+     * 强制校验 required Version 必填值，缺失时中断当前业务流程。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param shard shard 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String requiredVersion(IpLibraryEntities.IpLibrarySplitModelDO shard) {
         return Optional.ofNullable(trimToNull(shard.getDataVersion()))
                 .orElseThrow(() -> badRequest("IP 库分片缺少生效版本"));
     }
 
+    /**
+     * 转换生成 to Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private IpLibraryDTOs.IpLibraryRecordResponse toResponse(IpLibraryEntities.IpLibraryDataRow row, String ipType) {
         IpLibraryDTOs.IpLibraryRecordResponse response = new IpLibraryDTOs.IpLibraryRecordResponse();
         response.setId(row.getId());
@@ -248,6 +322,16 @@ public class AdminBaseIpLibraryApplicationService {
         return response;
     }
 
+    /**
+     * 完成 number To Ip 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String numberToIp(String value, String ipType) {
         BigInteger number = new BigInteger(value);
         int length = IPV4.equals(ipType) ? 4 : 16;
@@ -262,6 +346,15 @@ public class AdminBaseIpLibraryApplicationService {
         }
     }
 
+    /**
+     * 校验 validate Ip Literal 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param ipAddress ip Address 输入值，含义由调用方法名称和所属业务对象限定
+     * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateIpLiteral(String ipAddress, String ipType) {
         if (IPV4.equals(ipType)) {
             String[] segments = ipAddress.split("\\.", -1);
@@ -284,6 +377,15 @@ public class AdminBaseIpLibraryApplicationService {
         }
     }
 
+    /**
+     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -291,6 +393,15 @@ public class AdminBaseIpLibraryApplicationService {
         return value.trim();
     }
 
+    /**
+     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);
     }

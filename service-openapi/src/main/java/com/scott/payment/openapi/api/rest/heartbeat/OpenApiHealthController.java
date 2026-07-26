@@ -6,26 +6,22 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.ApiResult.success;
 
+@RestController
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiHealthController
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Health 管理接口，位于 service-openapi 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : OpenApiHealthController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
 public class OpenApiHealthController {
 
     /**
      * 查询 OpenAPI 服务健康状态。
      *
      * @return 服务健康标识
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/openapi/health")
     public ApiResult<String> health() {

@@ -23,7 +23,6 @@ import java.util.List;
  * @description : 管理后台调用调度中心的内部客户端接口
  * @status : create
  */
-
 public interface JobSchedulerInternalClient {
 
     /**

@@ -134,11 +134,29 @@ public class ShardingTableRangeResolver {
         return rule;
     }
 
+    /**
+     * 完成 quarter Start 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private LocalDateTime quarterStart(ShardingQuarter quarter) {
         int month = (quarter.quarter() - 1) * 3 + 1;
         return LocalDateTime.of(quarter.year(), month, 1, 0, 0, 0, 0);
     }
 
+    /**
+     * 完成 previous 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ShardingQuarter previous(ShardingQuarter quarter) {
         if (quarter.quarter() == 1) {
             return new ShardingQuarter(quarter.year() - 1, 4);

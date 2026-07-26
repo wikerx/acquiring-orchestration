@@ -7,32 +7,48 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingTableDdlService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 收单支付Sharding Table Ddl 服务契约，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ShardingTableDdlService 服务契约，用于声明业务能力、调用边界和返回结果约束，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class ShardingTableDdlService {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * jdbc Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final JdbcTemplate jdbcTemplate;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * table Name Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingPhysicalTableNameResolver tableNameResolver;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * auto Increment Value Calculator 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingAutoIncrementValueCalculator autoIncrementValueCalculator;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * schema Inspector 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingTableSchemaInspector schemaInspector;
 
@@ -64,13 +80,6 @@ public class ShardingTableDdlService {
      * @param quarter    目标季度
      * @return 创建后或已存在目标表的检查结果
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param quarter 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @DS(DataSourceName.MASTER)
     public ShardingTableInspectionResult createPhysicalTableIfAbsent(PaymentQuarterShardingProperties properties,
                                                                      PaymentQuarterShardingProperties.TableRule rule,
@@ -96,6 +105,14 @@ public class ShardingTableDdlService {
         return schemaInspector.inspectPhysicalTable(rule, physicalTable);
     }
 
+    /**
+     * 校验 validate Ddl Enabled 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param properties properties 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateDdlEnabled(PaymentQuarterShardingProperties properties) {
         if (properties == null || properties.getTableMaintenance() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding table maintenance config is required");

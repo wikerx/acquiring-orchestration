@@ -11,6 +11,7 @@ import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -27,6 +28,7 @@ import java.util.Map;
  * @status : create
  */
 @Service
+@Slf4j
 public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeService {
 
     /**
@@ -39,6 +41,13 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
      */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
+    /**
+     * payment Channel Executor 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final PaymentChannelExecutor paymentChannelExecutor;
 
     /**
@@ -103,6 +112,18 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         resultDTO.setHttpMethod(resolveHttpMethod(commandDTO));
         resultDTO.setRequestScene(resolveRequestScene(commandDTO));
         resultDTO.setRequestUrlMasked(resolveRequestUrl(routeResult, channelRequest));
+        log.info("event=PAYMENT_CHANNEL_REQUEST_START merchantId={} merchantOrderNo={} transactionId={} operationId={} transactionType={} channelCode={} requestId={} channelOrderNo={} channelTransactionId={} httpMethod={} requestScene={}",
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                transactionId,
+                operationId,
+                commandDTO.getTransactionType(),
+                channelRequest.getChannelCode(),
+                resultDTO.getRequestId(),
+                channelRequest.getChannelOrderNo(),
+                channelRequest.getChannelTransactionId(),
+                resultDTO.getHttpMethod(),
+                resultDTO.getRequestScene());
         try {
             ChannelPaymentResponse channelResponse = paymentChannelExecutor.execute(channelRequest);
             LocalDateTime responseTime = LocalDateTime.now();
@@ -114,6 +135,22 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setRequestStatus("SUCCESS");
             resultDTO.setResponseTime(responseTime);
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
+            log.info("event=PAYMENT_CHANNEL_REQUEST_END merchantId={} merchantOrderNo={} transactionId={} operationId={} transactionType={} channelCode={} requestId={} channelOrderNo={} channelTransactionId={} channelResponseCode={} rawChannelStatus={} channelTradeStatus={} httpStatus={} requestStatus={} durationMs={}",
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    transactionId,
+                    operationId,
+                    commandDTO.getTransactionType(),
+                    channelRequest.getChannelCode(),
+                    resultDTO.getRequestId(),
+                    channelRequest.getChannelOrderNo(),
+                    channelRequest.getChannelTransactionId(),
+                    channelResponse == null ? null : channelResponse.getChannelResponseCode(),
+                    channelResponse == null ? null : channelResponse.getRawChannelStatus(),
+                    channelResponse == null ? null : channelResponse.getChannelTradeStatus(),
+                    channelResponse == null ? null : channelResponse.getHttpStatus(),
+                    resultDTO.getRequestStatus(),
+                    resultDTO.getDurationMillis());
             return resultDTO;
         } catch (ChannelException exception) {
             LocalDateTime responseTime = LocalDateTime.now();
@@ -122,6 +159,19 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
             resultDTO.setExceptionType(exception.getClass().getSimpleName());
             resultDTO.setExceptionMessage(exception.getMessage());
+            log.warn("event=PAYMENT_CHANNEL_REQUEST_FAILED merchantId={} merchantOrderNo={} transactionId={} operationId={} transactionType={} channelCode={} requestId={} channelOrderNo={} channelTransactionId={} requestStatus={} exceptionType={} durationMs={}",
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    transactionId,
+                    operationId,
+                    commandDTO.getTransactionType(),
+                    channelRequest.getChannelCode(),
+                    resultDTO.getRequestId(),
+                    channelRequest.getChannelOrderNo(),
+                    channelRequest.getChannelTransactionId(),
+                    resultDTO.getRequestStatus(),
+                    resultDTO.getExceptionType(),
+                    resultDTO.getDurationMillis());
             throw new PaymentChannelInvokeException(resultDTO, exception);
         }
     }
@@ -339,6 +389,15 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         return value == null ? "" : value;
     }
 
+    /**
+     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -353,6 +412,13 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
      */
     public static class PaymentChannelInvokeException extends RuntimeException {
 
+        /**
+         * invoke Result 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private final PaymentChannelInvokeResultDTO invokeResult;
 
         /**

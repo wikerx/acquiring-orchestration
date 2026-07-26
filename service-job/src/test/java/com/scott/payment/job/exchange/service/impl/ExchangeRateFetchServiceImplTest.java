@@ -31,46 +31,70 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ExchangeRateFetchServiceImplTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 汇率管理Exchange Rate Fetch Service Impl Test，位于 service-job 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ExchangeRateFetchServiceImplTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@ExtendWith(MockitoExtension.class)
 class ExchangeRateFetchServiceImplTest {
 
-    /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * source Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExchangeJobRateSourceMapper sourceMapper;
-    /**
-     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
-     */
     @Mock
+    /**
+     * raw Rate Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExchangeJobRawRateMapper rawRateMapper;
-    /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * rule Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExchangeJobRateRuleMapper ruleMapper;
-    /**
-     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
-     */
     @Mock
+    /**
+     * business Rate Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExchangeJobBusinessRateMapper businessRateMapper;
-    /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * fetch Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExchangeRateFetchLogMapper fetchLogMapper;
 
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private ExchangeRateFetchServiceImpl service;
 
@@ -161,7 +185,6 @@ class ExchangeRateFetchServiceImplTest {
         assertThat(captor.getValue().getEffectiveTime()).isEqualTo("2026-07-03T10:31:00");
     }
 
-
     private ExchangeRateSourceDO source() {
         ExchangeRateSourceDO source = new ExchangeRateSourceDO();
         source.setSourceCode("BOC");
@@ -209,21 +232,29 @@ class ExchangeRateFetchServiceImplTest {
      */
     private static class SingleUsdProvider implements ExchangeRateProvider {
 
-        /**
-         * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
+        /**
+         * 完成 source Code 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public String sourceCode() {
             return "BOC";
         }
 
-        /**
-         * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-         * @param source 请求参数或业务处理上下文，不能为空时由上层校验约束。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
+        /**
+         * 完成 fetch 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+         * @return 当前方法计算或转换后的业务结果
+         */
         public List<RawRateItem> fetch(ExchangeRateSourceDO source) {
             RawRateItem item = new RawRateItem();
             item.setSourceCurrencyName("美元");

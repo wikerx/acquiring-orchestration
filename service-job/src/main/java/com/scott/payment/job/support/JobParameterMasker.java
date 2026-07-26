@@ -16,7 +16,6 @@ import java.util.Set;
  * @description : 任务参数脱敏工具
  * @status : create
  */
-
 public final class JobParameterMasker {
 
     private static final Set<String> SENSITIVE_KEYS = Set.of(
@@ -32,7 +31,11 @@ public final class JobParameterMasker {
     );
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MASKED VALUE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String MASKED_VALUE = "******";
 
@@ -44,11 +47,6 @@ public final class JobParameterMasker {
      *
      * @param paramsJson 原始参数 JSON
      * @return 脱敏后的 JSON；解析失败时返回原文
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param paramsJson 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String mask(String paramsJson) {
         if (paramsJson == null || paramsJson.isBlank()) {

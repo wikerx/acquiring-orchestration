@@ -13,6 +13,15 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultTransactionEventOutboxRelayServiceTests
+ * @date : 2026-07-12 22:43
+ * @email : scott_x@163.com
+ * @description : DefaultTransactionEventOutboxRelayServiceTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+ * @status : create
+ */
 class DefaultTransactionEventOutboxRelayServiceTests {
 
     @Test
@@ -95,12 +104,40 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
     private static class CapturingMqProducer implements MqProducer {
 
+        /**
+         * fail 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private final boolean fail;
 
+        /**
+         * sent 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private boolean sent;
 
+        /**
+         * send Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private int sendCount;
 
+        /**
+         * message 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private BaseMqMessage message;
 
         private CapturingMqProducer(boolean fail) {
@@ -108,6 +145,16 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         }
 
         @Override
+        /**
+         * 发送 send 对应的外部通知、内部消息或远程请求。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param topic topic 输入值，含义由调用方法名称和所属业务对象限定
+         * @param tag tag 输入值，含义由调用方法名称和所属业务对象限定
+         * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+         */
         public void send(String topic, String tag, BaseMqMessage message) {
             if (fail) {
                 throw new IllegalStateException("send failed");
@@ -120,6 +167,13 @@ class DefaultTransactionEventOutboxRelayServiceTests {
 
     private static class InMemoryEventOutboxService implements TransactionEventOutboxService {
 
+        /**
+         * event DO 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private final TransactionEventOutboxDO eventDO;
 
         private InMemoryEventOutboxService(TransactionEventOutboxDO eventDO) {
@@ -127,10 +181,29 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         }
 
         @Override
+        /**
+         * 写入或更新 save 相关数据，保持数据库记录与当前业务处理结果一致。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
+         */
         public void save(TransactionEventOutboxDO eventDO) {
         }
 
         @Override
+        /**
+         * 完成 list Due Events 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param eventTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+         * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+         * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
+         * @return 当前方法计算或转换后的业务结果
+         */
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
             return "SENT".equals(eventDO.getEventStatus()) || "CLOSED".equals(eventDO.getEventStatus())
                     ? List.of()
@@ -138,6 +211,16 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         }
 
         @Override
+        /**
+         * 推进 mark Sent 对应的状态或处理结果，并保留后续查询所需信息。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
+         * @param sentTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+         * @return 当前方法计算或转换后的业务结果
+         */
         public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
             eventDO.setEventStatus("SENT");
             eventDO.setSentTime(sentTime);
@@ -146,6 +229,18 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         }
 
         @Override
+/**
+ * 推进 mark Failed 对应的状态或处理结果，并保留后续查询所需信息。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param nextRetryTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @param failReason fail Reason 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
         public boolean markFailed(TransactionEventOutboxDO eventDO,
                                   LocalDateTime nextRetryTime,
                                   String failReason,

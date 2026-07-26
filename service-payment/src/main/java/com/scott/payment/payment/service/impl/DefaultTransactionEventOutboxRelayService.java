@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
@@ -79,6 +80,16 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         return successCount;
     }
 
+    /**
+     * 发送 publish Single 对应的外部通知、内部消息或远程请求。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean publishSingle(TransactionEventOutboxDO eventDO, LocalDateTime now) {
         try {
             BaseMqMessage message = buildMessage(eventDO);
@@ -88,10 +99,23 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
             if (message.getCreatedAt() == null) {
                 message.setCreatedAt(eventDO.getEventTime());
             }
+            if (!StringUtils.hasText(message.getTraceId())) {
+                message.setTraceId(TraceContext.getOrCreateTraceId());
+            }
+            log.info("event=TRANSACTION_OUTBOX_PUBLISH_START eventNo={} messageKey={} topic={} tag={} transactionDateTime={}",
+                    eventDO.getEventNo(),
+                    eventDO.getMessageKey(),
+                    eventDO.getTopic(),
+                    eventDO.getTag(),
+                    eventDO.getTransactionDateTime());
             mqProducer.send(eventDO.getTopic(), eventDO.getTag(), message);
             boolean updated = eventOutboxService.markSent(eventDO, LocalDateTime.now());
             if (!updated) {
-                log.warn("交易本地消息投递成功但状态CAS更新失败，eventNo：{}，messageKey：{}",
+                log.warn("event=TRANSACTION_OUTBOX_MARK_SENT_CAS_FAILED eventNo={} messageKey={}",
+                        eventDO.getEventNo(),
+                        eventDO.getMessageKey());
+            } else {
+                log.info("event=TRANSACTION_OUTBOX_PUBLISH_END eventNo={} messageKey={} status=SENT",
                         eventDO.getEventNo(),
                         eventDO.getMessageKey());
             }
@@ -99,20 +123,40 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         } catch (Exception exception) {
             LocalDateTime nextRetryTime = now.plusMinutes(DEFAULT_RETRY_DELAY_MINUTES);
             eventOutboxService.markFailed(eventDO, nextRetryTime, safeFailReason(exception), now);
-            log.warn("交易本地消息投递失败，eventNo：{}，messageKey：{}，nextRetryTime：{}，原因：{}",
+            log.warn("event=TRANSACTION_OUTBOX_PUBLISH_FAILED eventNo={} messageKey={} nextRetryTime={} errorType={} message={}",
                     eventDO.getEventNo(),
                     eventDO.getMessageKey(),
                     nextRetryTime,
-                    exception.getMessage());
+                    exception.getClass().getSimpleName(),
+                    exception.getMessage(),
+                    exception);
             return false;
         }
     }
 
+    /**
+     * 构建 build Message 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private BaseMqMessage buildMessage(TransactionEventOutboxDO eventDO) {
         TransactionEventMessage message = JsonUtils.parseObject(eventDO.getPayloadJson(), TransactionEventMessage.class);
         return message == null ? new TransactionEventMessage() : message;
     }
 
+    /**
+     * 完成 safe Fail Reason 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String safeFailReason(Exception exception) {
         String message = exception.getMessage();
         if (!StringUtils.hasText(message)) {

@@ -77,6 +77,15 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return buildResult(RiskDecisionEnum.PASS, RiskReasonCodeEnum.NONE);
     }
 
+    /**
+     * 判断 is Invalid 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isInvalid(RiskPaymentEvaluateRequestDTO requestDTO) {
         return requestDTO == null
                 || !StringUtils.hasText(requestDTO.getMerchantId())
@@ -86,21 +95,58 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 || requestDTO.getAmount().compareTo(BigDecimal.ZERO) <= 0;
     }
 
+    /**
+     * 判断 is Blocked Source 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sourceUrl source Url 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isBlockedSource(String sourceUrl) {
         return StringUtils.hasText(sourceUrl)
                 && sourceUrl.toLowerCase(Locale.ROOT).contains(BLOCKED_SOURCE_KEYWORD);
     }
 
+    /**
+     * 判断 is Blocked Payer Ip 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param payerIp payer Ip 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isBlockedPayerIp(String payerIp) {
         return StringUtils.hasText(payerIp) && BLOCKED_PAYER_IPS.contains(payerIp.trim());
     }
 
+    /**
+     * 判断 has Three Ds Proof 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasThreeDsProof(RiskPaymentEvaluateRequestDTO requestDTO) {
         return StringUtils.hasText(requestDTO.getThreeDsEci())
                 || StringUtils.hasText(requestDTO.getThreeDsVersion())
                 || StringUtils.hasText(requestDTO.getThreeDsTransactionId());
     }
 
+    /**
+     * 构建 build Result 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param decisionEnum decision Enum 输入值，含义由调用方法名称和所属业务对象限定
+     * @param reasonCodeEnum reason Code Enum 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private RiskPaymentEvaluateResultDTO buildResult(RiskDecisionEnum decisionEnum, RiskReasonCodeEnum reasonCodeEnum) {
         RiskPaymentEvaluateResultDTO resultDTO = new RiskPaymentEvaluateResultDTO();
         resultDTO.setRiskRecordNo(PaymentOrderNoGenerator.nextOrderNo(RISK_RECORD_PREFIX));

@@ -18,15 +18,6 @@ import java.util.List;
  * <p>承载商户资料表单选择器所需的 MCC、国家/地区和结算币种基础数据，避免管理端接口直接暴露
  * 数据库实体或让前端依赖数据库字段结构。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantFormOptionsDTO
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户管理Admin Merchant Form Options 数据传输对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 public class AdminMerchantFormOptionsDTO {
 

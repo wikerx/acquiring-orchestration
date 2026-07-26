@@ -11,7 +11,6 @@ import com.scott.payment.component.job.model.JobExecuteResult;
  * @description : 调度中心统一任务处理器协议
  * @status : create
  */
-
 public interface JobHandler {
 
     /**

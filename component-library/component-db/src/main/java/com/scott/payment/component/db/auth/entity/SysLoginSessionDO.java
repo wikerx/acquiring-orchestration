@@ -16,15 +16,6 @@ import java.time.LocalDateTime;
  * @description : 登录会话数据库实体
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysLoginSessionDO
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Sys Login Session 数据库实体，位于 component-library/component-db 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 @TableName("sys_login_session")
 public class SysLoginSessionDO {

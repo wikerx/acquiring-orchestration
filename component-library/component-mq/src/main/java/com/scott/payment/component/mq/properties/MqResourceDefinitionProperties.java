@@ -12,15 +12,6 @@ import lombok.Data;
  * @description : 单个 RocketMQ 资源声明配置
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MqResourceDefinitionProperties
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Mq Resource Definition 配置属性，位于 component-library/component-mq 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 public class MqResourceDefinitionProperties {
 

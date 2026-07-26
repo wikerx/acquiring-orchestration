@@ -14,15 +14,6 @@ import lombok.Data;
  * <p>用于一次性返回商户 OpenAPI 对接所需的敏感安全材料，
  * 包含对称密钥、公钥和私钥等高敏感信息，调用方必须受控存储。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantSecurityMaterialDTO
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户管理Admin Merchant Security Material 数据传输对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 public class AdminMerchantSecurityMaterialDTO {
 

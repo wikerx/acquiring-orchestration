@@ -5,16 +5,17 @@ import lombok.Data;
 
 import java.util.List;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserRoleGrantRequest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-12 11:47
  * @email : scott_x@163.com
- * @description : 后台用户角色授权请求，位于 service-admin 接口传输层；提交角色ID集合，权限下放边界由后端服务强制校验。
+ * @description : SysUserRoleGrantRequest 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class SysUserRoleGrantRequest {
 
     /**

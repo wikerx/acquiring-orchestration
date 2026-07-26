@@ -31,21 +31,22 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiEndToEndTests
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 端到端测试，验证商户请求加密、JWT 验签、响应加密和响应字段契约。
- * @status : create
- */
+
 @Slf4j
 @AutoConfigureMockMvc
 @ActiveProfiles("mysql-test")
 @SpringBootTest(classes = OpenApiApplication.class)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantOpenApiEndToEndTests
+ * @date : 2026-05-30 09:37
+ * @email : scott_x@163.com
+ * @description : MerchantOpenApiEndToEndTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @status : create
+ */
 class MerchantOpenApiEndToEndTests {
 
     /**

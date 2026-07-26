@@ -32,76 +32,124 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminBaseMccApplicationServiceTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-27 16:49
  * @email : scott_x@163.com
- * @description : 基础数据Admin Base Mcc Application Service Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : AdminBaseMccApplicationServiceTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@ExtendWith(MockitoExtension.class)
 class AdminBaseMccApplicationServiceTest {
 
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * level1 Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMccLevel1Mapper level1Mapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * level2 Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMccLevel2Mapper level2Mapper;
-    /**
-     * 基础数据编码或编号字段，用于业务识别、查询和幂等关联。
-     */
     @Mock
+    /**
+     * code Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMccCodeMapper codeMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * risk Policy Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMccRiskPolicyMapper riskPolicyMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * dict Data Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private SysDictDataMapper dictDataMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * admin Dict Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private AdminDictService adminDictService;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * iso Country Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private IsoCountryMapper isoCountryMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * merchant Info Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private BaseMerchantInfoMapper merchantInfoMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel Export Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExcelExportService excelExportService;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel I18n Message Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExcelI18nMessageResolver excelI18nMessageResolver;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel Locale Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private ExcelLocaleResolver excelLocaleResolver;
 
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private AdminBaseMccApplicationService service;
 

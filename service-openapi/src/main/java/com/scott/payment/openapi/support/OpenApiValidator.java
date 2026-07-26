@@ -8,16 +8,17 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import java.util.Set;
 
+
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiValidator
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI DTO 校验器，位于 service-openapi 支撑层，按交易动作校验分组阻断非法参数进入支付核心。
+ * @description : OpenApiValidator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Component
 public class OpenApiValidator {
 
     /**

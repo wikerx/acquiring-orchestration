@@ -3,16 +3,16 @@ package com.scott.payment.component.redis.id;
 import com.scott.payment.component.core.id.GlobalIdConstants;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+@ConfigurationProperties(prefix = "payment.global-id")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : RedisGlobalIdProperties
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 收单支付Redis Global Id 配置属性，位于 component-library/component-redis 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : RedisGlobalIdProperties 配置属性模型，用于绑定 application 配置项并提供默认值，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@ConfigurationProperties(prefix = "payment.global-id")
 public class RedisGlobalIdProperties {
 
     /**
@@ -66,181 +66,241 @@ public class RedisGlobalIdProperties {
     private long retrySleepMillis = 1L;
 
     /**
-     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
-     * @return 处理后的业务结果或页面展示数据。
+     * 判断 is Enabled 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 满足当前业务条件时返回 true，否则返回 false
      */
-
     public boolean isEnabled() {
         return enabled;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param enabled 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Enabled 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param enabled enabled 输入值，含义由调用方法名称和所属业务对象限定
      */
-
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Mode 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public String getMode() {
         return mode;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param mode 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Mode 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param mode mode 输入值，含义由调用方法名称和所属业务对象限定
      */
-
     public void setMode(String mode) {
         this.mode = mode;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Timezone 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public String getTimezone() {
         return timezone;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param timezone 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Timezone 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param timezone 时间值，使用系统约定时区或调用方传入的业务时区解释
      */
-
     public void setTimezone(String timezone) {
         this.timezone = timezone;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Sequence Length 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public int getSequenceLength() {
         return sequenceLength;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param sequenceLength 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Sequence Length 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param sequenceLength sequence Length 输入值，含义由调用方法名称和所属业务对象限定
      */
-
     public void setSequenceLength(int sequenceLength) {
         this.sequenceLength = sequenceLength;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Max Sequence 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public long getMaxSequence() {
         return maxSequence;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param maxSequence 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Max Sequence 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param maxSequence max Sequence 输入值，含义由调用方法名称和所属业务对象限定
      */
-
     public void setMaxSequence(long maxSequence) {
         this.maxSequence = maxSequence;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Seq Key Prefix 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public String getSeqKeyPrefix() {
         return seqKeyPrefix;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param seqKeyPrefix 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Seq Key Prefix 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param seqKeyPrefix seq Key Prefix 输入值，含义由调用方法名称和所属业务对象限定
      */
-
     public void setSeqKeyPrefix(String seqKeyPrefix) {
         this.seqKeyPrefix = seqKeyPrefix;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Last Millis Key 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public String getLastMillisKey() {
         return lastMillisKey;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param lastMillisKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Last Millis Key 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param lastMillisKey last Millis Key 输入值，含义由调用方法名称和所属业务对象限定
      */
-
     public void setLastMillisKey(String lastMillisKey) {
         this.lastMillisKey = lastMillisKey;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Seq Key Expire Seconds 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public long getSeqKeyExpireSeconds() {
         return seqKeyExpireSeconds;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param seqKeyExpireSeconds 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Seq Key Expire Seconds 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param seqKeyExpireSeconds seq Key Expire Seconds 输入值，含义由调用方法名称和所属业务对象限定
      */
-
     public void setSeqKeyExpireSeconds(long seqKeyExpireSeconds) {
         this.seqKeyExpireSeconds = seqKeyExpireSeconds;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Max Retry Times 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public int getMaxRetryTimes() {
         return maxRetryTimes;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param maxRetryTimes 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Max Retry Times 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param maxRetryTimes 时间值，使用系统约定时区或调用方传入的业务时区解释
      */
-
     public void setMaxRetryTimes(int maxRetryTimes) {
         this.maxRetryTimes = maxRetryTimes;
     }
 
     /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
+     * 完成 get Retry Sleep Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
      */
-
     public long getRetrySleepMillis() {
         return retrySleepMillis;
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param retrySleepMillis 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 完成 set Retry Sleep Millis 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param retrySleepMillis retry Sleep Millis 输入值，含义由调用方法名称和所属业务对象限定
      */
-
     public void setRetrySleepMillis(long retrySleepMillis) {
         this.retrySleepMillis = retrySleepMillis;
     }

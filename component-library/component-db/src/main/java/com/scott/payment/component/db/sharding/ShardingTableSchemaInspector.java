@@ -7,24 +7,32 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingTableSchemaInspector
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 收单支付Sharding Table Schema Inspector，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ShardingTableSchemaInspector Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Component
 public class ShardingTableSchemaInspector {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * jdbc Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final JdbcTemplate jdbcTemplate;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * table Name Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingPhysicalTableNameResolver tableNameResolver;
 
@@ -46,11 +54,6 @@ public class ShardingTableSchemaInspector {
      * @param rule 单表分表规则
      * @return 检查结果
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingTableInspectionResult inspectTemplate(PaymentQuarterShardingProperties.TableRule rule) {
         String templateTable = tableNameResolver.templateTableName(rule);
         String idColumn = tableNameResolver.idColumnName(rule);
@@ -64,12 +67,6 @@ public class ShardingTableSchemaInspector {
      * @param rule          单表分表规则
      * @param physicalTable 目标物理表
      * @return 检查结果
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param physicalTable 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingTableInspectionResult inspectPhysicalTable(PaymentQuarterShardingProperties.TableRule rule,
                                                               String physicalTable) {
@@ -104,11 +101,6 @@ public class ShardingTableSchemaInspector {
      * @param tableName 表名
      * @return true 表示存在
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param tableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public boolean tableExists(String tableName) {
         String safeTableName = tableNameResolver.requireSafeIdentifier(tableName, "table");
         Integer count = jdbcTemplate.queryForObject("""
@@ -126,11 +118,6 @@ public class ShardingTableSchemaInspector {
      * @param tableName 表名
      * @return 当前 AUTO_INCREMENT 值，不存在时返回 null
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param tableName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public Long autoIncrementCurrent(String tableName) {
         String safeTableName = tableNameResolver.requireSafeIdentifier(tableName, "table");
         return jdbcTemplate.queryForObject("""
@@ -141,6 +128,17 @@ public class ShardingTableSchemaInspector {
                 """, Long.class, safeTableName);
     }
 
+    /**
+     * 完成 inspect Single Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @param idColumn id Column 输入值，含义由调用方法名称和所属业务对象限定
+     * @param shardingColumn sharding Column 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ShardingTableInspectionResult inspectSingleTable(String tableName, String idColumn, String shardingColumn) {
         ShardingTableInspectionResult result = new ShardingTableInspectionResult();
         result.setTableName(tableName);
@@ -168,6 +166,15 @@ public class ShardingTableSchemaInspector {
         return result;
     }
 
+    /**
+     * 完成 show Create Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String showCreateTable(String tableName) {
         String safeTableName = tableNameResolver.requireSafeIdentifier(tableName, "table");
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("SHOW CREATE TABLE `" + safeTableName + "`");
@@ -178,6 +185,16 @@ public class ShardingTableSchemaInspector {
         return value == null ? "" : String.valueOf(value);
     }
 
+    /**
+     * 完成 column Exists 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @param columnName column Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private boolean columnExists(String tableName, String columnName) {
         Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -189,6 +206,16 @@ public class ShardingTableSchemaInspector {
         return count != null && count > 0;
     }
 
+    /**
+     * 判断 is Bigint Auto Increment Primary Key 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @param idColumn id Column 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isBigintAutoIncrementPrimaryKey(String tableName, String idColumn) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT DATA_TYPE, EXTRA, COLUMN_KEY
@@ -207,6 +234,16 @@ public class ShardingTableSchemaInspector {
         return "bigint".equals(dataType) && extra.contains("auto_increment") && "PRI".equals(columnKey);
     }
 
+    /**
+     * 标准化 normalize Create Table 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param createTableSql create Table Sql 输入值，含义由调用方法名称和所属业务对象限定
+     * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private String normalizeCreateTable(String createTableSql, String tableName) {
         if (createTableSql == null) {
             return "";

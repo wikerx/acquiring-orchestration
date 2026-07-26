@@ -45,50 +45,73 @@ import java.util.Set;
  * <p>负责菜单树组装、父子层级校验、菜单编码唯一性校验和菜单状态维护，
  * 不承担控制器协议适配或页面交互逻辑。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMenuServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Admin Menu Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminMenuServiceImpl implements AdminMenuService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ROOT PARENT ID 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final long ROOT_PARENT_ID = 0L;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DEFAULT SORT NO 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int DEFAULT_SORT_NO = 100;
     private static final Set<String> MENU_TYPES = Set.of("CATALOG", "MENU", "BUTTON", "LINK");
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys App Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysAppMapper sysAppMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Menu Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysMenuMapper sysMenuMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Permission Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysPermissionMapper sysPermissionMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Menu Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysRoleMenuMapper sysRoleMenuMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Permission Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysRolePermissionMapper sysRolePermissionMapper;
 
@@ -127,23 +150,22 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      * @param request 查询条件
      * @return 菜单树
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<SysMenuDTO> treeMenus(SysMenuQueryRequest request) {
         return treeMenus(AuthConstants.APP_ADMIN, request);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 tree Menus 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<SysMenuDTO> treeMenus(String appCode, SysMenuQueryRequest request) {
         SysMenuQueryRequest query = request == null ? new SysMenuQueryRequest() : request;
         SysAppDO app = getApp(appCode);
@@ -174,25 +196,24 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      * @param request 新增请求
      * @return 菜单详情
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO createMenu(SysMenuCreateRequest request) {
         return createMenu(AuthConstants.APP_ADMIN, request);
     }
 
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 完成 create Menu 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysMenuDTO createMenu(String appCode, SysMenuCreateRequest request) {
         SysAppDO app = getApp(appCode);
         validateParent(app.getId(), request.getParentId(), null);
@@ -221,25 +242,24 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      * @param request 更新请求
      * @return 菜单详情
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO updateMenu(SysMenuUpdateRequest request) {
         return updateMenu(AuthConstants.APP_ADMIN, request);
     }
 
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 写入或更新 update Menu 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public SysMenuDTO updateMenu(String appCode, SysMenuUpdateRequest request) {
         SysAppDO app = getApp(appCode);
         SysMenuDO menu = getMenu(app.getId(), request.getMenuId());
@@ -263,23 +283,23 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      *
      * @param request 状态请求
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(SysMenuStatusRequest request) {
         updateStatus(AuthConstants.APP_ADMIN, request);
     }
 
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 写入或更新 update Status 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     */
     public void updateStatus(String appCode, SysMenuStatusRequest request) {
         SysAppDO app = getApp(appCode);
         SysMenuDO menu = getMenu(app.getId(), request.getMenuId());
@@ -295,11 +315,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
      *
      * @param appCode 应用编码
      * @param request 删除请求
-     */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -486,6 +501,15 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return value.trim();
     }
 
+    /**
+     * 完成 sync Permission 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void syncPermission(Long appId, SysMenuDO menu) {
         String permissionCode = normalize(menu.getPermissionCode());
         SysPermissionDO existing = sysPermissionMapper.selectOne(
@@ -531,6 +555,15 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         sysPermissionMapper.updateById(permission);
     }
 
+    /**
+     * 完成 apply Permission Fields 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param permission permission 输入值，含义由调用方法名称和所属业务对象限定
+     * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void applyPermissionFields(SysPermissionDO permission, SysMenuDO menu) {
         permission.setPermissionName(menu.getMenuName());
         permission.setPermissionType("BUTTON".equals(menu.getMenuType()) ? "BUTTON" : "MENU");
@@ -539,10 +572,28 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         permission.setStatus(validStatus(menu.getStatus()));
     }
 
+    /**
+     * 完成 default Resource Method 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param menuType menu Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String defaultResourceMethod(String menuType) {
         return "BUTTON".equals(menuType) ? "*" : "GET";
     }
 
+    /**
+     * 完成 soft Delete Role Menus 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param menuId menu Id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void softDeleteRoleMenus(Long appId, Long menuId) {
         List<SysRoleMenuDO> grants = sysRoleMenuMapper.selectList(
                 Wrappers.<SysRoleMenuDO>lambdaQuery()
@@ -556,6 +607,15 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
+    /**
+     * 完成 soft Delete Menu Permissions 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param menuId menu Id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void softDeleteMenuPermissions(Long appId, Long menuId) {
         List<SysPermissionDO> permissions = sysPermissionMapper.selectList(
                 Wrappers.<SysPermissionDO>lambdaQuery()
@@ -571,6 +631,15 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
+    /**
+     * 完成 soft Delete Role Permissions 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param permissionId permission Id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void softDeleteRolePermissions(Long appId, Long permissionId) {
         List<SysRolePermissionDO> grants = sysRolePermissionMapper.selectList(
                 Wrappers.<SysRolePermissionDO>lambdaQuery()
@@ -584,6 +653,15 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         });
     }
 
+    /**
+     * 构建 build Tree 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param menus menus 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private List<SysMenuDTO> buildTree(List<SysMenuDO> menus) {
         Map<Long, SysMenuDTO> menuMap = new LinkedHashMap<>();
         menus.forEach(menu -> menuMap.put(menu.getId(), toDTO(menu)));
@@ -599,6 +677,15 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return roots;
     }
 
+    /**
+     * 转换生成 to DTO 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private SysMenuDTO toDTO(SysMenuDO menu) {
         return menuConverter.toDTO(menu);
     }

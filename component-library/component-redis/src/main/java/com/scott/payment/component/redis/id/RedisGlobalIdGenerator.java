@@ -16,13 +16,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : RedisGlobalIdGenerator
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : Redis 分布式全局唯一标识生成器。 <p>该实现使用 Redis Server Time 和 Lua 脚本完成 lastMillis + INCR 原子处理。 Redis 不可用、Lua 执行失败或序列溢出超过重试次数时直接失败，不允许降级为本地生成。</p>
+ * @description : RedisGlobalIdGenerator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public class RedisGlobalIdGenerator implements GlobalIdGenerator {
@@ -107,10 +108,6 @@ public class RedisGlobalIdGenerator implements GlobalIdGenerator {
      * 生成全系统统一唯一标识。
      *
      * @return 22 位纯数字唯一标识
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public String nextId() {

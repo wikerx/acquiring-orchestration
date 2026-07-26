@@ -44,6 +44,16 @@ public interface TransactionIdempotencyService {
                 "INITIAL");
     }
 
+    /**
+     * 标准化 normalize Key Part 输入值，统一大小写、空白字符或协议格式。
+     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 标准化后的业务字段值
+     */
     private static String normalizeKeyPart(String value) {
         return value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);
     }

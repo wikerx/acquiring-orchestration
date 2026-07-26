@@ -3,13 +3,14 @@ package com.scott.payment.admin.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.admin.entity.channel.ChannelEntities.ChannelCapabilityCurrencyDO;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ChannelCapabilityCurrencyMapper
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 16:10
  * @email : scott_x@163.com
- * @description : 渠道支付能力币种 Mapper。
+ * @description : ChannelCapabilityCurrencyMapper MyBatis 数据访问接口，用于映射数据库表读写语句和领域查询条件，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public interface ChannelCapabilityCurrencyMapper extends BaseMapper<ChannelCapabilityCurrencyDO> {

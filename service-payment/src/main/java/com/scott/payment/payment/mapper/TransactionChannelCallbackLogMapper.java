@@ -48,6 +48,15 @@ public interface TransactionChannelCallbackLogMapper extends BaseMapper<Transact
             )
             """)
     int insertPhysical(@Param("physicalTableName") String physicalTableName,
+                       /**
+                        * 完成 m 分支的校验或状态更新。
+                        * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                        * <p>
+                        * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                        * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                        * </p>
+                        * @param logDO log DO 输入值，含义由调用方法名称和所属业务对象限定
+                        */
                        @Param("logDO") TransactionChannelCallbackLogDO logDO);
 
     /**
@@ -65,6 +74,15 @@ public interface TransactionChannelCallbackLogMapper extends BaseMapper<Transact
             LIMIT 100
             """)
     List<TransactionChannelCallbackLogDO> selectByTransactionIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                        /**
+                                                                         * 完成 m 分支的校验或状态更新。
+                                                                         * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                         * <p>
+                                                                         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                         * </p>
+                                                                         * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+                                                                         */
                                                                         @Param("transactionId") String transactionId);
 
     /**
@@ -82,5 +100,14 @@ public interface TransactionChannelCallbackLogMapper extends BaseMapper<Transact
             LIMIT 200
             """)
     List<TransactionChannelCallbackLogDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                      /**
+                                                                       * 完成 m 分支的校验或状态更新。
+                                                                       * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+                                                                       * <p>
+                                                                       * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+                                                                       * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+                                                                       * </p>
+                                                                       * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+                                                                       */
                                                                       @Param("operationId") String operationId);
 }

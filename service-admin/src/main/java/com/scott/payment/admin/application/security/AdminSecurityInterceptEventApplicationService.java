@@ -32,11 +32,46 @@ import java.util.Locale;
 @Service
 public class AdminSecurityInterceptEventApplicationService {
 
+    /**
+     * EXPORT TIME FORMATTER 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    /**
+     * event Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final AdminSecurityInterceptEventService eventService;
+    /**
+     * excel Export Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * excel I18n Message Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * excel Locale Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -119,6 +154,16 @@ public class AdminSecurityInterceptEventApplicationService {
         );
     }
 
+    /**
+     * 转换生成 to Export Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private SecurityInterceptEventExportRow toExportRow(SecurityInterceptEventResponse source, Locale locale) {
         SecurityInterceptEventExportRow row = new SecurityInterceptEventExportRow();
         row.setEventNo(blankToPlaceholder(source.getEventNo()));
@@ -140,6 +185,16 @@ public class AdminSecurityInterceptEventApplicationService {
         return row;
     }
 
+    /**
+     * 构建 build Query Summary 对应的领域对象、请求对象或日志对象。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private String buildQuerySummary(SecurityInterceptEventQuery query, Locale locale) {
         SecurityInterceptEventQuery condition = query == null ? new SecurityInterceptEventQuery() : query;
         List<String> conditions = new ArrayList<>();
@@ -160,6 +215,17 @@ public class AdminSecurityInterceptEventApplicationService {
         return String.join(locale.getLanguage().equals(Locale.CHINESE.getLanguage()) ? "，" : ", ", conditions);
     }
 
+    /**
+     * 计算 add Condition 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param conditions conditions 输入值，含义由调用方法名称和所属业务对象限定
+     * @param labelKey label Key 输入值，含义由调用方法名称和所属业务对象限定
+     * @param value 待校验或转换的原始值
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void addCondition(List<String> conditions, String labelKey, Object value, Locale locale) {
         if (value == null) {
             return;
@@ -171,10 +237,30 @@ public class AdminSecurityInterceptEventApplicationService {
         conditions.add(excelI18nMessageResolver.resolve(labelKey, locale) + "=" + text.trim());
     }
 
+    /**
+     * 解析 resolve Nullable Process Status Text 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveNullableProcessStatusText(Integer status, Locale locale) {
         return status == null ? null : resolveProcessStatusText(status, locale);
     }
 
+    /**
+     * 解析 resolve Process Status Text 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveProcessStatusText(Integer status, Locale locale) {
         String key = switch (status == null ? 0 : status) {
             case 1 -> "excel.securityIntercept.processed";
@@ -184,6 +270,15 @@ public class AdminSecurityInterceptEventApplicationService {
         return excelI18nMessageResolver.resolve(key, locale);
     }
 
+    /**
+     * 完成 blank To Placeholder 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String blankToPlaceholder(String value) {
         return StringUtils.hasText(value) ? value : "-";
     }

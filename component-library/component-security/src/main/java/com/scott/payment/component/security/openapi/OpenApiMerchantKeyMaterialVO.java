@@ -4,45 +4,73 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiMerchantKeyMaterialVO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Merchant Key Material 视图对象，位于 component-library/component-security 的安全组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : OpenApiMerchantKeyMaterialVO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class OpenApiMerchantKeyMaterialVO {
 
     /**
-     * 商户 OpenAPI标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * merchant Id 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String merchantId;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * merchant Name 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String merchantName;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * open Api Base Url 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String openApiBaseUrl;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sdk Version 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String sdkVersion;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * crypto Mode 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String cryptoMode;
 
     /**
-     * 商户 OpenAPI状态字段，取值需与数据字典或枚举约定保持一致。
+     * jwt Key Status 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String jwtKeyStatus;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * jwt Algorithm 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String jwtAlgorithm;
     /**
@@ -54,16 +82,28 @@ public class OpenApiMerchantKeyMaterialVO {
      */
     private String jwtKeyFingerprint;
     /**
-     * 商户 OpenAPI时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
+     * jwt Updated Time 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private LocalDateTime jwtUpdatedTime;
 
     /**
-     * 商户 OpenAPI状态字段，取值需与数据字典或枚举约定保持一致。
+     * platform Payload Key Status 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String platformPayloadKeyStatus;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * platform Payload Algorithm 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String platformPayloadAlgorithm;
     /**
@@ -75,16 +115,28 @@ public class OpenApiMerchantKeyMaterialVO {
      */
     private String platformPayloadPublicKeyFingerprint;
     /**
-     * 商户 OpenAPI时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
+     * platform Payload Updated Time 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private LocalDateTime platformPayloadUpdatedTime;
 
     /**
-     * 商户 OpenAPI状态字段，取值需与数据字典或枚举约定保持一致。
+     * merchant Response Key Status 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String merchantResponseKeyStatus;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * merchant Response Algorithm 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private String merchantResponseAlgorithm;
     /**
@@ -96,7 +148,11 @@ public class OpenApiMerchantKeyMaterialVO {
      */
     private String merchantResponsePublicKeyFingerprint;
     /**
-     * 商户 OpenAPI时间字段，表示具体时刻时使用 LocalDateTime 并由页面统一格式化展示。
+     * merchant Response Updated Time 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private LocalDateTime merchantResponseUpdatedTime;
 

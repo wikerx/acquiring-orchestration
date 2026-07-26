@@ -9,7 +9,6 @@ package com.scott.payment.component.job.enums;
  * @description : 任务运行状态枚举
  * @status : create
  */
-
 public enum JobRunStatusEnum {
 
     /**

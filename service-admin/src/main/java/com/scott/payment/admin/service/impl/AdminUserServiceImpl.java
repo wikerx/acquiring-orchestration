@@ -72,17 +72,18 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+
+@Slf4j
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminUserServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : 后台用户领域服务实现，位于 service-admin 服务实现层；负责用户资料、账号状态、岗位绑定和角色授权边界校验。
+ * @description : AdminUserServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Slf4j
-@Service
 public class AdminUserServiceImpl implements AdminUserService {
 
     /**
@@ -521,13 +522,17 @@ public class AdminUserServiceImpl implements AdminUserService {
         logoutSessions(app.getId(), account.getId(), now);
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param accountIds 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 完成 remove Users 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param accountIds account Ids 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public void removeUsers(List<Long> accountIds) {
         List<Long> normalizedIds = normalizeIds(accountIds);
         if (normalizedIds.isEmpty()) {
@@ -1287,6 +1292,16 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
     }
 
+    /**
+     * 转换生成 to Role DTO 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param role role 输入值，含义由调用方法名称和所属业务对象限定
+     * @param assignable assignable 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private SysRoleDTO toRoleDTO(SysRoleDO role, boolean assignable) {
         SysRoleDTO dto = new SysRoleDTO();
         dto.setRoleId(role.getId());

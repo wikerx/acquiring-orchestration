@@ -13,16 +13,17 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PayoutTransactionServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : 代付交易服务模拟实现，位于 service-payout 服务实现层，仅承载当前骨架代付受理和平台代付单号生成。
+ * @description : PayoutTransactionServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 代付服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Service
 public class PayoutTransactionServiceImpl implements PayoutTransactionService {
 
     /**

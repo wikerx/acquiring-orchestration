@@ -18,9 +18,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @author : scott
  * @version : v1.0.0
  * @classname : RedisGlobalIdGeneratorTests
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 收单支付Redis Global Id Generator Tests，位于 component-library/component-redis 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : RedisGlobalIdGeneratorTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 class RedisGlobalIdGeneratorTests {
@@ -114,7 +114,11 @@ class RedisGlobalIdGeneratorTests {
     private static class FixedRedisServerTimeProvider extends RedisServerTimeProvider {
 
         /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         * current Millis 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
          */
         private final long currentMillis;
 
@@ -123,11 +127,15 @@ class RedisGlobalIdGeneratorTests {
             this.currentMillis = currentMillis;
         }
 
-        /**
-         * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
+        /**
+         * 完成 current Time Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public long currentTimeMillis() {
             return currentMillis;
         }
@@ -135,15 +143,30 @@ class RedisGlobalIdGeneratorTests {
 
     private static class ScriptStringRedisTemplate extends StringRedisTemplate {
 
+        /**
+         * script Results 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private final Queue<List<?>> scriptResults = new ArrayDeque<>();
 
         /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         * failure 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
          */
         private RuntimeException failure;
 
         /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         * execute Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
          */
         private int executeCount;
 
@@ -159,13 +182,6 @@ class RedisGlobalIdGeneratorTests {
             return executeCount;
         }
 
-        /**
-         * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-         * @param script 请求参数或业务处理上下文，不能为空时由上层校验约束。
-         * @param keys 请求参数或业务处理上下文，不能为空时由上层校验约束。
-         * @param args 请求参数或业务处理上下文，不能为空时由上层校验约束。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
         @SuppressWarnings("unchecked")
         public <T> T execute(RedisScript<T> script, List<String> keys, Object... args) {

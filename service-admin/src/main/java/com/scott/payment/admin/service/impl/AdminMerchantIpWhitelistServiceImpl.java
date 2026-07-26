@@ -47,12 +47,54 @@ import java.util.stream.Collectors;
 @Service
 public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhitelistService {
 
+    /**
+     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final long NOT_DELETED = 0L;
+    /**
+     * ENABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final int ENABLED = 1;
+    /**
+     * DISABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final int DISABLED = 0;
 
+    /**
+     * whitelist Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final MerchantIpWhitelistMapper whitelistMapper;
+    /**
+     * access Config Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final MerchantOpenApiAccessConfigMapper accessConfigMapper;
+    /**
+     * merchant Info Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final BaseMerchantInfoMapper merchantInfoMapper;
 
     /**
@@ -117,6 +159,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
+    /**
+     * 完成 list Matched Whitelists 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param condition condition 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<MerchantIpWhitelistDO> listMatchedWhitelists(MerchantIpWhitelistQuery condition) {
         List<String> merchantIds = findMerchantIds(condition);
         List<String> configMerchantIds = findConfigMerchantIds(condition);
@@ -287,6 +338,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return toResponse(first, merchant, config);
     }
 
+    /**
+     * 查询 find Merchant Ids 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private List<String> findMerchantIds(MerchantIpWhitelistQuery query) {
         if (!StringUtils.hasText(query.getMerchantKeyword())) {
             return null;
@@ -302,6 +362,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
+    /**
+     * 查询 find Config Merchant Ids 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private List<String> findConfigMerchantIds(MerchantIpWhitelistQuery query) {
         if (query.getIpWhitelistEnabled() == null) {
             return null;
@@ -333,6 +402,16 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
+    /**
+     * 完成 merge Merchant Ids 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param left left 输入值，含义由调用方法名称和所属业务对象限定
+     * @param right right 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> mergeMerchantIds(List<String> left, List<String> right) {
         if (left == null) {
             return right;
@@ -346,6 +425,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return left.stream().filter(right::contains).toList();
     }
 
+    /**
+     * 完成 group By Merchant 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, List<MerchantIpWhitelistDO>> groupByMerchant(List<MerchantIpWhitelistDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -360,6 +448,16 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return grouped;
     }
 
+    /**
+     * 完成 paginate Merchant Ids 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantIds 商户号，用于限定数据归属、幂等范围和权限边界
+     * @param condition condition 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> paginateMerchantIds(List<String> merchantIds, MerchantIpWhitelistQuery condition) {
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
@@ -369,6 +467,20 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return merchantIds.subList(fromIndex, toIndex);
     }
 
+/**
+ * 构建 build Whitelist 对应的领域对象、请求对象或日志对象。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+ * @param ip ip 输入值，含义由调用方法名称和所属业务对象限定
+ * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param remark remark 输入值，含义由调用方法名称和所属业务对象限定
+ * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
+ * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private MerchantIpWhitelistDO buildWhitelist(String merchantId,
                                                  NormalizedIp ip,
                                                  int status,
@@ -389,6 +501,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return row;
     }
 
+    /**
+     * 强制校验 require Whitelist 必填值，缺失时中断当前业务流程。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private MerchantIpWhitelistDO requireWhitelist(Long id) {
         if (id == null) {
             throw badRequest("白名单记录不存在");
@@ -402,6 +523,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return row;
     }
 
+    /**
+     * 强制校验 require Merchant 必填值，缺失时中断当前业务流程。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 当前方法计算或转换后的业务结果
+     */
     private BaseMerchantInfoDO requireMerchant(String merchantId) {
         BaseMerchantInfoDO merchant = findMerchant(merchantId);
         if (merchant == null) {
@@ -410,6 +540,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return merchant;
     }
 
+    /**
+     * 查询 find Merchant 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 解析或查询得到的业务值
+     */
     private BaseMerchantInfoDO findMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             return null;
@@ -420,6 +559,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询 find Config 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 解析或查询得到的业务值
+     */
     private MerchantOpenApiAccessConfigDO findConfig(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             return null;
@@ -430,6 +578,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询 load Merchants 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantIds 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 解析或查询得到的业务值
+     */
     private Map<String, BaseMerchantInfoDO> loadMerchants(List<String> merchantIds) {
         List<String> ids = distinctMerchantIds(merchantIds);
         if (ids.isEmpty()) {
@@ -442,6 +599,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .collect(Collectors.toMap(BaseMerchantInfoDO::getMerchantId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 查询 load Configs 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantIds 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 解析或查询得到的业务值
+     */
     private Map<String, MerchantOpenApiAccessConfigDO> loadConfigs(List<String> merchantIds) {
         List<String> ids = distinctMerchantIds(merchantIds);
         if (ids.isEmpty()) {
@@ -454,6 +620,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .collect(Collectors.toMap(MerchantOpenApiAccessConfigDO::getMerchantId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 完成 distinct Merchant Ids 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantIds 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> distinctMerchantIds(List<String> merchantIds) {
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
@@ -465,6 +640,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
+    /**
+     * 标准化 normalize Ip List 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param ipValues ip Values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private List<NormalizedIp> normalizeIpList(List<String> ipValues) {
         if (ipValues == null || ipValues.isEmpty()) {
             throw badRequest("至少录入一个精确 IP");
@@ -483,6 +667,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return List.copyOf(normalized.values());
     }
 
+    /**
+     * 标准化 normalize Ip 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 标准化后的业务字段值
+     */
     private NormalizedIp normalizeIp(String value) {
         try {
             return IpAddressNormalizer.normalizeExact(value);
@@ -491,6 +684,17 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         }
     }
 
+/**
+ * 转换生成 to Response 对应的传输对象、导出行或协议字段。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+ * @param merchant merchant 输入值，含义由调用方法名称和所属业务对象限定
+ * @param config config 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private MerchantIpWhitelistResponse toResponse(MerchantIpWhitelistDO row,
                                                    BaseMerchantInfoDO merchant,
                                                    MerchantOpenApiAccessConfigDO config) {
@@ -517,6 +721,17 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return response;
     }
 
+/**
+ * 转换生成 to Aggregated Response 对应的传输对象、导出行或协议字段。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
+ * @param merchant merchant 输入值，含义由调用方法名称和所属业务对象限定
+ * @param config config 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 转换或构建后的目标对象
+ */
     private MerchantIpWhitelistResponse toAggregatedResponse(List<MerchantIpWhitelistDO> rows,
                                                              BaseMerchantInfoDO merchant,
                                                              MerchantOpenApiAccessConfigDO config) {
@@ -529,6 +744,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return response;
     }
 
+    /**
+     * 转换生成 to Item 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private MerchantIpWhitelistItem toItem(MerchantIpWhitelistDO row) {
         MerchantIpWhitelistItem item = new MerchantIpWhitelistItem();
         item.setId(row.getId());
@@ -541,18 +765,53 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return item;
     }
 
+    /**
+     * 标准化 normalize Status 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 标准化后的业务字段值
+     */
     private int normalizeStatus(Integer status) {
         return status != null && status == ENABLED ? ENABLED : DISABLED;
     }
 
+    /**
+     * 标准化 normalize Merchant Id 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
+     * @return 标准化后的业务字段值
+     */
     private String normalizeMerchantId(String merchantId) {
         return merchantId == null ? "" : merchantId.trim();
     }
 
+    /**
+     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -567,6 +826,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return "system";
     }
 
+    /**
+     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @return 当前方法计算或转换后的业务结果
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

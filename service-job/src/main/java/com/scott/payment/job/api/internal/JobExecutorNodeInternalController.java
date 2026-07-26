@@ -20,21 +20,16 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @description : 任务执行器节点内部控制器
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeInternalController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Executor Node Internal 管理接口，位于 service-job 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/internal/job/nodes")
 public class JobExecutorNodeInternalController {
 
     /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     * job Executor Node Application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final JobExecutorNodeApplicationService jobExecutorNodeApplicationService;
 
@@ -51,10 +46,6 @@ public class JobExecutorNodeInternalController {
      * 查询执行节点列表。
      *
      * @return 执行节点列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping
     public CommonResult<List<JobExecutorNodeResponse>> listNodes() {

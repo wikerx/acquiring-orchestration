@@ -37,17 +37,18 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+
+@Primary
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantSecurityServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-30 09:37
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 安全材料服务实现，位于 service-openapi 服务层，负责商户 JWT 密钥、平台请求体 RSA 密钥和商户响应公钥的初始化、查询与轮换。
+ * @description : MerchantSecurityServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Primary
-@Service
 public class MerchantSecurityServiceImpl implements MerchantSecurityService {
 
     /**
@@ -165,11 +166,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param seedDTO 商户开户与测试初始化入参
      * @return 商户侧需要保存的安全材料
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param seedDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -212,11 +208,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param merchantId 支付框架颁发的商户号
      * @return 商户侧默认密钥材料
      */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public MerchantSecurityMaterialDTO getMerchantClientSecurityMaterial(String merchantId) {
@@ -236,11 +227,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param merchantId 支付框架颁发的商户号
      * @return 服务端内部密钥材料
      */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public ServerSecurityMaterialDTO getServerSecurityMaterial(String merchantId) {
@@ -255,10 +241,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * 查询所有未删除商户的基础资料。
      *
      * @return 商户基础资料列表
-     */
-    /**
-     * 查询商户 OpenAPI列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.SLAVE)
@@ -281,11 +263,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      *
      * @param merchantId 支付框架颁发的商户号
      * @return 商户密钥迭代记录
-     */
-    /**
-     * 查询商户 OpenAPI列表或分页数据，供页面筛选和展示使用。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.SLAVE)
@@ -310,12 +287,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param merchantId  支付框架颁发的商户号
      * @param keyVersion  新密钥版本号
      * @return 新密钥迭代记录
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyVersion 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -347,11 +318,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param merchantId 支付框架颁发的商户号
      * @return 商户 JWT 签名密钥
      */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public String getMerchantKey(String merchantId) {
@@ -367,11 +333,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 私钥
      */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PrivateKey getPlatformPrivateKey(String merchantId) {
@@ -385,11 +346,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 公钥
      */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PublicKey getPlatformPublicKey(String merchantId) {
@@ -402,11 +358,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      *
      * @param merchantId 支付框架颁发的商户号
      * @return 商户基础信息
-     */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.SLAVE)
@@ -430,11 +381,6 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      *
      * @param merchantId 支付框架颁发的商户号
      * @return 商户响应 RSA 公钥
-     */
-    /**
-     * 获取商户 OpenAPI明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.SLAVE)

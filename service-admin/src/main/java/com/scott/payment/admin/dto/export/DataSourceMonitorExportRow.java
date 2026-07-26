@@ -3,16 +3,16 @@ package com.scott.payment.admin.dto.export;
 import com.scott.payment.component.excel.annotation.ExcelExportColumn;
 import lombok.Data;
 
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : DataSourceMonitorExportRow
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 收单支付Data Source Monitor Export Row，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : DataSourceMonitorExportRow 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class DataSourceMonitorExportRow {
 
     /**
@@ -21,87 +21,143 @@ public class DataSourceMonitorExportRow {
     @ExcelExportColumn(order = 1, headerKey = "excel.datasource.dataSourceKey", width = 18)
     private String dataSourceKey;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 2, headerKey = "excel.datasource.groupName", width = 16)
+    /**
+     * group Name 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String groupName;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 3, headerKey = "excel.datasource.role", width = 16)
+    /**
+     * role 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String role;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 4, headerKey = "excel.datasource.poolName", width = 28)
+    /**
+     * pool Name 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String poolName;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 5, headerKey = "excel.datasource.databaseName", width = 20)
+    /**
+     * database Name 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String databaseName;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 6, headerKey = "excel.datasource.jdbcUrl", width = 42)
+    /**
+     * jdbc Url 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String jdbcUrl;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 7, headerKey = "excel.datasource.running", width = 14)
+    /**
+     * running 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String running;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 8, headerKey = "excel.datasource.reachable", width = 14)
+    /**
+     * reachable 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String reachable;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 9, headerKey = "excel.datasource.activeConnections", width = 16)
+    /**
+     * active Connections 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer activeConnections;
 
-    /**
-     * 收单支付标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
-     */
     @ExcelExportColumn(order = 10, headerKey = "excel.datasource.idleConnections", width = 16)
+    /**
+     * idle Connections 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer idleConnections;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 11, headerKey = "excel.datasource.totalConnections", width = 16)
+    /**
+     * total Connections 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer totalConnections;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 12, headerKey = "excel.datasource.awaitingThreads", width = 16)
+    /**
+     * threads Awaiting Connection 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer threadsAwaitingConnection;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 13, headerKey = "excel.datasource.maximumPoolSize", width = 16)
+    /**
+     * maximum Pool Size 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer maximumPoolSize;
 
-    /**
-     * 收单支付标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
-     */
     @ExcelExportColumn(order = 14, headerKey = "excel.datasource.minimumIdle", width = 16)
+    /**
+     * minimum Idle 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer minimumIdle;
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @ExcelExportColumn(order = 15, headerKey = "excel.datasource.relatedShardingTables", width = 32)
+    /**
+     * related Sharding Tables 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private String relatedShardingTables;
 }

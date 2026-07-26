@@ -11,16 +11,16 @@ import com.scott.payment.job.dto.sharding.ShardingTablePreCreateResult;
 import com.scott.payment.job.service.ShardingTablePreCreateService;
 import org.springframework.stereotype.Component;
 
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingTablePreCreateJob
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 收单支付Sharding Table Pre Create Job，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ShardingTablePreCreateJob 调度任务组件，用于执行定时扫描、异步任务或后台补偿流程，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Component
 public class ShardingTablePreCreateJob implements JobHandler {
 
     /**
@@ -34,7 +34,11 @@ public class ShardingTablePreCreateJob implements JobHandler {
     public static final String HANDLER_CODE = "shardingTablePreCreate";
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sharding Table Pre Create Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingTablePreCreateService shardingTablePreCreateService;
 
@@ -52,10 +56,6 @@ public class ShardingTablePreCreateJob implements JobHandler {
      *
      * @return 处理器描述
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public JobHandlerDescriptor descriptor() {
         return JobHandlerDescriptor.sync(
@@ -71,11 +71,6 @@ public class ShardingTablePreCreateJob implements JobHandler {
      *
      * @param context 任务执行上下文
      * @return 任务执行结果
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public JobExecuteResult execute(JobExecuteContext context) {

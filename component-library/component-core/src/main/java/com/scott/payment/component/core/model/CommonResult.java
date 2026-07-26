@@ -10,16 +10,17 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.Objects;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : CommonResult
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : 业务接口统一响应模型，承载 OpenAPI、管理后台和内部服务调用的业务码、说明和数据载荷。
+ * @description : CommonResult Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class CommonResult<T> implements Serializable {
 
     /**

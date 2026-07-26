@@ -9,7 +9,6 @@ package com.scott.payment.component.job.enums;
  * @description : 任务调度模式枚举
  * @status : create
  */
-
 public enum JobSchedulerModeEnum {
 
     /**

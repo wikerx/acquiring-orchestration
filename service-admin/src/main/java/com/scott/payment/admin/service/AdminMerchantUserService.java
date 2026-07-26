@@ -5,13 +5,14 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantUserListDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantUserQueryRequest;
 import com.scott.payment.component.core.model.PageResult;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMerchantUserService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : 管理端商户用户只读查询服务。
+ * @description : AdminMerchantUserService 服务契约，用于声明业务能力、调用边界和返回结果约束，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public interface AdminMerchantUserService {

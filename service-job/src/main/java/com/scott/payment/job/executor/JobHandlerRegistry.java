@@ -21,24 +21,23 @@ import java.util.Map;
  * @description : 任务处理器注册中心
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobHandlerRegistry
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Handler Registry，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Component
 public class JobHandlerRegistry {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * handler Map 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final Map<String, JobHandler> handlerMap;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * descriptor Map 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final Map<String, JobHandlerDescriptor> descriptorMap;
 
@@ -69,11 +68,6 @@ public class JobHandlerRegistry {
      * @param handlerCode 处理器编码
      * @return 任务处理器
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param handlerCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public JobHandler getRequiredHandler(String handlerCode) {
         JobHandler handler = handlerMap.get(handlerCode);
         if (handler == null) {
@@ -88,11 +82,6 @@ public class JobHandlerRegistry {
      * @param handlerCode 处理器编码
      * @return 处理器描述
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param handlerCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public JobHandlerDescriptor getRequiredDescriptor(String handlerCode) {
         JobHandlerDescriptor descriptor = descriptorMap.get(handlerCode);
         if (descriptor == null) {
@@ -105,10 +94,6 @@ public class JobHandlerRegistry {
      * 返回全部处理器描述，供后台下拉列表使用。
      *
      * @return 处理器描述集合
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public Collection<JobHandlerDescriptor> listDescriptors() {
         return descriptorMap.values().stream()

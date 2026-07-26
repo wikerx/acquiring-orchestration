@@ -1,12 +1,13 @@
 package com.scott.payment.component.core.id;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : GlobalIdValidator
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 全局数字 ID 校验器，校验长度、纯数字格式和 Luhn 校验位，防止非法 transactionId 进入交易链路。
+ * @description : GlobalIdValidator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public final class GlobalIdValidator {

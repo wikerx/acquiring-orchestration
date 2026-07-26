@@ -5,16 +5,17 @@ import lombok.Data;
 
 import java.io.Serializable;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ApiResult
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : 轻量接口响应模型，仅用于健康检查、简单 ACK 等基础接口；业务接口优先使用 CommonResult 保留业务码语义。
+ * @description : ApiResult Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class ApiResult<T> implements Serializable {
 
     /**

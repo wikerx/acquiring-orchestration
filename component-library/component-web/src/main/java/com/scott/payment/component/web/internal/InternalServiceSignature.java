@@ -43,7 +43,21 @@ public final class InternalServiceSignature {
      */
     public static final String HEADER_SIGNATURE = "X-Internal-Signature";
 
+    /**
+     * HMAC SHA256 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String HMAC_SHA256 = "HmacSHA256";
+    /**
+     * LINE SEPARATOR 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String LINE_SEPARATOR = "\n";
 
     private InternalServiceSignature() {
@@ -91,6 +105,16 @@ public final class InternalServiceSignature {
         return hmacSha256(canonicalText, secret);
     }
 
+    /**
+     * 完成 hmac Sha256 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param canonicalText canonical Text 输入值，含义由调用方法名称和所属业务对象限定
+     * @param secret secret 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static String hmacSha256(String canonicalText, String secret) {
         try {
             Mac mac = Mac.getInstance(HMAC_SHA256);
@@ -127,6 +151,19 @@ public final class InternalServiceSignature {
         return Instant.now().toEpochMilli();
     }
 
+    /**
+     * 完成 canonical Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param method method 输入值，含义由调用方法名称和所属业务对象限定
+     * @param path path 输入值，含义由调用方法名称和所属业务对象限定
+     * @param timestamp 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param nonce nonce 输入值，含义由调用方法名称和所属业务对象限定
+     * @param caller caller 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static String canonicalText(String method, String path, long timestamp, String nonce, String caller) {
         return method.toUpperCase(Locale.ROOT)
                 + LINE_SEPARATOR + path

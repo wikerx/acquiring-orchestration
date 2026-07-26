@@ -2,16 +2,16 @@ package com.scott.payment.payout.api.internal.dto;
 
 import lombok.Data;
 
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PayoutCreateResultDTO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : 收单支付Payout Create Result 数据传输对象，位于 service-payout 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : PayoutCreateResultDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 代付服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class PayoutCreateResultDTO {
 
     /**

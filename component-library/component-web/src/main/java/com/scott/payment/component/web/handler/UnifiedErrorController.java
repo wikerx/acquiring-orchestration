@@ -19,15 +19,6 @@ import jakarta.servlet.http.HttpServletRequest;
  * @description : 统一兜底错误响应控制器
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : UnifiedErrorController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Unified Error 管理接口，位于 component-library/component-web 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 public class UnifiedErrorController implements ErrorController {
 
@@ -36,11 +27,6 @@ public class UnifiedErrorController implements ErrorController {
      *
      * @param request HTTP 请求
      * @return 统一 JSON 错误响应
-     */
-    /**
-     * 处理收单支付业务流程，维护关键状态和异常边界。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @RequestMapping("${server.error.path:${error.path:/error}}")
     public CommonResult<Void> handleError(HttpServletRequest request) {
@@ -57,6 +43,15 @@ public class UnifiedErrorController implements ErrorController {
         };
     }
 
+    /**
+     * 解析 resolve Status 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 解析或查询得到的业务值
+     */
     private int resolveStatus(HttpServletRequest request) {
         Object status = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         if (status instanceof Integer statusCode) {

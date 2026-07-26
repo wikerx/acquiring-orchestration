@@ -26,15 +26,6 @@ import java.util.Locale;
  * @description : 管理后台岗位管理应用服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminPostApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Admin Post Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminPostApplicationService {
 
@@ -44,19 +35,35 @@ public class AdminPostApplicationService {
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Post Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final AdminPostService adminPostService;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Export Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelExportService excelExportService;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel I18n Message Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Locale Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
@@ -86,15 +93,6 @@ public class AdminPostApplicationService {
      * @param status   状态
      * @return 岗位分页结果
      */
-    /**
-     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
-     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param postCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param postName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<SysPostDO> pagePosts(int pageNo, int pageSize, String postCode, String postName, Integer status) {
         return adminPostService.pagePosts(pageNo, pageSize, postCode, postName, status);
     }
@@ -103,10 +101,6 @@ public class AdminPostApplicationService {
      * 查询全部启用岗位。
      *
      * @return 启用岗位列表
-     */
-    /**
-     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public List<SysPostDO> listEnabledPosts() {
         return adminPostService.listEnabledPosts();
@@ -118,11 +112,6 @@ public class AdminPostApplicationService {
      * @param id 主键
      * @return 岗位详情
      */
-    /**
-     * 获取系统管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SysPostDO getPost(Long id) {
         return adminPostService.getPost(id);
     }
@@ -131,11 +120,6 @@ public class AdminPostApplicationService {
      * 导出岗位列表。
      *
      * @return 岗位列表
-     */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportPosts(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -164,11 +148,6 @@ public class AdminPostApplicationService {
      * @param post 岗位实体
      * @return 保存后的岗位
      */
-    /**
-     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
-     * @param post 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SysPostDO createPost(SysPostDO post) {
         return adminPostService.createPost(post);
     }
@@ -180,12 +159,6 @@ public class AdminPostApplicationService {
      * @param input 更新输入
      * @return 更新后的岗位
      */
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SysPostDO updatePost(Long id, SysPostDO input) {
         return adminPostService.updatePost(id, input);
     }
@@ -194,10 +167,6 @@ public class AdminPostApplicationService {
      * 逻辑删除岗位。
      *
      * @param id 主键
-     */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void removePost(Long id) {
         adminPostService.removePost(id);

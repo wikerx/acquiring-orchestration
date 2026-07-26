@@ -8,16 +8,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.random.RandomGenerator;
 
+@Slf4j
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : CardNoGenerator
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-03 15:48
  * @email : scott_x@163.com
- * @description : 收单支付Card No Generator，位于 component-library/component-core 的业务组件层，用于说明职责边界、数据语义和关键业务约束。
+ * @description : CardNoGenerator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Slf4j
 public final class CardNoGenerator {
 
     /**
@@ -159,11 +159,6 @@ public final class CardNoGenerator {
      * @param count 生成数量
      * @return 测试卡号列表
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param count 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static List<String> generateMasterCardNumbers(int count) {
         return generateCardNumbers(MASTERCARD_CARD_BRAND, MASTERCARD_PREFIX_LIST, 16, count);
     }
@@ -173,10 +168,6 @@ public final class CardNoGenerator {
      *
      * @return Mastercard 测试卡号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String generateMasterCardNumber() {
         return generateCardNumber(MASTERCARD_CARD_BRAND, MASTERCARD_PREFIX_LIST, 16);
     }
@@ -185,10 +176,6 @@ public final class CardNoGenerator {
      * 生成单个 Visa 测试卡号
      *
      * @return Visa 测试卡号
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String generateVisaCardNumber() {
         return generateCardNumber(VISA_CARD_BRAND, VISA_PREFIX_LIST, 16);
@@ -201,10 +188,6 @@ public final class CardNoGenerator {
      *
      * @return American Express 测试卡号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String generateAmexCardNumber() {
         return generateCardNumber(AMEX_CARD_BRAND, AMEX_PREFIX_LIST, 15);
     }
@@ -216,10 +199,6 @@ public final class CardNoGenerator {
      *
      * @return Discover 测试卡号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String generateDiscoverCardNumber() {
         return generateCardNumber(DISCOVER_CARD_BRAND, DISCOVER_PREFIX_LIST, 16);
     }
@@ -228,10 +207,6 @@ public final class CardNoGenerator {
      * 生成单个 Diners 测试卡号
      *
      * @return Diners 测试卡号
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String generateDinersCardNumber() {
         return generateCardNumber(DINERS_CARD_BRAND, DINERS_PREFIX_LIST, 14);
@@ -244,10 +219,6 @@ public final class CardNoGenerator {
      *
      * @return JCB 测试卡号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String generateJcbCardNumber() {
         return generateCardNumber(JCB_CARD_BRAND, JCB_PREFIX_LIST, 16);
     }
@@ -257,10 +228,6 @@ public final class CardNoGenerator {
      *
      * @return EnRoute 测试卡号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static String generateEnrouteCardNumber() {
         return generateCardNumber(ENROUTE_CARD_BRAND, ENROUTE_PREFIX_LIST, 15);
     }
@@ -269,10 +236,6 @@ public final class CardNoGenerator {
      * 生成单个 Voyager 测试卡号
      *
      * @return Voyager 测试卡号
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String generateVoyagerCardNumber() {
         return generateCardNumber(VOYAGER_CARD_BRAND, VOYAGER_PREFIX_LIST, 15);
@@ -285,13 +248,6 @@ public final class CardNoGenerator {
      * @param length     卡号长度
      * @param count      生成数量
      * @return 测试卡号列表
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param prefixList 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param length 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param count 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static List<String> generateCardNumbers(String[] prefixList, int length, int count) {
         return generateCardNumbers(CUSTOM_CARD_BRAND, prefixList, length, count);
@@ -336,12 +292,6 @@ public final class CardNoGenerator {
      * @param prefixList 卡号前缀列表
      * @param length     卡号长度
      * @return 测试卡号
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param prefixList 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param length 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static String generateCardNumber(String[] prefixList, int length) {
         return generateCardNumber(CUSTOM_CARD_BRAND, prefixList, length);
@@ -451,11 +401,6 @@ public final class CardNoGenerator {
      * @param cardNumber 卡号
      * @return true：通过 Luhn 校验；false：未通过
      */
-    /**
-     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
-     * @param cardNumber 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static boolean isValidCreditCardNumber(String cardNumber) {
         if (cardNumber == null || cardNumber.isBlank()) {
             log.warn("卡号Luhn校验失败，原因=卡号为空");
@@ -517,10 +462,6 @@ public final class CardNoGenerator {
      * 本地演示入口，仅输出脱敏后的测试卡号。
      *
      * @param args 命令行参数，当前未使用
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param args 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public static void main(String[] args) {
         log.info("Mastercard: {}", SensitiveDataMaskUtils.maskPan(generateMasterCardNumber()));

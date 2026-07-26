@@ -11,21 +11,25 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+@RestController
+@RequestMapping("/internal/job/sharding")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingTableInternalController
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 收单支付Sharding Table Internal 管理接口，位于 service-job 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ShardingTableInternalController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@RestController
-@RequestMapping("/internal/job/sharding")
 public class ShardingTableInternalController {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sharding Table Pre Create Application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final ShardingTablePreCreateApplicationService shardingTablePreCreateApplicationService;
 

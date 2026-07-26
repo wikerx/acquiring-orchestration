@@ -28,11 +28,6 @@ public class ApiRequestHandlerMapping extends RequestMappingHandlerMapping {
      * @param clazz 控制器类型
      * @return API 版本匹配条件
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param clazz 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static RequestCondition<ApiVersionCondition> createCondition(Class<?> clazz) {
         RequestMapping classRequestMapping = clazz.getAnnotation(RequestMapping.class);
         if (classRequestMapping == null) {
@@ -53,11 +48,6 @@ public class ApiRequestHandlerMapping extends RequestMappingHandlerMapping {
      * @param method 控制器方法
      * @return 方法级版本条件，当前固定返回 null
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param method 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     protected RequestCondition<?> getCustomMethodCondition(Method method) {
         return null;
@@ -69,16 +59,20 @@ public class ApiRequestHandlerMapping extends RequestMappingHandlerMapping {
      * @param handlerType 控制器类型
      * @return 自定义版本条件
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param handlerType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     protected RequestCondition<?> getCustomTypeCondition(Class<?> handlerType) {
         return createCondition(handlerType);
     }
 
+    /**
+     * 解析 resolve Mapping Url 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param requestMapping request Mapping 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private static String resolveMappingUrl(RequestMapping requestMapping) {
         if (requestMapping.value().length > 0) {
             return requestMapping.value()[0];

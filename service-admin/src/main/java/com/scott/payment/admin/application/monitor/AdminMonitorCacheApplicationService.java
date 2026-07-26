@@ -24,25 +24,24 @@ import java.util.Set;
  * @description : 管理后台 Redis 缓存监控应用服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorCacheApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Admin Monitor Cache Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminMonitorCacheApplicationService {
 
     /**
-     * 监控治理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MAX SCAN KEYS 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final int MAX_SCAN_KEYS = 1000;
 
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * string Redis Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -59,10 +58,6 @@ public class AdminMonitorCacheApplicationService {
      * 查询 Redis 运行信息。
      *
      * @return Redis 连接状态与运行信息
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public Map<String, Object> info() {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -92,13 +87,6 @@ public class AdminMonitorCacheApplicationService {
      * @param pageSize   每页大小
      * @return Key 列表与分页摘要
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param keyPattern 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public Map<String, Object> keys(String keyPattern, int pageNo, int pageSize) {
         String pattern = StringUtils.hasText(keyPattern) ? keyPattern.trim() : "*";
         List<String> keys = scanKeys(pattern);
@@ -123,11 +111,6 @@ public class AdminMonitorCacheApplicationService {
      * @param key Redis Key
      * @return Key 详情
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public Map<String, Object> value(String key) {
         Map<String, Object> result = toKeyRow(key);
         result.put("value", readValue(key));
@@ -140,11 +123,6 @@ public class AdminMonitorCacheApplicationService {
      * @param key Redis Key
      * @return 是否删除成功
      */
-    /**
-     * 删除监控治理数据，按业务规则处理引用校验和删除边界。
-     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public boolean delete(String key) {
         if (stringRedisTemplate == null || !StringUtils.hasText(key)) {
             return false;
@@ -152,6 +130,15 @@ public class AdminMonitorCacheApplicationService {
         return Boolean.TRUE.equals(stringRedisTemplate.delete(key));
     }
 
+    /**
+     * 完成 scan Keys 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param pattern pattern 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> scanKeys(String pattern) {
         if (stringRedisTemplate == null) {
             return List.of();
@@ -163,6 +150,15 @@ public class AdminMonitorCacheApplicationService {
         return keys.stream().sorted(Comparator.naturalOrder()).limit(MAX_SCAN_KEYS).toList();
     }
 
+    /**
+     * 转换生成 to Key Row 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private Map<String, Object> toKeyRow(String key) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("key", key);
@@ -179,6 +175,16 @@ public class AdminMonitorCacheApplicationService {
         return row;
     }
 
+    /**
+     * 完成 size Of 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @param type type 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private long sizeOf(String key, DataType type) {
         if (type == null) {
             return 0;
@@ -196,6 +202,15 @@ public class AdminMonitorCacheApplicationService {
         };
     }
 
+    /**
+     * 完成 read Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Object readValue(String key) {
         if (stringRedisTemplate == null || !StringUtils.hasText(key)) {
             return null;
@@ -214,6 +229,15 @@ public class AdminMonitorCacheApplicationService {
         };
     }
 
+    /**
+     * 转换生成 to Map 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param properties properties 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private Map<String, String> toMap(Properties properties) {
         Map<String, String> result = new LinkedHashMap<>();
         if (properties == null) {
@@ -225,6 +249,15 @@ public class AdminMonitorCacheApplicationService {
         return result;
     }
 
+    /**
+     * 完成 default Long 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private long defaultLong(Long value) {
         return value == null ? 0 : value;
     }

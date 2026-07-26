@@ -47,15 +47,6 @@ import java.util.regex.Pattern;
  * @description : 管理后台调用调度中心的 REST 客户端实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerInternalRestClient
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Scheduler Internal Rest Client，位于 service-admin 的外部调用层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 @Slf4j
 public class JobSchedulerInternalRestClient implements JobSchedulerInternalClient {
@@ -86,15 +77,27 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * direct Rest Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final RestTemplate directRestTemplate;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Scheduler Client Properties 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final JobSchedulerClientProperties jobSchedulerClientProperties;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * discovery Client 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final DiscoveryClient discoveryClient;
 
@@ -113,11 +116,15 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         this.discoveryClient = discoveryClient;
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 list Handlers 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<JobHandlerOptionResponse> listHandlers() {
         String responseBody = doGet(jobSchedulerClientProperties.getHandlerListUrl());
         CommonResult<List<JobHandlerOptionResponse>> result = JsonUtils.parseObject(
@@ -128,12 +135,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 page Tasks 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PageResult<JobTaskResponse> pageTasks(JobTaskQueryRequest request) {
         String responseBody = doPost(jobSchedulerClientProperties.getTaskSearchUrl(), request);
         CommonResult<PageResult<JobTaskResponse>> result = JsonUtils.parseObject(
@@ -144,12 +155,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 create Task 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public JobTaskResponse createTask(JobTaskRemoteSaveRequest request) {
         String responseBody = doPost(jobSchedulerClientProperties.getTaskBaseUrl(), request);
         CommonResult<JobTaskResponse> result = JsonUtils.parseObject(
@@ -160,13 +175,17 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 写入或更新 update Task 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public JobTaskResponse updateTask(Long taskId, JobTaskRemoteSaveRequest request) {
         String responseBody = doPut(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId, request);
         CommonResult<JobTaskResponse> result = JsonUtils.parseObject(
@@ -177,14 +196,18 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 change Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public JobTaskResponse changeStatus(Long taskId, String status, String operator) {
         String url = jobSchedulerClientProperties.getTaskBaseUrl()
                 + "/" + taskId
@@ -199,13 +222,17 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 trigger 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public String trigger(Long taskId, JobManualTriggerRequest request) {
         String responseBody = doPost(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId + "/trigger", request);
         CommonResult<String> result = JsonUtils.parseObject(
@@ -216,12 +243,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
+    /**
+     * 完成 delete Task 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param taskId task Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public void deleteTask(Long taskId, String operator) {
         String responseBody = doDelete(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId + "?operator=" + encode(operator));
         CommonResult<Void> result = JsonUtils.parseObject(
@@ -232,12 +263,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         unwrap(result);
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 page Run Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PageResult<JobRunLogResponse> pageRunLogs(JobRunLogQueryRequest request) {
         String responseBody = doPost(jobSchedulerClientProperties.getRunLogSearchUrl(), request);
         CommonResult<PageResult<JobRunLogResponse>> result = JsonUtils.parseObject(
@@ -248,12 +283,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 list Run Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<JobRunLogResponse> listRunLogs(JobRunLogQueryRequest request) {
         String responseBody = doPost(jobSchedulerClientProperties.getRunLogListUrl(), request);
         CommonResult<List<JobRunLogResponse>> result = JsonUtils.parseObject(
@@ -264,11 +303,15 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
+    /**
+     * 完成 remove Run Log 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public void removeRunLog(Long id) {
         String responseBody = doDelete(jobSchedulerClientProperties.getTaskBaseUrl().replace("/tasks", "/logs") + "/" + id);
         CommonResult<Void> result = JsonUtils.parseObject(
@@ -279,12 +322,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         unwrap(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 clean Run Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public int cleanRunLogs(JobRunLogQueryRequest request) {
         String responseBody = doPost(jobSchedulerClientProperties.getRunLogCleanUrl(), request);
         CommonResult<Integer> result = JsonUtils.parseObject(
@@ -295,11 +342,15 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 list Nodes 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     public List<JobExecutorNodeResponse> listNodes() {
         String responseBody = doGet(jobSchedulerClientProperties.getNodeListUrl());
         CommonResult<List<JobExecutorNodeResponse>> result = JsonUtils.parseObject(
@@ -310,12 +361,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 dry Run Sharding Table Create 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public ShardingTablePreCreateResultResponse dryRunShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
         String responseBody = doPost(jobSchedulerClientProperties.getShardingTableCreateDryRunUrl(), request);
         CommonResult<ShardingTablePreCreateResultResponse> result = JsonUtils.parseObject(
@@ -326,12 +381,16 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
+    /**
+     * 完成 execute Sharding Table Create 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public ShardingTablePreCreateResultResponse executeShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
         String responseBody = doPost(jobSchedulerClientProperties.getShardingTableCreateExecuteUrl(), request);
         CommonResult<ShardingTablePreCreateResultResponse> result = JsonUtils.parseObject(

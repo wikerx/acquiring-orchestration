@@ -14,27 +14,26 @@ import lombok.Data;
  *
  * <p>用于菜单启停切换，仅承载目标菜单主键和目标状态值。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysMenuStatusRequest
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Sys Menu Status 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 public class SysMenuStatusRequest {
 
-    /**
-     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
-     */
     @NotNull(message = "菜单ID不能为空")
+    /**
+     * menu Id 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Long menuId;
 
-    /**
-     * 系统管理状态字段，取值需与数据字典或枚举约定保持一致。
-     */
     @NotNull(message = "状态不能为空")
+    /**
+     * status 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Integer status;
 }

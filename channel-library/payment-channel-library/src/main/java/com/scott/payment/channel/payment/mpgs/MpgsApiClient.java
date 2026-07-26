@@ -41,34 +41,139 @@ import java.util.regex.Pattern;
 @Component
 public class MpgsApiClient {
 
+    /**
+     * HTTP METHOD GET 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String HTTP_METHOD_GET = "GET";
 
+    /**
+     * HTTP METHOD PUT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String HTTP_METHOD_PUT = "PUT";
 
+    /**
+     * EXT REQUEST URL 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String EXT_REQUEST_URL = "requestUrl";
 
+    /**
+     * EXT READ TIMEOUT SECONDS 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String EXT_READ_TIMEOUT_SECONDS = "readTimeoutSeconds";
 
+    /**
+     * EXT MPGS MERCHANT ID 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String EXT_MPGS_MERCHANT_ID = "mid.merchantId";
 
+    /**
+     * EXT MPGS API USERNAME 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String EXT_MPGS_API_USERNAME = "mid.apiUsername";
 
+    /**
+     * EXT MPGS PASSWORD 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；高敏感字段，禁止打印日志、禁止写入异常消息，持久化前需确认安全要求。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String EXT_MPGS_PASSWORD = "mid.password";
 
+    /**
+     * EXT MPGS API PASSWORD 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；高敏感字段，禁止打印日志、禁止写入异常消息，持久化前需确认安全要求。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String EXT_MPGS_API_PASSWORD = "mid.apiPassword";
 
+    /**
+     * EXT MPGS API VERSION 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String EXT_MPGS_API_VERSION = "mid.version";
 
+    /**
+     * RAW HTTP METHOD 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_HTTP_METHOD = "httpMethod";
 
+    /**
+     * RAW REQUEST URL MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_REQUEST_URL_MASKED = "requestUrlMasked";
 
+    /**
+     * RAW REQUEST HEADER JSON MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_REQUEST_HEADER_JSON_MASKED = "requestHeaderJsonMasked";
 
+    /**
+     * RAW REQUEST BODY JSON MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_REQUEST_BODY_JSON_MASKED = "requestBodyJsonMasked";
 
+    /**
+     * RAW RESPONSE HEADER JSON MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_RESPONSE_HEADER_JSON_MASKED = "responseHeaderJsonMasked";
 
+    /**
+     * RAW RESPONSE BODY JSON MASKED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String RAW_RESPONSE_BODY_JSON_MASKED = "responseBodyJsonMasked";
 
     private static final Pattern MPGS_CARD_NUMBER_PATTERN = Pattern.compile(
@@ -222,6 +327,17 @@ public class MpgsApiClient {
         return channelResponse;
     }
 
+    /**
+     * 填充 fill Raw Request Audit 相关字段，保持来源对象与目标对象的业务含义一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param httpMethod http Method 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestUrl request Url 输入值，含义由调用方法名称和所属业务对象限定
+     * @param requestBody request Body 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void fillRawRequestAudit(ChannelPaymentRequest request, String httpMethod, String requestUrl, String requestBody) {
         if (request == null) {
             return;
@@ -234,6 +350,18 @@ public class MpgsApiClient {
                 : JsonUtils.toJsonString(Collections.emptyMap()));
     }
 
+/**
+ * 填充 fill Raw Response Audit 相关字段，保持来源对象与目标对象的业务含义一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+ * @param httpMethod http Method 输入值，含义由调用方法名称和所属业务对象限定
+ * @param requestUrl request Url 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void fillRawResponseAudit(ChannelPaymentResponse channelResponse,
                                       ChannelPaymentRequest request,
                                       HttpResponse<String> response,
@@ -258,12 +386,32 @@ public class MpgsApiClient {
         putIfText(channelResponse, RAW_RESPONSE_BODY_JSON_MASKED, channelResponse.getResponseBodyJsonMasked());
     }
 
+    /**
+     * 完成 put If Text 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @param value 待校验或转换的原始值
+     */
     private void putIfText(ChannelPaymentResponse channelResponse, String key, String value) {
         if (channelResponse != null && StringUtils.hasText(value)) {
             channelResponse.getRawResponse().put(key, value);
         }
     }
 
+    /**
+     * 完成 audit Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String auditValue(ChannelPaymentRequest request, String key) {
         if (request == null || request.getExtension() == null) {
             return null;
@@ -271,6 +419,16 @@ public class MpgsApiClient {
         return request.getExtension().get(key);
     }
 
+    /**
+     * 解析 parse Response Body 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param body body 输入值，含义由调用方法名称和所属业务对象限定
+     * @param httpStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 解析后的内部数据结构或业务值
+     */
     private MpgsResponsePayload parseResponseBody(String body, int httpStatus) {
         try {
             return JsonUtils.parseObject(body, MpgsResponsePayload.class);
@@ -455,20 +613,56 @@ public class MpgsApiClient {
         return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
     }
 
+    /**
+     * 标准化 normalize Type 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @return 标准化后的业务字段值
+     */
     private String normalizeType(String transactionType) {
         return transactionType == null ? null : transactionType.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 完成 encode 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
+    /**
+     * 强制校验 require Text 必填值，缺失时中断当前业务流程。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     */
     private void requireText(String value, String message) {
         if (!StringUtils.hasText(value)) {
             throw new ChannelRequestException(message);
         }
     }
 
+    /**
+     * 完成 read Timeout 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Duration readTimeout(ChannelPaymentRequest request) {
         String configuredSeconds = request == null ? null : request.getExtension().get(EXT_READ_TIMEOUT_SECONDS);
         if (StringUtils.hasText(configuredSeconds)) {
@@ -481,6 +675,17 @@ public class MpgsApiClient {
         return Duration.ofMillis(properties.getReadTimeoutMillis());
     }
 
+    /**
+     * 完成 extension Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
+     * @param fallback fallback 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String extensionValue(ChannelPaymentRequest request, String key, String fallback) {
         if (request != null && request.getExtension() != null && StringUtils.hasText(request.getExtension().get(key))) {
             return request.getExtension().get(key);
@@ -488,6 +693,15 @@ public class MpgsApiClient {
         return fallback;
     }
 
+    /**
+     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -514,22 +728,67 @@ public class MpgsApiClient {
         return extensionValue(request, EXT_MPGS_API_PASSWORD, properties.getApiPassword());
     }
 
+    /**
+     * 完成 safe Operation Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private String safeOperationId(ChannelPaymentRequest request) {
         return request == null ? null : request.getOperationId();
     }
 
+    /**
+     * 完成 safe Transaction Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String safeTransactionId(ChannelPaymentRequest request) {
         return request == null ? null : request.getTransactionId();
     }
 
+    /**
+     * 完成 safe Channel Order No 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String safeChannelOrderNo(ChannelPaymentRequest request) {
         return request == null ? null : request.getChannelOrderNo();
     }
 
+    /**
+     * 完成 safe Channel Transaction Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String safeChannelTransactionId(ChannelPaymentRequest request) {
         return request == null ? null : request.getChannelTransactionId();
     }
 
+    /**
+     * 完成 safe Merchant Order No 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String safeMerchantOrderNo(ChannelPaymentRequest request) {
         return request == null ? null : request.getMerchantOrderNo();
     }
@@ -544,7 +803,7 @@ public class MpgsApiClient {
      * @return 脱敏后的 JSON
      */
     static String maskMpgsJson(String json) {
-        String masked = SensitiveDataMaskUtils.maskJson(json);
+        String masked = SensitiveDataMaskUtils.maskJsonSafely(json);
         if (masked == null || masked.isEmpty()) {
             return masked;
         }

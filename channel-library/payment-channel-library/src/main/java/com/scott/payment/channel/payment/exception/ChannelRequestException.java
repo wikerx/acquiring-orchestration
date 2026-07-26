@@ -11,10 +11,27 @@ package com.scott.payment.channel.payment.exception;
  */
 public class ChannelRequestException extends ChannelException {
 
+    /**
+     * 创建 ChannelRequestException 实例并注入其运行所需依赖。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     */
     public ChannelRequestException(String message) {
         super(message);
     }
 
+    /**
+     * 创建 ChannelRequestException 实例并注入其运行所需依赖。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @param cause cause 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public ChannelRequestException(String message, Throwable cause) {
         super(message, cause);
     }

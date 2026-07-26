@@ -3,14 +3,16 @@ package com.scott.payment.component.core.util;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mockStatic;
+
 
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SensitiveDataMaskUtilsTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-26 15:24
  * @email : scott_x@163.com
- * @description : 敏感数据脱敏工具测试，覆盖日志中常见凭据、卡号、联系方式和银行账号字段。
+ * @description : SensitiveDataMaskUtilsTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 class SensitiveDataMaskUtilsTest {
@@ -68,5 +70,22 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).doesNotContain("plain", "Bearer abc.def", "mpgs-password",
                 "mid-password", "mid-password-alias", "merchant-key", "three-ds-token", "pem", "1234567890123",
                 "scott@example.com", "merchant@example.com");
+    }
+
+    @Test
+    void shouldMaskJsonSafelyWithoutLeakingOriginalTextWhenMaskingFails() {
+        String rawJson = "{\"cardNo\":\"4111111111111111\",\"securityCode\":\"123\"}";
+
+        try (var mocked = mockStatic(SensitiveDataMaskUtils.class, invocation -> {
+            if ("maskJson".equals(invocation.getMethod().getName())) {
+                throw new IllegalStateException("mask failed");
+            }
+            return invocation.callRealMethod();
+        })) {
+            String masked = SensitiveDataMaskUtils.maskJsonSafely(rawJson);
+
+            assertThat(masked).isEqualTo("***MASK_FAILED***");
+            assertThat(masked).doesNotContain("4111111111111111", "123");
+        }
     }
 }

@@ -18,28 +18,27 @@ import java.util.List;
  *
  * <p>用于提交角色权限授权结果，承载角色主键和本次授予的权限主键集合。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysRolePermissionGrantRequest
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Sys Role Permission Grant 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 public class SysRolePermissionGrantRequest implements Serializable {
 
-    /**
-     * 系统管理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
-     */
     private static final long serialVersionUID = 1L;
 
-    /**
-     * 系统管理标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
-     */
     @NotNull(message = "roleId")
+    /**
+     * role Id 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private Long roleId;
 
+    /**
+     * permission Ids 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private List<Long> permissionIds = Collections.emptyList();
 }

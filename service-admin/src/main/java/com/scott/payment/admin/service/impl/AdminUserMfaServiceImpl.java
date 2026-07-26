@@ -113,13 +113,69 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
      */
     private static final String MFA_TOKEN_TYPE_LOGIN = "LOGIN_MFA";
 
+    /**
+     * sys App Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final SysAppMapper sysAppMapper;
+    /**
+     * sys Account Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final SysAccountMapper sysAccountMapper;
+    /**
+     * sys Account Mfa Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final SysAccountMfaMapper sysAccountMfaMapper;
+    /**
+     * sys Account Mfa Token Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；高敏感字段，禁止打印日志、禁止写入异常消息，持久化前需确认安全要求。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final SysAccountMfaTokenMapper sysAccountMfaTokenMapper;
+    /**
+     * sys Account Mfa Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final SysAccountMfaLogMapper sysAccountMfaLogMapper;
+    /**
+     * sys Login Session Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final SysLoginSessionMapper sysLoginSessionMapper;
+    /**
+     * admin Email Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final AdminEmailService adminEmailService;
+    /**
+     * admin Config Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final AdminConfigService adminConfigService;
 
     /**
@@ -155,6 +211,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 强制校验 require Mfa 必填值，缺失时中断当前业务流程。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public UserMfaStatusResponse requireMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -188,6 +253,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 完成 reset Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public UserMfaStatusResponse resetMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -222,6 +296,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 完成 exempt Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public UserMfaStatusResponse exemptMfa(UserMfaExemptRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -252,6 +335,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 完成 disable Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public UserMfaStatusResponse disableMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -280,6 +372,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 完成 unlock Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public UserMfaStatusResponse unlockMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -305,6 +406,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
+    /**
+     * 完成 resend Bind Mail 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     public UserMfaStatusResponse resendBindMail(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -330,6 +440,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
 
     @Override
     @DS(DataSourceName.SLAVE)
+    /**
+     * 完成 page Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public PageResult<UserMfaLogResponse> pageLogs(UserMfaLogQuery query) {
         UserMfaLogQuery condition = query == null ? new UserMfaLogQuery() : query;
         SysAppDO app = getAdminApp();
@@ -351,6 +470,14 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
                 .toList());
     }
 
+    /**
+     * 完成 get Admin App 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private SysAppDO getAdminApp() {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()
@@ -364,6 +491,16 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return app;
     }
 
+    /**
+     * 完成 get Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private SysAccountDO getAccount(Long appId, Long accountId) {
         SysAccountDO account = sysAccountMapper.selectOne(
                 Wrappers.<SysAccountDO>lambdaQuery()
@@ -378,6 +515,17 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return account;
     }
 
+    /**
+     * 完成 ensure Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param app app 输入值，含义由调用方法名称和所属业务对象限定
+     * @param account account 输入值，含义由调用方法名称和所属业务对象限定
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private SysAccountMfaDO ensureMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
         SysAccountMfaDO mfa = sysAccountMfaMapper.selectOne(
                 Wrappers.<SysAccountMfaDO>lambdaQuery()
@@ -409,6 +557,16 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return created;
     }
 
+    /**
+     * 推进 expire Open Mfa Tokens 对应的状态或处理结果，并保留后续查询所需信息。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void expireOpenMfaTokens(Long appId, Long accountId, LocalDateTime now) {
         sysAccountMfaTokenMapper.update(
                 Wrappers.<SysAccountMfaTokenDO>lambdaUpdate()
@@ -423,6 +581,16 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         );
     }
 
+    /**
+     * 完成 logout Sessions 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void logoutSessions(Long appId, Long accountId, LocalDateTime now) {
         sysLoginSessionMapper.update(
                 Wrappers.<SysLoginSessionDO>lambdaUpdate()
@@ -435,6 +603,17 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         );
     }
 
+    /**
+     * 发送 send Notice 对应的外部通知、内部消息或远程请求。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param account account 输入值，含义由调用方法名称和所属业务对象限定
+     * @param templateCode template Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @param reason reason 输入值，含义由调用方法名称和所属业务对象限定
+     * @param exemptUntil exempt Until 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void sendNotice(SysAccountDO account, String templateCode, String reason, LocalDateTime exemptUntil) {
         if (!StringUtils.hasText(account.getEmail())) {
             return;
@@ -458,6 +637,17 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         }
     }
 
+    /**
+     * 完成 email Variables 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param account account 输入值，含义由调用方法名称和所属业务对象限定
+     * @param reason reason 输入值，含义由调用方法名称和所属业务对象限定
+     * @param exemptUntil exempt Until 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, Object> emailVariables(SysAccountDO account, String reason, LocalDateTime exemptUntil) {
         Map<String, Object> variables = new LinkedHashMap<>();
         variables.put("loginAccount", account.getLoginAccount());
@@ -468,6 +658,14 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return variables;
     }
 
+    /**
+     * 完成 admin Login Url 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String adminLoginUrl() {
         Map<String, String> configValues = adminConfigService.enabledConfigValues(Set.of(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL));
         String baseUrl = configValues.get(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL);
@@ -477,6 +675,24 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return baseUrl.replaceAll("/+$", "") + "/login";
     }
 
+/**
+ * 写入或更新 record Log 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param app app 输入值，含义由调用方法名称和所属业务对象限定
+ * @param account account 输入值，含义由调用方法名称和所属业务对象限定
+ * @param mfa mfa 输入值，含义由调用方法名称和所属业务对象限定
+ * @param actionType action Type 输入值，含义由调用方法名称和所属业务对象限定
+ * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+ * @param reason reason 输入值，含义由调用方法名称和所属业务对象限定
+ * @param beforePolicy before Policy 输入值，含义由调用方法名称和所属业务对象限定
+ * @param beforeStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
+ * @param clientIp client Ip 输入值，含义由调用方法名称和所属业务对象限定
+ * @param userAgent user Agent 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void recordLog(SysAppDO app,
                            SysAccountDO account,
                            SysAccountMfaDO mfa,
@@ -509,6 +725,16 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         sysAccountMfaLogMapper.insert(logRow);
     }
 
+    /**
+     * 转换生成 to Status Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param account account 输入值，含义由调用方法名称和所属业务对象限定
+     * @param mfa mfa 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private UserMfaStatusResponse toStatusResponse(SysAccountDO account, SysAccountMfaDO mfa) {
         UserMfaStatusResponse response = new UserMfaStatusResponse();
         response.setAccountId(account.getId());
@@ -522,6 +748,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return response;
     }
 
+    /**
+     * 转换生成 to Log Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private UserMfaLogResponse toLogResponse(SysAccountMfaLogDO row) {
         UserMfaLogResponse response = new UserMfaLogResponse();
         response.setId(row.getId());
@@ -540,6 +775,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return response;
     }
 
+    /**
+     * 完成 account Login Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String accountLoginAccount(Long accountId) {
         if (accountId == null) {
             return "-";
@@ -548,6 +792,16 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return account == null ? "-" : account.getLoginAccount();
     }
 
+    /**
+     * 解析 resolve Operator Login Account 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @param targetLoginAccount target Login Account 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveOperatorLoginAccount(SysAccountMfaLogDO row, String targetLoginAccount) {
         if (StringUtils.hasText(row.getOperatorLoginAccount())) {
             return row.getOperatorLoginAccount();
@@ -561,6 +815,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return targetLoginAccount;
     }
 
+    /**
+     * 完成 assert Not Self 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param targetAccountId target Account Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     */
     private void assertNotSelf(Long targetAccountId, String message) {
         InternalAuthAccount operator = currentOperator();
         if (operator != null && Objects.equals(operator.getAccountId(), targetAccountId)) {
@@ -568,19 +831,52 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         }
     }
 
+    /**
+     * 完成 current Operator Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Long currentOperatorId() {
         InternalAuthAccount operator = currentOperator();
         return operator == null ? null : operator.getAccountId();
     }
 
+    /**
+     * 完成 current Operator 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private InternalAuthAccount currentOperator() {
         return InternalAuthContextHolder.get();
     }
 
+    /**
+     * 完成 client Ip Fallback 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String clientIpFallback() {
         return "-";
     }
 
+    /**
+     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 标准化后的业务字段值
+     */
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }

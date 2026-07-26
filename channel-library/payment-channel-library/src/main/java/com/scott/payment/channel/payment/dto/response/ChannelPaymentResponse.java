@@ -131,6 +131,15 @@ public class ChannelPaymentResponse implements Serializable {
     private String responseBodyJsonMasked;
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : PaymentMethodSummary
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : PaymentMethodSummary 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @status : create
+     */
     public static class PaymentMethodSummary implements Serializable {
 
         private static final long serialVersionUID = 1L;

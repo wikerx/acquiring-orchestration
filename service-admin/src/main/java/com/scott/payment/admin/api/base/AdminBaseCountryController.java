@@ -26,15 +26,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>国家/地区管理接口入口，负责 ISO 3166 国家地区资料的参数接收、权限校验和 HTTP 映射，
  * 具体业务编排与数据处理由应用服务层完成。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseCountryController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 基础数据Admin Base Country 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/base/countries")
 public class AdminBaseCountryController {
@@ -67,81 +58,99 @@ public class AdminBaseCountryController {
         return success(adminBaseCountryApplicationService.pageCountries(pageNo, pageSize, keyword, continentCode, status));
     }
 
-    /** 查询单条国家/地区详情。 */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/{id}")
     @RequiresPermission("base:country:query")
+    /**
+     * 完成 detail 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<IsoCountryDO> detail(@PathVariable("id") Long id) {
         return success(adminBaseCountryApplicationService.getCountry(id));
     }
 
-    /** 导出国家/地区列表。 */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @GetMapping("/export")
     @RequiresPermission("base:country:export")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.EXPORT, operation = "导出国家地区")
+    /**
+     * 完成 export 分支的校验或状态更新。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
+     */
     public void export(HttpServletResponse response) {
         adminBaseCountryApplicationService.exportCountries(currentOperatorName(), response);
     }
 
-    /** 新增国家/地区。 */
-    /**
-     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
-     * @param row 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping
     @RequiresPermission("base:country:add")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.CREATE, operation = "新增国家地区")
+    /**
+     * 完成 create 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<IsoCountryDO> create(@RequestBody IsoCountryDO row) {
         return success(adminBaseCountryApplicationService.createCountry(row));
     }
 
-    /** 修改国家/地区。 */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}")
     @RequiresPermission("base:country:edit")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.UPDATE, operation = "编辑国家地区")
+    /**
+     * 写入或更新 update 相关数据，保持数据库记录与当前业务处理结果一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param input input 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<IsoCountryDO> update(@PathVariable("id") Long id, @RequestBody IsoCountryDO input) {
         return adminBaseCountryApplicationService.updateCountry(id, input);
     }
 
-    /** 切换国家/地区状态。 */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}/status")
     @RequiresPermission("base:country:changeStatus")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.UPDATE, operation = "切换国家地区状态")
+    /**
+     * 完成 change Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+     * @param body body 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<IsoCountryDO> changeStatus(@PathVariable("id") Long id, @RequestBody Map<String, Integer> body) {
         return adminBaseCountryApplicationService.updateStatus(id, body);
     }
 
-    /** 逻辑删除国家/地区。 */
-    /**
-     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @DeleteMapping("/{id}")
     @RequiresPermission("base:country:remove")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.DELETE, operation = "删除国家地区")
+    /**
+     * 完成 remove 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     public CommonResult<Void> remove(@PathVariable("id") Long id) {
         adminBaseCountryApplicationService.removeCountry(id);
         return success(null);

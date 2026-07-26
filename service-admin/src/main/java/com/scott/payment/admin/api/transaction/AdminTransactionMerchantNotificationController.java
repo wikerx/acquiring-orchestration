@@ -32,6 +32,13 @@ import static com.scott.payment.component.core.model.CommonResult.success;
 @RequestMapping("/admin/transactions/merchant-notifications")
 public class AdminTransactionMerchantNotificationController {
 
+    /**
+     * transaction Application Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final AdminTransactionApplicationService transactionApplicationService;
 
     /**
@@ -69,6 +76,14 @@ public class AdminTransactionMerchantNotificationController {
         transactionApplicationService.exportMerchantNotifications(query, currentOperatorName(), response);
     }
 
+    /**
+     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

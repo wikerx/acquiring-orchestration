@@ -25,15 +25,6 @@ import java.util.Map;
  * <p>系统监控菜单下的在线用户接口入口，负责在线会话列表查询和强制下线的参数接收、
  * 权限校验与 HTTP 映射，具体会话查询与状态变更由应用服务层处理。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorOnlineController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Monitor Online 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/monitor")
 public class MonitorOnlineController {
@@ -78,11 +69,6 @@ public class MonitorOnlineController {
      *
      * @param sessionId 会话主键 ID
      * @return 空响应
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param sessionId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/online/{sessionId}")
     @RequiresPermission("system:online:forceLogout")

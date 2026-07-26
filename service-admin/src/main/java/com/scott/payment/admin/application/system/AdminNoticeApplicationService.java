@@ -28,20 +28,15 @@ import java.util.Set;
  * @description : 管理后台通知公告应用服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminNoticeApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Admin Notice Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminNoticeApplicationService {
 
     /**
-     * 系统管理编码或编号字段，用于业务识别、查询和幂等关联。
+     * sys Notice Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private final SysNoticeMapper sysNoticeMapper;
 
@@ -64,15 +59,6 @@ public class AdminNoticeApplicationService {
      * @param createBy    创建人
      * @return 分页结果
      */
-    /**
-     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
-     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param noticeTitle 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param noticeType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param createBy 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<SysNoticeDO> pageNotices(int pageNo, int pageSize, String noticeTitle,
                                                String noticeType, String createBy) {
         LambdaQueryWrapper<SysNoticeDO> queryWrapper = new LambdaQueryWrapper<>();
@@ -92,11 +78,6 @@ public class AdminNoticeApplicationService {
      * @param id 主键
      * @return 通知公告
      */
-    /**
-     * 获取系统管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SysNoticeDO getNotice(Long id) {
         return findNotice(id);
     }
@@ -106,11 +87,6 @@ public class AdminNoticeApplicationService {
      *
      * @param limit 最大条数
      * @return 启用公告列表
-     */
-    /**
-     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
-     * @param limit 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public List<SysNoticeDO> listDashboardNotices(int limit) {
         int safeLimit = Math.max(1, Math.min(limit, 5));
@@ -125,11 +101,6 @@ public class AdminNoticeApplicationService {
      *
      * @param notice 通知公告实体
      * @return 保存后的实体
-     */
-    /**
-     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
-     * @param notice 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public SysNoticeDO createNotice(SysNoticeDO notice) {
         notice.setId(null);
@@ -148,12 +119,6 @@ public class AdminNoticeApplicationService {
      * @param notice 更新输入
      * @return 更新后的实体
      */
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param notice 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SysNoticeDO updateNotice(Long id, SysNoticeDO notice) {
         SysNoticeDO existing = findNotice(id);
         existing.setNoticeTitle(notice.getNoticeTitle());
@@ -170,10 +135,6 @@ public class AdminNoticeApplicationService {
      *
      * @param id 主键
      */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     public void removeNotice(Long id) {
         SysNoticeDO notice = sysNoticeMapper.selectById(id);
         if (notice != null) {
@@ -187,10 +148,6 @@ public class AdminNoticeApplicationService {
      * 批量逻辑删除通知公告。
      *
      * @param ids 主键列表
-     */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param ids 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void removeNotices(List<Long> ids) {
         Set<Long> normalizedIds = new LinkedHashSet<>(ids == null ? List.of() : ids);
@@ -211,6 +168,15 @@ public class AdminNoticeApplicationService {
                 });
     }
 
+    /**
+     * 查询 find Notice 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private SysNoticeDO findNotice(Long id) {
         SysNoticeDO notice = sysNoticeMapper.selectOne(new LambdaQueryWrapper<SysNoticeDO>()
                 .eq(SysNoticeDO::getDeleted, AuthConstants.NOT_DELETED)
@@ -221,6 +187,14 @@ public class AdminNoticeApplicationService {
         return notice;
     }
 
+    /**
+     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

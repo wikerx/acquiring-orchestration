@@ -21,23 +21,32 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiMerchantKeyMaterialServiceTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : OpenAPI 密钥材料导出服务回归测试，覆盖管理端查看/复制各类密钥时的材料分支。
+ * @description : OpenApiMerchantKeyMaterialServiceTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 class OpenApiMerchantKeyMaterialServiceTest {
 
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MERCHANT ID 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String MERCHANT_ID = "200046";
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MERCHANT NAME 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private static final String MERCHANT_NAME = "Scott Test Merchant 200046";
 
@@ -46,11 +55,19 @@ class OpenApiMerchantKeyMaterialServiceTest {
      */
     private BaseMerchantResponseKeyMapper responseKeyMapper;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * material Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private OpenApiMerchantKeyMaterialService materialService;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * material 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
      */
     private OpenApiMerchantOnboardingMaterial material;
 

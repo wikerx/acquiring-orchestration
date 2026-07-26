@@ -34,11 +34,6 @@ public class OperationLogMessageSanitizer {
      * @param value 原始正文
      * @return 截断后的正文
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String sanitize(String value) {
         if (!StringUtils.hasText(value) || value.length() <= properties.getMaxMessageLength()) {
             return value;

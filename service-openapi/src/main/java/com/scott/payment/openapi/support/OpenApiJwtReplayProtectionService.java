@@ -13,17 +13,18 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+
+@Slf4j
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiJwtReplayProtectionService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-02 11:14
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI JWT 防重放服务，位于 service-openapi 支撑层，按 merchantId+jti 写 Redis 并防止重复请求进入交易核心。
+ * @description : OpenApiJwtReplayProtectionService 服务契约，用于声明业务能力、调用边界和返回结果约束，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Slf4j
-@Component
 public class OpenApiJwtReplayProtectionService {
 
     /**

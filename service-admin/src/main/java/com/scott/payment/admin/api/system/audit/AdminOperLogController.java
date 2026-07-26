@@ -27,15 +27,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  *
  * <p>提供后台操作日志落库和日志查询能力，Controller 本身不承载日志脱敏或审计规则。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminOperLogController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Admin Oper Log 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/system/oper-logs")
 public class AdminOperLogController {
@@ -61,11 +52,6 @@ public class AdminOperLogController {
      *
      * @param request 写入请求
      * @return 写入结果
-     */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping
     @RequiresPermission("system:oper-log:list")

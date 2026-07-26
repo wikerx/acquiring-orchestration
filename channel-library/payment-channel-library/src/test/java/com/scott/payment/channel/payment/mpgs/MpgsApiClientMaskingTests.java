@@ -48,7 +48,7 @@ class MpgsApiClientMaskingTests {
         String json = "{\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"5123450000000008\",\"securityCode\":\"100\"}}},"
                 + "\"authentication\":{\"threeDs\":{\"authenticationToken\":\"AAABBIIFmAAAAAAAAAAAAAAAAAA=\"}},"
                 + "\"apiPassword\":\"secret-value\"}";
-        log.info("MPGS脱敏测试开始，case=卡号、CVV、authenticationToken、apiPassword");
+        log.info("MPGS脱敏测试开始，case=卡号、安全码、认证令牌、渠道密码");
 
         String masked = MpgsApiClient.maskMpgsJson(json);
         log.info("MPGS脱敏测试输出，masked={}", masked);
@@ -171,8 +171,22 @@ class MpgsApiClientMaskingTests {
 
     private static class CapturingHttpClient extends HttpClient {
 
+        /**
+         * authorization Header 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；高敏感字段，禁止打印日志、禁止写入异常消息，持久化前需确认安全要求。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private String authorizationHeader;
 
+        /**
+         * last Request 字段，表示当前模型在所属业务流程中的对应属性。
+         * <p>
+         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * </p>
+         */
         private HttpRequest lastRequest;
 
         private String authorizationHeader() {
@@ -188,26 +202,66 @@ class MpgsApiClientMaskingTests {
         }
 
         @Override
+        /**
+         * 完成 cookie Handler 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public Optional<CookieHandler> cookieHandler() {
             return Optional.empty();
         }
 
         @Override
+        /**
+         * 完成 connect Timeout 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public Optional<Duration> connectTimeout() {
             return Optional.of(Duration.ofSeconds(10));
         }
 
         @Override
+        /**
+         * 完成 follow Redirects 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public Redirect followRedirects() {
             return Redirect.NEVER;
         }
 
         @Override
+        /**
+         * 完成 proxy 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public Optional<ProxySelector> proxy() {
             return Optional.empty();
         }
 
         @Override
+        /**
+         * 完成 ssl Context 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public SSLContext sslContext() {
             try {
                 SSLContext context = SSLContext.getInstance("TLS");
@@ -219,21 +273,53 @@ class MpgsApiClientMaskingTests {
         }
 
         @Override
+        /**
+         * 完成 ssl Parameters 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public SSLParameters sslParameters() {
             return new SSLParameters();
         }
 
         @Override
+        /**
+         * 完成 authenticator 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public Optional<Authenticator> authenticator() {
             return Optional.empty();
         }
 
         @Override
+        /**
+         * 完成 version 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;
         }
 
         @Override
+        /**
+         * 完成 executor 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public Optional<Executor> executor() {
             return Optional.empty();
         }
@@ -268,31 +354,79 @@ class MpgsApiClientMaskingTests {
     private record SimpleHttpResponse<T>(HttpRequest request, T body) implements HttpResponse<T> {
 
         @Override
+        /**
+         * 完成 status Code 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public int statusCode() {
             return 200;
         }
 
         @Override
+        /**
+         * 完成 headers 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public HttpHeaders headers() {
             return HttpHeaders.of(java.util.Map.of(), (name, value) -> true);
         }
 
         @Override
+        /**
+         * 完成 previous Response 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public Optional<HttpResponse<T>> previousResponse() {
             return Optional.empty();
         }
 
         @Override
+        /**
+         * 完成 uri 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public URI uri() {
             return request.uri();
         }
 
         @Override
+        /**
+         * 完成 version 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;
         }
 
         @Override
+        /**
+         * 完成 ssl Session 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         public Optional<javax.net.ssl.SSLSession> sslSession() {
             return Optional.empty();
         }

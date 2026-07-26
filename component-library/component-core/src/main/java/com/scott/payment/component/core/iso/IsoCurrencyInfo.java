@@ -34,10 +34,6 @@ public record IsoCurrencyInfo(String alphabeticCode,
      *
      * @return 是否存在 ISO 标准两位字母币种代码
      */
-    /**
-     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public boolean hasStandardAlpha2Code() {
         return false;
     }

@@ -4,6 +4,7 @@ import cn.hutool.http.ContentType;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 
 import java.util.Map;
 
@@ -33,13 +34,6 @@ public final class HttpClientUtils {
      * @param headers 请求头
      * @return HTTP 响应结果
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param url 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param headers 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static HttpResponseResult get(String url, Map<String, String> headers) {
         return get(url, headers, DEFAULT_TIMEOUT_MILLIS);
     }
@@ -51,14 +45,6 @@ public final class HttpClientUtils {
      * @param headers       请求头
      * @param timeoutMillis 超时时间，单位毫秒
      * @return HTTP 响应结果
-     */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param url 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param headers 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param timeoutMillis 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public static HttpResponseResult get(String url, Map<String, String> headers, int timeoutMillis) {
         HttpRequest request = HttpRequest.get(url).timeout(timeoutMillis);
@@ -74,14 +60,6 @@ public final class HttpClientUtils {
      * @param body    请求体对象
      * @return HTTP 响应结果
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param url 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param headers 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static HttpResponseResult postJson(String url, Map<String, String> headers, Object body) {
         return postJson(url, headers, body, DEFAULT_TIMEOUT_MILLIS);
     }
@@ -95,15 +73,6 @@ public final class HttpClientUtils {
      * @param timeoutMillis 超时时间，单位毫秒
      * @return HTTP 响应结果
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param url 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param headers 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param timeoutMillis 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public static HttpResponseResult postJson(String url, Map<String, String> headers, Object body, int timeoutMillis) {
         HttpRequest request = HttpRequest.post(url)
                 .timeout(timeoutMillis)
@@ -113,16 +82,39 @@ public final class HttpClientUtils {
         return execute(request);
     }
 
+    /**
+     * 完成 execute 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @return 当前方法计算或转换后的业务结果
+     */
     private static HttpResponseResult execute(HttpRequest request) {
         try (HttpResponse response = request.execute()) {
             return new HttpResponseResult(response.getStatus(), response.body());
         }
     }
 
+    /**
+     * 计算 add Headers 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+     * @param headers headers 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private static void addHeaders(HttpRequest request, Map<String, String> headers) {
         if (headers == null || headers.isEmpty()) {
+            request.header(TraceContext.TRACE_ID_HEADER, TraceContext.getOrCreateTraceId());
             return;
         }
         headers.forEach(request::header);
+        if (!headers.containsKey(TraceContext.TRACE_ID_HEADER)) {
+            request.header(TraceContext.TRACE_ID_HEADER, TraceContext.getOrCreateTraceId());
+        }
     }
 }

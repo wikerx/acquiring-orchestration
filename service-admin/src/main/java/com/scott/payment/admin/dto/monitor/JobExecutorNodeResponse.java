@@ -15,15 +15,6 @@ import java.time.LocalDateTime;
  *
  * <p>用于监控页面展示调度执行节点的注册信息、心跳状态和并发容量。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeResponse
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Job Executor Node 响应对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 public class JobExecutorNodeResponse {
 

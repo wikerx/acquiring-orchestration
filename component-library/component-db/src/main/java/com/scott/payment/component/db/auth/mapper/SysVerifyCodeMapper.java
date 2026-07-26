@@ -7,9 +7,9 @@ import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
  * @author : scott
  * @version : v1.0.0
  * @classname : SysVerifyCodeMapper
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : 系统管理Sys Verify Code 数据访问 Mapper，位于 component-library/component-db 的数据访问层，用于说明职责边界、数据语义和关键业务约束。
+ * @description : SysVerifyCodeMapper MyBatis 数据访问接口，用于映射数据库表读写语句和领域查询条件，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public interface SysVerifyCodeMapper extends BaseMapper<SysVerifyCodeDO> {

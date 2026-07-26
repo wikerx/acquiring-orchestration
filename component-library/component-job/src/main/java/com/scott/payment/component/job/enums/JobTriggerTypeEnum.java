@@ -9,7 +9,6 @@ package com.scott.payment.component.job.enums;
  * @description : 任务触发类型枚举
  * @status : create
  */
-
 public enum JobTriggerTypeEnum {
 
     /**

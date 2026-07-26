@@ -9,16 +9,17 @@ import com.scott.payment.admin.entity.SysShardingTableCreateLogDO;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
+
+@Mapper(componentModel = "spring")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingGovernanceConverter
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 分表治理对象转换器，位于 service-admin 转换层；负责物理表、建表日志和 service-job 建表请求之间的字段映射。
+ * @description : ShardingGovernanceConverter 转换组件，用于在实体、DTO、VO 和外部协议对象之间转换字段，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Mapper(componentModel = "spring")
 public interface ShardingGovernanceConverter {
 
     /**

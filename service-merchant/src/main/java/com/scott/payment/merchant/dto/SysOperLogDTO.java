@@ -4,16 +4,16 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysOperLogDTO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-06 00:09
  * @email : scott_x@163.com
- * @description : 商户管理Sys Oper Log 数据传输对象，位于 service-merchant 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : SysOperLogDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户后台服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Data
 public class SysOperLogDTO {
 
     /**

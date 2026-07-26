@@ -19,17 +19,18 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestBodyAdviceAd
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Type;
 
+
+@Slf4j
+@RestControllerAdvice
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestBodyAdvice
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 请求体解密与参数校验处理器，位于 service-openapi 支撑层，只负责把密文 data 解密为接口 DTO 并执行注解声明的校验分组。
+ * @description : OpenApiRequestBodyAdvice Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Slf4j
-@RestControllerAdvice
 public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
 
     /**
@@ -116,11 +117,24 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         }
         log.info("开放接口请求体解密完成，商户号：{}，脱敏后的请求参数：{}",
                 headerDTO == null ? null : headerDTO.getMerchantId(),
-                SensitiveDataMaskUtils.maskJson(JsonUtils.toJsonString(data)));
+                SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(data)));
         request.setAttribute(OpenApiRequestAttributes.DECRYPTED_DATA, data);
         return body;
     }
 
+/**
+ * 写入或更新 record Blocked 相关数据，保持数据库记录与当前业务处理结果一致。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param headerDTO header DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
+ * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
+ * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
+ * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
+ */
     private void recordBlocked(HttpServletRequest request,
                                OpenApiRequestHeaderDTO headerDTO,
                                String eventType,

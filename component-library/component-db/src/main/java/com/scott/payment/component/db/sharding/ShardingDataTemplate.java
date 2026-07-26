@@ -149,6 +149,14 @@ public class ShardingDataTemplate {
         return callback.execute(physicalTable);
     }
 
+    /**
+     * 校验 validate Single Context 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param context context 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateSingleContext(ShardingSingleTableContext context) {
         if (context == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding single table context is required");
@@ -161,6 +169,14 @@ public class ShardingDataTemplate {
         }
     }
 
+    /**
+     * 校验 validate Range Context 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param context context 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateRangeContext(ShardingRangeTableContext context) {
         if (context == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding range context is required");
@@ -170,6 +186,15 @@ public class ShardingDataTemplate {
         }
     }
 
+    /**
+     * 校验 validate Data Source 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param dataSource data Source 输入值，含义由调用方法名称和所属业务对象限定
+     * @param writeOperation write Operation 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateDataSource(String dataSource, boolean writeOperation) {
         if (!StringUtils.hasText(dataSource)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding data source is required");

@@ -10,16 +10,16 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingQuarterResolver
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 收单支付Sharding Quarter Resolver，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : ShardingQuarterResolver 解析组件，用于根据输入条件确定配置、路由、字典或上下文结果，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
-@Component
 public class ShardingQuarterResolver {
 
     /**
@@ -27,11 +27,6 @@ public class ShardingQuarterResolver {
      *
      * @param properties 分表配置
      * @return 当前季度
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingQuarter currentQuarter(PaymentQuarterShardingProperties properties) {
         ZoneId zoneId = zoneId(properties);
@@ -44,11 +39,6 @@ public class ShardingQuarterResolver {
      *
      * @param transactionDateTime 交易时间
      * @return 所属季度
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param transactionDateTime 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingQuarter fromDateTime(LocalDateTime transactionDateTime) {
         if (transactionDateTime == null) {
@@ -63,11 +53,6 @@ public class ShardingQuarterResolver {
      *
      * @param rule 单表分表规则
      * @return 季度列表
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public List<ShardingQuarter> quartersInRange(PaymentQuarterShardingProperties.TableRule rule) {
         ShardingQuarter start = startQuarter(rule);
@@ -91,12 +76,6 @@ public class ShardingQuarterResolver {
      * @param quarter 目标季度
      * @return true 表示在范围内
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param quarter 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public boolean inRange(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
         if (quarter == null) {
             return false;
@@ -109,11 +88,6 @@ public class ShardingQuarterResolver {
      *
      * @param properties 分表配置
      * @return 时区
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public ZoneId zoneId(PaymentQuarterShardingProperties properties) {
         String timezone = properties == null ? null : properties.getDatabaseTimezone();
@@ -133,11 +107,6 @@ public class ShardingQuarterResolver {
      * @param rule 单表分表规则
      * @return 起始季度
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingQuarter startQuarter(PaymentQuarterShardingProperties.TableRule rule) {
         validateRuleQuarter(rule == null ? null : rule.getStartYear(), rule == null ? null : rule.getStartQuarter(), "start");
         return new ShardingQuarter(rule.getStartYear(), rule.getStartQuarter());
@@ -149,16 +118,21 @@ public class ShardingQuarterResolver {
      * @param rule 单表分表规则
      * @return 结束季度
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param rule 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public ShardingQuarter endQuarter(PaymentQuarterShardingProperties.TableRule rule) {
         validateRuleQuarter(rule == null ? null : rule.getEndYear(), rule == null ? null : rule.getEndQuarter(), "end");
         return new ShardingQuarter(rule.getEndYear(), rule.getEndQuarter());
     }
 
+    /**
+     * 校验 validate Rule Quarter 相关输入，发现不满足业务约束时抛出明确异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param year year 输入值，含义由调用方法名称和所属业务对象限定
+     * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
+     * @param label label 输入值，含义由调用方法名称和所属业务对象限定
+     */
     private void validateRuleQuarter(Integer year, Integer quarter, String label) {
         if (year == null || quarter == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), label + " sharding year and quarter are required");

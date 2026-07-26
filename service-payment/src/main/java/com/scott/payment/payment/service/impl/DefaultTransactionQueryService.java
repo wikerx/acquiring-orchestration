@@ -80,34 +80,237 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DefaultTransactionQueryService implements TransactionQueryService {
 
+    /**
+     * TRANSACTION ORDER TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_ORDER_TABLE = "transaction_order";
+    /**
+     * TRANSACTION OPERATION TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
+    /**
+     * TRANSACTION STATUS HISTORY TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_STATUS_HISTORY_TABLE = "transaction_status_history";
+    /**
+     * TRANSACTION CHANNEL REQUEST TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_CHANNEL_REQUEST_TABLE = "transaction_channel_request";
+    /**
+     * TRANSACTION CHANNEL INTERACTION LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE = "transaction_channel_interaction_log";
+    /**
+     * TRANSACTION CHANNEL CALLBACK LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE = "transaction_channel_callback_log";
+    /**
+     * TRANSACTION CHANNEL CALLBACK TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_CHANNEL_CALLBACK_TABLE = "transaction_channel_callback";
+    /**
+     * TRANSACTION FLOW EVENT TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_FLOW_EVENT_TABLE = "transaction_flow_event";
+    /**
+     * TRANSACTION AMOUNT CHANGE LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_AMOUNT_CHANGE_LOG_TABLE = "transaction_amount_change_log";
+    /**
+     * TRANSACTION MERCHANT NOTIFICATION TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_TABLE = "transaction_merchant_notification";
+    /**
+     * TRANSACTION MERCHANT NOTIFICATION LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE = "transaction_merchant_notification_log";
+    /**
+     * TRANSACTION MERCHANT API INTERACTION LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE = "transaction_merchant_api_interaction_log";
+    /**
+     * TRANSACTION PAYMENT METHOD INFO TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
+    /**
+     * DEFAULT QUERY TIME ZONE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * <p>
+     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
+    /**
+     * order Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionOrderMapper orderMapper;
+    /**
+     * operation Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionOperationMapper operationMapper;
+    /**
+     * status History Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionStatusHistoryMapper statusHistoryMapper;
+    /**
+     * channel Request Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionChannelRequestMapper channelRequestMapper;
+    /**
+     * interaction Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionChannelInteractionLogMapper interactionLogMapper;
+    /**
+     * callback Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionChannelCallbackLogMapper callbackLogMapper;
+    /**
+     * callback Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionChannelCallbackMapper callbackMapper;
+    /**
+     * flow Event Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionFlowEventMapper flowEventMapper;
+    /**
+     * amount Change Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionAmountChangeLogMapper amountChangeLogMapper;
+    /**
+     * notification Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionMerchantNotificationMapper notificationMapper;
+    /**
+     * notification Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionMerchantNotificationLogMapper notificationLogMapper;
+    /**
+     * merchant Api Interaction Log Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionMerchantApiInteractionLogMapper merchantApiInteractionLogMapper;
+    /**
+     * payment Method Info Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionPaymentMethodInfoMapper paymentMethodInfoMapper;
+    /**
+     * sharding Data Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final ShardingDataTemplate shardingDataTemplate;
+    /**
+     * transaction Sharding Key Parser 字段，表示当前模型在所属业务流程中的对应属性。
+     * <p>
+     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
+     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * </p>
+     */
     private final TransactionShardingKeyParser transactionShardingKeyParser;
 
     /**
@@ -219,6 +422,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return response;
     }
 
+    /**
+     * 完成 page Operations Normalized 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param safeQuery safe Query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private PageResult<TransactionOperationResponse> pageOperationsNormalized(TransactionPageQuery safeQuery) {
         long total = 0L;
         List<TransactionOperationDO> rows = new ArrayList<>();
@@ -470,6 +682,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
+    /**
+     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private TransactionPageQuery normalize(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
         fillDefaultTimeRange(safeQuery);
@@ -501,18 +722,45 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         query.setTransactionStatus(mappedStatus);
     }
 
+    /**
+     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private ChannelLogQuery normalize(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = query == null ? new ChannelLogQuery() : query;
         fillDefaultTimeRange(safeQuery);
         return safeQuery;
     }
 
+    /**
+     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private MerchantNotificationQuery normalize(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = query == null ? new MerchantNotificationQuery() : query;
         fillDefaultTimeRange(safeQuery);
         return safeQuery;
     }
 
+    /**
+     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private ChannelCallbackQuery normalize(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = query == null ? new ChannelCallbackQuery() : query;
         fillDefaultTimeRange(safeQuery);
@@ -567,10 +815,28 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         query.setQueryTimeZone(timeRange.queryTimeZone());
     }
 
+    /**
+     * 完成 offset 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private long offset(com.scott.payment.component.core.model.PageRequest query) {
         return (query.safePageNo() - 1) * query.safePageSize();
     }
 
+    /**
+     * 转换生成 to Order Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 转换或构建后的目标对象
+     */
     private TransactionOrderResponse toOrderResponse(TransactionOrderDO row) {
         TransactionOrderResponse response = new TransactionOrderResponse();
         response.setOperationId(row.getOperationId());
@@ -614,6 +880,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return response;
     }
 
+    /**
+     * 解析 resolve Current Amount 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     */
     private BigDecimal resolveCurrentAmount(TransactionOrderDO row) {
         if (row == null) {
             return null;
@@ -668,6 +943,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return row.getTransactionStatus();
     }
 
+    /**
+     * 解析 resolve Lifecycle Status Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveLifecycleStatusMessage(TransactionOrderDO row) {
         String lifecycleStatus = resolveLifecycleStatus(row);
         if (lifecycleStatus == null) {
@@ -676,25 +960,75 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return lifecycleStatus;
     }
 
+    /**
+     * 完成 zero If Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
+    /**
+     * 判断 is Authorization Like 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean isAuthorizationLike(String transactionType) {
         return PaymentTransactionTypeEnum.AUTHORIZATION.getCode().equals(transactionType)
                 || PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode().equals(transactionType);
     }
 
+    /**
+     * 转换生成 to Operation Response 对应的传输对象、导出行或协议字段。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private TransactionOperationResponse toOperationResponse(TransactionOperationDO row) {
         return toOperationResponse(row, null, null, null);
     }
 
+/**
+ * 转换生成 to Operation Response 对应的传输对象、导出行或协议字段。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+ * @param paymentInfoDO payment Info DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param orderDO order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 渠道 API 操作类型或平台操作映射结果
+ */
     private TransactionOperationResponse toOperationResponse(TransactionOperationDO row,
                                                              TransactionPaymentMethodInfoDO paymentInfoDO,
                                                              TransactionOrderDO orderDO) {
         return toOperationResponse(row, paymentInfoDO, orderDO, null);
     }
 
+/**
+ * 转换生成 to Operation Response 对应的传输对象、导出行或协议字段。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+ * @param paymentInfoDO payment Info DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param orderDO order DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param merchantNotificationStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+ * @return 渠道 API 操作类型或平台操作映射结果
+ */
     private TransactionOperationResponse toOperationResponse(TransactionOperationDO row,
                                                              TransactionPaymentMethodInfoDO paymentInfoDO,
                                                              TransactionOrderDO orderDO,
@@ -1239,6 +1573,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return sourceTime.atZone(sourceZone).withZoneSameInstant(targetZone).toLocalDateTime();
     }
 
+    /**
+     * 解析 resolve Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 解析或查询得到的业务值
+     */
     private String resolveMerchantResponseCode(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getCode();
@@ -1252,10 +1595,28 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return ApiResultEnum.PROCESSING.getCode();
     }
 
+    /**
+     * 完成 default Rate 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param value 待校验或转换的原始值
+     * @return 当前方法计算或转换后的业务结果
+     */
     private BigDecimal defaultRate(BigDecimal value) {
         return value == null ? new BigDecimal("1.00000000") : value;
     }
 
+    /**
+     * 解析 resolve Merchant Response Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @return 解析或查询得到的业务值
+     */
     private String resolveMerchantResponseMessage(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
@@ -1269,6 +1630,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return ApiResultEnum.PROCESSING.getMessage();
     }
 
+    /**
+     * 解析 resolve Status By Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param merchantResponseCode merchant Response Code 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 解析或查询得到的业务值
+     */
     private String resolveStatusByMerchantResponseCode(String merchantResponseCode) {
         if (!StringUtils.hasText(merchantResponseCode)) {
             return null;
@@ -1291,6 +1661,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return null;
     }
 
+    /**
+     * 标准化 normalize Card Number Masked 输入值，统一大小写、空白字符或协议格式。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param paymentInfoDO payment Info DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 标准化后的业务字段值
+     */
     private String normalizeCardNumberMasked(TransactionPaymentMethodInfoDO paymentInfoDO) {
         if (paymentInfoDO == null) {
             return null;
@@ -1311,6 +1690,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return masked;
     }
 
+    /**
+     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -1330,6 +1718,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return null;
     }
 
+    /**
+     * 完成 payment Info Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap(List<TransactionOperationDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -1365,6 +1762,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return result;
     }
 
+    /**
+     * 完成 payment Info Map By Operation Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMapByOperationId(List<TransactionOperationDO> rows) {
         Map<String, List<TransactionOperationDO>> operationRows = rows.stream()
                 .filter(row -> StringUtils.hasText(row.getOperationId()) && row.getTransactionDateTime() != null)
@@ -1379,6 +1785,16 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return result;
     }
 
+    /**
+     * 查询 find Payment Info By Operation Id 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+     * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private TransactionPaymentMethodInfoDO findPaymentInfoByOperationId(String operationId, List<TransactionOperationDO> rows) {
         LocalDateTime rowBeginTime = rows.stream()
                 .map(TransactionOperationDO::getTransactionDateTime)
@@ -1411,6 +1827,16 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return null;
     }
 
+/**
+ * 完成 first Payment Info 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param current current 输入值，含义由调用方法名称和所属业务对象限定
+ * @param fallback fallback 输入值，含义由调用方法名称和所属业务对象限定
+ * @return 当前方法计算或转换后的业务结果
+ */
     private TransactionPaymentMethodInfoDO firstPaymentInfo(TransactionPaymentMethodInfoDO current,
                                                             TransactionPaymentMethodInfoDO fallback) {
         if (hasCardSummary(current) || fallback == null) {
@@ -1419,12 +1845,30 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return fallback;
     }
 
+    /**
+     * 判断 has Card Summary 条件是否成立，用于控制后续业务分支。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param infoDO info DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 满足当前业务条件时返回 true，否则返回 false
+     */
     private boolean hasCardSummary(TransactionPaymentMethodInfoDO infoDO) {
         return infoDO != null && (StringUtils.hasText(infoDO.getCardBin())
                 || StringUtils.hasText(infoDO.getCardLast4())
                 || StringUtils.hasText(infoDO.getCardNumberMasked()));
     }
 
+    /**
+     * 完成 order Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, TransactionOrderDO> orderMap(List<TransactionOperationDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -1441,6 +1885,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return result;
     }
 
+    /**
+     * 查询 find Order For Operation 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private TransactionOrderDO findOrderForOperation(TransactionOperationDO row) {
         LocalDateTime orderTransactionDateTime = parseOperationDateTime(row.getOperationId());
         if (orderTransactionDateTime == null) {
@@ -1453,6 +1906,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return orderMapper.selectByOperationIdPhysical(table, row.getOperationId());
     }
 
+    /**
+     * 完成 merchant Notification Status Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 当前方法计算或转换后的业务结果
+     */
     private Map<String, String> merchantNotificationStatusMap(List<TransactionOperationDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -1476,6 +1938,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return result;
     }
 
+    /**
+     * 完成 payment Info Table For Operation Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param operationPhysicalTable operation Physical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private String paymentInfoTableForOperationTable(String operationPhysicalTable) {
         if (!StringUtils.hasText(operationPhysicalTable)) {
             return TRANSACTION_PAYMENT_METHOD_INFO_TABLE;
@@ -1483,6 +1954,17 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return operationPhysicalTable.replaceFirst("^" + TRANSACTION_OPERATION_TABLE, TRANSACTION_PAYMENT_METHOD_INFO_TABLE);
     }
 
+/**
+ * 查询 select Operations By Operation Id 所需数据，未命中时按调用场景返回空值或抛出异常。
+ * <p>
+ * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+ * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * </p>
+ * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+ * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+ * @return 渠道 API 操作类型或平台操作映射结果
+ */
     private List<TransactionOperationDO> selectOperationsByOperationId(String operationId,
                                                                        LocalDateTime beginTime,
                                                                        LocalDateTime endTime) {
@@ -1528,20 +2010,59 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return rows;
     }
 
+    /**
+     * 完成 physical Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
                 ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.SLAVE));
     }
 
+    /**
+     * 完成 physical Tables In Range 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 当前方法计算或转换后的业务结果
+     */
     private List<String> physicalTablesInRange(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
         return shardingDataTemplate.resolvePhysicalTables(
                 ShardingRangeTableContext.of(logicalTable, beginTime, endTime, DataSourceName.SLAVE));
     }
 
+    /**
+     * 解析 parse Transaction Date Time 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
+     * @return 解析后的内部数据结构或业务值
+     */
     private LocalDateTime parseTransactionDateTime(String transactionId) {
         return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
     }
 
+    /**
+     * 解析 parse Operation Date Time 输入文本并转换为内部可校验的数据结构。
+     * <p>
+     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * </p>
+     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+     * @return 渠道 API 操作类型或平台操作映射结果
+     */
     private LocalDateTime parseOperationDateTime(String operationId) {
         return transactionShardingKeyParser.parseOperationDateTime(operationId);
     }
@@ -1654,6 +2175,16 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
             return response;
         }
 
+        /**
+         * 计算 add Amount 对应的数值结果，调用方负责保证金额和币种上下文一致。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+         * @param buckets buckets 输入值，含义由调用方法名称和所属业务对象限定
+         * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+         */
         private void addAmount(Map<String, AmountBucket> buckets, TransactionOperationSummaryRow row) {
             String currency = normalizeGroupValue(row.getCurrency());
             AmountBucket bucket = buckets.computeIfAbsent(currency, key -> new AmountBucket(currency));
@@ -1663,6 +2194,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
             }
         }
 
+        /**
+         * 转换生成 to Payment Responses 对应的传输对象、导出行或协议字段。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 转换或构建后的目标对象
+         */
         private List<TransactionPaymentMethodSummaryResponse> toPaymentResponses() {
             return paymentBuckets.values()
                     .stream()
@@ -1680,6 +2219,16 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                     .toList();
         }
 
+        /**
+         * 转换生成 to Amount Responses 对应的传输对象、导出行或协议字段。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
+         * @param buckets buckets 输入值，含义由调用方法名称和所属业务对象限定
+         * @return 按渠道协议格式化后的金额字符串或金额计算结果
+         */
         private List<TransactionAmountSummaryResponse> toAmountResponses(Map<String, AmountBucket> buckets) {
             return buckets.values()
                     .stream()
@@ -1695,6 +2244,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                     .toList();
         }
 
+        /**
+         * 标准化 normalize Group Value 输入值，统一大小写、空白字符或协议格式。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param value 待校验或转换的原始值
+         * @return 标准化后的业务字段值
+         */
         private static String normalizeGroupValue(String value) {
             return StringUtils.hasText(value) ? value : UNKNOWN_VALUE;
         }
@@ -1720,14 +2278,38 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
          */
         private Integer currencyExponent;
 
+        /**
+         * 创建 AmountBucket 实例并注入其运行所需依赖。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param currency 币种代码，格式为 ISO 4217 三位大写字母
+         */
         private AmountBucket(String currency) {
             this.currency = currency;
         }
 
+        /**
+         * 完成 get Currency 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 标准化后的 ISO 4217 币种代码
+         */
         private String getCurrency() {
             return currency;
         }
 
+        /**
+         * 完成 get Amount 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 按渠道协议格式化后的金额字符串或金额计算结果
+         */
         private BigDecimal getAmount() {
             return amount;
         }
@@ -1758,11 +2340,28 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
          */
         private final Map<String, AmountBucket> amountBuckets = new HashMap<>();
 
+        /**
+         * 创建 PaymentBucket 实例并注入其运行所需依赖。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
+         * @param paymentBrand payment Brand 输入值，含义由调用方法名称和所属业务对象限定
+         */
         private PaymentBucket(String paymentMethod, String paymentBrand) {
             this.paymentMethod = paymentMethod;
             this.paymentBrand = paymentBrand;
         }
 
+        /**
+         * 完成 get Count 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @return 当前方法计算或转换后的业务结果
+         */
         private long getCount() {
             return count;
         }
@@ -1771,6 +2370,16 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     @FunctionalInterface
     private interface PhysicalTableSelector<T> {
 
+        /**
+         * 查询 select 所需数据，未命中时按调用场景返回空值或抛出异常。
+         * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+         * <p>
+         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
+         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * </p>
+         * @param table table 输入值，含义由调用方法名称和所属业务对象限定
+         * @return 解析或查询得到的业务值
+         */
         List<T> select(String table);
     }
 }

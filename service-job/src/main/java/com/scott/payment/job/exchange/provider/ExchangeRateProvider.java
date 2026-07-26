@@ -5,13 +5,14 @@ import com.scott.payment.job.entity.exchange.ExchangeJobEntities.ExchangeRateSou
 
 import java.util.List;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ExchangeRateProvider
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 汇率源拉取插件接口。 <p>不同汇率源通过实现该接口转换为系统统一原始汇率结构，任务编排层不直接写死具体来源逻辑。</p>
+ * @description : ExchangeRateProvider Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
  * @status : create
  */
 public interface ExchangeRateProvider {
