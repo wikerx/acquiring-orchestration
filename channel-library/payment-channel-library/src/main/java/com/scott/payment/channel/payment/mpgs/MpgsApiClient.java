@@ -206,7 +206,7 @@ public class MpgsApiClient {
                 request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
                 response.statusCode(), elapsedMillis(startNanos)
         )));
-        log.info("MPGS渠道响应报文，response: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
+        log.info("MPGS渠道响应报文，response={}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
         if (!StringUtils.hasText(body)) {
             throw new ChannelResponseException("MPGS response body is empty");
         }
@@ -418,7 +418,7 @@ public class MpgsApiClient {
                 request.getMerchantId(), request.getMerchantOrderNo(), request.getMerchantOrderId(), request.getTransactionType(),
                 String.valueOf(request.getAmount()), request.getCurrency()
         )));
-        log.info("MPGS渠道请求报文，request: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
+        log.info("MPGS渠道请求报文，request={}", JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
     }
 
     /**

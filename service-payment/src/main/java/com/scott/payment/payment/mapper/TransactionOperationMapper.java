@@ -230,64 +230,6 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                                @Param("matchTime") LocalDateTime matchTime);
 
     /**
-     * CAS 记录渠道同步非终态结果。
-     * <p>
-     * 非终态结果只更新渠道摘要、处理阶段和勾兑入口，不写 complete_time，也不把勾兑状态标记为 MATCHED，
-     * 便于后续主动查询或回调继续推进终态。
-     *
-     * @param physicalTableName     经分表规则解析器校验后的物理表名
-     * @param id                    动作单物理主键
-     * @param expectedVersion       读取动作单时的版本号
-     * @param transactionStatus     目标非终态交易状态
-     * @param processStage          目标处理阶段
-     * @param pendingReasonCode     挂起原因码
-     * @param failReasonCode        失败原因码
-     * @param failReasonMessage     后台可见失败原因
-     * @param channelStatus         渠道原始状态
-     * @param channelResponseCode   渠道响应码
-     * @param channelResponseMessage 渠道响应描述
-     * @param requestId             原渠道请求 ID
-     * @param matchTime             本次记录时间
-     * @return 影响行数，1 表示状态记录成功
-     */
-    @Update("""
-            UPDATE ${physicalTableName}
-            SET transaction_status = #{transactionStatus},
-                process_stage = #{processStage},
-                pending_reason_code = #{pendingReasonCode},
-                fail_reason_code = #{failReasonCode},
-                fail_reason_message = #{failReasonMessage},
-                channel_status = #{channelStatus},
-                channel_response_code = #{channelResponseCode},
-                channel_response_message = #{channelResponseMessage},
-                channel_match_status = 'PENDING',
-                channel_match_result = #{transactionStatus},
-                last_channel_match_request_id = #{requestId},
-                last_channel_match_time = #{matchTime},
-                next_channel_match_time = COALESCE(next_channel_match_time, #{matchTime}),
-                channel_match_fail_reason = #{failReasonMessage},
-                version = version + 1,
-                update_time = #{matchTime}
-            WHERE id = #{id}
-              AND version = #{expectedVersion}
-              AND transaction_status NOT IN ('SUCCESS', 'FAILED')
-              AND deleted = 0
-            """)
-    int updateNonTerminalChannelResultPhysical(@Param("physicalTableName") String physicalTableName,
-                                               @Param("id") Long id,
-                                               @Param("expectedVersion") Integer expectedVersion,
-                                               @Param("transactionStatus") String transactionStatus,
-                                               @Param("processStage") String processStage,
-                                               @Param("pendingReasonCode") String pendingReasonCode,
-                                               @Param("failReasonCode") String failReasonCode,
-                                               @Param("failReasonMessage") String failReasonMessage,
-                                               @Param("channelStatus") String channelStatus,
-                                               @Param("channelResponseCode") String channelResponseCode,
-                                               @Param("channelResponseMessage") String channelResponseMessage,
-                                               @Param("requestId") String requestId,
-                                               @Param("matchTime") LocalDateTime matchTime);
-
-    /**
      * 查询待渠道勾兑的动作单。
      *
      * @param physicalTableName 经分表规则解析器校验后的物理表名
