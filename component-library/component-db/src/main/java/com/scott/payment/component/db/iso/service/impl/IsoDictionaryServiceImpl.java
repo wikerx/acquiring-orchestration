@@ -306,7 +306,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
             List<T> values = JsonUtils.parseObject(cachedJson, typeReference);
             return values == null ? List.of() : values;
         } catch (RuntimeException exception) {
-            log.warn("读取 ISO 字典 Redis 缓存失败，cacheKey={}，原因={}", cacheKey, exception.getMessage());
+            log.warn("读取 ISO 字典 Redis 缓存失败，cacheKey: {}，原因: {}", cacheKey, exception.getMessage());
             return List.of();
         }
     }
@@ -325,7 +325,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
         try {
             stringRedisTemplate.opsForValue().set(cacheKey, JsonUtils.toJsonString(values), ISO_CACHE_TTL);
         } catch (RuntimeException exception) {
-            log.warn("写入 ISO 字典 Redis 缓存失败，cacheKey={}，原因={}", cacheKey, exception.getMessage());
+            log.warn("写入 ISO 字典 Redis 缓存失败，cacheKey: {}，原因: {}", cacheKey, exception.getMessage());
         }
     }
 
@@ -345,7 +345,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
             }
             log.warn("ISO 字典数据库结果为空，临时使用内置 ISO 数据兜底");
         } catch (DataAccessException exception) {
-            log.warn("ISO 字典数据库读取失败，临时使用内置 ISO 数据兜底，原因={}", exception.getMessage());
+            log.warn("ISO 字典数据库读取失败，临时使用内置 ISO 数据兜底，原因: {}", exception.getMessage());
         }
         return fallbackLoader.get();
     }

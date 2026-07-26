@@ -51,7 +51,7 @@ class OpenApiPaymentControllerContractTest {
      */
     @Test
     void shouldKeepOneControllerPerOpenApiPaymentEndpoint() throws NoSuchMethodException {
-        log.info("开始校验收单 OpenAPI 控制器契约，caseCount={}", controllerCases().size());
+        log.info("开始校验收单 OpenAPI 控制器契约，caseCount: {}", controllerCases().size());
         for (ControllerCase controllerCase : controllerCases()) {
             Method method = controllerCase.controllerType().getDeclaredMethod(
                     controllerCase.methodName(),
@@ -66,7 +66,7 @@ class OpenApiPaymentControllerContractTest {
             assertOnlyOneEndpointMethod(controllerCase.controllerType());
             assertDedicatedApplicationService(controllerCase);
         }
-        log.info("收单 OpenAPI 控制器契约校验完成，caseCount={}", controllerCases().size());
+        log.info("收单 OpenAPI 控制器契约校验完成，caseCount: {}", controllerCases().size());
     }
 
     /**

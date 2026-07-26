@@ -264,6 +264,7 @@ public class MpgsApiClient {
                 httpMethod = HTTP_METHOD_GET;
                 operation = MpgsApiOperation.RETRIEVE;
                 logRequest(request, httpMethod, operation, url, null);
+                logStructuredRequestStart(request, httpMethod, operation, url, null);
                 fillRawRequestAudit(request, httpMethod, url, null);
                 response = sendGet(request, url);
             } else {
@@ -272,6 +273,7 @@ public class MpgsApiClient {
                 httpMethod = HTTP_METHOD_PUT;
                 operation = payload.getApiOperation();
                 logRequest(request, httpMethod, operation, url, payload);
+                logStructuredRequestStart(request, httpMethod, operation, url, payload);
                 fillRawRequestAudit(request, httpMethod, url, requestBody);
                 response = sendPut(request, url, requestBody);
             }
@@ -311,7 +313,7 @@ public class MpgsApiClient {
                 request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
                 response.statusCode(), elapsedMillis(startNanos)
         )));
-        log.info("MPGS渠道响应报文，response={}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
+        log.info("MPGS渠道响应报文，response: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
         if (!StringUtils.hasText(body)) {
             throw new ChannelResponseException("MPGS response body is empty");
         }
@@ -324,6 +326,7 @@ public class MpgsApiClient {
         }
         ChannelPaymentResponse channelResponse = responseMapper.toChannelResponse(request, payload);
         fillRawResponseAudit(channelResponse, request, response, httpMethod, requestUrl);
+        logStructuredResponseEnd(request, channelResponse, response, httpMethod, operation, requestUrl, body, startNanos);
         return channelResponse;
     }
 
@@ -576,7 +579,7 @@ public class MpgsApiClient {
                 request.getMerchantId(), request.getMerchantOrderNo(), request.getMerchantOrderId(), request.getTransactionType(),
                 String.valueOf(request.getAmount()), request.getCurrency()
         )));
-        log.info("MPGS渠道请求报文，request={}", JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
+        log.info("MPGS渠道请求报文，request: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
     }
 
     /**
@@ -601,6 +604,157 @@ public class MpgsApiClient {
                 safeChannelOrderNo(request), safeChannelTransactionId(request), safeMerchantOrderNo(request),
                 elapsedMillis(startNanos), exception.getClass().getSimpleName(),
                 exception.getMessage(), exception);
+        log.warn("event=CHANNEL_REQUEST_FAILED channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} durationMs: {} exceptionType: {}",
+                request == null ? null : request.getChannelCode(),
+                operation,
+                host(url),
+                path(url),
+                httpMethod,
+                midSummary(request),
+                safeTransactionId(request),
+                safeOperationId(request),
+                requestId(request),
+                safeChannelTransactionId(request),
+                elapsedMillis(startNanos),
+                exception.getClass().getSimpleName());
+    }
+
+    /**
+     * 记录 MPGS 渠道请求发起日志。
+     * <p>
+     * 日志字段覆盖渠道、操作、endpoint 主机与 path、渠道 MID 摘要、平台交易号、
+     * 动作单号、渠道请求号和脱敏请求摘要。请求摘要复用 MPGS 既有脱敏方法，不输出完整卡号、CVV 或认证头。
+     * </p>
+     * @param request 渠道支付请求，提供平台交易标识、渠道码、渠道交易号和扩展字段
+     * @param httpMethod HTTP 方法
+     * @param operation MPGS API 操作名称
+     * @param url MPGS endpoint 完整地址，用于拆分主机和 path
+     * @param payload MPGS 请求载荷，写日志前必须经过现有脱敏逻辑
+     */
+    private void logStructuredRequestStart(ChannelPaymentRequest request,
+                                           String httpMethod,
+                                           String operation,
+                                           String url,
+                                           MpgsRequestPayload payload) {
+        log.info("event=CHANNEL_REQUEST_START channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} requestSummary: {}",
+                request.getChannelCode(),
+                operation,
+                host(url),
+                path(url),
+                httpMethod,
+                midSummary(request),
+                request.getTransactionId(),
+                request.getOperationId(),
+                requestId(request),
+                request.getChannelTransactionId(),
+                JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
+    }
+
+    /**
+     * 记录 MPGS 渠道响应完成日志。
+     * <p>
+     * 日志覆盖 HTTP 状态、脱敏响应摘要、渠道结果、收单参考号、响应码、STAN、
+     * 渠道交易号和耗时。响应摘要复用 MPGS 既有脱敏方法，不记录完整渠道报文。
+     * </p>
+     * @param request 渠道支付请求，提供平台交易标识、渠道码和扩展请求号
+     * @param channelResponse 已映射的渠道响应对象，允许为空
+     * @param response HTTP 响应，提供状态码
+     * @param httpMethod HTTP 方法
+     * @param operation MPGS API 操作名称
+     * @param url MPGS endpoint 完整地址，用于拆分主机和 path
+     * @param body 渠道原始响应体，写日志前必须经过现有脱敏逻辑
+     * @param startNanos 请求开始时间，单位为纳秒
+     */
+    private void logStructuredResponseEnd(ChannelPaymentRequest request,
+                                          ChannelPaymentResponse channelResponse,
+                                          HttpResponse<String> response,
+                                          String httpMethod,
+                                          String operation,
+                                          String url,
+                                          String body,
+                                          long startNanos) {
+        log.info("event=CHANNEL_RESPONSE_END channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} httpStatus: {} responseSummary: {} channelResult: {} acquirerCode: {} responseCode: {} stan: {} channelTransactionId: {} durationMs: {}",
+                request.getChannelCode(),
+                operation,
+                host(url),
+                path(url),
+                httpMethod,
+                midSummary(request),
+                request.getTransactionId(),
+                request.getOperationId(),
+                requestId(request),
+                response.statusCode(),
+                JsonUtils.toJsonString(toMaskedJsonLogObject(body)),
+                channelResponse == null ? null : channelResponse.getChannelTradeStatus(),
+                channelResponse == null ? null : channelResponse.getAcquirerReferenceNo(),
+                channelResponse == null ? null : channelResponse.getChannelResponseCode(),
+                channelResponse == null ? null : channelResponse.getRrn(),
+                channelResponse == null ? null : channelResponse.getChannelTransactionId(),
+                elapsedMillis(startNanos));
+    }
+
+    /**
+     * 提取渠道 endpoint 主机名，用于日志记录渠道访问目标。
+     * <p>
+     * 返回值不包含 query、认证信息或请求体；入参为空时返回 null。
+     * </p>
+     * @param url 渠道 endpoint 完整地址
+     * @return endpoint 主机名
+     */
+    private String host(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        return URI.create(url).getHost();
+    }
+
+    /**
+     * 提取渠道 endpoint path，用于日志记录 API 访问路径。
+     * <p>
+     * 返回值不包含 query 参数值、认证信息或请求体；入参为空时返回 null。
+     * </p>
+     * @param url 渠道 endpoint 完整地址
+     * @return endpoint path
+     */
+    private String path(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        return URI.create(url).getPath();
+    }
+
+    /**
+     * 生成 MPGS 商户 MID 摘要。
+     * <p>
+     * MID 来源于渠道扩展字段或渠道配置；日志只保留首尾少量字符，中间以星号替换，
+     * 用于区分渠道账户且避免暴露完整渠道商户号。
+     * </p>
+     * @param request 渠道支付请求，提供 MPGS MID 扩展字段
+     * @return 脱敏后的 MID 摘要；缺失时返回 null
+     */
+    private String midSummary(ChannelPaymentRequest request) {
+        String merchantId = extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId());
+        if (!StringUtils.hasText(merchantId)) {
+            return null;
+        }
+        String normalized = merchantId.trim();
+        if (normalized.length() <= 6) {
+            return "***";
+        }
+        return normalized.substring(0, 3) + "***" + normalized.substring(normalized.length() - 3);
+    }
+
+    /**
+     * 读取渠道请求号。
+     * <p>
+     * 该值来源于渠道请求扩展字段 requestId，用于关联渠道请求开始、响应完成和异常日志；
+     * 字段本身不是卡数据、密钥或认证头。
+     * </p>
+     * @param request 渠道支付请求，允许为空
+     * @return 渠道请求号；不存在时返回 null
+     */
+    private String requestId(ChannelPaymentRequest request) {
+        return request == null || request.getExtension() == null ? null : request.getExtension().get("requestId");
     }
 
     /**

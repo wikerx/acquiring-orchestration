@@ -112,7 +112,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         resultDTO.setHttpMethod(resolveHttpMethod(commandDTO));
         resultDTO.setRequestScene(resolveRequestScene(commandDTO));
         resultDTO.setRequestUrlMasked(resolveRequestUrl(routeResult, channelRequest));
-        log.info("event=PAYMENT_CHANNEL_REQUEST_START merchantId={} merchantOrderNo={} transactionId={} operationId={} transactionType={} channelCode={} requestId={} channelOrderNo={} channelTransactionId={} httpMethod={} requestScene={}",
+        log.info("event=PAYMENT_CHANNEL_REQUEST_START merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} httpMethod: {} requestScene: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 transactionId,
@@ -135,7 +135,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setRequestStatus("SUCCESS");
             resultDTO.setResponseTime(responseTime);
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
-            log.info("event=PAYMENT_CHANNEL_REQUEST_END merchantId={} merchantOrderNo={} transactionId={} operationId={} transactionType={} channelCode={} requestId={} channelOrderNo={} channelTransactionId={} channelResponseCode={} rawChannelStatus={} channelTradeStatus={} httpStatus={} requestStatus={} durationMs={}",
+            log.info("event=PAYMENT_CHANNEL_REQUEST_END merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} channelResponseCode: {} rawChannelStatus: {} channelTradeStatus: {} httpStatus: {} requestStatus: {} durationMs: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionId,
@@ -159,7 +159,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
             resultDTO.setExceptionType(exception.getClass().getSimpleName());
             resultDTO.setExceptionMessage(exception.getMessage());
-            log.warn("event=PAYMENT_CHANNEL_REQUEST_FAILED merchantId={} merchantOrderNo={} transactionId={} operationId={} transactionType={} channelCode={} requestId={} channelOrderNo={} channelTransactionId={} requestStatus={} exceptionType={} durationMs={}",
+            log.warn("event=PAYMENT_CHANNEL_REQUEST_FAILED merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} requestStatus: {} exceptionType: {} durationMs: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionId,

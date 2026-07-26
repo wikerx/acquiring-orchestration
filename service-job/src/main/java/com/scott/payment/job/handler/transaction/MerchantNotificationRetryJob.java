@@ -9,6 +9,7 @@ import com.scott.payment.component.job.model.JobExecuteResult;
 import com.scott.payment.job.client.payment.PaymentInternalClient;
 import com.scott.payment.job.client.payment.dto.PaymentMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.dto.transaction.MerchantNotificationRetryRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -26,6 +27,7 @@ import java.util.Map;
  * @status : create
  */
 @Component
+@Slf4j
 public class MerchantNotificationRetryJob implements JobHandler {
 
     /**
@@ -103,19 +105,59 @@ public class MerchantNotificationRetryJob implements JobHandler {
         }
         int limit = normalizeLimit(request.getLimit());
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
+        long startNanos = System.nanoTime();
+        log.info("event=JOB_HANDLER_SCAN_START jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} limit: {}",
+                context == null ? null : context.getJobId(),
+                HANDLER_CODE,
+                context == null ? null : context.getRunId(),
+                context == null ? null : context.getShardIndex(),
+                context == null ? null : context.getShardTotal(),
+                context == null ? null : context.getParamsJson(),
+                transactionDateTimes,
+                limit);
         Map<String, Integer> result = new LinkedHashMap<>();
         int totalSuccessCount = 0;
+        int failCount = 0;
         for (LocalDateTime transactionDateTime : transactionDateTimes) {
             PaymentMerchantNotificationNotifyDueClientRequestDTO clientRequestDTO =
                     new PaymentMerchantNotificationNotifyDueClientRequestDTO();
             clientRequestDTO.setTransactionDateTime(transactionDateTime);
             clientRequestDTO.setLimit(limit);
-            Integer successCount = paymentInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
+            Integer successCount;
+            try {
+                successCount = paymentInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
+            } catch (RuntimeException exception) {
+                failCount++;
+                log.warn("event=JOB_HANDLER_SCAN_ITEM_FAILED jobId: {} handler: {} runId: {} scanRange: {} failureReason: {}",
+                        context == null ? null : context.getJobId(),
+                        HANDLER_CODE,
+                        context == null ? null : context.getRunId(),
+                        transactionDateTime,
+                        exception.getClass().getSimpleName());
+                throw exception;
+            }
             int safeSuccessCount = successCount == null ? 0 : successCount;
             totalSuccessCount += safeSuccessCount;
             result.put(transactionDateTime.toString(), safeSuccessCount);
         }
+        log.info("event=JOB_HANDLER_SCAN_END jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+                context == null ? null : context.getJobId(),
+                HANDLER_CODE,
+                context == null ? null : context.getRunId(),
+                context == null ? null : context.getShardIndex(),
+                context == null ? null : context.getShardTotal(),
+                transactionDateTimes,
+                transactionDateTimes.size(),
+                totalSuccessCount,
+                failCount,
+                0,
+                failCount == 0 ? Map.of() : Map.of("PAYMENT_INTERNAL_CALL_FAILED", failCount),
+                elapsedMillis(startNanos));
         return JobExecuteResult.success("merchant notification retry finished, successCount=" + totalSuccessCount, result);
+    }
+
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     private List<LocalDateTime> resolveTransactionDateTimes(MerchantNotificationRetryRequest request) {

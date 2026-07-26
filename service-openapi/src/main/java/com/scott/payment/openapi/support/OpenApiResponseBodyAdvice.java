@@ -111,17 +111,25 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
                                   ServerHttpRequest request,
                                   ServerHttpResponse response) {
         if (!(body instanceof CommonResult<?> result) || result.getData() == null) {
+            if (body instanceof CommonResult<?> commonResult && request instanceof ServletServerHttpRequest servletRequest) {
+                servletRequest.getServletRequest().setAttribute(OpenApiRequestAttributes.BUSINESS_CODE, commonResult.getCode());
+            }
             return body;
         }
         OpenApiRequestHeaderDTO headerDTO = getHeaderContext(request);
         String merchantId = headerDTO.getMerchantId();
+        if (request instanceof ServletServerHttpRequest servletRequest) {
+            servletRequest.getServletRequest().setAttribute(OpenApiRequestAttributes.BUSINESS_CODE, result.getCode());
+        }
         String plainDataJson = JsonUtils.toJsonString(result.getData());
         String encryptedData = payloadCrypto.encrypt(
                 plainDataJson,
                 merchantSecurityService.getMerchantResponsePublicKey(merchantId)
         );
-        log.info("开放接口响应data加密完成，商户号：{}，响应明文长度：{}，响应密文长度：{}",
+        log.info("event=OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {}",
                 merchantId,
+                request.getURI().getPath(),
+                result.getCode(),
                 plainDataJson.length(),
                 encryptedData.length());
         updateMerchantApiResponseLog(result.getData(), plainDataJson, encryptedData);

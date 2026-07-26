@@ -10,6 +10,7 @@ import com.scott.payment.job.client.payment.PaymentInternalClient;
 import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientRequestDTO;
 import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientResultDTO;
 import com.scott.payment.job.dto.transaction.ChannelTransactionMatchRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -27,6 +28,7 @@ import java.util.Map;
  * @status : create
  */
 @Component
+@Slf4j
 public class ChannelTransactionMatchJob implements JobHandler {
 
     /**
@@ -107,20 +109,68 @@ public class ChannelTransactionMatchJob implements JobHandler {
         }
         int limit = normalizeLimit(request.getLimit());
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
+        long startNanos = System.nanoTime();
+        log.info("event=JOB_HANDLER_SCAN_START jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} channelCode: {} limit: {}",
+                context == null ? null : context.getJobId(),
+                HANDLER_CODE,
+                context == null ? null : context.getRunId(),
+                context == null ? null : context.getShardIndex(),
+                context == null ? null : context.getShardTotal(),
+                context == null ? null : context.getParamsJson(),
+                transactionDateTimes,
+                request.getChannelCode(),
+                limit);
         Map<String, PaymentChannelMatchClientResultDTO> result = new LinkedHashMap<>();
         int matchedCount = 0;
+        int scannedCount = 0;
+        int failedCount = 0;
+        int skippedCount = 0;
         for (LocalDateTime transactionDateTime : transactionDateTimes) {
             PaymentChannelMatchClientRequestDTO clientRequestDTO = new PaymentChannelMatchClientRequestDTO();
             clientRequestDTO.setTransactionDateTime(transactionDateTime);
             clientRequestDTO.setChannelCode(request.getChannelCode());
             clientRequestDTO.setLimit(limit);
-            PaymentChannelMatchClientResultDTO matchResult = paymentInternalClient.matchDueChannelTransactions(clientRequestDTO);
+            PaymentChannelMatchClientResultDTO matchResult;
+            try {
+                matchResult = paymentInternalClient.matchDueChannelTransactions(clientRequestDTO);
+            } catch (RuntimeException exception) {
+                failedCount++;
+                log.warn("event=JOB_HANDLER_SCAN_ITEM_FAILED jobId: {} handler: {} runId: {} scanRange: {} channelCode: {} failureReason: {}",
+                        context == null ? null : context.getJobId(),
+                        HANDLER_CODE,
+                        context == null ? null : context.getRunId(),
+                        transactionDateTime,
+                        request.getChannelCode(),
+                        exception.getClass().getSimpleName());
+                throw exception;
+            }
             if (matchResult != null) {
+                scannedCount += matchResult.getScannedCount();
                 matchedCount += matchResult.getMatchedCount();
+                failedCount += matchResult.getFailedCount();
+                skippedCount += matchResult.getPendingCount();
             }
             result.put(transactionDateTime.toString(), matchResult);
         }
+        log.info("event=JOB_HANDLER_SCAN_END jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} channelCode: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+                context == null ? null : context.getJobId(),
+                HANDLER_CODE,
+                context == null ? null : context.getRunId(),
+                context == null ? null : context.getShardIndex(),
+                context == null ? null : context.getShardTotal(),
+                transactionDateTimes,
+                request.getChannelCode(),
+                scannedCount,
+                matchedCount,
+                failedCount,
+                skippedCount,
+                failedCount == 0 ? Map.of() : Map.of("CHANNEL_MATCH_FAILED", failedCount),
+                elapsedMillis(startNanos));
         return JobExecuteResult.success("channel transaction match finished, matchedCount=" + matchedCount, result);
+    }
+
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     private List<LocalDateTime> resolveTransactionDateTimes(ChannelTransactionMatchRequest request) {

@@ -439,12 +439,12 @@ class MpgsPaymentChannelClientAllApiTests {
                 body
         );
         requests.add(recordedRequest);
-        log.info("MPGS本地Fake服务收到请求，request={}",
+        log.info("MPGS本地Fake服务收到请求，request: {}",
                 JsonUtils.toJsonString(new LogRequest(recordedRequest.method(), recordedRequest.path(),
                         authorization != null, toMaskedJsonLogObject(body))));
 
         String response = nextResponseBody == null ? successResponse(recordedRequest) : nextResponseBody;
-        log.info("MPGS本地Fake服务返回响应，response={}",
+        log.info("MPGS本地Fake服务返回响应，response: {}",
                 JsonUtils.toJsonString(new LogResponse(nextHttpStatus > 0 ? nextHttpStatus : defaultHttpStatus(recordedRequest),
                         toMaskedJsonLogObject(response))));
         byte[] responseBytes = response.getBytes(StandardCharsets.UTF_8);
@@ -629,11 +629,11 @@ class MpgsPaymentChannelClientAllApiTests {
         assertThat(logs).contains("MPGS渠道响应报文");
         assertThat(logs).contains("\"operation\":\"" + operation + "\"");
         if (MpgsApiOperation.RETRIEVE.equals(operation)) {
-            assertThat(logs).contains("request={}");
+            assertThat(logs).contains("request: {}");
         } else {
-            assertThat(logs).contains("request={\"apiOperation\":\"" + operation + "\"");
+            assertThat(logs).contains("request: {\"apiOperation\":\"" + operation + "\"");
         }
-        assertThat(logs).contains("response={");
+        assertThat(logs).contains("response: {");
         assertThat(logs).doesNotContain("\"request\":\"{\\\"");
         assertThat(logs).doesNotContain("\"response\":\"{\\\"");
         assertThat(logs).doesNotContain(TEST_CARD_NO);
@@ -664,7 +664,7 @@ class MpgsPaymentChannelClientAllApiTests {
      * @param request  渠道请求
      */
     private void logCaseStart(String caseName, ChannelPaymentRequest request) {
-        log.info("MPGS API测试开始，case={}, request={}", caseName, JsonUtils.toJsonString(new LogCaseRequest(
+        log.info("MPGS API测试开始，case: {}, request: {}", caseName, JsonUtils.toJsonString(new LogCaseRequest(
                 request.getTransactionType(), request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
                 request.getMerchantOrderId(), String.valueOf(request.getAmount()), request.getCurrency(),
@@ -680,7 +680,7 @@ class MpgsPaymentChannelClientAllApiTests {
      * @param recordedRequest 本地 fake server 记录的请求摘要
      */
     private void logCaseEnd(String caseName, ChannelPaymentResponse response, RecordedRequest recordedRequest) {
-        log.info("MPGS API测试完成，case={}, result={}", caseName,
+        log.info("MPGS API测试完成，case: {}, result: {}", caseName,
                 JsonUtils.toJsonString(new LogCaseResult(recordedRequest.method(), recordedRequest.path(), response)));
     }
 

@@ -271,13 +271,13 @@ public final class CardNoGenerator {
             throw new IllegalArgumentException("count cannot be negative");
         }
 
-        log.info("批量生成测试卡号开始，cardBrand={}，length={}，count={}，prefixCount={}",
+        log.info("批量生成测试卡号开始，cardBrand: {}，length: {}，count: {}，prefixCount: {}",
                 cardBrand, length, count, prefixList.length);
         List<String> result = new ArrayList<>(count);
         for (int index = 0; index < count; index++) {
             result.add(generateCardNumber(cardBrand, prefixList, length, false));
         }
-        log.info("批量生成测试卡号完成，cardBrand={}，length={}，count={}，firstCard={}，lastCard={}",
+        log.info("批量生成测试卡号完成，cardBrand: {}，length: {}，count: {}，firstCard: {}，lastCard: {}",
                 cardBrand,
                 length,
                 result.size(),
@@ -327,7 +327,7 @@ public final class CardNoGenerator {
         String prefix = prefixList[RANDOM.nextInt(prefixList.length)];
         String cardNumber = completeCardNumber(prefix, length);
         if (logCardResult) {
-            log.info("生成测试卡号成功，cardBrand={}，prefix={}，length={}，maskedCardNo={}，luhnValid={}",
+            log.info("生成测试卡号成功，cardBrand: {}，prefix: {}，length: {}，maskedCardNo: {}，luhnValid: {}",
                     cardBrand,
                     prefix,
                     length,
@@ -410,13 +410,13 @@ public final class CardNoGenerator {
         String normalizedCardNumber = cardNumber.replaceAll("\\s+", "");
 
         if (!normalizedCardNumber.chars().allMatch(Character::isDigit)) {
-            log.warn("卡号Luhn校验失败，原因=存在非数字字符，maskedCardNo={}",
+            log.warn("卡号Luhn校验失败，原因=存在非数字字符，maskedCardNo: {}",
                     SensitiveDataMaskUtils.maskPan(normalizedCardNumber));
             return false;
         }
         if (normalizedCardNumber.length() < MIN_CARD_NUMBER_LENGTH
                 || normalizedCardNumber.length() > MAX_CARD_NUMBER_LENGTH) {
-            log.warn("卡号Luhn校验失败，原因=长度不合法，length={}，maskedCardNo={}",
+            log.warn("卡号Luhn校验失败，原因=长度不合法，length: {}，maskedCardNo: {}",
                     normalizedCardNumber.length(),
                     SensitiveDataMaskUtils.maskPan(normalizedCardNumber));
             return false;
@@ -440,7 +440,7 @@ public final class CardNoGenerator {
         }
 
         boolean valid = sum % LUHN_MODULUS == 0;
-        log.debug("卡号Luhn校验完成，maskedCardNo={}，length={}，valid={}",
+        log.debug("卡号Luhn校验完成，maskedCardNo: {}，length: {}，valid: {}",
                 SensitiveDataMaskUtils.maskPan(normalizedCardNumber),
                 normalizedCardNumber.length(),
                 valid);
@@ -475,7 +475,7 @@ public final class CardNoGenerator {
 
         List<String> masterCards = generateMasterCardNumbers(5);
         for (String cardNumber : masterCards) {
-            log.info("批量生成结果，maskedCardNo={}，valid={}",
+            log.info("批量生成结果，maskedCardNo: {}，valid: {}",
                     SensitiveDataMaskUtils.maskPan(cardNumber),
                     isValidCreditCardNumber(cardNumber)
             );

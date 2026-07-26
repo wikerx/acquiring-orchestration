@@ -43,6 +43,7 @@ import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
 import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -70,6 +71,7 @@ import java.util.Objects;
  * @status : create
  */
 @Service
+@Slf4j
 public class DefaultTransactionRecordService implements TransactionRecordService {
 
     /**
@@ -441,11 +443,25 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         TransactionStatusHistoryDO orderHistoryDO = buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_ORDER, commandDTO.getTransactionDateTime(), now);
         TransactionStatusHistoryDO operationHistoryDO = buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_OPERATION, commandDTO.getTransactionDateTime(), now);
 
-        transactionOrderMapper.insertPhysical(resolvePhysicalTable(TRANSACTION_ORDER_TABLE, commandDTO.getTransactionDateTime()), orderDO);
-        transactionOperationMapper.insertPhysical(resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, commandDTO.getTransactionDateTime()), operationDO);
+        String orderTable = resolvePhysicalTable(TRANSACTION_ORDER_TABLE, commandDTO.getTransactionDateTime());
+        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, commandDTO.getTransactionDateTime());
+        int orderRows = transactionOrderMapper.insertPhysical(orderTable, orderDO);
+        int operationRows = transactionOperationMapper.insertPhysical(operationTable, operationDO);
         String statusHistoryTable = resolvePhysicalTable(TRANSACTION_STATUS_HISTORY_TABLE, commandDTO.getTransactionDateTime());
-        transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, orderHistoryDO);
-        transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, operationHistoryDO);
+        int orderHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, orderHistoryDO);
+        int operationHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, operationHistoryDO);
+        log.info("event=PAYMENT_LOCAL_PREPARE_COMMIT stage=LOCAL_PREPARE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} logicalTable: {} physicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                resultDTO.getTransactionId(),
+                resultDTO.getOperationId(),
+                resultDTO.getTransactionType(),
+                resultDTO.getStatus(),
+                TRANSACTION_ORDER_TABLE + "," + TRANSACTION_OPERATION_TABLE + "," + TRANSACTION_STATUS_HISTORY_TABLE,
+                orderTable + "," + operationTable + "," + statusHistoryTable,
+                orderRows + operationRows + orderHistoryRows + operationHistoryRows,
+                null,
+                resultDTO.getStatus());
         recordChannelAudit(commandDTO, routeResultDTO, channelInvokeResultDTO, resultDTO, now);
         recordPaymentMethodInfo(commandDTO, resultDTO, resultDTO.getOperationId(), resultDTO.getTransactionId(),
                 commandDTO.getTransactionDateTime(), now);
@@ -868,15 +884,29 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         String statusHistoryTable = resolvePhysicalTable(TRANSACTION_STATUS_HISTORY_TABLE, actionTransactionDateTime);
         TransactionOperationDO operationDO = buildFollowUpOperation(recordDTO, now,
                 countExistingOperations(sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(), actionTransactionDateTime) + 1);
-        transactionOperationMapper.insertPhysical(operationTable, operationDO);
+        int operationRows = transactionOperationMapper.insertPhysical(operationTable, operationDO);
+        int orderRows = 0;
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
-            updateSourceOrderAmount(orderTable, sourceOrderDO, resultDTO);
+            orderRows = updateSourceOrderAmount(orderTable, sourceOrderDO, resultDTO);
             recordAmountChange(recordDTO, now);
         }
-        transactionStatusHistoryMapper.insertPhysical(statusHistoryTable,
+        int orderHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable,
                 buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_ORDER, actionTransactionDateTime, now));
-        transactionStatusHistoryMapper.insertPhysical(statusHistoryTable,
+        int operationHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable,
                 buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_OPERATION, actionTransactionDateTime, now));
+        log.info("event=PAYMENT_LOCAL_PREPARE_COMMIT stage=LOCAL_PREPARE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} platformStatus: {} logicalTable: {} physicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                resultDTO.getTransactionId(),
+                sourceOrderDO.getOperationId(),
+                resultDTO.getSourceTransactionId(),
+                resultDTO.getTransactionType(),
+                resultDTO.getStatus(),
+                TRANSACTION_OPERATION_TABLE + "," + TRANSACTION_ORDER_TABLE + "," + TRANSACTION_STATUS_HISTORY_TABLE,
+                operationTable + "," + orderTable + "," + statusHistoryTable,
+                operationRows + orderRows + orderHistoryRows + operationHistoryRows,
+                sourceOrderDO.getTransactionStatus(),
+                resultDTO.getStatus());
         recordChannelAudit(commandDTO, recordDTO.getRouteResultDTO(), recordDTO.getChannelInvokeResultDTO(), resultDTO, now);
         recordPaymentMethodInfo(commandDTO, resultDTO, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(),
                 actionTransactionDateTime, now, sourceOrderDO);
@@ -1040,6 +1070,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus);
         boolean orderUpdated = updateOrderByCallback(orderTable, orderDO, operationDO, success,
                 targetTransactionStatus, failReasonCode, failReasonMessage);
+        log.info("event=PAYMENT_CALLBACK_DB_UPDATE stage=CALLBACK_RESULT transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} platformStatus: {} logicalTable: {} physicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
+                operationDO.getTransactionId(),
+                operationDO.getOperationId(),
+                operationDO.getSourceTransactionId(),
+                operationDO.getTransactionType(),
+                targetTransactionStatus,
+                TRANSACTION_OPERATION_TABLE + "," + TRANSACTION_ORDER_TABLE,
+                operationTable + "," + orderTable,
+                operationUpdated + (orderUpdated ? 1 : 0),
+                operationDO.getTransactionStatus(),
+                targetTransactionStatus);
         if (success && orderUpdated && StringUtils.hasText(operationDO.getSourceTransactionId())) {
             recordAmountChange(operationDO, orderDO, now);
         }
@@ -2260,12 +2301,23 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                               String failReasonCode,
                                               String failReasonMessage,
                                               LocalDateTime now) {
-        transactionMerchantNotificationMapper.activateByTransactionId(
-                resolvePhysicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, operationDO.getTransactionDateTime()),
+        String table = resolvePhysicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, operationDO.getTransactionDateTime());
+        int affectedRows = transactionMerchantNotificationMapper.activateByTransactionId(
+                table,
                 operationDO.getTransactionId(),
                 maskedJson(merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode)),
                 now,
                 now);
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_ACTIVATED stage=NOTIFY_CREATE transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} platformStatus: {} logicalTable: {} physicalTable: {} affectedRows: {} willNotify: {}",
+                operationDO.getTransactionId(),
+                operationDO.getOperationId(),
+                operationDO.getMerchantId(),
+                operationDO.getMerchantOrderNo(),
+                targetTransactionStatus,
+                TRANSACTION_MERCHANT_NOTIFICATION_TABLE,
+                table,
+                affectedRows,
+                affectedRows > 0);
     }
 
     /**
@@ -2298,9 +2350,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param sourceOrderDO 原生命周期主单
      * @param resultDTO 后续交易结果
      */
-    private void updateSourceOrderAmount(String orderTable,
-                                         TransactionOrderDO sourceOrderDO,
-                                         PaymentCreateResultDTO resultDTO) {
+    private int updateSourceOrderAmount(String orderTable,
+                                        TransactionOrderDO sourceOrderDO,
+                                        PaymentCreateResultDTO resultDTO) {
         BigDecimal amount = amountFromResult(resultDTO, sourceOrderDO);
         int updated;
         if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
@@ -2323,6 +2375,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (updated != 1) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "source transaction state has changed");
         }
+        log.info("event=PAYMENT_AMOUNT_CHANGED stage=AMOUNT_UPDATE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} logicalTable: {} physicalTable: {} affectedRows: {} authorizedBefore: {} capturedBefore: {} refundedBefore: {} availableCaptureBefore: {} availableRefundBefore: {}",
+                sourceOrderDO.getMerchantId(),
+                sourceOrderDO.getMerchantOrderNo(),
+                resultDTO.getTransactionId(),
+                sourceOrderDO.getOperationId(),
+                resultDTO.getSourceTransactionId(),
+                resultDTO.getTransactionType(),
+                sourceOrderDO.getTransactionCurrency(),
+                amount,
+                TRANSACTION_ORDER_TABLE,
+                orderTable,
+                updated,
+                sourceOrderDO.getAuthorizedAmount(),
+                sourceOrderDO.getCapturedAmount(),
+                sourceOrderDO.getRefundedAmount(),
+                sourceOrderDO.getAvailableCaptureAmount(),
+                sourceOrderDO.getAvailableRefundAmount());
+        return updated;
     }
 
     /**
@@ -3125,7 +3195,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setChangeTime(now);
         fillTransactionTime(logDO, actionTransactionDateTime);
         logDO.setCreateTime(now);
-        transactionAmountChangeLogMapper.insertPhysical(table, logDO);
+        int affectedRows = transactionAmountChangeLogMapper.insertPhysical(table, logDO);
+        log.info("event=PAYMENT_AMOUNT_CHANGE_LOG_SAVED stage=AMOUNT_UPDATE transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} logicalTable: {} physicalTable: {} affectedRows: {} authorizedBefore: {} authorizedAfter: {} capturedBefore: {} capturedAfter: {} refundedBefore: {} refundedAfter: {} availableCaptureBefore: {} availableCaptureAfter: {} availableRefundBefore: {} availableRefundAfter: {}",
+                result.getTransactionId(),
+                source.getOperationId(),
+                result.getSourceTransactionId(),
+                result.getTransactionType(),
+                logDO.getAmountCurrency(),
+                logDO.getChangeAmount(),
+                TRANSACTION_AMOUNT_CHANGE_LOG_TABLE,
+                table,
+                affectedRows,
+                logDO.getAuthorizedBefore(),
+                logDO.getAuthorizedAfter(),
+                logDO.getCapturedBefore(),
+                logDO.getCapturedAfter(),
+                logDO.getRefundedBefore(),
+                logDO.getRefundedAfter(),
+                logDO.getAvailableCaptureBefore(),
+                logDO.getAvailableCaptureAfter(),
+                logDO.getAvailableRefundBefore(),
+                logDO.getAvailableRefundAfter());
     }
 
     /**
@@ -3154,7 +3244,27 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setChangeTime(now);
         fillTransactionTime(logDO, actionTransactionDateTime);
         logDO.setCreateTime(now);
-        transactionAmountChangeLogMapper.insertPhysical(table, logDO);
+        int affectedRows = transactionAmountChangeLogMapper.insertPhysical(table, logDO);
+        log.info("event=PAYMENT_AMOUNT_CHANGE_LOG_SAVED stage=CALLBACK_AMOUNT_UPDATE transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} logicalTable: {} physicalTable: {} affectedRows: {} authorizedBefore: {} authorizedAfter: {} capturedBefore: {} capturedAfter: {} refundedBefore: {} refundedAfter: {} availableCaptureBefore: {} availableCaptureAfter: {} availableRefundBefore: {} availableRefundAfter: {}",
+                operationDO.getTransactionId(),
+                sourceOrderDO.getOperationId(),
+                operationDO.getSourceTransactionId(),
+                operationDO.getTransactionType(),
+                logDO.getAmountCurrency(),
+                logDO.getChangeAmount(),
+                TRANSACTION_AMOUNT_CHANGE_LOG_TABLE,
+                table,
+                affectedRows,
+                logDO.getAuthorizedBefore(),
+                logDO.getAuthorizedAfter(),
+                logDO.getCapturedBefore(),
+                logDO.getCapturedAfter(),
+                logDO.getRefundedBefore(),
+                logDO.getRefundedAfter(),
+                logDO.getAvailableCaptureBefore(),
+                logDO.getAvailableCaptureAfter(),
+                logDO.getAvailableRefundBefore(),
+                logDO.getAvailableRefundAfter());
     }
 
     /**
@@ -3237,8 +3347,20 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         notificationDO.setDeleted(NOT_DELETED);
         notificationDO.setCreateTime(now);
         notificationDO.setUpdateTime(now);
-        transactionMerchantNotificationMapper.insertPhysical(
-                resolvePhysicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, commandDTO.getTransactionDateTime()), notificationDO);
+        String table = resolvePhysicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, commandDTO.getTransactionDateTime());
+        int affectedRows = transactionMerchantNotificationMapper.insertPhysical(table, notificationDO);
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_CREATED stage=NOTIFY_CREATE notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} callbackUrl: {} notifyStatus: {} nextRetryTime: {} logicalTable: {} physicalTable: {} affectedRows: {}",
+                notificationDO.getNotifyId(),
+                notificationDO.getTransactionId(),
+                notificationDO.getOperationId(),
+                notificationDO.getMerchantId(),
+                notificationDO.getMerchantOrderNo(),
+                notificationDO.getTargetUrlMasked(),
+                notificationDO.getNotifyStatus(),
+                notificationDO.getNextRetryTime(),
+                TRANSACTION_MERCHANT_NOTIFICATION_TABLE,
+                table,
+                affectedRows);
     }
 
     /**

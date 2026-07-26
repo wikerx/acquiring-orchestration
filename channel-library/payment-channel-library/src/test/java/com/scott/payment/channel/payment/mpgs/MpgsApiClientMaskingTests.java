@@ -51,7 +51,7 @@ class MpgsApiClientMaskingTests {
         log.info("MPGS脱敏测试开始，case=卡号、安全码、认证令牌、渠道密码");
 
         String masked = MpgsApiClient.maskMpgsJson(json);
-        log.info("MPGS脱敏测试输出，masked={}", masked);
+        log.info("MPGS脱敏测试输出，masked: {}", masked);
 
         assertThat(masked).contains("\"number\":\"512345******0008\"");
         assertThat(masked).contains("\"securityCode\":\"***\"");

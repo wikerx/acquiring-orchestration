@@ -59,7 +59,7 @@ class MpgsRequestMapperTests {
         assertThat(payload.getSourceOfFunds().getProvided().getCard().getExpiry().getYear()).isEqualTo("39");
         assertThat(payload.getAuthentication().getThreeDs().getTransactionId()).isEqualTo("ds-tx-001");
         assertThat(payload.getAuthentication().getThreeDs2().getTransactionStatus()).isEqualTo("Y");
-        log.info("MPGS请求映射测试完成，case=PAY一步支付映射，result={}",
+        log.info("MPGS请求映射测试完成，case=PAY一步支付映射，result: {}",
                 JsonUtils.toJsonString(new MappingResult(payload.getApiOperation(),
                         MpgsApiClient.maskMpgsJson("{\"number\":\"" + request.getCardNo() + "\"}"))));
     }
@@ -241,7 +241,7 @@ class MpgsRequestMapperTests {
      * @param request  渠道请求
      */
     private void logCaseStart(String caseName, ChannelPaymentRequest request) {
-        log.info("MPGS请求映射测试开始，case={}, request={}", caseName, JsonUtils.toJsonString(new MappingRequest(
+        log.info("MPGS请求映射测试开始，case: {}, request: {}", caseName, JsonUtils.toJsonString(new MappingRequest(
                 request.getTransactionType(), request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
                 request.getMerchantOrderId(), String.valueOf(request.getAmount()), request.getCurrency(),
@@ -257,7 +257,7 @@ class MpgsRequestMapperTests {
      */
     private void logPayload(String caseName, MpgsRequestPayload payload) {
         String requestBody = JsonUtils.toJsonString(payload);
-        log.info("MPGS请求映射测试请求体，case={}, request={}", caseName, MpgsApiClient.maskMpgsJson(requestBody));
+        log.info("MPGS请求映射测试请求体，case: {}, request: {}", caseName, MpgsApiClient.maskMpgsJson(requestBody));
     }
 
     /**

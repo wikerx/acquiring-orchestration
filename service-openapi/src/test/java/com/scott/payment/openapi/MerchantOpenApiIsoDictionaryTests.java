@@ -212,7 +212,7 @@ class MerchantOpenApiIsoDictionaryTests {
         MerchantSecurityMaterialDTO merchantMaterial = merchantSecurityService.provisionMerchantSecurityMaterial(
                 MerchantOpenApiTestSupport.buildMerchantSeed(MERCHANT_ID)
         );
-        log.info("商户200045安全材料准备完成，merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+        log.info("商户200045安全材料准备完成，merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantKey()),
                 keyMaterialFactory.fingerprint(merchantMaterial.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));
@@ -244,7 +244,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 jwtId
         );
         String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
-        log.info("商户发起ISO查询，path={}，请求明文={}，authorization摘要={}，data摘要={}",
+        log.info("商户发起ISO查询，path: {}，请求明文: {}，authorization摘要: {}，data摘要: {}",
                 path,
                 plainRequestJson,
                 MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory),
@@ -254,7 +254,7 @@ class MerchantOpenApiIsoDictionaryTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
                         .content(httpRequestBody))
-                .andDo(result -> log.info("平台返回ISO查询加密响应，path={}，HTTP状态={}，响应摘要={}",
+                .andDo(result -> log.info("平台返回ISO查询加密响应，path: {}，HTTP状态: {}，响应摘要: {}",
                         path,
                         result.getResponse().getStatus(),
                         MerchantOpenApiTestSupport.safeSecretSummary(result.getResponse().getContentAsString(), keyMaterialFactory)))
@@ -291,7 +291,7 @@ class MerchantOpenApiIsoDictionaryTests {
                 jwtId
         );
         String httpRequestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
-        log.info("商户发起ISO异常查询，path={}，请求明文={}，authorization摘要={}，data摘要={}，预期错误码={}",
+        log.info("商户发起ISO异常查询，path: {}，请求明文: {}，authorization摘要: {}，data摘要: {}，预期错误码: {}",
                 path,
                 plainRequestJson,
                 MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyMaterialFactory),
@@ -302,7 +302,7 @@ class MerchantOpenApiIsoDictionaryTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
                         .content(httpRequestBody))
-                .andDo(result -> log.info("平台返回ISO异常响应，path={}，HTTP状态={}，响应={}",
+                .andDo(result -> log.info("平台返回ISO异常响应，path: {}，HTTP状态: {}，响应: {}",
                         path,
                         result.getResponse().getStatus(),
                         result.getResponse().getContentAsString()))
@@ -331,7 +331,7 @@ class MerchantOpenApiIsoDictionaryTests {
         assertThat(encryptedResult).isNotNull();
         PrivateKey responsePrivateKey = payloadCrypto.readPrivateKey(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64());
         String plainDataJson = payloadCrypto.decrypt(encryptedResult.getData(), responsePrivateKey);
-        log.info("商户响应data解密完成，明文data={}", plainDataJson);
+        log.info("商户响应data解密完成，明文data: {}", plainDataJson);
         return JsonUtils.parseObject(plainDataJson, typeReference);
     }
 }

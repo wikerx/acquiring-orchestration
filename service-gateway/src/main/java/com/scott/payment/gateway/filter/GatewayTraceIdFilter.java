@@ -45,7 +45,8 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
                 .headers(headers -> headers.set(TraceContext.TRACE_ID_HEADER, traceId))
                 .build();
         exchange.getResponse().getHeaders().set(TraceContext.TRACE_ID_HEADER, traceId);
-        log.info("event=GATEWAY_REQUEST_START method={} path={} queryKeys={} clientIp={} userAgent={}",
+        log.info("event=GATEWAY_REQUEST_START traceId: {} method: {} path: {} queryKeys: {} clientIp: {} userAgent: {}",
+                traceId,
                 request.getMethod(),
                 request.getURI().getPath(),
                 request.getQueryParams().keySet(),
@@ -78,12 +79,17 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
         Integer statusCode = exchange.getResponse().getStatusCode() == null
                 ? null
                 : exchange.getResponse().getStatusCode().value();
+        String targetService = targetService(exchange);
+        String traceId = TraceContext.getTraceId();
         if (error == null) {
-            log.info("event=GATEWAY_REQUEST_END route={} status={} durationMs={}", routeId, statusCode, durationMs);
+            log.info("event=GATEWAY_REQUEST_END traceId: {} routeId: {} targetService: {} status: {} durationMs: {}",
+                    traceId, routeId, targetService, statusCode, durationMs);
             return;
         }
-        log.warn("event=GATEWAY_REQUEST_ERROR route={} status={} durationMs={} errorType={} message={}",
+        log.warn("event=GATEWAY_REQUEST_ERROR traceId: {} routeId: {} targetService: {} status: {} durationMs: {} errorType: {} message: {}",
+                traceId,
                 routeId,
+                targetService,
                 statusCode,
                 durationMs,
                 error.getClass().getSimpleName(),
@@ -99,8 +105,10 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
      */
     private void logRouteComplete(ServerWebExchange exchange, long startNanos) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event=GATEWAY_ROUTE_COMPLETE route={} path={} durationMs={}",
+        log.info("event=GATEWAY_ROUTE_COMPLETE traceId: {} routeId: {} targetService: {} path: {} durationMs: {}",
+                TraceContext.getTraceId(),
                 routeId(exchange),
+                targetService(exchange),
                 exchange.getRequest().getURI().getPath(),
                 durationMs);
     }
@@ -114,6 +122,23 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
     private String routeId(ServerWebExchange exchange) {
         Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
         return route == null ? UNKNOWN_ROUTE : route.getId();
+    }
+
+    /**
+     * 提取 Gateway 路由目标服务，优先使用服务发现 URI 的 host，未匹配时返回 unknown。
+     *
+     * @param exchange WebFlux 请求交换对象
+     * @return 下游目标服务名或网关内部转发地址摘要
+     */
+    private String targetService(ServerWebExchange exchange) {
+        Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
+        if (route == null || route.getUri() == null) {
+            return UNKNOWN_ROUTE;
+        }
+        if (StringUtils.hasText(route.getUri().getHost())) {
+            return route.getUri().getHost();
+        }
+        return route.getUri().getSchemeSpecificPart();
     }
 
     /**

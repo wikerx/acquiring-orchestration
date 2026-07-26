@@ -568,7 +568,7 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
             request.setVariables(emailVariables(account, reason, exemptUntil));
             adminEmailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("admin mfa notice send failed, accountId={}, templateCode={}", account.getId(), templateCode, exception);
+            log.warn("admin mfa notice send failed, accountId: {}, templateCode: {}", account.getId(), templateCode, exception);
             SysAppDO app = getAdminApp();
             SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
             recordLog(app, account, mfa, "SEND_NOTICE", RESULT_FAILED, exception.getMessage(), mfa.getMfaPolicy(), mfa.getMfaStatus(), currentOperator(), clientIpFallback(), null);

@@ -8,13 +8,19 @@ import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 
 @Component
+@Slf4j
 /**
  * @author : scott
  * @version : v1.0.0
@@ -132,6 +138,12 @@ public class OpenApiRequestHeaderExtractor {
                     claims.getMerchantId(), "OPENAPI_JWT_REPLAY", exception);
             throw exception;
         }
+        log.info("event=OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {}",
+                claims.getMerchantId(),
+                request.getRequestURI(),
+                request.getAttribute(OpenApiRequestAttributes.API_VERSION),
+                digest8(claims.getJwtId()),
+                clientIp(request));
 
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setAuthorization(token);
@@ -172,6 +184,50 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
+        log.warn("event=OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {}",
+                merchantId,
+                request == null ? null : request.getRequestURI(),
+                request == null ? null : request.getAttribute(OpenApiRequestAttributes.API_VERSION),
+                hitRuleCode,
+                securityInterceptEventRecorder.reasonCode(exception));
+    }
+
+    /**
+     * 生成开放接口幂等标识的短摘要，用于日志关联 JWT jti、防重放记录和安全拦截记录。
+     * <p>
+     * 输入值可能来自商户 JWT 声明；只输出 SHA-256 前 16 位十六进制摘要，不记录原始 jti。
+     * 该方法不修改请求状态，不访问外部系统，摘要仅用于排查同一次开放接口认证链路。
+     * </p>
+     * @param value 商户 JWT jti 或其他待摘要文本，允许为空
+     * @return 摘要文本；入参为空时返回 null；本地算法不可用时返回固定降级标识
+     */
+    private String digest8(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            byte[] bytes = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(bytes).substring(0, 16);
+        } catch (NoSuchAlgorithmException exception) {
+            return "sha256_unavailable";
+        }
+    }
+
+    /**
+     * 解析开放接口调用方 IP，用于认证日志、IP 白名单判断记录和安全拦截事件。
+     * <p>
+     * 优先使用网关透传的 X-Forwarded-For 首个地址，缺失时回退到 Servlet 远端地址。
+     * 返回值只作为访问来源摘要，不承载 IP 库明细，不写入商户请求密文或 JWT 内容。
+     * </p>
+     * @param request 当前开放接口 HTTP 请求，不允许为空
+     * @return 调用方 IP 文本
+     */
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(forwardedFor)) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 
     /**

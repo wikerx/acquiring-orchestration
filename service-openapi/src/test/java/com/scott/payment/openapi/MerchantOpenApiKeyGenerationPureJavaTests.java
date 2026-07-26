@@ -89,7 +89,7 @@ class MerchantOpenApiKeyGenerationPureJavaTests {
     private void logGeneratedKeyMaterial(GeneratedOpenApiKeyMaterial keyMaterial) {
         log.info("========== OpenAPI商户密钥生成开始 ==========");
         log.info("商户号：{}", keyMaterial.merchantId());
-        log.info("密钥关联关系：所有材料均按merchantId={}绑定，请求体和响应体不携带keyId。", keyMaterial.merchantId());
+        log.info("密钥关联关系：所有材料均按merchantId: {}绑定，请求体和响应体不携带keyId。", keyMaterial.merchantId());
 
         log.info("【1. 商户秘钥 merchantKey】持有方：商户、平台；用途：商户生成JWT HS256，平台验签JWT；算法：{}；有效期上限：{}秒；长度：{}；指纹：{}",
                 keyMaterial.merchantJwtKey().algorithm(),
@@ -119,11 +119,11 @@ class MerchantOpenApiKeyGenerationPureJavaTests {
                 keyMaterial.platformPayloadKey().privateKeyPkcs8Base64().length(),
                 keyMaterialFactory.fingerprint(keyMaterial.platformPayloadKey().privateKeyPkcs8Base64()));
 
-        log.info("商户最终需要保存：merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+        log.info("商户最终需要保存：merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
                 keyMaterialFactory.fingerprint(keyMaterial.merchantCredential().merchantKey()),
                 keyMaterialFactory.fingerprint(keyMaterial.merchantCredential().platformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(keyMaterial.merchantCredential().merchantResponsePrivateKeyPkcs8Base64()));
-        log.info("平台最终需要保存：merchantKey指纹={}，平台私钥指纹={}，商户响应公钥指纹={}",
+        log.info("平台最终需要保存：merchantKey指纹: {}，平台私钥指纹: {}，商户响应公钥指纹: {}",
                 keyMaterialFactory.fingerprint(keyMaterial.merchantJwtKey().merchantKey()),
                 keyMaterialFactory.fingerprint(keyMaterial.platformPayloadKey().privateKeyPkcs8Base64()),
                 keyMaterialFactory.fingerprint(keyMaterial.merchantResponseKey().publicKeyX509Base64()));

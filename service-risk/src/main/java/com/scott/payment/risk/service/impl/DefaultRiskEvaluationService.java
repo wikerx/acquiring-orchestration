@@ -6,6 +6,7 @@ import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
 import com.scott.payment.risk.domain.state.RiskDecisionEnum;
 import com.scott.payment.risk.domain.state.RiskReasonCodeEnum;
 import com.scott.payment.risk.service.RiskEvaluationService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,6 +25,7 @@ import java.util.Set;
  * @status : create
  */
 @Service
+@Slf4j
 public class DefaultRiskEvaluationService implements RiskEvaluationService {
 
     /**
@@ -52,6 +54,11 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     private static final BigDecimal MANUAL_REVIEW_AMOUNT = new BigDecimal("5000.00");
 
     /**
+     * 当前内置风控规则数量，用于日志展示评估覆盖范围。
+     */
+    private static final int BUILT_IN_RULE_COUNT = 5;
+
+    /**
      * 执行收单支付路由前风控评估。
      *
      * @param requestDTO 支付风控评估请求
@@ -59,22 +66,60 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
      */
     @Override
     public RiskPaymentEvaluateResultDTO evaluatePayment(RiskPaymentEvaluateRequestDTO requestDTO) {
+        long startNanos = System.nanoTime();
+        log.info("event=RISK_EVALUATION_START stage=ACCEPT merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} amount: {} currency: {} ruleCount: {}",
+                requestDTO == null ? null : requestDTO.getMerchantId(),
+                requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
+                requestDTO == null ? null : requestDTO.getTransactionType(),
+                requestDTO == null ? null : requestDTO.getPaymentMethod(),
+                requestDTO == null ? null : requestDTO.getAmount(),
+                requestDTO == null ? null : requestDTO.getCurrency(),
+                BUILT_IN_RULE_COUNT);
+        RiskPaymentEvaluateResultDTO resultDTO;
+        String hitRuleId;
+        String hitRuleType;
         if (isInvalid(requestDTO)) {
-            return buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.PARAM_INVALID);
+            resultDTO = buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.PARAM_INVALID);
+            hitRuleId = "RISK_PARAM_INVALID";
+            hitRuleType = "PARAM_VALIDATION";
+        } else if (isBlockedSource(requestDTO.getSourceUrl())) {
+            resultDTO = buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.BLOCKED_SOURCE);
+            hitRuleId = "RISK_BLOCKED_SOURCE";
+            hitRuleType = "SOURCE_BLOCKLIST";
+        } else if (isBlockedPayerIp(requestDTO.getPayerIp())) {
+            resultDTO = buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.BLOCKED_IP);
+            hitRuleId = "RISK_BLOCKED_PAYER_IP";
+            hitRuleType = "IP_BLOCKLIST";
+        } else if (requestDTO.getAmount().compareTo(MANUAL_REVIEW_AMOUNT) >= 0) {
+            resultDTO = buildResult(RiskDecisionEnum.REVIEW, RiskReasonCodeEnum.MANUAL_REVIEW_REQUIRED);
+            hitRuleId = "RISK_AMOUNT_REVIEW";
+            hitRuleType = "AMOUNT_THRESHOLD";
+        } else if (requestDTO.getAmount().compareTo(REQUIRE_3DS_AMOUNT) >= 0 && !hasThreeDsProof(requestDTO)) {
+            resultDTO = buildResult(RiskDecisionEnum.REQUIRE_3DS, RiskReasonCodeEnum.THREE_DS_REQUIRED);
+            hitRuleId = "RISK_AMOUNT_3DS";
+            hitRuleType = "AUTHENTICATION_REQUIREMENT";
+        } else {
+            resultDTO = buildResult(RiskDecisionEnum.PASS, RiskReasonCodeEnum.NONE);
+            hitRuleId = "NONE";
+            hitRuleType = "NO_RULE_HIT";
         }
-        if (isBlockedSource(requestDTO.getSourceUrl())) {
-            return buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.BLOCKED_SOURCE);
-        }
-        if (isBlockedPayerIp(requestDTO.getPayerIp())) {
-            return buildResult(RiskDecisionEnum.REJECT, RiskReasonCodeEnum.BLOCKED_IP);
-        }
-        if (requestDTO.getAmount().compareTo(MANUAL_REVIEW_AMOUNT) >= 0) {
-            return buildResult(RiskDecisionEnum.REVIEW, RiskReasonCodeEnum.MANUAL_REVIEW_REQUIRED);
-        }
-        if (requestDTO.getAmount().compareTo(REQUIRE_3DS_AMOUNT) >= 0 && !hasThreeDsProof(requestDTO)) {
-            return buildResult(RiskDecisionEnum.REQUIRE_3DS, RiskReasonCodeEnum.THREE_DS_REQUIRED);
-        }
-        return buildResult(RiskDecisionEnum.PASS, RiskReasonCodeEnum.NONE);
+        log.info("event=RISK_EVALUATION_END stage=DECISION merchantId: {} merchantOrderNo: {} transactionType: {} amount: {} currency: {} ruleCount: {} hitRuleId: {} hitRuleType: {} decision: {} rejectReasonCode: {} durationMs: {}",
+                requestDTO == null ? null : requestDTO.getMerchantId(),
+                requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
+                requestDTO == null ? null : requestDTO.getTransactionType(),
+                requestDTO == null ? null : requestDTO.getAmount(),
+                requestDTO == null ? null : requestDTO.getCurrency(),
+                BUILT_IN_RULE_COUNT,
+                hitRuleId,
+                hitRuleType,
+                resultDTO.getDecision(),
+                resultDTO.getReasonCode(),
+                elapsedMillis(startNanos));
+        return resultDTO;
+    }
+
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     private boolean isInvalid(RiskPaymentEvaluateRequestDTO requestDTO) {

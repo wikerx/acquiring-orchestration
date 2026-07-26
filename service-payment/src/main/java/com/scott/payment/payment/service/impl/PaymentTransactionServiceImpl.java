@@ -636,10 +636,11 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         String transactionType = resolveTransactionType(commandDTO);
         String idempotencyKey = transactionIdempotencyService.buildInitialTransactionKey(
                 commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
-        log.info("event=PAYMENT_TRANSACTION_START stage=ACCEPT merchantId={} merchantOrderNo={} transactionType={} currency={} amount={} idempotencyKey={}",
+        log.info("event=PAYMENT_TRANSACTION_START stage=ACCEPT merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} amount: {} idempotencyKey: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 transactionType,
+                commandDTO.getPaymentMethod(),
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
                 idempotencyKey);
@@ -648,7 +649,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         boolean operationLocked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         boolean flowLocked = false;
         if (!operationLocked) {
-            log.warn("event=PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=OPERATION_LOCK merchantId={} merchantOrderNo={} transactionType={} idempotencyKey={}",
+            log.warn("event=PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=OPERATION_LOCK merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionType,
@@ -660,7 +661,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         try {
             flowLocked = tryLock(flowLockKey, lockValue);
             if (!flowLocked) {
-                log.warn("event=PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=FLOW_LOCK merchantId={} merchantOrderNo={} transactionType={} idempotencyKey={}",
+                log.warn("event=PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=FLOW_LOCK merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
                         commandDTO.getMerchantId(),
                         commandDTO.getMerchantOrderNo(),
                         transactionType,
@@ -671,7 +672,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             }
             PaymentInitialPreparationResultDTO preparationResultDTO = paymentTransactionPreparationService.prepareInitialTransaction(
                     commandDTO, transactionType);
-            log.info("event=PAYMENT_TRANSACTION_PREPARED stage=LOCAL_PREPARE merchantId={} merchantOrderNo={} transactionId={} operationId={} callChannel={} riskDecision={} channelCode={}",
+            logRouteDecision(commandDTO, preparationResultDTO.getRouteResultDTO(), preparationResultDTO.getResultDTO());
+            log.info("event=PAYMENT_TRANSACTION_PREPARED stage=LOCAL_PREPARE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} callChannel: {} riskDecision: {} channelCode: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     preparationResultDTO.getResultDTO() == null ? null : preparationResultDTO.getResultDTO().getTransactionId(),
@@ -727,7 +729,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateFollowUpCommand(commandDTO, transactionType);
         long startNanos = System.nanoTime();
         String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, transactionType);
-        log.info("event=PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId={} sourceTransactionId={} transactionType={} currency={} amount={} idempotencyKey={}",
+        log.info("event=PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
                 transactionType.getCode(),
@@ -788,7 +790,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.REFUND);
         long startNanos = System.nanoTime();
         String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.REFUND);
-        log.info("event=PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId={} sourceTransactionId={} transactionType={} currency={} amount={} idempotencyKey={}",
+        log.info("event=PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
                 PaymentTransactionTypeEnum.REFUND.getCode(),
@@ -848,7 +850,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.VOID);
         long startNanos = System.nanoTime();
         String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.VOID);
-        log.info("event=PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId={} sourceTransactionId={} transactionType={} currency={} amount={} idempotencyKey={}",
+        log.info("event=PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
                 PaymentTransactionTypeEnum.VOID.getCode(),
@@ -908,7 +910,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
         long startNanos = System.nanoTime();
         String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
-        log.info("event=PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId={} sourceTransactionId={} transactionType={} currency={} amount={} idempotencyKey={}",
+        log.info("event=PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
                 PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode(),
@@ -1095,12 +1097,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         PaymentCreateResultDTO resultDTO = buildFollowUpResult(commandDTO, sourceOrderDO, transactionId, transactionTypeEnum);
+        logGeneratedIdentifiers(commandDTO, resultDTO.getOperationId(), transactionId, idempotencyKey);
+        logRouteDecision(commandDTO, routeResultDTO, resultDTO);
         PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, resolveChannelOrderNo(commandDTO, sourceOrderDO));
         ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
         fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+        logStatusMapping(resultDTO, invokeResultDTO, channelResponse);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         enrichFollowUpResult(commandDTO, sourceOrderDO, routeResultDTO, channelResponse, resultDTO);
+        logMerchantResponseBuilt(commandDTO, resultDTO);
         recordFollowUpTransaction(commandDTO, sourceOrderDO, routeResultDTO, invokeResultDTO, resultDTO, currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
@@ -1131,12 +1137,18 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getRequestFingerprint(),
                 now);
         if (!transactionIdempotencyService.tryBegin(beginRecord)) {
+            log.warn("event=PAYMENT_IDEMPOTENCY_CONFLICT stage=IDEMPOTENCY_BEGIN merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    transactionType,
+                    idempotencyKey);
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                     .map(this::toDuplicateResult)
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
         }
         String operationId = PaymentOrderNoGenerator.nextOrderNo(OPERATION_ID_PREFIX, commandDTO.getTransactionDateTime());
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
+        logGeneratedIdentifiers(commandDTO, operationId, transactionId, idempotencyKey);
         initializeLabelAmount(commandDTO);
         PaymentRiskDecisionDTO riskDecisionDTO = paymentRiskInvokeService.checkPreRoute(commandDTO);
         PaymentRiskDecisionEnum riskDecisionEnum = resolveRiskDecision(riskDecisionDTO);
@@ -1163,6 +1175,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             return resultDTO;
         }
         PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
+        logRouteDecision(commandDTO, routeResultDTO, resultDTO);
         if (!applyCurrencyConversion(commandDTO, routeResultDTO, resultDTO)) {
             int currencyExponent = resolveCurrencyExponent(commandDTO.getTransactionCurrency());
             enrichResult(commandDTO, routeResultDTO, null, resultDTO);
@@ -1178,7 +1191,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO, routeResultDTO, operationId, transactionId, transactionId);
         ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
         fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+        logStatusMapping(resultDTO, invokeResultDTO, channelResponse);
         enrichResult(commandDTO, routeResultDTO, channelResponse, resultDTO);
+        logMerchantResponseBuilt(commandDTO, resultDTO);
         recordInitialTransaction(commandDTO, routeResultDTO, invokeResultDTO, resultDTO, riskDecisionEnum, currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
@@ -2762,7 +2777,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         eventDO.setCreateTime(message.getCreatedAt());
         eventDO.setUpdateTime(message.getCreatedAt());
         transactionEventOutboxService.save(eventDO);
-        log.info("event=PAYMENT_OUTBOX_SAVED transactionId={} operationId={} eventType={} topic={} tag={}",
+        log.info("event=PAYMENT_OUTBOX_SAVED transactionId: {} operationId: {} eventType: {} topic: {} tag: {}",
                 resultDTO.getTransactionId(),
                 resultDTO.getOperationId(),
                 eventDO.getEventType(),
@@ -2783,7 +2798,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private void logPaymentEnd(String event, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO, long startNanos) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event={} stage=FINISH merchantId={} merchantOrderNo={} transactionId={} operationId={} transactionType={} currency={} amount={} platformStatus={} durationMs={}",
+        log.info("event: {} stage=FINISH merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} platformStatus: {} durationMs: {}",
                 event,
                 commandDTO == null ? null : commandDTO.getMerchantId(),
                 commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
@@ -2813,6 +2828,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount(),
                 resultDTO.getCurrency(),
                 JsonUtils.toJsonString(resultDTO));
+        log.info("event=PAYMENT_IDEMPOTENCY_COMPLETE stage=IDEMPOTENCY merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} currency: {} amount: {} idempotencyKey: {}",
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                resultDTO.getTransactionId(),
+                resultDTO.getOperationId(),
+                resultDTO.getTransactionType(),
+                resultDTO.getStatus(),
+                resultDTO.getCurrency(),
+                commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount(),
+                idempotencyKey);
     }
 
     /**
@@ -2822,6 +2847,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易响应
      */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
+        log.info("event=PAYMENT_IDEMPOTENCY_HIT stage=IDEMPOTENCY merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {}",
+                record.getMerchantId(),
+                record.getMerchantOrderNo(),
+                record.getTransactionId(),
+                record.getOperationId(),
+                record.getTransactionType(),
+                record.getTransactionStatus());
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
             if (resultDTO != null) {
@@ -2840,6 +2872,113 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 : toMinorAmount(record.getTransactionAmount(), record.getTransactionCurrency()));
         resultDTO.setCurrency(record.getTransactionCurrency());
         return resultDTO;
+    }
+
+    /**
+     * 记录交易主单号、动作单号和幂等键生成结果。
+     * <p>
+     * 日志覆盖商户、订单、交易类型、币种和金额，用于串联请求接收、幂等判断和本地落库。
+     * 该方法只写日志，不修改交易状态、不提交事务、不调用外部系统；卡号和安全码不进入日志字段。
+     * </p>
+     * @param commandDTO 支付创建命令，提供商户号、商户订单号、交易类型、币种和金额
+     * @param operationId 本次交易动作单号，不允许为空
+     * @param transactionId 平台交易主单号，不允许为空
+     * @param idempotencyKey 支付创建幂等键，来源于商户、订单和交易类型等幂等维度
+     */
+    private void logGeneratedIdentifiers(PaymentCreateCommandDTO commandDTO,
+                                         String operationId,
+                                         String transactionId,
+                                         String idempotencyKey) {
+        log.info("event=PAYMENT_IDENTIFIERS_GENERATED stage=IDENTIFIER merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                commandDTO == null ? null : commandDTO.getMerchantId(),
+                commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
+                transactionId,
+                operationId,
+                commandDTO == null || commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO == null ? null : commandDTO.getTransactionType(),
+                commandDTO == null ? null : commandDTO.getCurrency(),
+                commandDTO == null ? null : commandDTO.getAmount(),
+                idempotencyKey);
+    }
+
+    /**
+     * 记录支付路由决策结果。
+     * <p>
+     * 日志覆盖候选决策后的最终渠道、渠道 MID、渠道能力、支付方式、币种和金额，
+     * 用于核对风控后路由选择与渠道调用输入。该方法不改变路由结果，不发送渠道请求。
+     * </p>
+     * @param commandDTO 支付创建命令，提供商户、订单、交易类型、支付方式、币种和金额
+     * @param routeResultDTO 路由服务返回的最终渠道、MID 和能力信息，允许为空表示未成功路由
+     * @param resultDTO 当前支付创建结果，提供平台交易号和动作单号
+     */
+    private void logRouteDecision(PaymentCreateCommandDTO commandDTO,
+                                  PaymentRouteResultDTO routeResultDTO,
+                                  PaymentCreateResultDTO resultDTO) {
+        log.info("event=PAYMENT_ROUTE_DECISION stage=ROUTE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} channelCapability: {} routed: {} routeReason: {}",
+                commandDTO == null ? null : commandDTO.getMerchantId(),
+                commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
+                resultDTO == null ? null : resultDTO.getTransactionId(),
+                resultDTO == null ? null : resultDTO.getOperationId(),
+                commandDTO == null ? null : commandDTO.getTransactionType(),
+                commandDTO == null ? null : commandDTO.getPaymentMethod(),
+                commandDTO == null ? null : commandDTO.getTransactionCurrency(),
+                commandDTO == null ? null : commandDTO.getTransactionAmount(),
+                routeResultDTO == null ? null : routeResultDTO.getChannelCode(),
+                routeResultDTO == null ? null : routeResultDTO.getMidConfigId(),
+                routeResultDTO == null ? null : routeResultDTO.getCapabilityId(),
+                routeResultDTO != null && routeResultDTO.isRouted(),
+                routeResultDTO == null ? null : routeResultDTO.getRouteReason());
+    }
+
+    /**
+     * 记录渠道响应到平台状态的映射结果。
+     * <p>
+     * 日志覆盖渠道请求号、渠道交易号、渠道业务码、收单参考号、失败码和平台状态，
+     * 用于排查渠道返回、状态机流转和商户响应之间的一致性。该方法不写库、不触发 MQ。
+     * </p>
+     * @param resultDTO 平台支付创建结果，包含交易标识、交易类型、平台状态和失败码
+     * @param invokeResultDTO 渠道调用包装结果，包含渠道请求号和请求状态
+     * @param channelResponse 渠道响应映射对象，包含渠道码、渠道交易号和渠道业务码
+     */
+    private void logStatusMapping(PaymentCreateResultDTO resultDTO,
+                                  PaymentChannelInvokeResultDTO invokeResultDTO,
+                                  ChannelPaymentResponse channelResponse) {
+        log.info("event=PAYMENT_STATUS_MAPPED stage=STATUS_MAPPING merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} acquirerCode: {} failureCode: {} requestStatus: {}",
+                resultDTO == null ? null : resultDTO.getMerchantId(),
+                resultDTO == null ? null : resultDTO.getMerchantOrderNo(),
+                resultDTO == null ? null : resultDTO.getTransactionId(),
+                resultDTO == null ? null : resultDTO.getOperationId(),
+                resultDTO == null ? null : resultDTO.getTransactionType(),
+                channelResponse == null ? null : channelResponse.getChannelCode(),
+                invokeResultDTO == null ? null : invokeResultDTO.getRequestId(),
+                channelResponse == null ? null : channelResponse.getChannelTransactionId(),
+                resultDTO == null ? null : resultDTO.getStatus(),
+                channelResponse == null ? null : channelResponse.getChannelResponseCode(),
+                channelResponse == null ? null : channelResponse.getAcquirerReferenceNo(),
+                resultDTO == null ? null : resultDTO.getFailReasonCode(),
+                invokeResultDTO == null ? null : invokeResultDTO.getRequestStatus());
+    }
+
+    /**
+     * 记录返回商户前的平台响应构造结果。
+     * <p>
+     * 日志覆盖商户订单、平台交易号、动作单号、平台状态、业务码、币种和金额，
+     * 用于核对开放接口响应与支付核心结果。该方法不包含卡号、CVV、JWT 或渠道完整报文。
+     * </p>
+     * @param commandDTO 支付创建命令，提供商户号和商户订单号
+     * @param resultDTO 平台支付创建结果，提供交易标识、状态、业务码、币种和金额
+     */
+    private void logMerchantResponseBuilt(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
+        log.info("event=PAYMENT_MERCHANT_RESPONSE_BUILT stage=RESPONSE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} platformCode: {} currency: {} amount: {}",
+                commandDTO == null ? null : commandDTO.getMerchantId(),
+                commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
+                resultDTO == null ? null : resultDTO.getTransactionId(),
+                resultDTO == null ? null : resultDTO.getOperationId(),
+                resultDTO == null ? null : resultDTO.getTransactionType(),
+                resultDTO == null ? null : resultDTO.getStatus(),
+                resultDTO == null ? null : resultDTO.getMerchantResponseCode(),
+                resultDTO == null ? null : resultDTO.getCurrency(),
+                resultDTO == null ? null : resultDTO.getAmount());
     }
 
     /**

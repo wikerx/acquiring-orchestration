@@ -34,7 +34,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
         TraceContext.setTraceId(traceId);
         response.setHeader(TraceContext.TRACE_ID_HEADER, traceId);
         try {
-            log.info("event=HTTP_REQUEST_START method={} path={} clientIp={} userAgent={}",
+            log.info("event=HTTP_REQUEST_START method: {} path: {} clientIp: {} userAgent: {}",
                     request.getMethod(),
                     request.getRequestURI(),
                     request.getRemoteAddr(),
@@ -42,7 +42,7 @@ public class TraceIdFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
         } finally {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-            log.info("event=HTTP_REQUEST_END method={} path={} status={} durationMs={}",
+            log.info("event=HTTP_REQUEST_END method: {} path: {} status: {} durationMs: {}",
                     request.getMethod(),
                     request.getRequestURI(),
                     response.getStatus(),

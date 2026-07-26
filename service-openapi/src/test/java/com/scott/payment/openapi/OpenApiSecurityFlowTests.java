@@ -68,11 +68,11 @@ class OpenApiSecurityFlowTests {
         RsaKeyMaterial platformPayloadKey = keyFactory.generatePlatformPayloadRsaKey(MERCHANT_ID);
         RsaKeyMaterial merchantResponseKey = keyFactory.generateMerchantResponseRsaKey(MERCHANT_ID);
 
-        log.info("系统生成密钥-给商户：JWT共享密钥指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+        log.info("系统生成密钥-给商户：JWT共享密钥指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
                 keyFactory.fingerprint(merchantJwtKey.merchantKey()),
                 keyFactory.fingerprint(platformPayloadKey.publicKeyX509Base64()),
                 keyFactory.fingerprint(merchantResponseKey.privateKeyPkcs8Base64()));
-        log.info("系统生成密钥-平台保留：JWT共享密钥用于验签，平台私钥指纹={}，商户响应公钥指纹={}",
+        log.info("系统生成密钥-平台保留：JWT共享密钥用于验签，平台私钥指纹: {}，商户响应公钥指纹: {}",
                 keyFactory.fingerprint(platformPayloadKey.privateKeyPkcs8Base64()),
                 keyFactory.fingerprint(merchantResponseKey.publicKeyX509Base64()));
 
@@ -87,7 +87,7 @@ class OpenApiSecurityFlowTests {
                 System.currentTimeMillis() / 1000L,
                 TRADE_NO
         );
-        log.info("商户封装请求-请求明文脱敏={}，JWT摘要={}，data摘要={}",
+        log.info("商户封装请求-请求明文脱敏: {}，JWT摘要: {}，data摘要: {}",
                 SensitiveDataMaskUtils.maskJson(merchantRequestJson),
                 MerchantOpenApiTestSupport.safeSecretSummary(authorization, keyFactory),
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedRequestData, keyFactory));
@@ -99,7 +99,7 @@ class OpenApiSecurityFlowTests {
         );
         assertThat(claims.getMerchantId()).isEqualTo(MERCHANT_ID);
         assertThat(decryptedRequestJson).isEqualTo(merchantRequestJson);
-        log.info("服务端处理请求-JWT验签成功，商户号={}，请求体解密脱敏={}",
+        log.info("服务端处理请求-JWT验签成功，商户号: {}，请求体解密脱敏: {}",
                 claims.getMerchantId(),
                 SensitiveDataMaskUtils.maskJson(decryptedRequestJson));
 
@@ -116,7 +116,7 @@ class OpenApiSecurityFlowTests {
                 payloadCrypto.readPrivateKey(merchantResponseKey.privateKeyPkcs8Base64())
         );
         assertThat(merchantPlainResponse).isEqualTo(responseDataJson);
-        log.info("响应加密完成-code/message保持明文，data密文摘要={}，商户解密后响应={}",
+        log.info("响应加密完成-code/message保持明文，data密文摘要: {}，商户解密后响应: {}",
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedResponseData, keyFactory),
                 merchantPlainResponse);
     }

@@ -93,7 +93,7 @@ class MerchantOnboardingFlowTests {
         assertThat(materialDTO.getMerchantResponsePublicKeyX509Base64()).isNotBlank();
         assertThat(materialDTO.getMerchantResponsePrivateKeyPkcs8Base64()).isNotBlank();
 
-        log.info("开户成功-商户号：{}，商户必拿材料：merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+        log.info("开户成功-商户号：{}，商户必拿材料：merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
                 materialDTO.getMerchantId(),
                 keyMaterialFactory.fingerprint(materialDTO.getMerchantKey()),
                 keyMaterialFactory.fingerprint(materialDTO.getPlatformPublicKeyX509Base64()),
@@ -119,12 +119,12 @@ class MerchantOnboardingFlowTests {
         assertThat(serverMaterial.getPlatformPrivateKeyPkcs8Base64()).isNotBlank();
         assertThat(serverMaterial.getMerchantResponsePublicKeyX509Base64()).isEqualTo(provisionedMaterial.getMerchantResponsePublicKeyX509Base64());
 
-        log.info("商户侧查询成功-商户号：{}，merchantKey指纹={}，平台公钥指纹={}，响应公钥指纹={}",
+        log.info("商户侧查询成功-商户号：{}，merchantKey指纹: {}，平台公钥指纹: {}，响应公钥指纹: {}",
                 clientMaterial.getMerchantId(),
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
                 keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantResponsePublicKeyX509Base64()));
-        log.info("服务端查询成功-商户号：{}，merchantKey指纹={}，平台私钥存在={}，响应公钥指纹={}",
+        log.info("服务端查询成功-商户号：{}，merchantKey指纹: {}，平台私钥存在: {}，响应公钥指纹: {}",
                 serverMaterial.getMerchantId(),
                 serverMaterial.getMerchantKeyFingerprint(),
                 serverMaterial.getPlatformPrivateKeyPkcs8Base64() != null,

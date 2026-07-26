@@ -147,7 +147,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         MerchantLiveSecurityMaterial material = loadMerchantMaterial();
         PublicKey platformPublicKey = payloadCrypto.readPublicKey(material.platformPublicKeyX509Base64());
         String batchPrefix = "C20LIVE" + DateTimeFormatter.ofPattern("yyMMddHHmmss").format(LocalDateTime.now());
-        log.info("OpenAPI真实MPGS验收开始，context={}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI真实MPGS验收开始，context: {}", JsonUtils.toJsonString(Map.of(
                 "merchantId", MERCHANT_ID,
                 "batchPrefix", batchPrefix,
                 "baseUrl", OPENAPI_BASE_URL,
@@ -208,7 +208,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         assertThat(results.stream().filter(item -> "SUCCESS".equals(item.status())).count()).isGreaterThanOrEqualTo(8);
         assertThat(failedPayment.status()).isEqualTo("FAILED");
         assertThat(failedIncremental.status()).isEqualTo("FAILED");
-        log.info("OpenAPI真实MPGS验收完成，result={}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI真实MPGS验收完成，result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
                 "operations", results
         )));
@@ -255,7 +255,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
                     platformPublicKey));
             index++;
         }
-        log.info("OpenAPI官方测试卡MPGS验收完成，result={}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI官方测试卡MPGS验收完成，result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
                 "cards", cards,
                 "operations", results
@@ -302,7 +302,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
                     platformPublicKey));
             index++;
         }
-        log.info("OpenAPI多币种MPGS验收完成，result={}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI多币种MPGS验收完成，result: {}", JsonUtils.toJsonString(Map.of(
                 "batchPrefix", batchPrefix,
                 "currencies", currencies,
                 "operations", results
@@ -336,7 +336,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
                 MerchantOpenApiTestSupport.uniqueJwtId(identity.orderId())
         );
         String requestBody = MerchantOpenApiTestSupport.wrapEncryptedData(encryptedData);
-        log.info("OpenAPI真实请求开始，request={}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI真实请求开始，request: {}", JsonUtils.toJsonString(Map.of(
                 "path", path,
                 "merchantId", MERCHANT_ID,
                 "orderNo", identity.orderNo(),
@@ -357,7 +357,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
         );
         CommonResult<String> response = JsonUtils.parseObject(httpResponse.body(), new TypeReference<>() {
         });
-        log.info("OpenAPI真实请求返回，response={}", JsonUtils.toJsonString(Map.of(
+        log.info("OpenAPI真实请求返回，response: {}", JsonUtils.toJsonString(Map.of(
                 "path", path,
                 "orderNo", identity.orderNo(),
                 "orderId", identity.orderId(),
@@ -387,7 +387,7 @@ class MerchantOpenApiMpgsLiveFlowTests {
             Optional<LiveOperationResult> operation = findOperation(identity);
             if (operation.isPresent()) {
                 LiveOperationResult result = operation.get();
-                log.info("OpenAPI真实交易落库完成，operation={}", JsonUtils.toJsonString(result));
+                log.info("OpenAPI真实交易落库完成，operation: {}", JsonUtils.toJsonString(result));
                 return result;
             }
             Thread.sleep(QUERY_RETRY_INTERVAL_MILLIS);

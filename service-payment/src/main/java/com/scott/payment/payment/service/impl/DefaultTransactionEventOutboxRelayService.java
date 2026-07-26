@@ -92,7 +92,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
             if (!StringUtils.hasText(message.getTraceId())) {
                 message.setTraceId(TraceContext.getOrCreateTraceId());
             }
-            log.info("event=TRANSACTION_OUTBOX_PUBLISH_START eventNo={} messageKey={} topic={} tag={} transactionDateTime={}",
+            log.info("event=TRANSACTION_OUTBOX_PUBLISH_START eventNo: {} messageKey: {} topic: {} tag: {} transactionDateTime: {}",
                     eventDO.getEventNo(),
                     eventDO.getMessageKey(),
                     eventDO.getTopic(),
@@ -101,11 +101,11 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
             mqProducer.send(eventDO.getTopic(), eventDO.getTag(), message);
             boolean updated = eventOutboxService.markSent(eventDO, LocalDateTime.now());
             if (!updated) {
-                log.warn("event=TRANSACTION_OUTBOX_MARK_SENT_CAS_FAILED eventNo={} messageKey={}",
+                log.warn("event=TRANSACTION_OUTBOX_MARK_SENT_CAS_FAILED eventNo: {} messageKey: {}",
                         eventDO.getEventNo(),
                         eventDO.getMessageKey());
             } else {
-                log.info("event=TRANSACTION_OUTBOX_PUBLISH_END eventNo={} messageKey={} status=SENT",
+                log.info("event=TRANSACTION_OUTBOX_PUBLISH_END eventNo: {} messageKey: {} status=SENT",
                         eventDO.getEventNo(),
                         eventDO.getMessageKey());
             }
@@ -113,7 +113,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         } catch (Exception exception) {
             LocalDateTime nextRetryTime = now.plusMinutes(DEFAULT_RETRY_DELAY_MINUTES);
             eventOutboxService.markFailed(eventDO, nextRetryTime, safeFailReason(exception), now);
-            log.warn("event=TRANSACTION_OUTBOX_PUBLISH_FAILED eventNo={} messageKey={} nextRetryTime={} errorType={} message={}",
+            log.warn("event=TRANSACTION_OUTBOX_PUBLISH_FAILED eventNo: {} messageKey: {} nextRetryTime: {} errorType: {} message: {}",
                     eventDO.getEventNo(),
                     eventDO.getMessageKey(),
                     nextRetryTime,

@@ -189,7 +189,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         long startNanos = System.nanoTime();
         String table = physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
         List<TransactionMerchantNotificationDO> dueTasks = notificationMapper.selectDueForNotify(table, LocalDateTime.now(), limit);
-        log.info("event=PAYMENT_MERCHANT_NOTIFY_DUE_START table={} transactionDateTime={} limit={} taskCount={}",
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_DUE_START table: {} transactionDateTime: {} limit: {} taskCount: {}",
                 table,
                 transactionDateTime,
                 limit,
@@ -200,7 +200,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
                 successCount++;
             }
         }
-        log.info("event=PAYMENT_MERCHANT_NOTIFY_DUE_END table={} transactionDateTime={} limit={} taskCount={} successCount={} durationMs={}",
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_DUE_END table: {} transactionDateTime: {} limit: {} taskCount: {} successCount: {} durationMs: {}",
                 table,
                 transactionDateTime,
                 limit,
@@ -230,7 +230,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         TransactionMerchantNotificationDO task = notificationMapper.selectReadyByTransactionId(
                 table, transactionId, LocalDateTime.now());
         boolean notified = task != null && notifySingle(table, task);
-        log.info("event=PAYMENT_MERCHANT_NOTIFY_TRANSACTION_END table={} transactionId={} taskFound={} notified={} durationMs={}",
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_TRANSACTION_END table: {} transactionId: {} taskFound: {} notified: {} durationMs: {}",
                 table,
                 transactionId,
                 task != null,
@@ -242,7 +242,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     private boolean notifySingle(String notificationTable, TransactionMerchantNotificationDO task) {
         LocalDateTime beginTime = LocalDateTime.now();
         if (notificationMapper.markProcessing(notificationTable, task.getId(), task.getVersion(), beginTime) != 1) {
-            log.info("event=PAYMENT_MERCHANT_NOTIFY_SKIP notifyId={} transactionId={} operationId={} reason=processingLockMiss",
+            log.info("event=PAYMENT_MERCHANT_NOTIFY_SKIP notifyId: {} transactionId: {} operationId: {} reason=processingLockMiss",
                     task.getNotifyId(),
                     task.getTransactionId(),
                     task.getOperationId());
@@ -250,7 +250,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         }
         int processingVersion = task.getVersion() == null ? 1 : task.getVersion() + 1;
         int attemptNo = task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1;
-        log.info("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_START notifyId={} transactionId={} operationId={} merchantId={} merchantOrderNo={} attemptNo={} maxRetryCount={}",
+        log.info("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_START notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} attemptNo: {} maxRetryCount: {}",
                 task.getNotifyId(),
                 task.getTransactionId(),
                 task.getOperationId(),
@@ -263,7 +263,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         insertNotifyLog(task, attemptNo, result, beginTime, finishedTime);
         if (result.success()) {
             notificationMapper.markSuccess(notificationTable, task.getId(), processingVersion, finishedTime);
-            log.info("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId={} transactionId={} operationId={} attemptNo={} httpStatus={} success=true durationMs={}",
+            log.info("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId: {} transactionId: {} operationId: {} attemptNo: {} httpStatus: {} success=true durationMs: {}",
                     task.getNotifyId(),
                     task.getTransactionId(),
                     task.getOperationId(),
@@ -281,7 +281,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
                 exhausted ? null : nextRetryTime(finishedTime, attemptNo),
                 safeLength(result.errorMessage(), MAX_FAIL_REASON_LENGTH),
                 finishedTime);
-        log.warn("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId={} transactionId={} operationId={} attemptNo={} httpStatus={} success=false nextStatus={} exhausted={} durationMs={}",
+        log.warn("event=PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId: {} transactionId: {} operationId: {} attemptNo: {} httpStatus: {} success=false nextStatus: {} exhausted: {} durationMs: {}",
                 task.getNotifyId(),
                 task.getTransactionId(),
                 task.getOperationId(),
@@ -313,7 +313,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
                     SensitiveDataMaskUtils.maskJsonSafely(responseBody),
                     success ? null : "merchant callback http status " + response.getStatusCode().value());
         } catch (RestClientException exception) {
-            log.warn("event=PAYMENT_MERCHANT_NOTIFY_HTTP_FAILED notifyId={} transactionId={} operationId={} exceptionType={}",
+            log.warn("event=PAYMENT_MERCHANT_NOTIFY_HTTP_FAILED notifyId: {} transactionId: {} operationId: {} exceptionType: {}",
                     task.getNotifyId(),
                     task.getTransactionId(),
                     task.getOperationId(),

@@ -44,7 +44,18 @@ public class PaymentTimeoutCloseJob extends AbstractJobHandler {
      */
     @Override
     public JobExecuteResult execute(String parameter) {
-        log.info("Execute payment timeout close job, parameter: {}", parameter);
+        long startNanos = System.nanoTime();
+        log.info("event=JOB_HANDLER_SCAN_START handler=paymentTimeoutClose paramsSummary: {} scanRange: {} limit: {}",
+                parameter,
+                null,
+                0);
+        log.info("event=JOB_HANDLER_SCAN_END handler=paymentTimeoutClose scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+                0,
+                0,
+                0,
+                1,
+                "placeholderHandler",
+                (System.nanoTime() - startNanos) / 1_000_000L);
         return JobExecuteResult.success("payment timeout close job finished");
     }
 }

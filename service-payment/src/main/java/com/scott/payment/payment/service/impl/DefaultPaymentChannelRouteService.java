@@ -166,7 +166,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     @Override
     public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
         long startNanos = System.nanoTime();
-        log.info("event=PAYMENT_ROUTE_START merchantId={} merchantOrderNo={} transactionType={} paymentMethod={} currency={} payerCountry={}",
+        log.info("event=PAYMENT_ROUTE_START merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} payerCountry: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 commandDTO.getTransactionType(),
@@ -184,7 +184,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 .filter(candidate -> candidate != null)
                 .toList();
         if (candidates.isEmpty()) {
-            log.warn("event=PAYMENT_ROUTE_NO_CANDIDATE merchantId={} merchantOrderNo={} transactionType={} paymentMethod={} currency={} bindingCount={} durationMs={}",
+            log.warn("event=PAYMENT_ROUTE_NO_CANDIDATE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} bindingCount: {} durationMs: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     commandDTO.getTransactionType(),
@@ -195,7 +195,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户未配置可用渠道MID");
         }
         if (candidates.size() > 1) {
-            log.warn("event=PAYMENT_ROUTE_MULTI_CANDIDATE merchantId={} merchantOrderNo={} transactionType={} paymentMethod={} currency={} candidateCount={} durationMs={}",
+            log.warn("event=PAYMENT_ROUTE_MULTI_CANDIDATE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} candidateCount: {} durationMs: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     commandDTO.getTransactionType(),
@@ -220,7 +220,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setCapabilityId(candidate.capability().getId());
         resultDTO.setSupportedCurrencies(candidate.supportedCurrencies());
         resultDTO.setRouteReason("MERCHANT_MID_BINDING");
-        log.info("event=PAYMENT_ROUTE_END merchantId={} merchantOrderNo={} transactionType={} channelCode={} channelId={} midConfigId={} capabilityId={} requestedCurrency={} routedCurrency={} edcRequired={} routeReason={} durationMs={}",
+        log.info("event=PAYMENT_ROUTE_END merchantId: {} merchantOrderNo: {} transactionType: {} channelCode: {} channelId: {} midConfigId: {} capabilityId: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} routeReason: {} durationMs: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 commandDTO.getTransactionType(),
@@ -277,7 +277,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setReadTimeoutSeconds(channelInfo.getReadTimeoutSeconds());
         resultDTO.setMetadataValues(parseMetadata(midConfig.getMetadataValueJson()));
         resultDTO.setRouteReason("RESTORED_FROM_TRANSACTION_OPERATION");
-        log.info("event=PAYMENT_ROUTE_RESTORED channelCode={} channelId={} midConfigId={} resolvedChannelCode={} routeReason={} durationMs={}",
+        log.info("event=PAYMENT_ROUTE_RESTORED channelCode: {} channelId: {} midConfigId: {} resolvedChannelCode: {} routeReason: {} durationMs: {}",
                 channelCode,
                 channelId,
                 midConfigId,

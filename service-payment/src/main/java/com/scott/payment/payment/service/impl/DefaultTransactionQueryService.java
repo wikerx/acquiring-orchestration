@@ -1206,7 +1206,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         try {
             return JsonUtils.parseObject(responseBodyJsonMasked, ChannelPaymentResponse.class);
         } catch (RuntimeException exception) {
-            log.warn("解析渠道交互响应摘要失败，responseLength={}", responseBodyJsonMasked.length(), exception);
+            log.warn("解析渠道交互响应摘要失败，responseLength: {}", responseBodyJsonMasked.length(), exception);
             return null;
         }
     }
@@ -1363,7 +1363,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
             TransactionOperationDO operation = operationMapper.selectByTransactionIdPhysical(table, transactionId);
             return operation == null ? null : operation.getTransactionType();
         } catch (DataAccessException | ServiceException exception) {
-            log.warn("查询渠道交互日志交易类型失败，transactionId={}", transactionId, exception);
+            log.warn("查询渠道交互日志交易类型失败，transactionId: {}", transactionId, exception);
             return null;
         }
     }

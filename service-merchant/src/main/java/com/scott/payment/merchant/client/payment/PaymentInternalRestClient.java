@@ -156,7 +156,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException(HttpMethod.POST, uri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-payment post call failed, targetUri={}", uri, exception);
+            log.warn("service-payment post call failed, targetUri: {}", uri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment post call failed");
         }
     }
@@ -221,7 +221,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ApiException translateHttpException(HttpMethod method, URI uri, HttpStatusCodeException exception) {
-        log.warn("service-payment {} call returned non-success status, targetUri={}, status={}",
+        log.warn("service-payment {} call returned non-success status, targetUri: {}, status: {}",
                 method.name(),
                 uri,
                 exception.getStatusCode().value(),

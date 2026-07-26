@@ -142,7 +142,7 @@ class MerchantOpenApiEndToEndTests {
         log.info("商户完成HTTP请求体封装-body摘要：{}",
                 MerchantOpenApiTestSupport.safeSecretSummary(httpRequestBody, keyMaterialFactory));
 
-        log.info("商户准备调用OpenAPI-密钥摘要：merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+        log.info("商户准备调用OpenAPI-密钥摘要：merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
                 keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(onboardingMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));
@@ -162,7 +162,7 @@ class MerchantOpenApiEndToEndTests {
                 .andReturn();
 
         PaymentCreateVO decryptedResponse = decryptMerchantResponseData(onboardingMaterial, mvcResult.getResponse().getContentAsString());
-        log.info("decryptedResponse={}", decryptedResponse);
+        log.info("decryptedResponse: {}", decryptedResponse);
 
         assertThat(decryptedResponse.getOrderInfo().getOrderNo()).isEqualTo(SUCCESS_TRADE_NO);
         assertThat(decryptedResponse.getBillingInfo().getTransactionCurrency()).isEqualTo("USD");
@@ -270,7 +270,7 @@ class MerchantOpenApiEndToEndTests {
                 encryptedResponseData,
                 MerchantOpenApiTestSupport.resolveMerchantResponsePrivateKey(merchantMaterial, payloadCrypto)
         );
-        log.info("商户响应解密成功-响应码={}，响应消息={}，响应明文={}",
+        log.info("商户响应解密成功-响应码: {}，响应消息: {}，响应明文: {}",
                 responseMap.get("code"),
                 responseMap.get("message"),
                 plainResponseData);

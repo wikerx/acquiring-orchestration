@@ -6,6 +6,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
+import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import com.scott.payment.component.web.operation.service.OperationLogPublisher;
 import jakarta.servlet.http.HttpServletRequest;
@@ -182,9 +183,52 @@ public class OperationLogAspect {
             record.setStatus(failure == null ? SUCCESS_STATUS : FAILED_STATUS);
             fillFailure(record, failure);
             publisher.publish(record);
+            logStructuredOperation(record);
         } catch (RuntimeException exception) {
             log.warn("管理类系统操作日志采集失败，方法：{}，原因：{}", methodName(point), exception.getMessage());
         }
+    }
+
+    /**
+     * 记录后台和商户端操作审计摘要。
+     * <p>
+     * 写操作记录操作类型、操作者、路径、状态和耗时；查询操作只记录已脱敏的查询条件摘要，
+     * 不输出完整查询结果。日志不修改审计记录，也不影响 MQ 投递结果。
+     * </p>
+     * @param record 操作日志采集记录，包含操作者、模块、方法、路径、请求摘要和执行状态
+     */
+    private void logStructuredOperation(OperationLogRecord record) {
+        if (record == null) {
+            return;
+        }
+        String event = isQuery(record.getBusinessType()) ? "ADMIN_QUERY_ACCESS" : "ADMIN_WRITE_OPERATION";
+        log.info("event: {} module: {} operation: {} businessType: {} method: {} path: {} requestMethod: {} merchantId: {} operatorId: {} operatorType: {} querySummary: {} resultRecorded: {} status: {} durationMs: {}",
+                event,
+                record.getModuleName(),
+                record.getOperationName(),
+                record.getBusinessType(),
+                record.getMethodName(),
+                record.getOperUrl(),
+                record.getRequestMethod(),
+                record.getMerchantId(),
+                record.getOperatorId(),
+                record.getOperatorType(),
+                isQuery(record.getBusinessType()) ? record.getRequestParam() : null,
+                record.getResponseResult() != null,
+                record.getStatus(),
+                record.getCostTime());
+    }
+
+    /**
+     * 判断操作类型是否为查询。
+     * <p>
+     * 查询操作只允许写入条件摘要、分页信息和耗时，避免在业务日志中输出完整列表数据。
+     * </p>
+     * @param businessType 操作类型编码，来源于 OperationLog 注解或业务枚举
+     * @return true 表示查询操作；false 表示新增、编辑、删除、审核、启停或配置变更等写操作
+     */
+    private boolean isQuery(Integer businessType) {
+        return businessType != null && businessType == OperationTypeConstants.QUERY;
     }
 
     /**
