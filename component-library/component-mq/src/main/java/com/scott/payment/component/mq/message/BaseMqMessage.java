@@ -37,4 +37,13 @@ public class BaseMqMessage implements Serializable {
      * 链路追踪号，用于把生产者请求、RocketMQ 投递和消费者处理串联到同一条日志链路。
      */
     private String traceId;
+
+    /**
+     * MQ 消费重试次数。
+     * <p>
+     * 单位：次；格式：从 0 开始递增的整数；允许为空，生产者投递前会补齐为 0；非敏感字段。
+     * 数据来源：首次生产消息时由平台生成，失败重投或补偿消息必须沿用原 traceId 并递增该字段。
+     * </p>
+     */
+    private Integer retryCount;
 }

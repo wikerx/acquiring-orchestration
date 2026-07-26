@@ -1,5 +1,6 @@
 package com.scott.payment.job.config;
 
+import com.scott.payment.job.support.TraceContextTaskDecorator;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -43,6 +44,7 @@ public class JobSchedulerConfig {
         executor.setQueueCapacity(200);
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
+        executor.setTaskDecorator(new TraceContextTaskDecorator());
         executor.initialize();
         return executor;
     }
@@ -59,6 +61,7 @@ public class JobSchedulerConfig {
         scheduler.setThreadNamePrefix("job-delay-");
         scheduler.setWaitForTasksToCompleteOnShutdown(true);
         scheduler.setAwaitTerminationSeconds(30);
+        scheduler.setTaskDecorator(new TraceContextTaskDecorator());
         scheduler.initialize();
         return scheduler;
     }

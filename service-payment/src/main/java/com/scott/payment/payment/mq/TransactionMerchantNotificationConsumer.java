@@ -85,16 +85,18 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
-            log.info("event=PAYMENT_EVENT_CONSUME_START messageId={} transactionId={} operationId={} eventType={} notifyId={}",
+            log.info("event=PAYMENT_EVENT_CONSUME_START messageId={} retryCount={} transactionId={} operationId={} eventType={} notifyId={}",
                     message.getMessageId(),
+                    message.getRetryCount(),
                     message.getTransactionId(),
                     message.getOperationId(),
                     message.getEventType(),
                     message.getNotifyId());
             boolean notified = notificationService.notifyTransaction(message.getTransactionDateTime(), message.getTransactionId());
             int successCount = notified ? 1 : notificationService.notifyDue(message.getTransactionDateTime(), DEFAULT_BATCH_LIMIT);
-            log.info("event=PAYMENT_EVENT_CONSUME_END messageId={} transactionId={} eventType={} notifyId={} successCount={}",
+            log.info("event=PAYMENT_EVENT_CONSUME_END messageId={} retryCount={} transactionId={} eventType={} notifyId={} successCount={}",
                     message.getMessageId(),
+                    message.getRetryCount(),
                     message.getTransactionId(),
                     message.getEventType(),
                     message.getNotifyId(),

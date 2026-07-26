@@ -100,15 +100,17 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
         try {
             String idempotentKey = "operation-log:consume:admin:" + message.getIdempotentKey();
             if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
-                log.info("event=ADMIN_OPERATION_LOG_DUPLICATE messageId={} idempotentKey={}",
+                log.info("event=ADMIN_OPERATION_LOG_DUPLICATE messageId={} retryCount={} idempotentKey={}",
                         message.getMessageId(),
+                        message.getRetryCount(),
                         message.getIdempotentKey());
                 return;
             }
             SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
             adminOperLogService.recordOperLog(request);
-            log.info("event=ADMIN_OPERATION_LOG_CONSUMED messageId={} operationModule={} operationType={}",
+            log.info("event=ADMIN_OPERATION_LOG_CONSUMED messageId={} retryCount={} operationModule={} operationType={}",
                     message.getMessageId(),
+                    message.getRetryCount(),
                     message.getOperationModule(),
                     message.getOperationType());
         } finally {

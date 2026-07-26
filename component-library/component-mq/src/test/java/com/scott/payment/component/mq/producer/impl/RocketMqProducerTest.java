@@ -6,8 +6,11 @@ import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.messaging.Message;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -40,5 +43,28 @@ class RocketMqProducerTest {
         assertThat(message.getMessageId()).isNotBlank();
         assertThat(message.getCreatedAt()).isNotNull();
         assertThat(message.getTraceId()).isEqualTo("trace-mq-001");
+        assertThat(message.getRetryCount()).isZero();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldPropagateTraceAndRetryCountToRocketMqHeaders() {
+        ObjectProvider<RocketMQTemplate> provider = mock(ObjectProvider.class);
+        RocketMQTemplate rocketMQTemplate = mock(RocketMQTemplate.class);
+        when(provider.getIfAvailable()).thenReturn(rocketMQTemplate);
+        RocketMqProducer producer = new RocketMqProducer(provider);
+        BaseMqMessage message = new BaseMqMessage();
+        message.setMessageId("message-001");
+        message.setTraceId("trace-from-body");
+        message.setRetryCount(2);
+
+        producer.send("payment-event", "created", message);
+
+        org.mockito.ArgumentCaptor<Message<String>> captor = org.mockito.ArgumentCaptor.forClass(Message.class);
+        verify(rocketMQTemplate).syncSend(eq("payment-event:created"), captor.capture());
+        Message<String> rocketMessage = captor.getValue();
+        assertThat(rocketMessage.getHeaders().get(TraceContext.TRACE_ID_HEADER)).isEqualTo("trace-from-body");
+        assertThat(rocketMessage.getHeaders().get("retryCount")).isEqualTo(2);
+        assertThat(rocketMessage.getHeaders().get("messageId")).isEqualTo("message-001");
     }
 }

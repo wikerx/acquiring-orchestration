@@ -35,6 +35,16 @@ public class RocketMqProducer implements MqProducer {
     private final ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
 
     /**
+     * MQ 消息头中的重试次数字段，生产者补齐后供消费者日志和排障使用。
+     */
+    private static final String RETRY_COUNT_HEADER = "retryCount";
+
+    /**
+     * MQ 消息头中的消息唯一标识字段，与消息体 messageId 保持一致。
+     */
+    private static final String MESSAGE_ID_HEADER = "messageId";
+
+    /**
      * 创建 RocketMQ 消息发送服务。
      *
      * @param rocketMQTemplateProvider RocketMQ Spring 模板提供器
@@ -66,7 +76,11 @@ public class RocketMqProducer implements MqProducer {
             return;
         }
         String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;
-        rocketMQTemplate.syncSend(destination, MessageBuilder.withPayload(JsonUtils.toJsonString(message)).build());
+        rocketMQTemplate.syncSend(destination, MessageBuilder.withPayload(JsonUtils.toJsonString(message))
+                .setHeader(TraceContext.TRACE_ID_HEADER, message.getTraceId())
+                .setHeader(RETRY_COUNT_HEADER, message.getRetryCount())
+                .setHeader(MESSAGE_ID_HEADER, message.getMessageId())
+                .build());
     }
 
     /**
@@ -83,6 +97,9 @@ public class RocketMqProducer implements MqProducer {
         }
         if (!StringUtils.hasText(message.getTraceId())) {
             message.setTraceId(TraceContext.getOrCreateTraceId());
+        }
+        if (message.getRetryCount() == null || message.getRetryCount() < 0) {
+            message.setRetryCount(0);
         }
     }
 }

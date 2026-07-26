@@ -2,15 +2,17 @@ package com.scott.payment.gateway.filter;
 
 import com.scott.payment.component.core.trace.TraceContext;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.cloud.gateway.route.Route;
 import org.springframework.core.Ordered;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+
+import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
 
 /**
  * @author : scott
@@ -38,7 +40,7 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         long startNanos = System.nanoTime();
         String traceId = TraceContext.resolveOrCreate(exchange.getRequest().getHeaders().getFirst(TraceContext.TRACE_ID_HEADER));
-        MDC.put(TraceContext.MDC_TRACE_ID_KEY, traceId);
+        TraceContext.setTraceId(traceId);
         ServerHttpRequest request = exchange.getRequest().mutate()
                 .headers(headers -> headers.set(TraceContext.TRACE_ID_HEADER, traceId))
                 .build();
@@ -50,9 +52,19 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
                 request.getRemoteAddress() == null ? null : request.getRemoteAddress().getAddress().getHostAddress(),
                 safeUserAgent(request.getHeaders().getFirst("User-Agent")));
         return chain.filter(exchange.mutate().request(request).build())
-                .doOnSuccess(ignored -> logFinish(exchange, startNanos, null))
-                .doOnError(error -> logFinish(exchange, startNanos, error))
-                .doFinally(signalType -> MDC.remove(TraceContext.MDC_TRACE_ID_KEY));
+                .doOnTerminate(() -> {
+                    TraceContext.setTraceId(traceId);
+                    logRouteComplete(exchange, startNanos);
+                })
+                .doOnSuccess(ignored -> {
+                    TraceContext.setTraceId(traceId);
+                    logFinish(exchange, startNanos, null);
+                })
+                .doOnError(error -> {
+                    TraceContext.setTraceId(traceId);
+                    logFinish(exchange, startNanos, error);
+                })
+                .doFinally(signalType -> TraceContext.clear());
     }
 
     @Override
@@ -62,7 +74,7 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
 
     private void logFinish(ServerWebExchange exchange, long startNanos, Throwable error) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        String routeId = exchange.getAttributeOrDefault("org.springframework.cloud.gateway.support.ServerWebExchangeUtils.gatewayRoute", UNKNOWN_ROUTE).toString();
+        String routeId = routeId(exchange);
         Integer statusCode = exchange.getResponse().getStatusCode() == null
                 ? null
                 : exchange.getResponse().getStatusCode().value();
@@ -77,6 +89,31 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
                 error.getClass().getSimpleName(),
                 error.getMessage(),
                 error);
+    }
+
+    /**
+     * 记录网关路由链执行完成事件。
+     *
+     * @param exchange   WebFlux 请求交换对象
+     * @param startNanos 请求进入网关的纳秒时间
+     */
+    private void logRouteComplete(ServerWebExchange exchange, long startNanos) {
+        long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
+        log.info("event=GATEWAY_ROUTE_COMPLETE route={} path={} durationMs={}",
+                routeId(exchange),
+                exchange.getRequest().getURI().getPath(),
+                durationMs);
+    }
+
+    /**
+     * 提取 Gateway 路由标识，未匹配路由时返回 unknown。
+     *
+     * @param exchange WebFlux 请求交换对象
+     * @return 路由标识
+     */
+    private String routeId(ServerWebExchange exchange) {
+        Route route = exchange.getAttribute(GATEWAY_ROUTE_ATTR);
+        return route == null ? UNKNOWN_ROUTE : route.getId();
     }
 
     /**

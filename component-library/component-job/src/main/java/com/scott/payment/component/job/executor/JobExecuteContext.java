@@ -86,6 +86,24 @@ public class JobExecuteContext {
     private Integer maxRetryCount;
 
     /**
+     * 当前执行分片序号。
+     * <p>
+     * 单位：片；格式：从 0 开始的整数；允许为空，调度中心默认补齐为 0；非敏感字段。
+     * 与 shardTotal 配合标识同一次任务执行中的分片位置。
+     * </p>
+     */
+    private Integer shardIndex;
+
+    /**
+     * 当前执行分片总数。
+     * <p>
+     * 单位：片；格式：大于 0 的整数；允许为空，调度中心默认补齐为 1；非敏感字段。
+     * 与 shardIndex 配合用于日志定位同一次任务执行的分片范围。
+     * </p>
+     */
+    private Integer shardTotal;
+
+    /**
      * 手动触发的操作人 ID。
      */
     private String operatorId;
