@@ -298,20 +298,45 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     @Override
     public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
+        long startNanos = System.nanoTime();
+        String targetUrl = paymentClientProperties.getMerchantApiResponseLogUrl();
+        URI uri = URI.create(targetUrl);
+        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} targetService: {} path: {} requestSummary: {}",
+                requestDTO == null ? null : requestDTO.getTransactionId(),
+                requestDTO == null ? null : requestDTO.getRequestId(),
+                uri.getHost(),
+                uri.getPath(),
+                requestSummary(requestDTO));
         try {
-            String targetUrl = paymentClientProperties.getMerchantApiResponseLogUrl();
-            String responseBody = chooseRestTemplate(targetUrl).postForObject(
+            ResponseEntity<String> responseEntity = chooseRestTemplate(targetUrl).postForEntity(
                     targetUrl,
                     buildSignedEntity(URI.create(targetUrl), requestDTO),
                     String.class
             );
+            String responseBody = responseEntity.getBody();
             CommonResult<Boolean> result = JsonUtils.parseObject(
                     responseBody,
                     new TypeReference<CommonResult<Boolean>>() {
                     }
             );
-            return unwrapBooleanResult(result);
+            boolean updated = unwrapBooleanResult(result);
+            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} httpStatus: {} platformCode: {} updated: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+                    requestDTO == null ? null : requestDTO.getTransactionId(),
+                    requestDTO == null ? null : requestDTO.getRequestId(),
+                    responseEntity.getStatusCode().value(),
+                    result == null ? null : result.getCode(),
+                    updated,
+                    responseSummary(result),
+                    responseBody == null ? 0 : responseBody.length(),
+                    digest16(responseBody),
+                    elapsedMillis(startNanos));
+            return updated;
         } catch (RestClientException exception) {
+            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} durationMs: {} exceptionType: {}",
+                    requestDTO == null ? null : requestDTO.getTransactionId(),
+                    requestDTO == null ? null : requestDTO.getRequestId(),
+                    elapsedMillis(startNanos),
+                    exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment merchant api log update failed");
         }
     }

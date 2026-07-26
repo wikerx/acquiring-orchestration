@@ -1187,14 +1187,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
+        String physicalTable = resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, transactionDateTime);
         int updated = transactionMerchantApiInteractionLogMapper.updateResponseCipherPhysical(
-                resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, transactionDateTime),
+                physicalTable,
                 commandDTO.getTransactionId(),
                 commandDTO.getRequestId(),
                 safeLength(commandDTO.getResponsePlainJsonMasked(), 16_000),
                 commandDTO.getResponseCipherDigest(),
                 commandDTO.getResponseCipherMasked(),
                 commandDTO.getResponseTime() == null ? LocalDateTime.now() : commandDTO.getResponseTime());
+        log.info("event: PAYMENT_MERCHANT_API_LOG_RESPONSE_UPDATED stage=RESPONSE_LOG transactionId: {} requestId: {} logicalTable: {} physicalTable: {} affectedRows: {} responseCipherDigest: {} responseCipherMasked: {} responsePlainLength: {}",
+                commandDTO.getTransactionId(),
+                commandDTO.getRequestId(),
+                TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE,
+                physicalTable,
+                updated,
+                commandDTO.getResponseCipherDigest(),
+                commandDTO.getResponseCipherMasked(),
+                commandDTO.getResponsePlainJsonMasked() == null ? 0 : commandDTO.getResponsePlainJsonMasked().length());
         return updated > 0;
     }
 
@@ -3088,8 +3098,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setDurationMillis(resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
         fillTransactionTime(logDO, commandDTO.getTransactionDateTime());
         logDO.setCreateTime(now);
-        transactionMerchantApiInteractionLogMapper.insertPhysical(
-                resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime()), logDO);
+        String physicalTable = resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime());
+        int affectedRows = transactionMerchantApiInteractionLogMapper.insertPhysical(physicalTable, logDO);
+        log.info("event: PAYMENT_MERCHANT_API_LOG_SAVED stage=REQUEST_LOG apiLogId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} requestId: {} apiOperation: {} logicalTable: {} physicalTable: {} affectedRows: {} requestCipherDigest: {} requestCipherMasked: {} requestPlainLength: {} responsePlainLength: {} durationMs: {}",
+                logDO.getApiLogId(),
+                logDO.getMerchantId(),
+                logDO.getMerchantOrderNo(),
+                logDO.getTransactionId(),
+                logDO.getOperationId(),
+                logDO.getRequestId(),
+                logDO.getApiOperation(),
+                TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE,
+                physicalTable,
+                affectedRows,
+                logDO.getRequestCipherDigest(),
+                logDO.getRequestCipherMasked(),
+                logDO.getRequestPlainJsonMasked() == null ? 0 : logDO.getRequestPlainJsonMasked().length(),
+                logDO.getResponsePlainJsonMasked() == null ? 0 : logDO.getResponsePlainJsonMasked().length(),
+                logDO.getDurationMillis());
     }
 
     /**

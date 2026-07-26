@@ -183,25 +183,36 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 .map(binding -> toCandidate(binding, commandDTO, now))
                 .filter(candidate -> candidate != null)
                 .toList();
+        log.info("event: PAYMENT_ROUTE_CANDIDATES stage=ROUTE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} bindingCount: {} candidateCount: {} candidates: {}",
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                commandDTO.getTransactionType(),
+                resolvePaymentMethod(commandDTO),
+                commandDTO.getCurrency(),
+                bindings.size(),
+                candidates.size(),
+                candidateSummary(candidates));
         if (candidates.isEmpty()) {
-            log.warn("event: PAYMENT_ROUTE_NO_CANDIDATE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} bindingCount: {} durationMs: {}",
+            log.warn("event: PAYMENT_ROUTE_NO_CANDIDATE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} bindingCount: {} candidateCount: {} durationMs: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     commandDTO.getTransactionType(),
                     resolvePaymentMethod(commandDTO),
                     commandDTO.getCurrency(),
                     bindings.size(),
+                    candidates.size(),
                     elapsedMillis(startNanos));
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户未配置可用渠道MID");
         }
         if (candidates.size() > 1) {
-            log.warn("event: PAYMENT_ROUTE_MULTI_CANDIDATE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} candidateCount: {} durationMs: {}",
+            log.warn("event: PAYMENT_ROUTE_MULTI_CANDIDATE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} candidateCount: {} candidates: {} durationMs: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     commandDTO.getTransactionType(),
                     resolvePaymentMethod(commandDTO),
                     commandDTO.getCurrency(),
                     candidates.size(),
+                    candidateSummary(candidates),
                     elapsedMillis(startNanos));
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户渠道MID配置命中多条，请先收敛绑定关系");
         }
@@ -220,17 +231,22 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setCapabilityId(candidate.capability().getId());
         resultDTO.setSupportedCurrencies(candidate.supportedCurrencies());
         resultDTO.setRouteReason("MERCHANT_MID_BINDING");
-        log.info("event: PAYMENT_ROUTE_END merchantId: {} merchantOrderNo: {} transactionType: {} channelCode: {} channelId: {} midConfigId: {} capabilityId: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} routeReason: {} durationMs: {}",
+        log.info("event: PAYMENT_ROUTE_END merchantId: {} merchantOrderNo: {} transactionType: {} channelCode: {} channelId: {} midConfigId: {} midNo: {} capabilityId: {} supportedCurrencies: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routeReason: {} durationMs: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 commandDTO.getTransactionType(),
                 resultDTO.getChannelCode(),
                 resultDTO.getChannelId(),
                 resultDTO.getMidConfigId(),
+                maskMidNo(resultDTO.getMidNo()),
                 resultDTO.getCapabilityId(),
+                resultDTO.getSupportedCurrencies(),
                 resultDTO.getRequestedCurrency(),
                 resultDTO.getRoutedCurrency(),
                 resultDTO.isEdcRequired(),
+                endpointHost(resultDTO.getRequestUrl()),
+                resultDTO.getConnectTimeoutSeconds(),
+                resultDTO.getReadTimeoutSeconds(),
                 resultDTO.getRouteReason(),
                 elapsedMillis(startNanos));
         return resultDTO;
@@ -343,6 +359,81 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return null;
     }
 
+    /**
+     * 生成候选渠道摘要。
+     * <p>
+     * 摘要用于排查商户 MID 绑定、渠道能力和币种匹配结果；MID 只输出掩码，不输出完整商户渠道号。
+     * </p>
+     * @param candidates 候选渠道列表
+     * @return 候选摘要 JSON
+     */
+    private String candidateSummary(List<RouteCandidate> candidates) {
+        List<Map<String, Object>> rows = candidates.stream()
+                .map(candidate -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("channelCode", candidate.channelInfo().getChannelCode());
+                    row.put("channelId", candidate.channelInfo().getId());
+                    row.put("midConfigId", candidate.midConfig().getId());
+                    row.put("midNo", maskMidNo(candidate.midConfig().getChannelMid()));
+                    row.put("capabilityId", candidate.capability().getId());
+                    row.put("capabilityTransactionType", candidate.capability().getTransactionType());
+                    row.put("supportedCurrencies", candidate.supportedCurrencies());
+                    row.put("routedCurrency", candidate.routedCurrency());
+                    row.put("edcRequired", candidate.edcRequired());
+                    row.put("endpointHost", endpointHost(candidate.channelInfo().getDefaultRequestUrl()));
+                    row.put("connectTimeoutSeconds", candidate.channelInfo().getConnectTimeoutSeconds());
+                    row.put("readTimeoutSeconds", candidate.channelInfo().getReadTimeoutSeconds());
+                    return row;
+                })
+                .toList();
+        return JsonUtils.toJsonString(rows);
+    }
+
+    /**
+     * 脱敏渠道 MID。
+     *
+     * @param midNo 渠道 MID 原文
+     * @return 掩码 MID
+     */
+    private String maskMidNo(String midNo) {
+        if (!StringUtils.hasText(midNo)) {
+            return null;
+        }
+        String normalized = midNo.trim();
+        if (normalized.length() <= 6) {
+            return "***";
+        }
+        return normalized.substring(0, 3) + "***" + normalized.substring(normalized.length() - 3);
+    }
+
+    /**
+     * 提取渠道请求地址主机名。
+     *
+     * @param url 渠道请求地址
+     * @return 主机名或原始地址摘要
+     */
+    private String endpointHost(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        try {
+            return java.net.URI.create(url).getHost();
+        } catch (RuntimeException exception) {
+            return "invalid_url";
+        }
+    }
+
+    /**
+     * 判断渠道 MID 配置在当前时间是否可用于交易路由。
+     * <p>
+     * 生效时间为空表示立即可用，失效时间为空表示长期有效；该判断只负责时间窗口，不替代启停状态、
+     * 币种、支付方式和交易类型能力校验。
+     * </p>
+     * @param now 当前路由评估时间
+     * @param effectiveTime 配置生效时间
+     * @param expireTime 配置失效时间
+     * @return true 表示当前时间落在配置可用窗口内
+     */
     private boolean isActive(LocalDateTime now, LocalDateTime effectiveTime, LocalDateTime expireTime) {
         return (effectiveTime == null || !now.isBefore(effectiveTime))
                 && (expireTime == null || now.isBefore(expireTime));

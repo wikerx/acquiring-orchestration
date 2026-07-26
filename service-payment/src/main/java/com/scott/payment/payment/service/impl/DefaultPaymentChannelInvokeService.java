@@ -5,6 +5,8 @@ import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
 import com.scott.payment.channel.payment.exception.ChannelException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
+import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
@@ -15,7 +17,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.net.URI;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -112,18 +116,28 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         resultDTO.setHttpMethod(resolveHttpMethod(commandDTO));
         resultDTO.setRequestScene(resolveRequestScene(commandDTO));
         resultDTO.setRequestUrlMasked(resolveRequestUrl(routeResult, channelRequest));
-        log.info("event: PAYMENT_CHANNEL_REQUEST_START merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} httpMethod: {} requestScene: {}",
+        log.info("event: PAYMENT_CHANNEL_REQUEST_START merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} midNo: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} httpMethod: {} requestScene: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} requestSummary: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 transactionId,
                 operationId,
                 commandDTO.getTransactionType(),
+                commandDTO.getPaymentMethod(),
+                channelRequest.getCurrency(),
+                channelRequest.getAmount(),
                 channelRequest.getChannelCode(),
+                routeResult == null ? null : routeResult.getMidConfigId(),
+                routeResult == null ? null : maskShort(routeResult.getMidNo()),
                 resultDTO.getRequestId(),
                 channelRequest.getChannelOrderNo(),
                 channelRequest.getChannelTransactionId(),
+                endpointHost(resultDTO.getRequestUrlMasked()),
+                endpointPath(resultDTO.getRequestUrlMasked()),
                 resultDTO.getHttpMethod(),
-                resultDTO.getRequestScene());
+                resultDTO.getRequestScene(),
+                routeResult == null ? null : routeResult.getConnectTimeoutSeconds(),
+                routeResult == null ? null : routeResult.getReadTimeoutSeconds(),
+                channelRequestSummary(channelRequest));
         try {
             ChannelPaymentResponse channelResponse = paymentChannelExecutor.execute(channelRequest);
             LocalDateTime responseTime = LocalDateTime.now();
@@ -135,12 +149,15 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setRequestStatus("SUCCESS");
             resultDTO.setResponseTime(responseTime);
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
-            log.info("event: PAYMENT_CHANNEL_REQUEST_END merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} channelResponseCode: {} rawChannelStatus: {} channelTradeStatus: {} httpStatus: {} requestStatus: {} durationMs: {}",
+            log.info("event: PAYMENT_CHANNEL_REQUEST_END merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} channelResponseCode: {} rawChannelStatus: {} channelTradeStatus: {} acquirerCode: {} httpStatus: {} requestStatus: {} responseSummary: {} durationMs: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionId,
                     operationId,
                     commandDTO.getTransactionType(),
+                    commandDTO.getPaymentMethod(),
+                    channelRequest.getCurrency(),
+                    channelRequest.getAmount(),
                     channelRequest.getChannelCode(),
                     resultDTO.getRequestId(),
                     channelRequest.getChannelOrderNo(),
@@ -148,8 +165,10 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                     channelResponse == null ? null : channelResponse.getChannelResponseCode(),
                     channelResponse == null ? null : channelResponse.getRawChannelStatus(),
                     channelResponse == null ? null : channelResponse.getChannelTradeStatus(),
+                    channelResponse == null ? null : channelResponse.getAcquirerReferenceNo(),
                     channelResponse == null ? null : channelResponse.getHttpStatus(),
                     resultDTO.getRequestStatus(),
+                    channelResponseSummary(channelResponse),
                     resultDTO.getDurationMillis());
             return resultDTO;
         } catch (ChannelException exception) {
@@ -159,16 +178,21 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
             resultDTO.setExceptionType(exception.getClass().getSimpleName());
             resultDTO.setExceptionMessage(exception.getMessage());
-            log.warn("event: PAYMENT_CHANNEL_REQUEST_FAILED merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} requestStatus: {} exceptionType: {} durationMs: {}",
+            log.warn("event: PAYMENT_CHANNEL_REQUEST_FAILED merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} requestStatus: {} exceptionType: {} durationMs: {}",
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionId,
                     operationId,
                     commandDTO.getTransactionType(),
+                    commandDTO.getPaymentMethod(),
+                    channelRequest.getCurrency(),
+                    channelRequest.getAmount(),
                     channelRequest.getChannelCode(),
                     resultDTO.getRequestId(),
                     channelRequest.getChannelOrderNo(),
                     channelRequest.getChannelTransactionId(),
+                    endpointHost(resultDTO.getRequestUrlMasked()),
+                    endpointPath(resultDTO.getRequestUrlMasked()),
                     resultDTO.getRequestStatus(),
                     resultDTO.getExceptionType(),
                     resultDTO.getDurationMillis());
@@ -317,6 +341,159 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         }
         String baseUrl = routeResult.getRequestUrl().endsWith("/") ? routeResult.getRequestUrl() : routeResult.getRequestUrl() + "/";
         return baseUrl + "order/" + request.getChannelOrderNo() + "/transaction/" + request.getChannelTransactionId();
+    }
+
+    /**
+     * 生成渠道请求脱敏摘要。
+     * <p>
+     * 摘要只输出路由、金额币种、卡号掩码、3DS 存在性和受控扩展字段；
+     * 不输出完整 PAN、CVV、CAVV、callbackUrl query、渠道 MID 元数据或认证密钥。
+     * </p>
+     * @param request 渠道统一请求
+     * @return 可写入业务日志的渠道请求摘要 JSON
+     */
+    private String channelRequestSummary(ChannelPaymentRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("channelCode", request.getChannelCode());
+        summary.put("transactionId", request.getTransactionId());
+        summary.put("operationId", request.getOperationId());
+        summary.put("sourceTransactionId", request.getSourceTransactionId());
+        summary.put("merchantOrderNo", request.getMerchantOrderNo());
+        summary.put("merchantOrderId", request.getMerchantOrderId());
+        summary.put("transactionType", request.getTransactionType());
+        summary.put("paymentMethod", request.getPaymentMethod());
+        summary.put("currency", request.getCurrency());
+        summary.put("amount", request.getAmount());
+        summary.put("cardNoMasked", SensitiveDataMaskUtils.maskPan(request.getCardNo()));
+        summary.put("expirationMonth", request.getExpirationMonth());
+        summary.put("expirationYear", request.getExpirationYear());
+        summary.put("cardBrand", request.getCardBrand());
+        summary.put("billingCountry", request.getBillingInfo() == null ? null : request.getBillingInfo().getCountry());
+        summary.put("billingEmail", request.getBillingInfo() == null ? null : SensitiveDataMaskUtils.maskEmail(request.getBillingInfo().getEmail()));
+        summary.put("billingPhone", request.getBillingInfo() == null ? null : SensitiveDataMaskUtils.maskMobile(request.getBillingInfo().getPhone()));
+        summary.put("threeDsEci", request.getThreeDsInfo() == null ? null : request.getThreeDsInfo().getEci());
+        summary.put("threeDsCavvPresent", request.getThreeDsInfo() != null && StringUtils.hasText(request.getThreeDsInfo().getCavv()));
+        summary.put("payerIp", extension(request, "payerIp"));
+        summary.put("sourceUrl", maskUrl(extension(request, "sourceUrl")));
+        summary.put("callbackUrl", maskUrl(extension(request, "callbackUrl")));
+        summary.put("requestUrlHost", endpointHost(extension(request, "requestUrl")));
+        summary.put("requestUrlPath", endpointPath(extension(request, "requestUrl")));
+        summary.put("midConfigId", extension(request, "midConfigId"));
+        summary.put("extensionKeys", request.getExtension().keySet().stream().sorted().toList());
+        return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(summary));
+    }
+
+    /**
+     * 生成渠道响应脱敏摘要。
+     * <p>
+     * 摘要覆盖渠道状态、业务码、授权码、RRN、收单参考号和渠道返回的支付工具摘要；
+     * 原始响应体只使用渠道适配层提供的脱敏版本。
+     * </p>
+     * @param response 渠道统一响应
+     * @return 可写入业务日志的渠道响应摘要 JSON
+     */
+    private String channelResponseSummary(ChannelPaymentResponse response) {
+        if (response == null) {
+            return null;
+        }
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("channelCode", response.getChannelCode());
+        summary.put("transactionId", response.getTransactionId());
+        summary.put("channelOrderNo", response.getChannelOrderNo());
+        summary.put("channelTransactionId", response.getChannelTransactionId());
+        summary.put("channelTradeStatus", response.getChannelTradeStatus());
+        summary.put("rawChannelStatus", response.getRawChannelStatus());
+        summary.put("channelResponseCode", response.getChannelResponseCode());
+        summary.put("channelResponseMessage", response.getChannelResponseMessage());
+        summary.put("authCode", response.getAuthCode());
+        summary.put("rrn", response.getRrn());
+        summary.put("acquirerReferenceNo", response.getAcquirerReferenceNo());
+        summary.put("httpStatus", response.getHttpStatus());
+        summary.put("paymentMethodSummary", response.getPaymentMethodSummary());
+        summary.put("responseBodyMasked", response.getResponseBodyJsonMasked());
+        return SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(summary));
+    }
+
+    /**
+     * 读取渠道扩展字段。
+     *
+     * @param request 渠道统一请求
+     * @param key 扩展字段键名
+     * @return 扩展字段值
+     */
+    private String extension(ChannelPaymentRequest request, String key) {
+        return request.getExtension() == null ? null : request.getExtension().get(key);
+    }
+
+    /**
+     * 对 URL 查询参数进行脱敏。
+     *
+     * @param url 原始 URL
+     * @return 去除 query 值后的 URL
+     */
+    private String maskUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        int queryIndex = url.indexOf('?');
+        if (queryIndex < 0) {
+            return url;
+        }
+        return url.substring(0, queryIndex) + "?...";
+    }
+
+    /**
+     * 提取 URL 主机名。
+     *
+     * @param url 原始 URL
+     * @return 主机名或 invalid_url
+     */
+    private String endpointHost(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        try {
+            return URI.create(url).getHost();
+        } catch (RuntimeException exception) {
+            return "invalid_url";
+        }
+    }
+
+    /**
+     * 提取 URL path。
+     *
+     * @param url 原始 URL
+     * @return path 或 invalid_url
+     */
+    private String endpointPath(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        try {
+            return URI.create(url).getPath();
+        } catch (RuntimeException exception) {
+            return "invalid_url";
+        }
+    }
+
+    /**
+     * 脱敏 MID 或类似短标识。
+     *
+     * @param value 原始值
+     * @return 掩码值
+     */
+    private String maskShort(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() <= 6) {
+            return "***";
+        }
+        return normalized.substring(0, 3) + "***" + normalized.substring(normalized.length() - 3);
     }
 
     /**

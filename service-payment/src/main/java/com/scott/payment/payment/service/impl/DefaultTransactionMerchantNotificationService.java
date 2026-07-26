@@ -250,45 +250,64 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         }
         int processingVersion = task.getVersion() == null ? 1 : task.getVersion() + 1;
         int attemptNo = task.getLastAttemptNo() == null ? 1 : task.getLastAttemptNo() + 1;
-        log.info("event: PAYMENT_MERCHANT_NOTIFY_ATTEMPT_START notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} attemptNo: {} maxRetryCount: {}",
+        log.info("event: PAYMENT_MERCHANT_NOTIFY_ATTEMPT_START notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} callbackUrl: {} targetUrlHash: {} attemptCount: {} maxRetryCount: {} payloadLength: {} signType: {}",
                 task.getNotifyId(),
                 task.getTransactionId(),
                 task.getOperationId(),
                 task.getMerchantId(),
                 task.getMerchantOrderNo(),
+                task.getTargetUrlMasked(),
+                task.getTargetUrlHash(),
                 attemptNo,
-                safeMaxRetry(task));
+                safeMaxRetry(task),
+                task.getPayloadJsonMasked() == null ? 0 : task.getPayloadJsonMasked().length(),
+                task.getSignType());
         NotifyAttemptResult result = executeHttpNotify(task, beginTime);
         LocalDateTime finishedTime = LocalDateTime.now();
-        insertNotifyLog(task, attemptNo, result, beginTime, finishedTime);
+        int notifyLogRows = insertNotifyLog(task, attemptNo, result, beginTime, finishedTime);
         if (result.success()) {
-            notificationMapper.markSuccess(notificationTable, task.getId(), processingVersion, finishedTime);
-            log.info("event: PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId: {} transactionId: {} operationId: {} attemptNo: {} httpStatus: {} success=true durationMs: {}",
+            int affectedRows = notificationMapper.markSuccess(notificationTable, task.getId(), processingVersion, finishedTime);
+            log.info("event: PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId: {} transactionId: {} operationId: {} callbackUrl: {} attemptCount: {} httpStatus: {} merchantResponseSummary: {} success=true nextRetryTime: {} logicalTable: {} physicalTable: {} affectedRows: {} notifyLogRows: {} durationMs: {}",
                     task.getNotifyId(),
                     task.getTransactionId(),
                     task.getOperationId(),
+                    firstText(result.callbackUrlMasked(), task.getTargetUrlMasked()),
                     attemptNo,
                     result.httpStatus(),
+                    merchantResponseSummary(result.responseBody()),
+                    null,
+                    TRANSACTION_MERCHANT_NOTIFICATION_TABLE,
+                    notificationTable,
+                    affectedRows,
+                    notifyLogRows,
                     durationMillis(beginTime, finishedTime));
             return true;
         }
         boolean exhausted = attemptNo >= safeMaxRetry(task);
-        notificationMapper.markFailed(
+        LocalDateTime nextRetryTime = exhausted ? null : nextRetryTime(finishedTime, attemptNo);
+        int affectedRows = notificationMapper.markFailed(
                 notificationTable,
                 task.getId(),
                 processingVersion,
                 exhausted ? STATUS_CLOSED : STATUS_FAILED,
-                exhausted ? null : nextRetryTime(finishedTime, attemptNo),
+                nextRetryTime,
                 safeLength(result.errorMessage(), MAX_FAIL_REASON_LENGTH),
                 finishedTime);
-        log.warn("event: PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId: {} transactionId: {} operationId: {} attemptNo: {} httpStatus: {} success=false nextStatus: {} exhausted: {} durationMs: {}",
+        log.warn("event: PAYMENT_MERCHANT_NOTIFY_ATTEMPT_END notifyId: {} transactionId: {} operationId: {} callbackUrl: {} attemptCount: {} httpStatus: {} merchantResponseSummary: {} success=false nextStatus: {} exhausted: {} nextRetryTime: {} logicalTable: {} physicalTable: {} affectedRows: {} notifyLogRows: {} durationMs: {}",
                 task.getNotifyId(),
                 task.getTransactionId(),
                 task.getOperationId(),
+                firstText(result.callbackUrlMasked(), task.getTargetUrlMasked()),
                 attemptNo,
                 result.httpStatus(),
+                merchantResponseSummary(result.responseBody()),
                 exhausted ? STATUS_CLOSED : STATUS_FAILED,
                 exhausted,
+                nextRetryTime,
+                TRANSACTION_MERCHANT_NOTIFICATION_TABLE,
+                notificationTable,
+                affectedRows,
+                notifyLogRows,
                 durationMillis(beginTime, finishedTime));
         return false;
     }
@@ -296,8 +315,9 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     private NotifyAttemptResult executeHttpNotify(TransactionMerchantNotificationDO task, LocalDateTime beginTime) {
         String targetUrl = resolveTargetUrl(task);
         if (!StringUtils.hasText(targetUrl)) {
-            return new NotifyAttemptResult(false, null, null, "merchant callback url is empty");
+            return new NotifyAttemptResult(false, null, null, "merchant callback url is empty", task.getTargetUrlMasked());
         }
+        String callbackUrlMasked = firstText(task.getTargetUrlMasked(), maskUrl(targetUrl));
         String requestBody = task.getPayloadJsonMasked();
         try {
             HttpHeaders headers = new HttpHeaders();
@@ -311,14 +331,16 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
                     success,
                     response.getStatusCode().value(),
                     SensitiveDataMaskUtils.maskJsonSafely(responseBody),
-                    success ? null : "merchant callback http status " + response.getStatusCode().value());
+                    success ? null : "merchant callback http status " + response.getStatusCode().value(),
+                    callbackUrlMasked);
         } catch (RestClientException exception) {
-            log.warn("event: PAYMENT_MERCHANT_NOTIFY_HTTP_FAILED notifyId: {} transactionId: {} operationId: {} exceptionType: {}",
+            log.warn("event: PAYMENT_MERCHANT_NOTIFY_HTTP_FAILED notifyId: {} transactionId: {} operationId: {} callbackUrl: {} exceptionType: {}",
                     task.getNotifyId(),
                     task.getTransactionId(),
                     task.getOperationId(),
+                    callbackUrlMasked,
                     exception.getClass().getSimpleName());
-            return new NotifyAttemptResult(false, null, null, exception.getMessage());
+            return new NotifyAttemptResult(false, null, null, exception.getMessage(), callbackUrlMasked);
         }
     }
 
@@ -334,7 +356,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
  * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
  * @param finishedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
  */
-    private void insertNotifyLog(TransactionMerchantNotificationDO task,
+    private int insertNotifyLog(TransactionMerchantNotificationDO task,
                                  int attemptNo,
                                  NotifyAttemptResult result,
                                  LocalDateTime beginTime,
@@ -360,9 +382,23 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         logDO.setDurationMillis(durationMillis(beginTime, finishedTime));
         fillTransactionTime(logDO, task.getTransactionDateTime());
         logDO.setCreateTime(finishedTime);
-        notificationLogMapper.insertPhysical(
-                physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, task.getTransactionDateTime()),
+        String physicalTable = physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, task.getTransactionDateTime());
+        int affectedRows = notificationLogMapper.insertPhysical(
+                physicalTable,
                 logDO);
+        log.info("event: PAYMENT_MERCHANT_NOTIFY_LOG_SAVED notifyId: {} notifyLogId: {} transactionId: {} operationId: {} attemptCount: {} httpStatus: {} success: {} logicalTable: {} physicalTable: {} affectedRows: {} durationMs: {}",
+                task.getNotifyId(),
+                logDO.getNotifyLogId(),
+                task.getTransactionId(),
+                task.getOperationId(),
+                attemptNo,
+                result.httpStatus(),
+                result.success(),
+                TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE,
+                physicalTable,
+                affectedRows,
+                logDO.getDurationMillis());
+        return affectedRows;
     }
 
     /**
@@ -426,6 +462,52 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         }
         long millis = Duration.between(startTime, endTime).toMillis();
         return millis > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) millis;
+    }
+
+    /**
+     * 生成商户通知响应摘要。
+     * <p>
+     * 响应体已经经过 JSON 脱敏，这里再做长度限制，避免商户返回大 HTML 或长错误栈撑大业务日志。
+     * </p>
+     * @param responseBodyMasked 商户响应脱敏文本
+     * @return 响应摘要
+     */
+    private String merchantResponseSummary(String responseBodyMasked) {
+        return safeLength(SensitiveDataMaskUtils.maskJsonSafely(responseBodyMasked), 1200);
+    }
+
+    /**
+     * 返回第一个有文本内容的字符串。
+     *
+     * @param values 候选字符串
+     * @return 第一个非空白字符串
+     */
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 脱敏 URL 查询参数。
+     * <p>
+     * 商户通知 URL 可能携带商户侧 token 或订单信息，日志只保留 scheme、host、path 和 query 存在性。
+     * </p>
+     * @param url 原始 URL
+     * @return 去除 query 值后的 URL
+     */
+    private String maskUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        int queryIndex = url.indexOf('?');
+        if (queryIndex < 0) {
+            return url;
+        }
+        return url.substring(0, queryIndex) + "?...";
     }
 
     /**
@@ -493,6 +575,7 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     private record NotifyAttemptResult(boolean success,
                                        Integer httpStatus,
                                        String responseBody,
-                                       String errorMessage) {
+                                       String errorMessage,
+                                       String callbackUrlMasked) {
     }
 }

@@ -41,6 +41,26 @@ public final class OpenApiRequestAttributes {
      */
     public static final String BUSINESS_CODE = OpenApiRequestAttributes.class.getName() + ".BUSINESS_CODE";
 
+    /**
+     * 商户请求密文摘要 key，用于响应结束日志关联同一次请求的密文长度、指纹和 compact 结构。
+     */
+    public static final String REQUEST_CIPHER_SUMMARY = OpenApiRequestAttributes.class.getName() + ".REQUEST_CIPHER_SUMMARY";
+
+    /**
+     * 商户请求明文脱敏摘要 key，解密成功后写入，响应结束日志可用于一次性展示排障上下文。
+     */
+    public static final String REQUEST_PLAIN_SUMMARY = OpenApiRequestAttributes.class.getName() + ".REQUEST_PLAIN_SUMMARY";
+
+    /**
+     * 响应明文脱敏摘要 key，响应加密前写入，用于和响应密文摘要配对排查。
+     */
+    public static final String RESPONSE_PLAIN_SUMMARY = OpenApiRequestAttributes.class.getName() + ".RESPONSE_PLAIN_SUMMARY";
+
+    /**
+     * 响应密文摘要 key，响应加密后写入，用于和商户实际收到的 data 指纹比对。
+     */
+    public static final String RESPONSE_CIPHER_SUMMARY = OpenApiRequestAttributes.class.getName() + ".RESPONSE_CIPHER_SUMMARY";
+
     private OpenApiRequestAttributes() {
     }
 }

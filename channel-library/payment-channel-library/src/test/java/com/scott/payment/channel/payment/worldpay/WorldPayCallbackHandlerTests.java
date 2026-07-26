@@ -29,7 +29,7 @@ class WorldPayCallbackHandlerTests {
                 <paymentService version="1.4" merchantCode="MERCHANT">
                   <notify>
                     <orderStatusEvent orderCode="TX202607190001">
-                      <payment id="WP-PAY-001" lastevent: "CAPTURED" responseCode="0" message="Captured">
+                      <payment id="WP-PAY-001" lastEvent="CAPTURED" responseCode="0" message="Captured">
                         <amount value="1234" currencyCode="USD" exponent="2"/>
                       </payment>
                     </orderStatusEvent>

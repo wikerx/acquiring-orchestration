@@ -12,6 +12,9 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import java.util.Collections;
+import java.util.List;
+
 
 @Component
 @Slf4j
@@ -32,12 +35,19 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
     private final OpenApiRequestHeaderExtractor headerExtractor;
 
     /**
+     * OpenAPI 诊断日志支撑组件，负责生成请求头、密文和响应摘要。
+     */
+    private final OpenApiDiagnosticLogSupport diagnosticLogSupport;
+
+    /**
      * 创建开放接口请求头拦截器。
      *
      * @param headerExtractor 请求头提取器
      */
-    public OpenApiHeaderInterceptor(OpenApiRequestHeaderExtractor headerExtractor) {
+    public OpenApiHeaderInterceptor(OpenApiRequestHeaderExtractor headerExtractor,
+                                    OpenApiDiagnosticLogSupport diagnosticLogSupport) {
         this.headerExtractor = headerExtractor;
+        this.diagnosticLogSupport = diagnosticLogSupport;
     }
 
     /**
@@ -64,12 +74,14 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         request.setAttribute(OpenApiRequestAttributes.REQUEST_START_NANOS, startNanos);
         request.setAttribute(OpenApiRequestAttributes.API_VERSION, apiVersion(request.getRequestURI()));
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, interfaceType(request.getRequestURI()));
-        log.info("event: OPENAPI_REQUEST_ENTER stage=ACCEPT method: {} path: {} apiVersion: {} interfaceType: {} clientIp: {}",
+        log.info("event: OPENAPI_REQUEST_ENTER stage=ACCEPT method: {} path: {} queryKeys: {} apiVersion: {} interfaceType: {} clientIp: {} headerSummary: {}",
                 request.getMethod(),
                 request.getRequestURI(),
+                queryKeys(request),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 request.getAttribute(OpenApiRequestAttributes.INTERFACE_TYPE),
-                clientIp(request));
+                clientIp(request),
+                diagnosticLogSupport.headerSummary(request));
         OpenApiRequestHeaderDTO headerDTO = headerExtractor.extract(request, annotation.requiredHeaders());
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
         return true;
@@ -83,7 +95,7 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         }
         OpenApiRequestHeaderDTO headerDTO = (OpenApiRequestHeaderDTO) request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event: OPENAPI_REQUEST_END stage=FINISH merchantId: {} path: {} apiVersion: {} interfaceType: {} httpStatus: {} platformCode: {} durationMs: {} exceptionType: {}",
+        log.info("event: OPENAPI_REQUEST_END stage=FINISH merchantId: {} path: {} apiVersion: {} interfaceType: {} httpStatus: {} platformCode: {} durationMs: {} exceptionType: {} cipherRequestSummary: {} plainRequestSummary: {} plainResponseSummary: {} cipherResponseSummary: {}",
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
@@ -91,9 +103,36 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
                 response.getStatus(),
                 request.getAttribute(OpenApiRequestAttributes.BUSINESS_CODE),
                 durationMs,
-                exception == null ? null : exception.getClass().getSimpleName());
+                exception == null ? null : exception.getClass().getSimpleName(),
+                request.getAttribute(OpenApiRequestAttributes.REQUEST_CIPHER_SUMMARY),
+                request.getAttribute(OpenApiRequestAttributes.REQUEST_PLAIN_SUMMARY),
+                request.getAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY),
+                request.getAttribute(OpenApiRequestAttributes.RESPONSE_CIPHER_SUMMARY));
     }
 
+    /**
+     * 提取请求查询参数名摘要。
+     * <p>
+     * OpenAPI 通常使用 POST JSON body，若商户额外传了 query 参数，只记录参数名用于定位接入差异，不记录参数值。
+     * </p>
+     * @param request 当前 HTTP 请求
+     * @return 查询参数名列表，无参数时返回空列表
+     */
+    private List<String> queryKeys(HttpServletRequest request) {
+        if (request.getParameterMap().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return request.getParameterMap().keySet().stream().sorted().toList();
+    }
+
+    /**
+     * 从 OpenAPI 标准路径中提取 API 版本号。
+     * <p>
+     * 仅识别形如 v1、v2 的路径片段，用于日志维度聚合和商户接入排查；无法识别时返回 null。
+     * </p>
+     * @param path HTTP 请求路径
+     * @return API 版本号，无法识别时返回 null
+     */
     private String apiVersion(String path) {
         String[] segments = segments(path);
         for (String segment : segments) {
@@ -104,6 +143,15 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         return null;
     }
 
+    /**
+     * 从请求路径中识别接口业务类型。
+     * <p>
+     * 商户 OpenAPI 使用 /api/rest/{domain}/{version} 路径时返回 domain；渠道回调路径返回 channel-callback，
+     * 用于区分交易、退款、回调等日志场景。
+     * </p>
+     * @param path HTTP 请求路径
+     * @return 接口业务类型，无法识别时返回 null
+     */
     private String interfaceType(String path) {
         String[] segments = segments(path);
         for (int index = 0; index < segments.length; index++) {
@@ -117,6 +165,14 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         return null;
     }
 
+    /**
+     * 将 HTTP 路径拆分为非前导斜杠片段。
+     * <p>
+     * 该结果仅用于 OpenAPI 版本和接口域识别，不参与路由决策和安全校验。
+     * </p>
+     * @param path HTTP 请求路径
+     * @return 路径片段数组，路径为空时返回空数组
+     */
     private String[] segments(String path) {
         if (!StringUtils.hasText(path)) {
             return new String[0];
@@ -124,6 +180,15 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         return path.replaceFirst("^/+", "").split("/");
     }
 
+    /**
+     * 提取商户请求来源 IP。
+     * <p>
+     * 优先使用代理透传的 X-Forwarded-For 首个地址，用于 OpenAPI 接入日志和白名单排查；字段可能包含公网代理地址，
+     * 不打印完整代理链。
+     * </p>
+     * @param request 当前 HTTP 请求
+     * @return 请求来源 IP
+     */
     private String clientIp(HttpServletRequest request) {
         String forwardedFor = request.getHeader("X-Forwarded-For");
         if (StringUtils.hasText(forwardedFor)) {

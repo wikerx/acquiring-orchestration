@@ -68,6 +68,11 @@ public class OpenApiRequestHeaderExtractor {
     private final SecurityInterceptEventRecorder securityInterceptEventRecorder;
 
     /**
+     * OpenAPI 诊断日志支撑组件，用于生成请求头和 JWT 的安全摘要。
+     */
+    private final OpenApiDiagnosticLogSupport diagnosticLogSupport;
+
+    /**
      * 创建开放接口请求头提取器。
      *
      * @param merchantJwtVerifier    商户 JWT 验签器
@@ -80,12 +85,14 @@ public class OpenApiRequestHeaderExtractor {
                                          MerchantKeyProvider merchantKeyProvider,
                                          OpenApiJwtReplayProtectionService replayProtectionService,
                                          MerchantIpWhitelistAccessService ipWhitelistAccessService,
-                                         SecurityInterceptEventRecorder securityInterceptEventRecorder) {
+                                         SecurityInterceptEventRecorder securityInterceptEventRecorder,
+                                         OpenApiDiagnosticLogSupport diagnosticLogSupport) {
         this.merchantJwtVerifier = merchantJwtVerifier;
         this.merchantKeyProvider = merchantKeyProvider;
         this.replayProtectionService = replayProtectionService;
         this.ipWhitelistAccessService = ipWhitelistAccessService;
         this.securityInterceptEventRecorder = securityInterceptEventRecorder;
+        this.diagnosticLogSupport = diagnosticLogSupport;
     }
 
     /**
@@ -138,13 +145,6 @@ public class OpenApiRequestHeaderExtractor {
                     claims.getMerchantId(), "OPENAPI_JWT_REPLAY", exception);
             throw exception;
         }
-        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {}",
-                claims.getMerchantId(),
-                request.getRequestURI(),
-                request.getAttribute(OpenApiRequestAttributes.API_VERSION),
-                digest8(claims.getJwtId()),
-                clientIp(request));
-
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setAuthorization(token);
         headerDTO.setMerchantId(claims.getMerchantId());
@@ -152,6 +152,14 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
+        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {} jwtSummary: {} headerSummary: {}",
+                claims.getMerchantId(),
+                request.getRequestURI(),
+                request.getAttribute(OpenApiRequestAttributes.API_VERSION),
+                digest8(claims.getJwtId()),
+                clientIp,
+                diagnosticLogSupport.jwtSummary(headerDTO),
+                diagnosticLogSupport.headerSummary(request));
         return headerDTO;
     }
 
@@ -184,12 +192,13 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
-        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {}",
+        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {} headerSummary: {}",
                 merchantId,
                 request == null ? null : request.getRequestURI(),
                 request == null ? null : request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 hitRuleCode,
-                securityInterceptEventRecorder.reasonCode(exception));
+                securityInterceptEventRecorder.reasonCode(exception),
+                diagnosticLogSupport.headerSummary(request));
     }
 
     /**

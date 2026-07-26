@@ -62,6 +62,11 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
     private final PaymentInternalClient paymentInternalClient;
 
     /**
+     * OpenAPI 诊断日志支撑组件，用于生成响应明文和密文摘要。
+     */
+    private final OpenApiDiagnosticLogSupport diagnosticLogSupport;
+
+    /**
      * 创建 OpenAPI 响应加密处理器。
      *
      * @param payloadCrypto           OpenAPI 报文混合加密工具
@@ -70,10 +75,12 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
      */
     public OpenApiResponseBodyAdvice(OpenApiPayloadCrypto payloadCrypto,
                                      MerchantSecurityService merchantSecurityService,
-                                     PaymentInternalClient paymentInternalClient) {
+                                     PaymentInternalClient paymentInternalClient,
+                                     OpenApiDiagnosticLogSupport diagnosticLogSupport) {
         this.payloadCrypto = payloadCrypto;
         this.merchantSecurityService = merchantSecurityService;
         this.paymentInternalClient = paymentInternalClient;
+        this.diagnosticLogSupport = diagnosticLogSupport;
     }
 
     /**
@@ -112,12 +119,21 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
                                   ServerHttpResponse response) {
         if (!(body instanceof CommonResult<?> result) || result.getData() == null) {
             if (body instanceof CommonResult<?> commonResult && request instanceof ServletServerHttpRequest servletRequest) {
-                servletRequest.getServletRequest().setAttribute(OpenApiRequestAttributes.BUSINESS_CODE, commonResult.getCode());
+                HttpServletRequest httpRequest = servletRequest.getServletRequest();
+                httpRequest.setAttribute(OpenApiRequestAttributes.BUSINESS_CODE, commonResult.getCode());
+                String responseSummary = diagnosticLogSupport.responseEnvelopeSummary(commonResult);
+                httpRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, responseSummary);
+                log.info("event: OPENAPI_RESPONSE_PLAIN_END stage=RESPONSE merchantId: {} path: {} platformCode: {} encryptRequired=false responseSummary: {}",
+                        merchantIdSafely(httpRequest),
+                        request.getURI().getPath(),
+                        commonResult.getCode(),
+                        responseSummary);
             }
             return body;
         }
         OpenApiRequestHeaderDTO headerDTO = getHeaderContext(request);
         String merchantId = headerDTO.getMerchantId();
+        HttpServletRequest httpServletRequest = servletRequest(request);
         if (request instanceof ServletServerHttpRequest servletRequest) {
             servletRequest.getServletRequest().setAttribute(OpenApiRequestAttributes.BUSINESS_CODE, result.getCode());
         }
@@ -126,12 +142,18 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
                 plainDataJson,
                 merchantSecurityService.getMerchantResponsePublicKey(merchantId)
         );
-        log.info("event: OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {}",
+        String plainSummary = diagnosticLogSupport.plainResponseSummary(result.getData());
+        String cipherSummary = diagnosticLogSupport.cipherResponseSummary(encryptedData);
+        httpServletRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, plainSummary);
+        httpServletRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_CIPHER_SUMMARY, cipherSummary);
+        log.info("event: OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {} plainResponseSummary: {} cipherResponseSummary: {}",
                 merchantId,
                 request.getURI().getPath(),
                 result.getCode(),
                 plainDataJson.length(),
-                encryptedData.length());
+                encryptedData.length(),
+                plainSummary,
+                cipherSummary);
         updateMerchantApiResponseLog(result.getData(), plainDataJson, encryptedData);
 
         CommonResult<Object> encryptedResult = new CommonResult<>();
@@ -243,5 +265,34 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
             throw new ApiException(ApiResultEnum.UNAUTHORIZED);
         }
         return headerDTO;
+    }
+
+    /**
+     * 获取 Servlet 请求对象。
+     *
+     * @param request 当前响应处理请求
+     * @return Servlet 请求
+     */
+    private HttpServletRequest servletRequest(ServerHttpRequest request) {
+        if (!(request instanceof ServletServerHttpRequest servletRequest)) {
+            throw new ApiException(ApiResultEnum.UNAUTHORIZED);
+        }
+        return servletRequest.getServletRequest();
+    }
+
+    /**
+     * 安全读取商户号用于失败响应日志。
+     * <p>
+     * 失败响应可能发生在认证前，此时没有请求头上下文；方法只返回已验证上下文中的 merchantId。
+     * </p>
+     * @param request 当前 HTTP 请求
+     * @return 商户号或 null
+     */
+    private String merchantIdSafely(HttpServletRequest request) {
+        Object value = request == null ? null : request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
+        if (value instanceof OpenApiRequestHeaderDTO headerDTO) {
+            return headerDTO.getMerchantId();
+        }
+        return null;
     }
 }

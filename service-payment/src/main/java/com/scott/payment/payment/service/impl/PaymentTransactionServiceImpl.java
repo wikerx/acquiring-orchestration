@@ -76,8 +76,10 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -644,6 +646,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
                 idempotencyKey);
+        logPaymentRequestContext(commandDTO);
         String flowLockKey = merchantOrderFlowLockKey(commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
         String lockValue = UUID.randomUUID().toString();
         boolean operationLocked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
@@ -736,6 +739,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
                 idempotencyKey);
+        logPaymentRequestContext(commandDTO);
         String lockValue = UUID.randomUUID().toString();
         boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         if (!locked) {
@@ -797,6 +801,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
                 idempotencyKey);
+        logPaymentRequestContext(commandDTO);
         String lockValue = UUID.randomUUID().toString();
         boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         if (!locked) {
@@ -857,6 +862,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
                 idempotencyKey);
+        logPaymentRequestContext(commandDTO);
         String lockValue = UUID.randomUUID().toString();
         boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         if (!locked) {
@@ -917,6 +923,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
                 idempotencyKey);
+        logPaymentRequestContext(commandDTO);
         String lockValue = UUID.randomUUID().toString();
         boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         if (!locked) {
@@ -2914,7 +2921,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private void logRouteDecision(PaymentCreateCommandDTO commandDTO,
                                   PaymentRouteResultDTO routeResultDTO,
                                   PaymentCreateResultDTO resultDTO) {
-        log.info("event: PAYMENT_ROUTE_DECISION stage=ROUTE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} channelCapability: {} routed: {} routeReason: {}",
+        log.info("event: PAYMENT_ROUTE_DECISION stage=ROUTE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} channelCapability: {} midNo: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} supportedCurrencies: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routed: {} routeReason: {}",
                 commandDTO == null ? null : commandDTO.getMerchantId(),
                 commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
                 resultDTO == null ? null : resultDTO.getTransactionId(),
@@ -2926,8 +2933,120 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 routeResultDTO == null ? null : routeResultDTO.getChannelCode(),
                 routeResultDTO == null ? null : routeResultDTO.getMidConfigId(),
                 routeResultDTO == null ? null : routeResultDTO.getCapabilityId(),
+                routeResultDTO == null ? null : maskShort(routeResultDTO.getMidNo()),
+                routeResultDTO == null ? null : routeResultDTO.getRequestedCurrency(),
+                routeResultDTO == null ? null : routeResultDTO.getRoutedCurrency(),
+                routeResultDTO != null && routeResultDTO.isEdcRequired(),
+                routeResultDTO == null ? null : routeResultDTO.getSupportedCurrencies(),
+                routeResultDTO == null ? null : endpointHost(routeResultDTO.getRequestUrl()),
+                routeResultDTO == null ? null : routeResultDTO.getConnectTimeoutSeconds(),
+                routeResultDTO == null ? null : routeResultDTO.getReadTimeoutSeconds(),
                 routeResultDTO != null && routeResultDTO.isRouted(),
                 routeResultDTO == null ? null : routeResultDTO.getRouteReason());
+    }
+
+    /**
+     * 记录 payment 收到的 OpenAPI 请求上下文。
+     * <p>
+     * 日志用于确认 OpenAPI 到 payment 之间的商户请求来源、密文摘要和明文脱敏参数是否完整传递；
+     * 不输出完整请求密文、PAN、CVV、JWT、内部签名或完整 callbackUrl query。
+     * </p>
+     * @param commandDTO 支付创建命令
+     */
+    private void logPaymentRequestContext(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO == null) {
+            return;
+        }
+        log.info("event: PAYMENT_OPENAPI_CONTEXT stage=ACCEPT merchantId: {} merchantOrderNo: {} merchantOrderId: {} transactionType: {} openApiRequestPath: {} requestFingerprint: {} requestCipherMasked: {} requestSource: {} plainRequestSummary: {}",
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                commandDTO.getMerchantOrderId(),
+                commandDTO.getTransactionType(),
+                commandDTO.getOpenApiRequestPath(),
+                commandDTO.getRequestFingerprint(),
+                commandDTO.getMerchantRequestCipherMasked(),
+                requestSourceSummary(commandDTO),
+                commandDTO.getMerchantRequestPlainJsonMasked());
+    }
+
+    /**
+     * 生成 payment 收到的请求来源摘要。
+     *
+     * @param commandDTO 支付创建命令
+     * @return 请求来源摘要 JSON
+     */
+    private String requestSourceSummary(PaymentCreateCommandDTO commandDTO) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("payerIp", commandDTO.getPayerIp());
+        summary.put("sourceUrl", maskUrl(commandDTO.getSourceUrl()));
+        summary.put("callbackUrl", maskUrl(commandDTO.getCallbackUrl()));
+        summary.put("userAgent", truncateText(commandDTO.getUserAgent(), 160));
+        return JsonUtils.toJsonString(summary);
+    }
+
+    /**
+     * 脱敏 URL 查询参数。
+     *
+     * @param url 原始 URL
+     * @return 脱敏 URL
+     */
+    private String maskUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        int queryIndex = url.indexOf('?');
+        if (queryIndex < 0) {
+            return url;
+        }
+        return url.substring(0, queryIndex) + "?...";
+    }
+
+    /**
+     * 脱敏 MID 或类似短标识。
+     *
+     * @param value 原始值
+     * @return 掩码值
+     */
+    private String maskShort(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() <= 6) {
+            return "***";
+        }
+        return normalized.substring(0, 3) + "***" + normalized.substring(normalized.length() - 3);
+    }
+
+    /**
+     * 提取 URL 主机名。
+     *
+     * @param url 原始 URL
+     * @return 主机名
+     */
+    private String endpointHost(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        try {
+            return java.net.URI.create(url).getHost();
+        } catch (RuntimeException exception) {
+            return "invalid_url";
+        }
+    }
+
+    /**
+     * 截断文本摘要。
+     *
+     * @param value 原始文本
+     * @param maxLength 最大长度
+     * @return 截断后文本
+     */
+    private String truncateText(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength) + "...";
     }
 
     /**
