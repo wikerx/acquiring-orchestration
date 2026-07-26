@@ -211,13 +211,13 @@ public class SecurityInterceptEventRecorder {
     }
 
     /**
-     * 完成 generate Event No 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 generate Event No 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String generateEventNo(LocalDateTime now) {
         return "SIE" + EVENT_TIME_FORMATTER.format(now) + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
@@ -226,10 +226,10 @@ public class SecurityInterceptEventRecorder {
     /**
      * 解析 resolve Client Ip 对应的业务值，按优先级从上下文、请求或配置中取值。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 解析或查询得到的业务值
      */
     private String resolveClientIp(HttpServletRequest request) {
@@ -246,10 +246,10 @@ public class SecurityInterceptEventRecorder {
     /**
      * 解析 resolve Request Path 对应的业务值，按优先级从上下文、请求或配置中取值。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 解析或查询得到的业务值
      */
     private String resolveRequestPath(HttpServletRequest request) {
@@ -262,10 +262,10 @@ public class SecurityInterceptEventRecorder {
     /**
      * 解析 resolve Trace Id 对应的业务值，按优先级从上下文、请求或配置中取值。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 解析或查询得到的业务值
      */
     private String resolveTraceId(HttpServletRequest request) {
@@ -279,10 +279,10 @@ public class SecurityInterceptEventRecorder {
     /**
      * 解析 resolve Request Id 对应的业务值，按优先级从上下文、请求或配置中取值。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 解析或查询得到的业务值
      */
     private String resolveRequestId(HttpServletRequest request) {
@@ -295,10 +295,10 @@ public class SecurityInterceptEventRecorder {
     /**
      * 构建 build Header Summary 对应的领域对象、请求对象或日志对象。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 转换或构建后的目标对象
      */
     private String buildHeaderSummary(HttpServletRequest request) {
@@ -319,23 +319,23 @@ public class SecurityInterceptEventRecorder {
     }
 
     /**
-     * 完成 present Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 present Text 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Boolean presentText(String value) {
         return StringUtils.hasText(value) ? Boolean.TRUE : null;
     }
 
     /**
-     * 完成 put If Present 分支的校验或状态更新。
+     * 完成 put If Present 的本地校验、字段转换或状态更新。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param summary summary 输入值，含义由调用方法名称和所属业务对象限定
@@ -352,13 +352,13 @@ public class SecurityInterceptEventRecorder {
     }
 
     /**
-     * 完成 sanitize Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 sanitize Text 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String sanitizeText(String value) {
         if (!StringUtils.hasText(value)) {
@@ -368,41 +368,41 @@ public class SecurityInterceptEventRecorder {
     }
 
     /**
-     * 完成 default If Blank 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 default If Blank 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value.trim() : defaultValue;
     }
 
     /**
-     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 trim To Null 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     /**
-     * 完成 limit 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 limit 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 SecurityInterceptEventRecorder 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param maxLength max Length 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String limit(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {

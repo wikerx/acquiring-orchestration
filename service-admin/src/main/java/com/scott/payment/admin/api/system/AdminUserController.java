@@ -80,15 +80,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:export")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.EXPORT,
             operation = "导出后台用户列表")
-/**
- * 完成 export Users 分支的校验或状态更新。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @param response response 输入值，含义由调用方法名称和所属业务对象限定
- */
     public void exportUsers(@RequestBody(required = false) SysUserAccountQueryRequest request,
                             HttpServletResponse response) {
         adminUserApplicationService.exportUsers(request, currentOperatorName(), response);
@@ -104,15 +95,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:add")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.CREATE,
             operation = "新增后台用户", recordRequest = false, recordResponse = false)
-    /**
-     * 完成 create User 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<SysUserAccountDTO> createUser(@Valid @RequestBody SysUserAccountCreateRequest request) {
         return success(adminUserApplicationService.createUser(request));
     }
@@ -127,15 +109,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:edit")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "编辑后台用户", recordRequest = false, recordResponse = false)
-    /**
-     * 写入或更新 update User 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<SysUserAccountDTO> updateUser(@Valid @RequestBody SysUserAccountUpdateRequest request) {
         return success(adminUserApplicationService.updateUser(request));
     }
@@ -150,15 +123,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:changeStatus")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "更新后台用户状态", recordRequest = false, recordResponse = false)
-    /**
-     * 写入或更新 update Status 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> updateStatus(@Valid @RequestBody SysUserAccountStatusRequest request) {
         adminUserApplicationService.updateStatus(request);
         return success();
@@ -174,15 +138,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:resetPwd")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "重置后台用户密码", recordRequest = false, recordResponse = false)
-    /**
-     * 完成 reset Password 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> resetPassword(@Valid @RequestBody SysUserAccountResetPasswordRequest request) {
         adminUserApplicationService.resetPassword(request);
         return success();
@@ -198,15 +153,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:assign-role")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询后台用户角色授权")
-    /**
-     * 完成 user Roles 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<SysUserRoleAuthDTO> userRoles(@Valid @RequestBody SysUserRoleGrantRequest request) {
         return success(adminUserApplicationService.userRoles(request.getAccountId()));
     }
@@ -221,15 +167,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:assign-role")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "分配后台用户角色", recordRequest = false, recordResponse = false)
-    /**
-     * 完成 grant Roles 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> grantRoles(@Valid @RequestBody SysUserRoleGrantRequest request) {
         adminUserApplicationService.grantRoles(request);
         return success();
@@ -245,15 +182,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:remove")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.DELETE,
             operation = "删除后台用户", recordRequest = false, recordResponse = false)
-    /**
-     * 完成 delete Users 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param accountIds account Ids 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> deleteUsers(@RequestBody List<Long> accountIds) {
         adminUserApplicationService.removeUsers(accountIds);
         return success();

@@ -145,14 +145,6 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
                         actualNow) == 1);
     }
 
-    /**
-     * 校验 validate Event 相关输入，发现不满足业务约束时抛出明确异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
-     */
     private void validateEvent(TransactionEventOutboxDO eventDO) {
         if (eventDO == null
                 || !StringUtils.hasText(eventDO.getEventNo())
@@ -168,14 +160,6 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         }
     }
 
-    /**
-     * 校验 validate Persisted Event 相关输入，发现不满足业务约束时抛出明确异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
-     */
     private void validatePersistedEvent(TransactionEventOutboxDO eventDO) {
         if (eventDO == null || eventDO.getId() == null || eventDO.getVersion() == null || eventDO.getTransactionDateTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -183,13 +167,13 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     }
 
     /**
-     * 完成 sharding Context 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 sharding Context 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionEventOutboxService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ShardingSingleTableContext shardingContext(LocalDateTime transactionDateTime) {
         return ShardingSingleTableContext.of(LOGICAL_TABLE, transactionDateTime, DataSourceName.MASTER);

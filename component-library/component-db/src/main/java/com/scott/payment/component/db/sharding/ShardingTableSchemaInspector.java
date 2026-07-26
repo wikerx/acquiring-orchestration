@@ -129,15 +129,15 @@ public class ShardingTableSchemaInspector {
     }
 
     /**
-     * 完成 inspect Single Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 inspect Single Table 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingTableSchemaInspector 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
      * @param idColumn id Column 输入值，含义由调用方法名称和所属业务对象限定
      * @param shardingColumn sharding Column 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ShardingTableInspectionResult inspectSingleTable(String tableName, String idColumn, String shardingColumn) {
         ShardingTableInspectionResult result = new ShardingTableInspectionResult();
@@ -167,13 +167,13 @@ public class ShardingTableSchemaInspector {
     }
 
     /**
-     * 完成 show Create Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 show Create Table 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingTableSchemaInspector 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String showCreateTable(String tableName) {
         String safeTableName = tableNameResolver.requireSafeIdentifier(tableName, "table");
@@ -186,14 +186,14 @@ public class ShardingTableSchemaInspector {
     }
 
     /**
-     * 完成 column Exists 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 column Exists 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingTableSchemaInspector 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
      * @param columnName column Name 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean columnExists(String tableName, String columnName) {
         Integer count = jdbcTemplate.queryForObject("""
@@ -209,8 +209,8 @@ public class ShardingTableSchemaInspector {
     /**
      * 判断 is Bigint Auto Increment Primary Key 条件是否成立，用于控制后续业务分支。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingTableSchemaInspector 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
      * @param idColumn id Column 输入值，含义由调用方法名称和所属业务对象限定
@@ -237,8 +237,8 @@ public class ShardingTableSchemaInspector {
     /**
      * 标准化 normalize Create Table 输入值，统一大小写、空白字符或协议格式。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingTableSchemaInspector 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param createTableSql create Table Sql 输入值，含义由调用方法名称和所属业务对象限定
      * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定

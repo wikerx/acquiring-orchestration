@@ -69,13 +69,6 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
     }
 
     @Override
-    /**
-     * 完成 report Heartbeat 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     */
     public void reportHeartbeat() {
         LocalDateTime now = LocalDateTime.now();
         SysJobExecutorNodeDO node = new SysJobExecutorNodeDO();
@@ -126,29 +119,12 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
     }
 
     @Override
-    /**
-     * 完成 list Nodes 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     public List<SysJobExecutorNodeDO> listNodes() {
         return sysJobExecutorNodeMapper.selectList(new LambdaQueryWrapper<SysJobExecutorNodeDO>()
                 .orderByDesc(SysJobExecutorNodeDO::getLastHeartbeatTime)
                 .orderByAsc(SysJobExecutorNodeDO::getNodeId));
     }
 
-    /**
-     * 完成 sleep Before Retry 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param attempt attempt 输入值，含义由调用方法名称和所属业务对象限定
-     * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
-     */
     private void sleepBeforeRetry(int attempt, PessimisticLockingFailureException exception) {
         long backoffMillis = DEADLOCK_RETRY_BACKOFF_MILLIS * attempt;
         log.warn("超时任务节点离线扫描遇到锁冲突，准备重试，attempt：{}，backoffMillis：{}，原因：{}",

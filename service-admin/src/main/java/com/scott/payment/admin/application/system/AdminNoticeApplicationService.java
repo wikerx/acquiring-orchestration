@@ -169,10 +169,10 @@ public class AdminNoticeApplicationService {
     }
 
     /**
-     * 查询 find Notice 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 编排 find Notice 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminNoticeApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -188,12 +188,12 @@ public class AdminNoticeApplicationService {
     }
 
     /**
-     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 current Operator Name 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminNoticeApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();

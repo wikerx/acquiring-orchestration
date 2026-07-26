@@ -49,132 +49,132 @@ public class AdminChannelAlertApplicationService {
     }
 
     /**
-     * 完成 page Rules 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 page Rules 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public PageResult<ChannelAlertRuleResponse> pageRules(ChannelAlertRuleQuery query) {
         return channelAlertService.pageRules(query);
     }
 
     /**
-     * 完成 get Rule 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Rule 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertRuleResponse getRule(Long id) {
         return channelAlertService.getRule(id);
     }
 
     /**
-     * 完成 create Rule 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 create Rule 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertRuleResponse createRule(ChannelAlertRuleSaveRequest request) {
         return channelAlertService.createRule(request);
     }
 
     /**
-     * 完成 create Rules 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 create Rules 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public List<ChannelAlertRuleResponse> createRules(ChannelAlertRuleBatchSaveRequest request) {
         return channelAlertService.createRules(request);
     }
 
     /**
-     * 写入或更新 update Rule 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 update Rule 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertRuleResponse updateRule(Long id, ChannelAlertRuleSaveRequest request) {
         return channelAlertService.updateRule(id, request);
     }
 
     /**
-     * 完成 get Rule Dimension 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Rule Dimension 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertRuleDimensionResponse getRuleDimension(Long id) {
         return channelAlertService.getRuleDimension(id);
     }
 
     /**
-     * 写入或更新 update Rule Dimension 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 update Rule Dimension 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertRuleDimensionResponse updateRuleDimension(Long id, ChannelAlertRuleDimensionSaveRequest request) {
         return channelAlertService.updateRuleDimension(id, request);
     }
 
     /**
-     * 完成 rule Options 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 rule Options 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param keyword keyword 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertRuleOptionsResponse ruleOptions(Long channelId, String businessType, String keyword) {
         return channelAlertService.ruleOptions(channelId, businessType, keyword);
     }
 
     /**
-     * 写入或更新 update Rule Status 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 update Rule Status 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertRuleResponse updateRuleStatus(Long id, Integer status) {
         return channelAlertService.updateRuleStatus(id, status);
     }
 
     /**
-     * 完成 delete Rule 分支的校验或状态更新。
+     * 编排 delete Rule 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -183,50 +183,50 @@ public class AdminChannelAlertApplicationService {
     }
 
     /**
-     * 完成 page Events 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 page Events 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public PageResult<ChannelAlertEventResponse> pageEvents(ChannelAlertEventQuery query) {
         return channelAlertService.pageEvents(query);
     }
 
     /**
-     * 完成 get Event 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Event 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertEventResponse getEvent(Long id) {
         return channelAlertService.getEvent(id);
     }
 
     /**
-     * 完成 acknowledge Event 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 acknowledge Event 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public ChannelAlertEventResponse acknowledgeEvent(Long id, AlertEventAcknowledgeRequest request) {
         return channelAlertService.acknowledgeEvent(id, request);
     }
 
     /**
-     * 完成 delete Event 分支的校验或状态更新。
+     * 编排 delete Event 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -235,13 +235,13 @@ public class AdminChannelAlertApplicationService {
     }
 
     /**
-     * 完成 page Notify Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 page Notify Logs 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelAlertApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public PageResult<ChannelAlertNotifyLogResponse> pageNotifyLogs(ChannelAlertNotifyLogQuery query) {
         return channelAlertService.pageNotifyLogs(query);

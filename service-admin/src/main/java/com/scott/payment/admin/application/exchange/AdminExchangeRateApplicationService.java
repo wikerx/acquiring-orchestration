@@ -96,8 +96,8 @@ public class AdminExchangeRateApplicationService {
 /**
  * 创建 AdminExchangeRateApplicationService 实例并注入其运行所需依赖。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param adminExchangeRateService admin Exchange Rate Service 输入值，含义由调用方法名称和所属业务对象限定
  * @param excelExportService excel Export Service 输入值，含义由调用方法名称和所属业务对象限定
@@ -444,10 +444,10 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 转换生成 to Source Export Row 对应的传输对象、导出行或协议字段。
+     * 编排 to Source Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -472,10 +472,10 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 转换生成 to Raw Rate Export Row 对应的传输对象、导出行或协议字段。
+     * 编排 to Raw Rate Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -503,10 +503,10 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 转换生成 to Rule Export Row 对应的传输对象、导出行或协议字段。
+     * 编排 to Rule Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -534,10 +534,10 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 转换生成 to Business Rate Export Row 对应的传输对象、导出行或协议字段。
+     * 编排 to Business Rate Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -564,10 +564,10 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 转换生成 to Usage Snapshot Export Row 对应的传输对象、导出行或协议字段。
+     * 编排 to Usage Snapshot Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -592,10 +592,10 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 解析 resolve Enum 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 编排 resolve Enum 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param group group 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
@@ -610,10 +610,10 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 解析 resolve Status 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 编排 resolve Status 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -624,10 +624,10 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 解析 resolve Boolean 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 编排 resolve Boolean 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -638,25 +638,25 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 完成 query Summary 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 query Summary 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String querySummary(Locale locale) {
         return excelI18nMessageResolver.resolve("excel.common.noCondition", locale);
     }
 
     /**
-     * 完成 timestamp Suffix 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 timestamp Suffix 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String timestampSuffix() {
         return EXPORT_TIME_FORMATTER.format(LocalDateTime.now());

@@ -221,10 +221,10 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
 /**
- * 构建 build Query Reference 对应的领域对象、请求对象或日志对象。
+ * 执行 build Query Reference 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionChannelMatchService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
  * @param originalRequestDO original Request DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -242,15 +242,15 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
 /**
- * 判断 has Supported Query Identity 条件是否成立，用于控制后续业务分支。
+ * 执行 has Supported Query Identity 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionChannelMatchService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param queryCommand query Command 输入值，含义由调用方法名称和所属业务对象限定
  * @param routeResult route Result 输入值，含义由调用方法名称和所属业务对象限定
  * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param preparedQueryRequest prepared Query Request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param preparedQueryRequest prepared Query Request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @return 满足当前业务条件时返回 true，否则返回 false
  */
     private boolean hasSupportedQueryIdentity(PaymentCreateCommandDTO queryCommand,
@@ -268,14 +268,14 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
     /**
-     * 完成 missing Identity Reason 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 missing Identity Reason 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionChannelMatchService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
      * @param originalRequestDO original Request DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String missingIdentityReason(TransactionOperationDO operationDO, TransactionChannelRequestDO originalRequestDO) {
         String requestId = firstText(originalRequestDO == null ? null : originalRequestDO.getRequestId(),
@@ -382,14 +382,14 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionChannelMatchService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param first first 输入值，含义由调用方法名称和所属业务对象限定
      * @param second second 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String first, String second) {
         return StringUtils.hasText(first) ? first : second;

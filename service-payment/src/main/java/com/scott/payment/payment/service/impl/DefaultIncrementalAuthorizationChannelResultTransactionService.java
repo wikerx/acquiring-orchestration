@@ -33,8 +33,8 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
     /**
      * 创建 DefaultIncrementalAuthorizationChannelResultTransactionService 实例并注入其运行所需依赖。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationChannelResultTransactionService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionRecordService transaction Record Service 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -44,15 +44,6 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-/**
- * 写入或更新 record Incremental Authorization Channel Result 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param preparationResultDTO preparation Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- */
     public void recordIncrementalAuthorizationChannelResult(
             IncrementalAuthorizationPreparationResultDTO preparationResultDTO,
             PaymentChannelInvokeResultDTO invokeResultDTO) {

@@ -37,8 +37,8 @@ public class AdminEmailApplicationService {
     /**
      * 创建 AdminEmailApplicationService 实例并注入其运行所需依赖。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param adminEmailService admin Email Service 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -47,90 +47,90 @@ public class AdminEmailApplicationService {
     }
 
     /**
-     * 完成 page Accounts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 page Accounts 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public PageResult<EmailAccountResponse> pageAccounts(EmailAccountQuery query) {
         return adminEmailService.pageAccounts(query);
     }
 
     /**
-     * 完成 get Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Account 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailAccountResponse getAccount(Long id) {
         return adminEmailService.getAccount(id);
     }
 
     /**
-     * 完成 create Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 create Account 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailAccountResponse createAccount(EmailAccountSaveRequest request) {
         return adminEmailService.createAccount(request);
     }
 
     /**
-     * 写入或更新 update Account 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 update Account 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailAccountResponse updateAccount(Long id, EmailAccountSaveRequest request) {
         return adminEmailService.updateAccount(id, request);
     }
 
     /**
-     * 写入或更新 update Account Status 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 update Account Status 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailAccountResponse updateAccountStatus(Long id, Integer status) {
         return adminEmailService.updateAccountStatus(id, status);
     }
 
     /**
-     * 完成 set Default Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 set Default Account 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailAccountResponse setDefaultAccount(Long id) {
         return adminEmailService.setDefaultAccount(id);
     }
 
     /**
-     * 完成 delete Account 分支的校验或状态更新。
+     * 编排 delete Account 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -139,104 +139,104 @@ public class AdminEmailApplicationService {
     }
 
     /**
-     * 发送 send Test Email 对应的外部通知、内部消息或远程请求。
+     * 编排 send Test Email 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailSendResult sendTestEmail(Long accountId, EmailAccountTestRequest request) {
         return adminEmailService.sendTestEmail(accountId, request);
     }
 
     /**
-     * 完成 page Templates 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 page Templates 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public PageResult<EmailTemplateResponse> pageTemplates(EmailTemplateQuery query) {
         return adminEmailService.pageTemplates(query);
     }
 
     /**
-     * 完成 get Template 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Template 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailTemplateResponse getTemplate(Long id) {
         return adminEmailService.getTemplate(id);
     }
 
     /**
-     * 完成 create Template 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 create Template 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailTemplateResponse createTemplate(EmailTemplateSaveRequest request) {
         return adminEmailService.createTemplate(request);
     }
 
     /**
-     * 写入或更新 update Template 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 update Template 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailTemplateResponse updateTemplate(Long id, EmailTemplateSaveRequest request) {
         return adminEmailService.updateTemplate(id, request);
     }
 
     /**
-     * 完成 copy Template 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 copy Template 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailTemplateResponse copyTemplate(Long id) {
         return adminEmailService.copyTemplate(id);
     }
 
     /**
-     * 写入或更新 update Template Status 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 update Template Status 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailTemplateResponse updateTemplateStatus(Long id, Integer status) {
         return adminEmailService.updateTemplateStatus(id, status);
     }
 
     /**
-     * 完成 delete Template 分支的校验或状态更新。
+     * 编排 delete Template 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -245,65 +245,65 @@ public class AdminEmailApplicationService {
     }
 
     /**
-     * 完成 preview Template 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 preview Template 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailTemplatePreviewResponse previewTemplate(EmailTemplatePreviewRequest request) {
         return adminEmailService.previewTemplate(request);
     }
 
     /**
-     * 完成 page Records 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 page Records 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public PageResult<EmailRecordResponse> pageRecords(EmailRecordQuery query) {
         return adminEmailService.pageRecords(query);
     }
 
     /**
-     * 完成 get Record 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Record 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailRecordResponse getRecord(Long id) {
         return adminEmailService.getRecord(id);
     }
 
     /**
-     * 发送 send By Template 对应的外部通知、内部消息或远程请求。
+     * 编排 send By Template 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailSendResult sendByTemplate(EmailSendRequest request) {
         return adminEmailService.sendByTemplate(request);
     }
 
     /**
-     * 完成 resend 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 resend 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailSendResult resend(Long id) {
         return adminEmailService.resend(id);

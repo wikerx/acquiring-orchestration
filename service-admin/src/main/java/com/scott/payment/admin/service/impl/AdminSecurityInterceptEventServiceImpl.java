@@ -165,15 +165,6 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return getEvent(id);
     }
 
-    /**
-     * 构建 build Wrapper 对应的领域对象、请求对象或日志对象。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
-     */
     private LambdaQueryWrapper<SecurityInterceptEventDO> buildWrapper(SecurityInterceptEventQuery query) {
         String eventNo = trimToNull(query.getEventNo());
         String sourceLayer = trimToNull(query.getSourceLayer());
@@ -206,17 +197,6 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
                 .orderByDesc(SecurityInterceptEventDO::getId);
     }
 
-/**
- * 标准化 normalize Query Time Range 输入值，统一大小写、空白字符或协议格式。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param queryTimeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @return 标准化后的业务字段值
- */
     private QueryTimeRange normalizeQueryTimeRange(LocalDateTime beginTime,
                                                    LocalDateTime endTime,
                                                    String queryTimeZone) {
@@ -235,10 +215,10 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 解析 resolve Query Zone 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Query Zone 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param queryTimeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @return 解析或查询得到的业务值
@@ -253,10 +233,10 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 标准化 normalize Zone Id 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Zone Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param zone zone 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -286,15 +266,15 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 完成 convert Between Zones 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 convert Between Zones 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param sourceZone source Zone 输入值，含义由调用方法名称和所属业务对象限定
      * @param targetZone target Zone 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         if (sourceTime == null) {
@@ -304,13 +284,13 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 强制校验 require Event 必填值，缺失时中断当前业务流程。
+     * 执行 require Event 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private SecurityInterceptEventDO requireEvent(Long id) {
         if (id == null) {
@@ -324,10 +304,10 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 转换生成 to Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -363,10 +343,10 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 标准化 normalize Query Process Status 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Query Process Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 标准化后的业务字段值
@@ -382,10 +362,10 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 标准化 normalize Process Status 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Process Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 标准化后的业务字段值
@@ -398,12 +378,12 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 current Operator Name 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
@@ -420,26 +400,26 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
     }
 
     /**
-     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim To Null 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     /**
-     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 bad Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminSecurityInterceptEventServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);

@@ -77,15 +77,6 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 page.getRecords().stream().map(this::toResponse).toList());
     }
 
-    /**
-     * 构建 build Query Wrapper 对应的领域对象、请求对象或日志对象。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
-     */
     private LambdaQueryWrapper<SysDictDataDO> buildQueryWrapper(DictDataQuery query) {
         String locale = StringUtils.hasText(query.getLocale()) ? query.getLocale() : DEFAULT_LOCALE;
         Integer status = query.getStatus() == null ? ENABLED : query.getStatus();
@@ -101,15 +92,6 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 .orderByAsc(SysDictDataDO::getId);
     }
 
-    /**
-     * 转换生成 to Response 对应的传输对象、导出行或协议字段。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
-     */
     private DictDataResponse toResponse(SysDictDataDO entity) {
         DictDataResponse response = new DictDataResponse();
         response.setId(entity.getId());

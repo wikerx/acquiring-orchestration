@@ -190,15 +190,6 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         permissionIds.forEach(permissionId -> insertPermissionGrant(merchantApp.getId(), normalizedMerchantId, permissionId, now));
     }
 
-    /**
-     * 校验 validate Merchant 相关输入，发现不满足业务约束时抛出明确异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @return 当前方法计算或转换后的业务结果
-     */
     private String validateMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchantId is required");
@@ -216,14 +207,6 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return normalized;
     }
 
-    /**
-     * 完成 get Merchant App 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     private SysAppDO getMerchantApp() {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()
@@ -238,10 +221,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 查询 load Merchant Menu Tree 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 load Merchant Menu Tree 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -260,10 +243,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 查询 load Merchant Permissions 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 load Merchant Permissions 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -282,10 +265,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 查询 load Checked Menu Ids 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 load Checked Menu Ids 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
@@ -305,10 +288,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 查询 load Checked Permissions 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 load Checked Permissions 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
@@ -337,10 +320,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 校验 validate Menu Ids 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Menu Ids 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param menuIds menu Ids 输入值，含义由调用方法名称和所属业务对象限定
@@ -362,10 +345,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 校验 validate Permission Ids 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Permission Ids 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param permissionIds permission Ids 输入值，含义由调用方法名称和所属业务对象限定
@@ -387,10 +370,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 校验 validate Permission Menu Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Permission Menu Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param menuIds menu Ids 输入值，含义由调用方法名称和所属业务对象限定
@@ -417,10 +400,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 完成 soft Delete Menu Grants 分支的校验或状态更新。
+     * 执行 soft Delete Menu Grants 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
@@ -440,10 +423,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 完成 soft Delete Permission Grants 分支的校验或状态更新。
+     * 执行 soft Delete Permission Grants 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
@@ -463,10 +446,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 写入或更新 insert Menu Grant 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 执行 insert Menu Grant 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
@@ -487,10 +470,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 写入或更新 insert Permission Grant 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 执行 insert Permission Grant 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
@@ -511,10 +494,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 标准化 normalize Ids 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Ids 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param ids ids 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -530,10 +513,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 转换生成 to Menu DTO 对应的传输对象、导出行或协议字段。
+     * 执行 to Menu DTO 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -559,10 +542,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 转换生成 to Permission DTO 对应的传输对象、导出行或协议字段。
+     * 执行 to Permission DTO 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param permission permission 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -581,10 +564,10 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
     }
 
     /**
-     * 构建 build Menu Tree 对应的领域对象、请求对象或日志对象。
+     * 执行 build Menu Tree 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantMenuGrantServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param menus menus 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象

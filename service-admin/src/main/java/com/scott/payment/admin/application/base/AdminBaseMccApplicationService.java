@@ -585,13 +585,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 写入或更新 save Level1 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 save Level1 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MccEntities.BaseMccLevel1DO saveLevel1(MccRequests.MccCategorySaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
@@ -611,13 +611,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 写入或更新 save Level2 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 编排 save Level2 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MccEntities.BaseMccLevel2DO saveLevel2(MccRequests.MccCategorySaveRequest request) {
         if (request.getParentId() == null || level1Mapper.selectCount(baseLevel1Query().eq(MccEntities.BaseMccLevel1DO::getId, request.getParentId())) == 0) {
@@ -641,13 +641,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 填充 fill Level1 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 编排 fill Level1 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void fillLevel1(MccEntities.BaseMccLevel1DO row, MccRequests.MccCategorySaveRequest request, LocalDateTime now) {
@@ -660,13 +660,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 填充 fill Level2 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 编排 fill Level2 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void fillLevel2(MccEntities.BaseMccLevel2DO row, MccRequests.MccCategorySaveRequest request, LocalDateTime now) {
@@ -679,12 +679,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 校验 validate Code Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * 编排 validate Code Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param creating creating 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void validateCodeRequest(MccRequests.MccCodeSaveRequest request, boolean creating) {
@@ -712,13 +712,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 填充 fill Code 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 编排 fill Code 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      */
     private void fillCode(MccEntities.BaseMccCodeDO row, MccRequests.MccCodeSaveRequest request) {
         if (StringUtils.hasText(request.getMccCode())) {
@@ -741,12 +741,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 校验 validate Policy Base 相关输入，发现不满足业务约束时抛出明确异常。
+     * 编排 validate Policy Base 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      */
     private void validatePolicyBase(MccRequests.MccRiskPolicySaveRequest request) {
         if (!existsMccCode(request.getMccCode(), null)) {
@@ -762,12 +762,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 解析 resolve Card Schemes 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 编排 resolve Card Schemes 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 解析或查询得到的业务值
      */
     private List<String> resolveCardSchemes(MccRequests.MccRiskPolicySaveRequest request) {
@@ -790,13 +790,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 填充 fill Policy 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 编排 fill Policy 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param cardScheme 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
      */
     private void fillPolicy(MccEntities.BaseMccRiskPolicyDO row, MccRequests.MccRiskPolicySaveRequest request, String cardScheme) {
@@ -819,13 +819,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 assert Policy Not Exists 分支的校验或状态更新。
+     * 编排 assert Policy Not Exists 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param cardScheme 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
      */
     private void assertPolicyNotExists(Long excludeId, MccRequests.MccRiskPolicySaveRequest request, String cardScheme) {
@@ -847,10 +847,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 构建 build Policy Query 对应的领域对象、请求对象或日志对象。
+     * 编排 build Policy Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -884,10 +884,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 校验 validate Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * 编排 validate Scope 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
      * @param code code 输入值，含义由调用方法名称和所属业务对象限定
@@ -906,12 +906,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 card Brand Values 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 card Brand Values 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Set<String> cardBrandValues() {
         List<SysDictDataDO> rows = cardBrandDictRows();
@@ -919,12 +919,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 card Brand Dict Rows 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 card Brand Dict Rows 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<SysDictDataDO> cardBrandDictRows() {
         List<SysDictDataDO> rows = dictDataMapper.selectList(Wrappers.<SysDictDataDO>lambdaQuery()
@@ -939,10 +939,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 判断 exists Country Alpha2 条件是否成立，用于控制后续业务分支。
+     * 编排 exists Country Alpha2 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param alpha2 alpha2 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -958,10 +958,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 assert Category Code Not Exists 分支的校验或状态更新。
+     * 编排 assert Category Code Not Exists 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param nodeType node Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param code code 输入值，含义由调用方法名称和所属业务对象限定
@@ -986,10 +986,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 判断 exists Mcc Code 条件是否成立，用于控制后续业务分支。
+     * 编排 exists Mcc Code 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param mccCode mcc Code 输入值，含义由调用方法名称和所属业务对象限定
      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -1006,14 +1006,14 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 filter Tree 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 filter Tree 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param node node 输入值，含义由调用方法名称和所属业务对象限定
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MccVO.MccTreeNodeVO filterTree(MccVO.MccTreeNodeVO node, MccRequests.MccTreeQueryRequest query) {
         List<MccVO.MccTreeNodeVO> children = node.getChildren().stream()
@@ -1029,14 +1029,14 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 matches 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 matches 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param node node 输入值，含义由调用方法名称和所属业务对象限定
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean matches(MccVO.MccTreeNodeVO node, MccRequests.MccTreeQueryRequest query) {
         return containsAny(node, query.getKeyword())
@@ -1049,14 +1049,14 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 contains Any 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 contains Any 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param node node 输入值，含义由调用方法名称和所属业务对象限定
      * @param keyword keyword 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean containsAny(MccVO.MccTreeNodeVO node, String keyword) {
         if (!StringUtils.hasText(keyword)) {
@@ -1071,38 +1071,38 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 field Contains 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 field Contains 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param target target 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean fieldContains(String source, String target) {
         return !StringUtils.hasText(target) || (source != null && source.toLowerCase(Locale.ROOT).contains(target.trim().toLowerCase(Locale.ROOT)));
     }
 
     /**
-     * 完成 field Equals 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 field Equals 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param target target 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean fieldEquals(String source, String target) {
         return !StringUtils.hasText(target) || Objects.equals(source, target.trim());
     }
 
     /**
-     * 转换生成 to Level1 Node 对应的传输对象、导出行或协议字段。
+     * 编排 to Level1 Node 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1112,10 +1112,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 转换生成 to Level2 Node 对应的传输对象、导出行或协议字段。
+     * 编排 to Level2 Node 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1125,10 +1125,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 转换生成 to Mcc Code Node 对应的传输对象、导出行或协议字段。
+     * 编排 to Mcc Code Node 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1152,10 +1152,10 @@ public class AdminBaseMccApplicationService {
     }
 
 /**
- * 完成 base Node 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 编排 base Node 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param type type 输入值，含义由调用方法名称和所属业务对象限定
  * @param id id 输入值，含义由调用方法名称和所属业务对象限定
@@ -1169,7 +1169,7 @@ public class AdminBaseMccApplicationService {
  * @param remark remark 输入值，含义由调用方法名称和所属业务对象限定
  * @param createTime 时间值，使用系统约定时区或调用方传入的业务时区解释
  * @param updateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private MccVO.MccTreeNodeVO baseNode(String type, Long id, String parentNodeKey, Integer level, String code,
                                          String nameCn, String nameEn, Integer status, Integer sortNo, String remark,
@@ -1193,10 +1193,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 计算 add Child 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * 编排 add Child 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param parent parent 输入值，含义由调用方法名称和所属业务对象限定
      * @param child child 输入值，含义由调用方法名称和所属业务对象限定
@@ -1210,10 +1210,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 转换生成 to Code VO 对应的传输对象、导出行或协议字段。
+     * 编排 to Code VO 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1243,10 +1243,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 填充 fill Category Path 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 编排 fill Category Path 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param vo vo 输入值，含义由调用方法名称和所属业务对象限定
      * @param level1Id level1 Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -1270,10 +1270,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 转换生成 to Policy VO 对应的传输对象、导出行或协议字段。
+     * 编排 to Policy VO 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1306,10 +1306,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 填充 fill Country Name 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 编排 fill Country Name 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param vo vo 输入值，含义由调用方法名称和所属业务对象限定
      * @param countryCode country Code 输入值，含义由调用方法名称和所属业务对象限定
@@ -1329,13 +1329,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 card Scheme Label 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 card Scheme Label 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param cardScheme 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String cardSchemeLabel(String cardScheme) {
         SysDictDataQueryRequest query = new SysDictDataQueryRequest();
@@ -1347,10 +1347,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 转换生成 to Export Row 对应的传输对象、导出行或协议字段。
+     * 编排 to Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -1380,10 +1380,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 option 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 option 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @param code code 输入值，含义由调用方法名称和所属业务对象限定
@@ -1391,7 +1391,7 @@ public class AdminBaseMccApplicationService {
      * @param nameEn name En 输入值，含义由调用方法名称和所属业务对象限定
      * @param nodeType node Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param parentId parent Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MccVO.MccOptionVO option(Long id, String code, String nameCn, String nameEn, String nodeType, Long parentId) {
         MccVO.MccOptionVO option = new MccVO.MccOptionVO();
@@ -1406,10 +1406,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 soft Delete Level1 分支的校验或状态更新。
+     * 编排 soft Delete Level1 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1421,10 +1421,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 soft Delete Level2 分支的校验或状态更新。
+     * 编排 soft Delete Level2 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1436,13 +1436,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 get Level1 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Level1 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MccEntities.BaseMccLevel1DO getLevel1(Long id) {
         MccEntities.BaseMccLevel1DO row = level1Mapper.selectById(id);
@@ -1453,13 +1453,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 get Level2 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Level2 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MccEntities.BaseMccLevel2DO getLevel2(Long id) {
         MccEntities.BaseMccLevel2DO row = level2Mapper.selectById(id);
@@ -1470,13 +1470,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 get Code By Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Code By Id 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MccEntities.BaseMccCodeDO getCodeById(Long id) {
         MccEntities.BaseMccCodeDO row = codeMapper.selectById(id);
@@ -1487,13 +1487,13 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 get Policy 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Policy 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MccEntities.BaseMccRiskPolicyDO getPolicy(Long id) {
         MccEntities.BaseMccRiskPolicyDO row = riskPolicyMapper.selectById(id);
@@ -1504,12 +1504,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 base Level1 Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 base Level1 Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LambdaQueryWrapper<MccEntities.BaseMccLevel1DO> baseLevel1Query() {
         return Wrappers.<MccEntities.BaseMccLevel1DO>lambdaQuery()
@@ -1519,12 +1519,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 base Level2 Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 base Level2 Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LambdaQueryWrapper<MccEntities.BaseMccLevel2DO> baseLevel2Query() {
         return Wrappers.<MccEntities.BaseMccLevel2DO>lambdaQuery()
@@ -1534,12 +1534,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 base Code Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 base Code Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LambdaQueryWrapper<MccEntities.BaseMccCodeDO> baseCodeQuery() {
         return Wrappers.<MccEntities.BaseMccCodeDO>lambdaQuery()
@@ -1547,12 +1547,12 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 base Policy Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 base Policy Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LambdaQueryWrapper<MccEntities.BaseMccRiskPolicyDO> basePolicyQuery() {
         return Wrappers.<MccEntities.BaseMccRiskPolicyDO>lambdaQuery()
@@ -1560,10 +1560,10 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 标准化 normalize Required 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Required 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
@@ -1577,66 +1577,66 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 default If Blank 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 default If Blank 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value.trim() : defaultValue;
     }
 
     /**
-     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 trim To Null 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     /**
-     * 完成 default Sort 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 default Sort 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sortNo sort No 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int defaultSort(Integer sortNo) {
         return sortNo == null ? 100 : sortNo;
     }
 
     /**
-     * 完成 default Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 default Status 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int defaultStatus(Integer status) {
         return status == null ? ENABLED : validStatus(status);
     }
 
     /**
-     * 完成 valid Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 valid Status 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int validStatus(Integer status) {
         if (!Objects.equals(status, ENABLED) && !Objects.equals(status, DISABLED)) {
@@ -1646,14 +1646,14 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 default Flag 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 default Flag 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param flag flag 输入值，含义由调用方法名称和所属业务对象限定
      * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int defaultFlag(Integer flag, int defaultValue) {
         if (flag == null) {
@@ -1666,26 +1666,26 @@ public class AdminBaseMccApplicationService {
     }
 
     /**
-     * 完成 non Null Count 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 non Null Count 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param count count 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private long nonNullCount(Long count) {
         return count == null ? 0L : count;
     }
 
     /**
-     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 bad Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseMccApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);

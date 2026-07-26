@@ -170,15 +170,15 @@ public class OpenApiCallbackSecuritySupport {
 /**
  * 写入或更新 record And Return Open Api Exception 相关数据，保持数据库记录与当前业务处理结果一致。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiCallbackSecuritySupport 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
  * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
  * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ApiException recordAndReturnOpenApiException(HttpServletRequest request,
                                                          String eventType,
@@ -202,15 +202,15 @@ public class OpenApiCallbackSecuritySupport {
 /**
  * 写入或更新 record And Return Channel Exception 相关数据，保持数据库记录与当前业务处理结果一致。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiCallbackSecuritySupport 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
  * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
  * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ApiException recordAndReturnChannelException(HttpServletRequest request,
                                                          String eventType,
@@ -234,8 +234,8 @@ public class OpenApiCallbackSecuritySupport {
     /**
      * 解析 parse Timestamp 输入文本并转换为内部可校验的数据结构。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiCallbackSecuritySupport 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param timestampText 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @return 解析后的内部数据结构或业务值
@@ -249,13 +249,13 @@ public class OpenApiCallbackSecuritySupport {
     }
 
     /**
-     * 完成 sha256 Hex 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 sha256 Hex 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiCallbackSecuritySupport 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawBody raw Body 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String sha256Hex(String rawBody) {
         try {

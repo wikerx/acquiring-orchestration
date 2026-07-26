@@ -543,10 +543,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 构建 build List Query 对应的领域对象、请求对象或日志对象。
+     * 编排 build List Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -570,13 +570,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
 /**
- * 填充 fill Save Fields 相关字段，保持来源对象与目标对象的业务含义一致。
+ * 编排 fill Save Fields 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param row row 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param range range 输入值，含义由调用方法名称和所属业务对象限定
  * @param dataSource data Source 输入值，含义由调用方法名称和所属业务对象限定
  * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
@@ -609,15 +609,15 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 adjust Status By Conflicts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 adjust Status By Conflicts 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param currentId current Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param range range 输入值，含义由调用方法名称和所属业务对象限定
      * @param requestedStatus 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Integer adjustStatusByConflicts(Long currentId, NormalizedBinRange range, Integer requestedStatus) {
         List<CardBinEntities.BaseCardBinRangeDO> conflicts = cardBinRangeMapper.selectList(
@@ -650,10 +650,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 标准化 normalize Range 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Range 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param start start 输入值，含义由调用方法名称和所属业务对象限定
      * @param end end 输入值，含义由调用方法名称和所属业务对象限定
@@ -674,14 +674,14 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 校验 validate Bin 相关输入，发现不满足业务约束时抛出明确异常。
+     * 编排 validate Bin 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String validateBin(String value, String message) {
         String normalized = trimToNull(value);
@@ -692,10 +692,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 标准化 normalize Start Value 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Start Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -705,10 +705,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 标准化 normalize End Value 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize End Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -718,13 +718,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 bin To Display 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 bin To Display 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String binToDisplay(Long value) {
         if (value == null) {
@@ -734,10 +734,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 标准化 normalize Status 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Status 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      * @param defaultStatus 状态编码，取值必须来自对应枚举或数据库受控字典
@@ -752,10 +752,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 assert Status Transition 分支的校验或状态更新。
+     * 编排 assert Status Transition 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param currentStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @param targetStatus 状态编码，取值必须来自对应枚举或数据库受控字典
@@ -777,10 +777,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 assert Dict Value 分支的校验或状态更新。
+     * 编排 assert Dict Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param dictType dict Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param dictValue dict Value 输入值，含义由调用方法名称和所属业务对象限定
@@ -799,13 +799,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 list Dict 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 list Dict 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param dictType dict Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<SysDictDataDTO> listDict(String dictType) {
         SysDictDataQueryRequest request = new SysDictDataQueryRequest();
@@ -817,13 +817,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 dict Options 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 dict Options 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param dictType dict Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<CardBinDTOs.CardBinOption> dictOptions(String dictType) {
         return listDict(dictType).stream()
@@ -836,12 +836,12 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 country Options 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 country Options 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<CardBinDTOs.CardBinOption> countryOptions() {
         return isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
@@ -865,14 +865,14 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 option 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 option 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param label label 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private CardBinDTOs.CardBinOption option(String label, String value) {
         CardBinDTOs.CardBinOption option = new CardBinDTOs.CardBinOption();
@@ -882,10 +882,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 查询 load Dict Labels 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 编排 load Dict Labels 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @return 解析或查询得到的业务值
      */
@@ -899,13 +899,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 labels 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 labels 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param dictType dict Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, String> labels(String dictType) {
         return listDict(dictType).stream()
@@ -918,10 +918,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 转换生成 to Response 对应的传输对象、导出行或协议字段。
+     * 编排 to Response 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param labels labels 输入值，含义由调用方法名称和所属业务对象限定
@@ -964,10 +964,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 转换生成 to Export Row 对应的传输对象、导出行或协议字段。
+     * 编排 to Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param labels labels 输入值，含义由调用方法名称和所属业务对象限定
@@ -1003,10 +1003,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 转换生成 to Batch Response 对应的传输对象、导出行或协议字段。
+     * 编排 to Batch Response 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1033,10 +1033,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 判断 exists Legacy Row 条件是否成立，用于控制后续业务分支。
+     * 编排 exists Legacy Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param legacyPkId legacy Pk Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1052,10 +1052,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 转换生成 to Range From Legacy 对应的传输对象、导出行或协议字段。
+     * 编排 to Range From Legacy 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param legacy legacy 输入值，含义由调用方法名称和所属业务对象限定
@@ -1094,14 +1094,14 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 infer Bin Length 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 infer Bin Length 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param start start 输入值，含义由调用方法名称和所属业务对象限定
      * @param end end 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int inferBinLength(Long start, Long end) {
         if (start == null || end == null) {
@@ -1120,10 +1120,10 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 标准化 normalize Legacy Card Type 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Legacy Card Type 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -1140,13 +1140,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 long Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 long Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Long longValue(Object value) {
         if (value instanceof Number number) {
@@ -1159,26 +1159,26 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 string Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 string Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String stringValue(Object value) {
         return value == null ? null : value.toString();
     }
 
     /**
-     * 完成 local Date Time Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 local Date Time Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime localDateTimeValue(Object value) {
         if (value instanceof LocalDateTime localDateTime) {
@@ -1188,13 +1188,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 get Active Row 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 get Active Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private CardBinEntities.BaseCardBinRangeDO getActiveRow(Long id) {
         if (id == null) {
@@ -1212,12 +1212,12 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 current Operator Name 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
@@ -1231,13 +1231,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 first Text 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String... values) {
         for (String value : values) {
@@ -1249,14 +1249,14 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 default If Blank 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 default If Blank 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultIfBlank(String value, String defaultValue) {
         String normalized = trimToNull(value);
@@ -1264,13 +1264,13 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 trim To Null 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {
@@ -1280,26 +1280,26 @@ public class AdminBaseCardBinApplicationService {
     }
 
     /**
-     * 完成 upper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 upper 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String upper(String value) {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }
 
     /**
-     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 bad Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseCardBinApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);

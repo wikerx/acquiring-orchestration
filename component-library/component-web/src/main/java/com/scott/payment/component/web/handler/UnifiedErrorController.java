@@ -43,15 +43,6 @@ public class UnifiedErrorController implements ErrorController {
         };
     }
 
-    /**
-     * 解析 resolve Status 对应的业务值，按优先级从上下文、请求或配置中取值。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 解析或查询得到的业务值
-     */
     private int resolveStatus(HttpServletRequest request) {
         Object status = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         if (status instanceof Integer statusCode) {

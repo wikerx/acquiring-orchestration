@@ -61,13 +61,6 @@ class RedisGlobalIdAutoConfigurationTests {
     private static class TestStringRedisTemplate extends StringRedisTemplate {
 
         @Override
-        /**
-         * 完成 after Properties Set 分支的校验或状态更新。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         */
         public void afterPropertiesSet() {
             // 测试自动配置装配关系，不需要真实 Redis 连接工厂。
         }

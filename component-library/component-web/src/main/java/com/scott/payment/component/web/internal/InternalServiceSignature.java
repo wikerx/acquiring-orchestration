@@ -106,14 +106,14 @@ public final class InternalServiceSignature {
     }
 
     /**
-     * 完成 hmac Sha256 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 hmac Sha256 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 InternalServiceSignature 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param canonicalText canonical Text 输入值，含义由调用方法名称和所属业务对象限定
      * @param secret secret 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private static String hmacSha256(String canonicalText, String secret) {
         try {
@@ -152,17 +152,17 @@ public final class InternalServiceSignature {
     }
 
     /**
-     * 完成 canonical Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 canonical Text 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 InternalServiceSignature 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param method method 输入值，含义由调用方法名称和所属业务对象限定
      * @param path path 输入值，含义由调用方法名称和所属业务对象限定
      * @param timestamp 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param nonce nonce 输入值，含义由调用方法名称和所属业务对象限定
      * @param caller caller 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private static String canonicalText(String method, String path, long timestamp, String nonce, String caller) {
         return method.toUpperCase(Locale.ROOT)

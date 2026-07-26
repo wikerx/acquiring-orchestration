@@ -155,16 +155,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         }
     }
 
-    /**
-     * 构建 build Signed Entity 对应的领域对象、请求对象或日志对象。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param uri uri 输入值，含义由调用方法名称和所属业务对象限定
-     * @param body body 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
-     */
     private HttpEntity<String> buildSignedEntity(URI uri, Object body) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
@@ -186,15 +176,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return new HttpEntity<>(body == null ? null : JsonUtils.toJsonString(body), headers);
     }
 
-    /**
-     * 完成 choose Rest Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param uri uri 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private RestTemplate chooseRestTemplate(URI uri) {
         String host = uri.getHost();
         if (host == null) {
@@ -220,14 +201,14 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     }
 
     /**
-     * 完成 translate Http Exception 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 translate Http Exception 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 PaymentInternalRestClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param uri uri 输入值，含义由调用方法名称和所属业务对象限定
      * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ServiceException translateHttpException(URI uri, HttpStatusCodeException exception) {
         log.warn("service-payment compensation call returned non-success status, targetUri={}, status={}",

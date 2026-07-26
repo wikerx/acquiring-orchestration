@@ -273,18 +273,6 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         return result;
     }
 
-/**
- * 完成 process Item 分支的校验或状态更新。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param source source 输入值，含义由调用方法名称和所属业务对象限定
- * @param item item 输入值，含义由调用方法名称和所属业务对象限定
- * @param batchNo batch No 输入值，含义由调用方法名称和所属业务对象限定
- * @param dryRun dry Run 输入值，含义由调用方法名称和所属业务对象限定
- * @param result result 输入值，含义由调用方法名称和所属业务对象限定
- */
     private void processItem(ExchangeRateSourceDO source,
                              RawRateItem item,
                              String batchNo,
@@ -336,18 +324,6 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         result.setSuccessCount(result.getSuccessCount() + 1);
     }
 
-/**
- * 完成 backfill Missing Business Rates 分支的校验或状态更新。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param baseCurrency 币种代码，格式为 ISO 4217 三位大写字母
- * @param quoteCurrency 币种代码，格式为 ISO 4217 三位大写字母
- * @param publishTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param result result 输入值，含义由调用方法名称和所属业务对象限定
- */
     private void backfillMissingBusinessRates(String sourceCode,
                                               String baseCurrency,
                                               String quoteCurrency,
@@ -378,10 +354,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 完成 generate Business Rates 分支的校验或状态更新。
+     * 执行 generate Business Rates 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param result result 输入值，含义由调用方法名称和所属业务对象限定
@@ -402,10 +378,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 查询 find Matched Rules 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Matched Rules 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param generateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
@@ -431,14 +407,14 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 完成 better Rule 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 better Rule 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param left left 输入值，含义由调用方法名称和所属业务对象限定
      * @param right right 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ExchangeRateRuleDO betterRule(ExchangeRateRuleDO left, ExchangeRateRuleDO right) {
         int priorityCompare = Integer.compare(priority(left), priority(right));
@@ -459,26 +435,26 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 完成 priority 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 priority 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int priority(ExchangeRateRuleDO rule) {
         return rule.getPriority() == null ? 100 : rule.getPriority();
     }
 
     /**
-     * 完成 specificity 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 specificity 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int specificity(ExchangeRateRuleDO rule) {
         int score = 0;
@@ -489,10 +465,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 完成 generate Business Rate 分支的校验或状态更新。
+     * 执行 generate Business Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
@@ -528,10 +504,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 推进 expire Current Business Rate 对应的状态或处理结果，并保留后续查询所需信息。
+     * 执行 expire Current Business Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rateType rate Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
@@ -557,10 +533,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 判断 exists Business Rate 条件是否成立，用于控制后续业务分支。
+     * 执行 exists Business Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRateId raw Rate Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param ruleId rule Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -577,15 +553,15 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 完成 business Effective Time 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 business Effective Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
      * @param generateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime businessEffectiveTime(ExchangeRawRateDO rawRate, ExchangeRateRuleDO rule, LocalDateTime generateTime) {
         LocalDateTime rawEffectiveTime = rawRate.getEffectiveTime() == null ? generateTime : rawRate.getEffectiveTime();
@@ -596,10 +572,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 查询 find Enabled Source 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Enabled Source 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -616,10 +592,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 判断 exists Raw Rate 条件是否成立，用于控制后续业务分支。
+     * 执行 exists Raw Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
      * @param baseCurrency 币种代码，格式为 ISO 4217 三位大写字母
@@ -637,10 +613,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 写入或更新 insert Fetch Log 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 执行 insert Fetch Log 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param result result 输入值，含义由调用方法名称和所属业务对象限定
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
@@ -665,10 +641,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 写入或更新 update Source Fetch Status 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 执行 update Source Fetch Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param fetchStatus 状态编码，取值必须来自对应枚举或数据库受控字典
@@ -683,10 +659,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 判断 has Any Rate 条件是否成立，用于控制后续业务分支。
+     * 执行 has Any Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param item item 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -700,23 +676,23 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 完成 positive 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 positive 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean positive(BigDecimal value) {
         return value != null && value.compareTo(BigDecimal.ZERO) > 0;
     }
 
     /**
-     * 完成 skip 分支的校验或状态更新。
+     * 执行 skip 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param result result 输入值，含义由调用方法名称和所属业务对象限定
      * @param warning warning 输入值，含义由调用方法名称和所属业务对象限定
@@ -727,10 +703,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 查询 select Raw Rate Value 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Raw Rate Value 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param rateField rate Field 输入值，含义由调用方法名称和所属业务对象限定
@@ -748,14 +724,14 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 计算 calculate Final Rate 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * 执行 calculate Final Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param originalRate original Rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal calculateFinalRate(BigDecimal originalRate, ExchangeRateRuleDO rule) {
         BigDecimal multiplier = BigDecimal.ONE;
@@ -773,14 +749,14 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 完成 adjust Ratio 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 adjust Ratio 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param adjustMethod adjust Method 输入值，含义由调用方法名称和所属业务对象限定
      * @param adjustValue adjust Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal adjustRatio(String adjustMethod, BigDecimal adjustValue) {
         if (adjustValue == null) {
@@ -793,10 +769,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 转换生成 to Rounding Mode 对应的传输对象、导出行或协议字段。
+     * 执行 to Rounding Mode 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param roundingMode rounding Mode 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -810,10 +786,10 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
     }
 
     /**
-     * 构建 build Adjust Description 对应的领域对象、请求对象或日志对象。
+     * 执行 build Adjust Description 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ExchangeRateFetchServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
      * @param originalRate original Rate 输入值，含义由调用方法名称和所属业务对象限定

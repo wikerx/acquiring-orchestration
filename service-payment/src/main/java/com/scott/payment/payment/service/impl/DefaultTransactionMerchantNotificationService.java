@@ -239,16 +239,6 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         return notified;
     }
 
-    /**
-     * 发送 notify Single 对应的外部通知、内部消息或远程请求。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param notificationTable notification Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param task task 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private boolean notifySingle(String notificationTable, TransactionMerchantNotificationDO task) {
         LocalDateTime beginTime = LocalDateTime.now();
         if (notificationMapper.markProcessing(notificationTable, task.getId(), task.getVersion(), beginTime) != 1) {
@@ -303,16 +293,6 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         return false;
     }
 
-    /**
-     * 完成 execute Http Notify 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param task task 输入值，含义由调用方法名称和所属业务对象限定
-     * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
-     */
     private NotifyAttemptResult executeHttpNotify(TransactionMerchantNotificationDO task, LocalDateTime beginTime) {
         String targetUrl = resolveTargetUrl(task);
         if (!StringUtils.hasText(targetUrl)) {
@@ -343,10 +323,10 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     }
 
 /**
- * 写入或更新 insert Notify Log 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 insert Notify Log 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param task task 输入值，含义由调用方法名称和所属业务对象限定
  * @param attemptNo attempt No 输入值，含义由调用方法名称和所属业务对象限定
@@ -386,10 +366,10 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     }
 
     /**
-     * 解析 resolve Target Url 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Target Url 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param task task 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -403,14 +383,14 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     }
 
     /**
-     * 完成 next Retry Time 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 next Retry Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param baseTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param attemptNo attempt No 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime nextRetryTime(LocalDateTime baseTime, int attemptNo) {
         long delaySeconds = BASE_RETRY_DELAY_SECONDS * Math.max(1, Math.min(attemptNo, 30));
@@ -418,27 +398,27 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     }
 
     /**
-     * 完成 safe Max Retry 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 safe Max Retry 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param task task 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int safeMaxRetry(TransactionMerchantNotificationDO task) {
         return task.getMaxRetryCount() == null || task.getMaxRetryCount() <= 0 ? 1 : task.getMaxRetryCount();
     }
 
     /**
-     * 完成 duration Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 duration Millis 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param startTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int durationMillis(LocalDateTime startTime, LocalDateTime endTime) {
         if (startTime == null || endTime == null) {
@@ -449,10 +429,10 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     }
 
     /**
-     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Transaction Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param target target 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
@@ -466,14 +446,14 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     }
 
     /**
-     * 完成 physical Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 physical Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
@@ -481,14 +461,14 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     }
 
     /**
-     * 完成 safe Length 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 safe Length 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param maxLength max Length 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String safeLength(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
@@ -498,13 +478,13 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
     }
 
     /**
-     * 完成 elapsed Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 elapsed Millis 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionMerchantNotificationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param startNanos start Nanos 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;

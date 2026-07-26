@@ -156,16 +156,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     @Override
-    /**
-     * 完成 tree Menus 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public List<SysMenuDTO> treeMenus(String appCode, SysMenuQueryRequest request) {
         SysMenuQueryRequest query = request == null ? new SysMenuQueryRequest() : request;
         SysAppDO app = getApp(appCode);
@@ -204,16 +194,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 完成 create Menu 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysMenuDTO createMenu(String appCode, SysMenuCreateRequest request) {
         SysAppDO app = getApp(appCode);
         validateParent(app.getId(), request.getParentId(), null);
@@ -250,16 +230,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 写入或更新 update Menu 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysMenuDTO updateMenu(String appCode, SysMenuUpdateRequest request) {
         SysAppDO app = getApp(appCode);
         SysMenuDO menu = getMenu(app.getId(), request.getMenuId());
@@ -291,15 +261,6 @@ public class AdminMenuServiceImpl implements AdminMenuService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 写入或更新 update Status 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     */
     public void updateStatus(String appCode, SysMenuStatusRequest request) {
         SysAppDO app = getApp(appCode);
         SysMenuDO menu = getMenu(app.getId(), request.getMenuId());
@@ -502,10 +463,10 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     /**
-     * 完成 sync Permission 分支的校验或状态更新。
+     * 执行 sync Permission 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMenuServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
@@ -556,10 +517,10 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     /**
-     * 完成 apply Permission Fields 分支的校验或状态更新。
+     * 执行 apply Permission Fields 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMenuServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param permission permission 输入值，含义由调用方法名称和所属业务对象限定
      * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
@@ -573,23 +534,23 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     /**
-     * 完成 default Resource Method 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default Resource Method 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMenuServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param menuType menu Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultResourceMethod(String menuType) {
         return "BUTTON".equals(menuType) ? "*" : "GET";
     }
 
     /**
-     * 完成 soft Delete Role Menus 分支的校验或状态更新。
+     * 执行 soft Delete Role Menus 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMenuServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param menuId menu Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -608,10 +569,10 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     /**
-     * 完成 soft Delete Menu Permissions 分支的校验或状态更新。
+     * 执行 soft Delete Menu Permissions 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMenuServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param menuId menu Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -632,10 +593,10 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     /**
-     * 完成 soft Delete Role Permissions 分支的校验或状态更新。
+     * 执行 soft Delete Role Permissions 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMenuServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param permissionId permission Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -654,10 +615,10 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     /**
-     * 构建 build Tree 对应的领域对象、请求对象或日志对象。
+     * 执行 build Tree 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMenuServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param menus menus 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -678,10 +639,10 @@ public class AdminMenuServiceImpl implements AdminMenuService {
     }
 
     /**
-     * 转换生成 to DTO 对应的传输对象、导出行或协议字段。
+     * 执行 to DTO 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMenuServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象

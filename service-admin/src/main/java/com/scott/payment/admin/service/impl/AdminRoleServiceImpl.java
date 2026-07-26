@@ -521,13 +521,13 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 完成 count Role Menus 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 count Role Menus 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param roleId role Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<Long, Long> countRoleMenus(Long roleId) {
         return Map.of(roleId, sysRoleMenuMapper.selectCount(
@@ -538,13 +538,13 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 完成 count Role Permissions 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 count Role Permissions 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param roleId role Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<Long, Long> countRolePermissions(Long roleId) {
         List<Long> menuIds = sysRoleMenuMapper.selectList(
@@ -567,13 +567,13 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 完成 valid Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 valid Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Integer validStatus(Integer status) {
         if (status == AuthConstants.ENABLED || status == AuthConstants.DISABLED) {
@@ -583,10 +583,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 解析 resolve Data Scope 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Data Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param dataScope data Scope 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -603,10 +603,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 完成 soft Delete Role Menus 分支的校验或状态更新。
+     * 执行 soft Delete Role Menus 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param roleId role Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -624,10 +624,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 完成 soft Delete Role Permissions 分支的校验或状态更新。
+     * 执行 soft Delete Role Permissions 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param roleId role Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -645,10 +645,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -661,13 +661,13 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 完成 count Role Menus 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 count Role Menus 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param page page 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<Long, Long> countRoleMenus(Page<SysRoleDO> page) {
         if (page.getRecords().isEmpty()) {
@@ -681,13 +681,13 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 完成 count Role Permissions 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 count Role Permissions 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param page page 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<Long, Long> countRolePermissions(Page<SysRoleDO> page) {
         if (page.getRecords().isEmpty()) {
@@ -718,10 +718,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 转换生成 to DTO 对应的传输对象、导出行或协议字段。
+     * 执行 to DTO 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param role role 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
@@ -747,10 +747,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 查询 load Grantable Menus 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 load Grantable Menus 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -767,10 +767,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 构建 build Menu Tree 对应的领域对象、请求对象或日志对象。
+     * 执行 build Menu Tree 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param menus menus 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -791,10 +791,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 转换生成 to Menu DTO 对应的传输对象、导出行或协议字段。
+     * 执行 to Menu DTO 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param menu menu 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -820,10 +820,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 标准化 normalize Ids 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Ids 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param ids ids 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -836,10 +836,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 校验 validate Menu Ids 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Menu Ids 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param menuIds menu Ids 输入值，含义由调用方法名称和所属业务对象限定
@@ -861,10 +861,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 校验 validate Permission Ids 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Permission Ids 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param permissionIds permission Ids 输入值，含义由调用方法名称和所属业务对象限定
@@ -886,10 +886,10 @@ public class AdminRoleServiceImpl implements AdminRoleService {
     }
 
     /**
-     * 转换生成 to Permission DTO 对应的传输对象、导出行或协议字段。
+     * 执行 to Permission DTO 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRoleServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param permission permission 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象

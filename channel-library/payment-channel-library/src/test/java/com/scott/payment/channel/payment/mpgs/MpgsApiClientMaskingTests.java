@@ -202,66 +202,26 @@ class MpgsApiClientMaskingTests {
         }
 
         @Override
-        /**
-         * 完成 cookie Handler 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public Optional<CookieHandler> cookieHandler() {
             return Optional.empty();
         }
 
         @Override
-        /**
-         * 完成 connect Timeout 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public Optional<Duration> connectTimeout() {
             return Optional.of(Duration.ofSeconds(10));
         }
 
         @Override
-        /**
-         * 完成 follow Redirects 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public Redirect followRedirects() {
             return Redirect.NEVER;
         }
 
         @Override
-        /**
-         * 完成 proxy 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public Optional<ProxySelector> proxy() {
             return Optional.empty();
         }
 
         @Override
-        /**
-         * 完成 ssl Context 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public SSLContext sslContext() {
             try {
                 SSLContext context = SSLContext.getInstance("TLS");
@@ -273,53 +233,21 @@ class MpgsApiClientMaskingTests {
         }
 
         @Override
-        /**
-         * 完成 ssl Parameters 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public SSLParameters sslParameters() {
             return new SSLParameters();
         }
 
         @Override
-        /**
-         * 完成 authenticator 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public Optional<Authenticator> authenticator() {
             return Optional.empty();
         }
 
         @Override
-        /**
-         * 完成 version 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;
         }
 
         @Override
-        /**
-         * 完成 executor 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public Optional<Executor> executor() {
             return Optional.empty();
         }
@@ -354,79 +282,39 @@ class MpgsApiClientMaskingTests {
     private record SimpleHttpResponse<T>(HttpRequest request, T body) implements HttpResponse<T> {
 
         @Override
-        /**
-         * 完成 status Code 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public int statusCode() {
             return 200;
         }
 
         @Override
-        /**
-         * 完成 headers 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public HttpHeaders headers() {
             return HttpHeaders.of(java.util.Map.of(), (name, value) -> true);
         }
 
         @Override
-        /**
-         * 完成 previous Response 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public Optional<HttpResponse<T>> previousResponse() {
             return Optional.empty();
         }
 
         @Override
-        /**
-         * 完成 uri 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public URI uri() {
             return request.uri();
         }
 
         @Override
-        /**
-         * 完成 version 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @return 当前方法计算或转换后的业务结果
-         */
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;
         }
 
-        @Override
         /**
-         * 完成 ssl Session 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * 完成 ssl Session 的本地校验、字段转换或结果组装，供当前调用链继续使用。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 SimpleHttpResponse 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
-         * @return 当前方法计算或转换后的业务结果
+         * @return 方法签名声明的返回值，具体结构由返回类型定义
          */
+        @Override
         public Optional<javax.net.ssl.SSLSession> sslSession() {
             return Optional.empty();
         }

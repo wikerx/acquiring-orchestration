@@ -328,12 +328,12 @@ public class MpgsApiClient {
     }
 
     /**
-     * 填充 fill Raw Request Audit 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 发起 fill Raw Request Audit 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param httpMethod http Method 输入值，含义由调用方法名称和所属业务对象限定
      * @param requestUrl request Url 输入值，含义由调用方法名称和所属业务对象限定
      * @param requestBody request Body 输入值，含义由调用方法名称和所属业务对象限定
@@ -351,13 +351,13 @@ public class MpgsApiClient {
     }
 
 /**
- * 填充 fill Raw Response Audit 相关字段，保持来源对象与目标对象的业务含义一致。
+ * 发起 fill Raw Response Audit 远程调用，封装请求参数、响应解析和调用失败边界。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param response response 输入值，含义由调用方法名称和所属业务对象限定
  * @param httpMethod http Method 输入值，含义由调用方法名称和所属业务对象限定
  * @param requestUrl request Url 输入值，含义由调用方法名称和所属业务对象限定
@@ -387,10 +387,10 @@ public class MpgsApiClient {
     }
 
     /**
-     * 完成 put If Text 分支的校验或状态更新。
+     * 发起 put If Text 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
      * @param key key 输入值，含义由调用方法名称和所属业务对象限定
@@ -403,14 +403,14 @@ public class MpgsApiClient {
     }
 
     /**
-     * 完成 audit Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 audit Value 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param key key 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String auditValue(ChannelPaymentRequest request, String key) {
         if (request == null || request.getExtension() == null) {
@@ -420,10 +420,10 @@ public class MpgsApiClient {
     }
 
     /**
-     * 解析 parse Response Body 输入文本并转换为内部可校验的数据结构。
+     * 发起 parse Response Body 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param body body 输入值，含义由调用方法名称和所属业务对象限定
      * @param httpStatus 状态编码，取值必须来自对应枚举或数据库受控字典
@@ -614,10 +614,10 @@ public class MpgsApiClient {
     }
 
     /**
-     * 标准化 normalize Type 输入值，统一大小写、空白字符或协议格式。
+     * 发起 normalize Type 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
      * @return 标准化后的业务字段值
@@ -627,23 +627,23 @@ public class MpgsApiClient {
     }
 
     /**
-     * 完成 encode 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 encode 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     /**
-     * 强制校验 require Text 必填值，缺失时中断当前业务流程。
+     * 发起 require Text 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
@@ -655,13 +655,13 @@ public class MpgsApiClient {
     }
 
     /**
-     * 完成 read Timeout 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 read Timeout 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Duration readTimeout(ChannelPaymentRequest request) {
         String configuredSeconds = request == null ? null : request.getExtension().get(EXT_READ_TIMEOUT_SECONDS);
@@ -676,15 +676,15 @@ public class MpgsApiClient {
     }
 
     /**
-     * 完成 extension Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 extension Value 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param key key 输入值，含义由调用方法名称和所属业务对象限定
      * @param fallback fallback 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String extensionValue(ChannelPaymentRequest request, String key, String fallback) {
         if (request != null && request.getExtension() != null && StringUtils.hasText(request.getExtension().get(key))) {
@@ -694,13 +694,13 @@ public class MpgsApiClient {
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 first Text 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String... values) {
         for (String value : values) {
@@ -729,12 +729,12 @@ public class MpgsApiClient {
     }
 
     /**
-     * 完成 safe Operation Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 safe Operation Id 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 渠道 API 操作类型或平台操作映射结果
      */
     private String safeOperationId(ChannelPaymentRequest request) {
@@ -742,52 +742,52 @@ public class MpgsApiClient {
     }
 
     /**
-     * 完成 safe Transaction Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 safe Transaction Id 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String safeTransactionId(ChannelPaymentRequest request) {
         return request == null ? null : request.getTransactionId();
     }
 
     /**
-     * 完成 safe Channel Order No 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 safe Channel Order No 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String safeChannelOrderNo(ChannelPaymentRequest request) {
         return request == null ? null : request.getChannelOrderNo();
     }
 
     /**
-     * 完成 safe Channel Transaction Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 safe Channel Transaction Id 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String safeChannelTransactionId(ChannelPaymentRequest request) {
         return request == null ? null : request.getChannelTransactionId();
     }
 
     /**
-     * 完成 safe Merchant Order No 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 发起 safe Merchant Order No 远程调用，封装请求参数、响应解析和调用失败边界。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsApiClient 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String safeMerchantOrderNo(ChannelPaymentRequest request) {
         return request == null ? null : request.getMerchantOrderNo();

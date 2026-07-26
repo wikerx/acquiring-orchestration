@@ -45,15 +45,6 @@ public interface RiskManagementMapper {
                           @Param("batchNo") String batchNo,
                           @Param("fileName") String fileName,
                           @Param("totalCount") int totalCount,
-                          /**
-                           * 完成 m 分支的校验或状态更新。
-                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                           * <p>
-                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                           * </p>
-                           * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                           */
                           @Param("operator") String operator);
 
     /**
@@ -79,15 +70,6 @@ public interface RiskManagementMapper {
                           @Param("successCount") int successCount,
                           @Param("failedCount") int failedCount,
                           @Param("status") int status,
-                          /**
-                           * 完成 m 分支的校验或状态更新。
-                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                           * <p>
-                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                           * </p>
-                           * @param remark remark 输入值，含义由调用方法名称和所属业务对象限定
-                           */
                           @Param("remark") String remark);
 
     /**
@@ -106,15 +88,6 @@ public interface RiskManagementMapper {
     int insertImportError(@Param("batchNo") String batchNo,
                           @Param("rowNo") int rowNo,
                           @Param("rawContent") String rawContent,
-                          /**
-                           * 完成 m 分支的校验或状态更新。
-                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                           * <p>
-                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                           * </p>
-                           * @param errorMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-                           */
                           @Param("errorMessage") String errorMessage);
 
     /**
@@ -150,15 +123,6 @@ public interface RiskManagementMapper {
                    @Param("cardBinLookupNumber") String cardBinLookupNumber,
                    @Param("countryAlpha2") String countryAlpha2,
                    @Param("status") Integer status,
-                   /**
-                    * 完成 m 分支的校验或状态更新。
-                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                    * <p>
-                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                    * </p>
-                    * @param hasCountryFields has Country Fields 输入值，含义由调用方法名称和所属业务对象限定
-                    */
                    @Param("hasCountryFields") boolean hasCountryFields);
 
     /**
@@ -200,15 +164,6 @@ public interface RiskManagementMapper {
                                              @Param("status") Integer status,
                                              @Param("offset") long offset,
                                              @Param("pageSize") long pageSize,
-                                             /**
-                                              * 完成 m 分支的校验或状态更新。
-                                              * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                              * <p>
-                                              * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                              * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                              * </p>
-                                              * @param hasCountryFields has Country Fields 输入值，含义由调用方法名称和所属业务对象限定
-                                              */
                                              @Param("hasCountryFields") boolean hasCountryFields);
 
     /**
@@ -243,15 +198,6 @@ public interface RiskManagementMapper {
                      @Param("merchantId") String merchantId,
                      @Param("matchValue") String matchValue,
                      @Param("countryAlpha3") String countryAlpha3,
-                     /**
-                      * 完成 m 分支的校验或状态更新。
-                      * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                      * <p>
-                      * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                      * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                      * </p>
-                      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-                      */
                      @Param("status") Integer status);
 
     /**
@@ -292,15 +238,6 @@ public interface RiskManagementMapper {
                                                @Param("countryAlpha3") String countryAlpha3,
                                                @Param("status") Integer status,
                                                @Param("offset") long offset,
-                                               /**
-                                                * 完成 m 分支的校验或状态更新。
-                                                * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                * <p>
-                                                * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                * </p>
-                                                * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-                                                */
                                                @Param("pageSize") long pageSize);
 
     /**
@@ -338,15 +275,6 @@ public interface RiskManagementMapper {
                             @Param("merchantScope") String merchantScope,
                             @Param("merchantId") String merchantId,
                             @Param("matchValueHash") String matchValueHash,
-                            /**
-                             * 完成 m 分支的校验或状态更新。
-                             * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                             * <p>
-                             * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                             * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                             * </p>
-                             * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-                             */
                             @Param("excludeId") Long excludeId);
 
     /**
@@ -366,15 +294,6 @@ public interface RiskManagementMapper {
             </script>
             """)
     long countAmlSourceUrlHostDuplicate(@Param("sourceHost") String sourceHost,
-                                        /**
-                                         * 完成 m 分支的校验或状态更新。
-                                         * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                         * <p>
-                                         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                         * </p>
-                                         * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-                                         */
                                         @Param("excludeId") Long excludeId);
 
     /**
@@ -426,15 +345,6 @@ public interface RiskManagementMapper {
                             @Param("timeWindowSeconds") Integer timeWindowSeconds,
                             @Param("thresholdCount") Integer thresholdCount,
                             @Param("elementsJson") String elementsJson,
-                            /**
-                             * 完成 m 分支的校验或状态更新。
-                             * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                             * <p>
-                             * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                             * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                             * </p>
-                             * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-                             */
                             @Param("excludeId") Long excludeId);
 
     /**
@@ -457,15 +367,6 @@ public interface RiskManagementMapper {
             """)
     long countSourceUrlDuplicate(@Param("merchantId") String merchantId,
                                  @Param("sourceHost") String sourceHost,
-                                 /**
-                                  * 完成 m 分支的校验或状态更新。
-                                  * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                  * <p>
-                                  * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                  * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                  * </p>
-                                  * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-                                  */
                                  @Param("excludeId") Long excludeId);
 
     /**
@@ -539,15 +440,6 @@ public interface RiskManagementMapper {
                          @Param("hasCountryFields") boolean hasCountryFields,
                          @Param("hasCountryNumericField") boolean hasCountryNumericField,
                          @Param("hasIpVersionField") boolean hasIpVersionField,
-                         /**
-                          * 完成 m 分支的校验或状态更新。
-                          * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                          * <p>
-                          * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                          * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                          * </p>
-                          * @param hasSourceHostField has Source Host Field 输入值，含义由调用方法名称和所属业务对象限定
-                          */
                          @Param("hasSourceHostField") boolean hasSourceHostField);
 
     /**
@@ -618,15 +510,6 @@ public interface RiskManagementMapper {
                          @Param("hasCountryFields") boolean hasCountryFields,
                          @Param("hasCountryNumericField") boolean hasCountryNumericField,
                          @Param("hasIpVersionField") boolean hasIpVersionField,
-                         /**
-                          * 完成 m 分支的校验或状态更新。
-                          * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                          * <p>
-                          * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                          * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                          * </p>
-                          * @param hasSourceHostField has Source Host Field 输入值，含义由调用方法名称和所属业务对象限定
-                          */
                          @Param("hasSourceHostField") boolean hasSourceHostField);
 
     /**
@@ -651,18 +534,6 @@ public interface RiskManagementMapper {
                 #{data.status}, #{data.remark}, #{operator}, #{operator}, 0
             )
             """)
-    /**
-     * 写入或更新 insert Region 相关数据，保持数据库记录与当前业务处理结果一致。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param data data 输入值，含义由调用方法名称和所属业务对象限定
-     * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     int insertRegion(@Param("data") Map<String, Object> data, @Param("operator") String operator);
 
     /**
@@ -694,19 +565,6 @@ public interface RiskManagementMapper {
                 update_time = CURRENT_TIMESTAMP(3)
             WHERE id = #{id} AND deleted = 0
             """)
-    /**
-     * 写入或更新 update Region 相关数据，保持数据库记录与当前业务处理结果一致。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param data data 输入值，含义由调用方法名称和所属业务对象限定
-     * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     int updateRegion(@Param("id") Long id, @Param("data") Map<String, Object> data, @Param("operator") String operator);
 
     /**
@@ -741,15 +599,6 @@ public interface RiskManagementMapper {
                               @Param("countryAlpha3") String countryAlpha3,
                               @Param("stateProvinceName") String stateProvinceName,
                               @Param("cityName") String cityName,
-                              /**
-                               * 完成 m 分支的校验或状态更新。
-                               * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                               * <p>
-                               * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                               * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                               * </p>
-                               * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-                               */
                               @Param("excludeId") Long excludeId);
 
     /**
@@ -809,15 +658,6 @@ public interface RiskManagementMapper {
                     @Param("matchValue") String matchValue,
                     @Param("limitType") String limitType,
                     @Param("currency") String currency,
-                    /**
-                     * 完成 m 分支的校验或状态更新。
-                     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                     * <p>
-                     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                     * </p>
-                     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-                     */
                     @Param("status") Integer status);
 
     /**
@@ -860,15 +700,6 @@ public interface RiskManagementMapper {
                                              @Param("currency") String currency,
                                              @Param("status") Integer status,
                                              @Param("offset") long offset,
-                                             /**
-                                              * 完成 m 分支的校验或状态更新。
-                                              * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                              * <p>
-                                              * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                              * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                              * </p>
-                                              * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-                                              */
                                              @Param("pageSize") long pageSize);
 
     /**
@@ -892,15 +723,6 @@ public interface RiskManagementMapper {
                                  @Param("ruleName") String ruleName,
                                  @Param("matchValue") String matchValue,
                                  @Param("limitType") String limitType,
-                                 /**
-                                  * 完成 m 分支的校验或状态更新。
-                                  * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                  * <p>
-                                  * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                  * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                  * </p>
-                                  * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-                                  */
                                  @Param("status") Integer status);
 
     /**
@@ -928,15 +750,6 @@ public interface RiskManagementMapper {
                                                           @Param("limitType") String limitType,
                                                           @Param("status") Integer status,
                                                           @Param("offset") long offset,
-                                                          /**
-                                                           * 完成 m 分支的校验或状态更新。
-                                                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                           * <p>
-                                                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                           * </p>
-                                                           * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-                                                           */
                                                           @Param("pageSize") long pageSize);
 
     /**
@@ -964,15 +777,6 @@ public interface RiskManagementMapper {
                                      @Param("limitType") String limitType,
                                      @Param("amountMin") java.math.BigDecimal amountMin,
                                      @Param("amountMax") java.math.BigDecimal amountMax,
-                                     /**
-                                      * 完成 m 分支的校验或状态更新。
-                                      * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                      * <p>
-                                      * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                      * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                      * </p>
-                                      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-                                      */
                                      @Param("excludeId") Long excludeId);
 
     /**
@@ -1016,15 +820,6 @@ public interface RiskManagementMapper {
                            @Param("cardBrand") String cardBrand,
                            @Param("currency") String currency,
                            @Param("triggerAction") String triggerAction,
-                           /**
-                            * 完成 m 分支的校验或状态更新。
-                            * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                            * <p>
-                            * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                            * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                            * </p>
-                            * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-                            */
                            @Param("status") Integer status);
 
     /**
@@ -1074,15 +869,6 @@ public interface RiskManagementMapper {
                                                     @Param("triggerAction") String triggerAction,
                                                     @Param("status") Integer status,
                                                     @Param("offset") long offset,
-                                                    /**
-                                                     * 完成 m 分支的校验或状态更新。
-                                                     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                     * <p>
-                                                     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                     * </p>
-                                                     * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-                                                     */
                                                     @Param("pageSize") long pageSize);
 
     /**
@@ -1132,15 +918,6 @@ public interface RiskManagementMapper {
                                @Param("currency") String currency,
                                @Param("riskCondition") String riskCondition,
                                @Param("triggerAction") String triggerAction,
-                               /**
-                                * 完成 m 分支的校验或状态更新。
-                                * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                * <p>
-                                * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                * </p>
-                                * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-                                */
                                @Param("excludeId") Long excludeId);
 
     /**
@@ -1169,15 +946,6 @@ public interface RiskManagementMapper {
                                                          @Param("merchantScope") String merchantScope,
                                                          @Param("merchantId") String merchantId,
                                                          @Param("matchValue") String matchValue,
-                                                         /**
-                                                          * 完成 m 分支的校验或状态更新。
-                                                          * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                          * <p>
-                                                          * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                          * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                          * </p>
-                                                          * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-                                                          */
                                                          @Param("excludeId") Long excludeId);
 
     /**
@@ -1203,15 +971,6 @@ public interface RiskManagementMapper {
     long countSourceUrlRules(@Param("merchantId") String merchantId,
                              @Param("sourceUrl") String sourceUrl,
                              @Param("sourceHost") String sourceHost,
-                             /**
-                              * 完成 m 分支的校验或状态更新。
-                              * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                              * <p>
-                              * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                              * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                              * </p>
-                              * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-                              */
                              @Param("status") Integer status);
 
     /**
@@ -1243,15 +1002,6 @@ public interface RiskManagementMapper {
                                                       @Param("sourceHost") String sourceHost,
                                                       @Param("status") Integer status,
                                                       @Param("offset") long offset,
-                                                      /**
-                                                       * 完成 m 分支的校验或状态更新。
-                                                       * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                       * <p>
-                                                       * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                       * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                       * </p>
-                                                       * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-                                                       */
                                                       @Param("pageSize") long pageSize);
 
     /**
@@ -1277,15 +1027,6 @@ public interface RiskManagementMapper {
             """)
     int insertRule(@Param("tableName") String tableName,
                    @Param("data") Map<String, Object> data,
-                   /**
-                    * 完成 m 分支的校验或状态更新。
-                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                    * <p>
-                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                    * </p>
-                    * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                    */
                    @Param("operator") String operator);
 
     /**
@@ -1303,15 +1044,6 @@ public interface RiskManagementMapper {
             )
             """)
     int insertMerchantLimitRule(@Param("data") Map<String, Object> data,
-                                /**
-                                 * 完成 m 分支的校验或状态更新。
-                                 * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                 * <p>
-                                 * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                 * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                 * </p>
-                                 * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                                 */
                                 @Param("operator") String operator);
 
     /**
@@ -1335,15 +1067,6 @@ public interface RiskManagementMapper {
             )
             """)
     int insertThreeDsRule(@Param("data") Map<String, Object> data,
-                          /**
-                           * 完成 m 分支的校验或状态更新。
-                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                           * <p>
-                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                           * </p>
-                           * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                           */
                           @Param("operator") String operator);
 
     /**
@@ -1363,15 +1086,6 @@ public interface RiskManagementMapper {
             )
             """)
     int insertSourceUrlRule(@Param("data") Map<String, Object> data,
-                            /**
-                             * 完成 m 分支的校验或状态更新。
-                             * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                             * <p>
-                             * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                             * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                             * </p>
-                             * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                             */
                             @Param("operator") String operator);
 
     /**
@@ -1410,15 +1124,6 @@ public interface RiskManagementMapper {
     int updateRule(@Param("tableName") String tableName,
                    @Param("id") Long id,
                    @Param("data") Map<String, Object> data,
-                   /**
-                    * 完成 m 分支的校验或状态更新。
-                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                    * <p>
-                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                    * </p>
-                    * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                    */
                    @Param("operator") String operator);
 
     /**
@@ -1446,15 +1151,6 @@ public interface RiskManagementMapper {
             """)
     int updateMerchantLimitRule(@Param("id") Long id,
                                 @Param("data") Map<String, Object> data,
-                                /**
-                                 * 完成 m 分支的校验或状态更新。
-                                 * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                 * <p>
-                                 * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                 * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                 * </p>
-                                 * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                                 */
                                 @Param("operator") String operator);
 
     /**
@@ -1492,15 +1188,6 @@ public interface RiskManagementMapper {
             """)
     int updateThreeDsRule(@Param("id") Long id,
                           @Param("data") Map<String, Object> data,
-                          /**
-                           * 完成 m 分支的校验或状态更新。
-                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                           * <p>
-                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                           * </p>
-                           * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                           */
                           @Param("operator") String operator);
 
     /**
@@ -1528,15 +1215,6 @@ public interface RiskManagementMapper {
             """)
     int updateSourceUrlRule(@Param("id") Long id,
                             @Param("data") Map<String, Object> data,
-                            /**
-                             * 完成 m 分支的校验或状态更新。
-                             * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                             * <p>
-                             * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                             * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                             * </p>
-                             * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-                             */
                             @Param("operator") String operator);
 
     /**
@@ -1568,15 +1246,6 @@ public interface RiskManagementMapper {
                         @Param("beforeSnapshot") String beforeSnapshot,
                         @Param("afterSnapshot") String afterSnapshot,
                         @Param("operator") String operator,
-                        /**
-                         * 完成 m 分支的校验或状态更新。
-                         * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                         * <p>
-                         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                         * </p>
-                         * @param remark remark 输入值，含义由调用方法名称和所属业务对象限定
-                         */
                         @Param("remark") String remark);
 
     /**
@@ -1592,17 +1261,6 @@ public interface RiskManagementMapper {
             ORDER BY operation_time DESC, id DESC
             LIMIT #{offset}, #{pageSize}
             """)
-    /**
-     * 查询 select Change Logs 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param offset offset 输入值，含义由调用方法名称和所属业务对象限定
-     * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     List<Map<String, Object>> selectChangeLogs(@Param("offset") long offset, @Param("pageSize") long pageSize);
 
     /**
@@ -1638,16 +1296,6 @@ public interface RiskManagementMapper {
             ORDER BY evaluation_time DESC, id DESC
             LIMIT #{limit}
             """)
-    /**
-     * 查询 select Today Risk Events 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     List<Map<String, Object>> selectTodayRiskEvents(@Param("limit") int limit);
 
     /**
@@ -1669,16 +1317,6 @@ public interface RiskManagementMapper {
             ORDER BY high_risk_count DESC, risk_count DESC, latest_evaluation_time DESC
             LIMIT #{limit}
             """)
-    /**
-     * 查询 select Merchant Risk Ranking 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     List<Map<String, Object>> selectMerchantRiskRanking(@Param("limit") int limit);
 
     /**
@@ -1697,17 +1335,6 @@ public interface RiskManagementMapper {
               AND deleted = 0
             ORDER BY dict_sort ASC, id ASC
             """)
-    /**
-     * 查询 select Dict Options 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param dictType dict Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     List<Map<String, Object>> selectDictOptions(@Param("dictType") String dictType, @Param("locale") String locale);
 
     /**
@@ -1727,15 +1354,6 @@ public interface RiskManagementMapper {
             WHERE status = 1 AND deleted = 0
             ORDER BY continent_code ASC, alpha2_code ASC
             """)
-    /**
-     * 查询 select Country Options 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 解析或查询得到的业务值
-     */
     List<Map<String, Object>> selectCountryOptions();
 
     /**
@@ -1758,16 +1376,6 @@ public interface RiskManagementMapper {
               AND deleted = 0
             LIMIT 1
             """)
-    /**
-     * 查询 select Country Option By Alpha2 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param alpha2 alpha2 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     Map<String, Object> selectCountryOptionByAlpha2(@Param("alpha2") String alpha2);
 
     /**
@@ -1790,16 +1398,6 @@ public interface RiskManagementMapper {
               AND deleted = 0
             LIMIT 1
             """)
-    /**
-     * 查询 select Country Option By Alpha3 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param alpha3 alpha3 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     Map<String, Object> selectCountryOptionByAlpha3(@Param("alpha3") String alpha3);
 
     /**
@@ -1815,15 +1413,6 @@ public interface RiskManagementMapper {
             WHERE status = 1 AND deleted = 0
             ORDER BY alpha3_code ASC
             """)
-    /**
-     * 查询 select Currency Options 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 标准化后的 ISO 4217 币种代码
-     */
     List<Map<String, Object>> selectCurrencyOptions();
 
     /**
@@ -1838,16 +1427,6 @@ public interface RiskManagementMapper {
             WHERE merchant_id = #{merchantId} AND deleted = 0
             LIMIT 1
             """)
-    /**
-     * 查询 select Merchant Name 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @return 解析或查询得到的业务值
-     */
     String selectMerchantName(@Param("merchantId") String merchantId);
 
     /**
@@ -1863,16 +1442,6 @@ public interface RiskManagementMapper {
             FROM ${tableName}
             WHERE deleted = 0
             """)
-    /**
-     * 查询 select Dashboard Stats 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     Map<String, Object> selectDashboardStats(@Param("tableName") String tableName);
 
     /**
@@ -1893,15 +1462,6 @@ public interface RiskManagementMapper {
             LIMIT 1
             """)
     Map<String, Object> selectLatestChangeLog(@Param("moduleType") String moduleType,
-                                              /**
-                                               * 完成 m 分支的校验或状态更新。
-                                               * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                               * <p>
-                                               * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                               * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                               * </p>
-                                               * @param functionCode function Code 输入值，含义由调用方法名称和所属业务对象限定
-                                               */
                                               @Param("functionCode") String functionCode);
 
     /**
@@ -1927,15 +1487,6 @@ public interface RiskManagementMapper {
     long countEvaluations(@Param("merchantId") String merchantId,
                           @Param("merchantOrderNo") String merchantOrderNo,
                           @Param("paymentOrderNo") String paymentOrderNo,
-                          /**
-                           * 完成 m 分支的校验或状态更新。
-                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                           * <p>
-                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                           * </p>
-                           * @param decisionResult decision Result 输入值，含义由调用方法名称和所属业务对象限定
-                           */
                           @Param("decisionResult") String decisionResult);
 
     /**
@@ -1967,15 +1518,6 @@ public interface RiskManagementMapper {
                                                 @Param("paymentOrderNo") String paymentOrderNo,
                                                 @Param("decisionResult") String decisionResult,
                                                 @Param("offset") long offset,
-                                                /**
-                                                 * 完成 m 分支的校验或状态更新。
-                                                 * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                 * <p>
-                                                 * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                 * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                 * </p>
-                                                 * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-                                                 */
                                                 @Param("pageSize") long pageSize);
 
     /**
@@ -1990,16 +1532,6 @@ public interface RiskManagementMapper {
             WHERE risk_record_no = #{riskRecordNo}
             ORDER BY decision_time ASC, id ASC
             """)
-    /**
-     * 查询 select Evaluation Hits 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param riskRecordNo risk Record No 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     List<Map<String, Object>> selectEvaluationHits(@Param("riskRecordNo") String riskRecordNo);
 
     /**
@@ -2028,15 +1560,6 @@ public interface RiskManagementMapper {
                          @Param("merchantOrderNo") String merchantOrderNo,
                          @Param("paymentOrderNo") String paymentOrderNo,
                          @Param("blackTargetType") String blackTargetType,
-                         /**
-                          * 完成 m 分支的校验或状态更新。
-                          * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                          * <p>
-                          * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                          * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                          * </p>
-                          * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-                          */
                          @Param("status") Integer status);
 
     /**
@@ -2071,15 +1594,6 @@ public interface RiskManagementMapper {
                                                @Param("blackTargetType") String blackTargetType,
                                                @Param("status") Integer status,
                                                @Param("offset") long offset,
-                                               /**
-                                                * 完成 m 分支的校验或状态更新。
-                                                * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                * <p>
-                                                * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                * </p>
-                                                * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-                                                */
                                                @Param("pageSize") long pageSize);
 
     /**
@@ -2100,18 +1614,6 @@ public interface RiskManagementMapper {
                 #{data.actionReason}, #{data.status}, #{operator}, 0
             )
             """)
-    /**
-     * 写入或更新 insert Trade Black 相关数据，保持数据库记录与当前业务处理结果一致。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param data data 输入值，含义由调用方法名称和所属业务对象限定
-     * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     int insertTradeBlack(@Param("data") Map<String, Object> data, @Param("operator") String operator);
 
     /**
@@ -2131,17 +1633,5 @@ public interface RiskManagementMapper {
                 update_time = CURRENT_TIMESTAMP(3)
             WHERE id = #{id} AND deleted = 0
             """)
-    /**
-     * 完成 release Trade Black 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param reason reason 输入值，含义由调用方法名称和所属业务对象限定
-     * @param operator operator 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     int releaseTradeBlack(@Param("id") Long id, @Param("reason") String reason, @Param("operator") String operator);
 }

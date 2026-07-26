@@ -211,15 +211,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 强制校验 require Mfa 必填值，缺失时中断当前业务流程。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public UserMfaStatusResponse requireMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -253,15 +244,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 完成 reset Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public UserMfaStatusResponse resetMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -296,15 +278,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 完成 exempt Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public UserMfaStatusResponse exemptMfa(UserMfaExemptRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -335,15 +308,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 完成 disable Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public UserMfaStatusResponse disableMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -369,18 +333,18 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return toStatusResponse(account, mfa);
     }
 
+    /**
+     * 执行 unlock Mfa 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * <p>
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * </p>
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 完成 unlock Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public UserMfaStatusResponse unlockMfa(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -406,15 +370,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 完成 resend Bind Mail 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public UserMfaStatusResponse resendBindMail(UserMfaActionRequest request) {
         SysAppDO app = getAdminApp();
         SysAccountDO account = getAccount(app.getId(), request.getAccountId());
@@ -440,15 +395,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
 
     @Override
     @DS(DataSourceName.SLAVE)
-    /**
-     * 完成 page Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public PageResult<UserMfaLogResponse> pageLogs(UserMfaLogQuery query) {
         UserMfaLogQuery condition = query == null ? new UserMfaLogQuery() : query;
         SysAppDO app = getAdminApp();
@@ -470,14 +416,6 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
                 .toList());
     }
 
-    /**
-     * 完成 get Admin App 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     private SysAppDO getAdminApp() {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()
@@ -492,14 +430,14 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 get Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 get Account 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private SysAccountDO getAccount(Long appId, Long accountId) {
         SysAccountDO account = sysAccountMapper.selectOne(
@@ -516,15 +454,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 ensure Mfa 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 ensure Mfa 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param app app 输入值，含义由调用方法名称和所属业务对象限定
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private SysAccountMfaDO ensureMfa(SysAppDO app, SysAccountDO account, LocalDateTime now) {
         SysAccountMfaDO mfa = sysAccountMfaMapper.selectOne(
@@ -558,10 +496,10 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 推进 expire Open Mfa Tokens 对应的状态或处理结果，并保留后续查询所需信息。
+     * 执行 expire Open Mfa Tokens 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -582,10 +520,10 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 logout Sessions 分支的校验或状态更新。
+     * 执行 logout Sessions 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appId app Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -604,10 +542,10 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 发送 send Notice 对应的外部通知、内部消息或远程请求。
+     * 执行 send Notice 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
      * @param templateCode template Code 输入值，含义由调用方法名称和所属业务对象限定
@@ -638,15 +576,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 email Variables 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 email Variables 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
      * @param reason reason 输入值，含义由调用方法名称和所属业务对象限定
      * @param exemptUntil exempt Until 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, Object> emailVariables(SysAccountDO account, String reason, LocalDateTime exemptUntil) {
         Map<String, Object> variables = new LinkedHashMap<>();
@@ -659,12 +597,12 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 admin Login Url 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 admin Login Url 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String adminLoginUrl() {
         Map<String, String> configValues = adminConfigService.enabledConfigValues(Set.of(SystemConfigKeys.ADMIN_FRONTEND_BASE_URL));
@@ -676,10 +614,10 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
 /**
- * 写入或更新 record Log 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 record Log 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param app app 输入值，含义由调用方法名称和所属业务对象限定
  * @param account account 输入值，含义由调用方法名称和所属业务对象限定
@@ -726,10 +664,10 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 转换生成 to Status Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Status Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
      * @param mfa mfa 输入值，含义由调用方法名称和所属业务对象限定
@@ -749,10 +687,10 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 转换生成 to Log Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Log Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -776,13 +714,13 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 account Login Account 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 account Login Account 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String accountLoginAccount(Long accountId) {
         if (accountId == null) {
@@ -793,10 +731,10 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 解析 resolve Operator Login Account 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Operator Login Account 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param targetLoginAccount target Login Account 输入值，含义由调用方法名称和所属业务对象限定
@@ -816,10 +754,10 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 assert Not Self 分支的校验或状态更新。
+     * 执行 assert Not Self 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param targetAccountId target Account Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
@@ -832,12 +770,12 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 current Operator Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 current Operator Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Long currentOperatorId() {
         InternalAuthAccount operator = currentOperator();
@@ -845,34 +783,34 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
     }
 
     /**
-     * 完成 current Operator 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 current Operator 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private InternalAuthAccount currentOperator() {
         return InternalAuthContextHolder.get();
     }
 
     /**
-     * 完成 client Ip Fallback 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 client Ip Fallback 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String clientIpFallback() {
         return "-";
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserMfaServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值

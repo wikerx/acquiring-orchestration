@@ -194,8 +194,8 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
 /**
  * 创建 DefaultIncrementalAuthorizationTransactionPreparationService 实例并注入其运行所需依赖。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param isoDictionaryService iso Dictionary Service 输入值，含义由调用方法名称和所属业务对象限定
  * @param paymentChannelRouteService payment Channel Route Service 输入值，含义由调用方法名称和所属业务对象限定
@@ -221,16 +221,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-/**
- * 完成 prepare Incremental Authorization 分支的校验或转换，返回值供当前调用链继续组装结果。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param idempotencyKey idempotency Key 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
- */
     public IncrementalAuthorizationPreparationResultDTO prepareIncrementalAuthorization(
             PaymentCreateCommandDTO commandDTO,
             String idempotencyKey) {
@@ -246,17 +236,6 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 .orElseGet(() -> prepareNewIncrementalAuthorization(commandDTO, idempotencyKey, sourceOrderDO));
     }
 
-/**
- * 完成 prepare New Incremental Authorization 分支的校验或转换，返回值供当前调用链继续组装结果。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param idempotencyKey idempotency Key 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
- */
     private IncrementalAuthorizationPreparationResultDTO prepareNewIncrementalAuthorization(
             PaymentCreateCommandDTO commandDTO,
             String idempotencyKey,
@@ -316,10 +295,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析 resolve Source Order 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Source Order 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -335,13 +314,13 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 完成 lock Source Order 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 lock Source Order 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private TransactionOrderDO lockSourceOrder(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO == null
@@ -353,10 +332,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 校验 validate No Conflicting Authorization Action 相关输入，发现不满足业务约束时抛出明确异常。
+ * 执行 validate No Conflicting Authorization Action 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -389,14 +368,14 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 完成 later Of 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 later Of 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param first first 输入值，含义由调用方法名称和所属业务对象限定
      * @param second second 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
@@ -409,10 +388,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 解析 resolve Duplicate Incremental Authorization 对应的业务值，按优先级从上下文、请求或配置中取值。
+ * 执行 resolve Duplicate Incremental Authorization 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param record record 输入值，含义由调用方法名称和所属业务对象限定
@@ -433,14 +412,14 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 完成 canonical Incremental Authorization Request Fingerprint 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 canonical Incremental Authorization Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private String canonicalIncrementalAuthorizationRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                                        TransactionOrderDO sourceOrderDO) {
@@ -464,10 +443,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 标准化 normalize Fingerprint Text 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Fingerprint Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -477,10 +456,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 标准化 normalize Fingerprint Amount 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Fingerprint Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param amount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
      * @return 按渠道协议格式化后的金额字符串或金额计算结果
@@ -493,13 +472,13 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 完成 sha256 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 sha256 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String sha256(String source) {
         try {
@@ -512,10 +491,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 标准化 normalize Incremental Authorization Command 输入值，统一大小写、空白字符或协议格式。
+ * 执行 normalize Incremental Authorization Command 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -548,10 +527,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 校验 validate Incremental Authorization Merchant Order No 相关输入，发现不满足业务约束时抛出明确异常。
+ * 执行 validate Incremental Authorization Merchant Order No 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -567,10 +546,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 构建 build Incremental Authorization Result 对应的领域对象、请求对象或日志对象。
+ * 执行 build Incremental Authorization Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -595,14 +574,14 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 完成 prepare Channel Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 prepare Channel Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private PaymentPreparedChannelRequestDTO prepareChannelRequest(PaymentCreateCommandDTO commandDTO,
                                                                   TransactionOrderDO sourceOrderDO) {
@@ -614,10 +593,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 构建 build Prepared Invoke Result 对应的领域对象、请求对象或日志对象。
+ * 执行 build Prepared Invoke Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
@@ -659,10 +638,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 写入或更新 record Incremental Authorization Prepared Fact 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 record Incremental Authorization Prepared Fact 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -688,10 +667,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 写入或更新 save Transaction Created Event 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 执行 save Transaction Created Event 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
@@ -739,10 +718,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 推进 complete Idempotency 对应的状态或处理结果，并保留后续查询所需信息。
+     * 执行 complete Idempotency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param idempotencyKey idempotency Key 输入值，含义由调用方法名称和所属业务对象限定
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
@@ -761,10 +740,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 转换生成 to Duplicate Result 对应的传输对象、导出行或协议字段。
+     * 执行 to Duplicate Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param record record 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -791,10 +770,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 完成 enrich Incremental Authorization Result 分支的校验或状态更新。
+ * 执行 enrich Incremental Authorization Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -830,10 +809,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析 resolve Callback Url 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Callback Url 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -849,10 +828,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 完成 enrich Merchant Response 分支的校验或状态更新。
+ * 执行 enrich Merchant Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
@@ -864,10 +843,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析 resolve Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 解析或查询得到的业务值
@@ -883,10 +862,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
 /**
- * 解析 resolve Merchant Response Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+ * 执行 resolve Merchant Response Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param response response 输入值，含义由调用方法名称和所属业务对象限定
@@ -910,14 +889,14 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 完成 join Code And Message 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 join Code And Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param code code 输入值，含义由调用方法名称和所属业务对象限定
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String joinCodeAndMessage(String code, String message) {
         if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
@@ -927,13 +906,13 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String... values) {
         if (values == null) {
@@ -948,10 +927,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析 resolve Channel Order No 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Channel Order No 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -963,10 +942,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 转换生成 to Minor Amount 对应的传输对象、导出行或协议字段。
+     * 执行 to Minor Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param amount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
@@ -981,10 +960,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 解析 resolve Currency Exponent 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Currency Exponent 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
      * @return 标准化后的 ISO 4217 币种代码
@@ -999,10 +978,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 标准化 normalize Currency 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Currency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
      * @return 标准化后的 ISO 4217 币种代码
@@ -1012,22 +991,22 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 完成 default Transaction Rate 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default Transaction Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
     /**
-     * 转换生成 to Result Sub Merchant Info 对应的传输对象、导出行或协议字段。
+     * 执行 to Result Sub Merchant Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1055,10 +1034,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 判断 is Empty Sub Merchant Info 条件是否成立，用于控制后续业务分支。
+     * 执行 is Empty Sub Merchant Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1082,10 +1061,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     }
 
     /**
-     * 转换生成 to Utc Time 对应的传输对象、导出行或协议字段。
+     * 执行 to Utc Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultIncrementalAuthorizationTransactionPreparationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释

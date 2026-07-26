@@ -79,15 +79,6 @@ public class AdminRoleController {
     @RequiresPermission("system:role:add")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.CREATE,
             operation = "新增后台角色", recordRequest = false, recordResponse = false)
-    /**
-     * 完成 create Role 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<SysRoleDTO> createRole(@Valid @RequestBody SysRoleCreateRequest request) {
         return success(adminRoleApplicationService.createRole(request));
     }
@@ -102,15 +93,6 @@ public class AdminRoleController {
     @RequiresPermission("system:role:edit")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "编辑后台角色", recordRequest = false, recordResponse = false)
-    /**
-     * 写入或更新 update Role 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<SysRoleDTO> updateRole(@Valid @RequestBody SysRoleUpdateRequest request) {
         return success(adminRoleApplicationService.updateRole(request));
     }
@@ -125,15 +107,6 @@ public class AdminRoleController {
     @RequiresPermission("system:role:edit")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "更新后台角色状态", recordRequest = false, recordResponse = false)
-    /**
-     * 写入或更新 update Status 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> updateStatus(@Valid @RequestBody SysRoleStatusRequest request) {
         adminRoleApplicationService.updateStatus(request);
         return success();
@@ -149,15 +122,6 @@ public class AdminRoleController {
     @RequiresPermission("system:role:delete")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.DELETE,
             operation = "删除后台角色", recordRequest = false, recordResponse = false)
-    /**
-     * 完成 delete Role 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> deleteRole(@Valid @RequestBody SysRoleDeleteRequest request) {
         adminRoleApplicationService.deleteRole(request.getRoleId());
         return success();
@@ -173,15 +137,6 @@ public class AdminRoleController {
     @RequiresPermission("system:role:assign-menu")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询角色菜单授权")
-    /**
-     * 完成 role Menus 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<SysRoleMenuAuthDTO> roleMenus(@Valid @RequestBody SysRoleDeleteRequest request) {
         return success(adminRoleApplicationService.roleMenus(request.getRoleId()));
     }
@@ -196,15 +151,6 @@ public class AdminRoleController {
     @RequiresPermission("system:role:assign-menu")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "保存角色菜单授权", recordRequest = false, recordResponse = false)
-    /**
-     * 完成 grant Menus 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> grantMenus(@Valid @RequestBody SysRoleMenuGrantRequest request) {
         adminRoleApplicationService.grantMenus(request);
         return success();
@@ -220,15 +166,6 @@ public class AdminRoleController {
     @RequiresPermission("system:role:assign-permission")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询角色权限授权")
-    /**
-     * 完成 role Permissions 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<SysRolePermissionAuthDTO> rolePermissions(@Valid @RequestBody SysRoleDeleteRequest request) {
         return success(adminRoleApplicationService.rolePermissions(request.getRoleId()));
     }
@@ -243,15 +180,6 @@ public class AdminRoleController {
     @RequiresPermission("system:role:assign-permission")
     @OperationLog(moduleName = "角色管理", businessType = OperationTypeConstants.UPDATE,
             operation = "保存角色权限授权", recordRequest = false, recordResponse = false)
-    /**
-     * 完成 grant Permissions 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> grantPermissions(@Valid @RequestBody SysRolePermissionGrantRequest request) {
         adminRoleApplicationService.grantPermissions(request);
         return success();

@@ -197,14 +197,14 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 完成 route Shards 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 route Shards 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param ipNumber ip Number 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<IpLibraryEntities.IpLibrarySplitModelDO> routeShards(String ipType, String ipNumber) {
         List<IpLibraryEntities.IpLibrarySplitModelDO> shards = splitModelMapper.selectList(
@@ -223,25 +223,25 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 完成 between 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 between 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param current current 输入值，含义由调用方法名称和所属业务对象限定
      * @param start start 输入值，含义由调用方法名称和所属业务对象限定
      * @param end end 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean between(BigInteger current, String start, String end) {
         return current.compareTo(new BigInteger(start)) >= 0 && current.compareTo(new BigInteger(end)) <= 0;
     }
 
     /**
-     * 标准化 normalize Ip Type 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Ip Type 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param ipAddress ip Address 输入值，含义由调用方法名称和所属业务对象限定
@@ -263,13 +263,13 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 完成 checked Table Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 checked Table Name 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String checkedTableName(String tableName) {
         if (!ALLOWED_TABLES.contains(tableName)) {
@@ -279,13 +279,13 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 强制校验 required Version 必填值，缺失时中断当前业务流程。
+     * 编排 required Version 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param shard shard 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String requiredVersion(IpLibraryEntities.IpLibrarySplitModelDO shard) {
         return Optional.ofNullable(trimToNull(shard.getDataVersion()))
@@ -293,10 +293,10 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 转换生成 to Response 对应的传输对象、导出行或协议字段。
+     * 编排 to Response 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -323,14 +323,14 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 完成 number To Ip 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 number To Ip 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String numberToIp(String value, String ipType) {
         BigInteger number = new BigInteger(value);
@@ -347,10 +347,10 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 校验 validate Ip Literal 相关输入，发现不满足业务约束时抛出明确异常。
+     * 编排 validate Ip Literal 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param ipAddress ip Address 输入值，含义由调用方法名称和所属业务对象限定
      * @param ipType ip Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -378,13 +378,13 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 trim To Null 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {
@@ -394,13 +394,13 @@ public class AdminBaseIpLibraryApplicationService {
     }
 
     /**
-     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 bad Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminBaseIpLibraryApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);

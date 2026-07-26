@@ -239,8 +239,8 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
 /**
  * 创建 AdminExchangeRateServiceImpl 实例并注入其运行所需依赖。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param sourceMapper source Mapper 输入值，含义由调用方法名称和所属业务对象限定
  * @param rawRateMapper raw Rate Mapper 输入值，含义由调用方法名称和所属业务对象限定
@@ -859,12 +859,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Source Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Source Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void validateSourceRequest(SourceSaveRequest request, Long excludeId) {
@@ -892,12 +892,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Raw Rate Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Raw Rate Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      */
     private void validateRawRateRequest(RawRateSaveRequest request) {
         if (request == null) {
@@ -929,12 +929,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Rule Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Rule Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void validateRuleRequest(RuleSaveRequest request, Long excludeId) {
@@ -982,12 +982,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Business Rate Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Business Rate Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      */
     private void validateBusinessRateRequest(BusinessRateSaveRequest request) {
         if (request == null) {
@@ -1014,12 +1014,12 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 判断 has Overlapped Enabled Rule 条件是否成立，用于控制后续业务分支。
+     * 执行 has Overlapped Enabled Rule 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
      */
@@ -1038,16 +1038,16 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 完成 time Range Overlaps 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 time Range Overlaps 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param start1 start1 输入值，含义由调用方法名称和所属业务对象限定
      * @param end1 end1 输入值，含义由调用方法名称和所属业务对象限定
      * @param start2 start2 输入值，含义由调用方法名称和所属业务对象限定
      * @param end2 end2 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean timeRangeOverlaps(LocalDateTime start1, LocalDateTime end1, LocalDateTime start2, LocalDateTime end2) {
         LocalDateTime min = LocalDateTime.of(1900, 1, 1, 0, 0);
@@ -1060,10 +1060,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Business Rate Source 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Business Rate Source 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
@@ -1094,10 +1094,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 推进 expire Current Business Rate 对应的状态或处理结果，并保留后续查询所需信息。
+     * 执行 expire Current Business Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
      * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
@@ -1108,10 +1108,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 推进 expire Current Business Rate 对应的状态或处理结果，并保留后续查询所需信息。
+     * 执行 expire Current Business Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rateType rate Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
@@ -1136,14 +1136,14 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 写入或更新 insert Manual Business Rate 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 执行 insert Manual Business Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ExchangeBusinessRateDO insertManualBusinessRate(BusinessRateSaveRequest request, LocalDateTime now) {
         String rateType = trimUpper(request.getRateType());
@@ -1175,10 +1175,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 查询 select Raw Rate Value 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Raw Rate Value 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRate raw Rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param rateField rate Field 输入值，含义由调用方法名称和所属业务对象限定
@@ -1200,14 +1200,14 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 完成 adjust Ratio 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 adjust Ratio 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param adjustMethod adjust Method 输入值，含义由调用方法名称和所属业务对象限定
      * @param adjustValue adjust Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal adjustRatio(String adjustMethod, BigDecimal adjustValue) {
         if (adjustValue == null) {
@@ -1220,10 +1220,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 转换生成 to Rounding Mode 对应的传输对象、导出行或协议字段。
+     * 执行 to Rounding Mode 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param roundingMode rounding Mode 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1237,10 +1237,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 构建 build Adjust Description 对应的领域对象、请求对象或日志对象。
+     * 执行 build Adjust Description 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
      * @param originalRate original Rate 输入值，含义由调用方法名称和所属业务对象限定
@@ -1255,13 +1255,13 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 填充 fill Source 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Source 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void fillSource(ExchangeRateSourceDO entity, SourceSaveRequest request, LocalDateTime now) {
@@ -1278,13 +1278,13 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 填充 fill Raw Rate 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Raw Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void fillRawRate(ExchangeRawRateDO entity, RawRateSaveRequest request, LocalDateTime now) {
@@ -1304,13 +1304,13 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 填充 fill Rule 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Rule 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void fillRule(ExchangeRateRuleDO entity, RuleSaveRequest request, LocalDateTime now) {
@@ -1333,10 +1333,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 转换生成 to Source Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Source Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1361,10 +1361,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 转换生成 to Raw Rate Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Raw Rate Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1393,10 +1393,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 转换生成 to Rule Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Rule Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1425,10 +1425,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 转换生成 to Business Rate Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Business Rate Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1456,10 +1456,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 转换生成 to Usage Snapshot Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Usage Snapshot Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1484,10 +1484,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 查询 find Source 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Source 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -1503,10 +1503,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 查询 find Raw Rate 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Raw Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -1522,10 +1522,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 查询 find Rule 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Rule 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -1541,10 +1541,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 查询 find Business Rate 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Business Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -1560,10 +1560,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 强制校验 require Source Exists 必填值，缺失时中断当前业务流程。
+     * 执行 require Source Exists 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1577,10 +1577,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 判断 has Raw Rate 条件是否成立，用于控制后续业务分支。
+     * 执行 has Raw Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1592,10 +1592,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 判断 has Rule 条件是否成立，用于控制后续业务分支。
+     * 执行 has Rule 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1607,10 +1607,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 判断 has Business Rate 条件是否成立，用于控制后续业务分支。
+     * 执行 has Business Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceCode source Code 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1622,10 +1622,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 判断 has Business Rate By Raw Rate 条件是否成立，用于控制后续业务分支。
+     * 执行 has Business Rate By Raw Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rawRateId raw Rate Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1637,10 +1637,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Status 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      */
@@ -1651,10 +1651,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Currency 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Currency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
      * @param allowAll allow All 输入值，含义由调用方法名称和所属业务对象限定
@@ -1666,10 +1666,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 判断 has Any Rate 条件是否成立，用于控制后续业务分支。
+     * 执行 has Any Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rates rates 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1684,10 +1684,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Positive Rate 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Positive Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rate rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
@@ -1699,10 +1699,10 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 校验 validate Positive Required Rate 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Positive Required Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rate rate 输入值，含义由调用方法名称和所属业务对象限定
      * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
@@ -1714,52 +1714,52 @@ public class AdminExchangeRateServiceImpl implements AdminExchangeRateService {
     }
 
     /**
-     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 bad Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
     /**
-     * 完成 not Found 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 not Found 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ServiceException notFound(String message) {
         return new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), message);
     }
 
     /**
-     * 完成 trim 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
     /**
-     * 完成 trim Upper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim Upper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimUpper(String value) {
         return trim(value) == null ? null : trim(value).toUpperCase(Locale.ROOT);

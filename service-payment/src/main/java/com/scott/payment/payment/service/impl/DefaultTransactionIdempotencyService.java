@@ -236,29 +236,10 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
         return record;
     }
 
-    /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param value 待校验或转换的原始值
-     * @return 标准化后的业务字段值
-     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
-    /**
-     * 转换生成 to Utc Time 对应的传输对象、导出行或协议字段。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 转换或构建后的目标对象
-     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? "Asia/Shanghai" : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();

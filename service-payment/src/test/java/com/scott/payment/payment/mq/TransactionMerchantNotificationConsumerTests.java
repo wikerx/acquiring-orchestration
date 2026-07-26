@@ -111,16 +111,6 @@ class TransactionMerchantNotificationConsumerTests {
         }
 
         @Override
-        /**
-         * 发送 notify Due 对应的外部通知、内部消息或远程请求。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-         * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-         * @return 当前方法计算或转换后的业务结果
-         */
         public int notifyDue(LocalDateTime transactionDateTime, int limit) {
             this.notifyDueCalled = true;
             this.limit = limit;
@@ -128,16 +118,6 @@ class TransactionMerchantNotificationConsumerTests {
         }
 
         @Override
-        /**
-         * 发送 notify Transaction 对应的外部通知、内部消息或远程请求。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-         * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-         * @return 当前方法计算或转换后的业务结果
-         */
         public boolean notifyTransaction(LocalDateTime transactionDateTime, String transactionId) {
             this.notifyTransactionCalled = true;
             this.transactionId = transactionId;

@@ -53,15 +53,6 @@ public interface IpLibraryDataMapper {
                                                             @Param("dataVersion") String dataVersion,
                                                             @Param("ipNumber") String ipNumber,
                                                             @Param("offset") long offset,
-                                                            /**
-                                                             * 完成 m 分支的校验或状态更新。
-                                                             * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                             * <p>
-                                                             * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                             * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                             * </p>
-                                                             * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-                                                             */
                                                             @Param("pageSize") int pageSize);
 
     /**
@@ -83,15 +74,6 @@ public interface IpLibraryDataMapper {
             """)
     long countRows(@Param("tableName") String tableName,
                    @Param("dataVersion") String dataVersion,
-                   /**
-                    * 完成 m 分支的校验或状态更新。
-                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                    * <p>
-                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                    * </p>
-                    * @param ipNumber ip Number 输入值，含义由调用方法名称和所属业务对象限定
-                    */
                    @Param("ipNumber") String ipNumber);
 
     /**
@@ -120,14 +102,5 @@ public interface IpLibraryDataMapper {
             """)
     IpLibraryEntities.IpLibraryDataRow selectLookupCandidate(@Param("tableName") String tableName,
                                                              @Param("dataVersion") String dataVersion,
-                                                             /**
-                                                              * 完成 m 分支的校验或状态更新。
-                                                              * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                              * <p>
-                                                              * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                              * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                              * </p>
-                                                              * @param ipNumber ip Number 输入值，含义由调用方法名称和所属业务对象限定
-                                                              */
                                                              @Param("ipNumber") String ipNumber);
 }

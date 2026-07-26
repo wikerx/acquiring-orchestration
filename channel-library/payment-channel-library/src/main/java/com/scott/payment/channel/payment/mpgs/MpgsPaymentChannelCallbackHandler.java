@@ -61,14 +61,6 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
     }
 
     @Override
-    /**
-     * 完成 channel Code 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     public String channelCode() {
         return PaymentChannelCode.MPGS.getCode();
     }
@@ -113,30 +105,12 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         return result;
     }
 
-    /**
-     * 完成 callback Event Id 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param payload payload 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private String callbackEventId(MpgsResponsePayload payload) {
         String orderId = payload.getOrder() == null ? null : payload.getOrder().getId();
         String transactionId = payload.getTransaction() == null ? null : payload.getTransaction().getId();
         return firstText(transactionId, orderId);
     }
 
-    /**
-     * 完成 channel Response Code 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param payload payload 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private String channelResponseCode(MpgsResponsePayload payload) {
         if (payload.getResponse() != null && StringUtils.hasText(payload.getResponse().getAcquirerCode())) {
             return payload.getResponse().getAcquirerCode();
@@ -147,8 +121,8 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
     /**
      * 解析 parse Amount 输入文本并转换为内部可校验的数据结构。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsPaymentChannelCallbackHandler 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param payload payload 输入值，含义由调用方法名称和所属业务对象限定
      * @return 按渠道协议格式化后的金额字符串或金额计算结果
@@ -161,10 +135,10 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
     }
 
     /**
-     * 完成 put 分支的校验或状态更新。
+     * 完成 put 的本地校验、字段转换或状态更新。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsPaymentChannelCallbackHandler 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param result result 输入值，含义由调用方法名称和所属业务对象限定
      * @param key key 输入值，含义由调用方法名称和所属业务对象限定
@@ -177,13 +151,13 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 first Text 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 MpgsPaymentChannelCallbackHandler 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String... values) {
         if (values == null) {

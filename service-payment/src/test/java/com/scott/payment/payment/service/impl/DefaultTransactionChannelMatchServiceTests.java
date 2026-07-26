@@ -346,19 +346,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-/**
- * 完成 invoke 分支的校验或转换，返回值供当前调用链继续组装结果。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResult route Result 输入值，含义由调用方法名称和所属业务对象限定
- * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
- * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
- * @param channelOrderNo channel Order No 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
- */
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
                                                     String operationId,
@@ -369,19 +356,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-/**
- * 完成 invoke 分支的校验或转换，返回值供当前调用链继续组装结果。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResult route Result 输入值，含义由调用方法名称和所属业务对象限定
- * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
- * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
- * @param preparedChannelRequest prepared Channel Request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
                                                     String operationId,
@@ -420,19 +394,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-/**
- * 完成 supports Query Reference 分支的校验或转换，返回值供当前调用链继续组装结果。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResult route Result 输入值，含义由调用方法名称和所属业务对象限定
- * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
- * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
- * @param preparedChannelRequest prepared Channel Request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
         public boolean supportsQueryReference(PaymentCreateCommandDTO commandDTO,
                                               PaymentRouteResultDTO routeResult,
                                               String operationId,
@@ -477,19 +438,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-/**
- * 推进 complete By Query 对应的状态或处理结果，并保留后续查询所需信息。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param originalRequestDO original Request DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param resolution resolution 输入值，含义由调用方法名称和所属业务对象限定
- * @param matchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @return 当前方法计算或转换后的业务结果
- */
         public boolean completeByQuery(TransactionOperationDO operationDO,
                                        TransactionChannelRequestDO originalRequestDO,
                                        PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -513,21 +461,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-/**
- * 推进 mark Pending By Query 对应的状态或处理结果，并保留后续查询所需信息。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param originalRequestDO original Request DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param matchResult match Result 输入值，含义由调用方法名称和所属业务对象限定
- * @param matchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param nextMatchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param failReason fail Reason 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
- */
         public boolean markPendingByQuery(TransactionOperationDO operationDO,
                                           TransactionChannelRequestDO originalRequestDO,
                                           PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -683,19 +616,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-/**
- * 写入或更新 record Initial Transaction 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelInvokeResultDTO channel Invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param riskDecisionEnum risk Decision Enum 输入值，含义由调用方法名称和所属业务对象限定
- * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
- */
         public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
                                              PaymentChannelInvokeResultDTO channelInvokeResultDTO,
@@ -705,19 +625,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-/**
- * 推进 complete Initial Channel Result 对应的状态或处理结果，并保留后续查询所需信息。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelInvokeResultDTO channel Invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param riskDecisionEnum risk Decision Enum 输入值，含义由调用方法名称和所属业务对象限定
- * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
- */
         public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
                                                  PaymentRouteResultDTO routeResultDTO,
                                                  PaymentChannelInvokeResultDTO channelInvokeResultDTO,
@@ -727,108 +634,36 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-        /**
-         * 查询 find Order 所需数据，未命中时按调用场景返回空值或抛出异常。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-         * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
-         * @return 解析或查询得到的业务值
-         */
         public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
             return order;
         }
 
         @Override
-        /**
-         * 查询 find Source Order By Transaction Id 所需数据，未命中时按调用场景返回空值或抛出异常。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param sourceTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-         * @return 解析或查询得到的业务值
-         */
         public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId) {
             return order;
         }
 
         @Override
-        /**
-         * 完成 lock Order 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-         * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
-         * @return 当前方法计算或转换后的业务结果
-         */
         public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
             return order;
         }
 
         @Override
-        /**
-         * 查询 find Source Operation By Transaction Id 所需数据，未命中时按调用场景返回空值或抛出异常。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param sourceTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-         * @return 渠道 API 操作类型或平台操作映射结果
-         */
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
             return operation;
         }
 
         @Override
-        /**
-         * 查询 find Operations By Merchant Order 所需数据，未命中时按调用场景返回空值或抛出异常。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-         * @param merchantOrderNo 商户订单号，用于商户侧幂等校验和订单查询
-         * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-         * @return 渠道 API 操作类型或平台操作映射结果
-         */
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId) {
             return List.of(operation);
         }
 
         @Override
-        /**
-         * 查询 find Initial Operations By Merchant Order 所需数据，未命中时按调用场景返回空值或抛出异常。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-         * @param merchantOrderNo 商户订单号，用于商户侧幂等校验和订单查询
-         * @return 渠道 API 操作类型或平台操作映射结果
-         */
         public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
             return List.of(operation);
         }
 
         @Override
-/**
- * 查询 find Non Terminal Captures 所需数据，未命中时按调用场景返回空值或抛出异常。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
- * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
- * @param sourceTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
- * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @return 解析或查询得到的业务值
- */
         public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
                                                                     String operationId,
                                                                     String sourceTransactionId,
@@ -838,33 +673,11 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-        /**
-         * 查询 find Operation By Channel Transaction 所需数据，未命中时按调用场景返回空值或抛出异常。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param channelOrderNo channel Order No 输入值，含义由调用方法名称和所属业务对象限定
-         * @param channelTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-         * @return 渠道 API 操作类型或平台操作映射结果
-         */
         public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
             return operation;
         }
 
         @Override
-/**
- * 完成 list Pending Channel Match 分支的校验或转换，返回值供当前调用链继续组装结果。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param channelCode channel Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
- * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
- */
         public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
                                                                     String channelCode,
                                                                     LocalDateTime now,
@@ -873,49 +686,15 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-        /**
-         * 查询 find Original Channel Request For Query 所需数据，未命中时按调用场景返回空值或抛出异常。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
-         * @return 解析或查询得到的业务值
-         */
         public TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
             return originalRequest;
         }
 
         @Override
-        /**
-         * 写入或更新 record Follow Up Transaction 相关数据，保持数据库记录与当前业务处理结果一致。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param recordDTO record DTO 输入值，含义由调用方法名称和所属业务对象限定
-         */
         public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
         }
 
         @Override
-/**
- * 推进 complete By Channel Callback 对应的状态或处理结果，并保留后续查询所需信息。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param orderDO order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param callbackId callback Id 输入值，含义由调用方法名称和所属业务对象限定
- * @param targetTransactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param failReasonCode fail Reason Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param failReasonMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
- */
         public boolean completeByChannelCallback(TransactionOperationDO operationDO,
                                                  TransactionOrderDO orderDO,
                                                  String callbackId,
@@ -940,12 +719,11 @@ class DefaultTransactionChannelMatchServiceTests {
             return true;
         }
 
-        @Override
 /**
- * 写入或更新 update Channel Match 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 update Channel Match 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 InMemoryRecordService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
  * @param matchStatus 状态编码，取值必须来自对应枚举或数据库受控字典
@@ -954,8 +732,9 @@ class DefaultTransactionChannelMatchServiceTests {
  * @param matchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
  * @param nextMatchTime 时间值，使用系统约定时区或调用方传入的业务时区解释
  * @param failReason fail Reason 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
+        @Override
         public boolean updateChannelMatch(TransactionOperationDO operationDO,
                                           String matchStatus,
                                           String matchResult,
@@ -974,19 +753,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-/**
- * 写入或更新 update Original Channel Request By Query 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param originalRequestDO original Request DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param platformResultCode platform Result Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param failReason fail Reason 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
- */
         public boolean updateOriginalChannelRequestByQuery(TransactionOperationDO operationDO,
                                                            TransactionChannelRequestDO originalRequestDO,
                                                            PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1011,15 +777,6 @@ class DefaultTransactionChannelMatchServiceTests {
         }
 
         @Override
-        /**
-         * 写入或更新 update Merchant Api Response Log 相关数据，保持数据库记录与当前业务处理结果一致。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-         * @return 当前方法计算或转换后的业务结果
-         */
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateCommandDTO commandDTO) {
             return true;
         }

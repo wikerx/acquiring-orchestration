@@ -42,16 +42,6 @@ public interface SysJobExecutorNodeMapper extends BaseMapper<SysJobExecutorNodeD
                 max_concurrent_count = VALUES(max_concurrent_count),
                 update_time = VALUES(update_time)
             """)
-    /**
-     * 完成 upsert Heartbeat 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param node node 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     int upsertHeartbeat(@Param("node") SysJobExecutorNodeDO node);
 
     /**
@@ -73,14 +63,5 @@ public interface SysJobExecutorNodeMapper extends BaseMapper<SysJobExecutorNodeD
             """)
     int markOffline(@Param("offlineBefore") LocalDateTime offlineBefore,
                     @Param("currentNodeId") String currentNodeId,
-                    /**
-                     * 完成 m 分支的校验或状态更新。
-                     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                     * <p>
-                     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                     * </p>
-                     * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-                     */
                     @Param("limit") int limit);
 }

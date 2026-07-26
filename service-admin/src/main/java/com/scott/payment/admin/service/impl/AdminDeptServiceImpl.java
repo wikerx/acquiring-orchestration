@@ -62,14 +62,6 @@ public class AdminDeptServiceImpl implements AdminDeptService {
     }
 
     @Override
-    /**
-     * 完成 tree 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     public List<SysDeptDTO> tree() {
         List<SysDeptDO> departments = sysDeptMapper.selectList(
                 Wrappers.<SysDeptDO>lambdaQuery()
@@ -80,28 +72,11 @@ public class AdminDeptServiceImpl implements AdminDeptService {
     }
 
     @Override
-    /**
-     * 完成 get Dept 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysDeptDO getDept(Long id) {
         return sysDeptMapper.selectById(id);
     }
 
     @Override
-    /**
-     * 完成 export Depts 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     public List<SysDeptDO> exportDepts() {
         return sysDeptMapper.selectList(
                 Wrappers.<SysDeptDO>lambdaQuery()
@@ -111,15 +86,6 @@ public class AdminDeptServiceImpl implements AdminDeptService {
     }
 
     @Override
-    /**
-     * 完成 create Dept 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param dept dept 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysDeptDO createDept(SysDeptDO dept) {
         if (!StringUtils.hasText(dept.getDeptName())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "部门名称不能为空");
@@ -144,16 +110,6 @@ public class AdminDeptServiceImpl implements AdminDeptService {
     }
 
     @Override
-    /**
-     * 写入或更新 update Dept 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param input input 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysDeptDO updateDept(Long id, SysDeptDO input) {
         SysDeptDO dept = sysDeptMapper.selectById(id);
         if (dept == null) {
@@ -186,14 +142,6 @@ public class AdminDeptServiceImpl implements AdminDeptService {
     }
 
     @Override
-    /**
-     * 完成 remove Dept 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     */
     public void removeDept(Long id) {
         SysDeptDO dept = sysDeptMapper.selectById(id);
         if (dept == null) {

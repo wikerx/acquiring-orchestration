@@ -69,12 +69,12 @@ public class ShardingTablePreCreateApplicationService {
     }
 
     /**
-     * 转换生成 to Pre Create Request 对应的传输对象、导出行或协议字段。
+     * 编排 to Pre Create Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param dryRun dry Run 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
      */
@@ -89,13 +89,13 @@ public class ShardingTablePreCreateApplicationService {
     }
 
 /**
- * 构建 build Context 对应的领域对象、请求对象或日志对象。
+ * 编排 build Context 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateApplicationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @param preCreateRequest pre Create Request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+ * @param preCreateRequest pre Create Request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @return 转换或构建后的目标对象
  */
     private JobExecuteContext buildContext(ShardingTablePreCreateInternalRequest request,
@@ -121,13 +121,13 @@ public class ShardingTablePreCreateApplicationService {
     }
 
     /**
-     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 trim To Null 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {

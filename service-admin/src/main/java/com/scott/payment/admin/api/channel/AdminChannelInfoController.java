@@ -50,8 +50,8 @@ public class AdminChannelInfoController {
     /**
      * 创建 AdminChannelInfoController 实例并注入其运行所需依赖。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelInfoController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelApplicationService channel Application Service 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -61,44 +61,18 @@ public class AdminChannelInfoController {
 
     @PostMapping("/search")
     @RequiresPermission("channel:info:list")
-    /**
-     * 完成 page Channels 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<PageResult<ChannelInfoResponse>> pageChannels(@RequestBody(required = false) ChannelInfoQuery query) {
         return success(channelApplicationService.pageChannels(query));
     }
 
     @GetMapping("/options")
     @RequiresPermission("channel:info:list")
-    /**
-     * 完成 channel Options 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<List<ChannelOption>> channelOptions() {
         return success(channelApplicationService.listChannelOptions());
     }
 
     @GetMapping("/{id}")
     @RequiresPermission("channel:info:detail")
-    /**
-     * 完成 get Channel 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<ChannelInfoResponse> getChannel(@PathVariable("id") Long id) {
         return success(channelApplicationService.getChannel(id));
     }
@@ -106,15 +80,6 @@ public class AdminChannelInfoController {
     @PostMapping
     @RequiresPermission("channel:info:add")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道")
-    /**
-     * 完成 create Channel 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<ChannelInfoResponse> createChannel(@Valid @RequestBody ChannelInfoSaveRequest request) {
         return success(channelApplicationService.createChannel(request));
     }
@@ -122,16 +87,6 @@ public class AdminChannelInfoController {
     @PutMapping("/{id}")
     @RequiresPermission("channel:info:edit")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道")
-/**
- * 写入或更新 update Channel 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<ChannelInfoResponse> updateChannel(@PathVariable("id") Long id,
                                                            @Valid @RequestBody ChannelInfoSaveRequest request) {
         return success(channelApplicationService.updateChannel(id, request));
@@ -140,16 +95,6 @@ public class AdminChannelInfoController {
     @PutMapping("/{id}/status")
     @RequiresPermission("channel:info:status")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道状态")
-/**
- * 写入或更新 update Channel Status 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<ChannelInfoResponse> updateChannelStatus(@PathVariable("id") Long id,
                                                                  @Valid @RequestBody StatusRequest request) {
         return success(channelApplicationService.updateChannelStatus(id, request.getStatus()));
@@ -158,15 +103,6 @@ public class AdminChannelInfoController {
     @DeleteMapping("/{id}")
     @RequiresPermission("channel:info:remove")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.DELETE, operation = "删除渠道")
-    /**
-     * 完成 delete Channel 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> deleteChannel(@PathVariable("id") Long id) {
         channelApplicationService.deleteChannel(id);
         return success();

@@ -555,15 +555,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return toDTO(merchant);
     }
 
-    /**
-     * 完成 rotate Jwt Key Internal 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @return 当前方法计算或转换后的业务结果
-     */
     private MerchantJwtKey rotateJwtKeyInternal(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         jwtKeyMapper.update(null, Wrappers.<BaseMerchantJwtKeyDO>lambdaUpdate()
@@ -589,15 +580,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return generated;
     }
 
-    /**
-     * 完成 rotate Platform Key Internal 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @return 当前方法计算或转换后的业务结果
-     */
     private RsaKeyMaterial rotatePlatformKeyInternal(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         RsaKeyMaterial generated = keyMaterialFactory.generatePlatformPayloadRsaKey(merchantId);
@@ -623,13 +605,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 完成 rotate Response Key Internal 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 rotate Response Key Internal 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private RsaKeyMaterial rotateResponseKeyInternal(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
@@ -656,13 +638,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 完成 merge 分支的校验或状态更新。
+     * 执行 merge 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      */
     private void merge(BaseMerchantInfoDO row, AdminMerchantSaveRequest request) {
         String merchantName = trimRequiredAscii(request.getMerchantName(), "商户名称仅支持英文、数字、空格及常见英文符号");
@@ -825,10 +807,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 转换生成 to DTO 对应的传输对象、导出行或协议字段。
+     * 执行 to DTO 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -862,13 +844,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 完成 base Material 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 base Material 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchant merchant 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private AdminMerchantSecurityMaterialDTO baseMaterial(BaseMerchantInfoDO merchant) {
         AdminMerchantSecurityMaterialDTO dto = new AdminMerchantSecurityMaterialDTO();
@@ -878,10 +860,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 转换生成 to Jwt Summary 对应的传输对象、导出行或协议字段。
+     * 执行 to Jwt Summary 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -904,10 +886,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 转换生成 to Platform Summary 对应的传输对象、导出行或协议字段。
+     * 执行 to Platform Summary 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -927,10 +909,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 转换生成 to Response Summary 对应的传输对象、导出行或协议字段。
+     * 执行 to Response Summary 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -950,10 +932,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 转换生成 to Jwt Material 对应的传输对象、导出行或协议字段。
+     * 执行 to Jwt Material 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -978,10 +960,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 转换生成 to Platform Material 对应的传输对象、导出行或协议字段。
+     * 执行 to Platform Material 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1004,10 +986,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 转换生成 to Response Material 对应的传输对象、导出行或协议字段。
+     * 执行 to Response Material 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1030,13 +1012,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 强制校验 require Merchant By Id 必填值，缺失时中断当前业务流程。
+     * 执行 require Merchant By Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BaseMerchantInfoDO requireMerchantById(Long id) {
         BaseMerchantInfoDO row = merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
@@ -1050,13 +1032,13 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 强制校验 require Merchant By Merchant Id 必填值，缺失时中断当前业务流程。
+     * 执行 require Merchant By Merchant Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BaseMerchantInfoDO requireMerchantByMerchantId(String merchantId) {
         BaseMerchantInfoDO row = selectMerchantByMerchantId(normalizeMerchantId(merchantId));
@@ -1067,10 +1049,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 查询 select Merchant By Merchant Id 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Merchant By Merchant Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @return 解析或查询得到的业务值
@@ -1083,12 +1065,12 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 完成 generate Unique Merchant Id 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 generate Unique Merchant Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String generateUniqueMerchantId() {
         for (int attempt = 0; attempt < MERCHANT_ID_GENERATE_MAX_ATTEMPTS; attempt++) {
@@ -1101,10 +1083,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 查询 select Active Jwt Key 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Active Jwt Key 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @return 解析或查询得到的业务值
@@ -1119,10 +1101,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 查询 select Platform Key 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Platform Key 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @return 解析或查询得到的业务值
@@ -1135,10 +1117,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 查询 select Response Key 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Response Key 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @return 解析或查询得到的业务值
@@ -1151,10 +1133,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 标准化 normalize Merchant Id 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Merchant Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -1167,10 +1149,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 标准化 normalize Base64 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Base64 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param errorMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
@@ -1193,10 +1175,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 标准化 normalize Optional Base64 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Optional Base64 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param errorMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
@@ -1207,40 +1189,40 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 完成 trim Upper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim Upper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimUpper(String value) {
         return value == null ? null : value.trim().toUpperCase();
     }
 
     /**
-     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim To Null 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     /**
-     * 完成 trim Required Ascii 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim Required Ascii 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param errorMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimRequiredAscii(String value, String errorMessage) {
         if (!StringUtils.hasText(value)) {
@@ -1254,26 +1236,26 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 完成 fingerprint 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String fingerprint(String value) {
         return StringUtils.hasText(value) ? keyMaterialFactory.fingerprint(value) : null;
     }
 
     /**
-     * 完成 mask 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 mask 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String mask(String value) {
         if (!StringUtils.hasText(value)) {
@@ -1286,10 +1268,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 校验 validate Status 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      */
@@ -1300,10 +1282,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 校验 validate Risk Level 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Risk Level 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMerchantInfoServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
      */

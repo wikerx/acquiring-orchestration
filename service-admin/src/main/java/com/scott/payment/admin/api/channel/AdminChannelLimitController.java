@@ -50,8 +50,8 @@ public class AdminChannelLimitController {
     /**
      * 创建 AdminChannelLimitController 实例并注入其运行所需依赖。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelLimitController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelApplicationService channel Application Service 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -61,30 +61,12 @@ public class AdminChannelLimitController {
 
     @PostMapping("/search")
     @RequiresPermission("channel:limit:list")
-    /**
-     * 完成 page Limits 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<PageResult<LimitResponse>> pageLimits(@RequestBody(required = false) LimitQuery query) {
         return success(channelApplicationService.pageLimits(query));
     }
 
     @GetMapping("/{id}")
     @RequiresPermission("channel:limit:detail")
-    /**
-     * 完成 get Limit 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<LimitResponse> getLimit(@PathVariable("id") Long id) {
         return success(channelApplicationService.getLimit(id));
     }
@@ -92,15 +74,6 @@ public class AdminChannelLimitController {
     @PostMapping
     @RequiresPermission("channel:limit:add")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道限额")
-    /**
-     * 完成 create Limit 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<LimitResponse> createLimit(@Valid @RequestBody LimitSaveRequest request) {
         return success(channelApplicationService.createLimit(request));
     }
@@ -108,15 +81,6 @@ public class AdminChannelLimitController {
     @PostMapping("/batch")
     @RequiresPermission("channel:limit:add")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.CREATE, operation = "批量新增渠道限额")
-    /**
-     * 完成 create Limits 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<List<LimitResponse>> createLimits(@Valid @RequestBody LimitBatchSaveRequest request) {
         return success(channelApplicationService.createLimits(request));
     }
@@ -124,15 +88,6 @@ public class AdminChannelLimitController {
     @PutMapping("/dimension")
     @RequiresPermission("channel:limit:edit")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.UPDATE, operation = "维度编辑渠道限额")
-    /**
-     * 写入或更新 save Limit Dimension 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<List<LimitResponse>> saveLimitDimension(@Valid @RequestBody LimitBatchSaveRequest request) {
         return success(channelApplicationService.saveLimitDimension(request));
     }
@@ -140,16 +95,6 @@ public class AdminChannelLimitController {
     @PutMapping("/{id}")
     @RequiresPermission("channel:limit:edit")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道限额")
-/**
- * 写入或更新 update Limit 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<LimitResponse> updateLimit(@PathVariable("id") Long id,
                                                    @Valid @RequestBody LimitSaveRequest request) {
         return success(channelApplicationService.updateLimit(id, request));
@@ -158,16 +103,6 @@ public class AdminChannelLimitController {
     @PutMapping("/{id}/status")
     @RequiresPermission("channel:limit:status")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道限额状态")
-/**
- * 写入或更新 update Limit Status 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<LimitResponse> updateLimitStatus(@PathVariable("id") Long id,
                                                          @Valid @RequestBody StatusRequest request) {
         return success(channelApplicationService.updateLimitStatus(id, request.getStatus()));
@@ -176,15 +111,6 @@ public class AdminChannelLimitController {
     @DeleteMapping("/{id}")
     @RequiresPermission("channel:limit:remove")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.DELETE, operation = "删除渠道限额")
-    /**
-     * 完成 delete Limit 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> deleteLimit(@PathVariable("id") Long id) {
         channelApplicationService.deleteLimit(id);
         return success();

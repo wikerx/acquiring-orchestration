@@ -145,16 +145,6 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         }
 
         @Override
-        /**
-         * 发送 send 对应的外部通知、内部消息或远程请求。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param topic topic 输入值，含义由调用方法名称和所属业务对象限定
-         * @param tag tag 输入值，含义由调用方法名称和所属业务对象限定
-         * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-         */
         public void send(String topic, String tag, BaseMqMessage message) {
             if (fail) {
                 throw new IllegalStateException("send failed");
@@ -181,29 +171,10 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         }
 
         @Override
-        /**
-         * 写入或更新 save 相关数据，保持数据库记录与当前业务处理结果一致。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
-         */
         public void save(TransactionEventOutboxDO eventDO) {
         }
 
         @Override
-        /**
-         * 完成 list Due Events 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param eventTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-         * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-         * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-         * @return 当前方法计算或转换后的业务结果
-         */
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
             return "SENT".equals(eventDO.getEventStatus()) || "CLOSED".equals(eventDO.getEventStatus())
                     ? List.of()
@@ -211,16 +182,6 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         }
 
         @Override
-        /**
-         * 推进 mark Sent 对应的状态或处理结果，并保留后续查询所需信息。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
-         * @param sentTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-         * @return 当前方法计算或转换后的业务结果
-         */
         public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
             eventDO.setEventStatus("SENT");
             eventDO.setSentTime(sentTime);
@@ -229,18 +190,6 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         }
 
         @Override
-/**
- * 推进 mark Failed 对应的状态或处理结果，并保留后续查询所需信息。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param eventDO event DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param nextRetryTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param failReason fail Reason 输入值，含义由调用方法名称和所属业务对象限定
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
- */
         public boolean markFailed(TransactionEventOutboxDO eventDO,
                                   LocalDateTime nextRetryTime,
                                   String failReason,

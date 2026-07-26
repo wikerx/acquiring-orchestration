@@ -260,8 +260,8 @@ public class AdminEmailServiceImpl implements AdminEmailService {
 /**
  * 创建 AdminEmailServiceImpl 实例并注入其运行所需依赖。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param accountMapper account Mapper 输入值，含义由调用方法名称和所属业务对象限定
  * @param templateMapper template Mapper 输入值，含义由调用方法名称和所属业务对象限定
@@ -279,15 +279,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 page Accounts 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public PageResult<EmailAccountResponse> pageAccounts(EmailAccountQuery query) {
         EmailAccountQuery safeQuery = query == null ? new EmailAccountQuery() : query;
         Page<EmailAccountDO> page = accountMapper.selectPage(
@@ -298,30 +289,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 get Account 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailAccountResponse getAccount(Long id) {
         return toAccountResponse(requireAccount(id));
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 完成 create Account 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailAccountResponse createAccount(EmailAccountSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         EmailAccountDO row = new EmailAccountDO();
@@ -340,16 +313,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 写入或更新 update Account 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailAccountResponse updateAccount(Long id, EmailAccountSaveRequest request) {
         EmailAccountDO row = requireAccount(id);
         fillAccount(row, request, false, LocalDateTime.now());
@@ -361,16 +324,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 写入或更新 update Account Status 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailAccountResponse updateAccountStatus(Long id, Integer status) {
         EmailAccountDO row = requireAccount(id);
         row.setStatus(normalizeStatus(status));
@@ -382,15 +335,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    /**
-     * 完成 set Default Account 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailAccountResponse setDefaultAccount(Long id) {
         EmailAccountDO row = requireAccount(id);
         row.setDefaultFlag(YES);
@@ -402,14 +346,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 delete Account 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     */
     public void deleteAccount(Long id) {
         EmailAccountDO row = requireAccount(id);
         row.setDeleted(row.getId());
@@ -420,16 +356,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 发送 send Test Email 对应的外部通知、内部消息或远程请求。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param accountId account Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailSendResult sendTestEmail(Long accountId, EmailAccountTestRequest request) {
         EmailAccountDO account = requireAccount(accountId);
         LocalDateTime now = LocalDateTime.now();
@@ -467,16 +393,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return result;
     }
 
-    @Override
     /**
-     * 完成 page Templates 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 page Templates 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
+    @Override
     public PageResult<EmailTemplateResponse> pageTemplates(EmailTemplateQuery query) {
         EmailTemplateQuery safeQuery = query == null ? new EmailTemplateQuery() : query;
         Page<EmailTemplateDO> page = templateMapper.selectPage(
@@ -487,29 +413,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 get Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailTemplateResponse getTemplate(Long id) {
         return toTemplateResponse(requireTemplate(id));
     }
 
     @Override
-    /**
-     * 完成 create Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailTemplateResponse createTemplate(EmailTemplateSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
         EmailTemplateDO row = new EmailTemplateDO();
@@ -525,16 +433,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 写入或更新 update Template 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailTemplateResponse updateTemplate(Long id, EmailTemplateSaveRequest request) {
         EmailTemplateDO row = requireTemplate(id);
         String oldCode = row.getTemplateCode();
@@ -549,15 +447,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 copy Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailTemplateResponse copyTemplate(Long id) {
         EmailTemplateDO source = requireTemplate(id);
         EmailTemplateDO row = new EmailTemplateDO();
@@ -585,16 +474,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 写入或更新 update Template Status 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailTemplateResponse updateTemplateStatus(Long id, Integer status) {
         EmailTemplateDO row = requireTemplate(id);
         row.setStatus(normalizeStatus(status));
@@ -605,14 +484,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 delete Template 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     */
     public void deleteTemplate(Long id) {
         EmailTemplateDO row = requireTemplate(id);
         row.setDeleted(row.getId());
@@ -622,15 +493,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 preview Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailTemplatePreviewResponse previewTemplate(EmailTemplatePreviewRequest request) {
         Map<String, Object> variables = enrichSystemVariables(request.getVariables());
         Set<String> missing = missingVariables(request.getSubjectTemplate() + request.getContentTemplate(), variables);
@@ -645,15 +507,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 page Records 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public PageResult<EmailRecordResponse> pageRecords(EmailRecordQuery query) {
         EmailRecordQuery safeQuery = query == null ? new EmailRecordQuery() : query;
         Page<EmailSendRecordDO> page = recordMapper.selectPage(
@@ -664,28 +517,19 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     @Override
-    /**
-     * 完成 get Record 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public EmailRecordResponse getRecord(Long id) {
         return toRecordResponse(requireRecord(id));
     }
 
     @Override
     /**
-     * 发送 send By Template 对应的外部通知、内部消息或远程请求。
+     * 执行 send By Template 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     public EmailSendResult sendByTemplate(EmailSendRequest request) {
         EmailTemplateDO template = requireEnabledTemplate(request.getTemplateCode(), defaultIfBlank(request.getLocale(), DEFAULT_LOCALE));
@@ -710,16 +554,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return doSend(record, account, content, CONTENT_HTML.equalsIgnoreCase(template.getContentType()));
     }
 
-    @Override
     /**
-     * 完成 resend 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 resend 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
+    @Override
     public EmailSendResult resend(Long id) {
         EmailSendRecordDO source = requireRecord(id);
         if (source.getSendStatus() == SEND_SUCCESS) {
@@ -735,13 +579,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 account Query Wrapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 account Query Wrapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LambdaQueryWrapper<EmailAccountDO> accountQueryWrapper(EmailAccountQuery query) {
         return Wrappers.<EmailAccountDO>lambdaQuery()
@@ -762,13 +606,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 template Query Wrapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 template Query Wrapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LambdaQueryWrapper<EmailTemplateDO> templateQueryWrapper(EmailTemplateQuery query) {
         return Wrappers.<EmailTemplateDO>lambdaQuery()
@@ -784,13 +628,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 写入或更新 record Query Wrapper 相关数据，保持数据库记录与当前业务处理结果一致。
+     * 执行 record Query Wrapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LambdaQueryWrapper<EmailSendRecordDO> recordQueryWrapper(EmailRecordQuery query) {
         return Wrappers.<EmailSendRecordDO>lambdaQuery()
@@ -812,13 +656,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 填充 fill Account 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Account 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param create create 输入值，含义由调用方法名称和所属业务对象限定
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -860,10 +704,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 校验 validate Account Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Account Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -879,13 +723,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 填充 fill Template 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Template 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void fillTemplate(EmailTemplateDO row, EmailTemplateSaveRequest request, LocalDateTime now) {
@@ -906,12 +750,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 构建 build Record 对应的领域对象、请求对象或日志对象。
+     * 执行 build Record 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -947,10 +791,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 填充 fill Account Snapshot 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Account Snapshot 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param record record 输入值，含义由调用方法名称和所属业务对象限定
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
@@ -965,16 +809,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 do Send 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 do Send 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param record record 输入值，含义由调用方法名称和所属业务对象限定
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
      * @param content content 输入值，含义由调用方法名称和所属业务对象限定
      * @param html html 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private EmailSendResult doSend(EmailSendRecordDO record, EmailAccountDO account, String content, boolean html) {
         LocalDateTime start = LocalDateTime.now();
@@ -1021,10 +865,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 构建 build Mail Sender 对应的领域对象、请求对象或日志对象。
+     * 执行 build Mail Sender 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1052,10 +896,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 查询 select Account 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Account 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
@@ -1086,16 +930,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 account Route Wrapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 account Route Wrapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
      * @param scopeType scope Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @param sceneCode scene Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LambdaQueryWrapper<EmailAccountDO> accountRouteWrapper(String appCode, String scopeType, String merchantId, String sceneCode) {
         return Wrappers.<EmailAccountDO>lambdaQuery()
@@ -1110,10 +954,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 clear Default Account 分支的校验或状态更新。
+     * 执行 clear Default Account 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -1132,15 +976,15 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 missing Variables 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 missing Variables 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param variables variables 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Set<String> missingVariables(String template, Map<String, Object> variables) {
         Set<String> required = extractVariables(template);
@@ -1170,13 +1014,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 extract Variables 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 extract Variables 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Set<String> extractVariables(String template) {
         Set<String> variables = new LinkedHashSet<>();
@@ -1191,15 +1035,15 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 render 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 render 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param variables variables 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String render(String template, Map<String, Object> variables) {
         Matcher matcher = TEMPLATE_VARIABLE_PATTERN.matcher(template);
@@ -1213,16 +1057,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 mask Sensitive Content 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 mask Sensitive Content 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param variables variables 输入值，含义由调用方法名称和所属业务对象限定
      * @param sensitiveNames sensitive Names 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String maskSensitiveContent(String template, Map<String, Object> variables, List<String> sensitiveNames) {
         if (CollectionUtils.isEmpty(sensitiveNames)) {
@@ -1238,15 +1082,15 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 mask Variables 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 mask Variables 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param variables variables 输入值，含义由调用方法名称和所属业务对象限定
      * @param sensitiveNames sensitive Names 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, Object> maskVariables(Map<String, Object> variables, List<String> sensitiveNames) {
         Map<String, Object> masked = new LinkedHashMap<>(variables);
@@ -1259,10 +1103,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 解析 parse String List 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse String List 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param json json 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析后的内部数据结构或业务值
@@ -1279,10 +1123,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 标准化 normalize Json Array 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Json Array 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -1300,13 +1144,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 copy Retry Record 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 copy Retry Record 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private EmailSendRecordDO copyRetryRecord(EmailSendRecordDO source) {
         LocalDateTime now = LocalDateTime.now();
@@ -1347,13 +1191,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 强制校验 require Account 必填值，缺失时中断当前业务流程。
+     * 执行 require Account 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private EmailAccountDO requireAccount(Long id) {
         if (id == null) {
@@ -1369,13 +1213,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 强制校验 require Template 必填值，缺失时中断当前业务流程。
+     * 执行 require Template 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private EmailTemplateDO requireTemplate(Long id) {
         EmailTemplateDO row = templateMapper.selectOne(Wrappers.<EmailTemplateDO>lambdaQuery()
@@ -1388,14 +1232,14 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 强制校验 require Enabled Template 必填值，缺失时中断当前业务流程。
+     * 执行 require Enabled Template 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param templateCode template Code 输入值，含义由调用方法名称和所属业务对象限定
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private EmailTemplateDO requireEnabledTemplate(String templateCode, String locale) {
         EmailTemplateDO row = templateMapper.selectOne(Wrappers.<EmailTemplateDO>lambdaQuery()
@@ -1411,13 +1255,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 强制校验 require Record 必填值，缺失时中断当前业务流程。
+     * 执行 require Record 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private EmailSendRecordDO requireRecord(Long id) {
         EmailSendRecordDO row = recordMapper.selectOne(Wrappers.<EmailSendRecordDO>lambdaQuery()
@@ -1430,10 +1274,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 ensure Account Code Unique 分支的校验或状态更新。
+     * 执行 ensure Account Code Unique 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param code code 输入值，含义由调用方法名称和所属业务对象限定
      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -1449,10 +1293,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 ensure Template Unique 分支的校验或状态更新。
+     * 执行 ensure Template Unique 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param code code 输入值，含义由调用方法名称和所属业务对象限定
      * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
@@ -1470,10 +1314,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 转换生成 to Account Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Account Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1519,10 +1363,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 转换生成 to Template Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Template Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1552,10 +1396,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 转换生成 to Record Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Record Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1606,10 +1450,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 转换生成 to Send Result 对应的传输对象、导出行或协议字段。
+     * 执行 to Send Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param record record 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1625,10 +1469,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 填充 fill Operator 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Operator 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param record record 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1643,12 +1487,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 current Operator Name 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
@@ -1665,10 +1509,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 标准化 normalize Status 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 标准化后的业务字段值
@@ -1678,10 +1522,10 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 解析 parse Email Array 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Email Array 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param json json 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析后的内部数据结构或业务值
@@ -1702,26 +1546,26 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 trim 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
     /**
-     * 完成 trim Upper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim Upper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimUpper(String value) {
         String trimmed = trim(value);
@@ -1729,42 +1573,42 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 default If Blank 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default If Blank 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
     /**
-     * 完成 default If Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default If Null 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Integer defaultIfNull(Integer value, Integer defaultValue) {
         return value == null ? defaultValue : value;
     }
 
     /**
-     * 完成 truncate 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 truncate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param maxLength max Length 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
@@ -1774,26 +1618,26 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 generate Code 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 generate Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param prefix prefix 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String generateCode(String prefix) {
         return prefix + "_" + System.currentTimeMillis();
     }
 
     /**
-     * 完成 encrypt Secret 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 encrypt Secret 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param plainText plain Text 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String encryptSecret(String plainText) {
         try {
@@ -1809,13 +1653,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 decrypt Secret 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 decrypt Secret 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param cipherText cipher Text 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String decryptSecret(String cipherText) {
         try {
@@ -1831,12 +1675,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     }
 
     /**
-     * 完成 secret Key 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 secret Key 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private byte[] secretKey() throws Exception {
         String seed = System.getProperty("payment.email.secret", System.getenv().getOrDefault("PAYMENT_EMAIL_SECRET", "local-email-secret-change-me"));

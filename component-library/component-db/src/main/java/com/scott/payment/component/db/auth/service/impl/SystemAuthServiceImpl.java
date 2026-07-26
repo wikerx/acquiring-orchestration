@@ -1119,10 +1119,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
-     * 完成 draw Captcha Noise 分支的校验或状态更新。
+     * 执行 draw Captcha Noise 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 SystemAuthServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param graphics graphics 输入值，含义由调用方法名称和所属业务对象限定
      * @param width width 输入值，含义由调用方法名称和所属业务对象限定
@@ -1144,13 +1144,13 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     }
 
     /**
-     * 完成 captcha Text Color 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 captcha Text Color 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 SystemAuthServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param index index 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Color captchaTextColor(int index) {
         Color[] colors = {

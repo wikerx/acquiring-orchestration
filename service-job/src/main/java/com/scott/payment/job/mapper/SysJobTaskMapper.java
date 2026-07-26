@@ -41,15 +41,6 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
             LIMIT #{limit}
             """)
     List<SysJobTaskDO> selectDueTasks(@Param("triggerTime") LocalDateTime triggerTime,
-                                      /**
-                                       * 完成 m 分支的校验或状态更新。
-                                       * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                       * <p>
-                                       * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                       * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                       * </p>
-                                       * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-                                       */
                                       @Param("limit") int limit);
 
     /**
@@ -76,15 +67,6 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
     int acquireLock(@Param("taskId") Long taskId,
                     @Param("nodeId") String nodeId,
                     @Param("lockUntil") LocalDateTime lockUntil,
-                    /**
-                     * 完成 m 分支的校验或状态更新。
-                     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                     * <p>
-                     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                     * </p>
-                     * @param version version 输入值，含义由调用方法名称和所属业务对象限定
-                     */
                     @Param("version") Integer version);
 
     /**
@@ -104,14 +86,5 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
             """)
     int extendLock(@Param("taskId") Long taskId,
                    @Param("nodeId") String nodeId,
-                   /**
-                    * 完成 m 分支的校验或状态更新。
-                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                    * <p>
-                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                    * </p>
-                    * @param lockUntil lock Until 输入值，含义由调用方法名称和所属业务对象限定
-                    */
                    @Param("lockUntil") LocalDateTime lockUntil);
 }

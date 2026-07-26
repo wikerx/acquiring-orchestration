@@ -422,15 +422,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return response;
     }
 
-    /**
-     * 完成 page Operations Normalized 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param safeQuery safe Query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
-     */
     private PageResult<TransactionOperationResponse> pageOperationsNormalized(TransactionPageQuery safeQuery) {
         long total = 0L;
         List<TransactionOperationDO> rows = new ArrayList<>();
@@ -682,15 +673,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
-    /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
-     */
     private TransactionPageQuery normalize(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
         fillDefaultTimeRange(safeQuery);
@@ -723,10 +705,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -738,10 +720,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -753,10 +735,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -816,23 +798,23 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 offset 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 offset 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private long offset(com.scott.payment.component.core.model.PageRequest query) {
         return (query.safePageNo() - 1) * query.safePageSize();
     }
 
     /**
-     * 转换生成 to Order Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Order Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -881,10 +863,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 解析 resolve Current Amount 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Current Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 按渠道协议格式化后的金额字符串或金额计算结果
@@ -944,10 +926,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 解析 resolve Lifecycle Status Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Lifecycle Status Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -961,23 +943,23 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 zero If Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 zero If Null 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
     /**
-     * 判断 is Authorization Like 条件是否成立，用于控制后续业务分支。
+     * 执行 is Authorization Like 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -988,10 +970,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 转换生成 to Operation Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Operation Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -1001,10 +983,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
 /**
- * 转换生成 to Operation Response 对应的传输对象、导出行或协议字段。
+ * 执行 to Operation Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param row row 输入值，含义由调用方法名称和所属业务对象限定
  * @param paymentInfoDO payment Info DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -1018,10 +1000,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
 /**
- * 转换生成 to Operation Response 对应的传输对象、导出行或协议字段。
+ * 执行 to Operation Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param row row 输入值，含义由调用方法名称和所属业务对象限定
  * @param paymentInfoDO payment Info DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -1574,10 +1556,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 解析 resolve Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 解析或查询得到的业务值
@@ -1596,23 +1578,23 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 default Rate 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal defaultRate(BigDecimal value) {
         return value == null ? new BigDecimal("1.00000000") : value;
     }
 
     /**
-     * 解析 resolve Merchant Response Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Merchant Response Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 解析或查询得到的业务值
@@ -1631,10 +1613,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 解析 resolve Status By Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Status By Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantResponseCode merchant Response Code 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -1662,10 +1644,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 标准化 normalize Card Number Masked 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Card Number Masked 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param paymentInfoDO payment Info DO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -1691,13 +1673,13 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String... values) {
         for (String value : values) {
@@ -1718,15 +1700,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return null;
     }
 
-    /**
-     * 完成 payment Info Map 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap(List<TransactionOperationDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -1762,15 +1735,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return result;
     }
 
-    /**
-     * 完成 payment Info Map By Operation Id 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
-     */
     private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMapByOperationId(List<TransactionOperationDO> rows) {
         Map<String, List<TransactionOperationDO>> operationRows = rows.stream()
                 .filter(row -> StringUtils.hasText(row.getOperationId()) && row.getTransactionDateTime() != null)
@@ -1786,10 +1750,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 查询 find Payment Info By Operation Id 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Payment Info By Operation Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
@@ -1828,14 +1792,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
 /**
- * 完成 first Payment Info 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 first Payment Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param current current 输入值，含义由调用方法名称和所属业务对象限定
  * @param fallback fallback 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private TransactionPaymentMethodInfoDO firstPaymentInfo(TransactionPaymentMethodInfoDO current,
                                                             TransactionPaymentMethodInfoDO fallback) {
@@ -1846,10 +1810,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 判断 has Card Summary 条件是否成立，用于控制后续业务分支。
+     * 执行 has Card Summary 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param infoDO info DO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1861,13 +1825,13 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 order Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 order Map 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, TransactionOrderDO> orderMap(List<TransactionOperationDO> rows) {
         if (rows == null || rows.isEmpty()) {
@@ -1886,10 +1850,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 查询 find Order For Operation 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Order For Operation 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -1907,13 +1871,13 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 merchant Notification Status Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 merchant Notification Status Map 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, String> merchantNotificationStatusMap(List<TransactionOperationDO> rows) {
         if (rows == null || rows.isEmpty()) {
@@ -1939,10 +1903,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 payment Info Table For Operation Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 payment Info Table For Operation Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param operationPhysicalTable operation Physical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -1955,10 +1919,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
 /**
- * 查询 select Operations By Operation Id 所需数据，未命中时按调用场景返回空值或抛出异常。
+ * 执行 select Operations By Operation Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
  * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
@@ -2011,14 +1975,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 physical Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 physical Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
@@ -2026,15 +1990,15 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 完成 physical Tables In Range 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 physical Tables In Range 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> physicalTablesInRange(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
         return shardingDataTemplate.resolvePhysicalTables(
@@ -2042,10 +2006,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 解析 parse Transaction Date Time 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Transaction Date Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
      * @return 解析后的内部数据结构或业务值
@@ -2055,10 +2019,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 解析 parse Operation Date Time 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Operation Date Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -2178,8 +2142,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         /**
          * 计算 add Amount 对应的数值结果，调用方负责保证金额和币种上下文一致。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 TransactionOperationSummaryAccumulator 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
          * @param buckets buckets 输入值，含义由调用方法名称和所属业务对象限定
@@ -2197,8 +2161,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         /**
          * 转换生成 to Payment Responses 对应的传输对象、导出行或协议字段。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 TransactionOperationSummaryAccumulator 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @return 转换或构建后的目标对象
          */
@@ -2222,8 +2186,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         /**
          * 转换生成 to Amount Responses 对应的传输对象、导出行或协议字段。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 TransactionOperationSummaryAccumulator 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
          * @param buckets buckets 输入值，含义由调用方法名称和所属业务对象限定
@@ -2247,8 +2211,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         /**
          * 标准化 normalize Group Value 输入值，统一大小写、空白字符或协议格式。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 TransactionOperationSummaryAccumulator 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @param value 待校验或转换的原始值
          * @return 标准化后的业务字段值
@@ -2281,8 +2245,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         /**
          * 创建 AmountBucket 实例并注入其运行所需依赖。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 AmountBucket 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @param currency 币种代码，格式为 ISO 4217 三位大写字母
          */
@@ -2291,10 +2255,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         }
 
         /**
-         * 完成 get Currency 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * 完成 get Currency 的本地校验、字段转换或结果组装，供当前调用链继续使用。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 AmountBucket 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @return 标准化后的 ISO 4217 币种代码
          */
@@ -2303,10 +2267,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         }
 
         /**
-         * 完成 get Amount 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * 完成 get Amount 的本地校验、字段转换或结果组装，供当前调用链继续使用。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 AmountBucket 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @return 按渠道协议格式化后的金额字符串或金额计算结果
          */
@@ -2343,8 +2307,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         /**
          * 创建 PaymentBucket 实例并注入其运行所需依赖。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentBucket 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
          * @param paymentBrand payment Brand 输入值，含义由调用方法名称和所属业务对象限定
@@ -2355,12 +2319,12 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         }
 
         /**
-         * 完成 get Count 分支的校验或转换，返回值供当前调用链继续组装结果。
+         * 完成 get Count 的本地校验、字段转换或结果组装，供当前调用链继续使用。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentBucket 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
-         * @return 当前方法计算或转换后的业务结果
+         * @return 方法签名声明的返回值，具体结构由返回类型定义
          */
         private long getCount() {
             return count;
@@ -2370,16 +2334,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     @FunctionalInterface
     private interface PhysicalTableSelector<T> {
 
-        /**
-         * 查询 select 所需数据，未命中时按调用场景返回空值或抛出异常。
-         * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-         * @return 解析或查询得到的业务值
-         */
         List<T> select(String table);
     }
 }

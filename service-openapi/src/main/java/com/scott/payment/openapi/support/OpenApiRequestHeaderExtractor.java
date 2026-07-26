@@ -146,10 +146,10 @@ public class OpenApiRequestHeaderExtractor {
 /**
  * 写入或更新 record Blocked 相关数据，保持数据库记录与当前业务处理结果一致。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiRequestHeaderExtractor 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
  * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
  * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
@@ -177,8 +177,8 @@ public class OpenApiRequestHeaderExtractor {
     /**
      * 解析 resolve Replay Event Type 对应的业务值，按优先级从上下文、请求或配置中取值。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiRequestHeaderExtractor 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值

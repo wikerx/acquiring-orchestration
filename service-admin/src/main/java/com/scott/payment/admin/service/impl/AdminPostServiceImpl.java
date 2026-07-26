@@ -54,19 +54,6 @@ public class AdminPostServiceImpl implements AdminPostService {
     }
 
     @Override
-    /**
-     * 完成 page Posts 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param pageNo page No 输入值，含义由调用方法名称和所属业务对象限定
-     * @param pageSize page Size 输入值，含义由调用方法名称和所属业务对象限定
-     * @param postCode post Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param postName post Name 输入值，含义由调用方法名称和所属业务对象限定
-     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 当前方法计算或转换后的业务结果
-     */
     public PageResult<SysPostDO> pagePosts(int pageNo, int pageSize, String postCode, String postName, Integer status) {
         LambdaQueryWrapper<SysPostDO> queryWrapper = Wrappers.<SysPostDO>lambdaQuery()
                 .like(StringUtils.hasText(postCode), SysPostDO::getPostCode, postCode)
@@ -79,14 +66,6 @@ public class AdminPostServiceImpl implements AdminPostService {
     }
 
     @Override
-    /**
-     * 完成 list Enabled Posts 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     public List<SysPostDO> listEnabledPosts() {
         return sysPostMapper.selectList(
                 Wrappers.<SysPostDO>lambdaQuery()
@@ -97,28 +76,11 @@ public class AdminPostServiceImpl implements AdminPostService {
     }
 
     @Override
-    /**
-     * 完成 get Post 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysPostDO getPost(Long id) {
         return sysPostMapper.selectById(id);
     }
 
     @Override
-    /**
-     * 完成 export Posts 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     public List<SysPostDO> exportPosts() {
         return sysPostMapper.selectList(
                 Wrappers.<SysPostDO>lambdaQuery()
@@ -128,15 +90,6 @@ public class AdminPostServiceImpl implements AdminPostService {
     }
 
     @Override
-    /**
-     * 完成 create Post 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param post post 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysPostDO createPost(SysPostDO post) {
         if (!StringUtils.hasText(post.getPostCode())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "岗位编码不能为空");
@@ -161,16 +114,6 @@ public class AdminPostServiceImpl implements AdminPostService {
     }
 
     @Override
-    /**
-     * 写入或更新 update Post 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param input input 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysPostDO updatePost(Long id, SysPostDO input) {
         SysPostDO post = sysPostMapper.selectById(id);
         if (post == null) {
@@ -197,14 +140,6 @@ public class AdminPostServiceImpl implements AdminPostService {
     }
 
     @Override
-    /**
-     * 完成 remove Post 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     */
     public void removePost(Long id) {
         SysPostDO post = sysPostMapper.selectById(id);
         if (post == null) {

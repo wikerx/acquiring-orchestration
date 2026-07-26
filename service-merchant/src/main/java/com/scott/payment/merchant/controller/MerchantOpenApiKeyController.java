@@ -172,15 +172,6 @@ public class MerchantOpenApiKeyController {
         return success(queryLogs(request));
     }
 
-    /**
-     * 完成 query Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     private PageResult<SysOperLogDTO> queryLogs(SysOperLogQueryRequest request) {
         SysOperLogQueryRequest query = request == null ? new SysOperLogQueryRequest() : request;
         query.setMerchantId(currentMerchantId());
@@ -188,14 +179,6 @@ public class MerchantOpenApiKeyController {
         return merchantOperLogService.pageOperLogs(query);
     }
 
-    /**
-     * 完成 current Merchant Id 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 当前方法计算或转换后的业务结果
-     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {
@@ -205,10 +188,10 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 强制校验 require Copy Permission 必填值，缺失时中断当前业务流程。
+     * 接收 require Copy Permission 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -221,10 +204,10 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 强制校验 require Download Permission 必填值，缺失时中断当前业务流程。
+     * 接收 require Download Permission 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -237,10 +220,10 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 强制校验 require Rotate Permission 必填值，缺失时中断当前业务流程。
+     * 接收 require Rotate Permission 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -257,10 +240,10 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 强制校验 require Permission 必填值，缺失时中断当前业务流程。
+     * 接收 require Permission 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param permission permission 输入值，含义由调用方法名称和所属业务对象限定
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
@@ -274,10 +257,10 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 完成 reject Platform Private Key 分支的校验或状态更新。
+     * 接收 reject Platform Private Key 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -288,10 +271,10 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 转换生成 to Download Response 对应的传输对象、导出行或协议字段。
+     * 接收 to Download Response 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param file file 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象

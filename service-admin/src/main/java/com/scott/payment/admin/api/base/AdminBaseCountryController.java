@@ -60,15 +60,6 @@ public class AdminBaseCountryController {
 
     @GetMapping("/{id}")
     @RequiresPermission("base:country:query")
-    /**
-     * 完成 detail 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<IsoCountryDO> detail(@PathVariable("id") Long id) {
         return success(adminBaseCountryApplicationService.getCountry(id));
     }
@@ -76,14 +67,6 @@ public class AdminBaseCountryController {
     @GetMapping("/export")
     @RequiresPermission("base:country:export")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.EXPORT, operation = "导出国家地区")
-    /**
-     * 完成 export 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
-     */
     public void export(HttpServletResponse response) {
         adminBaseCountryApplicationService.exportCountries(currentOperatorName(), response);
     }
@@ -91,15 +74,6 @@ public class AdminBaseCountryController {
     @PostMapping
     @RequiresPermission("base:country:add")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.CREATE, operation = "新增国家地区")
-    /**
-     * 完成 create 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<IsoCountryDO> create(@RequestBody IsoCountryDO row) {
         return success(adminBaseCountryApplicationService.createCountry(row));
     }
@@ -107,16 +81,6 @@ public class AdminBaseCountryController {
     @PutMapping("/{id}")
     @RequiresPermission("base:country:edit")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.UPDATE, operation = "编辑国家地区")
-    /**
-     * 写入或更新 update 相关数据，保持数据库记录与当前业务处理结果一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param input input 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<IsoCountryDO> update(@PathVariable("id") Long id, @RequestBody IsoCountryDO input) {
         return adminBaseCountryApplicationService.updateCountry(id, input);
     }
@@ -124,17 +88,6 @@ public class AdminBaseCountryController {
     @PutMapping("/{id}/status")
     @RequiresPermission("base:country:changeStatus")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.UPDATE, operation = "切换国家地区状态")
-    /**
-     * 完成 change Status 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param body body 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<IsoCountryDO> changeStatus(@PathVariable("id") Long id, @RequestBody Map<String, Integer> body) {
         return adminBaseCountryApplicationService.updateStatus(id, body);
     }
@@ -142,15 +95,6 @@ public class AdminBaseCountryController {
     @DeleteMapping("/{id}")
     @RequiresPermission("base:country:remove")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.DELETE, operation = "删除国家地区")
-    /**
-     * 完成 remove 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> remove(@PathVariable("id") Long id) {
         adminBaseCountryApplicationService.removeCountry(id);
         return success(null);

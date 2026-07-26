@@ -45,8 +45,8 @@ public class AdminEmailTemplateController {
     /**
      * 创建 AdminEmailTemplateController 实例并注入其运行所需依赖。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailTemplateController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param emailApplicationService email Application Service 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -56,30 +56,12 @@ public class AdminEmailTemplateController {
 
     @PostMapping("/search")
     @RequiresPermission("email:template:list")
-    /**
-     * 完成 page Templates 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<PageResult<EmailTemplateResponse>> pageTemplates(@RequestBody(required = false) EmailTemplateQuery query) {
         return success(emailApplicationService.pageTemplates(query));
     }
 
     @GetMapping("/{id}")
     @RequiresPermission("email:template:detail")
-    /**
-     * 完成 get Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<EmailTemplateResponse> getTemplate(@PathVariable("id") Long id) {
         return success(emailApplicationService.getTemplate(id));
     }
@@ -87,15 +69,6 @@ public class AdminEmailTemplateController {
     @PostMapping
     @RequiresPermission("email:template:add")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.CREATE, operation = "新增邮件模板")
-    /**
-     * 完成 create Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<EmailTemplateResponse> createTemplate(@Valid @RequestBody EmailTemplateSaveRequest request) {
         return success(emailApplicationService.createTemplate(request));
     }
@@ -103,16 +76,6 @@ public class AdminEmailTemplateController {
     @PutMapping("/{id}")
     @RequiresPermission("email:template:edit")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.UPDATE, operation = "修改邮件模板")
-/**
- * 写入或更新 update Template 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<EmailTemplateResponse> updateTemplate(@PathVariable("id") Long id,
                                                               @Valid @RequestBody EmailTemplateSaveRequest request) {
         return success(emailApplicationService.updateTemplate(id, request));
@@ -121,15 +84,6 @@ public class AdminEmailTemplateController {
     @PostMapping("/{id}/copy")
     @RequiresPermission("email:template:copy")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.CREATE, operation = "复制邮件模板")
-    /**
-     * 完成 copy Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<EmailTemplateResponse> copyTemplate(@PathVariable("id") Long id) {
         return success(emailApplicationService.copyTemplate(id));
     }
@@ -137,16 +91,6 @@ public class AdminEmailTemplateController {
     @PutMapping("/{id}/status")
     @RequiresPermission("email:template:status")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.UPDATE, operation = "切换邮件模板状态")
-/**
- * 写入或更新 update Template Status 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<EmailTemplateResponse> updateTemplateStatus(@PathVariable("id") Long id,
                                                                     @Valid @RequestBody EmailStatusRequest request) {
         return success(emailApplicationService.updateTemplateStatus(id, request.getStatus()));
@@ -154,15 +98,6 @@ public class AdminEmailTemplateController {
 
     @PostMapping("/preview")
     @RequiresPermission("email:template:preview")
-    /**
-     * 完成 preview Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<EmailTemplatePreviewResponse> previewTemplate(@Valid @RequestBody EmailTemplatePreviewRequest request) {
         return success(emailApplicationService.previewTemplate(request));
     }
@@ -170,15 +105,6 @@ public class AdminEmailTemplateController {
     @DeleteMapping("/{id}")
     @RequiresPermission("email:template:remove")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.DELETE, operation = "删除邮件模板")
-    /**
-     * 完成 delete Template 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> deleteTemplate(@PathVariable("id") Long id) {
         emailApplicationService.deleteTemplate(id);
         return success();

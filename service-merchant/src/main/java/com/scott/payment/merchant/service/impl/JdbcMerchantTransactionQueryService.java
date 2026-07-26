@@ -215,15 +215,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return detail;
     }
 
-    /**
-     * 完成 page Operations 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param safeQuery safe Query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
-     */
     private PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery safeQuery) {
         long total = 0L;
         long offset = offset(safeQuery);
@@ -244,15 +235,6 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
-    /**
-     * 完成 operation Summary 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param safeQuery safe Query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
-     */
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery safeQuery) {
         SummaryAccumulator accumulator = new SummaryAccumulator();
         for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
@@ -264,14 +246,14 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 count Orders 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 count Orders 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param table table 输入值，含义由调用方法名称和所属业务对象限定
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private long countOrders(String table, TransactionPageQuery query) {
         return jdbcTemplate.queryForObject("""
@@ -286,10 +268,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 查询 select Orders 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Orders 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param table table 输入值，含义由调用方法名称和所属业务对象限定
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
@@ -315,10 +297,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 count Operations 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 count Operations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param table table 输入值，含义由调用方法名称和所属业务对象限定
      * @param paymentTable payment Table 输入值，含义由调用方法名称和所属业务对象限定
@@ -338,10 +320,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 查询 select Operations 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Operations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param table table 输入值，含义由调用方法名称和所属业务对象限定
      * @param paymentTable payment Table 输入值，含义由调用方法名称和所属业务对象限定
@@ -368,10 +350,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 查询 select Amount Summary 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Amount Summary 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param table table 输入值，含义由调用方法名称和所属业务对象限定
      * @param paymentTable payment Table 输入值，含义由调用方法名称和所属业务对象限定
@@ -396,10 +378,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 查询 select Payment Method Summary 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Payment Method Summary 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param table table 输入值，含义由调用方法名称和所属业务对象限定
      * @param paymentTable payment Table 输入值，含义由调用方法名称和所属业务对象限定
@@ -426,13 +408,13 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 order Where Sql 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 order Where Sql 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String orderWhereSql(TransactionPageQuery query) {
         StringBuilder sql = new StringBuilder();
@@ -451,10 +433,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 operation Where Sql 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 operation Where Sql 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @param paymentTable payment Table 输入值，含义由调用方法名称和所属业务对象限定
@@ -483,10 +465,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 append Text Filter 分支的校验或状态更新。
+     * 执行 append Text Filter 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sql sql 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
@@ -499,13 +481,13 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 order Params 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 order Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MapSqlParameterSource orderParams(TransactionPageQuery query) {
         return baseParams(query)
@@ -523,10 +505,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 operation Params 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 operation Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -547,13 +529,13 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 base Params 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 base Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private MapSqlParameterSource baseParams(TransactionPageQuery query) {
         return new MapSqlParameterSource()
@@ -563,10 +545,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 查询 select Operation By Transaction Id 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Operation By Transaction Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param table table 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
@@ -584,10 +566,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 查询 select Order By Operation Id 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Order By Operation Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param table table 输入值，含义由调用方法名称和所属业务对象限定
      * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
@@ -605,10 +587,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 查询 select Operations By Operation Id 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 select Operations By Operation Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
@@ -630,10 +612,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 enrich Operations 分支的校验或状态更新。
+     * 执行 enrich Operations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -664,10 +646,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 enrich Orders 分支的校验或状态更新。
+     * 执行 enrich Orders 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -703,15 +685,15 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 first Payment Info 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 first Payment Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param paymentInfoByTransaction payment Info By Transaction 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private PaymentInfoRow firstPaymentInfo(TransactionOrderResponse row, Map<String, PaymentInfoRow> paymentInfoByTransaction) {
         PaymentInfoRow latest = paymentInfoByTransaction.get(row.getLatestTransactionId());
@@ -726,10 +708,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 判断 has Card Info 条件是否成立，用于控制后续业务分支。
+     * 执行 has Card Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -739,13 +721,13 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 payment Info By Transaction 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 payment Info By Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, PaymentInfoRow> paymentInfoByTransaction(List<TransactionOperationResponse> rows) {
         Map<String, PaymentInfoRow> result = new LinkedHashMap<>();
@@ -774,13 +756,13 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 payment Info By Order Transaction 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 payment Info By Order Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, PaymentInfoRow> paymentInfoByOrderTransaction(List<TransactionOrderResponse> rows) {
         Map<String, PaymentInfoRow> result = new LinkedHashMap<>();
@@ -812,10 +794,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 payment Info By Order Operation 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 payment Info By Order Operation 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -845,10 +827,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 operation Visible Info By Operation 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 operation Visible Info By Operation 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -885,10 +867,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 计算 add If Text 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * 执行 add If Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
@@ -900,10 +882,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 order By Operation 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 order By Operation 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -930,10 +912,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -949,10 +931,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 填充 fill Default Time Range 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Default Time Range 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -969,10 +951,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 标准化 normalize Merchant Response Code 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -993,10 +975,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 解析 resolve Query Zone 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Query Zone 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param queryTimeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @return 解析或查询得到的业务值
@@ -1011,10 +993,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 标准化 normalize Zone Id 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Zone Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param zone zone 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -1043,15 +1025,15 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 convert Between Zones 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 convert Between Zones 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param sourceZone source Zone 输入值，含义由调用方法名称和所属业务对象限定
      * @param targetZone target Zone 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         ZonedDateTime source = sourceTime.atZone(sourceZone);
@@ -1059,28 +1041,28 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 offset 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 offset 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private long offset(PageRequest query) {
         return (query.safePageNo() - 1) * query.safePageSize();
     }
 
     /**
-     * 完成 physical Tables In Range 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 physical Tables In Range 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> physicalTablesInRange(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
         return shardingDataTemplate.resolvePhysicalTables(
@@ -1088,14 +1070,14 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 physical Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 physical Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
@@ -1103,10 +1085,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 解析 parse Transaction Date Time 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Transaction Date Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
      * @return 解析后的内部数据结构或业务值
@@ -1116,10 +1098,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 解析 parse Operation Date Time 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Operation Date Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -1129,10 +1111,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 payment Info Table For Operation Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 payment Info Table For Operation Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param operationPhysicalTable operation Physical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -1142,12 +1124,12 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 order Mapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 order Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private RowMapper<TransactionOrderResponse> orderMapper() {
         return (rs, rowNum) -> {
@@ -1198,10 +1180,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 operation Mapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 operation Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @return 渠道 API 操作类型或平台操作映射结果
      */
@@ -1244,12 +1226,12 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 计算 summary Row Mapper 对应的数值结果，调用方负责保证金额和币种上下文一致。
+     * 执行 summary Row Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private RowMapper<SummaryRow> summaryRowMapper() {
         return (rs, rowNum) -> new SummaryRow(
@@ -1263,12 +1245,12 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 payment Summary Row Mapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 payment Summary Row Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private RowMapper<SummaryRow> paymentSummaryRowMapper() {
         return (rs, rowNum) -> new SummaryRow(
@@ -1282,12 +1264,12 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 payment Info Mapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 payment Info Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private RowMapper<PaymentInfoRow> paymentInfoMapper() {
         return (rs, rowNum) -> {
@@ -1304,10 +1286,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 operation Visible Info Mapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 operation Visible Info Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @return 渠道 API 操作类型或平台操作映射结果
      */
@@ -1324,28 +1306,28 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 local Date Time 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 local Date Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rs rs 输入值，含义由调用方法名称和所属业务对象限定
      * @param column column 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime localDateTime(ResultSet rs, String column) throws SQLException {
         return rs.getTimestamp(column) == null ? null : rs.getTimestamp(column).toLocalDateTime();
     }
 
     /**
-     * 完成 nullable Int 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 nullable Int 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param rs rs 输入值，含义由调用方法名称和所属业务对象限定
      * @param column column 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Integer nullableInt(ResultSet rs, String column) throws SQLException {
         int value = rs.getInt(column);
@@ -1353,10 +1335,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 解析 resolve Current Amount 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Current Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param rs rs 输入值，含义由调用方法名称和所属业务对象限定
@@ -1370,10 +1352,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 解析 resolve Lifecycle Status 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Lifecycle Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param rs rs 输入值，含义由调用方法名称和所属业务对象限定
@@ -1408,10 +1390,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 判断 is Authorization Like 条件是否成立，用于控制后续业务分支。
+     * 执行 is Authorization Like 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1421,36 +1403,36 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 完成 zero If Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 zero If Null 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal zeroIfNull(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value;
     }
 
     /**
-     * 完成 default Rate 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal defaultRate(BigDecimal value) {
         return value == null ? new BigDecimal("1.00000000") : value;
     }
 
     /**
-     * 解析 resolve Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 解析或查询得到的业务值
@@ -1469,10 +1451,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 解析 resolve Merchant Response Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Merchant Response Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 解析或查询得到的业务值
@@ -1491,10 +1473,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 解析 resolve Status By Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Status By Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantResponseCode merchant Response Code 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -1518,10 +1500,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 标准化 normalize Card Number Masked 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Card Number Masked 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param cardBin 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
      * @param cardLast4 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
@@ -1543,10 +1525,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
     }
 
     /**
-     * 标准化 normalize Card Bin 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Card Bin 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 JdbcMerchantTransactionQueryService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param cardBin 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
      * @param masked masked 输入值，含义由调用方法名称和所属业务对象限定
@@ -1676,10 +1658,10 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         }
 
         /**
-         * 完成 merge Amount 分支的校验或状态更新。
+         * 完成 merge Amount 的本地校验、字段转换或状态更新。
          * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+         * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 SummaryAccumulator 的方法签名及调用链约束。
+         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
          * </p>
          * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
          * @param target target 输入值，含义由调用方法名称和所属业务对象限定

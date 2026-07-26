@@ -44,15 +44,6 @@ public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
                         @Param("runStatus") String runStatus,
                         @Param("resultMessage") String resultMessage,
                         @Param("errorMessage") String errorMessage,
-                        /**
-                         * 完成 m 分支的校验或状态更新。
-                         * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                         * <p>
-                         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                         * </p>
-                         * @param durationMs duration Ms 输入值，含义由调用方法名称和所属业务对象限定
-                         */
                         @Param("durationMs") Long durationMs);
 
     /**
@@ -70,14 +61,5 @@ public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
             ORDER BY start_time ASC
             LIMIT 100
             """)
-    /**
-     * 查询 select Timeout Candidates 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 解析或查询得到的业务值
-     */
     List<SysJobRunLogDO> selectTimeoutCandidates();
 }

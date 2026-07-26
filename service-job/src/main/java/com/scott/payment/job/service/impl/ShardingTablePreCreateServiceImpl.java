@@ -172,15 +172,6 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         }
     }
 
-    /**
-     * 构建 build Base Result 对应的领域对象、请求对象或日志对象。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 转换或构建后的目标对象
-     */
     private ShardingTablePreCreateResult buildBaseResult(ShardingTablePreCreateRequest request) {
         ShardingTablePreCreateResult result = new ShardingTablePreCreateResult();
         ShardingQuarter currentQuarter = quarterResolver.currentQuarter(shardingProperties);
@@ -191,15 +182,6 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         return result;
     }
 
-    /**
-     * 完成 enabled Rules 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     private List<Map.Entry<String, PaymentQuarterShardingProperties.TableRule>> enabledRules(ShardingTablePreCreateRequest request) {
         Set<String> logicalTables = new LinkedHashSet<>(request.getLogicalTables() == null ? List.of() : request.getLogicalTables());
         return shardingProperties.getTables().entrySet().stream()
@@ -211,13 +193,13 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
     /**
-     * 完成 target Quarters 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 target Quarters 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<ShardingQuarter> targetQuarters(ShardingTablePreCreateRequest request) {
         ShardingQuarter current = quarterResolver.currentQuarter(shardingProperties);
@@ -232,14 +214,14 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
 /**
- * 完成 process Rule 分支的校验或状态更新。
+ * 执行 process Rule 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
  * @param targetQuarters target Quarters 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param result result 输入值，含义由调用方法名称和所属业务对象限定
  */
     private void processRule(PaymentQuarterShardingProperties.TableRule rule,
@@ -258,15 +240,15 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
 /**
- * 完成 process Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 process Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
  * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ShardingTablePreCreateTableResult processTable(PaymentQuarterShardingProperties.TableRule rule,
                                                            ShardingQuarter quarter,
@@ -312,10 +294,10 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
     /**
-     * 完成 collect Summary 分支的校验或状态更新。
+     * 执行 collect Summary 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param result result 输入值，含义由调用方法名称和所属业务对象限定
      * @param tableResult table Result 输入值，含义由调用方法名称和所属业务对象限定
@@ -331,10 +313,10 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
 /**
- * 写入或更新 save Physical Table 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 save Physical Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param rule rule 输入值，含义由调用方法名称和所属业务对象限定
  * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
@@ -383,10 +365,10 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
     /**
-     * 查询 find Physical Table 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Physical Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param physicalTable physical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -398,10 +380,10 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
     /**
-     * 转换生成 to Table Status 对应的传输对象、导出行或协议字段。
+     * 执行 to Table Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      * @param existedBefore existed Before 输入值，含义由调用方法名称和所属业务对象限定
@@ -418,13 +400,13 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
 /**
- * 写入或更新 save Create Log 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 save Create Log 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param batchNo batch No 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param context context 输入值，含义由调用方法名称和所属业务对象限定
  * @param result result 输入值，含义由调用方法名称和所属业务对象限定
  * @param start start 输入值，含义由调用方法名称和所属业务对象限定
@@ -460,14 +442,14 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     }
 
     /**
-     * 完成 run Status 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 run Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：调度任务服务层；输入来源、输出结构和异常语义由 ShardingTablePreCreateServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param result result 输入值，含义由调用方法名称和所属业务对象限定
      * @param errorMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String runStatus(ShardingTablePreCreateResult result, String errorMessage) {
         if (StringUtils.hasText(errorMessage)) {

@@ -241,15 +241,15 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 success 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 完成 success 的本地校验、字段转换或结果组装，供当前调用链继续使用。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
  * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ChannelTransactionStatusResolution success(String channelStatus,
                                                        String channelResponseCode,
@@ -261,15 +261,15 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 failed 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 完成 failed 的本地校验、字段转换或结果组装，供当前调用链继续使用。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
  * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ChannelTransactionStatusResolution failed(String channelStatus,
                                                       String channelResponseCode,
@@ -283,15 +283,15 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 need Redirect 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 完成 need Redirect 的本地校验、字段转换或结果组装，供当前调用链继续使用。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
  * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ChannelTransactionStatusResolution needRedirect(String channelStatus,
                                                             String channelResponseCode,
@@ -304,15 +304,15 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 waiting Callback 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 完成 waiting Callback 的本地校验、字段转换或结果组装，供当前调用链继续使用。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
  * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ChannelTransactionStatusResolution waitingCallback(String channelStatus,
                                                                String channelResponseCode,
@@ -325,27 +325,27 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
     /**
-     * 完成 processing 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 processing 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ChannelTransactionStatusResolution processing() {
         return processing(null, null, null);
     }
 
 /**
- * 完成 processing 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 完成 processing 的本地校验、字段转换或结果组装，供当前调用链继续使用。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
  * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ChannelTransactionStatusResolution processing(String channelStatus,
                                                           String channelResponseCode,
@@ -357,13 +357,13 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
     /**
-     * 完成 unresolved 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 unresolved 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param callbackResult callback Result 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ChannelTransactionStatusResolution unresolved(ChannelCallbackResult callbackResult) {
         if (callbackResult == null) {
@@ -375,15 +375,15 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 unresolved 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 完成 unresolved 的本地校验、字段转换或结果组装，供当前调用链继续使用。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
  * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ChannelTransactionStatusResolution unresolved(String channelStatus,
                                                           String channelResponseCode,
@@ -392,15 +392,15 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 base 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 完成 base 的本地校验、字段转换或结果组装，供当前调用链继续使用。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
  * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private ChannelTransactionStatusResolution base(String channelStatus,
                                                     String channelResponseCode,
@@ -415,8 +415,8 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     /**
      * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -426,13 +426,13 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 first Text 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String... values) {
         if (values == null) {

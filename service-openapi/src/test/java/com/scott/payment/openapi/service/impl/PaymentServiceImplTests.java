@@ -570,127 +570,46 @@ class PaymentServiceImplTests {
         private String nextFailReasonMessage;
 
         @Override
-        /**
-         * 完成 create Authorization 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.AUTHORIZATION);
         }
 
         @Override
-        /**
-         * 完成 create Payment 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentCreateClientResponseDTO createPayment(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PAYMENT);
         }
 
         @Override
-        /**
-         * 完成 create Pre Authorization 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentCreateClientResponseDTO createPreAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTHORIZATION);
         }
 
         @Override
-        /**
-         * 完成 create Incremental Authorization 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentCreateClientResponseDTO createIncrementalAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION);
         }
 
         @Override
-        /**
-         * 完成 capture 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.CAPTURE);
         }
 
         @Override
-        /**
-         * 完成 pre Auth Completion 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
         }
 
         @Override
-        /**
-         * 完成 refund 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.REFUND);
         }
 
         @Override
-        /**
-         * 完成 void Payment 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentCreateClientResponseDTO voidPayment(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.VOID);
         }
 
         @Override
-        /**
-         * 完成 query 分支的校验或转换，返回值供当前调用链继续组装结果。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
             PaymentCreateClientResponseDTO createResponseDTO = captureRequest(requestDTO, OpenApiPaymentOperationEnum.QUERY);
             PaymentQueryClientResponseDTO responseDTO = new PaymentQueryClientResponseDTO();
@@ -722,15 +641,6 @@ class PaymentServiceImplTests {
         }
 
         @Override
-        /**
-         * 写入或更新 record Channel Callback 相关数据，保持数据库记录与当前业务处理结果一致。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO) {
             TransactionChannelCallbackClientResponseDTO responseDTO = new TransactionChannelCallbackClientResponseDTO();
             responseDTO.setCallbackLogId("CCL202607140001");
@@ -742,15 +652,6 @@ class PaymentServiceImplTests {
         }
 
         @Override
-        /**
-         * 写入或更新 update Merchant Api Response Log 相关数据，保持数据库记录与当前业务处理结果一致。
-         * <p>
-         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-         * </p>
-         * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-         * @return 当前方法计算或转换后的业务结果
-         */
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
             return true;
         }

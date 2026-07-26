@@ -68,15 +68,6 @@ public class AdminBaseRegionCurrencyController {
 
     @GetMapping("/{id}")
     @RequiresPermission("base:countryCurrency:query")
-    /**
-     * 完成 detail 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Map<String, Object>> detail(@PathVariable("id") Long id) {
         return adminBaseRegionCurrencyApplicationService.getRegionCurrency(id);
     }
@@ -86,14 +77,6 @@ public class AdminBaseRegionCurrencyController {
     @GetMapping("/export")
     @RequiresPermission("base:countryCurrency:export")
     @OperationLog(moduleName = "地区币种配置", businessType = OperationTypeConstants.EXPORT, operation = "导出地区币种配置")
-    /**
-     * 完成 export 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
-     */
     public void export(HttpServletResponse response) {
         adminBaseRegionCurrencyApplicationService.exportRegionCurrencies(currentOperatorName(), response);
     }
@@ -103,16 +86,6 @@ public class AdminBaseRegionCurrencyController {
     @PostMapping
     @RequiresPermission("base:countryCurrency:add")
     @OperationLog(moduleName = "地区币种配置", businessType = OperationTypeConstants.CREATE, operation = "新增地区币种配置")
-    /**
-     * 完成 create Currency 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param body body 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的 ISO 4217 币种代码
-     */
     public CommonResult<Void> createCurrency(@RequestBody Map<String, String> body) {
         return adminBaseRegionCurrencyApplicationService.createRegionCurrency(body);
     }
@@ -122,17 +95,6 @@ public class AdminBaseRegionCurrencyController {
     @PutMapping("/{id}")
     @RequiresPermission("base:countryCurrency:edit")
     @OperationLog(moduleName = "地区币种配置", businessType = OperationTypeConstants.UPDATE, operation = "更新地区币种")
-/**
- * 写入或更新 update Currency 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
- * @param body body 输入值，含义由调用方法名称和所属业务对象限定
- * @return 标准化后的 ISO 4217 币种代码
- */
     public CommonResult<Void> updateCurrency(@PathVariable("id") Long id,
                                               @RequestBody Map<String, String> body) {
         return adminBaseRegionCurrencyApplicationService.updateRegionCurrency(id, body);
@@ -143,15 +105,6 @@ public class AdminBaseRegionCurrencyController {
     @DeleteMapping("/{id}")
     @RequiresPermission("base:countryCurrency:remove")
     @OperationLog(moduleName = "地区币种配置", businessType = OperationTypeConstants.DELETE, operation = "删除地区币种配置")
-    /**
-     * 完成 remove Currency 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的 ISO 4217 币种代码
-     */
     public CommonResult<Void> removeCurrency(@PathVariable("id") Long id) {
         return adminBaseRegionCurrencyApplicationService.removeRegionCurrency(id);
     }
@@ -161,17 +114,6 @@ public class AdminBaseRegionCurrencyController {
     @PutMapping("/{id}/status")
     @RequiresPermission("base:countryCurrency:changeStatus")
     @OperationLog(moduleName = "地区币种配置", businessType = OperationTypeConstants.UPDATE, operation = "切换地区币种配置状态")
-/**
- * 完成 change Status 分支的校验或转换，返回值供当前调用链继续组装结果。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
- * @param body body 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<Void> changeStatus(@PathVariable("id") Long id,
                                            @RequestBody Map<String, Integer> body) {
         return adminBaseRegionCurrencyApplicationService.updateStatus(id, body);

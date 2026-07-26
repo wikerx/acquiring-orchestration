@@ -308,14 +308,14 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 完成 merchant Scoped Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 merchant Scoped Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private TransactionPageQuery merchantScopedQuery(String merchantId, TransactionPageQuery source) {
         if (!StringUtils.hasText(merchantId)) {
@@ -327,10 +327,10 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 查询 load All Operations 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 编排 load All Operations 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @param sourceQuery source Query 输入值，含义由调用方法名称和所属业务对象限定
@@ -355,10 +355,10 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 完成 ensure Export Size 分支的校验或状态更新。
+     * 编排 ensure Export Size 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param total total 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -369,13 +369,13 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 完成 copy Transaction Query 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 copy Transaction Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private TransactionPageQuery copyTransactionQuery(TransactionPageQuery source) {
         TransactionPageQuery query = source == null ? new TransactionPageQuery() : source;
@@ -401,10 +401,10 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 完成 ensure Belongs To Merchant 分支的校验或状态更新。
+     * 编排 ensure Belongs To Merchant 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @param detailResponse detail Response 输入值，含义由调用方法名称和所属业务对象限定
@@ -424,10 +424,10 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 解析 resolve Source Operation 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 编排 resolve Source Operation 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param detailResponse detail Response 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
@@ -444,14 +444,14 @@ public class MerchantTransactionApplicationService {
     }
 
 /**
- * 构建 build Action Request 对应的领域对象、请求对象或日志对象。
+ * 编排 build Action Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
  * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param labelAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
  * @param transactionAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
  * @param orderIdPrefix order Id Prefix 输入值，含义由调用方法名称和所属业务对象限定
@@ -487,13 +487,13 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 解析 resolve Label Currency 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 编排 resolve Label Currency 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 标准化后的 ISO 4217 币种代码
      */
     private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {
@@ -507,10 +507,10 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 完成 full Transaction Amount 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 full Transaction Amount 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
      * @param preferredAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
@@ -525,10 +525,10 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 完成 full Label Amount 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 full Label Amount 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
@@ -546,10 +546,10 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 转换生成 to Transaction Amount 对应的传输对象、导出行或协议字段。
+     * 编排 to Transaction Amount 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
      * @param labelAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
@@ -569,10 +569,10 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 转换生成 to Operation Csv Line 对应的传输对象、导出行或协议字段。
+     * 编排 to Operation Csv Line 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -609,13 +609,13 @@ public class MerchantTransactionApplicationService {
     }
 
     /**
-     * 完成 csv 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 csv 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTransactionApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String csv(Object value) {
         if (value == null) {

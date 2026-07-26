@@ -710,14 +710,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 完成 create Capture Transaction 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 create Capture Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private PaymentCreateResultDTO createCaptureTransaction(PaymentCreateCommandDTO commandDTO,
                                                             PaymentTransactionTypeEnum transactionType) {
@@ -773,13 +773,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 create Refund Transaction 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 create Refund Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private PaymentCreateResultDTO createRefundTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO != null) {
@@ -833,13 +833,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 create Void Transaction 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 create Void Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private PaymentCreateResultDTO createVoidTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO != null) {
@@ -893,13 +893,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 create Incremental Authorization Transaction 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 create Incremental Authorization Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private PaymentCreateResultDTO createIncrementalAuthorizationTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO != null) {
@@ -955,10 +955,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析 resolve Refund Request Fingerprint 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Refund Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -969,10 +969,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 解析 resolve Capture Like Request Fingerprint 对应的业务值，按优先级从上下文、请求或配置中取值。
+ * 执行 resolve Capture Like Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
@@ -985,10 +985,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析 resolve Void Request Fingerprint 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Void Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -999,10 +999,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析 resolve Incremental Authorization Request Fingerprint 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Incremental Authorization Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -1256,17 +1256,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 完成 invoke Channel Safely 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 invoke Channel Safely 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
  * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
  * @param preparedChannelRequestDTO prepared Channel Request DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private PaymentChannelInvokeResultDTO invokeChannelSafely(PaymentCreateCommandDTO commandDTO,
                                                               PaymentRouteResultDTO routeResultDTO,
@@ -1376,14 +1376,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 later Of 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 later Of 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param first first 输入值，含义由调用方法名称和所属业务对象限定
      * @param second second 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
@@ -1435,15 +1435,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 完成 canonical Follow Up Request Fingerprint 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 canonical Follow Up Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
  * @param transactionTypeEnum 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private String canonicalFollowUpRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                        TransactionOrderDO sourceOrderDO,
@@ -1468,14 +1468,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 完成 canonical Void Request Fingerprint 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 canonical Void Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private String canonicalVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                    TransactionOrderDO sourceOrderDO) {
@@ -1494,10 +1494,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 标准化 normalize Fingerprint Text 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Fingerprint Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -1507,10 +1507,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 标准化 normalize Fingerprint Amount 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Fingerprint Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param amount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
      * @return 按渠道协议格式化后的金额字符串或金额计算结果
@@ -1523,13 +1523,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 sha256 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 sha256 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String sha256(String source) {
         try {
@@ -1542,10 +1542,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 强制校验 requires Request Currency 必填值，缺失时中断当前业务流程。
+     * 执行 requires Request Currency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionTypeEnum 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1555,10 +1555,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 强制校验 requires Merchant Order No 必填值，缺失时中断当前业务流程。
+     * 执行 requires Merchant Order No 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionTypeEnum 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1592,10 +1592,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 判断 is Initial Flow Type 条件是否成立，用于控制后续业务分支。
+     * 执行 is Initial Flow Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1607,10 +1607,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 判断 is Failed Status 条件是否成立，用于控制后续业务分支。
+     * 执行 is Failed Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -1620,14 +1620,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 merchant Order Flow Lock Key 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 merchant Order Flow Lock Key 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
      * @param merchantOrderNo 商户订单号，用于商户侧幂等校验和订单查询
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String merchantOrderFlowLockKey(String merchantId, String merchantOrderNo) {
         return MERCHANT_ORDER_FLOW_LOCK_PREFIX
@@ -1647,10 +1647,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 校验 validate Source Transaction 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Source Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1703,10 +1703,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 判断 is Capture Like 条件是否成立，用于控制后续业务分支。
+     * 执行 is Capture Like 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionTypeEnum 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -2000,10 +2000,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 标准化 normalize Channel Card Number 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Channel Card Number 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param cardNumberMasked 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
      * @return 标准化后的业务字段值
@@ -2149,14 +2149,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 计算 sum Captured On Success 对应的数值结果，调用方负责保证金额和币种上下文一致。
+ * 执行 sum Captured On Success 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param existingAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
  * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private BigDecimal sumCapturedOnSuccess(BigDecimal existingAmount,
                                             PaymentCreateResultDTO resultDTO) {
@@ -2171,10 +2171,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 enrich Merchant Response 分支的校验或状态更新。
+     * 执行 enrich Merchant Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
@@ -2185,10 +2185,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析 resolve Payment Brand 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Payment Brand 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -2220,10 +2220,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析 resolve Card Bin 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Card Bin 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -2240,10 +2240,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 转换生成 to Result Sub Merchant Info 对应的传输对象、导出行或协议字段。
+     * 执行 to Result Sub Merchant Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -2271,10 +2271,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 判断 is Empty Sub Merchant Info 条件是否成立，用于控制后续业务分支。
+     * 执行 is Empty Sub Merchant Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -2298,13 +2298,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String... values) {
         if (values == null) {
@@ -2319,14 +2319,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 merchant Visible Failure Message 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 merchant Visible Failure Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @param failReasonCode fail Reason Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String merchantVisibleFailureMessage(String transactionStatus, String failReasonCode) {
         if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
@@ -2337,10 +2337,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析 resolve Merchant Response Code 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 解析或查询得到的业务值
@@ -2359,10 +2359,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析 resolve Merchant Response Message 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Merchant Response Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
      * @return 解析或查询得到的业务值
@@ -2424,14 +2424,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 join Code And Message 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 join Code And Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param code code 输入值，含义由调用方法名称和所属业务对象限定
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String joinCodeAndMessage(String code, String message) {
         if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
@@ -2441,10 +2441,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 解析 resolve Callback Url 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Callback Url 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -2526,10 +2526,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 apply No Conversion 分支的校验或状态更新。
+     * 执行 apply No Conversion 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -2544,22 +2544,22 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 default Transaction Rate 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default Transaction Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
     /**
-     * 标准化 normalize Currency 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Currency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
      * @return 标准化后的 ISO 4217 币种代码
@@ -2625,10 +2625,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 判断 is Terminal 条件是否成立，用于控制后续业务分支。
+     * 执行 is Terminal 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -2683,10 +2683,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 写入或更新 record Follow Up Transaction 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 record Follow Up Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
@@ -2771,10 +2771,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 完成 log Payment End 分支的校验或状态更新。
+     * 执行 log Payment End 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param event event 输入值，含义由调用方法名称和所属业务对象限定
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
@@ -2843,10 +2843,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 转换生成 to Utc Time 对应的传输对象、导出行或协议字段。
+     * 执行 to Utc Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释

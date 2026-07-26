@@ -149,13 +149,13 @@ public class PaymentOrderShardingAlgorithm {
     }
 
     /**
-     * 完成 quarter 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 quarter 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 PaymentOrderShardingAlgorithm 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int quarter(LocalDateTime transactionDateTime) {
         return (transactionDateTime.getMonthValue() - 1) / 3 + 1;
@@ -164,8 +164,8 @@ public class PaymentOrderShardingAlgorithm {
     /**
      * 构建 build Default Properties 对应的领域对象、请求对象或日志对象。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 PaymentOrderShardingAlgorithm 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @return 转换或构建后的目标对象
      */
@@ -181,8 +181,8 @@ public class PaymentOrderShardingAlgorithm {
     /**
      * 计算 add Default Rule 对应的数值结果，调用方负责保证金额和币种上下文一致。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 PaymentOrderShardingAlgorithm 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param properties properties 输入值，含义由调用方法名称和所属业务对象限定
      * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
@@ -202,8 +202,8 @@ public class PaymentOrderShardingAlgorithm {
     /**
      * 校验 validate Required 相关输入，发现不满足业务约束时抛出明确异常。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 PaymentOrderShardingAlgorithm 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param logicalTableName logical Table Name 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
@@ -218,14 +218,14 @@ public class PaymentOrderShardingAlgorithm {
     }
 
 /**
- * 完成 get Table Rule 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 完成 get Table Rule 的本地校验、字段转换或结果组装，供当前调用链继续使用。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：公共组件层；输入来源、输出结构和异常语义由 PaymentOrderShardingAlgorithm 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param properties properties 输入值，含义由调用方法名称和所属业务对象限定
  * @param logicalTableName logical Table Name 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private PaymentQuarterShardingProperties.TableRule getTableRule(PaymentQuarterShardingProperties properties,
                                                                     String logicalTableName) {
@@ -256,8 +256,8 @@ public class PaymentOrderShardingAlgorithm {
     /**
      * 校验 validate Quarter 相关输入，发现不满足业务约束时抛出明确异常。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 PaymentOrderShardingAlgorithm 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param year year 输入值，含义由调用方法名称和所属业务对象限定
      * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
@@ -275,14 +275,14 @@ public class PaymentOrderShardingAlgorithm {
     }
 
     /**
-     * 完成 quarter Index 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 完成 quarter Index 的本地校验、字段转换或结果组装，供当前调用链继续使用。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 PaymentOrderShardingAlgorithm 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param year year 输入值，含义由调用方法名称和所属业务对象限定
      * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int quarterIndex(int year, int quarter) {
         return year * 4 + quarter - 1;

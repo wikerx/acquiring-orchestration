@@ -208,14 +208,6 @@ public class AdminOpenApiMerchantKeyController {
         return success(adminOperLogApplicationService.pageOperLogs(query));
     }
 
-    /**
-     * 强制校验 require Private Material Permission 必填值，缺失时中断当前业务流程。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
-     */
     private void requirePrivateMaterialPermission(OpenApiKeyType keyType) {
         if (!keyAuditService.isPrivateMaterial(keyType)) {
             return;
@@ -227,15 +219,6 @@ public class AdminOpenApiMerchantKeyController {
         }
     }
 
-    /**
-     * 转换生成 to Download Response 对应的传输对象、导出行或协议字段。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param file file 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
-     */
     private ResponseEntity<byte[]> toDownloadResponse(OpenApiKeyDownloadFile file) {
         String encodedFileName = URLEncoder.encode(file.getFileName(), StandardCharsets.UTF_8);
         return ResponseEntity.ok()

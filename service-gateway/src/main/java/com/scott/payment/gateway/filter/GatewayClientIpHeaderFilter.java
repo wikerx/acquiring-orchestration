@@ -84,15 +84,6 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE + 20;
     }
 
-    /**
-     * 解析 resolve Client Ip 对应的业务值，按优先级从上下文、请求或配置中取值。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 解析或查询得到的业务值
-     */
     private String resolveClientIp(ServerHttpRequest request) {
         if (clientIpProperties.isTrustForwardedHeader()) {
             String forwardedFor = request.getHeaders().getFirst(HEADER_X_FORWARDED_FOR);
@@ -108,15 +99,6 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
         return remoteAddress.getAddress().getHostAddress();
     }
 
-    /**
-     * 完成 first Forwarded Ip 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param forwardedFor forwarded For 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private String firstForwardedIp(String forwardedFor) {
         if (!StringUtils.hasText(forwardedFor)) {
             return null;

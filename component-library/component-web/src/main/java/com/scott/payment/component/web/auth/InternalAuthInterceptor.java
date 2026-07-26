@@ -139,28 +139,10 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
         InternalAuthContextHolder.clear();
     }
 
-    /**
-     * 判断 is Whitelisted 条件是否成立，用于控制后续业务分支。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param requestPath request Path 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
-     */
     private boolean isWhitelisted(String requestPath) {
         return whitelistPatterns.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, requestPath));
     }
 
-    /**
-     * 强制校验 required Permission 必填值，缺失时中断当前业务流程。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param handler handler 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private String requiredPermission(Object handler) {
         if (!(handler instanceof HandlerMethod handlerMethod)) {
             return null;
@@ -174,10 +156,10 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 完成 write Error 分支的校验或状态更新。
+     * 完成 write Error 的本地校验、字段转换或状态更新。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 InternalAuthInterceptor 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param response response 输入值，含义由调用方法名称和所属业务对象限定
      * @param httpStatus 状态编码，取值必须来自对应枚举或数据库受控字典
@@ -188,10 +170,10 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 完成 write Error 分支的校验或状态更新。
+     * 完成 write Error 的本地校验、字段转换或状态更新。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 InternalAuthInterceptor 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param response response 输入值，含义由调用方法名称和所属业务对象限定
      * @param httpStatus 状态编码，取值必须来自对应枚举或数据库受控字典

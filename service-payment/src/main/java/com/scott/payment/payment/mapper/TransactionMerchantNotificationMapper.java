@@ -51,15 +51,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             )
             """)
     int insertPhysical(@Param("physicalTableName") String physicalTableName,
-                       /**
-                        * 完成 m 分支的校验或状态更新。
-                        * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                        * <p>
-                        * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                        * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                        * </p>
-                        * @param notificationDO notification DO 输入值，含义由调用方法名称和所属业务对象限定
-                        */
                        @Param("notificationDO") TransactionMerchantNotificationDO notificationDO);
 
     /**
@@ -78,15 +69,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             LIMIT 100
             """)
     List<TransactionMerchantNotificationDO> selectByTransactionIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                          /**
-                                                                           * 完成 m 分支的校验或状态更新。
-                                                                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                           * <p>
-                                                                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                           * </p>
-                                                                           * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-                                                                           */
                                                                           @Param("transactionId") String transactionId);
 
     /**
@@ -105,15 +87,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             LIMIT 200
             """)
     List<TransactionMerchantNotificationDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                        /**
-                                                                         * 完成 m 分支的校验或状态更新。
-                                                                         * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                         * <p>
-                                                                         * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                         * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                         * </p>
-                                                                         * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
-                                                                         */
                                                                         @Param("operationId") String operationId);
 
     /**
@@ -156,15 +129,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
                                                                @Param("beginTime") LocalDateTime beginTime,
                                                                @Param("endTime") LocalDateTime endTime,
                                                                @Param("offset") long offset,
-                                                               /**
-                                                                * 完成 m 分支的校验或状态更新。
-                                                                * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                * <p>
-                                                                * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                * </p>
-                                                                * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-                                                                */
                                                                @Param("limit") long limit);
 
     /**
@@ -201,15 +165,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
                            @Param("transactionId") String transactionId,
                            @Param("notifyStatus") String notifyStatus,
                            @Param("beginTime") LocalDateTime beginTime,
-                           /**
-                            * 完成 m 分支的校验或状态更新。
-                            * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                            * <p>
-                            * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                            * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                            * </p>
-                            * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-                            */
                            @Param("endTime") LocalDateTime endTime);
 
     /**
@@ -233,15 +188,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             """)
     List<TransactionMerchantNotificationDO> selectDueForNotify(@Param("physicalTableName") String physicalTableName,
                                                                @Param("now") LocalDateTime now,
-                                                               /**
-                                                                * 完成 m 分支的校验或状态更新。
-                                                                * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                * <p>
-                                                                * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                * </p>
-                                                                * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-                                                                */
                                                                @Param("limit") int limit);
 
     /**
@@ -266,15 +212,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             """)
     TransactionMerchantNotificationDO selectReadyByTransactionId(@Param("physicalTableName") String physicalTableName,
                                                                  @Param("transactionId") String transactionId,
-                                                                 /**
-                                                                  * 完成 m 分支的校验或状态更新。
-                                                                  * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                  * <p>
-                                                                  * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                  * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                  * </p>
-                                                                  * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-                                                                  */
                                                                  @Param("now") LocalDateTime now);
 
     /**
@@ -301,15 +238,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
     int markProcessing(@Param("physicalTableName") String physicalTableName,
                        @Param("id") Long id,
                        @Param("expectedVersion") Integer expectedVersion,
-                       /**
-                        * 完成 m 分支的校验或状态更新。
-                        * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                        * <p>
-                        * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                        * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                        * </p>
-                        * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-                        */
                        @Param("now") LocalDateTime now);
 
     /**
@@ -337,15 +265,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
     int markSuccess(@Param("physicalTableName") String physicalTableName,
                     @Param("id") Long id,
                     @Param("expectedVersion") Integer expectedVersion,
-                    /**
-                     * 完成 m 分支的校验或状态更新。
-                     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                     * <p>
-                     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                     * </p>
-                     * @param successTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-                     */
                     @Param("successTime") LocalDateTime successTime);
 
     /**
@@ -378,15 +297,6 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
                    @Param("nextStatus") String nextStatus,
                    @Param("nextRetryTime") LocalDateTime nextRetryTime,
                    @Param("failReason") String failReason,
-                   /**
-                    * 完成 m 分支的校验或状态更新。
-                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                    * <p>
-                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                    * </p>
-                    * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-                    */
                    @Param("now") LocalDateTime now);
 
     /**
@@ -416,14 +326,5 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
                                 @Param("transactionId") String transactionId,
                                 @Param("payloadJsonMasked") String payloadJsonMasked,
                                 @Param("nextRetryTime") LocalDateTime nextRetryTime,
-                                /**
-                                 * 完成 m 分支的校验或状态更新。
-                                 * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                 * <p>
-                                 * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                 * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                 * </p>
-                                 * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-                                 */
                                 @Param("now") LocalDateTime now);
 }

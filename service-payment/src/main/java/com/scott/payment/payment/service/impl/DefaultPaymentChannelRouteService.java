@@ -287,17 +287,6 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return resultDTO;
     }
 
-/**
- * 转换生成 to Candidate 对应的传输对象、导出行或协议字段。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param binding binding 输入值，含义由调用方法名称和所属业务对象限定
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
- * @return 转换或构建后的目标对象
- */
     private RouteCandidate toCandidate(MerchantChannelMidBindingDO binding,
                                        PaymentCreateCommandDTO commandDTO,
                                        LocalDateTime now) {
@@ -354,31 +343,20 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return null;
     }
 
-    /**
-     * 判断 is Active 条件是否成立，用于控制后续业务分支。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
-     * @param effectiveTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param expireTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 满足当前业务条件时返回 true，否则返回 false
-     */
     private boolean isActive(LocalDateTime now, LocalDateTime effectiveTime, LocalDateTime expireTime) {
         return (effectiveTime == null || !now.isBefore(effectiveTime))
                 && (expireTime == null || now.isBefore(expireTime));
     }
 
     /**
-     * 完成 matches Scope 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 matches Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean matchesScope(String scope, String value) {
         if (!StringUtils.hasText(scope) || ALL.equalsIgnoreCase(scope.trim())) {
@@ -397,24 +375,24 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 完成 matches Transaction Type 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 matches Transaction Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param capabilityTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
      * @param requestedTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean matchesTransactionType(String capabilityTransactionType, String requestedTransactionType) {
         return matchesScope(capabilityTransactionType, requestedTransactionType);
     }
 
     /**
-     * 解析 resolve Supported Currencies 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Supported Currencies 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param capability capability 输入值，含义由调用方法名称和所属业务对象限定
      * @param midConfig mid Config 输入值，含义由调用方法名称和所属业务对象限定
@@ -446,10 +424,10 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 解析 parse Scope Values 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Scope Values 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析后的内部数据结构或业务值
@@ -469,10 +447,10 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -510,10 +488,10 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 解析 resolve Payment Method 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Payment Method 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -523,23 +501,23 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 完成 elapsed Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 elapsed Millis 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param startNanos start Nanos 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     /**
-     * 解析 parse Metadata 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Metadata 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析后的内部数据结构或业务值

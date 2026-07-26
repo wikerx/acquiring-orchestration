@@ -47,17 +47,6 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     }
 
     @Override
-    /**
-     * 完成 create Waiting Log 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param task task 输入值，含义由调用方法名称和所属业务对象限定
-     * @param context context 输入值，含义由调用方法名称和所属业务对象限定
-     * @param maskedParams masked Params 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public SysJobRunLogDO createWaitingLog(SysJobTaskDO task, JobExecuteContext context, String maskedParams) {
         LocalDateTime now = LocalDateTime.now();
         SysJobRunLogDO runLog = new SysJobRunLogDO();
@@ -85,14 +74,6 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     }
 
     @Override
-    /**
-     * 推进 mark Running 对应的状态或处理结果，并保留后续查询所需信息。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param logId log Id 输入值，含义由调用方法名称和所属业务对象限定
-     */
     public void markRunning(Long logId) {
         SysJobRunLogDO runLog = new SysJobRunLogDO();
         runLog.setId(logId);
@@ -103,45 +84,16 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     }
 
     @Override
-    /**
-     * 完成 finish As Success 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param logId log Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param durationMs duration Ms 输入值，含义由调用方法名称和所属业务对象限定
-     * @param resultMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     */
     public void finishAsSuccess(Long logId, long durationMs, String resultMessage) {
         sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.SUCCESS.name(), resultMessage, null, durationMs);
     }
 
     @Override
-    /**
-     * 完成 finish As Failed 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param logId log Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param durationMs duration Ms 输入值，含义由调用方法名称和所属业务对象限定
-     * @param errorMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     */
     public void finishAsFailed(Long logId, long durationMs, String errorMessage) {
         sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.FAILED.name(), null, errorMessage, durationMs);
     }
 
     @Override
-    /**
-     * 完成 finish As Timeout 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param runLog run Log 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public boolean finishAsTimeout(SysJobRunLogDO runLog) {
         long durationMs = runLog.getStartTime() == null ? 0L
                 : java.time.Duration.between(runLog.getStartTime(), LocalDateTime.now()).toMillis();
@@ -155,15 +107,6 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     }
 
     @Override
-    /**
-     * 完成 page Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public PageResult<SysJobRunLogDO> pageLogs(JobRunLogQueryRequest request) {
         JobRunLogQueryRequest query = request == null ? new JobRunLogQueryRequest() : request;
         Page<SysJobRunLogDO> page = sysJobRunLogMapper.selectPage(
@@ -174,55 +117,21 @@ public class JobRunLogServiceImpl implements JobRunLogService {
     }
 
     @Override
-    /**
-     * 完成 remove Log 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     */
     public void removeLog(Long id) {
         sysJobRunLogMapper.deleteById(id);
     }
 
     @Override
-    /**
-     * 完成 clean Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public int cleanLogs(JobRunLogQueryRequest request) {
         return sysJobRunLogMapper.delete(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
     }
 
     @Override
-    /**
-     * 完成 list Logs 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public List<SysJobRunLogDO> listLogs(JobRunLogQueryRequest request) {
         return sysJobRunLogMapper.selectList(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
     }
 
     @Override
-    /**
-     * 查询 select Timeout Candidates 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @return 解析或查询得到的业务值
-     */
     public List<SysJobRunLogDO> selectTimeoutCandidates() {
         return sysJobRunLogMapper.selectTimeoutCandidates();
     }

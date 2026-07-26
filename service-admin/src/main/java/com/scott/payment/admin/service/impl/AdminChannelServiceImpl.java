@@ -206,8 +206,8 @@ public class AdminChannelServiceImpl implements AdminChannelService {
 /**
  * 创建 AdminChannelServiceImpl 实例并注入其运行所需依赖。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param channelInfoMapper channel Info Mapper 输入值，含义由调用方法名称和所属业务对象限定
  * @param metadataSchemaMapper metadata Schema Mapper 输入值，含义由调用方法名称和所属业务对象限定
@@ -871,15 +871,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         midBindingMapper.updateById(entity);
     }
 
-    /**
-     * 校验 validate Channel Request 相关输入，发现不满足业务约束时抛出明确异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     */
     private void validateChannelRequest(ChannelInfoSaveRequest request, Long id) {
         String code = normalizeCode(request.getChannelCode());
         if (!CHANNEL_CODE_PATTERN.matcher(code).matches()) {
@@ -908,16 +899,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         validateMetadataSchemas(request.getMetadataSchemas());
     }
 
-    /**
-     * 校验 validate Mid Request 相关输入，发现不满足业务约束时抛出明确异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private ChannelInfoDO validateMidRequest(ChannelMidConfigSaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
         String businessType = normalizeCode(request.getBusinessType());
@@ -953,14 +934,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Mid Binding Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Mid Binding Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ChannelMidConfigDO validateMidBindingRequest(MerchantChannelMidBindingSaveRequest request, Long id) {
         validateStatus(request.getBindingStatus());
@@ -984,10 +965,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Metadata Schemas 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Metadata Schemas 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param schemas schemas 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1028,14 +1009,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Capability Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Capability Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ChannelInfoDO validateCapabilityRequest(CapabilitySaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
@@ -1096,14 +1077,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Limit Request 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Limit Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ChannelInfoDO validateLimitRequest(LimitSaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
@@ -1139,13 +1120,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Limit Batch Items 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Limit Batch Items 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<LimitSaveRequest> validateLimitBatchItems(LimitBatchSaveRequest request) {
         List<LimitSaveRequest> items = request == null ? List.of() : request.getItems();
@@ -1156,10 +1137,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Same Limit Dimension 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Same Limit Dimension 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param items items 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1179,10 +1160,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Limit Batch Amount Relations 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Limit Batch Amount Relations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param items items 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1202,12 +1183,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Limit Amount Relations 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Limit Amount Relations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void validateLimitAmountRelations(LimitSaveRequest request, Long id) {
@@ -1217,10 +1198,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Limit Amount Relations 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Limit Amount Relations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param amounts 金额值，单位由关联币种决定，调用前必须完成币种精度校验
@@ -1238,10 +1219,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 existing Limit Amounts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 existing Limit Amounts 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
      * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -1271,13 +1252,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 limit Scope 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 limit Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LimitScope limitScope(LimitSaveRequest request) {
         return new LimitScope(
@@ -1289,12 +1270,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询 find Limit By Scope 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Limit By Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 解析或查询得到的业务值
      */
     private ChannelLimitRuleDO findLimitByScope(LimitSaveRequest request) {
@@ -1308,10 +1289,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Channel Supports Limit Business 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Channel Supports Limit Business 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -1330,10 +1311,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Limit Payment Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Limit Payment Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -1377,13 +1358,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 填充 fill Channel 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Channel 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
     private void fillChannel(ChannelInfoDO entity, ChannelInfoSaveRequest request, LocalDateTime now) {
@@ -1404,13 +1385,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 填充 fill Mid 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Mid 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1446,13 +1427,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
 /**
- * 填充 fill Mid Binding 相关字段，保持来源对象与目标对象的业务含义一致。
+ * 执行 fill Mid Binding 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param mid mid 输入值，含义由调用方法名称和所属业务对象限定
  * @param now now 输入值，含义由调用方法名称和所属业务对象限定
  */
@@ -1476,13 +1457,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
 /**
- * 填充 fill Capability 相关字段，保持来源对象与目标对象的业务含义一致。
+ * 执行 fill Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
  * @param now now 输入值，含义由调用方法名称和所属业务对象限定
  */
@@ -1502,13 +1483,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 填充 fill Limit 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Limit 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
      * @param now now 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1532,10 +1513,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 转换生成 to Channel Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Channel Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1566,10 +1547,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 转换生成 to Mid Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Mid Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
@@ -1607,10 +1588,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
 /**
- * 转换生成 to Mid Binding Response 对应的传输对象、导出行或协议字段。
+ * 执行 to Mid Binding Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
  * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
@@ -1639,10 +1620,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 转换生成 to Capability Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Capability Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
@@ -1671,10 +1652,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 转换生成 to Limit Response 对应的传输对象、导出行或协议字段。
+     * 执行 to Limit Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
@@ -1702,10 +1683,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 构建 build Capability Query 对应的领域对象、请求对象或日志对象。
+     * 执行 build Capability Query 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1736,10 +1717,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 构建 build Limit Query 对应的领域对象、请求对象或日志对象。
+     * 执行 build Limit Query 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1757,10 +1738,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 构建 build Mid Query 对应的领域对象、请求对象或日志对象。
+     * 执行 build Mid Query 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1777,10 +1758,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 构建 build Mid Binding Query 对应的领域对象、请求对象或日志对象。
+     * 执行 build Mid Binding Query 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -1797,10 +1778,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 capability Ids By Currency Or Brand 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 capability Ids By Currency Or Brand 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param query query 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的 ISO 4217 币种代码
@@ -1833,10 +1814,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 replace Capability Currencies 分支的校验或状态更新。
+     * 执行 replace Capability Currencies 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param capability capability 输入值，含义由调用方法名称和所属业务对象限定
      * @param currencies currencies 输入值，含义由调用方法名称和所属业务对象限定
@@ -1865,10 +1846,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 replace Capability Card Brands 分支的校验或状态更新。
+     * 执行 replace Capability Card Brands 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param capability capability 输入值，含义由调用方法名称和所属业务对象限定
      * @param cardBrands 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
@@ -1899,10 +1880,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 soft Delete Capability Children 分支的校验或状态更新。
+     * 执行 soft Delete Capability Children 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -1926,10 +1907,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 replace Metadata Schemas 分支的校验或状态更新。
+     * 执行 replace Metadata Schemas 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
      * @param schemas schemas 输入值，含义由调用方法名称和所属业务对象限定
@@ -1975,13 +1956,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 list Metadata Schemas 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 list Metadata Schemas 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<ChannelMetadataSchemaItem> listMetadataSchemas(Long channelId) {
         return metadataSchemaMapper.selectList(Wrappers.<ChannelMetadataSchemaDO>lambdaQuery()
@@ -1995,10 +1976,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 转换生成 to Metadata Schema Item 对应的传输对象、导出行或协议字段。
+     * 执行 to Metadata Schema Item 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -2020,13 +2001,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 list Capability Currencies 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 list Capability Currencies 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> listCapabilityCurrencies(Long capabilityId) {
         return capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
@@ -2037,13 +2018,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 list Capability Card Brands 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 list Capability Card Brands 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> listCapabilityCardBrands(Long capabilityId) {
         return capabilityCardBrandMapper.selectList(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
@@ -2055,13 +2036,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 capability Methods 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 capability Methods 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, List<String>> capabilityMethods(Long channelId) {
         return capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -2078,13 +2059,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 channel Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 channel Map 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelIds channel Ids 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<Long, ChannelInfoDO> channelMap(List<Long> channelIds) {
         if (channelIds == null || channelIds.isEmpty()) {
@@ -2095,13 +2076,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 mid Map 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 mid Map 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param midIds mid Ids 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<Long, ChannelMidConfigDO> midMap(List<Long> midIds) {
         if (midIds == null || midIds.isEmpty()) {
@@ -2112,10 +2093,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询 find Channel 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Channel 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -2131,10 +2112,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询 find Capability 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -2150,10 +2131,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询 find Limit 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Limit 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -2169,10 +2150,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询 find Mid 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Mid 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -2188,10 +2169,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询 find Mid Binding 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Mid Binding 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param id id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -2207,10 +2188,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 判断 has Active Capability 条件是否成立，用于控制后续业务分支。
+     * 执行 has Active Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -2223,10 +2204,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 判断 has Enabled Capability 条件是否成立，用于控制后续业务分支。
+     * 执行 has Enabled Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -2243,10 +2224,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 查询 find Enabled Capability 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 执行 find Enabled Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -2263,10 +2244,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 判断 has Active Limit 条件是否成立，用于控制后续业务分支。
+     * 执行 has Active Limit 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -2279,10 +2260,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 判断 has Active Mid Binding 条件是否成立，用于控制后续业务分支。
+     * 执行 has Active Mid Binding 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param midConfigId mid Config Id 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -2295,10 +2276,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 refresh Binding Channel Mid 分支的校验或状态更新。
+     * 执行 refresh Binding Channel Mid 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param mid mid 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -2318,10 +2299,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Channel Supports Business 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Channel Supports Business 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -2339,14 +2320,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 channel Supports3ds 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 channel Supports3ds 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean channelSupports3ds(ChannelInfoDO channel, String businessType) {
         return BUSINESS_ACQUIRING.equals(businessType)
@@ -2355,10 +2336,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Payment Method 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Payment Method 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
@@ -2372,14 +2353,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 list Enabled Capabilities 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 list Enabled Capabilities 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<ChannelPaymentCapabilityDO> listEnabledCapabilities(Long channelId, String businessType) {
         return capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -2392,10 +2373,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 解析 resolve Mid Transaction Type Scope 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Mid Transaction Type Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -2418,10 +2399,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 解析 resolve Mid Card Brand Scope 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Mid Card Brand Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -2458,15 +2439,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 filter Mid Capabilities 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 filter Mid Capabilities 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param paymentMethodScope payment Method Scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<ChannelPaymentCapabilityDO> filterMidCapabilities(Long channelId, String businessType, String paymentMethodScope) {
         List<ChannelPaymentCapabilityDO> capabilities = listEnabledCapabilities(channelId, businessType);
@@ -2491,10 +2472,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 assert Dict Value 分支的校验或状态更新。
+     * 执行 assert Dict Value 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param dictType dict Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
@@ -2521,10 +2502,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Business Type 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Business Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -2535,10 +2516,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Status 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
      */
@@ -2549,10 +2530,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Timeout Seconds 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Timeout Seconds 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param seconds seconds 输入值，含义由调用方法名称和所属业务对象限定
      * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
@@ -2564,24 +2545,24 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 default Timeout 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default Timeout 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param seconds seconds 输入值，含义由调用方法名称和所属业务对象限定
      * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int defaultTimeout(Integer seconds, int defaultValue) {
         return seconds == null ? defaultValue : seconds;
     }
 
     /**
-     * 标准化 normalize Scope 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
@@ -2598,10 +2579,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Payment Method Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Payment Method Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
@@ -2612,10 +2593,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 校验 validate Currency Scope 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate Currency Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -2629,10 +2610,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 标准化 normalize Settlement Cycle 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Settlement Cycle 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -2649,13 +2630,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 split Scope 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 split Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> splitScope(String scope) {
         if (!StringUtils.hasText(scope) || ALL.equals(scope)) {
@@ -2665,15 +2646,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     @SuppressWarnings("unchecked")
-    /**
-     * 校验 validate Metadata Values 相关输入，发现不满足业务约束时抛出明确异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
-     */
     private void validateMetadataValues(Long channelId, String metadataValueJson) {
         Map<String, Object> values = StringUtils.hasText(metadataValueJson)
                 ? JsonUtils.parseObject(metadataValueJson, Map.class)
@@ -2696,15 +2668,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
-    /**
-     * 解析 resolve Channel Mid 对应的业务值，按优先级从上下文、请求或配置中取值。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 解析或查询得到的业务值
-     */
     private String resolveChannelMid(ChannelMidConfigSaveRequest request) {
         String value = firstTextMetadataValue(request.getMetadataValueJson(),
                 "merchantId", "merchant_id", "channelMid", "channel_mid", "mid", "midNo", "mid_no", "merchantNo", "merchant_no");
@@ -2718,14 +2681,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 first Text Metadata Value 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 first Text Metadata Value 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
      * @param keys keys 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstTextMetadataValue(String metadataValueJson, String... keys) {
         Map<String, Object> values = parseMetadataMap(metadataValueJson);
@@ -2739,15 +2702,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     @SuppressWarnings("unchecked")
-    /**
-     * 完成 merge Metadata Values For Update 分支的校验或状态更新。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     */
     private void mergeMetadataValuesForUpdate(ChannelMidConfigDO entity, ChannelMidConfigSaveRequest request) {
         Map<String, Object> incoming = parseMetadataMap(request.getMetadataValueJson());
         if (incoming.isEmpty() || !StringUtils.hasText(entity.getMetadataValueJson())) {
@@ -2772,15 +2726,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     @SuppressWarnings("unchecked")
-    /**
-     * 解析 parse Metadata Map 输入文本并转换为内部可校验的数据结构。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析后的内部数据结构或业务值
-     */
     private Map<String, Object> parseMetadataMap(String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {
             return Map.of();
@@ -2789,16 +2734,6 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return values == null ? Map.of() : values;
     }
 
-    /**
-     * 完成 mask Metadata Json 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private String maskMetadataJson(Long channelId, String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {
             return metadataValueJson;
@@ -2818,23 +2753,23 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 should Mask Metadata 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 should Mask Metadata 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param schema schema 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean shouldMaskMetadata(ChannelMetadataSchemaItem schema) {
         return defaultZero(schema.getSensitiveFlag()) == ENABLED || isSensitiveMetadataType(schema.getFieldType());
     }
 
     /**
-     * 判断 is Sensitive Metadata Type 条件是否成立，用于控制后续业务分支。
+     * 执行 is Sensitive Metadata Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param fieldType field Type 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -2844,10 +2779,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 标准化 normalize Transaction Type 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Transaction Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
@@ -2861,10 +2796,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 标准化 normalize Transaction Types 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Transaction Types 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionTypes 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
@@ -2886,27 +2821,27 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 join Transaction Types 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 join Transaction Types 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionTypes 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String joinTransactionTypes(List<String> transactionTypes) {
         return String.join(TRANSACTION_TYPE_SEPARATOR, transactionTypes);
     }
 
     /**
-     * 完成 split Transaction Types 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 split Transaction Types 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> splitTransactionTypes(String businessType, String transactionType) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
@@ -2919,23 +2854,23 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 default Scope 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultScope(String value) {
         return StringUtils.hasText(value) ? normalizeCode(value) : ALL;
     }
 
     /**
-     * 标准化 normalize Code 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 标准化后的业务字段值
@@ -2945,10 +2880,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 标准化 normalize Codes 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Codes 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -2966,65 +2901,65 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 default Zero 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default Zero 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int defaultZero(Integer value) {
         return value == null ? 0 : value;
     }
 
     /**
-     * 完成 default One 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default One 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private int defaultOne(Integer value) {
         return value == null ? 1 : value;
     }
 
     /**
-     * 完成 trim 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trim(String value) {
         return value == null ? "" : value.trim();
     }
 
     /**
-     * 完成 trim To Null 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim To Null 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     /**
-     * 完成 channel Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 channel Name 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String channelName(ChannelInfoDO channel) {
         if (channel == null) {
@@ -3034,12 +2969,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 current Operator Name 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
@@ -3059,13 +2994,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 完成 bad Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 bad Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);

@@ -48,8 +48,8 @@ public class AdminChannelCapabilityController {
     /**
      * 创建 AdminChannelCapabilityController 实例并注入其运行所需依赖。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelCapabilityController 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelApplicationService channel Application Service 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -59,30 +59,12 @@ public class AdminChannelCapabilityController {
 
     @PostMapping("/search")
     @RequiresPermission("channel:capability:list")
-    /**
-     * 完成 page Capabilities 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<PageResult<CapabilityResponse>> pageCapabilities(@RequestBody(required = false) CapabilityQuery query) {
         return success(channelApplicationService.pageCapabilities(query));
     }
 
     @GetMapping("/{id}")
     @RequiresPermission("channel:capability:detail")
-    /**
-     * 完成 get Capability 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<CapabilityResponse> getCapability(@PathVariable("id") Long id) {
         return success(channelApplicationService.getCapability(id));
     }
@@ -90,15 +72,6 @@ public class AdminChannelCapabilityController {
     @PostMapping
     @RequiresPermission("channel:capability:add")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道支付能力")
-    /**
-     * 完成 create Capability 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<CapabilityResponse> createCapability(@Valid @RequestBody CapabilitySaveRequest request) {
         return success(channelApplicationService.createCapability(request));
     }
@@ -106,16 +79,6 @@ public class AdminChannelCapabilityController {
     @PutMapping("/{id}")
     @RequiresPermission("channel:capability:edit")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道支付能力")
-/**
- * 写入或更新 update Capability 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<CapabilityResponse> updateCapability(@PathVariable("id") Long id,
                                                              @Valid @RequestBody CapabilitySaveRequest request) {
         return success(channelApplicationService.updateCapability(id, request));
@@ -124,16 +87,6 @@ public class AdminChannelCapabilityController {
     @PutMapping("/{id}/status")
     @RequiresPermission("channel:capability:status")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道支付能力状态")
-/**
- * 写入或更新 update Capability Status 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<CapabilityResponse> updateCapabilityStatus(@PathVariable("id") Long id,
                                                                    @Valid @RequestBody StatusRequest request) {
         return success(channelApplicationService.updateCapabilityStatus(id, request.getStatus()));
@@ -142,16 +95,6 @@ public class AdminChannelCapabilityController {
     @PutMapping("/{id}/support")
     @RequiresPermission("channel:capability:edit")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道支付能力支持项")
-/**
- * 写入或更新 update Capability Support 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param id id 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @return 当前方法计算或转换后的业务结果
- */
     public CommonResult<CapabilityResponse> updateCapabilitySupport(@PathVariable("id") Long id,
                                                                     @RequestBody CapabilitySupportRequest request) {
         return success(channelApplicationService.updateCapabilitySupport(
@@ -164,15 +107,6 @@ public class AdminChannelCapabilityController {
     @DeleteMapping("/{id}")
     @RequiresPermission("channel:capability:remove")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.DELETE, operation = "删除渠道支付能力")
-    /**
-     * 完成 delete Capability 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     public CommonResult<Void> deleteCapability(@PathVariable("id") Long id) {
         channelApplicationService.deleteCapability(id);
         return success();

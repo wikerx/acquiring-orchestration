@@ -348,19 +348,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return resultDTO;
     }
 
-/**
- * 构建 build Callback Log 对应的领域对象、请求对象或日志对象。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param context context 输入值，含义由调用方法名称和所属业务对象限定
- * @param callbackLogId callback Log Id 输入值，含义由调用方法名称和所属业务对象限定
- * @param receivedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
- * @return 转换或构建后的目标对象
- */
     private TransactionChannelCallbackLogDO buildCallbackLog(TransactionChannelCallbackCommandDTO commandDTO,
                                                             CallbackContext context,
                                                             String callbackLogId,
@@ -389,21 +376,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return logDO;
     }
 
-/**
- * 构建 build Callback 对应的领域对象、请求对象或日志对象。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param context context 输入值，含义由调用方法名称和所属业务对象限定
- * @param callbackLogId callback Log Id 输入值，含义由调用方法名称和所属业务对象限定
- * @param callbackId callback Id 输入值，含义由调用方法名称和所属业务对象限定
- * @param idempotencyKey idempotency Key 输入值，含义由调用方法名称和所属业务对象限定
- * @param receivedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
- * @return 转换或构建后的目标对象
- */
     private TransactionChannelCallbackDO buildCallback(TransactionChannelCallbackCommandDTO commandDTO,
                                                        CallbackContext context,
                                                        String callbackLogId,
@@ -438,10 +410,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
 /**
- * 完成 process Callback If Possible 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 process Callback If Possible 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param callbackTable callback Table 输入值，含义由调用方法名称和所属业务对象限定
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
@@ -449,7 +421,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
  * @param context context 输入值，含义由调用方法名称和所属业务对象限定
  * @param callbackId callback Id 输入值，含义由调用方法名称和所属业务对象限定
  * @param now now 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private CallbackProcessOutcome processCallbackIfPossible(String callbackTable,
                                                              TransactionChannelCallbackCommandDTO commandDTO,
@@ -544,10 +516,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
 /**
- * 写入或更新 save Callback Processed Event 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 save Callback Processed Event 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param context context 输入值，含义由调用方法名称和所属业务对象限定
  * @param parsedStatus 状态编码，取值必须来自对应枚举或数据库受控字典
@@ -612,10 +584,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
 /**
- * 写入或更新 update Callback Process Result 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 执行 update Callback Process Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param callbackTable callback Table 输入值，含义由调用方法名称和所属业务对象限定
  * @param callbackId callback Id 输入值，含义由调用方法名称和所属业务对象限定
@@ -626,7 +598,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
  * @param processResult process Result 输入值，含义由调用方法名称和所属业务对象限定
  * @param failReason fail Reason 输入值，含义由调用方法名称和所属业务对象限定
  * @param processedTime 时间值，使用系统约定时区或调用方传入的业务时区解释
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private CallbackProcessOutcome updateCallbackProcessResult(String callbackTable,
                                                                String callbackId,
@@ -650,14 +622,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 完成 duplicate Result 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 duplicate Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param callbackLogId callback Log Id 输入值，含义由调用方法名称和所属业务对象限定
      * @param existed existed 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private TransactionChannelCallbackResultDTO duplicateResult(String callbackLogId, TransactionChannelCallbackDO existed) {
         TransactionChannelCallbackResultDTO resultDTO = new TransactionChannelCallbackResultDTO();
@@ -671,10 +643,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
 /**
- * 解析 resolve Context 对应的业务值，按优先级从上下文、请求或配置中取值。
+ * 执行 resolve Context 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelCallbackResult channel Callback Result 输入值，含义由调用方法名称和所属业务对象限定
@@ -725,10 +697,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
 /**
- * 解析 resolve Callback Operation 对应的业务值，按优先级从上下文、请求或配置中取值。
+ * 执行 resolve Callback Operation 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
  * @param channelOrderNo channel Order No 输入值，含义由调用方法名称和所属业务对象限定
@@ -749,10 +721,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
 /**
- * 解析 parse Payload 输入文本并转换为内部可校验的数据结构。
+ * 执行 parse Payload 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
  * @param channelCallbackResult channel Callback Result 输入值，含义由调用方法名称和所属业务对象限定
@@ -861,10 +833,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 解析 resolve Callback Type 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 执行 resolve Callback Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -874,10 +846,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 标准化 normalize Channel Code 输入值，统一大小写、空白字符或协议格式。
+     * 执行 normalize Channel Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelCode channel Code 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
@@ -887,13 +859,13 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 完成 masked Json 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 masked Json 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String maskedJson(Object value) {
         if (value == null) {
@@ -903,10 +875,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Transaction Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param target target 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
@@ -918,10 +890,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 填充 fill Transaction Time 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Transaction Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param target target 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
@@ -933,10 +905,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 转换生成 to Utc Time 对应的传输对象、导出行或协议字段。
+     * 执行 to Utc Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @return 转换或构建后的目标对象
@@ -946,14 +918,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 完成 physical Table 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 physical Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
@@ -961,10 +933,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 解析 parse Transaction Date Time 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Transaction Date Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
      * @return 解析后的内部数据结构或业务值
@@ -974,10 +946,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 解析 parse Operation Date Time 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Operation Date Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
      * @return 渠道 API 操作类型或平台操作映射结果
@@ -987,26 +959,26 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 完成 elapsed Millis 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 elapsed Millis 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param startNanos start Nanos 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     /**
-     * 完成 first Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String firstText(String... values) {
         if (values == null) {
@@ -1021,10 +993,10 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 校验 validate 相关输入，发现不满足业务约束时抛出明确异常。
+     * 执行 validate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionCallbackService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
      */

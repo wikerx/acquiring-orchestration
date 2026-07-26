@@ -200,16 +200,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         doSend(record, account, content, CONTENT_HTML.equalsIgnoreCase(template.getContentType()));
     }
 
-    /**
-     * 强制校验 require Enabled Template 必填值，缺失时中断当前业务流程。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param templateCode template Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private MerchantEmailTemplateDO requireEnabledTemplate(String templateCode, String locale) {
         MerchantEmailTemplateDO row = emailTemplateMapper.selectOne(Wrappers.<MerchantEmailTemplateDO>lambdaQuery()
                 .eq(MerchantEmailTemplateDO::getTemplateCode, trimUpper(templateCode))
@@ -223,17 +213,6 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return row;
     }
 
-    /**
-     * 查询 select Account 所需数据，未命中时按调用场景返回空值或抛出异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @param sceneCode scene Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
-     */
     private MerchantEmailAccountDO selectAccount(String appCode, String merchantId, String sceneCode) {
         String normalizedAppCode = defaultIfBlank(trimUpper(appCode), AuthConstants.APP_MERCHANT);
         String normalizedSceneCode = defaultIfBlank(trimUpper(sceneCode), COMMON_SCENE);
@@ -266,16 +245,16 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
 /**
- * 完成 account Route Wrapper 分支的校验或转换，返回值供当前调用链继续组装结果。
+ * 执行 account Route Wrapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param appCode app Code 输入值，含义由调用方法名称和所属业务对象限定
  * @param scopeType scope Type 输入值，含义由调用方法名称和所属业务对象限定
  * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
  * @param sceneCode scene Code 输入值，含义由调用方法名称和所属业务对象限定
- * @return 当前方法计算或转换后的业务结果
+ * @return 方法签名声明的返回值，具体结构由返回类型定义
  */
     private LambdaQueryWrapper<MerchantEmailAccountDO> accountRouteWrapper(String appCode,
                                                                           String scopeType,
@@ -293,12 +272,12 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
 /**
- * 构建 build Record 对应的领域对象、请求对象或日志对象。
+ * 执行 build Record 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+ * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
  * @param template template 输入值，含义由调用方法名称和所属业务对象限定
  * @param account account 输入值，含义由调用方法名称和所属业务对象限定
  * @return 转换或构建后的目标对象
@@ -341,10 +320,10 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
 /**
- * 完成 do Send 分支的校验或状态更新。
+ * 执行 do Send 服务能力，按当前领域规则完成校验、状态读取或数据写入。
  * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+ * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+ * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
  * </p>
  * @param record record 输入值，含义由调用方法名称和所属业务对象限定
  * @param account account 输入值，含义由调用方法名称和所属业务对象限定
@@ -390,10 +369,10 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 构建 build Mail Sender 对应的领域对象、请求对象或日志对象。
+     * 执行 build Mail Sender 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param account account 输入值，含义由调用方法名称和所属业务对象限定
      * @return 转换或构建后的目标对象
@@ -421,15 +400,15 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 missing Variables 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 missing Variables 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param variables variables 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Set<String> missingVariables(String template, Map<String, Object> variables) {
         Set<String> required = extractVariables(template);
@@ -438,13 +417,13 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 extract Variables 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 extract Variables 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Set<String> extractVariables(String template) {
         Set<String> variables = new LinkedHashSet<>();
@@ -459,15 +438,15 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 render 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 render 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param variables variables 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String render(String template, Map<String, Object> variables) {
         Matcher matcher = TEMPLATE_VARIABLE_PATTERN.matcher(template);
@@ -481,16 +460,16 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 mask Sensitive Content 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 mask Sensitive Content 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param template template 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param variables variables 输入值，含义由调用方法名称和所属业务对象限定
      * @param sensitiveNames sensitive Names 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String maskSensitiveContent(String template, Map<String, Object> variables, List<String> sensitiveNames) {
         if (CollectionUtils.isEmpty(sensitiveNames)) {
@@ -500,15 +479,15 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 mask Variables 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 mask Variables 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param variables variables 输入值，含义由调用方法名称和所属业务对象限定
      * @param sensitiveNames sensitive Names 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, Object> maskVariables(Map<String, Object> variables, List<String> sensitiveNames) {
         Map<String, Object> masked = new LinkedHashMap<>(variables);
@@ -521,10 +500,10 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 解析 parse String List 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse String List 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param json json 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析后的内部数据结构或业务值
@@ -542,10 +521,10 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 解析 parse Email Array 输入文本并转换为内部可校验的数据结构。
+     * 执行 parse Email Array 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param json json 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析后的内部数据结构或业务值
@@ -563,10 +542,10 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 转换生成 to Json 对应的传输对象、导出行或协议字段。
+     * 执行 to Json 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @return 转换或构建后的目标对象
@@ -580,10 +559,10 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 填充 fill Operator 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 执行 fill Operator 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param record record 输入值，含义由调用方法名称和所属业务对象限定
      */
@@ -598,12 +577,12 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 current Operator Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 current Operator Name 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
@@ -620,13 +599,13 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 decrypt Secret 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 decrypt Secret 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param cipherText cipher Text 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String decryptSecret(String cipherText) {
         try {
@@ -642,12 +621,12 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 secret Key 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 secret Key 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private byte[] secretKey() throws Exception {
         String seed = System.getProperty("payment.email.secret", System.getenv().getOrDefault("PAYMENT_EMAIL_SECRET", "local-email-secret-change-me"));
@@ -655,39 +634,39 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 default List 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default List 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> defaultList(List<String> source) {
         return source == null ? List.of() : source;
     }
 
     /**
-     * 完成 trim 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trim(String value) {
         return value == null ? null : value.trim();
     }
 
     /**
-     * 完成 trim Upper 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 trim Upper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String trimUpper(String value) {
         String trimmed = trim(value);
@@ -695,28 +674,28 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 default If Blank 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 default If Blank 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
     /**
-     * 完成 truncate 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 truncate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param value 待校验或转换的原始值
      * @param maxLength max Length 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String truncate(String value, int maxLength) {
         if (value == null || value.length() <= maxLength) {
@@ -726,13 +705,13 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
     }
 
     /**
-     * 完成 generate Code 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 执行 generate Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantTemplateEmailServiceImpl 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param prefix prefix 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String generateCode(String prefix) {
         return prefix + "_" + System.currentTimeMillis();

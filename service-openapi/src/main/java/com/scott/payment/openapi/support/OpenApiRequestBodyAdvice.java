@@ -122,19 +122,6 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         return body;
     }
 
-/**
- * 写入或更新 record Blocked 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
- * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
- * </p>
- * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
- * @param headerDTO header DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
- * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
- * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
- */
     private void recordBlocked(HttpServletRequest request,
                                OpenApiRequestHeaderDTO headerDTO,
                                String eventType,

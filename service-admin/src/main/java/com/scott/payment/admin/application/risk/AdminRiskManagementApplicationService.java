@@ -1100,12 +1100,12 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 判断 has Three Ds Card Brands 条件是否成立，用于控制后续业务分支。
+     * 编排 has Three Ds Card Brands 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 满足当前业务条件时返回 true，否则返回 false
      */
     private boolean hasThreeDsCardBrands(RiskDTOs.RiskRuleSaveRequest request) {
@@ -1581,15 +1581,15 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 list Data 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 list Data 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param sourceType source Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, Object> listData(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request, String sourceType) {
         if (isCountryListFunction(definition)) {
@@ -1635,14 +1635,14 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 expand Country List Requests 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 expand Country List Requests 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<RiskDTOs.RiskListSaveRequest> expandCountryListRequests(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
         if (!isCountryListFunction(definition) || request.getCountryAlpha2List() == null || request.getCountryAlpha2List().isEmpty()) {
@@ -1657,14 +1657,14 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 copy Country List Request 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 copy Country List Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
      * @param countryAlpha2 country Alpha2 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private RiskDTOs.RiskListSaveRequest copyCountryListRequest(RiskDTOs.RiskListSaveRequest source, String countryAlpha2) {
         RiskDTOs.RiskListSaveRequest target = new RiskDTOs.RiskListSaveRequest();
@@ -1693,12 +1693,12 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 标准化 normalize Country List Request 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Country List Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      */
     private void normalizeCountryListRequest(RiskDTOs.RiskListSaveRequest request) {
         String countryAlpha2 = upper(defaultIfBlank(request.getCountryAlpha2(), request.getMatchValuePlain()));
@@ -1717,14 +1717,14 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 region Data 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 region Data 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @param sourceType source Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, Object> regionData(RiskDTOs.RegionSaveRequest request, String sourceType) {
         Map<String, Object> data = new LinkedHashMap<>();
@@ -1751,13 +1751,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 region Create Country Codes 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 region Create Country Codes 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
-     * @return 当前方法计算或转换后的业务结果
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> regionCreateCountryCodes(RiskDTOs.RegionSaveRequest request) {
         String regionMatchLevel = defaultIfBlank(request.getRegionMatchLevel(), "COUNTRY").toUpperCase(Locale.ROOT);
@@ -2340,10 +2340,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 转换生成 to Record Response 对应的传输对象、导出行或协议字段。
+     * 编排 to Record Response 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
@@ -2635,10 +2635,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 校验 validate Three Ds Code 相关输入，发现不满足业务约束时抛出明确异常。
+     * 编排 validate Three Ds Code 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param label label 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
@@ -2651,10 +2651,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 强制校验 require Three Ds Dimension 必填值，缺失时中断当前业务流程。
+     * 编排 require Three Ds Dimension 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param label label 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
@@ -2777,10 +2777,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 existing Merchant Limit Amounts 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 existing Merchant Limit Amounts 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param tableName table Name 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
@@ -2808,10 +2808,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 merchant Limit Amount 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 merchant Limit Amount 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param data data 输入值，含义由调用方法名称和所属业务对象限定
@@ -2993,13 +2993,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 country Alpha3 From Alpha2 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 country Alpha3 From Alpha2 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param countryAlpha2 country Alpha2 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String countryAlpha3FromAlpha2(String countryAlpha2) {
         if (!StringUtils.hasText(countryAlpha2)) {
@@ -3013,10 +3013,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 标准化 normalize Region Level Fields 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Region Level Fields 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param data data 输入值，含义由调用方法名称和所属业务对象限定
@@ -3044,13 +3044,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 解析 resolve Card Brand 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 编排 resolve Card Brand 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      * @return 解析或查询得到的业务值
      */
     private String resolveCardBrand(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
@@ -3071,13 +3071,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 detect Card Brand 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 detect Card Brand 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param cardNo 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String detectCardBrand(String cardNo) {
         if (cardNo.matches("^4.*")) {
@@ -3108,10 +3108,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 标准化 normalize Scope 输入值，统一大小写、空白字符或协议格式。
+     * 编排 normalize Scope 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param data data 输入值，含义由调用方法名称和所属业务对象限定
@@ -3177,40 +3177,40 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 merchant Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 merchant Name 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String merchantName(String merchantId) {
         return StringUtils.hasText(merchantId) ? riskManagementMapper.selectMerchantName(merchantId) : null;
     }
 
     /**
-     * 完成 default Effective Time 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 default Effective Time 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param effectiveTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private LocalDateTime defaultEffectiveTime(LocalDateTime effectiveTime) {
         return effectiveTime == null ? LocalDateTime.now() : effectiveTime;
     }
 
     /**
-     * 完成 apply Validity 分支的校验或状态更新。
+     * 编排 apply Validity 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param data data 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      */
     private void applyValidity(Map<String, Object> data, RiskDTOs.RiskListSaveRequest request) {
         String validityType = defaultIfBlank(request.getValidityType(), VALIDITY_SUPER_LONG).toUpperCase(Locale.ROOT);
@@ -3236,14 +3236,14 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 apply Region Validity 分支的校验或状态更新。
+     * 编排 apply Region Validity 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param data data 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 对象，携带当前业务动作的输入字段，调用前需满足对应校验注解和协议约束
+     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
      */
     private void applyRegionValidity(Map<String, Object> data, RiskDTOs.RegionSaveRequest request) {
         String validityType = defaultIfBlank(request.getValidityType(), VALIDITY_SUPER_LONG).toUpperCase(Locale.ROOT);
@@ -3269,13 +3269,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 default Risk Level 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 default Risk Level 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultRiskLevel(RiskFunctionDefinition definition) {
         if ("RULE".equalsIgnoreCase(definition.getModuleType())) {
@@ -3297,13 +3297,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 default Decision Action 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 default Decision Action 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String defaultDecisionAction(RiskFunctionDefinition definition) {
         if ("WHITE".equalsIgnoreCase(definition.getModuleType())) {
@@ -3320,14 +3320,14 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 sanitize Snapshot 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 sanitize Snapshot 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, Object> sanitizeSnapshot(Map<String, Object> source) {
         Map<String, Object> copy = new LinkedHashMap<>(source);
@@ -3345,10 +3345,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 转换生成 to Options 对应的传输对象、导出行或协议字段。
+     * 编排 to Options 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param List List 输入值，含义由调用方法名称和所属业务对象限定
      * @param rows rows 输入值，含义由调用方法名称和所属业务对象限定
@@ -3366,15 +3366,15 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 option 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 option 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param label label 输入值，含义由调用方法名称和所属业务对象限定
      * @param value 待校验或转换的原始值
      * @param extra extra 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private RiskDTOs.OptionItem option(String label, String value, String extra) {
         RiskDTOs.OptionItem item = new RiskDTOs.OptionItem();
@@ -3385,10 +3385,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 ensure Function Permission 分支的校验或状态更新。
+     * 编排 ensure Function Permission 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
      * @param action action 输入值，含义由调用方法名称和所属业务对象限定
@@ -3409,13 +3409,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 template Row 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 template Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private Map<String, Object> templateRow(RiskFunctionDefinition definition) {
         Map<String, Object> row = new LinkedHashMap<>();
@@ -3460,34 +3460,34 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 template Sample Rule Name 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 template Sample Rule Name 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String templateSampleRuleName() {
         return isEnglishLocale() ? "Sample Rule" : "示例规则";
     }
 
     /**
-     * 完成 template Sample Remark 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 template Sample Remark 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String templateSampleRemark() {
         return isEnglishLocale() ? "Delete this sample row before import" : "导入时请删除示例行";
     }
 
     /**
-     * 填充 fill Rule Template Value 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 编排 fill Rule Template Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
@@ -3546,10 +3546,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 填充 fill List Template Value 相关字段，保持来源对象与目标对象的业务含义一致。
+     * 编排 fill List Template Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
@@ -3593,10 +3593,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 prune List Template Row 分支的校验或状态更新。
+     * 编排 prune List Template Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
@@ -3618,23 +3618,23 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 import Batch No 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 import Batch No 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String importBatchNo(RiskFunctionDefinition definition) {
         return "RISK-" + definition.getModuleType() + "-" + definition.getFunctionCode() + "-" + UUID.randomUUID().toString().replace("-", "");
     }
 
     /**
-     * 推进 mark Import Batch Success After Commit 对应的状态或处理结果，并保留后续查询所需信息。
+     * 编排 mark Import Batch Success After Commit 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param batchNo batch No 输入值，含义由调用方法名称和所属业务对象限定
      * @param successCount success Count 输入值，含义由调用方法名称和所属业务对象限定
@@ -3652,16 +3652,6 @@ public class AdminRiskManagementApplicationService {
         });
     }
 
-    /**
-     * 完成 import Error Summary 分支的校验或转换，返回值供当前调用链继续组装结果。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param batchNo batch No 输入值，含义由调用方法名称和所属业务对象限定
-     * @param errors errors 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
-     */
     private String importErrorSummary(String batchNo, List<AdminRiskImportLogService.ImportRowError> errors) {
         List<String> messages = errors.stream()
                 .limit(5)
@@ -3671,24 +3661,15 @@ public class AdminRiskManagementApplicationService {
         return "导入失败，批次号：" + batchNo + "；" + String.join("; ", messages) + suffix;
     }
 
-    /**
-     * 判断 is Source Url Rule 条件是否成立，用于控制后续业务分支。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
-     */
     private boolean isSourceUrlRule(RiskFunctionDefinition definition) {
         return definition == RiskFunctionDefinition.RULE_SOURCE_URL;
     }
 
     /**
-     * 判断 is Merchant Limit Rule 条件是否成立，用于控制后续业务分支。
+     * 编排 is Merchant Limit Rule 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -3698,10 +3679,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 判断 is Three Ds Rule 条件是否成立，用于控制后续业务分支。
+     * 编排 is Three Ds Rule 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param definition definition 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -3711,13 +3692,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 import Error Message 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 import Error Message 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String importErrorMessage(RuntimeException exception) {
         String message = exception.getMessage();
@@ -3725,13 +3706,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 sanitize Import Error Message 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 sanitize Import Error Message 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String sanitizeImportErrorMessage(RuntimeException exception) {
         String message = importErrorMessage(exception)
@@ -3741,14 +3722,14 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 sanitize Import Row 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 sanitize Import Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String sanitizeImportRow(Map<String, String> row) {
         Map<String, String> sanitized = new LinkedHashMap<>();
@@ -3759,13 +3740,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 sensitive Import Column 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 sensitive Import Column 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param columnName column Name 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private boolean sensitiveImportColumn(String columnName) {
         String normalized = columnName == null ? "" : columnName.toLowerCase(Locale.ROOT).replace("_", "");
@@ -3787,23 +3768,23 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 read Import Rows 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 read Import Rows 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param file file 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<ImportRow> readImportRows(MultipartFile file) {
         return isExcelImportFile(file) ? readExcel(file) : readCsv(file);
     }
 
     /**
-     * 判断 is Excel Import File 条件是否成立，用于控制后续业务分支。
+     * 编排 is Excel Import File 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param file file 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -3820,13 +3801,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 read Csv 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 read Csv 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param file file 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<ImportRow> readCsv(MultipartFile file) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
@@ -3857,13 +3838,13 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 read Excel 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 read Excel 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param file file 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<ImportRow> readExcel(MultipartFile file) {
         try (InputStream inputStream = file.getInputStream(); Workbook workbook = WorkbookFactory.create(inputStream)) {
@@ -3899,10 +3880,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 查询 find Excel Header Row 所需数据，未命中时按调用场景返回空值或抛出异常。
+     * 编排 find Excel Header Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param sheet sheet 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析或查询得到的业务值
@@ -3930,10 +3911,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 判断 is Import Header 条件是否成立，用于控制后续业务分支。
+     * 编排 is Import Header 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param header header 输入值，含义由调用方法名称和所属业务对象限定
      * @return 满足当前业务条件时返回 true，否则返回 false
@@ -3952,14 +3933,14 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 excel Headers 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 excel Headers 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param headerRow header Row 输入值，含义由调用方法名称和所属业务对象限定
      * @param formatter formatter 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private List<String> excelHeaders(Row headerRow, DataFormatter formatter) {
         if (headerRow == null) {
@@ -3974,10 +3955,10 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 判断 is Blank Excel Row 条件是否成立，用于控制后续业务分支。
+     * 编排 is Blank Excel Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param row row 输入值，含义由调用方法名称和所属业务对象限定
      * @param columnSize column Size 输入值，含义由调用方法名称和所属业务对象限定
@@ -3994,24 +3975,24 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 完成 excel Cell Text 分支的校验或转换，返回值供当前调用链继续组装结果。
+     * 编排 excel Cell Text 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param cell cell 输入值，含义由调用方法名称和所属业务对象限定
      * @param formatter formatter 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 当前方法计算或转换后的业务结果
+     * @return 方法签名声明的返回值，具体结构由返回类型定义
      */
     private String excelCellText(Cell cell, DataFormatter formatter) {
         return cell == null ? null : trim(formatter.formatCellValue(cell));
     }
 
     /**
-     * 解析 parse Csv Line 输入文本并转换为内部可校验的数据结构。
+     * 编排 parse Csv Line 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminRiskManagementApplicationService 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param line line 输入值，含义由调用方法名称和所属业务对象限定
      * @return 解析后的内部数据结构或业务值

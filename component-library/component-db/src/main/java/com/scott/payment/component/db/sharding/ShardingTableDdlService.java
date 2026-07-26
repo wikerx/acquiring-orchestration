@@ -105,14 +105,6 @@ public class ShardingTableDdlService {
         return schemaInspector.inspectPhysicalTable(rule, physicalTable);
     }
 
-    /**
-     * 校验 validate Ddl Enabled 相关输入，发现不满足业务约束时抛出明确异常。
-     * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-     * </p>
-     * @param properties properties 输入值，含义由调用方法名称和所属业务对象限定
-     */
     private void validateDdlEnabled(PaymentQuarterShardingProperties properties) {
         if (properties == null || properties.getTableMaintenance() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding table maintenance config is required");

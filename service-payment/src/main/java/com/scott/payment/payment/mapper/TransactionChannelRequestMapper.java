@@ -55,15 +55,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             )
             """)
     int insertPhysical(@Param("physicalTableName") String physicalTableName,
-                       /**
-                        * 完成 m 分支的校验或状态更新。
-                        * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                        * <p>
-                        * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                        * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                        * </p>
-                        * @param requestDO request DO 输入值，含义由调用方法名称和所属业务对象限定
-                        */
                        @Param("requestDO") TransactionChannelRequestDO requestDO);
 
     /**
@@ -81,15 +72,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             LIMIT 1
             """)
     TransactionChannelRequestDO selectByRequestIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                          /**
-                                                           * 完成 m 分支的校验或状态更新。
-                                                           * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                           * <p>
-                                                           * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                           * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                           * </p>
-                                                           * @param requestId request Id 输入值，含义由调用方法名称和所属业务对象限定
-                                                           */
                                                           @Param("requestId") String requestId);
 
     /**
@@ -113,15 +95,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
     TransactionChannelRequestDO selectByChannelTransactionPhysical(@Param("physicalTableName") String physicalTableName,
                                                                    @Param("channelCode") String channelCode,
                                                                    @Param("channelOrderNo") String channelOrderNo,
-                                                                   /**
-                                                                    * 完成 m 分支的校验或状态更新。
-                                                                    * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                    * <p>
-                                                                    * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                    * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                    * </p>
-                                                                    * @param channelTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-                                                                    */
                                                                    @Param("channelTransactionId") String channelTransactionId);
 
     /**
@@ -183,15 +156,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
                              @Param("platformResultCode") String platformResultCode,
                              @Param("platformFailReason") String platformFailReason,
                              @Param("responseTime") LocalDateTime responseTime,
-                             /**
-                              * 完成 m 分支的校验或状态更新。
-                              * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                              * <p>
-                              * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                              * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                              * </p>
-                              * @param durationMillis duration Millis 输入值，含义由调用方法名称和所属业务对象限定
-                              */
                              @Param("durationMillis") Integer durationMillis);
 
     /**
@@ -210,15 +174,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             LIMIT 100
             """)
     List<TransactionChannelRequestDO> selectByTransactionIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                    /**
-                                                                     * 完成 m 分支的校验或状态更新。
-                                                                     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                     * <p>
-                                                                     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                     * </p>
-                                                                     * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-                                                                     */
                                                                     @Param("transactionId") String transactionId);
 
     /**
@@ -241,15 +196,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             """)
     TransactionChannelRequestDO selectOriginalByTransactionPhysical(@Param("physicalTableName") String physicalTableName,
                                                                     @Param("transactionId") String transactionId,
-                                                                    /**
-                                                                     * 完成 m 分支的校验或状态更新。
-                                                                     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                     * <p>
-                                                                     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                     * </p>
-                                                                     * @param channelCode channel Code 输入值，含义由调用方法名称和所属业务对象限定
-                                                                     */
                                                                     @Param("channelCode") String channelCode);
 
     /**
@@ -268,15 +214,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             LIMIT 200
             """)
     List<TransactionChannelRequestDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                  /**
-                                                                   * 完成 m 分支的校验或状态更新。
-                                                                   * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                   * <p>
-                                                                   * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                   * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                   * </p>
-                                                                   * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
-                                                                   */
                                                                   @Param("operationId") String operationId);
 
     /**
@@ -298,15 +235,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
             </script>
             """)
     List<TransactionChannelRequestDO> selectByRequestIdsPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                 /**
-                                                                  * 完成 m 分支的校验或状态更新。
-                                                                  * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                                  * <p>
-                                                                  * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                                  * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                                  * </p>
-                                                                  * @param requestIds request Ids 输入值，含义由调用方法名称和所属业务对象限定
-                                                                  */
                                                                  @Param("requestIds") List<String> requestIds);
 
     /**
@@ -354,15 +282,6 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
                                                          @Param("beginTime") LocalDateTime beginTime,
                                                          @Param("endTime") LocalDateTime endTime,
                                                          @Param("offset") long offset,
-                                                         /**
-                                                          * 完成 m 分支的校验或状态更新。
-                                                          * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                                                          * <p>
-                                                          * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                                                          * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                                                          * </p>
-                                                          * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-                                                          */
                                                          @Param("limit") long limit);
 
     /**
@@ -404,14 +323,5 @@ public interface TransactionChannelRequestMapper extends BaseMapper<TransactionC
                            @Param("channelOrderNo") String channelOrderNo,
                            @Param("requestStatus") String requestStatus,
                            @Param("beginTime") LocalDateTime beginTime,
-                           /**
-                            * 完成 m 分支的校验或状态更新。
-                            * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
-                            * <p>
-                            * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-                            * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
-                            * </p>
-                            * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-                            */
                            @Param("endTime") LocalDateTime endTime);
 }

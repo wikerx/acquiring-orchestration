@@ -80,8 +80,8 @@ public class PaymentChannelCallbackRegistry {
     /**
      * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
      * <p>
-     * 所在层级：当前模块；输入来自调用方传入对象、配置或上游查询结果，输出按方法返回类型或异常边界交付。
-     * 涉及状态、金额、密钥、卡数据或远程调用时，需沿用当前调用链的幂等、事务和脱敏约束。
+     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 PaymentChannelCallbackRegistry 的方法签名及调用链约束。
+     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
      * </p>
      * @param channelCode channel Code 输入值，含义由调用方法名称和所属业务对象限定
      * @return 标准化后的业务字段值
