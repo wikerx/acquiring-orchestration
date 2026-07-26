@@ -49,7 +49,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
     @Override
     public PaymentRiskDecisionDTO checkPreRoute(PaymentCreateCommandDTO commandDTO) {
         long startNanos = System.nanoTime();
-        log.info("event=PAYMENT_RISK_REQUEST_START merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} amount: {}",
+        log.info("event: PAYMENT_RISK_REQUEST_START merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} amount: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 commandDTO.getTransactionType(),
@@ -64,7 +64,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         decisionDTO.setRiskRecordNo(responseDTO.getRiskRecordNo());
         decisionDTO.setRiskCode(responseDTO.getReasonCode());
         decisionDTO.setRiskMessage(responseDTO.getReasonMessage());
-        log.info("event=PAYMENT_RISK_REQUEST_END merchantId: {} merchantOrderNo: {} transactionType: {} decision: {} passed: {} riskRecordNo: {} reasonCode: {} durationMs: {}",
+        log.info("event: PAYMENT_RISK_REQUEST_END merchantId: {} merchantOrderNo: {} transactionType: {} decision: {} passed: {} riskRecordNo: {} reasonCode: {} durationMs: {}",
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 commandDTO.getTransactionType(),

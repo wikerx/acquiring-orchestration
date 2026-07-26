@@ -110,7 +110,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
         int limit = normalizeLimit(request.getLimit());
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
         long startNanos = System.nanoTime();
-        log.info("event=JOB_HANDLER_SCAN_START jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} channelCode: {} limit: {}",
+        log.info("event: JOB_HANDLER_SCAN_START jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} channelCode: {} limit: {}",
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
                 context == null ? null : context.getRunId(),
@@ -135,7 +135,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
                 matchResult = paymentInternalClient.matchDueChannelTransactions(clientRequestDTO);
             } catch (RuntimeException exception) {
                 failedCount++;
-                log.warn("event=JOB_HANDLER_SCAN_ITEM_FAILED jobId: {} handler: {} runId: {} scanRange: {} channelCode: {} failureReason: {}",
+                log.warn("event: JOB_HANDLER_SCAN_ITEM_FAILED jobId: {} handler: {} runId: {} scanRange: {} channelCode: {} failureReason: {}",
                         context == null ? null : context.getJobId(),
                         HANDLER_CODE,
                         context == null ? null : context.getRunId(),
@@ -152,7 +152,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
             }
             result.put(transactionDateTime.toString(), matchResult);
         }
-        log.info("event=JOB_HANDLER_SCAN_END jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} channelCode: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+        log.info("event: JOB_HANDLER_SCAN_END jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} channelCode: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
                 context == null ? null : context.getRunId(),

@@ -138,7 +138,7 @@ public class OpenApiRequestHeaderExtractor {
                     claims.getMerchantId(), "OPENAPI_JWT_REPLAY", exception);
             throw exception;
         }
-        log.info("event=OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {}",
+        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {}",
                 claims.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
@@ -184,7 +184,7 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
-        log.warn("event=OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {}",
+        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {}",
                 merchantId,
                 request == null ? null : request.getRequestURI(),
                 request == null ? null : request.getAttribute(OpenApiRequestAttributes.API_VERSION),

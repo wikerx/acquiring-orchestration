@@ -292,7 +292,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     public TransactionChannelCallbackResultDTO recordChannelCallback(TransactionChannelCallbackCommandDTO commandDTO) {
         validate(commandDTO);
         long startNanos = System.nanoTime();
-        log.info("event=PAYMENT_CHANNEL_CALLBACK_START channelCode: {} callbackType: {} requestUri: {} sourceIp: {} signatureValid: {} ipAllowed: {}",
+        log.info("event: PAYMENT_CHANNEL_CALLBACK_START channelCode: {} callbackType: {} requestUri: {} sourceIp: {} signatureValid: {} ipAllowed: {}",
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 resolveCallbackType(commandDTO),
                 commandDTO.getRequestUri(),
@@ -313,7 +313,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         TransactionChannelCallbackDO existed = callbackMapper.selectByIdempotencyPhysical(
                 callbackTable, normalizeChannelCode(commandDTO.getChannelCode()), idempotencyKey);
         if (existed != null) {
-            log.info("event=PAYMENT_CHANNEL_CALLBACK_DUPLICATE channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} idempotencyKey: {} callbackStatus: {} durationMs: {}",
+            log.info("event: PAYMENT_CHANNEL_CALLBACK_DUPLICATE channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} idempotencyKey: {} callbackStatus: {} durationMs: {}",
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     callbackLogId,
                     existed.getCallbackId(),
@@ -334,7 +334,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         resultDTO.setCallbackStatus(outcome.callbackStatus());
         resultDTO.setProcessResult(outcome.processResult());
         resultDTO.setFailReason(outcome.failReason());
-        log.info("event=PAYMENT_CHANNEL_CALLBACK_END channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} callbackStatus: {} processResult: {} durationMs: {}",
+        log.info("event: PAYMENT_CHANNEL_CALLBACK_END channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} callbackStatus: {} processResult: {} durationMs: {}",
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 callbackLogId,
                 callbackId,
@@ -430,7 +430,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                              String callbackId,
                                                              LocalDateTime now) {
         if (!context.transactionIdResolved() || context.operationDO() == null || context.orderDO() == null) {
-            log.warn("event=PAYMENT_CHANNEL_CALLBACK_UNRESOLVED channelCode: {} transactionId: {} channelOrderNo: {} channelTransactionId: {}",
+            log.warn("event: PAYMENT_CHANNEL_CALLBACK_UNRESOLVED channelCode: {} transactionId: {} channelOrderNo: {} channelTransactionId: {}",
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     context.transactionId(),
                     context.channelOrderNo(),
@@ -440,7 +440,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         }
         ParsedCallbackStatus parsedStatus = parseCallbackStatus(commandDTO, channelCallbackResult, context.operationDO().getTransactionType());
         if (parsedStatus.targetStatus() == null) {
-            log.warn("event=PAYMENT_CHANNEL_CALLBACK_STATUS_UNMAPPED channelCode: {} callbackId: {} transactionId: {} operationId: {} rawChannelStatus: {} channelTradeStatus: {}",
+            log.warn("event: PAYMENT_CHANNEL_CALLBACK_STATUS_UNMAPPED channelCode: {} callbackId: {} transactionId: {} operationId: {} rawChannelStatus: {} channelTradeStatus: {}",
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     callbackId,
                     context.operationDO().getTransactionId(),
@@ -452,7 +452,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     "callback status can not be mapped yet", now);
         }
         if (!isTerminalStatus(parsedStatus.targetStatus())) {
-            log.info("event=PAYMENT_CHANNEL_CALLBACK_NON_TERMINAL channelCode: {} callbackId: {} transactionId: {} operationId: {} currentStatus: {} parsedStatus: {} channelStatus: {}",
+            log.info("event: PAYMENT_CHANNEL_CALLBACK_NON_TERMINAL channelCode: {} callbackId: {} transactionId: {} operationId: {} currentStatus: {} parsedStatus: {} channelStatus: {}",
                     normalizeChannelCode(commandDTO.getChannelCode()),
                     callbackId,
                     context.operationDO().getTransactionId(),
@@ -478,7 +478,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 parsedStatus.channelStatus(),
                 parsedStatus.channelResponseCode(),
                 parsedStatus.channelResponseMessage());
-        log.info("event=PAYMENT_CHANNEL_CALLBACK_PROCESS_UPDATE channelCode: {} callbackId: {} transactionId: {} operationId: {} previousStatus: {} targetStatus: {} changed: {} channelStatus: {} channelResponseCode: {}",
+        log.info("event: PAYMENT_CHANNEL_CALLBACK_PROCESS_UPDATE channelCode: {} callbackId: {} transactionId: {} operationId: {} previousStatus: {} targetStatus: {} changed: {} channelStatus: {} channelResponseCode: {}",
                 normalizeChannelCode(commandDTO.getChannelCode()),
                 callbackId,
                 context.operationDO().getTransactionId(),
@@ -574,7 +574,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         eventDO.setCreateTime(now);
         eventDO.setUpdateTime(now);
         transactionEventOutboxService.save(eventDO);
-        log.info("event=PAYMENT_CALLBACK_OUTBOX_SAVED callbackId: {} transactionId: {} operationId: {} eventType: {} topic: {} tag: {}",
+        log.info("event: PAYMENT_CALLBACK_OUTBOX_SAVED callbackId: {} transactionId: {} operationId: {} eventType: {} topic: {} tag: {}",
                 callbackId,
                 operationDO.getTransactionId(),
                 operationDO.getOperationId(),

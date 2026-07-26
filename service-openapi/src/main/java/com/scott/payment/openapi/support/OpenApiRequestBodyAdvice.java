@@ -116,7 +116,7 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
             }
         }
         String maskedSummary = SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(data));
-        log.info("event=OPENAPI_REQUEST_DECRYPT_END stage=DECRYPT merchantId: {} path: {} apiVersion: {} interfaceType: {} decryptSuccess=true requestSummary: {}",
+        log.info("event: OPENAPI_REQUEST_DECRYPT_END stage=DECRYPT merchantId: {} path: {} apiVersion: {} interfaceType: {} decryptSuccess=true requestSummary: {}",
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),

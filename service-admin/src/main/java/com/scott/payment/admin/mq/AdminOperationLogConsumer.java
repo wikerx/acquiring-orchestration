@@ -92,7 +92,7 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
     public void onMessage(String payload) {
         OperationLogMessage message = JsonUtils.parseObject(payload, OperationLogMessage.class);
         if (message == null) {
-            log.warn("event=ADMIN_OPERATION_LOG_CONSUME_SKIP reason=messageInvalid payloadLength: {}",
+            log.warn("event: ADMIN_OPERATION_LOG_CONSUME_SKIP reason=messageInvalid payloadLength: {}",
                     payload == null ? 0 : payload.length());
             return;
         }
@@ -100,7 +100,7 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
         try {
             String idempotentKey = "operation-log:consume:admin:" + message.getIdempotentKey();
             if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
-                log.info("event=ADMIN_OPERATION_LOG_DUPLICATE messageId: {} retryCount: {} idempotentKey: {}",
+                log.info("event: ADMIN_OPERATION_LOG_DUPLICATE messageId: {} retryCount: {} idempotentKey: {}",
                         message.getMessageId(),
                         message.getRetryCount(),
                         message.getIdempotentKey());
@@ -108,7 +108,7 @@ public class AdminOperationLogConsumer implements RocketMQListener<String> {
             }
             SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
             adminOperLogService.recordOperLog(request);
-            log.info("event=ADMIN_OPERATION_LOG_CONSUMED messageId: {} retryCount: {} operationModule: {} operationType: {}",
+            log.info("event: ADMIN_OPERATION_LOG_CONSUMED messageId: {} retryCount: {} operationModule: {} operationType: {}",
                     message.getMessageId(),
                     message.getRetryCount(),
                     message.getOperationModule(),

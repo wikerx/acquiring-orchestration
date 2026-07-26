@@ -79,13 +79,13 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
     public void onMessage(String payload) {
         TransactionEventMessage message = JsonUtils.parseObject(payload, TransactionEventMessage.class);
         if (message == null || message.getTransactionDateTime() == null) {
-            log.warn("event=PAYMENT_EVENT_CONSUME_SKIP reason=messageInvalid payloadLength: {}",
+            log.warn("event: PAYMENT_EVENT_CONSUME_SKIP reason=messageInvalid payloadLength: {}",
                     payload == null ? 0 : payload.length());
             return;
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
-            log.info("event=PAYMENT_EVENT_CONSUME_START messageId: {} retryCount: {} transactionId: {} operationId: {} eventType: {} notifyId: {}",
+            log.info("event: PAYMENT_EVENT_CONSUME_START messageId: {} retryCount: {} transactionId: {} operationId: {} eventType: {} notifyId: {}",
                     message.getMessageId(),
                     message.getRetryCount(),
                     message.getTransactionId(),
@@ -94,7 +94,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
                     message.getNotifyId());
             boolean notified = notificationService.notifyTransaction(message.getTransactionDateTime(), message.getTransactionId());
             int successCount = notified ? 1 : notificationService.notifyDue(message.getTransactionDateTime(), DEFAULT_BATCH_LIMIT);
-            log.info("event=PAYMENT_EVENT_CONSUME_END messageId: {} retryCount: {} transactionId: {} eventType: {} notifyId: {} successCount: {}",
+            log.info("event: PAYMENT_EVENT_CONSUME_END messageId: {} retryCount: {} transactionId: {} eventType: {} notifyId: {} successCount: {}",
                     message.getMessageId(),
                     message.getRetryCount(),
                     message.getTransactionId(),

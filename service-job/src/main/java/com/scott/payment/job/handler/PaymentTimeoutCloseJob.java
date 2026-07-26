@@ -45,11 +45,11 @@ public class PaymentTimeoutCloseJob extends AbstractJobHandler {
     @Override
     public JobExecuteResult execute(String parameter) {
         long startNanos = System.nanoTime();
-        log.info("event=JOB_HANDLER_SCAN_START handler=paymentTimeoutClose paramsSummary: {} scanRange: {} limit: {}",
+        log.info("event: JOB_HANDLER_SCAN_START handler=paymentTimeoutClose paramsSummary: {} scanRange: {} limit: {}",
                 parameter,
                 null,
                 0);
-        log.info("event=JOB_HANDLER_SCAN_END handler=paymentTimeoutClose scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+        log.info("event: JOB_HANDLER_SCAN_END handler=paymentTimeoutClose scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
                 0,
                 0,
                 0,

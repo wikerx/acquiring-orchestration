@@ -357,7 +357,7 @@ public class JobDispatchService {
      */
     private void scheduleRetry(SysJobTaskDO task, JobExecuteContext context, int retryIndex) {
         jobTaskService.extendLock(task.getId(), jobNodeContext.nodeId(), calculateLockUntil(task, LocalDateTime.now()));
-        runWithTrace(context, () -> log.info("event=JOB_RETRY_SCHEDULED jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} shardIndex: {} shardTotal: {}",
+        runWithTrace(context, () -> log.info("event: JOB_RETRY_SCHEDULED jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} shardIndex: {} shardTotal: {}",
                 context.getJobId(),
                 context.getHandlerCode(),
                 context.getRunId(),
@@ -419,7 +419,7 @@ public class JobDispatchService {
      * @param context 任务执行上下文
      */
     private void logJobStart(JobExecuteContext context) {
-        runWithTrace(context, () -> log.info("event=JOB_EXECUTE_START jobId: {} handler: {} runId: {} triggerType: {} retryIndex: {} shardIndex: {} shardTotal: {}",
+        runWithTrace(context, () -> log.info("event: JOB_EXECUTE_START jobId: {} handler: {} runId: {} triggerType: {} retryIndex: {} shardIndex: {} shardTotal: {}",
                 context.getJobId(),
                 context.getHandlerCode(),
                 context.getRunId(),
@@ -438,7 +438,7 @@ public class JobDispatchService {
      * @param failureMessage 失败原因摘要
      */
     private void logJobEnd(JobExecuteContext context, long durationMs, String status, String failureMessage) {
-        runWithTrace(context, () -> log.info("event=JOB_EXECUTE_END jobId: {} handler: {} runId: {} status: {} retryIndex: {} shardIndex: {} shardTotal: {} durationMs: {} failureMessage: {}",
+        runWithTrace(context, () -> log.info("event: JOB_EXECUTE_END jobId: {} handler: {} runId: {} status: {} retryIndex: {} shardIndex: {} shardTotal: {} durationMs: {} failureMessage: {}",
                 context.getJobId(),
                 context.getHandlerCode(),
                 context.getRunId(),

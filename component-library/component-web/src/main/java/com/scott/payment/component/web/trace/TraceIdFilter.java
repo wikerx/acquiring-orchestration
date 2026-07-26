@@ -8,9 +8,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * @author : scott
@@ -34,23 +37,83 @@ public class TraceIdFilter extends OncePerRequestFilter {
         TraceContext.setTraceId(traceId);
         response.setHeader(TraceContext.TRACE_ID_HEADER, traceId);
         try {
-            log.info("event=HTTP_REQUEST_START method: {} path: {} clientIp: {} userAgent: {}",
+            log.info("event: HTTP_REQUEST_START traceId: {} method: {} path: {} queryKeys: {} clientIp: {} userAgent: {} contentType: {} contentLength: {}",
+                    traceId,
                     request.getMethod(),
                     request.getRequestURI(),
-                    request.getRemoteAddr(),
-                    safeUserAgent(request.getHeader("User-Agent")));
+                    queryKeys(request),
+                    clientIp(request),
+                    safeUserAgent(request.getHeader("User-Agent")),
+                    request.getContentType(),
+                    request.getContentLengthLong());
             filterChain.doFilter(request, response);
-        } finally {
+        } catch (ServletException | IOException | RuntimeException exception) {
             long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-            log.info("event=HTTP_REQUEST_END method: {} path: {} status: {} durationMs: {}",
+            log.warn("event: HTTP_REQUEST_ERROR traceId: {} method: {} path: {} status: {} durationMs: {} exceptionType: {}",
+                    traceId,
                     request.getMethod(),
                     request.getRequestURI(),
                     response.getStatus(),
+                    durationMs,
+                    exception.getClass().getSimpleName());
+            throw exception;
+        } finally {
+            long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
+            log.info("event: HTTP_REQUEST_END traceId: {} method: {} path: {} status: {} responseContentType: {} durationMs: {}",
+                    traceId,
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    response.getStatus(),
+                    response.getContentType(),
                     durationMs);
             TraceContext.clear();
         }
     }
 
+    /**
+     * 提取请求查询参数名摘要，用于定位调用方传参差异。
+     * <p>
+     * 仅返回参数名列表，不返回参数值，避免密码、token、卡号或商户业务数据进入通用 HTTP 日志。
+     * </p>
+     * @param request 当前 Servlet 请求
+     * @return 查询参数名列表，按字典序排列；无参数时返回空列表
+     */
+    private List<String> queryKeys(HttpServletRequest request) {
+        if (request.getParameterMap().isEmpty()) {
+            return Collections.emptyList();
+        }
+        return request.getParameterMap().keySet().stream().sorted().toList();
+    }
+
+    /**
+     * 解析客户端来源 IP。
+     * <p>
+     * 优先读取代理透传的 X-Forwarded-For 首个地址，缺失时读取 X-Real-IP，
+     * 最后回退到 Servlet 远端地址；不查询或打印 IP 库明细。
+     * </p>
+     * @param request 当前 Servlet 请求
+     * @return 客户端 IP 摘要
+     */
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(forwardedFor)) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        String realIp = request.getHeader("X-Real-IP");
+        if (StringUtils.hasText(realIp)) {
+            return realIp.trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    /**
+     * 截断浏览器或客户端 User-Agent。
+     * <p>
+     * User-Agent 仅用于定位 SDK、浏览器或网关转发差异，长度超过 120 字符时截断。
+     * </p>
+     * @param userAgent 原始 User-Agent 请求头
+     * @return 可写入日志的 User-Agent 摘要
+     */
     private String safeUserAgent(String userAgent) {
         if (userAgent == null) {
             return null;

@@ -45,7 +45,7 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
                 .headers(headers -> headers.set(TraceContext.TRACE_ID_HEADER, traceId))
                 .build();
         exchange.getResponse().getHeaders().set(TraceContext.TRACE_ID_HEADER, traceId);
-        log.info("event=GATEWAY_REQUEST_START traceId: {} method: {} path: {} queryKeys: {} clientIp: {} userAgent: {}",
+        log.info("event: GATEWAY_REQUEST_START traceId: {} method: {} path: {} queryKeys: {} clientIp: {} userAgent: {}",
                 traceId,
                 request.getMethod(),
                 request.getURI().getPath(),
@@ -82,11 +82,11 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
         String targetService = targetService(exchange);
         String traceId = TraceContext.getTraceId();
         if (error == null) {
-            log.info("event=GATEWAY_REQUEST_END traceId: {} routeId: {} targetService: {} status: {} durationMs: {}",
+            log.info("event: GATEWAY_REQUEST_END traceId: {} routeId: {} targetService: {} status: {} durationMs: {}",
                     traceId, routeId, targetService, statusCode, durationMs);
             return;
         }
-        log.warn("event=GATEWAY_REQUEST_ERROR traceId: {} routeId: {} targetService: {} status: {} durationMs: {} errorType: {} message: {}",
+        log.warn("event: GATEWAY_REQUEST_ERROR traceId: {} routeId: {} targetService: {} status: {} durationMs: {} errorType: {} message: {}",
                 traceId,
                 routeId,
                 targetService,
@@ -105,7 +105,7 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
      */
     private void logRouteComplete(ServerWebExchange exchange, long startNanos) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event=GATEWAY_ROUTE_COMPLETE traceId: {} routeId: {} targetService: {} path: {} durationMs: {}",
+        log.info("event: GATEWAY_ROUTE_COMPLETE traceId: {} routeId: {} targetService: {} path: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 routeId(exchange),
                 targetService(exchange),

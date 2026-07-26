@@ -126,7 +126,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
                 plainDataJson,
                 merchantSecurityService.getMerchantResponsePublicKey(merchantId)
         );
-        log.info("event=OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {}",
+        log.info("event: OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {}",
                 merchantId,
                 request.getURI().getPath(),
                 result.getCode(),

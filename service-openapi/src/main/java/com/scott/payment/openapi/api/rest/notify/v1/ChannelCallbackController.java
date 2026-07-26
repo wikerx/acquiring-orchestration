@@ -70,7 +70,7 @@ public class ChannelCallbackController {
                                      HttpServletRequest request,
                                      @RequestBody(required = false) String rawBody) {
         long startNanos = System.nanoTime();
-        log.info("event=OPENAPI_CHANNEL_CALLBACK_RECEIVE_START channelCode: {} method: {} path: {} sourceIp: {} bodyLength: {}",
+        log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_START channelCode: {} method: {} path: {} sourceIp: {} bodyLength: {}",
                 channelCode,
                 request.getMethod(),
                 request.getRequestURI(),
@@ -79,7 +79,7 @@ public class ChannelCallbackController {
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
         paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, request, rawBody, securityResult));
-        log.info("event=OPENAPI_CHANNEL_CALLBACK_RECEIVE_END channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
+        log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_END channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
                 channelCode,
                 securityResult.signatureValid(),
                 securityResult.ipAllowed(),

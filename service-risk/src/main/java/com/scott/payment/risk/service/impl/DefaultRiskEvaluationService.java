@@ -67,7 +67,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     @Override
     public RiskPaymentEvaluateResultDTO evaluatePayment(RiskPaymentEvaluateRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
-        log.info("event=RISK_EVALUATION_START stage=ACCEPT merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} amount: {} currency: {} ruleCount: {}",
+        log.info("event: RISK_EVALUATION_START stage=ACCEPT merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} amount: {} currency: {} ruleCount: {}",
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
                 requestDTO == null ? null : requestDTO.getTransactionType(),
@@ -103,7 +103,7 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             hitRuleId = "NONE";
             hitRuleType = "NO_RULE_HIT";
         }
-        log.info("event=RISK_EVALUATION_END stage=DECISION merchantId: {} merchantOrderNo: {} transactionType: {} amount: {} currency: {} ruleCount: {} hitRuleId: {} hitRuleType: {} decision: {} rejectReasonCode: {} durationMs: {}",
+        log.info("event: RISK_EVALUATION_END stage=DECISION merchantId: {} merchantOrderNo: {} transactionType: {} amount: {} currency: {} ruleCount: {} hitRuleId: {} hitRuleType: {} decision: {} rejectReasonCode: {} durationMs: {}",
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
                 requestDTO == null ? null : requestDTO.getTransactionType(),

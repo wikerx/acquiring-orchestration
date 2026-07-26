@@ -64,7 +64,7 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         request.setAttribute(OpenApiRequestAttributes.REQUEST_START_NANOS, startNanos);
         request.setAttribute(OpenApiRequestAttributes.API_VERSION, apiVersion(request.getRequestURI()));
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, interfaceType(request.getRequestURI()));
-        log.info("event=OPENAPI_REQUEST_ENTER stage=ACCEPT method: {} path: {} apiVersion: {} interfaceType: {} clientIp: {}",
+        log.info("event: OPENAPI_REQUEST_ENTER stage=ACCEPT method: {} path: {} apiVersion: {} interfaceType: {} clientIp: {}",
                 request.getMethod(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
@@ -83,7 +83,7 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         }
         OpenApiRequestHeaderDTO headerDTO = (OpenApiRequestHeaderDTO) request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event=OPENAPI_REQUEST_END stage=FINISH merchantId: {} path: {} apiVersion: {} interfaceType: {} httpStatus: {} platformCode: {} durationMs: {} exceptionType: {}",
+        log.info("event: OPENAPI_REQUEST_END stage=FINISH merchantId: {} path: {} apiVersion: {} interfaceType: {} httpStatus: {} platformCode: {} durationMs: {} exceptionType: {}",
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),

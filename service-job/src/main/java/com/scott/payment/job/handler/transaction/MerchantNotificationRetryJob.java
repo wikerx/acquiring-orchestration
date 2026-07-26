@@ -106,7 +106,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
         int limit = normalizeLimit(request.getLimit());
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
         long startNanos = System.nanoTime();
-        log.info("event=JOB_HANDLER_SCAN_START jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} limit: {}",
+        log.info("event: JOB_HANDLER_SCAN_START jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} limit: {}",
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
                 context == null ? null : context.getRunId(),
@@ -128,7 +128,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 successCount = paymentInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
             } catch (RuntimeException exception) {
                 failCount++;
-                log.warn("event=JOB_HANDLER_SCAN_ITEM_FAILED jobId: {} handler: {} runId: {} scanRange: {} failureReason: {}",
+                log.warn("event: JOB_HANDLER_SCAN_ITEM_FAILED jobId: {} handler: {} runId: {} scanRange: {} failureReason: {}",
                         context == null ? null : context.getJobId(),
                         HANDLER_CODE,
                         context == null ? null : context.getRunId(),
@@ -140,7 +140,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
             totalSuccessCount += safeSuccessCount;
             result.put(transactionDateTime.toString(), safeSuccessCount);
         }
-        log.info("event=JOB_HANDLER_SCAN_END jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+        log.info("event: JOB_HANDLER_SCAN_END jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
                 context == null ? null : context.getJobId(),
                 HANDLER_CODE,
                 context == null ? null : context.getRunId(),

@@ -92,7 +92,7 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
     public void onMessage(String payload) {
         OperationLogMessage message = JsonUtils.parseObject(payload, OperationLogMessage.class);
         if (message == null) {
-            log.warn("event=MERCHANT_OPERATION_LOG_CONSUME_SKIP reason=messageInvalid payloadLength: {}",
+            log.warn("event: MERCHANT_OPERATION_LOG_CONSUME_SKIP reason=messageInvalid payloadLength: {}",
                     payload == null ? 0 : payload.length());
             return;
         }
@@ -100,7 +100,7 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
         try {
             String idempotentKey = "operation-log:consume:merchant:" + message.getIdempotentKey();
             if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
-                log.info("event=MERCHANT_OPERATION_LOG_DUPLICATE messageId: {} retryCount: {} idempotentKey: {}",
+                log.info("event: MERCHANT_OPERATION_LOG_DUPLICATE messageId: {} retryCount: {} idempotentKey: {}",
                         message.getMessageId(),
                         message.getRetryCount(),
                         message.getIdempotentKey());
@@ -108,7 +108,7 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
             }
             SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
             merchantOperLogService.recordOperLog(request);
-            log.info("event=MERCHANT_OPERATION_LOG_CONSUMED messageId: {} retryCount: {} operationModule: {} operationType: {}",
+            log.info("event: MERCHANT_OPERATION_LOG_CONSUMED messageId: {} retryCount: {} operationModule: {} operationType: {}",
                     message.getMessageId(),
                     message.getRetryCount(),
                     message.getOperationModule(),

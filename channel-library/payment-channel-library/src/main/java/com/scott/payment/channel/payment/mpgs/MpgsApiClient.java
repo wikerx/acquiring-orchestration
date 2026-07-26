@@ -604,7 +604,7 @@ public class MpgsApiClient {
                 safeChannelOrderNo(request), safeChannelTransactionId(request), safeMerchantOrderNo(request),
                 elapsedMillis(startNanos), exception.getClass().getSimpleName(),
                 exception.getMessage(), exception);
-        log.warn("event=CHANNEL_REQUEST_FAILED channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} durationMs: {} exceptionType: {}",
+        log.warn("event: CHANNEL_REQUEST_FAILED channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} durationMs: {} exceptionType: {}",
                 request == null ? null : request.getChannelCode(),
                 operation,
                 host(url),
@@ -636,7 +636,7 @@ public class MpgsApiClient {
                                            String operation,
                                            String url,
                                            MpgsRequestPayload payload) {
-        log.info("event=CHANNEL_REQUEST_START channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} requestSummary: {}",
+        log.info("event: CHANNEL_REQUEST_START channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} requestSummary: {}",
                 request.getChannelCode(),
                 operation,
                 host(url),
@@ -673,7 +673,7 @@ public class MpgsApiClient {
                                           String url,
                                           String body,
                                           long startNanos) {
-        log.info("event=CHANNEL_RESPONSE_END channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} httpStatus: {} responseSummary: {} channelResult: {} acquirerCode: {} responseCode: {} stan: {} channelTransactionId: {} durationMs: {}",
+        log.info("event: CHANNEL_RESPONSE_END channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} httpStatus: {} responseSummary: {} channelResult: {} acquirerCode: {} responseCode: {} stan: {} channelTransactionId: {} durationMs: {}",
                 request.getChannelCode(),
                 operation,
                 host(url),
