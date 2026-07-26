@@ -46,16 +46,17 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : MerchantOpenApiKeyController
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : MerchantOpenApiKeyController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 商户后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Merchant Open API Key Controller 控制器，位于 商户后台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
  * @status : create
  */
 public class MerchantOpenApiKeyController {
 
     /**
-     * OPENAPI KEY MODULE NAME 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * OPENAPI KEY MODULE NAME，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String OPENAPI_KEY_MODULE_NAME = "商户OpenAPI密钥";
@@ -69,10 +70,11 @@ public class MerchantOpenApiKeyController {
      */
     private final OpenApiKeyAuditService keyAuditService;
     /**
-     * merchant Oper Log Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * merchant Oper Log Service 依赖，用于 Merchant Open API Key Controller 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final MerchantOperLogService merchantOperLogService;
@@ -188,12 +190,13 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 接收 require Copy Permission 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
+     * 校验copy权限输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 商户后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param keyType 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
      */
     private void requireCopyPermission(OpenApiKeyType keyType) {
         rejectPlatformPrivateKey(keyType);
@@ -204,12 +207,13 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 接收 require Download Permission 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
+     * 校验download权限输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 商户后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param keyType 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
      */
     private void requireDownloadPermission(OpenApiKeyType keyType) {
         rejectPlatformPrivateKey(keyType);
@@ -220,12 +224,13 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 接收 require Rotate Permission 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
+     * 校验rotate权限输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 商户后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param keyType 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
      */
     private void requireRotatePermission(OpenApiKeyType keyType) {
         if (keyType == OpenApiKeyType.JWT_KEY) {
@@ -240,13 +245,14 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 接收 require Permission 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
+     * 校验权限输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 商户后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param permission permission 输入值，含义由调用方法名称和所属业务对象限定
-     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @param permission permission 输入值，参与 权限 的查询、校验、转换、写入或日志摘要
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
      */
     private void requirePermission(String permission, String message) {
         InternalAuthAccount account = InternalAuthContextHolder.get();
@@ -257,12 +263,13 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 接收 reject Platform Private Key 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
+     * 整理拒绝平台私钥密钥，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param keyType key Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param keyType 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
      */
     private void rejectPlatformPrivateKey(OpenApiKeyType keyType) {
         if (keyType == OpenApiKeyType.PLATFORM_PRIVATE_KEY) {
@@ -271,13 +278,14 @@ public class MerchantOpenApiKeyController {
     }
 
     /**
-     * 接收 to Download Response 接口调用，完成 Web 层参数承接并委托应用服务返回统一响应。
+     * 构造download响应对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：商户后台服务层；输入来源、输出结构和异常语义由 MerchantOpenApiKeyController 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 商户后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param file file 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param file file 输入值，参与 file 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private ResponseEntity<byte[]> toDownloadResponse(OpenApiKeyDownloadFile file) {
         String encodedFileName = URLEncoder.encode(file.getFileName(), StandardCharsets.UTF_8);

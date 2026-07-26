@@ -16,7 +16,7 @@ import java.util.Map;
  * @classname : PaymentQuarterShardingProperties
  * @date : 2026-05-29 18:36
  * @email : scott_x@163.com
- * @description : PaymentQuarterShardingProperties 配置属性模型，用于绑定 application 配置项并提供默认值，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payment Quarter Sharding Properties 配置属性模型，位于 公共组件库，绑定 application 配置项并提供运行时默认值。
  * @status : create
  */
 public class PaymentQuarterShardingProperties {

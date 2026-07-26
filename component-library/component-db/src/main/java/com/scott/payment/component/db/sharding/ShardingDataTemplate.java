@@ -150,12 +150,13 @@ public class ShardingDataTemplate {
     }
 
     /**
-     * 校验 validate Single Context 相关输入，发现不满足业务约束时抛出明确异常。
+     * 校验singlecontext输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingDataTemplate 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param context context 输入值，含义由调用方法名称和所属业务对象限定
+     * @param context context 输入值，参与 context 的查询、校验、转换、写入或日志摘要
      */
     private void validateSingleContext(ShardingSingleTableContext context) {
         if (context == null) {
@@ -170,12 +171,13 @@ public class ShardingDataTemplate {
     }
 
     /**
-     * 校验 validate Range Context 相关输入，发现不满足业务约束时抛出明确异常。
+     * 校验范围context输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingDataTemplate 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param context context 输入值，含义由调用方法名称和所属业务对象限定
+     * @param context context 输入值，参与 context 的查询、校验、转换、写入或日志摘要
      */
     private void validateRangeContext(ShardingRangeTableContext context) {
         if (context == null) {
@@ -187,13 +189,14 @@ public class ShardingDataTemplate {
     }
 
     /**
-     * 校验 validate Data Source 相关输入，发现不满足业务约束时抛出明确异常。
+     * 校验data来源输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingDataTemplate 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param dataSource data Source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param writeOperation write Operation 输入值，含义由调用方法名称和所属业务对象限定
+     * @param dataSource data Source 输入值，参与 data来源 的查询、校验、转换、写入或日志摘要
+     * @param writeOperation write Operation 输入值，参与 write动作 的查询、校验、转换、写入或日志摘要
      */
     private void validateDataSource(String dataSource, boolean writeOperation) {
         if (!StringUtils.hasText(dataSource)) {

@@ -137,7 +137,7 @@ public class ChannelPaymentResponse implements Serializable {
      * @classname : PaymentMethodSummary
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : PaymentMethodSummary 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Payment Method Summary 协作组件，位于 渠道适配库，封装 支付方式汇总 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class PaymentMethodSummary implements Serializable {

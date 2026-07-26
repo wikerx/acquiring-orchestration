@@ -47,26 +47,29 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
-     * app Code 字段，表示当前模型在所属业务流程中的对应属性。
+     * app Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final String appCode;
     /**
-     * auth Checker 字段，表示当前模型在所属业务流程中的对应属性。
+     * auth Checker，用于保存 Internal Auth Interceptor 中与 authchecker 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final InternalAuthChecker authChecker;
     /**
-     * whitelist Patterns 字段，表示当前模型在所属业务流程中的对应属性。
+     * whitelist Patterns，用于保存 Internal Auth Interceptor 中与 whitelistpatterns 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final List<String> whitelistPatterns;
@@ -156,29 +159,31 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
     }
 
     /**
-     * 完成 write Error 的本地校验、字段转换或状态更新。
+     * 整理write错误，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 InternalAuthInterceptor 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
-     * @param httpStatus 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @param result result 输入值，含义由调用方法名称和所属业务对象限定
+     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @param httpStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param result 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
      */
     private void writeError(HttpServletResponse response, int httpStatus, ApiResultEnum result) throws IOException {
         writeError(response, httpStatus, result.getCode(), result.getMessage());
     }
 
     /**
-     * 完成 write Error 的本地校验、字段转换或状态更新。
+     * 整理write错误，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 InternalAuthInterceptor 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param response response 输入值，含义由调用方法名称和所属业务对象限定
-     * @param httpStatus 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @param httpStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
      */
     private void writeError(HttpServletResponse response, int httpStatus, String code, String message) throws IOException {
         response.setStatus(httpStatus);

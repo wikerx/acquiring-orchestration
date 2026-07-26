@@ -70,7 +70,7 @@ import java.util.stream.Collectors;
  * @classname : AdminChannelServiceImpl
  * @date : 2026-07-03 16:10
  * @email : scott_x@163.com
- * @description : AdminChannelServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Admin Channel Service Impl 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
 public class AdminChannelServiceImpl implements AdminChannelService {
@@ -204,20 +204,21 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     private final SysDictDataMapper dictDataMapper;
 
 /**
- * 创建 AdminChannelServiceImpl 实例并注入其运行所需依赖。
+ * 整理admin渠道serviceimpl，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param channelInfoMapper channel Info Mapper 输入值，含义由调用方法名称和所属业务对象限定
- * @param metadataSchemaMapper metadata Schema Mapper 输入值，含义由调用方法名称和所属业务对象限定
- * @param capabilityMapper capability Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param channelInfoMapper channel Info Mapper 输入值，参与 渠道信息映射器 的查询、校验、转换、写入或日志摘要
+ * @param metadataSchemaMapper metadata Schema Mapper 输入值，参与 metadataschema映射器 的查询、校验、转换、写入或日志摘要
+ * @param capabilityMapper capability Mapper 输入值，参与 capability映射器 的查询、校验、转换、写入或日志摘要
  * @param capabilityCurrencyMapper 币种代码，格式为 ISO 4217 三位大写字母
- * @param capabilityCardBrandMapper 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
- * @param limitRuleMapper limit Rule Mapper 输入值，含义由调用方法名称和所属业务对象限定
- * @param midConfigMapper mid Config Mapper 输入值，含义由调用方法名称和所属业务对象限定
- * @param midBindingMapper mid Binding Mapper 输入值，含义由调用方法名称和所属业务对象限定
- * @param dictDataMapper dict Data Mapper 输入值，含义由调用方法名称和所属业务对象限定
+ * @param capabilityCardBrandMapper 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+ * @param limitRuleMapper limit Rule Mapper 输入值，参与 limit规则映射器 的查询、校验、转换、写入或日志摘要
+ * @param midConfigMapper MID Config Mapper 输入值，参与 mid配置映射器 的查询、校验、转换、写入或日志摘要
+ * @param midBindingMapper MID Binding Mapper 输入值，参与 midbinding映射器 的查询、校验、转换、写入或日志摘要
+ * @param dictDataMapper dict Data Mapper 输入值，参与 dictdata映射器 的查询、校验、转换、写入或日志摘要
  */
     public AdminChannelServiceImpl(ChannelInfoMapper channelInfoMapper,
                                    ChannelMetadataSchemaMapper metadataSchemaMapper,
@@ -934,14 +935,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Mid Binding Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验midbinding请求输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ChannelMidConfigDO validateMidBindingRequest(MerchantChannelMidBindingSaveRequest request, Long id) {
         validateStatus(request.getBindingStatus());
@@ -965,12 +967,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Metadata Schemas 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验metadataschemas输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param schemas schemas 输入值，含义由调用方法名称和所属业务对象限定
+     * @param schemas schemas 输入值，参与 schemas 的查询、校验、转换、写入或日志摘要
      */
     private void validateMetadataSchemas(List<ChannelMetadataSchemaItem> schemas) {
         if (schemas == null || schemas.isEmpty()) {
@@ -1009,14 +1012,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Capability Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验capability请求输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ChannelInfoDO validateCapabilityRequest(CapabilitySaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
@@ -1077,14 +1081,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Limit Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验limit请求输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ChannelInfoDO validateLimitRequest(LimitSaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
@@ -1120,13 +1125,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Limit Batch Items 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验limitbatchitems输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private List<LimitSaveRequest> validateLimitBatchItems(LimitBatchSaveRequest request) {
         List<LimitSaveRequest> items = request == null ? List.of() : request.getItems();
@@ -1137,12 +1143,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Same Limit Dimension 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验samelimitdimension输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param items items 输入值，含义由调用方法名称和所属业务对象限定
+     * @param items items 输入值，参与 items 的查询、校验、转换、写入或日志摘要
      */
     private void validateSameLimitDimension(List<LimitSaveRequest> items) {
         LimitSaveRequest first = items.get(0);
@@ -1160,12 +1167,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Limit Batch Amount Relations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验limitbatch金额relations输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param items items 输入值，含义由调用方法名称和所属业务对象限定
+     * @param items items 输入值，参与 items 的查询、校验、转换、写入或日志摘要
      */
     private void validateLimitBatchAmountRelations(List<LimitSaveRequest> items) {
         Map<LimitScope, Map<String, BigDecimal>> limitAmountsByScope = new LinkedHashMap<>();
@@ -1183,13 +1191,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Limit Amount Relations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验limit金额relations输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
      */
     private void validateLimitAmountRelations(LimitSaveRequest request, Long id) {
         Map<String, BigDecimal> amounts = existingLimitAmounts(limitScope(request), id);
@@ -1198,13 +1207,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Limit Amount Relations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验limit金额relations输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param amounts 金额值，单位由关联币种决定，调用前必须完成币种精度校验
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param amounts 金额值，单位必须结合 currency 或同名币种字段解释
      */
     private void validateLimitAmountRelations(Map<String, BigDecimal> amounts) {
         BigDecimal daily = amounts.get(LIMIT_DAILY);
@@ -1219,14 +1229,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 existing Limit Amounts 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化existinglimitamounts，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @param excludeId exclude Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @param scope scope 输入值，参与 scope 的查询、校验、转换、写入或日志摘要
+     * @param excludeId exclude ID 输入值，参与 excludeID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Map<String, BigDecimal> existingLimitAmounts(LimitScope scope, Long excludeId) {
         if (scope.channelId() == null || !StringUtils.hasText(scope.businessType())) {
@@ -1252,13 +1263,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 limit Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化limitscope，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private LimitScope limitScope(LimitSaveRequest request) {
         return new LimitScope(
@@ -1270,13 +1282,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 find Limit By Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询limitbyscope，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @return 解析或查询得到的业务值
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private ChannelLimitRuleDO findLimitByScope(LimitSaveRequest request) {
         return limitRuleMapper.selectOne(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
@@ -1289,14 +1302,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Channel Supports Limit Business 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验渠道supportslimitbusiness输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param ruleStatus 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param ruleStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
      */
     private void validateChannelSupportsLimitBusiness(ChannelInfoDO channel, String businessType, Integer ruleStatus) {
         if (BUSINESS_ACQUIRING.equals(businessType) && defaultZero(channel.getSupportAcquiring()) != ENABLED) {
@@ -1311,15 +1325,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Limit Payment Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验limitpaymentscope输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
-     * @param cardBrand 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param paymentMethod payment Method 输入值，参与 paymentmethod 的查询、校验、转换、写入或日志摘要
+     * @param cardBrand 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
      */
     private void validateLimitPaymentScope(Long channelId, String businessType, String paymentMethod, String cardBrand) {
         if (ALL.equals(paymentMethod)) {
@@ -1358,14 +1373,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 fill Channel 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造渠道对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
      */
     private void fillChannel(ChannelInfoDO entity, ChannelInfoSaveRequest request, LocalDateTime now) {
         entity.setChannelCode(normalizeCode(request.getChannelCode()));
@@ -1385,15 +1401,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 fill Mid 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造渠道 MID对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
      */
     private void fillMid(ChannelMidConfigDO entity, ChannelMidConfigSaveRequest request, ChannelInfoDO channel, LocalDateTime now) {
         String operatorName = currentOperatorName();
@@ -1427,15 +1444,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
 /**
- * 执行 fill Mid Binding 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 构造渠道 MID 绑定对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
  * </p>
- * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
- * @param mid mid 输入值，含义由调用方法名称和所属业务对象限定
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+ * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param mid MID 输入值，参与 渠道 MID 的查询、校验、转换、写入或日志摘要
+ * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
  */
     private void fillMidBinding(MerchantChannelMidBindingDO entity, MerchantChannelMidBindingSaveRequest request,
                                 ChannelMidConfigDO mid, LocalDateTime now) {
@@ -1457,15 +1475,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
 /**
- * 执行 fill Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 构造渠道能力对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
  * </p>
- * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
- * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+ * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+ * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
  */
     private void fillCapability(ChannelPaymentCapabilityDO entity, CapabilitySaveRequest request,
                                 ChannelInfoDO channel, LocalDateTime now) {
@@ -1483,15 +1502,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 fill Limit 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造限额对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+     * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
      */
     private void fillLimit(ChannelLimitRuleDO entity, LimitSaveRequest request, ChannelInfoDO channel, LocalDateTime now) {
         String operatorName = currentOperatorName();
@@ -1513,13 +1533,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 to Channel Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造渠道响应对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private ChannelInfoResponse toChannelResponse(ChannelInfoDO entity) {
         ChannelInfoResponse response = new ChannelInfoResponse();
@@ -1547,14 +1568,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 to Mid Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造mid响应对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private ChannelMidConfigResponse toMidResponse(ChannelMidConfigDO entity, ChannelInfoDO channel) {
         ChannelMidConfigResponse response = new ChannelMidConfigResponse();
@@ -1588,15 +1610,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
 /**
- * 执行 to Mid Binding Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 构造midbinding响应对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
  * </p>
- * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
- * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
- * @param mid mid 输入值，含义由调用方法名称和所属业务对象限定
- * @return 转换或构建后的目标对象
+ * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+ * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+ * @param mid MID 输入值，参与 渠道 MID 的查询、校验、转换、写入或日志摘要
+ * @return 构造、转换或解析后的业务值
  */
     private MerchantChannelMidBindingResponse toMidBindingResponse(MerchantChannelMidBindingDO entity,
                                                                    ChannelInfoDO channel,
@@ -1620,14 +1643,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 to Capability Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造capability响应对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private CapabilityResponse toCapabilityResponse(ChannelPaymentCapabilityDO entity, ChannelInfoDO channel) {
         CapabilityResponse response = new CapabilityResponse();
@@ -1652,14 +1676,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 to Limit Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造limit响应对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param entity entity 输入值，含义由调用方法名称和所属业务对象限定
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param entity entity 输入值，参与 entity 的查询、校验、转换、写入或日志摘要
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private LimitResponse toLimitResponse(ChannelLimitRuleDO entity, ChannelInfoDO channel) {
         LimitResponse response = new LimitResponse();
@@ -1683,13 +1708,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 build Capability Query 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造capabilityquery对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
      */
     private LambdaQueryWrapper<ChannelPaymentCapabilityDO> buildCapabilityQuery(CapabilityQuery query) {
         LambdaQueryWrapper<ChannelPaymentCapabilityDO> wrapper = Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -1717,13 +1743,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 build Limit Query 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造limitquery对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
      */
     private LambdaQueryWrapper<ChannelLimitRuleDO> buildLimitQuery(LimitQuery query) {
         return Wrappers.<ChannelLimitRuleDO>lambdaQuery()
@@ -1738,13 +1765,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 build Mid Query 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造midquery对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
      */
     private LambdaQueryWrapper<ChannelMidConfigDO> buildMidQuery(ChannelMidConfigQuery query) {
         return Wrappers.<ChannelMidConfigDO>lambdaQuery()
@@ -1758,13 +1786,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 build Mid Binding Query 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造midbindingquery对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
      */
     private LambdaQueryWrapper<MerchantChannelMidBindingDO> buildMidBindingQuery(MerchantChannelMidBindingQuery query) {
         return Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
@@ -1778,13 +1807,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 capability Ids By Currency Or Brand 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理capabilityID按币种or品牌，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的 ISO 4217 币种代码
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private List<Long> capabilityIdsByCurrencyOrBrand(CapabilityQuery query) {
         boolean filterCurrency = StringUtils.hasText(query.getCurrencyCode());
@@ -1814,13 +1844,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 replace Capability Currencies 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 更新capabilitycurrencies，保持业务状态、配置项或展示字段与请求意图一致。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param capability capability 输入值，含义由调用方法名称和所属业务对象限定
-     * @param currencies currencies 输入值，含义由调用方法名称和所属业务对象限定
+     * @param capability capability 输入值，参与 渠道能力 的查询、校验、转换、写入或日志摘要
+     * @param currencies currencies 输入值，参与 currencies 的查询、校验、转换、写入或日志摘要
      */
     private void replaceCapabilityCurrencies(ChannelPaymentCapabilityDO capability, List<String> currencies) {
         capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
@@ -1846,13 +1877,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 replace Capability Card Brands 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 更新capabilitycardbrands，保持业务状态、配置项或展示字段与请求意图一致。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param capability capability 输入值，含义由调用方法名称和所属业务对象限定
-     * @param cardBrands 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
+     * @param capability capability 输入值，参与 渠道能力 的查询、校验、转换、写入或日志摘要
+     * @param cardBrands 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
      */
     private void replaceCapabilityCardBrands(ChannelPaymentCapabilityDO capability, List<String> cardBrands) {
         capabilityCardBrandMapper.selectList(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
@@ -1880,12 +1912,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 soft Delete Capability Children 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 更新softdeletecapabilitychildren，保持业务状态、配置项或展示字段与请求意图一致。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
+     * @param capabilityId capability ID 输入值，参与 capabilityID 的查询、校验、转换、写入或日志摘要
      */
     private void softDeleteCapabilityChildren(Long capabilityId) {
         capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
@@ -1907,13 +1940,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 replace Metadata Schemas 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 更新metadataschemas，保持业务状态、配置项或展示字段与请求意图一致。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @param schemas schemas 输入值，含义由调用方法名称和所属业务对象限定
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @param schemas schemas 输入值，参与 schemas 的查询、校验、转换、写入或日志摘要
      */
     private void replaceMetadataSchemas(ChannelInfoDO channel, List<ChannelMetadataSchemaItem> schemas) {
         LocalDateTime now = LocalDateTime.now();
@@ -1956,13 +1990,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 list Metadata Schemas 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询metadataschemas，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<ChannelMetadataSchemaItem> listMetadataSchemas(Long channelId) {
         return metadataSchemaMapper.selectList(Wrappers.<ChannelMetadataSchemaDO>lambdaQuery()
@@ -1976,13 +2011,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 to Metadata Schema Item 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造metadataschemaitem对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param row row 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
      */
     private ChannelMetadataSchemaItem toMetadataSchemaItem(ChannelMetadataSchemaDO row) {
         ChannelMetadataSchemaItem item = new ChannelMetadataSchemaItem();
@@ -2001,13 +2037,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 list Capability Currencies 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询capabilitycurrencies，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param capabilityId capability ID 输入值，参与 capabilityID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<String> listCapabilityCurrencies(Long capabilityId) {
         return capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
@@ -2018,13 +2055,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 list Capability Card Brands 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询capabilitycardbrands，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param capabilityId capability Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param capabilityId capability ID 输入值，参与 capabilityID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<String> listCapabilityCardBrands(Long capabilityId) {
         return capabilityCardBrandMapper.selectList(Wrappers.<ChannelCapabilityCardBrandDO>lambdaQuery()
@@ -2036,13 +2074,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 capability Methods 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化capabilitymethods，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Map<String, List<String>> capabilityMethods(Long channelId) {
         return capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -2059,13 +2098,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 channel Map 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理渠道map，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param channelIds channel Ids 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param channelIds channel Ids 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Map<Long, ChannelInfoDO> channelMap(List<Long> channelIds) {
         if (channelIds == null || channelIds.isEmpty()) {
@@ -2076,13 +2116,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 mid Map 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化midmap，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param midIds mid Ids 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param midIds MID Ids 输入值，参与 midID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Map<Long, ChannelMidConfigDO> midMap(List<Long> midIds) {
         if (midIds == null || midIds.isEmpty()) {
@@ -2093,13 +2134,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 find Channel 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询渠道，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private ChannelInfoDO findChannel(Long id) {
         ChannelInfoDO entity = channelInfoMapper.selectOne(Wrappers.<ChannelInfoDO>lambdaQuery()
@@ -2112,13 +2154,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 find Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询渠道能力，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private ChannelPaymentCapabilityDO findCapability(Long id) {
         ChannelPaymentCapabilityDO entity = capabilityMapper.selectOne(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -2131,13 +2174,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 find Limit 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询限额，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private ChannelLimitRuleDO findLimit(Long id) {
         ChannelLimitRuleDO entity = limitRuleMapper.selectOne(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
@@ -2150,13 +2194,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 find Mid 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询渠道 MID，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private ChannelMidConfigDO findMid(Long id) {
         ChannelMidConfigDO entity = midConfigMapper.selectOne(Wrappers.<ChannelMidConfigDO>lambdaQuery()
@@ -2169,13 +2214,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 find Mid Binding 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询渠道 MID 绑定，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param id id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private MerchantChannelMidBindingDO findMidBinding(Long id) {
         MerchantChannelMidBindingDO entity = midBindingMapper.selectOne(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
@@ -2188,13 +2234,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 has Active Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 has active capability 条件是否成立，用于控制 Admin Channel Service Impl 的后续分支。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean hasActiveCapability(Long channelId) {
         return capabilityMapper.selectCount(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -2204,15 +2251,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 has Enabled Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 has enabled capability 条件是否成立，用于控制 Admin Channel Service Impl 的后续分支。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param paymentMethod payment Method 输入值，参与 paymentmethod 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean hasEnabledCapability(Long channelId, String businessType, String paymentMethod) {
         return capabilityMapper.selectCount(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -2224,15 +2272,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 find Enabled Capability 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询enabledcapability，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param paymentMethod payment Method 输入值，参与 paymentmethod 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private ChannelPaymentCapabilityDO findEnabledCapability(Long channelId, String businessType, String paymentMethod) {
         return capabilityMapper.selectOne(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -2244,13 +2293,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 has Active Limit 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 has active limit 条件是否成立，用于控制 Admin Channel Service Impl 的后续分支。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean hasActiveLimit(Long channelId) {
         return limitRuleMapper.selectCount(Wrappers.<ChannelLimitRuleDO>lambdaQuery()
@@ -2260,13 +2310,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 has Active Mid Binding 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 has active mid binding 条件是否成立，用于控制 Admin Channel Service Impl 的后续分支。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param midConfigId mid Config Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param midConfigId MID Config ID 输入值，参与 mid配置ID 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean hasActiveMidBinding(Long midConfigId) {
         return midBindingMapper.selectCount(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
@@ -2276,12 +2327,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 refresh Binding Channel Mid 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理refreshbinding渠道mid，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param mid mid 输入值，含义由调用方法名称和所属业务对象限定
+     * @param mid MID 输入值，参与 渠道 MID 的查询、校验、转换、写入或日志摘要
      */
     private void refreshBindingChannelMid(ChannelMidConfigDO mid) {
         List<MerchantChannelMidBindingDO> bindings = midBindingMapper.selectList(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
@@ -2299,13 +2351,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Channel Supports Business 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验渠道supportsbusiness输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
      */
     private void validateChannelSupportsBusiness(ChannelInfoDO channel, String businessType) {
         if (BUSINESS_ACQUIRING.equals(businessType) && defaultZero(channel.getSupportAcquiring()) != ENABLED) {
@@ -2320,14 +2373,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 channel Supports3ds 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理渠道supports3ds，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private boolean channelSupports3ds(ChannelInfoDO channel, String businessType) {
         return BUSINESS_ACQUIRING.equals(businessType)
@@ -2336,13 +2390,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Payment Method 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验paymentmethod输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentMethod payment Method 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param paymentMethod payment Method 输入值，参与 paymentmethod 的查询、校验、转换、写入或日志摘要
      */
     private void validatePaymentMethod(String businessType, String paymentMethod) {
         if (BUSINESS_ACQUIRING.equals(businessType)) {
@@ -2353,14 +2408,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 list Enabled Capabilities 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询enabledcapabilities，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<ChannelPaymentCapabilityDO> listEnabledCapabilities(Long channelId, String businessType) {
         return capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
@@ -2373,15 +2429,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 resolve Mid Transaction Type Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolvemid交易typescope，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentMethodScope payment Method Scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param paymentMethodScope payment Method Scope 输入值，参与 paymentmethodscope 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveMidTransactionTypeScope(Long channelId, String businessType, String paymentMethodScope) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
@@ -2399,16 +2456,17 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 resolve Mid Card Brand Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolvemidcard品牌scope，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentMethodScope payment Method Scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @param cardBrandScope 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
-     * @return 解析或查询得到的业务值
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param paymentMethodScope payment Method Scope 输入值，参与 paymentmethodscope 的查询、校验、转换、写入或日志摘要
+     * @param cardBrandScope 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveMidCardBrandScope(Long channelId, String businessType, String paymentMethodScope, String cardBrandScope) {
         boolean includesBankCard = ALL.equals(paymentMethodScope)
@@ -2439,15 +2497,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 filter Mid Capabilities 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理筛选midcapabilities，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentMethodScope payment Method Scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param paymentMethodScope payment Method Scope 输入值，参与 paymentmethodscope 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private List<ChannelPaymentCapabilityDO> filterMidCapabilities(Long channelId, String businessType, String paymentMethodScope) {
         List<ChannelPaymentCapabilityDO> capabilities = listEnabledCapabilities(channelId, businessType);
@@ -2472,14 +2531,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 assert Dict Value 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验断言dictvalue输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param dictType dict Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param value 待校验或转换的原始值
-     * @param required required 输入值，含义由调用方法名称和所属业务对象限定
+     * @param dictType dict Type 输入值，参与 dicttype 的查询、校验、转换、写入或日志摘要
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param required required 输入值，参与 required 的查询、校验、转换、写入或日志摘要
      */
     private void assertDictValue(String dictType, String value, boolean required) {
         if (!StringUtils.hasText(value)) {
@@ -2502,12 +2562,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Business Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验businesstype输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
      */
     private void validateBusinessType(String businessType) {
         if (!BUSINESS_ACQUIRING.equals(businessType) && !BUSINESS_PAYOUT.equals(businessType)) {
@@ -2516,12 +2577,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验状态输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
      */
     private void validateStatus(Integer status) {
         if (status == null || (status != ENABLED && status != DISABLED)) {
@@ -2530,13 +2592,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Timeout Seconds 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验timeoutseconds输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param seconds seconds 输入值，含义由调用方法名称和所属业务对象限定
-     * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
+     * @param seconds seconds 输入值，参与 seconds 的查询、校验、转换、写入或日志摘要
+     * @param fieldName field Name 输入值，参与 fieldname 的查询、校验、转换、写入或日志摘要
      */
     private void validateTimeoutSeconds(Integer seconds, String fieldName) {
         if (seconds != null && (seconds <= 0 || seconds > 300)) {
@@ -2545,28 +2608,30 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 default Timeout 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理默认timeout，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param seconds seconds 输入值，含义由调用方法名称和所属业务对象限定
-     * @param defaultValue default Value 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param seconds seconds 输入值，参与 seconds 的查询、校验、转换、写入或日志摘要
+     * @param defaultValue default Value 输入值，参与 默认value 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private int defaultTimeout(Integer seconds, int defaultValue) {
         return seconds == null ? defaultValue : seconds;
     }
 
     /**
-     * 执行 normalize Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalizescope，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @param fieldName field Name 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param fieldName field Name 输入值，参与 fieldname 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeScope(String value, String fieldName) {
         if (!StringUtils.hasText(value)) {
@@ -2579,26 +2644,28 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 validate Payment Method Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验paymentmethodscope输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param channelId channel Id 输入值，含义由调用方法名称和所属业务对象限定
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
+     * @param channelId channel ID 输入值，参与 渠道ID 的查询、校验、转换、写入或日志摘要
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param scope scope 输入值，参与 scope 的查询、校验、转换、写入或日志摘要
      */
     private void validatePaymentMethodScope(Long channelId, String businessType, String scope) {
         filterMidCapabilities(channelId, businessType, scope);
     }
 
     /**
-     * 执行 validate Currency Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验币种scope输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
+     * @param scope scope 输入值，参与 scope 的查询、校验、转换、写入或日志摘要
      */
     private void validateCurrencyScope(String scope) {
         if (ALL.equals(scope)) {
@@ -2610,13 +2677,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 normalize Settlement Cycle 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalizesettlementcycle，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 标准化后的业务字段值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeSettlementCycle(String value) {
         if (!StringUtils.hasText(value)) {
@@ -2630,13 +2698,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 split Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化splitscope，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param scope scope 输入值，参与 scope 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private List<String> splitScope(String scope) {
         if (!StringUtils.hasText(scope) || ALL.equals(scope)) {
@@ -2681,14 +2750,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 first Text Metadata Value 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理首个文本metadatavalue，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
-     * @param keys keys 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param metadataValueJson metadata Value Json 输入值，参与 metadatavaluejson 的查询、校验、转换、写入或日志摘要
+     * @param keys 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String firstTextMetadataValue(String metadataValueJson, String... keys) {
         Map<String, Object> values = parseMetadataMap(metadataValueJson);
@@ -2753,40 +2823,43 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 should Mask Metadata 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理should脱敏metadata，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param schema schema 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param schema schema 输入值，参与 schema 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private boolean shouldMaskMetadata(ChannelMetadataSchemaItem schema) {
         return defaultZero(schema.getSensitiveFlag()) == ENABLED || isSensitiveMetadataType(schema.getFieldType());
     }
 
     /**
-     * 执行 is Sensitive Metadata Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 is sensitive metadata type 条件是否成立，用于控制 Admin Channel Service Impl 的后续分支。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param fieldType field Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param fieldType field Type 输入值，参与 fieldtype 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isSensitiveMetadataType(String fieldType) {
         return Set.of("PASSWORD", "PRIVATE_KEY").contains(normalizeCode(fieldType));
     }
 
     /**
-     * 执行 normalize Transaction Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize交易type，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 标准化后的业务字段值
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeTransactionType(String businessType, String transactionType) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
@@ -2796,15 +2869,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 normalize Transaction Types 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize交易types，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param transactionTypes 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 标准化后的业务字段值
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param transactionTypes transaction Types 输入值，参与 交易types 的查询、校验、转换、写入或日志摘要
+     * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private List<String> normalizeTransactionTypes(String businessType, List<String> transactionTypes, String transactionType) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
@@ -2821,27 +2895,29 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 join Transaction Types 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理拼接交易types，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param transactionTypes 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param transactionTypes transaction Types 输入值，参与 交易types 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String joinTransactionTypes(List<String> transactionTypes) {
         return String.join(TRANSACTION_TYPE_SEPARATOR, transactionTypes);
     }
 
     /**
-     * 执行 split Transaction Types 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理split交易types，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param businessType business Type 输入值，含义由调用方法名称和所属业务对象限定
-     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param businessType business Type 输入值，参与 businesstype 的查询、校验、转换、写入或日志摘要
+     * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private List<String> splitTransactionTypes(String businessType, String transactionType) {
         if (BUSINESS_PAYOUT.equals(businessType)) {
@@ -2854,39 +2930,42 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 default Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理默认scope，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String defaultScope(String value) {
         return StringUtils.hasText(value) ? normalizeCode(value) : ALL;
     }
 
     /**
-     * 执行 normalize Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize编码，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 标准化后的业务字段值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeCode(String value) {
         return trim(value).toUpperCase();
     }
 
     /**
-     * 执行 normalize Codes 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalizecodes，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
+     * @param values values 输入值，参与 值 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private List<String> normalizeCodes(List<String> values) {
         if (values == null) {
@@ -2901,65 +2980,70 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 default Zero 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理默认zero，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private int defaultZero(Integer value) {
         return value == null ? 0 : value;
     }
 
     /**
-     * 执行 default One 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理默认one，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private int defaultOne(Integer value) {
         return value == null ? 1 : value;
     }
 
     /**
-     * 执行 trim 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化trim，返回调用链后续步骤可直接使用的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String trim(String value) {
         return value == null ? "" : value.trim();
     }
 
     /**
-     * 执行 trim To Null 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化trimtonull，返回调用链后续步骤可直接使用的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     /**
-     * 执行 channel Name 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理渠道name，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param channel channel 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param channel channel 输入值，参与 渠道 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String channelName(ChannelInfoDO channel) {
         if (channel == null) {
@@ -2969,12 +3053,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 current Operator Name 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理当前操作人名称，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
@@ -2994,13 +3079,14 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     }
 
     /**
-     * 执行 bad Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理bad请求，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminChannelServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);

@@ -9,7 +9,7 @@ import java.util.Objects;
  * @classname : ShardingQuarter
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : ShardingQuarter 不可变数据载体，用于在模块内部传递结构化参数或结果，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sharding Quarter 不可变数据结构，位于 公共组件库，用于在当前调用链中传递固定字段集合，不承担状态写入职责。
  * @status : create
  */
 public record ShardingQuarter(int year, int quarter) implements Comparable<ShardingQuarter> {

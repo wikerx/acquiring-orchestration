@@ -53,12 +53,13 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
     }
 
     /**
-     * 完成 fast Json Config 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 整理fastjson配置，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 FastJsonWebMvcConfig 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private FastJsonConfig fastJsonConfig() {
         FastJsonConfig config = new FastJsonConfig();

@@ -20,7 +20,7 @@ import static org.mockito.Mockito.mock;
  * @classname : TraceIdRestTemplateInterceptorTest
  * @date : 未确认
  * @email : scott_x@163.com
- * @description : TraceIdRestTemplateInterceptorTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Trace ID Rest Template Interceptor Test 拦截组件，位于 公共组件库，处理请求链路中的 traceId、鉴权、来源信息、上下文绑定或安全校验。
  * @status : create
  */
 class TraceIdRestTemplateInterceptorTest {

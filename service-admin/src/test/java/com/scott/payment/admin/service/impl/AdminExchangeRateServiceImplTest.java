@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : AdminExchangeRateServiceImplTest
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : AdminExchangeRateServiceImplTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Admin Exchange Rate Service Impl Test 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
 class AdminExchangeRateServiceImplTest {

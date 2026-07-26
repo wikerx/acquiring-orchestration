@@ -43,66 +43,72 @@ import java.util.Locale;
  * @classname : AdminExchangeRateApplicationService
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : AdminExchangeRateApplicationService 应用服务，用于编排接口请求、权限上下文、领域服务和外部依赖，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Admin Exchange Rate Application Service 应用服务，位于 运营后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
 public class AdminExchangeRateApplicationService {
 
     /**
-     * EXPORT TIME FORMATTER 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * EXPORT TIME FORMATTER，用于保存 Admin Exchange Rate Application Service 中与 exporttimeformatter 相关的业务属性。
      * <p>
-     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
-     * admin Exchange Rate Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * admin Exchange Rate Service 依赖，用于 Admin Exchange Rate Application Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final AdminExchangeRateService adminExchangeRateService;
 
     /**
-     * excel Export Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * excel Export Service 依赖，用于 Admin Exchange Rate Application Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final ExcelExportService excelExportService;
 
     /**
-     * excel I18n Message Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * excel I 18 n Message Resolver，用于保存 Admin Exchange Rate Application Service 中与 exceli18nmessageresolver 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
 
     /**
-     * excel Locale Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * excel Locale Resolver，用于保存 Admin Exchange Rate Application Service 中与 excellocaleresolver 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
 /**
- * 创建 AdminExchangeRateApplicationService 实例并注入其运行所需依赖。
+ * 整理adminexchange汇率applicationservice，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param adminExchangeRateService admin Exchange Rate Service 输入值，含义由调用方法名称和所属业务对象限定
- * @param excelExportService excel Export Service 输入值，含义由调用方法名称和所属业务对象限定
- * @param excelI18nMessageResolver 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @param excelLocaleResolver excel Locale Resolver 输入值，含义由调用方法名称和所属业务对象限定
+ * @param adminExchangeRateService admin Exchange Rate Service 输入值，参与 adminexchange汇率service 的查询、校验、转换、写入或日志摘要
+ * @param excelExportService excel Export Service 输入值，参与 excelexportservice 的查询、校验、转换、写入或日志摘要
+ * @param excelI18nMessageResolver excel I 18 n Message Resolver 输入值，参与 exceli18n说明resolver 的查询、校验、转换、写入或日志摘要
+ * @param excelLocaleResolver excel Locale Resolver 输入值，参与 excellocaleresolver 的查询、校验、转换、写入或日志摘要
  */
     public AdminExchangeRateApplicationService(AdminExchangeRateService adminExchangeRateService,
                                                ExcelExportService excelExportService,
@@ -444,14 +450,15 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 编排 to Source Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造来源exportrow对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private ExchangeRateSourceExportRow toSourceExportRow(SourceResponse source, Locale locale) {
         ExchangeRateSourceExportRow row = new ExchangeRateSourceExportRow();
@@ -472,14 +479,15 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 编排 to Raw Rate Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造raw汇率exportrow对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private ExchangeRawRateExportRow toRawRateExportRow(RawRateResponse source, Locale locale) {
         ExchangeRawRateExportRow row = new ExchangeRawRateExportRow();
@@ -503,14 +511,15 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 编排 to Rule Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造规则exportrow对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private ExchangeRateRuleExportRow toRuleExportRow(RuleResponse source, Locale locale) {
         ExchangeRateRuleExportRow row = new ExchangeRateRuleExportRow();
@@ -534,14 +543,15 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 编排 to Business Rate Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造business汇率exportrow对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private ExchangeBusinessRateExportRow toBusinessRateExportRow(BusinessRateResponse source, Locale locale) {
         ExchangeBusinessRateExportRow row = new ExchangeBusinessRateExportRow();
@@ -564,14 +574,15 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 编排 to Usage Snapshot Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造usagesnapshotexportrow对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private ExchangeRateUsageSnapshotExportRow toUsageSnapshotExportRow(UsageSnapshotResponse source, Locale locale) {
         ExchangeRateUsageSnapshotExportRow row = new ExchangeRateUsageSnapshotExportRow();
@@ -592,15 +603,16 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 编排 resolve Enum 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 解析resolveenum，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param group group 输入值，含义由调用方法名称和所属业务对象限定
-     * @param value 待校验或转换的原始值
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param group group 输入值，参与 group 的查询、校验、转换、写入或日志摘要
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveEnum(String group, String value, Locale locale) {
         if (!StringUtils.hasText(value)) {
@@ -610,53 +622,57 @@ public class AdminExchangeRateApplicationService {
     }
 
     /**
-     * 编排 resolve Status 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 解析resolve状态，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveStatus(Integer status, Locale locale) {
         return excelI18nMessageResolver.resolve(status != null && status == 1 ? "excel.common.enabled" : "excel.common.disabled", locale);
     }
 
     /**
-     * 编排 resolve Boolean 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 解析resolveboolean，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveBoolean(Integer value, Locale locale) {
         return excelI18nMessageResolver.resolve(value != null && value == 1 ? "excel.common.yes" : "excel.common.no", locale);
     }
 
     /**
-     * 编排 query Summary 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 查询汇总数据，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private String querySummary(Locale locale) {
         return excelI18nMessageResolver.resolve("excel.common.noCondition", locale);
     }
 
     /**
-     * 编排 timestamp Suffix 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 规范化timestampsuffix，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminExchangeRateApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String timestampSuffix() {
         return EXPORT_TIME_FORMATTER.format(LocalDateTime.now());

@@ -13,7 +13,7 @@ import org.mapstruct.Mapping;
  * @classname : UserExportConverter
  * @date : 2026-06-20 01:15
  * @email : scott_x@163.com
- * @description : UserExportConverter 转换组件，用于在实体、DTO、VO 和外部协议对象之间转换字段，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : User Export Converter 转换组件，位于 运营后台服务，在接口模型、领域对象、数据库记录或消息载荷之间复制并规范化字段。
  * @status : create
  */
 public interface UserExportConverter {

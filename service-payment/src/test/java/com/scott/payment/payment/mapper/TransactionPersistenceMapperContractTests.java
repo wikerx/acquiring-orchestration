@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @classname : TransactionPersistenceMapperContractTests
  * @date : 2026-07-23 13:26
  * @email : scott_x@163.com
- * @description : TransactionPersistenceMapperContractTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Transaction Persistence Mapper Contract Tests 映射组件，位于 支付核心服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  * @status : create
  */
 class TransactionPersistenceMapperContractTests {

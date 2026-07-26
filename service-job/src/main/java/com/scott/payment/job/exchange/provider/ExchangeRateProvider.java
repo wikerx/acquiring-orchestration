@@ -12,7 +12,7 @@ import java.util.List;
  * @classname : ExchangeRateProvider
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : ExchangeRateProvider Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Exchange Rate Provider 协作组件，位于 调度任务服务，封装 exchange汇率provider 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public interface ExchangeRateProvider {

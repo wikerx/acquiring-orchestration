@@ -1,5 +1,6 @@
 package com.scott.payment.risk.service.impl;
 
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
@@ -67,14 +68,18 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     @Override
     public RiskPaymentEvaluateResultDTO evaluatePayment(RiskPaymentEvaluateRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
-        log.info("event: RISK_EVALUATION_START stage=ACCEPT merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} amount: {} currency: {} ruleCount: {}",
+        log.info("event: RISK_EVALUATION_START stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} amount: {} currency: {} ruleCount: {} payerIp: {} sourceUrl: {}",
+                TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
+                requestDTO == null ? null : requestDTO.getTransactionId(),
                 requestDTO == null ? null : requestDTO.getTransactionType(),
                 requestDTO == null ? null : requestDTO.getPaymentMethod(),
                 requestDTO == null ? null : requestDTO.getAmount(),
                 requestDTO == null ? null : requestDTO.getCurrency(),
-                BUILT_IN_RULE_COUNT);
+                BUILT_IN_RULE_COUNT,
+                requestDTO == null ? null : requestDTO.getPayerIp(),
+                maskUrl(requestDTO == null ? null : requestDTO.getSourceUrl()));
         RiskPaymentEvaluateResultDTO resultDTO;
         String hitRuleId;
         String hitRuleType;
@@ -103,9 +108,11 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             hitRuleId = "NONE";
             hitRuleType = "NO_RULE_HIT";
         }
-        log.info("event: RISK_EVALUATION_END stage=DECISION merchantId: {} merchantOrderNo: {} transactionType: {} amount: {} currency: {} ruleCount: {} hitRuleId: {} hitRuleType: {} decision: {} rejectReasonCode: {} durationMs: {}",
+        log.info("event: RISK_EVALUATION_END stage=DECISION traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} amount: {} currency: {} ruleCount: {} hitRuleId: {} hitRuleType: {} decision: {} rejectReasonCode: {} durationMs: {}",
+                TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
+                requestDTO == null ? null : requestDTO.getTransactionId(),
                 requestDTO == null ? null : requestDTO.getTransactionType(),
                 requestDTO == null ? null : requestDTO.getAmount(),
                 requestDTO == null ? null : requestDTO.getCurrency(),
@@ -122,6 +129,33 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
+    /**
+     * 脱敏来源 URL 查询参数。
+     *
+     * @param sourceUrl 风控输入的来源 URL
+     * @return 可写入日志的 URL 摘要
+     */
+    private String maskUrl(String sourceUrl) {
+        if (!StringUtils.hasText(sourceUrl)) {
+            return null;
+        }
+        int queryIndex = sourceUrl.indexOf('?');
+        if (queryIndex < 0) {
+            return sourceUrl;
+        }
+        return sourceUrl.substring(0, queryIndex) + "?...";
+    }
+
+    /**
+     * 判断支付风控评估请求是否缺少最小必填字段。
+     * <p>
+     * 前置条件：OpenAPI 或 payment 服务已经完成基础 DTO 反序列化。
+     * 该方法只检查风控决策必需的商户号、商户订单号、币种和正金额；不读取完整卡号、邮箱、手机号等敏感字段，
+     * 返回 true 时上层直接给出拒绝结论并记录原因码。
+     * </p>
+     * @param requestDTO 支付风控评估请求
+     * @return true 表示请求缺少必填字段或金额不合法
+     */
     private boolean isInvalid(RiskPaymentEvaluateRequestDTO requestDTO) {
         return requestDTO == null
                 || !StringUtils.hasText(requestDTO.getMerchantId())
@@ -131,32 +165,43 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 || requestDTO.getAmount().compareTo(BigDecimal.ZERO) <= 0;
     }
 
+    /**
+     * 判断商户来源页面是否命中阻断关键字。
+     * <p>
+     * 前置条件：sourceUrl 已按日志规则去除 query 值后再打印。
+     * 该方法仅基于受控关键字判断风险来源，不访问外部 IP 库或页面内容；命中后返回拒绝结论。
+     * </p>
+     * @param sourceUrl 商户请求来源页面 URL
+     * @return true 表示来源页面命中阻断关键字
+     */
     private boolean isBlockedSource(String sourceUrl) {
         return StringUtils.hasText(sourceUrl)
                 && sourceUrl.toLowerCase(Locale.ROOT).contains(BLOCKED_SOURCE_KEYWORD);
     }
 
     /**
-     * 执行 is Blocked Payer Ip 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 is blocked payer ip 条件是否成立，用于控制 Default Risk Evaluation Service 的后续分支。
      * <p>
-     * 层级边界：风控服务层；输入来源、输出结构和异常语义由 DefaultRiskEvaluationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 风控服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param payerIp payer Ip 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param payerIp payer IP 输入值，参与 payerip 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isBlockedPayerIp(String payerIp) {
         return StringUtils.hasText(payerIp) && BLOCKED_PAYER_IPS.contains(payerIp.trim());
     }
 
     /**
-     * 执行 has Three Ds Proof 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 has three ds proof 条件是否成立，用于控制 Default Risk Evaluation Service 的后续分支。
      * <p>
-     * 层级边界：风控服务层；输入来源、输出结构和异常语义由 DefaultRiskEvaluationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 风控服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param requestDTO 内部客户端请求 DTO，携带跨服务调用所需的交易、金额和商户维度字段
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param requestDTO request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean hasThreeDsProof(RiskPaymentEvaluateRequestDTO requestDTO) {
         return StringUtils.hasText(requestDTO.getThreeDsEci())
@@ -165,14 +210,15 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
-     * 执行 build Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造结果对象对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：风控服务层；输入来源、输出结构和异常语义由 DefaultRiskEvaluationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 风控服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param decisionEnum decision Enum 输入值，含义由调用方法名称和所属业务对象限定
-     * @param reasonCodeEnum reason Code Enum 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param decisionEnum decision Enum 输入值，参与 结论enum 的查询、校验、转换、写入或日志摘要
+     * @param reasonCodeEnum reason Code Enum 输入值，参与 reason编码enum 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private RiskPaymentEvaluateResultDTO buildResult(RiskDecisionEnum decisionEnum, RiskReasonCodeEnum reasonCodeEnum) {
         RiskPaymentEvaluateResultDTO resultDTO = new RiskPaymentEvaluateResultDTO();

@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.entity.ChannelCapabilityCurrencyDO;
 import com.scott.payment.payment.entity.ChannelInfoDO;
@@ -45,37 +46,41 @@ import java.util.Set;
 public class DefaultPaymentChannelRouteService implements PaymentChannelRouteService {
 
     /**
-     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * NOT DELETED，用于保存 Default Payment Channel Route Service 中与 notdeleted 相关的业务属性。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final long NOT_DELETED = 0L;
 
     /**
-     * ENABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * ENABLED，表示当前配置项或业务能力的启停开关。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int ENABLED = 1;
 
     /**
-     * BUSINESS ACQUIRING 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * BUSINESS ACQUIRING，用于保存 Default Payment Channel Route Service 中与 businessacquiring 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String BUSINESS_ACQUIRING = "ACQUIRING";
 
     /**
-     * ALL 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * ALL，用于保存 Default Payment Channel Route Service 中与 all 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String ALL = "ALL";
@@ -83,55 +88,61 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     private static final String SCOPE_SEPARATOR = ",";
 
     /**
-     * DEFAULT PAYMENT METHOD 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * DEFAULT PAYMENT METHOD，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
 
     /**
-     * mid Binding Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * MID Binding Mapper，用于定位渠道商户号配置或渠道侧 MID。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentMerchantChannelMidBindingMapper midBindingMapper;
 
     /**
-     * mid Config Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * MID Config Mapper，用于定位渠道商户号配置或渠道侧 MID。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentChannelMidConfigMapper midConfigMapper;
 
     /**
-     * channel Info Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * channel Info Mapper 依赖，用于 Default Payment Channel Route Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentChannelInfoMapper channelInfoMapper;
 
     /**
-     * capability Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * capability Mapper 依赖，用于 Default Payment Channel Route Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentChannelPaymentCapabilityMapper capabilityMapper;
 
     /**
-     * capability Currency Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * capability Currency Mapper，表示金额字段使用的币种。
      * <p>
-     * 单位：无；格式：ISO 4217 三位币种代码；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自平台支持币种；数据来源：Spring 容器构造器注入。
+     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
      * </p>
      */
     private final PaymentChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
@@ -166,12 +177,15 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     @Override
     public PaymentRouteResultDTO route(PaymentCreateCommandDTO commandDTO) {
         long startNanos = System.nanoTime();
-        log.info("event: PAYMENT_ROUTE_START merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} payerCountry: {}",
+        log.info("event: PAYMENT_ROUTE_START stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} payerCountry: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
+                commandDTO.getTransactionId(),
                 commandDTO.getTransactionType(),
                 resolvePaymentMethod(commandDTO),
                 commandDTO.getCurrency(),
+                commandDTO.getAmount(),
                 commandDTO.getBillingCardHolderInfo() == null ? null : commandDTO.getBillingCardHolderInfo().getCountry());
         List<MerchantChannelMidBindingDO> bindings = midBindingMapper.selectList(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
                 .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
@@ -183,34 +197,43 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 .map(binding -> toCandidate(binding, commandDTO, now))
                 .filter(candidate -> candidate != null)
                 .toList();
-        log.info("event: PAYMENT_ROUTE_CANDIDATES stage=ROUTE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} bindingCount: {} candidateCount: {} candidates: {}",
+        log.info("event: PAYMENT_ROUTE_CANDIDATES stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} bindingCount: {} candidateCount: {} candidates: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
+                commandDTO.getTransactionId(),
                 commandDTO.getTransactionType(),
                 resolvePaymentMethod(commandDTO),
                 commandDTO.getCurrency(),
+                commandDTO.getAmount(),
                 bindings.size(),
                 candidates.size(),
                 candidateSummary(candidates));
         if (candidates.isEmpty()) {
-            log.warn("event: PAYMENT_ROUTE_NO_CANDIDATE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} bindingCount: {} candidateCount: {} durationMs: {}",
+            log.warn("event: PAYMENT_ROUTE_NO_CANDIDATE stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} bindingCount: {} candidateCount: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
+                    commandDTO.getTransactionId(),
                     commandDTO.getTransactionType(),
                     resolvePaymentMethod(commandDTO),
                     commandDTO.getCurrency(),
+                    commandDTO.getAmount(),
                     bindings.size(),
                     candidates.size(),
                     elapsedMillis(startNanos));
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户未配置可用渠道MID");
         }
         if (candidates.size() > 1) {
-            log.warn("event: PAYMENT_ROUTE_MULTI_CANDIDATE merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} candidateCount: {} candidates: {} durationMs: {}",
+            log.warn("event: PAYMENT_ROUTE_MULTI_CANDIDATE stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} candidateCount: {} candidates: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
+                    commandDTO.getTransactionId(),
                     commandDTO.getTransactionType(),
                     resolvePaymentMethod(commandDTO),
                     commandDTO.getCurrency(),
+                    commandDTO.getAmount(),
                     candidates.size(),
                     candidateSummary(candidates),
                     elapsedMillis(startNanos));
@@ -231,10 +254,15 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setCapabilityId(candidate.capability().getId());
         resultDTO.setSupportedCurrencies(candidate.supportedCurrencies());
         resultDTO.setRouteReason("MERCHANT_MID_BINDING");
-        log.info("event: PAYMENT_ROUTE_END merchantId: {} merchantOrderNo: {} transactionType: {} channelCode: {} channelId: {} midConfigId: {} midNo: {} capabilityId: {} supportedCurrencies: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routeReason: {} durationMs: {}",
+        log.info("event: PAYMENT_ROUTE_END stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelId: {} midConfigId: {} midNo: {} capabilityId: {} supportedCurrencies: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routeReason: {} durationMs: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
+                commandDTO.getTransactionId(),
                 commandDTO.getTransactionType(),
+                resolvePaymentMethod(commandDTO),
+                commandDTO.getCurrency(),
+                commandDTO.getAmount(),
                 resultDTO.getChannelCode(),
                 resultDTO.getChannelId(),
                 resultDTO.getMidConfigId(),
@@ -293,11 +321,13 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setReadTimeoutSeconds(channelInfo.getReadTimeoutSeconds());
         resultDTO.setMetadataValues(parseMetadata(midConfig.getMetadataValueJson()));
         resultDTO.setRouteReason("RESTORED_FROM_TRANSACTION_OPERATION");
-        log.info("event: PAYMENT_ROUTE_RESTORED channelCode: {} channelId: {} midConfigId: {} resolvedChannelCode: {} routeReason: {} durationMs: {}",
+        log.info("event: PAYMENT_ROUTE_RESTORED stage=ROUTE traceId: {} channelCode: {} channelId: {} midConfigId: {} resolvedChannelCode: {} midNo: {} routeReason: {} durationMs: {}",
+                TraceContext.getTraceId(),
                 channelCode,
                 channelId,
                 midConfigId,
                 resultDTO.getChannelCode(),
+                maskMidNo(resultDTO.getMidNo()),
                 resultDTO.getRouteReason(),
                 elapsedMillis(startNanos));
         return resultDTO;
@@ -440,14 +470,15 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 执行 matches Scope 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化matchesscope，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param scope scope 输入值，参与 scope 的查询、校验、转换、写入或日志摘要
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private boolean matchesScope(String scope, String value) {
         if (!StringUtils.hasText(scope) || ALL.equalsIgnoreCase(scope.trim())) {
@@ -466,28 +497,30 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 执行 matches Transaction Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理matches交易type，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param capabilityTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @param requestedTransactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param capabilityTransactionType capability Transaction Type 输入值，参与 capability交易type 的查询、校验、转换、写入或日志摘要
+     * @param requestedTransactionType requested Transaction Type 输入值，参与 requested交易type 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private boolean matchesTransactionType(String capabilityTransactionType, String requestedTransactionType) {
         return matchesScope(capabilityTransactionType, requestedTransactionType);
     }
 
     /**
-     * 执行 resolve Supported Currencies 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolvesupportedcurrencies，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param capability capability 输入值，含义由调用方法名称和所属业务对象限定
-     * @param midConfig mid Config 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param capability capability 输入值，参与 渠道能力 的查询、校验、转换、写入或日志摘要
+     * @param midConfig MID Config 输入值，参与 mid配置 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private List<String> resolveSupportedCurrencies(ChannelPaymentCapabilityDO capability, ChannelMidConfigDO midConfig) {
         List<String> capabilityCurrencies = capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
@@ -515,13 +548,14 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 执行 parse Scope Values 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析parsescope值，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param scope scope 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析后的内部数据结构或业务值
+     * @param scope scope 输入值，参与 scope 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private Set<String> parseScopeValues(String scope) {
         if (!StringUtils.hasText(scope) || ALL.equalsIgnoreCase(scope.trim())) {
@@ -538,13 +572,14 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 标准化后的业务字段值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
@@ -579,39 +614,42 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     }
 
     /**
-     * 执行 resolve Payment Method 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolvepaymentmethod，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolvePaymentMethod(PaymentCreateCommandDTO commandDTO) {
         return StringUtils.hasText(commandDTO.getPaymentMethod()) ? normalize(commandDTO.getPaymentMethod()) : DEFAULT_PAYMENT_METHOD;
     }
 
     /**
-     * 执行 elapsed Millis 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理耗时毫秒数，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param startNanos start Nanos 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param startNanos start Nanos 输入值，参与 startnanos 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     /**
-     * 执行 parse Metadata 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析parsemetadata，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelRouteService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param metadataValueJson metadata Value Json 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析后的内部数据结构或业务值
+     * @param metadataValueJson metadata Value Json 输入值，参与 metadata值json 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private Map<String, String> parseMetadata(String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {

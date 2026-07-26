@@ -26,7 +26,7 @@ public final class RedisKeySupport {
     public static final long KEY_NOT_EXIST_SECONDS = -2L;
 
     /**
-     * 私有构造方法，禁止实例化工具类。
+     * 私有构造方法，禁止外部实例化该 Redis Key 支撑类型。
      */
     private RedisKeySupport() {
     }

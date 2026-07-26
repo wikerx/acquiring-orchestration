@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  * @classname : MerchantOperLogServiceImpl
  * @date : 2026-06-20 10:46
  * @email : scott_x@163.com
- * @description : MerchantOperLogServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 商户后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Merchant Oper Log Service Impl 服务实现，位于 商户后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
 public class MerchantOperLogServiceImpl implements MerchantOperLogService {

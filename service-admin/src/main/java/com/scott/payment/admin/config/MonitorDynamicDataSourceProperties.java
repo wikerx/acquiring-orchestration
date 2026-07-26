@@ -18,7 +18,7 @@ import java.util.Map;
  * @classname : MonitorDynamicDataSourceProperties
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : MonitorDynamicDataSourceProperties 配置属性模型，用于绑定 application 配置项并提供默认值，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Monitor Dynamic Data Source Properties 配置属性模型，位于 运营后台服务，绑定 application 配置项并提供运行时默认值。
  * @status : create
  */
 public class MonitorDynamicDataSourceProperties {

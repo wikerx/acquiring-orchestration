@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * @classname : SysUserAccountExportRow
  * @date : 2026-06-20 01:15
  * @email : scott_x@163.com
- * @description : SysUserAccountExportRow 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sys User Account Export Row 协作组件，位于 运营后台服务，封装 sys用户账号exportrow 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class SysUserAccountExportRow {

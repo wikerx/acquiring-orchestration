@@ -4,6 +4,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
@@ -33,17 +34,17 @@ import java.time.LocalDateTime;
 import java.util.HexFormat;
 
 
-@Slf4j
-@RestControllerAdvice
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiResponseBodyAdvice
  * @date : 2026-06-02 11:14
  * @email : scott_x@163.com
- * @description : OpenApiResponseBodyAdvice Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Response Body Advice MVC 扩展组件，位于 商户开放接口服务，在请求体读取或响应写出阶段执行解密、加密、校验、摘要记录和上下文回填。
  * @status : create
  */
+@Slf4j
+@RestControllerAdvice
 public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
 
     /**
@@ -72,6 +73,7 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
      * @param payloadCrypto           OpenAPI 报文混合加密工具
      * @param merchantSecurityService 商户安全材料服务
      * @param paymentInternalClient   service-payment 内部客户端
+     * @param diagnosticLogSupport    OpenAPI 诊断日志摘要组件
      */
     public OpenApiResponseBodyAdvice(OpenApiPayloadCrypto payloadCrypto,
                                      MerchantSecurityService merchantSecurityService,
@@ -123,7 +125,8 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
                 httpRequest.setAttribute(OpenApiRequestAttributes.BUSINESS_CODE, commonResult.getCode());
                 String responseSummary = diagnosticLogSupport.responseEnvelopeSummary(commonResult);
                 httpRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, responseSummary);
-                log.info("event: OPENAPI_RESPONSE_PLAIN_END stage=RESPONSE merchantId: {} path: {} platformCode: {} encryptRequired=false responseSummary: {}",
+                log.info("event: OPENAPI_RESPONSE_PLAIN_END stage=RESPONSE traceId: {} merchantId: {} path: {} platformCode: {} encryptRequired=false responseSummary: {}",
+                        TraceContext.getTraceId(),
                         merchantIdSafely(httpRequest),
                         request.getURI().getPath(),
                         commonResult.getCode(),
@@ -146,7 +149,8 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         String cipherSummary = diagnosticLogSupport.cipherResponseSummary(encryptedData);
         httpServletRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY, plainSummary);
         httpServletRequest.setAttribute(OpenApiRequestAttributes.RESPONSE_CIPHER_SUMMARY, cipherSummary);
-        log.info("event: OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {} plainResponseSummary: {} cipherResponseSummary: {}",
+        log.info("event: OPENAPI_RESPONSE_ENCRYPT_END stage=ENCRYPT traceId: {} merchantId: {} path: {} platformCode: {} encryptSuccess=true plainLength: {} cipherLength: {} plainResponseSummary: {} cipherResponseSummary: {}",
+                TraceContext.getTraceId(),
                 merchantId,
                 request.getURI().getPath(),
                 result.getCode(),
@@ -190,19 +194,19 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         try {
             paymentInternalClient.updateMerchantApiResponseLog(requestDTO);
         } catch (RuntimeException exception) {
-            log.warn("商户OpenAPI响应日志密文摘要回写失败，transactionId：{}，原因：{}",
-                    transactionInfo.getTransactionId(), exception.getMessage());
+            log.warn("event: OPENAPI_RESPONSE_LOG_UPDATE_FAILED stage=RESPONSE_LOG traceId: {} transactionId: {} exceptionType: {} reason: {}",
+                    TraceContext.getTraceId(),
+                    transactionInfo.getTransactionId(),
+                    exception.getClass().getSimpleName(),
+                    exception.getMessage());
         }
     }
 
     /**
-     * 解析 resolve Transaction Info 对应的业务值，按优先级从上下文、请求或配置中取值。
-     * <p>
-     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiResponseBodyAdvice 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
-     * </p>
-     * @param data data 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * 从 OpenAPI 响应对象中解析平台交易信息。
+     *
+     * @param data 响应 data 对象，当前仅支付创建响应携带交易信息
+     * @return 交易信息对象；非支付创建响应或缺失交易信息时返回 null
      */
     private PaymentCreateVO.TransactionInfoVO resolveTransactionInfo(Object data) {
         if (data instanceof PaymentCreateVO createVO) {
@@ -212,13 +216,12 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
     }
 
     /**
-     * 完成 mask Cipher 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 对 OpenAPI 响应密文做首尾掩码。
      * <p>
-     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiResponseBodyAdvice 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 该值用于后台交易详情和日志比对商户实际收到的 data，不输出完整密文，也不参与解密或签名校验。
      * </p>
-     * @param encryptedData encrypted Data 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param encryptedData 响应 data compact 密文
+     * @return 可安全记录的密文掩码；密文为空时返回 null
      */
     private String maskCipher(String encryptedData) {
         if (!StringUtils.hasText(encryptedData)) {
@@ -232,13 +235,12 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
     }
 
     /**
-     * 完成 sha256 Hex 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 计算响应密文的 SHA-256 十六进制摘要。
      * <p>
-     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiResponseBodyAdvice 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 摘要用于关联 response advice、内部回写接口和商户排障反馈，不保存完整密文或响应明文。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待摘要文本
+     * @return SHA-256 十六进制摘要
      */
     private String sha256Hex(String value) {
         try {

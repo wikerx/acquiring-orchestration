@@ -58,114 +58,128 @@ import java.util.Set;
 public class JdbcAdminTransactionQueryService implements AdminTransactionQueryService {
 
     /**
-     * TRANSACTION ORDER TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION ORDER TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易订单table 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_ORDER_TABLE = "transaction_order";
     /**
-     * TRANSACTION OPERATION TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION OPERATION TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易动作table 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
     /**
-     * TRANSACTION PAYMENT METHOD INFO TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION PAYMENT METHOD INFO TABLE，表示支付方式、通知方式或调用方式。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_PAYMENT_METHOD_INFO_TABLE = "transaction_payment_method_info";
     /**
-     * TRANSACTION CHANNEL INTERACTION LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION CHANNEL INTERACTION LOG TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易渠道interaction日志table 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE = "transaction_channel_interaction_log";
     /**
-     * TRANSACTION CHANNEL CALLBACK TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION CHANNEL CALLBACK TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易渠道回调table 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
      * </p>
      */
     private static final String TRANSACTION_CHANNEL_CALLBACK_TABLE = "transaction_channel_callback";
     /**
-     * TRANSACTION STATUS HISTORY TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION STATUS HISTORY TABLE，表示当前记录在业务流程中的处理状态。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
      * </p>
      */
     private static final String TRANSACTION_STATUS_HISTORY_TABLE = "transaction_status_history";
     /**
-     * TRANSACTION FLOW EVENT TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION FLOW EVENT TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易floweventtable 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_FLOW_EVENT_TABLE = "transaction_flow_event";
     /**
-     * TRANSACTION AMOUNT CHANGE LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION AMOUNT CHANGE LOG TABLE，表示当前交易、费用、限额或统计口径下的金额值。
      * <p>
-     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：必须与 currency 或同名币种字段一起解释。
      * </p>
      */
     private static final String TRANSACTION_AMOUNT_CHANGE_LOG_TABLE = "transaction_amount_change_log";
     /**
-     * TRANSACTION CHANNEL REQUEST TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION CHANNEL REQUEST TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易渠道requesttable 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_CHANNEL_REQUEST_TABLE = "transaction_channel_request";
     /**
-     * TRANSACTION CHANNEL CALLBACK LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION CHANNEL CALLBACK LOG TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易渠道回调日志table 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与 transactionId、operationId 和通知状态共同定位异步回调处理。
      * </p>
      */
     private static final String TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE = "transaction_channel_callback_log";
     /**
-     * TRANSACTION MERCHANT NOTIFICATION TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION MERCHANT NOTIFICATION TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易商户通知table 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_TABLE = "transaction_merchant_notification";
     /**
-     * TRANSACTION MERCHANT NOTIFICATION LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION MERCHANT NOTIFICATION LOG TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易商户通知日志table 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE = "transaction_merchant_notification_log";
     /**
-     * TRANSACTION MERCHANT API INTERACTION LOG TABLE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION MERCHANT API INTERACTION LOG TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易商户apiinteraction日志table 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE = "transaction_merchant_api_interaction_log";
     /**
-     * DEFAULT QUERY TIME ZONE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * DEFAULT QUERY TIME ZONE，用于保存 Jdbc Admin Transaction Query Service 中与 defaultquerytimezone 相关的业务属性。
      * <p>
-     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String DEFAULT_QUERY_TIME_ZONE = "Asia/Shanghai";
@@ -178,39 +192,43 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     );
 
     /**
-     * jdbc Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * jdbc Template，用于定位邮件、通知或渠道参数模板。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final NamedParameterJdbcTemplate jdbcTemplate;
     /**
-     * sharding Data Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * sharding Data Template，用于定位邮件、通知或渠道参数模板。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final ShardingDataTemplate shardingDataTemplate;
     /**
-     * transaction Sharding Key Parser 字段，表示当前模型在所属业务流程中的对应属性。
+     * transaction Sharding Key Parser，用于保存 Jdbc Admin Transaction Query Service 中与 交易sharding密钥parser 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final TransactionShardingKeyParser transactionShardingKeyParser;
 
 /**
- * 创建 JdbcAdminTransactionQueryService 实例并注入其运行所需依赖。
+ * 整理jdbcadmin交易查询service，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param jdbcTemplate jdbc Template 输入值，含义由调用方法名称和所属业务对象限定
- * @param shardingDataTemplate sharding Data Template 输入值，含义由调用方法名称和所属业务对象限定
- * @param transactionShardingKeyParser transaction Sharding Key Parser 输入值，含义由调用方法名称和所属业务对象限定
+ * @param jdbcTemplate jdbc Template 输入值，参与 jdbctemplate 的查询、校验、转换、写入或日志摘要
+ * @param shardingDataTemplate sharding Data Template 输入值，参与 shardingdatatemplate 的查询、校验、转换、写入或日志摘要
+ * @param transactionShardingKeyParser 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
  */
     public JdbcAdminTransactionQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                             ShardingDataTemplate shardingDataTemplate,
@@ -344,16 +362,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 page Maps 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询maps，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param whereSql where Sql 输入值，含义由调用方法名称和所属业务对象限定
-     * @param params params 输入值，含义由调用方法名称和所属业务对象限定
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
+     * @param whereSql where Sql 输入值，参与 wheresql 的查询、校验、转换、写入或日志摘要
+     * @param params params 输入值，参与 params 的查询、校验、转换、写入或日志摘要
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private PageResult<Map<String, Object>> pageMaps(String logicalTable, String whereSql, MapSqlParameterSource params, PageRequest query) {
         long total = 0L;
@@ -375,13 +394,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 page Channel Logs Normalized 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询渠道日志normalized，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private PageResult<Map<String, Object>> pageChannelLogsNormalized(ChannelLogQuery query) {
         long total = 0L;
@@ -404,15 +424,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 count 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 统计计数，返回分页、扫描或报表汇总所需的数量结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param whereSql where Sql 输入值，含义由调用方法名称和所属业务对象限定
-     * @param params params 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param whereSql where Sql 输入值，参与 wheresql 的查询、校验、转换、写入或日志摘要
+     * @param params params 输入值，参与 参数 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private long count(String table, String whereSql, MapSqlParameterSource params) {
         Long count = jdbcTemplate.queryForObject("""
@@ -425,16 +446,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 count Maps 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 统计maps，返回分页、扫描或报表汇总所需的数量结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param whereSql where Sql 输入值，含义由调用方法名称和所属业务对象限定
-     * @param params params 输入值，含义由调用方法名称和所属业务对象限定
-     * @param softDeleteTable soft Delete Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param whereSql where Sql 输入值，参与 wheresql 的查询、校验、转换、写入或日志摘要
+     * @param params params 输入值，参与 参数 的查询、校验、转换、写入或日志摘要
+     * @param softDeleteTable soft Delete Table 输入值，参与 softdelete表 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private long countMaps(String table, String whereSql, MapSqlParameterSource params, boolean softDeleteTable) {
         Long count = jdbcTemplate.queryForObject("""
@@ -447,18 +469,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
 /**
- * 执行 select Maps 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 查询maps，按调用方提供的过滤条件返回对应业务视图。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+ * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+ * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
  * </p>
- * @param table table 输入值，含义由调用方法名称和所属业务对象限定
- * @param whereSql where Sql 输入值，含义由调用方法名称和所属业务对象限定
- * @param params params 输入值，含义由调用方法名称和所属业务对象限定
- * @param offset offset 输入值，含义由调用方法名称和所属业务对象限定
- * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
- * @param softDeleteTable soft Delete Table 输入值，含义由调用方法名称和所属业务对象限定
- * @return 解析或查询得到的业务值
+ * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+ * @param whereSql where Sql 输入值，参与 wheresql 的查询、校验、转换、写入或日志摘要
+ * @param params params 输入值，参与 params 的查询、校验、转换、写入或日志摘要
+ * @param offset 分页或扫描窗口参数，用于限制单次查询范围
+ * @param limit 分页或扫描窗口参数，用于限制单次查询范围
+ * @param softDeleteTable soft Delete Table 输入值，参与 softdeletetable 的查询、校验、转换、写入或日志摘要
+ * @return 查询得到的业务对象、分页结果或空结果
  */
     private List<Map<String, Object>> selectMaps(String table, String whereSql, MapSqlParameterSource params,
                                                  long offset, long limit, boolean softDeleteTable) {
@@ -474,16 +497,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 count Channel Logs 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 统计渠道日志，返回分页、扫描或报表汇总所需的数量结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param requestTable request Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param operationTable operation Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param requestTable request Table 输入值，参与 请求表 的查询、校验、转换、写入或日志摘要
+     * @param operationTable operation Table 输入值，参与 动作表 的查询、校验、转换、写入或日志摘要
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private long countChannelLogs(String table, String requestTable, String operationTable, ChannelLogQuery query) {
         Long count = jdbcTemplate.queryForObject("""
@@ -499,18 +523,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
 /**
- * 执行 select Channel Logs 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 查询渠道日志，按调用方提供的过滤条件返回对应业务视图。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+ * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+ * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
  * </p>
- * @param table table 输入值，含义由调用方法名称和所属业务对象限定
- * @param requestTable request Table 输入值，含义由调用方法名称和所属业务对象限定
- * @param operationTable operation Table 输入值，含义由调用方法名称和所属业务对象限定
- * @param query query 输入值，含义由调用方法名称和所属业务对象限定
- * @param offset offset 输入值，含义由调用方法名称和所属业务对象限定
- * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
- * @return 解析或查询得到的业务值
+ * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+ * @param requestTable request Table 输入值，参与 请求table 的查询、校验、转换、写入或日志摘要
+ * @param operationTable operation Table 输入值，参与 动作table 的查询、校验、转换、写入或日志摘要
+ * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+ * @param offset 分页或扫描窗口参数，用于限制单次查询范围
+ * @param limit 分页或扫描窗口参数，用于限制单次查询范围
+ * @return 查询得到的业务对象、分页结果或空结果
  */
     private List<Map<String, Object>> selectChannelLogs(String table,
                                                         String requestTable,
@@ -548,16 +573,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 select Orders 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询交易主单，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @param offset offset 输入值，含义由调用方法名称和所属业务对象限定
-     * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @param offset 分页或扫描窗口参数，用于限制单次查询范围
+     * @param limit 分页或扫描窗口参数，用于限制单次查询范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<TransactionOrderResponse> selectOrders(String table, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = orderParams(query).addValue("offset", offset).addValue("limit", limit);
@@ -572,15 +598,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 count Operations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 统计交易动作，返回分页、扫描或报表汇总所需的数量结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentTable payment Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param paymentTable payment Table 输入值，参与 payment表 的查询、校验、转换、写入或日志摘要
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private long countOperations(String table, String paymentTable, TransactionPageQuery query) {
         Long count = jdbcTemplate.queryForObject("""
@@ -593,17 +620,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 select Operations 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询交易动作，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentTable payment Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @param offset offset 输入值，含义由调用方法名称和所属业务对象限定
-     * @param limit limit 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param paymentTable payment Table 输入值，参与 paymenttable 的查询、校验、转换、写入或日志摘要
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @param offset 分页或扫描窗口参数，用于限制单次查询范围
+     * @param limit 分页或扫描窗口参数，用于限制单次查询范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<TransactionOperationResponse> selectOperations(String table, String paymentTable, TransactionPageQuery query, long offset, long limit) {
         MapSqlParameterSource params = operationParams(query).addValue("offset", offset).addValue("limit", limit);
@@ -630,13 +658,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 operation Summary 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理动作汇总，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery query) {
         SummaryAccumulator accumulator = new SummaryAccumulator();
@@ -673,13 +702,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 order Where Sql 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理订单wheresql，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String orderWhereSql(TransactionPageQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time <= :endTime");
@@ -699,14 +729,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 operation Where Sql 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理动作wheresql，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @param paymentTable payment Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @param paymentTable payment Table 输入值，参与 payment表 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String operationWhereSql(TransactionPageQuery query, String paymentTable) {
         StringBuilder sql = new StringBuilder(" AND o.transaction_date_time >= :beginTime AND o.transaction_date_time <= :endTime");
@@ -740,13 +771,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 channel Log Where Sql 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理渠道日志wheresql，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String channelLogWhereSql(ChannelLogQuery query) {
         StringBuilder sql = new StringBuilder();
@@ -765,13 +797,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 channel Callback Where Sql 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理渠道回调wheresql，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String channelCallbackWhereSql(ChannelCallbackQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time <= :endTime");
@@ -784,13 +817,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 merchant Notification Where Sql 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理商户通知wheresql，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String merchantNotificationWhereSql(MerchantNotificationQuery query) {
         StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time <= :endTime");
@@ -801,14 +835,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 append 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造追加对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param sql sql 输入值，含义由调用方法名称和所属业务对象限定
-     * @param value 待校验或转换的原始值
-     * @param fragment fragment 输入值，含义由调用方法名称和所属业务对象限定
+     * @param sql sql 输入值，参与 sql 的查询、校验、转换、写入或日志摘要
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param fragment fragment 输入值，参与 fragment 的查询、校验、转换、写入或日志摘要
      */
     private void append(StringBuilder sql, String value, String fragment) {
         if (StringUtils.hasText(value)) {
@@ -817,13 +852,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 order Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理订单参数，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MapSqlParameterSource orderParams(TransactionPageQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
@@ -842,13 +878,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 operation Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理动作参数，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MapSqlParameterSource operationParams(TransactionPageQuery query) {
         return orderParams(query)
@@ -860,13 +897,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 channel Log Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理渠道日志参数，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MapSqlParameterSource channelLogParams(ChannelLogQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
@@ -878,13 +916,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 channel Callback Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理渠道回调参数，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MapSqlParameterSource channelCallbackParams(ChannelCallbackQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
@@ -896,13 +935,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 merchant Notification Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理商户通知参数，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MapSqlParameterSource merchantNotificationParams(MerchantNotificationQuery query) {
         return baseParams(query.getBeginTime(), query.getEndTime())
@@ -912,27 +952,29 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 base Params 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理基础 SQL 参数，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MapSqlParameterSource baseParams(LocalDateTime beginTime, LocalDateTime endTime) {
         return new MapSqlParameterSource().addValue("beginTime", beginTime).addValue("endTime", endTime);
     }
 
     /**
-     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
      */
     private TransactionPageQuery normalize(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
@@ -942,13 +984,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
      */
     private ChannelLogQuery normalize(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = query == null ? new ChannelLogQuery() : query;
@@ -960,13 +1003,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
      */
     private ChannelCallbackQuery normalize(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = query == null ? new ChannelCallbackQuery() : query;
@@ -978,13 +1022,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 normalize 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
      */
     private MerchantNotificationQuery normalize(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = query == null ? new MerchantNotificationQuery() : query;
@@ -996,12 +1041,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 fill Default Time Range 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造默认时间范围对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      */
     private void fillDefaultTimeRange(TransactionPageQuery query) {
         QueryTimeRange range = normalizeQueryTimeRange(query.getBeginTime(), query.getEndTime(), query.getQueryTimeZone());
@@ -1011,15 +1057,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 normalize Query Time Range 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize查询时间范围，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param queryTimeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 标准化后的业务字段值
+     * @return 构造、转换或解析后的业务值
      */
     private QueryTimeRange normalizeQueryTimeRange(LocalDateTime beginTime, LocalDateTime endTime, String queryTimeZone) {
         ZoneId queryZone = resolveQueryZone(queryTimeZone);
@@ -1035,13 +1082,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 resolve Query Zone 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve查询zone，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
      * @param queryTimeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 解析或查询得到的业务值
+     * @return 构造、转换或解析后的业务值
      */
     private ZoneId resolveQueryZone(String queryTimeZone) {
         String zone = StringUtils.hasText(queryTimeZone) ? queryTimeZone.trim() : DEFAULT_QUERY_TIME_ZONE;
@@ -1053,13 +1101,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 normalize Zone Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalizezoneID，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param zone zone 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
+     * @param zone zone 输入值，参与 zone 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeZoneId(String zone) {
         String normalized = zone == null ? DEFAULT_QUERY_TIME_ZONE : zone.trim();
@@ -1082,15 +1131,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 convert Between Zones 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造betweenzones对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
      * @param sourceTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param sourceZone source Zone 输入值，含义由调用方法名称和所属业务对象限定
-     * @param targetZone target Zone 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param sourceZone source Zone 输入值，参与 来源zone 的查询、校验、转换、写入或日志摘要
+     * @param targetZone target Zone 输入值，参与 targetzone 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private LocalDateTime convertBetweenZones(LocalDateTime sourceTime, ZoneId sourceZone, ZoneId targetZone) {
         ZonedDateTime source = sourceTime.atZone(sourceZone);
@@ -1098,12 +1148,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 normalize Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize商户响应编码，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      */
     private void normalizeMerchantResponseCode(TransactionPageQuery query) {
         if (!StringUtils.hasText(query.getMerchantResponseCode())) {
@@ -1122,13 +1173,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 resolve Status By Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve状态按商户响应编码，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveStatusByMerchantResponseCode(String code) {
         if (!StringUtils.hasText(code)) {
@@ -1153,12 +1205,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 order Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理订单映射器，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private RowMapper<TransactionOrderResponse> orderMapper() {
         return (rs, rowNum) -> {
@@ -1206,13 +1259,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 operation Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理动作映射器，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param joinedPaymentInfo joined Payment Info 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param joinedPaymentInfo joined Payment Info 输入值，参与 joinedpayment信息 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private RowMapper<TransactionOperationResponse> operationMapper(boolean joinedPaymentInfo) {
         return (rs, rowNum) -> {
@@ -1265,12 +1319,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 summary Mapper 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 统计汇总映射器，返回分页、扫描或报表汇总所需的数量结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private RowMapper<SummaryRow> summaryMapper() {
         return (rs, rowNum) -> new SummaryRow(
@@ -1284,14 +1339,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 select Operation By Transaction Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询按交易号定位的动作单，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private TransactionOperationResponse selectOperationByTransactionId(String table, String transactionId) {
         List<TransactionOperationResponse> rows = jdbcTemplate.query("""
@@ -1310,14 +1366,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 select Order By Operation Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询订单by动作ID，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param table table 输入值，含义由调用方法名称和所属业务对象限定
-     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param table 经分表规则解析后的物理表名，只允许来自受控分表解析器
+     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private TransactionOrderResponse selectOrderByOperationId(String table, String operationId) {
         List<TransactionOrderResponse> rows = jdbcTemplate.query("""
@@ -1330,15 +1387,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 select Operations By Operation Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询按操作号定位的动作单，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
+     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<TransactionOperationResponse> selectOperationsByOperationId(String operationId, LocalDateTime beginTime, LocalDateTime endTime) {
         List<TransactionOperationResponse> rows = new ArrayList<>();
@@ -1360,16 +1418,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 select Maps By Operation Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询mapsby动作ID，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<Map<String, Object>> selectMapsByOperationId(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime, String operationId) {
         List<Map<String, Object>> rows = new ArrayList<>();
@@ -1391,16 +1450,17 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 select Optional Maps By Operation Id 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询optionalmapsby动作ID，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<Map<String, Object>> selectOptionalMapsByOperationId(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime, String operationId) {
         try {
@@ -1411,14 +1471,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 physical Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理物理表，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
         return shardingDataTemplate.resolvePhysicalTable(
@@ -1426,15 +1487,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 physical Tables In Range 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理物理表in范围，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param logicalTable logical Table 输入值，含义由调用方法名称和所属业务对象限定
+     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
      * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private List<String> physicalTablesInRange(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
         return shardingDataTemplate.resolvePhysicalTables(
@@ -1442,52 +1504,56 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 payment Info Table For Operation Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理动作单对应的支付工具分表，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param operationPhysicalTable operation Physical Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param operationPhysicalTable operation Physical Table 输入值，参与 动作物理表 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String paymentInfoTableForOperationTable(String operationPhysicalTable) {
         return operationPhysicalTable.replaceFirst("^" + TRANSACTION_OPERATION_TABLE, TRANSACTION_PAYMENT_METHOD_INFO_TABLE);
     }
 
     /**
-     * 执行 order Table For Operation Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理订单表对应动作表，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param operationPhysicalTable operation Physical Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param operationPhysicalTable operation Physical Table 输入值，参与 动作物理表 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String orderTableForOperationTable(String operationPhysicalTable) {
         return operationPhysicalTable.replaceFirst("^" + TRANSACTION_OPERATION_TABLE, TRANSACTION_ORDER_TABLE);
     }
 
     /**
-     * 执行 channel Request Table For Interaction Log Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理渠道请求表对应interaction日志表，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param interactionLogPhysicalTable interaction Log Physical Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param interactionLogPhysicalTable interaction Log Physical Table 输入值，参与 interaction日志物理表 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String channelRequestTableForInteractionLogTable(String interactionLogPhysicalTable) {
         return interactionLogPhysicalTable.replaceFirst("^" + TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, TRANSACTION_CHANNEL_REQUEST_TABLE);
     }
 
     /**
-     * 执行 operation Table For Interaction Log Table 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理动作表对应interaction日志表，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param interactionLogPhysicalTable interaction Log Physical Table 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param interactionLogPhysicalTable interaction Log Physical Table 输入值，参与 interaction日志物理表 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String operationTableForInteractionLogTable(String interactionLogPhysicalTable) {
         return interactionLogPhysicalTable.replaceFirst("^" + TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, TRANSACTION_OPERATION_TABLE);
@@ -1514,27 +1580,29 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 offset 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化offset，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private long offset(PageRequest query) {
         return (query.safePageNo() - 1) * query.safePageSize();
     }
 
     /**
-     * 执行 time Value 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理时间值，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param params params 输入值，含义由调用方法名称和所属业务对象限定
-     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param params params 输入值，参与 参数 的查询、校验、转换、写入或日志摘要
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private LocalDateTime timeValue(MapSqlParameterSource params, String key) {
         Object value = params.getValue(key);
@@ -1542,13 +1610,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 copy 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造copy对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MapSqlParameterSource copy(MapSqlParameterSource source) {
         MapSqlParameterSource target = new MapSqlParameterSource();
@@ -1615,14 +1684,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 nullable Int 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理可空整数，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param rs rs 输入值，含义由调用方法名称和所属业务对象限定
-     * @param column column 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param rs rs 输入值，参与 rs 的查询、校验、转换、写入或日志摘要
+     * @param column column 输入值，参与 column 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Integer nullableInt(ResultSet rs, String column) throws SQLException {
         int value = rs.getInt(column);
@@ -1630,40 +1700,43 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 local Date Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理本地日期时间，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param rs rs 输入值，含义由调用方法名称和所属业务对象限定
-     * @param column column 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param rs rs 输入值，参与 rs 的查询、校验、转换、写入或日志摘要
+     * @param column column 输入值，参与 column 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private LocalDateTime localDateTime(ResultSet rs, String column) throws SQLException {
         return rs.getTimestamp(column) == null ? null : rs.getTimestamp(column).toLocalDateTime();
     }
 
     /**
-     * 执行 default Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理默认汇率，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param rate rate 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param rate rate 输入值，参与 汇率 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private BigDecimal defaultRate(BigDecimal rate) {
         return rate == null ? new BigDecimal("1.00000000") : rate;
     }
 
     /**
-     * 执行 resolve Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve商户响应编码，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 解析或查询得到的业务值
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveMerchantResponseCode(String status) {
         if ("SUCCESS".equals(status)) {
@@ -1679,13 +1752,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 resolve Merchant Response Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve商户响应说明，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param status 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 解析或查询得到的业务值
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveMerchantResponseMessage(String status) {
         if ("SUCCESS".equals(status)) {
@@ -1701,14 +1775,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 get String If Exists 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询stringifexists，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param rs rs 输入值，含义由调用方法名称和所属业务对象限定
-     * @param column column 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param rs rs 输入值，参与 rs 的查询、校验、转换、写入或日志摘要
+     * @param column column 输入值，参与 column 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private String getStringIfExists(ResultSet rs, String column) {
         try {
@@ -1719,14 +1794,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
-     * 执行 get Big Decimal If Exists 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 查询bigdecimalifexists，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 JdbcAdminTransactionQueryService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param rs rs 输入值，含义由调用方法名称和所属业务对象限定
-     * @param column column 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param rs rs 输入值，参与 rs 的查询、校验、转换、写入或日志摘要
+     * @param column column 输入值，参与 column 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private BigDecimal getBigDecimalIfExists(ResultSet rs, String column) {
         try {
@@ -1751,69 +1827,77 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     private static final class SummaryAccumulator {
 
         /**
-         * total Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * total Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private long totalCount;
         /**
-         * success Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * success Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private long successCount;
         /**
-         * failed Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * failed Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private long failedCount;
         /**
-         * amounts 字段，表示当前模型在所属业务流程中的对应属性。
+         * amounts，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private final Map<String, TransactionAmountSummaryResponse> amounts = new LinkedHashMap<>();
         /**
-         * success Amounts 字段，表示当前模型在所属业务流程中的对应属性。
+         * success Amounts，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private final Map<String, TransactionAmountSummaryResponse> successAmounts = new LinkedHashMap<>();
         /**
-         * failed Amounts 字段，表示当前模型在所属业务流程中的对应属性。
+         * failed Amounts，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private final Map<String, TransactionAmountSummaryResponse> failedAmounts = new LinkedHashMap<>();
         /**
-         * payments 字段，表示当前模型在所属业务流程中的对应属性。
+         * payments，用于保存 Summary Accumulator 中与 payments 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final Map<String, TransactionPaymentMethodSummaryResponse> payments = new LinkedHashMap<>();
 
         /**
-         * 计算 add Amount 对应的数值结果，调用方负责保证金额和币种上下文一致。
+         * 创建金额，完成必要校验后写入或委托下游服务处理。
          * <p>
-         * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 SummaryAccumulator 的方法签名及调用链约束。
-         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+         * 前置条件：调用方已完成 运营后台服务 的身份、权限、必填字段和业务唯一性准备。
+         * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+         * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
          * </p>
-         * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+         * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
          */
         private void addAmount(SummaryRow row) {
             totalCount += row.count();
@@ -1829,12 +1913,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
 
         /**
-         * 计算 add Payment 对应的数值结果，调用方负责保证金额和币种上下文一致。
+         * 创建支付交易，完成必要校验后写入或委托下游服务处理。
          * <p>
-         * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 SummaryAccumulator 的方法签名及调用链约束。
-         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+         * 前置条件：调用方已完成 运营后台服务 的身份、权限、必填字段和业务唯一性准备。
+         * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+         * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
          * </p>
-         * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+         * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
          */
         private void addPayment(SummaryRow row) {
             String key = (row.paymentMethod() == null ? "UNKNOWN" : row.paymentMethod()) + "|" + (row.paymentBrand() == null ? "" : row.paymentBrand());
@@ -1853,14 +1938,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
 
         /**
-         * 计算 add Amount 对应的数值结果，调用方负责保证金额和币种上下文一致。
+         * 创建金额，完成必要校验后写入或委托下游服务处理。
          * <p>
-         * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 SummaryAccumulator 的方法签名及调用链约束。
-         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+         * 前置条件：调用方已完成 运营后台服务 的身份、权限、必填字段和业务唯一性准备。
+         * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+         * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
          * </p>
-         * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-         * @param map map 输入值，含义由调用方法名称和所属业务对象限定
-         * @param row row 输入值，含义由调用方法名称和所属业务对象限定
+         * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+         * @param map map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+         * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
          */
         private void addAmount(Map<String, TransactionAmountSummaryResponse> map, SummaryRow row) {
             TransactionAmountSummaryResponse amount = map.computeIfAbsent(row.currency(), ignored -> {
@@ -1874,12 +1960,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         }
 
         /**
-         * 转换生成 to Response 对应的传输对象、导出行或协议字段。
+         * 构造response对象，完成字段复制、格式标准化和敏感数据处理。
          * <p>
-         * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 SummaryAccumulator 的方法签名及调用链约束。
-         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+         * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+         * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+         * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
          * </p>
-         * @return 转换或构建后的目标对象
+         * @return 构造、转换或解析后的业务值
          */
         private TransactionOperationSummaryResponse toResponse() {
             TransactionOperationSummaryResponse response = new TransactionOperationSummaryResponse();

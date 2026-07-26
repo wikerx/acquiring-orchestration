@@ -10,7 +10,7 @@ import com.scott.payment.job.entity.SysShardingPhysicalTableDO;
  * @classname : SysShardingPhysicalTableMapper
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : SysShardingPhysicalTableMapper MyBatis 数据访问接口，用于映射数据库表读写语句和领域查询条件，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sys Sharding Physical Table Mapper 映射组件，位于 调度任务服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  * @status : create
  */
 public interface SysShardingPhysicalTableMapper extends BaseMapper<SysShardingPhysicalTableDO> {

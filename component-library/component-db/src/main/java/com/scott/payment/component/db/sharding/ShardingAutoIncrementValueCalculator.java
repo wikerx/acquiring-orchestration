@@ -13,16 +13,17 @@ import java.math.BigInteger;
  * @classname : ShardingAutoIncrementValueCalculator
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : ShardingAutoIncrementValueCalculator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sharding Auto Increment Value Calculator 协作组件，位于 公共组件库，封装 shardingautoincrementvaluecalculator 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class ShardingAutoIncrementValueCalculator {
 
     /**
-     * BIGINT MAX VALUE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * BIGINT MAX VALUE，用于保存 Sharding Auto Increment Value Calculator 中与 bigintmaxvalue 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final BigInteger BIGINT_MAX_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
@@ -60,14 +61,15 @@ public class ShardingAutoIncrementValueCalculator {
     }
 
     /**
-     * 校验 validate Sequence 相关输入，发现不满足业务约束时抛出明确异常。
+     * 校验sequence输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingAutoIncrementValueCalculator 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param sequenceWidth sequence Width 输入值，含义由调用方法名称和所属业务对象限定
-     * @param startSequence start Sequence 输入值，含义由调用方法名称和所属业务对象限定
-     * @param maxSequence max Sequence 输入值，含义由调用方法名称和所属业务对象限定
+     * @param sequenceWidth sequence Width 输入值，参与 sequencewidth 的查询、校验、转换、写入或日志摘要
+     * @param startSequence start Sequence 输入值，参与 startsequence 的查询、校验、转换、写入或日志摘要
+     * @param maxSequence max Sequence 输入值，参与 最大序列值 的查询、校验、转换、写入或日志摘要
      */
     private void validateSequence(int sequenceWidth, long startSequence, long maxSequence) {
         if (sequenceWidth < 1 || sequenceWidth > 12) {

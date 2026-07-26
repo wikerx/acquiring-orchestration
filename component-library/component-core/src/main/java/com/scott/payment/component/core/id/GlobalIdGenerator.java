@@ -7,7 +7,7 @@ package com.scott.payment.component.core.id;
  * @classname : GlobalIdGenerator
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : GlobalIdGenerator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Global ID Generator 协作组件，位于 公共组件库，封装 globalIDgenerator 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public interface GlobalIdGenerator {

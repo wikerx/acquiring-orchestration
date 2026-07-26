@@ -18,7 +18,7 @@ import static org.mockito.Mockito.when;
  * @classname : CheckoutCountryConfigApplicationServiceTest
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : CheckoutCountryConfigApplicationServiceTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 收银台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Checkout Country Config Application Service Test 应用服务，位于 收银台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
 class CheckoutCountryConfigApplicationServiceTest {

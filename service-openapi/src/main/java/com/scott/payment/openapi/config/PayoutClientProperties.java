@@ -12,7 +12,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : PayoutClientProperties
  * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : PayoutClientProperties 配置属性模型，用于绑定 application 配置项并提供默认值，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payout Client Properties 配置属性模型，位于 商户开放接口服务，绑定 application 配置项并提供运行时默认值。
  * @status : create
  */
 public class PayoutClientProperties {

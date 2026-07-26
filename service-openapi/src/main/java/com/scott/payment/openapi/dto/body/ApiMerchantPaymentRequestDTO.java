@@ -23,7 +23,7 @@ import jakarta.validation.constraints.Pattern;
  * @classname : ApiMerchantPaymentRequestDTO
  * @date : 2026-05-28 16:48
  * @email : scott_x@163.com
- * @description : ApiMerchantPaymentRequestDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : API Merchant Payment Request DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
 public class ApiMerchantPaymentRequestDTO implements Serializable {
@@ -151,7 +151,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * @classname : MerchantInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : MerchantInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Merchant Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class MerchantInfoDTO implements Serializable {
@@ -183,7 +183,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * @classname : SubMerchantInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : SubMerchantInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Sub Merchant Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class SubMerchantInfoDTO implements Serializable {
@@ -304,7 +304,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * @classname : OrderInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : OrderInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Order Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class OrderInfoDTO implements Serializable {
@@ -351,7 +351,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * @classname : BillingCardHolderInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : BillingCardHolderInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Billing Card Holder Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class BillingCardHolderInfoDTO implements Serializable {
@@ -443,7 +443,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * @classname : CardInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : CardInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Card Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class CardInfoDTO implements Serializable {
@@ -490,7 +490,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * @classname : ThreeDsInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : ThreeDsInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Three Ds Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class ThreeDsInfoDTO implements Serializable {
@@ -533,7 +533,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * @classname : TransactionInfoDTO
      * @date : 2026-05-28 16:48
      * @email : scott_x@163.com
-     * @description : TransactionInfoDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Transaction Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class TransactionInfoDTO implements Serializable {

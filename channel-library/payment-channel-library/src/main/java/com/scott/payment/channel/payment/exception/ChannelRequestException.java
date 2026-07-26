@@ -12,25 +12,27 @@ package com.scott.payment.channel.payment.exception;
 public class ChannelRequestException extends ChannelException {
 
     /**
-     * 创建 ChannelRequestException 实例并注入其运行所需依赖。
+     * 整理渠道请求异常，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 ChannelRequestException 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
      */
     public ChannelRequestException(String message) {
         super(message);
     }
 
     /**
-     * 创建 ChannelRequestException 实例并注入其运行所需依赖。
+     * 整理渠道请求异常，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 ChannelRequestException 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @param cause cause 输入值，含义由调用方法名称和所属业务对象限定
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param cause cause 输入值，参与 cause 的查询、校验、转换、写入或日志摘要
      */
     public ChannelRequestException(String message, Throwable cause) {
         super(message, cause);

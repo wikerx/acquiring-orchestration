@@ -39,7 +39,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : PaymentInternalController
  * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : PaymentInternalController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payment Internal Controller 控制器，位于 支付核心服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
  * @status : create
  */
 public class PaymentInternalController {

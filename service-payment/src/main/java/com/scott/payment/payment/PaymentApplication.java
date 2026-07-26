@@ -11,7 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @classname : PaymentApplication
  * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : PaymentApplication Spring Boot 启动入口，用于装配当前服务的组件扫描、配置加载和运行时上下文，位于 支付核心服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payment Application 协作组件，位于 支付核心服务，封装 paymentapplication 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class PaymentApplication {

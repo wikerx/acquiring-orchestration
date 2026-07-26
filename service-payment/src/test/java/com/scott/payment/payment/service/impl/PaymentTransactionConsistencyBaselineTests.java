@@ -82,28 +82,31 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PaymentTransactionConsistencyBaselineTests {
 
     /**
-     * MERCHANT ID 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * MERCHANT ID，用于定位 Payment Transaction Consistency Baseline Tests 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String MERCHANT_ID = "200001";
 
     /**
-     * MERCHANT ORDER NO 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * MERCHANT ORDER NO，用于保存 Payment Transaction Consistency Baseline Tests 中与 商户订单no 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String MERCHANT_ORDER_NO = "M202607230001";
 
     /**
-     * MERCHANT ORDER ID 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * MERCHANT ORDER ID，用于定位 Payment Transaction Consistency Baseline Tests 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String MERCHANT_ORDER_ID = "REQ202607230001";
@@ -2055,19 +2058,21 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class InMemoryTransactionIdempotencyService implements TransactionIdempotencyService {
 
         /**
-         * records 字段，表示当前模型在所属业务流程中的对应属性。
+         * records，用于保存 In Memory Transaction Idempotency Service 中与 记录 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final Map<String, TransactionIdempotencyDO> records = new LinkedHashMap<>();
 
         /**
-         * completed Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * completed Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int completedCount;
@@ -2171,28 +2176,31 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class CommittedFactsView {
 
         /**
-         * idempotency Service 字段，表示当前模型在所属业务流程中的对应属性。
+         * idempotency Service 依赖，用于 Committed Facts View 调用对应的数据访问、远程调用或领域服务能力。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final InMemoryTransactionIdempotencyService idempotencyService;
 
         /**
-         * record Service 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Service 依赖，用于 Committed Facts View 调用对应的数据访问、远程调用或领域服务能力。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final CapturingTransactionRecordService recordService;
 
         /**
-         * outbox Service 字段，表示当前模型在所属业务流程中的对应属性。
+         * outbox Service 依赖，用于 Committed Facts View 调用对应的数据访问、远程调用或领域服务能力。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final CapturingTransactionEventOutboxService outboxService;
@@ -2224,172 +2232,191 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class CapturingTransactionRecordService implements TransactionRecordService {
 
         /**
-         * initial Record Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * initial Record Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int initialRecordCount;
 
         /**
-         * follow Up Record Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * follow Up Record Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int followUpRecordCount;
 
         /**
-         * channel Request Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * channel Request Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int channelRequestCount;
 
         /**
-         * fail Initial Record 字段，表示当前模型在所属业务流程中的对应属性。
+         * fail Initial Record，用于保存 Capturing Transaction Record Service 中与 failinitialrecord 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean failInitialRecord;
 
         /**
-         * pending Capture Exists 字段，表示当前模型在所属业务流程中的对应属性。
+         * pending Capture Exists，用于保存 Capturing Transaction Record Service 中与 pendingcaptureexists 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean pendingCaptureExists;
 
         /**
-         * pending Capture Stage 字段，表示当前模型在所属业务流程中的对应属性。
+         * pending Capture Stage，用于保存 Capturing Transaction Record Service 中与 pendingcapturestage 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String pendingCaptureStage = PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode();
 
         /**
-         * mark Follow Up Processing For New Captures 字段，表示当前模型在所属业务流程中的对应属性。
+         * mark Follow Up Processing For New Captures，用于保存 Capturing Transaction Record Service 中与 markfollowupprocessingfornewcaptures 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean markFollowUpProcessingForNewCaptures;
 
         /**
-         * source Order Lock 字段，表示当前模型在所属业务流程中的对应属性。
+         * source Order Lock，用于保存 Capturing Transaction Record Service 中与 来源订单lock 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final ReentrantLock sourceOrderLock = new ReentrantLock();
 
         /**
-         * persisted Non Terminal Capture 字段，表示当前模型在所属业务流程中的对应属性。
+         * persisted Non Terminal Capture，用于保存 Capturing Transaction Record Service 中与 persistednonterminalcapture 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private TransactionOperationDO persistedNonTerminalCapture;
 
         /**
-         * source Status 字段，表示当前模型在所属业务流程中的对应属性。
+         * source Status，表示当前记录在业务流程中的处理状态。
          * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
          * </p>
          */
         private String sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
 
         /**
-         * source Transaction Type 字段，表示当前模型在所属业务流程中的对应属性。
+         * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
          * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
 
         /**
-         * source Available Capture Amount 字段，表示当前模型在所属业务流程中的对应属性。
+         * source Available Capture Amount，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private BigDecimal sourceAvailableCaptureAmount = new BigDecimal("12.34");
 
         /**
-         * source Available Refund Amount 字段，表示当前模型在所属业务流程中的对应属性。
+         * source Available Refund Amount，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private BigDecimal sourceAvailableRefundAmount = BigDecimal.ZERO;
 
         /**
-         * pending Refund Amount 字段，表示当前模型在所属业务流程中的对应属性。
+         * pending Refund Amount，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private BigDecimal pendingRefundAmount = BigDecimal.ZERO;
 
         /**
-         * pending Void Exists 字段，表示当前模型在所属业务流程中的对应属性。
+         * pending Void Exists，用于保存 Capturing Transaction Record Service 中与 pendingvoidexists 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean pendingVoidExists;
 
         /**
-         * pending Incremental Authorization Exists 字段，表示当前模型在所属业务流程中的对应属性。
+         * pending Incremental Authorization Exists，用于保存 Capturing Transaction Record Service 中与 pendingincrementalauthorizationexists 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；高敏感字段，禁止打印日志、禁止写入异常消息，持久化前需确认安全要求。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean pendingIncrementalAuthorizationExists;
 
         /**
-         * incremental Authorization Amount Increase Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * incremental Authorization Amount Increase Count，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
-         * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；高敏感字段，禁止打印日志、禁止写入异常消息，持久化前需确认安全要求。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
          * </p>
          */
         private int incrementalAuthorizationAmountIncreaseCount;
 
         /**
-         * last Initial Operation 字段，表示当前模型在所属业务流程中的对应属性。
+         * last Initial Operation，用于保存 Capturing Transaction Record Service 中与 lastinitial动作 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private TransactionOperationDO lastInitialOperation;
 
         /**
-         * last Follow Up Operation 字段，表示当前模型在所属业务流程中的对应属性。
+         * last Follow Up Operation，用于保存 Capturing Transaction Record Service 中与 lastfollowup动作 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private TransactionOperationDO lastFollowUpOperation;
@@ -2522,14 +2549,15 @@ class PaymentTransactionConsistencyBaselineTests {
         }
 
         /**
-         * 执行 find Initial Operations By Merchant Order 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+         * 查询初始动作by商户订单，按调用方提供的过滤条件返回对应业务视图。
          * <p>
-         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 CapturingTransactionRecordService 的方法签名及调用链约束。
-         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+         * 前置条件：调用方已按 支付核心服务 的权限和数据范围传入查询条件。
+         * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+         * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
          * </p>
-         * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-         * @param merchantOrderNo 商户订单号，用于商户侧幂等校验和订单查询
-         * @return 渠道 API 操作类型或平台操作映射结果
+         * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+         * @param merchantOrderNo merchant Order No 输入值，参与 商户订单no 的查询、校验、转换、写入或日志摘要
+         * @return 查询得到的业务对象、分页结果或空结果
          */
         @Override
         public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
@@ -2667,14 +2695,15 @@ class PaymentTransactionConsistencyBaselineTests {
         }
 
         /**
-         * 执行 find Operation By Channel Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+         * 查询动作by渠道交易，按调用方提供的过滤条件返回对应业务视图。
          * <p>
-         * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 CapturingTransactionRecordService 的方法签名及调用链约束。
-         * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+         * 前置条件：调用方已按 支付核心服务 的权限和数据范围传入查询条件。
+         * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+         * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
          * </p>
-         * @param channelOrderNo channel Order No 输入值，含义由调用方法名称和所属业务对象限定
-         * @param channelTransactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-         * @return 渠道 API 操作类型或平台操作映射结果
+         * @param channelOrderNo channel Order No 输入值，参与 渠道订单no 的查询、校验、转换、写入或日志摘要
+         * @param channelTransactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+         * @return 查询得到的业务对象、分页结果或空结果
          */
         @Override
         public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
@@ -2800,19 +2829,20 @@ class PaymentTransactionConsistencyBaselineTests {
         }
 
 /**
- * 执行 complete Refund Channel Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 整理退款渠道结果落库，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 CapturingTransactionRecordService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param operationDO operation DO 输入值，参与 动作do 的查询、校验、转换、写入或日志摘要
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
  * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
         @Override
         public boolean completeRefundChannelResult(TransactionOperationDO operationDO,
@@ -2881,28 +2911,31 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class CapturingPaymentChannelResultTransactionService implements PaymentChannelResultTransactionService {
 
         /**
-         * record Service 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Service 依赖，用于 Capturing Payment Channel Result Transaction Service 调用对应的数据访问、远程调用或领域服务能力。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final TransactionRecordService recordService;
 
         /**
-         * record Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int recordCount;
 
         /**
-         * fail Result Record 字段，表示当前模型在所属业务流程中的对应属性。
+         * fail Result Record，用于保存 Capturing Payment Channel Result Transaction Service 中与 failresultrecord 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean failResultRecord;
@@ -2935,28 +2968,31 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class CapturingCaptureChannelResultTransactionService implements CaptureChannelResultTransactionService {
 
         /**
-         * record Service 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Service 依赖，用于 Capturing Capture Channel Result Transaction Service 调用对应的数据访问、远程调用或领域服务能力。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final TransactionRecordService recordService;
 
         /**
-         * record Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int recordCount;
 
         /**
-         * fail Result Record 字段，表示当前模型在所属业务流程中的对应属性。
+         * fail Result Record，用于保存 Capturing Capture Channel Result Transaction Service 中与 failresultrecord 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean failResultRecord;
@@ -2988,28 +3024,31 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class CapturingRefundChannelResultTransactionService implements RefundChannelResultTransactionService {
 
         /**
-         * record Service 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Service 依赖，用于 Capturing Refund Channel Result Transaction Service 调用对应的数据访问、远程调用或领域服务能力。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final TransactionRecordService recordService;
 
         /**
-         * record Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int recordCount;
 
         /**
-         * fail Result Record 字段，表示当前模型在所属业务流程中的对应属性。
+         * fail Result Record，用于保存 Capturing Refund Channel Result Transaction Service 中与 failresultrecord 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean failResultRecord;
@@ -3041,28 +3080,31 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class CapturingVoidChannelResultTransactionService implements VoidChannelResultTransactionService {
 
         /**
-         * record Service 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Service 依赖，用于 Capturing Void Channel Result Transaction Service 调用对应的数据访问、远程调用或领域服务能力。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final TransactionRecordService recordService;
 
         /**
-         * record Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * record Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int recordCount;
 
         /**
-         * fail Result Record 字段，表示当前模型在所属业务流程中的对应属性。
+         * fail Result Record，用于保存 Capturing Void Channel Result Transaction Service 中与 failresultrecord 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean failResultRecord;
@@ -3128,10 +3170,11 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class CapturingTransactionEventOutboxService implements TransactionEventOutboxService {
 
         /**
-         * saved Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * saved Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int savedCount;
@@ -3163,55 +3206,61 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class InspectingPaymentChannelInvokeService implements PaymentChannelInvokeService {
 
         /**
-         * response 字段，表示当前模型在所属业务流程中的对应属性。
+         * response，用于保存 Inspecting Payment Channel Invoke Service 中与 response 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private ChannelPaymentResponse response;
 
         /**
-         * before Invoke Assertion 字段，表示当前模型在所属业务流程中的对应属性。
+         * before Invoke Assertion，用于保存 Inspecting Payment Channel Invoke Service 中与 beforeinvokeassertion 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final Runnable beforeInvokeAssertion;
 
         /**
-         * invoke Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * invoke Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final AtomicInteger invokeCount = new AtomicInteger();
 
         /**
-         * timeout On First Payment 字段，表示当前模型在所属业务流程中的对应属性。
+         * timeout On First Payment，用于保存 Inspecting Payment Channel Invoke Service 中与 timeoutonfirstpayment 相关的业务属性。
          * <p>
-         * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean timeoutOnFirstPayment;
 
         /**
-         * block First Payment 字段，表示当前模型在所属业务流程中的对应属性。
+         * block First Payment，用于保存 Inspecting Payment Channel Invoke Service 中与 blockfirstpayment 相关的业务属性。
          * <p>
-         * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private boolean blockFirstPayment;
 
         /**
-         * last Target Transaction Id 字段，表示当前模型在所属业务流程中的对应属性。
+         * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String lastTargetTransactionId;
@@ -3316,46 +3365,51 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class RecoverableTransactionRecordService implements TransactionRecordService {
 
         /**
-         * operation 字段，表示当前模型在所属业务流程中的对应属性。
+         * operation，用于保存 Recoverable Transaction Record Service 中与 动作 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final TransactionOperationDO operation;
 
         /**
-         * order 字段，表示当前模型在所属业务流程中的对应属性。
+         * order，用于保存 Recoverable Transaction Record Service 中与 订单 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final TransactionOrderDO order;
 
         /**
-         * expected Status 字段，表示当前模型在所属业务流程中的对应属性。
+         * expected Status，表示当前记录在业务流程中的处理状态。
          * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
          * </p>
          */
         private final String expectedStatus;
 
         /**
-         * completed Status 字段，表示当前模型在所属业务流程中的对应属性。
+         * completed Status，表示当前记录在业务流程中的处理状态。
          * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
          * </p>
          */
         private String completedStatus;
 
         /**
-         * completed Fail Reason 字段，表示当前模型在所属业务流程中的对应属性。
+         * completed Fail Reason，用于保存 Recoverable Transaction Record Service 中与 completedfailreason 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String completedFailReason;
@@ -3518,46 +3572,51 @@ class PaymentTransactionConsistencyBaselineTests {
     private static class QueryOnlyPaymentChannelInvokeService implements PaymentChannelInvokeService {
 
         /**
-         * query Status 字段，表示当前模型在所属业务流程中的对应属性。
+         * query Status，表示当前记录在业务流程中的处理状态。
          * <p>
-         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
          * </p>
          */
         private final ChannelTradeStatus queryStatus;
 
         /**
-         * invoke Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * invoke Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final AtomicInteger invokeCount = new AtomicInteger();
 
         /**
-         * transaction Id 字段，表示当前模型在所属业务流程中的对应属性。
+         * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与 operationId、merchantOrderNo 共同定位一笔平台交易。
          * </p>
          */
         private String transactionId;
 
         /**
-         * channel Order No 字段，表示当前模型在所属业务流程中的对应属性。
+         * channel Order No，用于保存 Query Only Payment Channel Invoke Service 中与 渠道订单no 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private String channelOrderNo;
 
         /**
-         * channel Transaction Id 字段，表示当前模型在所属业务流程中的对应属性。
+         * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
          * </p>
          */
         private String channelTransactionId;

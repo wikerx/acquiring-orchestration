@@ -12,16 +12,17 @@ import org.springframework.stereotype.Service;
  * @classname : AdminMerchantMenuGrantApplicationService
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : AdminMerchantMenuGrantApplicationService 应用服务，用于编排接口请求、权限上下文、领域服务和外部依赖，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Admin Merchant Menu Grant Application Service 应用服务，位于 运营后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
 public class AdminMerchantMenuGrantApplicationService {
 
     /**
-     * admin Merchant Menu Grant Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * admin Merchant Menu Grant Service 依赖，用于 Admin Merchant Menu Grant Application Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final AdminMerchantMenuGrantService adminMerchantMenuGrantService;

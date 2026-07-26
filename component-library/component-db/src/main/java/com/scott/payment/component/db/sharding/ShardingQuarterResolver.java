@@ -17,7 +17,7 @@ import java.util.List;
  * @classname : ShardingQuarterResolver
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : ShardingQuarterResolver 解析组件，用于根据输入条件确定配置、路由、字典或上下文结果，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sharding Quarter Resolver 解析组件，位于 公共组件库，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
  * @status : create
  */
 public class ShardingQuarterResolver {
@@ -124,14 +124,15 @@ public class ShardingQuarterResolver {
     }
 
     /**
-     * 校验 validate Rule Quarter 相关输入，发现不满足业务约束时抛出明确异常。
+     * 校验规则quarter输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ShardingQuarterResolver 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param year year 输入值，含义由调用方法名称和所属业务对象限定
-     * @param quarter quarter 输入值，含义由调用方法名称和所属业务对象限定
-     * @param label label 输入值，含义由调用方法名称和所属业务对象限定
+     * @param year year 输入值，参与 year 的查询、校验、转换、写入或日志摘要
+     * @param quarter quarter 输入值，参与 quarter 的查询、校验、转换、写入或日志摘要
+     * @param label label 输入值，参与 label 的查询、校验、转换、写入或日志摘要
      */
     private void validateRuleQuarter(Integer year, Integer quarter, String label) {
         if (year == null || quarter == null) {

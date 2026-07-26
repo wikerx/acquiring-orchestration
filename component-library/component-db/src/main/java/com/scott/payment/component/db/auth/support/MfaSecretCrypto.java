@@ -111,12 +111,13 @@ public final class MfaSecretCrypto {
     }
 
     /**
-     * 完成 master Key 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 整理master密钥，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 MfaSecretCrypto 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private static byte[] masterKey() {
         try {
@@ -128,12 +129,13 @@ public final class MfaSecretCrypto {
     }
 
     /**
-     * 解析 resolve Master Secret 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 解析resolvemastersecret，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 MfaSecretCrypto 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @return 解析或查询得到的业务值
+     * @return 构造、转换或解析后的业务值
      */
     private static String resolveMasterSecret() {
         String property = System.getProperty("payment.mfa.secret");

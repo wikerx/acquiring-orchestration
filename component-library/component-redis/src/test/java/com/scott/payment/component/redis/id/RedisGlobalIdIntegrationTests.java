@@ -31,34 +31,37 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @classname : RedisGlobalIdIntegrationTests
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : RedisGlobalIdIntegrationTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Redis Global ID Integration Tests 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class RedisGlobalIdIntegrationTests {
 
     /**
-     * connection Factory 字段，表示当前模型在所属业务流程中的对应属性。
+     * connection Factory，用于保存 Redis Global ID Integration Tests 中与 connectionfactory 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private LettuceConnectionFactory connectionFactory;
 
     /**
-     * string Redis Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * string Redis Template，用于定位邮件、通知或渠道参数模板。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private StringRedisTemplate stringRedisTemplate;
 
     /**
-     * properties 字段，表示当前模型在所属业务流程中的对应属性。
+     * properties，用于保存 Redis Global ID Integration Tests 中与 properties 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private RedisGlobalIdProperties properties;

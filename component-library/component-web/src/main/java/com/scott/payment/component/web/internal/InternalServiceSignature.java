@@ -44,18 +44,20 @@ public final class InternalServiceSignature {
     public static final String HEADER_SIGNATURE = "X-Internal-Signature";
 
     /**
-     * HMAC SHA256 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * HMAC SHA 256，用于保存 Internal Service Signature 中与 hmacsha256 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String HMAC_SHA256 = "HmacSHA256";
     /**
-     * LINE SEPARATOR 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * LINE SEPARATOR，用于保存 Internal Service Signature 中与 lineseparator 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String LINE_SEPARATOR = "\n";
@@ -106,14 +108,15 @@ public final class InternalServiceSignature {
     }
 
     /**
-     * 完成 hmac Sha256 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 规范化hmacsha256，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 InternalServiceSignature 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param canonicalText canonical Text 输入值，含义由调用方法名称和所属业务对象限定
-     * @param secret secret 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param canonicalText canonical Text 输入值，参与 规范化文本 的查询、校验、转换、写入或日志摘要
+     * @param secret secret 输入值，参与 secret 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private static String hmacSha256(String canonicalText, String secret) {
         try {
@@ -152,17 +155,18 @@ public final class InternalServiceSignature {
     }
 
     /**
-     * 完成 canonical Text 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 整理规范化文本，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 InternalServiceSignature 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param method method 输入值，含义由调用方法名称和所属业务对象限定
-     * @param path path 输入值，含义由调用方法名称和所属业务对象限定
+     * @param method HTTP 方法或内部调用方法名，用于构造请求、签名或异常摘要
+     * @param path 请求地址或路径，用于定位内部服务、渠道接口或商户回调目标
      * @param timestamp 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param nonce nonce 输入值，含义由调用方法名称和所属业务对象限定
-     * @param caller caller 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param nonce nonce 输入值，参与 nonce 的查询、校验、转换、写入或日志摘要
+     * @param caller caller 输入值，参与 caller 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private static String canonicalText(String method, String path, long timestamp, String nonce, String caller) {
         return method.toUpperCase(Locale.ROOT)

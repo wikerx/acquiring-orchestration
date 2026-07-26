@@ -7,7 +7,7 @@ package com.scott.payment.component.core.id;
  * @classname : GlobalIdValidator
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : GlobalIdValidator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Global ID Validator 校验组件，位于 公共组件库，执行参数、状态、权限或配置规则校验，失败时返回统一异常。
  * @status : create
  */
 public final class GlobalIdValidator {

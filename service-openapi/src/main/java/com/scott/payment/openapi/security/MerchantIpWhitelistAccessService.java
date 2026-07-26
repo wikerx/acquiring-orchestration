@@ -31,35 +31,39 @@ public class MerchantIpWhitelistAccessService {
     public static final String HEADER_GATEWAY_CLIENT_IP = "X-Gateway-Client-Ip";
 
     /**
-     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * NOT DELETED，用于保存 Merchant IP Whitelist Access Service 中与 notdeleted 相关的业务属性。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * ENABLED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * ENABLED，表示当前配置项或业务能力的启停开关。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int ENABLED = 1;
 
     /**
-     * access Config Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * access Config Mapper 依赖，用于 Merchant IP Whitelist Access Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final MerchantOpenApiAccessConfigMapper accessConfigMapper;
     /**
-     * whitelist Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * whitelist Mapper 依赖，用于 Merchant IP Whitelist Access Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final MerchantIpWhitelistMapper whitelistMapper;
@@ -113,13 +117,14 @@ public class MerchantIpWhitelistAccessService {
     }
 
     /**
-     * 执行 resolve Client Ip 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolveclientip，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 MerchantIpWhitelistAccessService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @return 解析或查询得到的业务值
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveClientIp(HttpServletRequest request) {
         String value = request.getHeader(HEADER_GATEWAY_CLIENT_IP);

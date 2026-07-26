@@ -17,6 +17,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -215,6 +216,45 @@ class MerchantOpenApiMpgsLiveFlowTests {
     }
 
     /**
+     * 真实联网验收：覆盖预授权、预授权完成和交易查询入口，确认它们都能通过网关、OpenAPI 安全链路、支付核心和 MPGS 沙箱。
+     *
+     * @throws Exception HTTP 调用、数据库查询或响应解密异常
+     */
+    @Test
+    @EnabledIfSystemProperty(named = ENABLED_PROPERTY, matches = "true")
+    void shouldRunPreAuthorizationCompletionAndQueryAgainstMpgsSandbox() throws Exception {
+        MerchantLiveSecurityMaterial material = loadMerchantMaterial();
+        PublicKey platformPublicKey = payloadCrypto.readPublicKey(material.platformPublicKeyX509Base64());
+        PrivateKey merchantResponsePrivateKey = payloadCrypto.readPrivateKey(material.merchantResponsePrivateKeyPkcs8Base64());
+        String batchPrefix = "C20PRE" + DateTimeFormatter.ofPattern("yyMMddHHmmss").format(LocalDateTime.now());
+
+        LiveOperationResult preAuthorization = submitAndWait("/api/rest/payment/v1/pre-authorization",
+                cardPlainText(batchPrefix + "A1", batchPrefix + "A1PRE", "31", "pre authorization before completion", false),
+                material,
+                platformPublicKey);
+        LiveOperationResult completion = submitAndWait("/api/rest/payment/v1/pre-auth-completion",
+                followUpPlainText(batchPrefix + "A1", batchPrefix + "A1COMP", "31", "pre authorization completion",
+                        preAuthorization.transactionId(), false),
+                material,
+                platformPublicKey);
+        OpenApiLiveResponse queryResponse = submitOnly("/api/rest/payment/v1/query",
+                followUpPlainText(batchPrefix + "A1", batchPrefix + "A1QUERY", "31", "query pre authorization",
+                        preAuthorization.transactionId(), false),
+                material,
+                platformPublicKey);
+        String queryPlainResponse = payloadCrypto.decrypt(queryResponse.encryptedData(), merchantResponsePrivateKey);
+        assertThat(queryPlainResponse).contains(preAuthorization.transactionId(), completion.transactionId(), batchPrefix + "A1");
+
+        log.info("OpenAPI预授权与查询MPGS验收完成，result: {}", JsonUtils.toJsonString(Map.of(
+                "batchPrefix", batchPrefix,
+                "preAuthorization", preAuthorization,
+                "completion", completion,
+                "queryResponse", queryResponse.safeSummary(),
+                "queryPlainResponseMasked", SensitiveDataMaskUtils.maskJson(queryPlainResponse)
+        )));
+    }
+
+    /**
      * 按 MPGS 官方基础测试卡表批量验证当前系统已配置的卡品牌。
      * <p>
      * 当前本地渠道能力启用了 Mastercard、Visa、JCB 和 Diners Club；OpenAPI 校验尚未允许
@@ -327,6 +367,27 @@ class MerchantOpenApiMpgsLiveFlowTests {
                                               MerchantLiveSecurityMaterial material,
                                               PublicKey platformPublicKey)
             throws IOException, InterruptedException, SQLException {
+        OpenApiLiveResponse response = submitOnly(path, plainRequestJson, material, platformPublicKey);
+        assertThat(response.encryptedData()).as(response.identity().orderId() + " encrypted response data").isNotBlank();
+        return waitOperation(response.identity());
+    }
+
+    /**
+     * 提交一笔商户 OpenAPI 请求并返回加密响应，不等待动作单落库。
+     *
+     * @param path              OpenAPI 路径
+     * @param plainRequestJson  商户业务明文 JSON，仅在加密前内存使用
+     * @param material          商户密钥材料
+     * @param platformPublicKey 平台请求体公钥
+     * @return OpenAPI 响应摘要
+     * @throws IOException HTTP 调用异常
+     * @throws InterruptedException HTTP 等待异常
+     */
+    private OpenApiLiveResponse submitOnly(String path,
+                                           String plainRequestJson,
+                                           MerchantLiveSecurityMaterial material,
+                                           PublicKey platformPublicKey)
+            throws IOException, InterruptedException {
         RequestIdentity identity = requestIdentity(plainRequestJson);
         String encryptedData = payloadCrypto.encrypt(plainRequestJson, platformPublicKey);
         String authorization = MerchantOpenApiTestSupport.createMerchantJwt(
@@ -371,7 +432,8 @@ class MerchantOpenApiMpgsLiveFlowTests {
         assertThat(httpResponse.statusCode()).as(identity.orderId()).isEqualTo(200);
         assertThat(response).as(identity.orderId()).isNotNull();
         assertThat(response.getData()).as(identity.orderId() + " encrypted response data").isNotBlank();
-        return waitOperation(identity);
+        return new OpenApiLiveResponse(identity, httpResponse.statusCode(), response.getCode(),
+                response.getMessage(), response.getData());
     }
 
     /**
@@ -404,16 +466,21 @@ class MerchantOpenApiMpgsLiveFlowTests {
      */
     private Optional<LiveOperationResult> findOperation(RequestIdentity identity) throws SQLException {
         String sql = """
-                SELECT transaction_id, source_transaction_id, merchant_order_no, merchant_order_id,
+                SELECT transaction_id, source_transaction_id, merchant_order_no,
+                       COALESCE(merchant_order_id, merchant_operation_no) AS merchant_order_id,
                        transaction_type, transaction_status, label_amount, label_currency,
                        transaction_amount, transaction_currency, transaction_rate,
                        channel_code, channel_order_no, channel_transaction_id,
                        channel_response_code, channel_response_message, auth_code,
                        transaction_date_time
-                  FROM transaction_operation_202603
+                 FROM transaction_operation_202603
                  WHERE merchant_id = ?
                    AND merchant_order_no = ?
-                   AND merchant_order_id = ?
+                   AND (
+                        merchant_order_id = ?
+                        OR merchant_operation_no = ?
+                        OR merchant_operation_no = ?
+                   )
                  ORDER BY id DESC
                  LIMIT 1
                 """;
@@ -422,6 +489,8 @@ class MerchantOpenApiMpgsLiveFlowTests {
             statement.setString(1, MERCHANT_ID);
             statement.setString(2, identity.orderNo());
             statement.setString(3, identity.orderId());
+            statement.setString(4, identity.orderId());
+            statement.setString(5, identity.orderNo());
             try (ResultSet rs = statement.executeQuery()) {
                 if (!rs.next()) {
                     return Optional.empty();
@@ -458,14 +527,17 @@ class MerchantOpenApiMpgsLiveFlowTests {
      */
     private MerchantLiveSecurityMaterial loadMerchantMaterial() throws SQLException {
         String sql = """
-                SELECT jwt.merchant_key, payload.public_key_x509_base64
+                SELECT jwt.merchant_key, payload.public_key_x509_base64, response.private_key_pkcs8_base64
                   FROM base_merchant_jwt_key jwt
                   JOIN base_platform_payload_key payload ON payload.merchant_id = jwt.merchant_id
+                  JOIN base_merchant_response_key response ON response.merchant_id = jwt.merchant_id
                  WHERE jwt.merchant_id = ?
                    AND jwt.enabled = 1
                    AND jwt.deleted = 0
                    AND payload.enabled = 1
                    AND payload.deleted = 0
+                   AND response.enabled = 1
+                   AND response.deleted = 0
                  ORDER BY jwt.id DESC
                  LIMIT 1
                 """;
@@ -476,7 +548,8 @@ class MerchantOpenApiMpgsLiveFlowTests {
                 assertThat(rs.next()).as("merchant openapi material").isTrue();
                 return new MerchantLiveSecurityMaterial(
                         rs.getString("merchant_key"),
-                        rs.getString("public_key_x509_base64")
+                        rs.getString("public_key_x509_base64"),
+                        rs.getString("private_key_pkcs8_base64")
                 );
             }
         }
@@ -695,8 +768,43 @@ class MerchantOpenApiMpgsLiveFlowTests {
      *
      * @param merchantKey 商户 JWT HS256 密钥
      * @param platformPublicKeyX509Base64 平台请求体加密公钥
+     * @param merchantResponsePrivateKeyPkcs8Base64 商户响应解密私钥
      */
-    private record MerchantLiveSecurityMaterial(String merchantKey, String platformPublicKeyX509Base64) {
+    private record MerchantLiveSecurityMaterial(String merchantKey,
+                                                String platformPublicKeyX509Base64,
+                                                String merchantResponsePrivateKeyPkcs8Base64) {
+    }
+
+    /**
+     * OpenAPI 真实 HTTP 响应摘要。
+     *
+     * @param identity 商户请求标识
+     * @param httpStatus HTTP 状态
+     * @param code 平台业务码
+     * @param message 平台业务描述
+     * @param encryptedData 加密响应 data
+     */
+    private record OpenApiLiveResponse(RequestIdentity identity,
+                                       int httpStatus,
+                                       String code,
+                                       String message,
+                                       String encryptedData) {
+
+        /**
+         * 构造适合日志输出的脱敏摘要。
+         *
+         * @return 安全响应摘要
+         */
+        private Map<String, Object> safeSummary() {
+            return Map.of(
+                    "orderNo", identity.orderNo(),
+                    "orderId", identity.orderId(),
+                    "httpStatus", httpStatus,
+                    "code", code,
+                    "message", message,
+                    "encryptedDataLength", encryptedData == null ? 0 : encryptedData.length()
+            );
+        }
     }
 
     /**

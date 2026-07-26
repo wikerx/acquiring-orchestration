@@ -46,7 +46,7 @@ public class MpgsRequestPayload {
      * @classname : Order
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Order Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Order 协作组件，位于 渠道适配库，封装 订单 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Order {
@@ -74,7 +74,7 @@ public class MpgsRequestPayload {
      * @classname : Transaction
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Transaction Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Transaction 协作组件，位于 渠道适配库，封装 交易 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Transaction {
@@ -107,7 +107,7 @@ public class MpgsRequestPayload {
      * @classname : SourceOfFunds
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : SourceOfFunds Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Source Of Funds 协作组件，位于 渠道适配库，封装 来源offunds 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class SourceOfFunds {
@@ -130,7 +130,7 @@ public class MpgsRequestPayload {
      * @classname : Provided
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Provided Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Provided 协作组件，位于 渠道适配库，封装 provided 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Provided {
@@ -148,7 +148,7 @@ public class MpgsRequestPayload {
      * @classname : Card
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Card Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Card 协作组件，位于 渠道适配库，封装 card 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Card {
@@ -176,7 +176,7 @@ public class MpgsRequestPayload {
      * @classname : Expiry
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Expiry Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Expiry 协作组件，位于 渠道适配库，封装 expiry 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Expiry {
@@ -199,7 +199,7 @@ public class MpgsRequestPayload {
      * @classname : Authentication
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Authentication Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Authentication 协作组件，位于 渠道适配库，封装 authentication 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Authentication {
@@ -227,7 +227,7 @@ public class MpgsRequestPayload {
      * @classname : ThreeDs
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : ThreeDs Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Three Ds 协作组件，位于 渠道适配库，封装 threeds 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class ThreeDs {
@@ -255,7 +255,7 @@ public class MpgsRequestPayload {
      * @classname : ThreeDs1
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : ThreeDs1 Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Three Ds 1 协作组件，位于 渠道适配库，封装 threeds1 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class ThreeDs1 {
@@ -278,7 +278,7 @@ public class MpgsRequestPayload {
      * @classname : ThreeDs2
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : ThreeDs2 Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Three Ds 2 协作组件，位于 渠道适配库，封装 threeds2 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class ThreeDs2 {

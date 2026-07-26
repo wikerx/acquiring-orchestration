@@ -41,7 +41,7 @@ import org.springframework.stereotype.Component;
  * @classname : MerchantOperationLogConsumer
  * @date : 2026-06-20 10:32
  * @email : scott_x@163.com
- * @description : MerchantOperationLogConsumer 消息消费组件，用于解析 MQ 消息、绑定链路上下文并触发后续处理，位于 商户后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Merchant Operation Log Consumer 消息消费组件，位于 商户后台服务，解析 MQ 消息、绑定 traceId 和重试次数，并触发后续业务处理。
  * @status : create
  */
 public class MerchantOperationLogConsumer implements RocketMQListener<String> {
@@ -90,31 +90,64 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
      */
     @Override
     public void onMessage(String payload) {
+        long startNanos = System.nanoTime();
         OperationLogMessage message = JsonUtils.parseObject(payload, OperationLogMessage.class);
         if (message == null) {
-            log.warn("event: MERCHANT_OPERATION_LOG_CONSUME_SKIP reason=messageInvalid payloadLength: {}",
-                    payload == null ? 0 : payload.length());
+            log.warn("event: MERCHANT_OPERATION_LOG_CONSUME_SKIP stage=MQ_CONSUME traceId: {} reason=messageInvalid payloadLength: {} durationMs: {}",
+                    TraceContext.getTraceId(),
+                    payload == null ? 0 : payload.length(),
+                    elapsedMillis(startNanos));
             return;
         }
         TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
         try {
+            log.info("event: MERCHANT_OPERATION_LOG_CONSUME_START stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationType: {} operatorId: {} merchantId: {} requestUri: {}",
+                    TraceContext.getTraceId(),
+                    message.getMessageId(),
+                    message.getRetryCount(),
+                    message.getOperationModule(),
+                    message.getOperationType(),
+                    message.getOperatorId(),
+                    message.getMerchantId(),
+                    message.getRequestUri());
             String idempotentKey = "operation-log:consume:merchant:" + message.getIdempotentKey();
             if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
-                log.info("event: MERCHANT_OPERATION_LOG_DUPLICATE messageId: {} retryCount: {} idempotentKey: {}",
+                log.info("event: MERCHANT_OPERATION_LOG_DUPLICATE stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationType: {} idempotentKey: {} durationMs: {}",
+                        TraceContext.getTraceId(),
                         message.getMessageId(),
                         message.getRetryCount(),
-                        message.getIdempotentKey());
+                        message.getOperationModule(),
+                        message.getOperationType(),
+                        message.getIdempotentKey(),
+                        elapsedMillis(startNanos));
                 return;
             }
             SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
             merchantOperLogService.recordOperLog(request);
-            log.info("event: MERCHANT_OPERATION_LOG_CONSUMED messageId: {} retryCount: {} operationModule: {} operationType: {}",
+            log.info("event: MERCHANT_OPERATION_LOG_CONSUMED stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationName: {} operationType: {} operatorId: {} merchantId: {} requestUri: {} operationStatus: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     message.getMessageId(),
                     message.getRetryCount(),
                     message.getOperationModule(),
-                    message.getOperationType());
+                    message.getOperationName(),
+                    message.getOperationType(),
+                    message.getOperatorId(),
+                    message.getMerchantId(),
+                    message.getRequestUri(),
+                    message.getOperationStatus(),
+                    elapsedMillis(startNanos));
         } finally {
             TraceContext.clear();
         }
+    }
+
+    /**
+     * 计算单条操作日志消息消费耗时。
+     *
+     * @param startNanos System.nanoTime 起始值
+     * @return 耗时毫秒数
+     */
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 }

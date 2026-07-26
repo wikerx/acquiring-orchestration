@@ -12,15 +12,15 @@ package com.scott.payment.component.security.replay;
 public interface NonceValidator {
 
     /**
-     * 校验 validate 相关输入，发现不满足业务约束时抛出明确异常。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * 校验validate输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 NonceValidator 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param nonce nonce 输入值，含义由调用方法名称和所属业务对象限定
+     * @param nonce nonce 输入值，参与 nonce 的查询、校验、转换、写入或日志摘要
      * @param timestamp 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     boolean validate(String nonce, long timestamp);
 }

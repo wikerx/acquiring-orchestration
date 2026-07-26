@@ -61,6 +61,11 @@ public final class OpenApiRequestAttributes {
      */
     public static final String RESPONSE_CIPHER_SUMMARY = OpenApiRequestAttributes.class.getName() + ".RESPONSE_CIPHER_SUMMARY";
 
+    /**
+     * OpenAPI 请求处理异常类型 key，异常诊断处理器写入，结束日志读取后统一输出。
+     */
+    public static final String EXCEPTION_TYPE = OpenApiRequestAttributes.class.getName() + ".EXCEPTION_TYPE";
+
     private OpenApiRequestAttributes() {
     }
 }

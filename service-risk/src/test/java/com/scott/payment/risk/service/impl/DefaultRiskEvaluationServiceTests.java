@@ -16,16 +16,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : DefaultRiskEvaluationServiceTests
  * @date : 2026-07-12 22:43
  * @email : scott_x@163.com
- * @description : DefaultRiskEvaluationServiceTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 风控服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Default Risk Evaluation Service Tests 自动化测试类，位于 风控服务，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class DefaultRiskEvaluationServiceTests {
 
     /**
-     * service 字段，表示当前模型在所属业务流程中的对应属性。
+     * service 依赖，用于 Default Risk Evaluation Service Tests 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final DefaultRiskEvaluationService service = new DefaultRiskEvaluationService();

@@ -40,10 +40,11 @@ public class DefaultPaymentExchangeRateService implements PaymentExchangeRateSer
     private static final String RATE_STATUS_ENABLED = "ENABLED";
 
     /**
-     * exchange Business Rate Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * exchange Business Rate Mapper 依赖，用于 Default Payment Exchange Rate Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentExchangeBusinessRateMapper exchangeBusinessRateMapper;

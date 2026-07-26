@@ -25,10 +25,11 @@ import java.util.Optional;
 public class PaymentChannelCallbackRegistry {
 
     /**
-     * handlers 字段，表示当前模型在所属业务流程中的对应属性。
+     * handlers，用于保存 Payment Channel Callback Registry 中与 handlers 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final Map<String, PaymentChannelCallbackHandler> handlers;
@@ -78,13 +79,14 @@ public class PaymentChannelCallbackRegistry {
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：渠道适配层；输入来源、输出结构和异常语义由 PaymentChannelCallbackRegistry 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 渠道适配库 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param channelCode channel Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的业务字段值
+     * @param channelCode channel Code 输入值，参与 渠道编码 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String normalize(String channelCode) {
         return channelCode == null ? null : channelCode.trim().toUpperCase(Locale.ROOT);

@@ -15,7 +15,7 @@ import java.util.HexFormat;
  * @classname : OpenApiPemUtils
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : OpenApiPemUtils 通用能力封装，用于提供无状态的格式转换、校验或安全处理函数，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Pem Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  * @status : create
  */
 public final class OpenApiPemUtils {
@@ -26,34 +26,38 @@ public final class OpenApiPemUtils {
     private static final int PEM_LINE_LENGTH = 64;
 
     /**
-     * PUBLIC KEY BEGIN 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * PUBLIC KEY BEGIN，用于保存 Open API Pem Utils 中与 public密钥begin 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String PUBLIC_KEY_BEGIN = "-----BEGIN PUBLIC KEY-----";
     /**
-     * PUBLIC KEY END 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * PUBLIC KEY END，用于保存 Open API Pem Utils 中与 public密钥end 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String PUBLIC_KEY_END = "-----END PUBLIC KEY-----";
     /**
-     * PRIVATE KEY BEGIN 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * PRIVATE KEY BEGIN，用于保存 Open API Pem Utils 中与 private密钥begin 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String PRIVATE_KEY_BEGIN = "-----BEGIN PRIVATE KEY-----";
     /**
-     * PRIVATE KEY END 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * PRIVATE KEY END，用于保存 Open API Pem Utils 中与 private密钥end 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String PRIVATE_KEY_END = "-----END PRIVATE KEY-----";
@@ -116,15 +120,16 @@ public final class OpenApiPemUtils {
     }
 
     /**
-     * 转换生成 to Pem 对应的传输对象、导出行或协议字段。
+     * 构造pem对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 OpenApiPemUtils 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @param begin begin 输入值，含义由调用方法名称和所属业务对象限定
-     * @param end end 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param begin begin 输入值，参与 begin 的查询、校验、转换、写入或日志摘要
+     * @param end end 输入值，参与 end 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private static String toPem(String value, String begin, String end) {
         String normalizedBase64 = normalizePem(value);

@@ -5,6 +5,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.openapi.client.payment.dto.PaymentCreateClientRequestDTO;
@@ -196,7 +197,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         String targetUrl = targetUrl(OpenApiPaymentOperationEnum.QUERY);
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestSummary: {}",
+        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestSummary: {}",
+                TraceContext.getTraceId(),
                 OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
@@ -216,25 +218,35 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     new TypeReference<CommonResult<PaymentQueryClientResponseDTO>>() {
                     }
             );
-            PaymentQueryClientResponseDTO responseDTO = unwrapQueryResult(result);
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} httpStatus: {} platformCode: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            PaymentQueryClientResponseDTO responseDTO = result == null ? null : result.getData();
+            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} transactionId: {} operationId: {} platformStatus: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
                     requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
                     requestDTO == null ? null : requestDTO.getTransactionType(),
+                    firstQueryTransactionId(responseDTO),
+                    firstQueryOperationId(responseDTO),
+                    firstQueryStatus(responseDTO),
                     responseEntity.getStatusCode().value(),
                     result == null ? null : result.getCode(),
+                    CommonResult.isSuccess(result),
                     responseSummary(result),
                     responseBody == null ? 0 : responseBody.length(),
                     digest16(responseBody),
                     elapsedMillis(startNanos));
+            responseDTO = unwrapQueryResult(result);
             return responseDTO;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} durationMs: {} exceptionType: {}",
+            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+                    TraceContext.getTraceId(),
                     OpenApiPaymentOperationEnum.QUERY.getTransactionType(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
                     requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
                     requestDTO == null ? null : requestDTO.getTransactionType(),
+                    uri.getHost(),
+                    uri.getPath(),
+                    digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment query call failed");
@@ -253,7 +265,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         String targetUrl = paymentClientProperties.getChannelCallbackUrl();
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} targetService: {} path: {} requestSummary: {}",
+        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} targetService: {} path: {} requestSummary: {}",
+                TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getChannelCode(),
                 requestDTO == null ? null : requestDTO.getTransactionId(),
                 uri.getHost(),
@@ -271,19 +284,30 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     new TypeReference<CommonResult<TransactionChannelCallbackClientResponseDTO>>() {
                     }
             );
-            TransactionChannelCallbackClientResponseDTO responseDTO = unwrapCallbackResult(result);
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} callbackId: {} callbackStatus: {} platformCode: {} durationMs: {}",
+            TransactionChannelCallbackClientResponseDTO responseDTO = result == null ? null : result.getData();
+            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} callbackId: {} callbackStatus: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getChannelCode(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
-                    responseDTO.getCallbackId(),
-                    responseDTO.getCallbackStatus(),
+                    responseDTO == null ? null : responseDTO.getCallbackId(),
+                    responseDTO == null ? null : responseDTO.getCallbackStatus(),
+                    responseEntity.getStatusCode().value(),
                     result == null ? null : result.getCode(),
+                    CommonResult.isSuccess(result),
+                    responseSummary(result),
+                    responseBody == null ? 0 : responseBody.length(),
+                    digest16(responseBody),
                     elapsedMillis(startNanos));
+            responseDTO = unwrapCallbackResult(result);
             return responseDTO;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} durationMs: {} exceptionType: {}",
+            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+                    TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getChannelCode(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
+                    uri.getHost(),
+                    uri.getPath(),
+                    digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment callback call failed");
@@ -301,7 +325,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         long startNanos = System.nanoTime();
         String targetUrl = paymentClientProperties.getMerchantApiResponseLogUrl();
         URI uri = URI.create(targetUrl);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} targetService: {} path: {} requestSummary: {}",
+        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} targetService: {} path: {} requestSummary: {}",
+                TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getTransactionId(),
                 requestDTO == null ? null : requestDTO.getRequestId(),
                 uri.getHost(),
@@ -320,7 +345,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     }
             );
             boolean updated = unwrapBooleanResult(result);
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} httpStatus: {} platformCode: {} updated: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} httpStatus: {} platformCode: {} updated: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
                     requestDTO == null ? null : requestDTO.getRequestId(),
                     responseEntity.getStatusCode().value(),
@@ -332,9 +358,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     elapsedMillis(startNanos));
             return updated;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} durationMs: {} exceptionType: {}",
+            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+                    TraceContext.getTraceId(),
                     requestDTO == null ? null : requestDTO.getTransactionId(),
                     requestDTO == null ? null : requestDTO.getRequestId(),
+                    uri.getHost(),
+                    uri.getPath(),
+                    digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment merchant api log update failed");
@@ -354,7 +384,8 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         String targetUrl = targetUrl(operation);
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
-        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestSummary: {}",
+        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestSummary: {}",
+                TraceContext.getTraceId(),
                 operation.getTransactionType(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
                 requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
@@ -374,28 +405,37 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     new TypeReference<CommonResult<PaymentCreateClientResponseDTO>>() {
                     }
             );
-            PaymentCreateClientResponseDTO responseDTO = unwrapResult(result);
-            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} httpStatus: {} platformCode: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+            PaymentCreateClientResponseDTO responseDTO = result == null ? null : result.getData();
+            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     operation.getTransactionType(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
                     requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
-                    responseDTO.getTransactionId(),
-                    responseDTO.getOperationId(),
-                    responseDTO.getTransactionType(),
-                    responseDTO.getStatus(),
+                    responseDTO == null ? null : responseDTO.getTransactionId(),
+                    responseDTO == null ? null : responseDTO.getOperationId(),
+                    responseDTO == null
+                            ? requestDTO == null ? null : requestDTO.getTransactionType()
+                            : responseDTO.getTransactionType(),
+                    responseDTO == null ? null : responseDTO.getStatus(),
                     responseEntity.getStatusCode().value(),
                     result == null ? null : result.getCode(),
+                    CommonResult.isSuccess(result),
                     responseSummary(result),
                     responseBody == null ? 0 : responseBody.length(),
                     digest16(responseBody),
                     elapsedMillis(startNanos));
+            responseDTO = unwrapResult(result);
             return responseDTO;
         } catch (RestClientException exception) {
-            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} durationMs: {} exceptionType: {}",
+            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} merchantId: {} merchantOrderNo: {} transactionType: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+                    TraceContext.getTraceId(),
                     operation.getTransactionType(),
                     requestDTO == null ? null : requestDTO.getMerchantId(),
                     requestDTO == null ? null : requestDTO.getMerchantOrderNo(),
                     requestDTO == null ? null : requestDTO.getTransactionType(),
+                    uri.getHost(),
+                    uri.getPath(),
+                    digest16(JsonUtils.toJsonString(requestDTO)),
                     elapsedMillis(startNanos),
                     exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment call failed");
@@ -513,6 +553,58 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private String responseSummary(CommonResult<?> result) {
         return truncate(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(result)));
+    }
+
+    /**
+     * 提取查询响应中的首个交易号。
+     * <p>
+     * 查询接口按订单返回交易动作列表，日志仅记录首个动作的交易号用于排障入口定位，不改变对外响应结构。
+     * </p>
+     * @param responseDTO service-payment 查询响应
+     * @return 首个交易号，响应为空或列表为空时返回 null
+     */
+    private String firstQueryTransactionId(PaymentQueryClientResponseDTO responseDTO) {
+        PaymentQueryClientResponseDTO.TransactionInfoDTO transactionInfo = firstQueryTransaction(responseDTO);
+        return transactionInfo == null ? null : transactionInfo.getTransactionId();
+    }
+
+    /**
+     * 查询响应不向 OpenAPI 暴露 operationId，日志字段保留为空。
+     * <p>
+     * operationId 仅存在于 payment 内部链路和数据库日志；OpenAPI 查询响应当前没有该字段，
+     * 因此这里不新增外部契约字段，只让结构化日志保持字段位。
+     * </p>
+     * @param responseDTO service-payment 查询响应
+     * @return 固定返回 null
+     */
+    private String firstQueryOperationId(PaymentQueryClientResponseDTO responseDTO) {
+        return null;
+    }
+
+    /**
+     * 从查询响应首个交易动作的商户响应码推导平台状态摘要。
+     * <p>
+     * 查询 DTO 当前没有 transactionStatus 字段，因此日志用 code 作为最小可用状态线索。
+     * </p>
+     * @param responseDTO service-payment 查询响应
+     * @return 首个交易动作的响应码，响应为空或列表为空时返回 null
+     */
+    private String firstQueryStatus(PaymentQueryClientResponseDTO responseDTO) {
+        PaymentQueryClientResponseDTO.TransactionInfoDTO transactionInfo = firstQueryTransaction(responseDTO);
+        return transactionInfo == null ? null : transactionInfo.getCode();
+    }
+
+    /**
+     * 提取查询响应中的首个交易动作。
+     *
+     * @param responseDTO service-payment 查询响应
+     * @return 首个交易动作，响应为空或列表为空时返回 null
+     */
+    private PaymentQueryClientResponseDTO.TransactionInfoDTO firstQueryTransaction(PaymentQueryClientResponseDTO responseDTO) {
+        if (responseDTO == null || responseDTO.getTransactionInfo() == null || responseDTO.getTransactionInfo().isEmpty()) {
+            return null;
+        }
+        return responseDTO.getTransactionInfo().get(0);
     }
 
     /**

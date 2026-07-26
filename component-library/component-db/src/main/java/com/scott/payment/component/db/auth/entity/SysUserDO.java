@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * @classname : SysUserDO
  * @date : 2026-06-06 00:09
  * @email : scott_x@163.com
- * @description : SysUserDO 数据库实体，用于映射持久化表字段、审计字段和业务状态，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sys User DO 持久化模型，位于 公共组件库，映射数据库记录字段，承载主键、业务标识、状态、时间和审计信息。
  * @status : create
  */
 public class SysUserDO {

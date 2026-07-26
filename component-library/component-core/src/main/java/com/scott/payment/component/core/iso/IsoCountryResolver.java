@@ -41,7 +41,7 @@ public final class IsoCountryResolver {
     private static final Map<String, IsoCountryInfo> COUNTRY_INDEX = buildCountryIndex();
 
     /**
-     * 工具类不允许实例化。
+     * 私有构造方法，禁止外部实例化该国家地区解析类型。
      */
     private IsoCountryResolver() {
     }

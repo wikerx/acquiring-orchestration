@@ -39,19 +39,21 @@ import org.springframework.stereotype.Service;
 public class PaymentTransactionApplicationService {
 
     /**
-     * DEFAULT MERCHANT NOTIFICATION NOTIFY LIMIT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * DEFAULT MERCHANT NOTIFICATION NOTIFY LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final int DEFAULT_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 100;
 
     /**
-     * MAX MERCHANT NOTIFICATION NOTIFY LIMIT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * MAX MERCHANT NOTIFICATION NOTIFY LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final int MAX_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 500;

@@ -57,152 +57,168 @@ import java.util.Objects;
 public class DefaultRefundTransactionPreparationService implements RefundTransactionPreparationService {
 
     /**
-     * CHANNEL REQUEST ID PREFIX 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * CHANNEL REQUEST ID PREFIX，用于保存 Default Refund Transaction Preparation Service 中与 渠道requestIDprefix 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：请求链路、回调链路或跨服务调用上下文。
+     * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
      * </p>
      */
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
     /**
-     * CHANNEL TRANSACTION ID PREFIX 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * CHANNEL TRANSACTION ID PREFIX，用于保存 Default Refund Transaction Preparation Service 中与 渠道交易IDprefix 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
      * </p>
      */
     private static final String CHANNEL_TRANSACTION_ID_PREFIX = "CH";
 
     /**
-     * TRANSACTION OPERATION SCOPE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * TRANSACTION OPERATION SCOPE，用于保存 Default Refund Transaction Preparation Service 中与 交易动作scope 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
 
     /**
-     * DEFAULT TIME ZONE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * DEFAULT TIME ZONE，用于保存 Default Refund Transaction Preparation Service 中与 defaulttimezone 相关的业务属性。
      * <p>
-     * 单位：系统时区时间；格式：ISO 日期或日期时间；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
 
     /**
-     * PAYMENT TRANSACTION AGGREGATE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * PAYMENT TRANSACTION AGGREGATE，用于保存 Default Refund Transaction Preparation Service 中与 payment交易aggregate 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
 
     /**
-     * EVENT STATUS INIT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * EVENT STATUS INIT，表示当前记录在业务流程中的处理状态。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
      * </p>
      */
     private static final String EVENT_STATUS_INIT = "INIT";
 
     /**
-     * DEFAULT EVENT MAX RETRY COUNT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * DEFAULT EVENT MAX RETRY COUNT，表示当前统计、分页、扫描或重试场景中的数量。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 200;
 
     /**
-     * INITIAL VERSION 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * INITIAL VERSION，用于保存 Default Refund Transaction Preparation Service 中与 initialversion 相关的业务属性。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int INITIAL_VERSION = 0;
 
     /**
-     * NOT DELETED 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * NOT DELETED，用于保存 Default Refund Transaction Preparation Service 中与 notdeleted 相关的业务属性。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int NOT_DELETED = 0;
 
     /**
-     * iso Dictionary Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * ISO Dictionary Service 依赖，用于 Default Refund Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：布尔值；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：仅允许平台约定的启停取值；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final IsoDictionaryService isoDictionaryService;
 
     /**
-     * payment Channel Route Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * payment Channel Route Service 依赖，用于 Default Refund Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentChannelRouteService paymentChannelRouteService;
 
     /**
-     * transaction Idempotency Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final TransactionIdempotencyService transactionIdempotencyService;
 
     /**
-     * transaction Event Outbox Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * transaction Event Outbox Service 依赖，用于 Default Refund Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final TransactionEventOutboxService transactionEventOutboxService;
 
     /**
-     * transaction Record Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * transaction Record Service 依赖，用于 Default Refund Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final TransactionRecordService transactionRecordService;
 
     /**
-     * transaction State Machine Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * transaction State Machine Service 依赖，用于 Default Refund Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final TransactionStateMachineService transactionStateMachineService;
 
 /**
- * 创建 DefaultRefundTransactionPreparationService 实例并注入其运行所需依赖。
+ * 整理默认refund交易preparationservice，返回后续查询、通知或响应组装可直接使用的标准值。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param isoDictionaryService iso Dictionary Service 输入值，含义由调用方法名称和所属业务对象限定
- * @param paymentChannelRouteService payment Channel Route Service 输入值，含义由调用方法名称和所属业务对象限定
- * @param transactionIdempotencyService 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
- * @param transactionEventOutboxService transaction Event Outbox Service 输入值，含义由调用方法名称和所属业务对象限定
- * @param transactionRecordService transaction Record Service 输入值，含义由调用方法名称和所属业务对象限定
- * @param transactionStateMachineService transaction State Machine Service 输入值，含义由调用方法名称和所属业务对象限定
+ * @param isoDictionaryService ISO Dictionary Service 输入值，参与 isodictionaryservice 的查询、校验、转换、写入或日志摘要
+ * @param paymentChannelRouteService payment Channel Route Service 输入值，参与 payment渠道routeservice 的查询、校验、转换、写入或日志摘要
+ * @param transactionIdempotencyService 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @param transactionEventOutboxService transaction Event Outbox Service 输入值，参与 交易eventoutboxservice 的查询、校验、转换、写入或日志摘要
+ * @param transactionRecordService transaction Record Service 输入值，参与 交易记录service 的查询、校验、转换、写入或日志摘要
+ * @param transactionStateMachineService transaction State Machine Service 输入值，参与 交易状态machineservice 的查询、校验、转换、写入或日志摘要
  */
     public DefaultRefundTransactionPreparationService(IsoDictionaryService isoDictionaryService,
                                                       PaymentChannelRouteService paymentChannelRouteService,
@@ -289,13 +305,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 resolve Source Order 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve来源订单，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
@@ -308,13 +325,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 lock Source Order 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理lock来源订单，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private TransactionOrderDO lockSourceOrder(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO == null
@@ -326,14 +344,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 validate Refund Capacity 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 校验refundcapacity输入，发现缺失、越权或格式错误时中断当前流程。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+ * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+ * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
  */
     private void validateRefundCapacity(PaymentCreateCommandDTO commandDTO,
                                         TransactionOrderDO sourceOrderDO,
@@ -348,15 +367,16 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 sum Non Terminal Refund Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 统计sumnonterminalrefund金额，返回分页、扫描或报表汇总所需的数量结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
- * @return 按渠道协议格式化后的金额字符串或金额计算结果
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private BigDecimal sumNonTerminalRefundAmount(PaymentCreateCommandDTO commandDTO,
                                                   TransactionOrderDO sourceOrderDO,
@@ -372,14 +392,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 validate No Non Terminal Void 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 校验nononterminalvoid输入，发现缺失、越权或格式错误时中断当前流程。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+ * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+ * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param now now 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
  */
     private void validateNoNonTerminalVoid(PaymentCreateCommandDTO commandDTO,
                                            TransactionOrderDO sourceOrderDO,
@@ -399,14 +420,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 later Of 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化laterof，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param first first 输入值，含义由调用方法名称和所属业务对象限定
-     * @param second second 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param first first 输入值，参与 首个 的查询、校验、转换、写入或日志摘要
+     * @param second second 输入值，参与 second 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
@@ -419,14 +441,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 resolve Duplicate Refund 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 解析resolve重复refund，将原始输入转换为当前调用链需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param record record 输入值，含义由调用方法名称和所属业务对象限定
- * @return 解析或查询得到的业务值
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param record record 输入值，参与 记录 的查询、校验、转换、写入或日志摘要
+ * @return 构造、转换或解析后的业务值
  */
     private PaymentCreateResultDTO resolveDuplicateRefund(PaymentCreateCommandDTO commandDTO,
                                                           TransactionIdempotencyDO record) {
@@ -443,14 +466,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 canonical Refund Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 整理规范化refund请求指纹，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private String canonicalRefundRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                      TransactionOrderDO sourceOrderDO) {
@@ -474,26 +498,28 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 normalize Fingerprint Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize指纹文本，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 标准化后的业务字段值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeFingerprintText(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     /**
-     * 执行 normalize Fingerprint Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize指纹金额，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param amount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeFingerprintAmount(BigDecimal amount) {
         if (amount == null) {
@@ -503,13 +529,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 sha256 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 计算sha256摘要，用不可逆指纹关联原始内容而不暴露明文。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String sha256(String source) {
         try {
@@ -522,14 +549,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 normalize Refund Command 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 解析normalizerefundcommand，将原始输入转换为当前调用链需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOperationDO source Operation DO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param sourceOperationDO source Operation DO 输入值，参与 来源动作do 的查询、校验、转换、写入或日志摘要
  */
     private void normalizeRefundCommand(PaymentCreateCommandDTO commandDTO,
                                         TransactionOrderDO sourceOrderDO,
@@ -553,14 +581,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 resolve Label Currency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolvelabel币种，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 标准化后的 ISO 4217 币种代码
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
         if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
@@ -576,13 +605,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 validate Refund Merchant Order No 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验refund商户订单no输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
      */
     private void validateRefundMerchantOrderNo(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
         if (!StringUtils.hasText(commandDTO.getMerchantOrderNo())) {
@@ -594,15 +624,16 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 build Refund Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 构造refund结果对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
- * @return 转换或构建后的目标对象
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @return 构造、转换或解析后的业务值
  */
     private PaymentCreateResultDTO buildRefundResult(PaymentCreateCommandDTO commandDTO,
                                                      TransactionOrderDO sourceOrderDO,
@@ -622,14 +653,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 prepare Channel Request 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 整理prepare渠道请求，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private PaymentPreparedChannelRequestDTO prepareChannelRequest(PaymentCreateCommandDTO commandDTO,
                                                                   TransactionOrderDO sourceOrderDO) {
@@ -641,17 +673,18 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 build Prepared Invoke Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 构造preparedinvokeresult对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
- * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
- * @param preparedChannelRequestDTO prepared Channel Request DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 转换或构建后的目标对象
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
+ * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @param preparedChannelRequestDTO prepared Channel Request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @return 构造、转换或解析后的业务值
  */
     private PaymentChannelInvokeResultDTO buildPreparedInvokeResult(PaymentCreateCommandDTO commandDTO,
                                                                     PaymentRouteResultDTO routeResultDTO,
@@ -686,16 +719,17 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 record Refund Prepared Fact 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 记录refundpreparedfact，写入安全、审计或链路排障所需的脱敏上下文。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
  * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
  */
     private void recordRefundPreparedFact(PaymentCreateCommandDTO commandDTO,
@@ -715,13 +749,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 save Transaction Created Event 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 创建交易createdevent，完成必要校验后写入或委托下游服务处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      */
     private void saveTransactionCreatedEvent(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         TransactionEventMessage message = new TransactionEventMessage();
@@ -766,14 +801,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 complete Idempotency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化completeidempotency，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param idempotencyKey idempotency Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param idempotencyKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      */
     private void completeIdempotency(String idempotencyKey, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
         transactionIdempotencyService.complete(
@@ -788,13 +824,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 to Duplicate Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造重复请求结果对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param record record 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param record record 输入值，参与 记录 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
         if (StringUtils.hasText(record.getResultSnapshot())) {
@@ -818,16 +855,17 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 enrich Refund Result 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 构造refund结果对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
  */
     private void enrichRefundResult(PaymentCreateCommandDTO commandDTO,
                                     TransactionOrderDO sourceOrderDO,
@@ -859,13 +897,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 resolve Display Authorized Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve展示authorized金额，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
@@ -875,13 +914,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 resolve Display Captured Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve展示captured金额，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private BigDecimal resolveDisplayCapturedAmount(TransactionOrderDO sourceOrderDO) {
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
@@ -891,14 +931,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 first Positive 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理首个positive，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param first first 输入值，含义由调用方法名称和所属业务对象限定
-     * @param second second 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param first first 输入值，参与 首个 的查询、校验、转换、写入或日志摘要
+     * @param second second 输入值，参与 second 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private BigDecimal firstPositive(BigDecimal first, BigDecimal second) {
         if (first != null && first.compareTo(BigDecimal.ZERO) > 0) {
@@ -908,13 +949,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 resolve Callback Url 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve回调url，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
@@ -927,13 +969,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 enrich Merchant Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 构造商户响应对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
  */
     private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO,
                                         com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse channelResponse) {
@@ -942,13 +985,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 resolve Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve商户响应编码，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 解析或查询得到的业务值
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveMerchantResponseCode(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
@@ -961,14 +1005,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
 /**
- * 执行 resolve Merchant Response Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 解析resolve商户响应说明，将原始输入转换为当前调用链需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
  * </p>
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param response response 输入值，含义由调用方法名称和所属业务对象限定
- * @return 解析或查询得到的业务值
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+ * @return 构造、转换或解析后的业务值
  */
     private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO,
                                                   com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse response) {
@@ -988,14 +1033,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 join Code And Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理拼接编码and说明，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String joinCodeAndMessage(String code, String message) {
         if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
@@ -1005,13 +1051,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String firstText(String... values) {
         if (values == null) {
@@ -1026,13 +1073,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 resolve Channel Order No 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve渠道订单no，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveChannelOrderNo(TransactionOrderDO sourceOrderDO) {
         return StringUtils.hasText(sourceOrderDO.getRootTransactionId())
@@ -1041,14 +1089,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 to Minor Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造minor金额对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param amount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
+     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @return 构造、转换或解析后的业务值
      */
     private Long toMinorAmount(BigDecimal amount, String currency) {
         try {
@@ -1059,13 +1108,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 resolve Currency Exponent 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve币种小数位，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
-     * @return 标准化后的 ISO 4217 币种代码
+     * @return 构造、转换或解析后的业务值
      */
     private int resolveCurrencyExponent(String currency) {
         IsoCurrencyInfo currencyInfo = isoDictionaryService.getCurrency(currency)
@@ -1077,38 +1127,41 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 normalize Currency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize币种，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
-     * @return 标准化后的 ISO 4217 币种代码
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
 
     /**
-     * 执行 default Transaction Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理默认交易汇率，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
     /**
-     * 执行 to Result Sub Merchant Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造子商户响应信息对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
      */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
@@ -1133,13 +1186,14 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 is Empty Sub Merchant Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 is empty sub merchant info 条件是否成立，用于控制 Default Refund Transaction Preparation Service 的后续分支。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isEmptySubMerchantInfo(PaymentCreateResultDTO.SubMerchantInfoDTO value) {
         return value == null || java.util.stream.Stream.of(
@@ -1160,14 +1214,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
     }
 
     /**
-     * 执行 to Utc Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造utctime对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultRefundTransactionPreparationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 转换或构建后的目标对象
+     * @return 构造、转换或解析后的业务值
      */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);

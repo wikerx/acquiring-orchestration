@@ -76,13 +76,14 @@ public final class JsonUtils {
     }
 
     /**
-     * 判断 is Blank 条件是否成立，用于控制后续业务分支。
+     * 判断 is blank 条件是否成立，用于控制 Json Utils 的后续分支。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 JsonUtils 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 条件满足时返回 true，否则返回 false
      */
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();

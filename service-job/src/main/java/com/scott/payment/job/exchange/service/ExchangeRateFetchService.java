@@ -11,7 +11,7 @@ import com.scott.payment.job.dto.exchange.ExchangeRateFetchDTOs.ExchangeRateFetc
  * @classname : ExchangeRateFetchService
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : ExchangeRateFetchService 服务契约，用于声明业务能力、调用边界和返回结果约束，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Exchange Rate Fetch Service 服务契约，位于 调度任务服务，声明当前业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public interface ExchangeRateFetchService {

@@ -15,7 +15,7 @@ import java.time.OffsetDateTime;
  * @classname : PaymentCreateVO
  * @date : 2026-05-28 10:23
  * @email : scott_x@163.com
- * @description : PaymentCreateVO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payment Create VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
 public class PaymentCreateVO implements Serializable {
@@ -69,7 +69,7 @@ public class PaymentCreateVO implements Serializable {
      * @classname : MerchantInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : MerchantInfoVO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Merchant Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class MerchantInfoVO implements Serializable {
@@ -97,7 +97,7 @@ public class PaymentCreateVO implements Serializable {
      * @classname : SubMerchantInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : SubMerchantInfoVO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Sub Merchant Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class SubMerchantInfoVO implements Serializable {
@@ -185,7 +185,7 @@ public class PaymentCreateVO implements Serializable {
      * @classname : BillingCardHolderInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : BillingCardHolderInfoVO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Billing Card Holder Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class BillingCardHolderInfoVO implements Serializable {
@@ -248,7 +248,7 @@ public class PaymentCreateVO implements Serializable {
      * @classname : OrderInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : OrderInfoVO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Order Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class OrderInfoVO implements Serializable {
@@ -311,7 +311,7 @@ public class PaymentCreateVO implements Serializable {
      * @classname : TransactionInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : TransactionInfoVO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Transaction Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class TransactionInfoVO implements Serializable {
@@ -423,7 +423,7 @@ public class PaymentCreateVO implements Serializable {
      * @classname : BillingInfoVO
      * @date : 2026-05-28 10:23
      * @email : scott_x@163.com
-     * @description : BillingInfoVO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Billing Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class BillingInfoVO implements Serializable {

@@ -14,7 +14,7 @@ import java.util.List;
  * @classname : PageResult
  * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : PageResult Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Page Result 协作组件，位于 公共组件库，封装 pageresult 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class PageResult<T> implements Serializable {

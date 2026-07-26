@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
  * @classname : RocketMqProducerTest
  * @date : 未确认
  * @email : scott_x@163.com
- * @description : RocketMqProducerTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Rocket MQ Producer Test 消息投递组件，位于 公共组件库，补齐消息标识、traceId、重试次数和业务载荷后发送 MQ。
  * @status : create
  */
 class RocketMqProducerTest {

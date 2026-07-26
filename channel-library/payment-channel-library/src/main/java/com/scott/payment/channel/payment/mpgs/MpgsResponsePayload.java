@@ -89,7 +89,7 @@ public class MpgsResponsePayload {
      * @classname : Response
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Response 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class Response {
@@ -127,7 +127,7 @@ public class MpgsResponsePayload {
      * @classname : CardSecurityCode
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : CardSecurityCode Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Card Security Code 协作组件，位于 渠道适配库，封装 cardsecuritycode 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class CardSecurityCode {
@@ -150,7 +150,7 @@ public class MpgsResponsePayload {
      * @classname : AuthorizationResponse
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : AuthorizationResponse 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Authorization Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class AuthorizationResponse {
@@ -208,7 +208,7 @@ public class MpgsResponsePayload {
      * @classname : Transaction
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Transaction Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Transaction 协作组件，位于 渠道适配库，封装 交易 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Transaction {
@@ -281,7 +281,7 @@ public class MpgsResponsePayload {
      * @classname : Acquirer
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Acquirer Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Acquirer 协作组件，位于 渠道适配库，封装 acquirer 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Acquirer {
@@ -329,7 +329,7 @@ public class MpgsResponsePayload {
      * @classname : Order
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Order Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Order 协作组件，位于 渠道适配库，封装 订单 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Order {
@@ -422,7 +422,7 @@ public class MpgsResponsePayload {
      * @classname : Chargeback
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Chargeback Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Chargeback 协作组件，位于 渠道适配库，封装 chargeback 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Chargeback {
@@ -445,7 +445,7 @@ public class MpgsResponsePayload {
      * @classname : SourceOfFunds
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : SourceOfFunds Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Source Of Funds 协作组件，位于 渠道适配库，封装 来源offunds 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class SourceOfFunds {
@@ -468,7 +468,7 @@ public class MpgsResponsePayload {
      * @classname : Provided
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Provided Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Provided 协作组件，位于 渠道适配库，封装 provided 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Provided {
@@ -486,7 +486,7 @@ public class MpgsResponsePayload {
      * @classname : Card
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Card Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Card 协作组件，位于 渠道适配库，封装 card 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Card {
@@ -534,7 +534,7 @@ public class MpgsResponsePayload {
      * @classname : Expiry
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Expiry Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Expiry 协作组件，位于 渠道适配库，封装 expiry 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Expiry {
@@ -557,7 +557,7 @@ public class MpgsResponsePayload {
      * @classname : Risk
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Risk Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Risk 协作组件，位于 渠道适配库，封装 risk 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Risk {
@@ -575,7 +575,7 @@ public class MpgsResponsePayload {
      * @classname : RiskResponse
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : RiskResponse 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Risk Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
     public static class RiskResponse {
@@ -613,7 +613,7 @@ public class MpgsResponsePayload {
      * @classname : Review
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : Review Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Review 协作组件，位于 渠道适配库，封装 review 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class Review {
@@ -631,7 +631,7 @@ public class MpgsResponsePayload {
      * @classname : RiskRule
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : RiskRule Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Risk Rule 协作组件，位于 渠道适配库，封装 risk规则 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class RiskRule {
@@ -664,7 +664,7 @@ public class MpgsResponsePayload {
      * @classname : ErrorPayload
      * @date : 2026-07-12 00:00
      * @email : scott_x@163.com
-     * @description : ErrorPayload Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+     * @description : Error Payload 协作组件，位于 渠道适配库，封装 errorpayload 相关的校验、转换、持久化访问或运行时协作入口。
      * @status : create
      */
     public static class ErrorPayload {

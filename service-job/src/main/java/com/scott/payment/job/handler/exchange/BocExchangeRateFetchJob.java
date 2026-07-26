@@ -18,25 +18,27 @@ import org.springframework.stereotype.Component;
  * @classname : BocExchangeRateFetchJob
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : BocExchangeRateFetchJob 调度任务组件，用于执行定时扫描、异步任务或后台补偿流程，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Boc Exchange Rate Fetch Job 任务组件，位于 调度任务服务，执行定时扫描、分片调度、补偿处理或后台同步，并记录任务执行结果。
  * @status : create
  */
 public class BocExchangeRateFetchJob implements JobHandler {
 
     /**
-     * HANDLER CODE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * HANDLER CODE，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     public static final String HANDLER_CODE = "bocExchangeRateFetchJob";
 
     /**
-     * exchange Rate Fetch Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * exchange Rate Fetch Service 依赖，用于 Boc Exchange Rate Fetch Job 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：金额单位由关联币种决定，比例字段按业务配置解释；格式：decimal；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final ExchangeRateFetchService exchangeRateFetchService;

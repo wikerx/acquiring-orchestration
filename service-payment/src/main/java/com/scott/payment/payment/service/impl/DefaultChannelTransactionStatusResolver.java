@@ -241,15 +241,16 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 success 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+ * 规范化success，返回当前业务步骤需要的业务值。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param channelStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+ * @param channelResponseCode channel Response Code 输入值，参与 渠道响应编码 的查询、校验、转换、写入或日志摘要
+ * @param channelResponseMessage channel Response Message 输入值，参与 渠道响应说明 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ChannelTransactionStatusResolution success(String channelStatus,
                                                        String channelResponseCode,
@@ -261,15 +262,16 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 failed 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+ * 规范化failed，返回当前业务步骤需要的业务值。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param channelStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+ * @param channelResponseCode channel Response Code 输入值，参与 渠道响应编码 的查询、校验、转换、写入或日志摘要
+ * @param channelResponseMessage channel Response Message 输入值，参与 渠道响应说明 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ChannelTransactionStatusResolution failed(String channelStatus,
                                                       String channelResponseCode,
@@ -283,15 +285,16 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 need Redirect 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+ * 规范化needredirect，返回当前业务步骤需要的业务值。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param channelStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+ * @param channelResponseCode channel Response Code 输入值，参与 渠道响应编码 的查询、校验、转换、写入或日志摘要
+ * @param channelResponseMessage channel Response Message 输入值，参与 渠道响应说明 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ChannelTransactionStatusResolution needRedirect(String channelStatus,
                                                             String channelResponseCode,
@@ -304,15 +307,16 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 waiting Callback 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+ * 整理waiting回调，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param channelStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+ * @param channelResponseCode channel Response Code 输入值，参与 渠道响应编码 的查询、校验、转换、写入或日志摘要
+ * @param channelResponseMessage channel Response Message 输入值，参与 渠道响应说明 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ChannelTransactionStatusResolution waitingCallback(String channelStatus,
                                                                String channelResponseCode,
@@ -325,27 +329,29 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
     /**
-     * 完成 processing 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 处理processing流程，串联校验、状态判断和后续业务动作。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已把 支付核心服务 的请求、消息或任务参数解析为当前方法可识别的模型。
+     * 该方法按业务分支串联校验、状态判断、数据读写、远程调用或消息投递，关键阶段应保留 traceId 日志。
+     * 异常边界：幂等冲突、状态不允许、外部系统失败或持久化失败按当前流程返回明确结果。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ChannelTransactionStatusResolution processing() {
         return processing(null, null, null);
     }
 
 /**
- * 完成 processing 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+ * 处理processing流程，串联校验、状态判断和后续业务动作。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已把 支付核心服务 的请求、消息或任务参数解析为当前方法可识别的模型。
+ * 该方法按业务分支串联校验、状态判断、数据读写、远程调用或消息投递，关键阶段应保留 traceId 日志。
+ * 异常边界：幂等冲突、状态不允许、外部系统失败或持久化失败按当前流程返回明确结果。
  * </p>
- * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param channelStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+ * @param channelResponseCode channel Response Code 输入值，参与 渠道响应编码 的查询、校验、转换、写入或日志摘要
+ * @param channelResponseMessage channel Response Message 输入值，参与 渠道响应说明 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ChannelTransactionStatusResolution processing(String channelStatus,
                                                           String channelResponseCode,
@@ -357,13 +363,14 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
     /**
-     * 完成 unresolved 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 规范化unresolved，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param callbackResult callback Result 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param callbackResult callback Result 输入值，参与 回调结果 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ChannelTransactionStatusResolution unresolved(ChannelCallbackResult callbackResult) {
         if (callbackResult == null) {
@@ -375,15 +382,16 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 unresolved 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+ * 规范化unresolved，返回当前业务步骤需要的业务值。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param channelStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+ * @param channelResponseCode channel Response Code 输入值，参与 渠道响应编码 的查询、校验、转换、写入或日志摘要
+ * @param channelResponseMessage channel Response Message 输入值，参与 渠道响应说明 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ChannelTransactionStatusResolution unresolved(String channelStatus,
                                                           String channelResponseCode,
@@ -392,15 +400,16 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
 /**
- * 完成 base 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+ * 整理基础，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param channelStatus 状态编码，取值必须来自对应枚举或数据库受控字典
- * @param channelResponseCode channel Response Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param channelResponseMessage 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param channelStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+ * @param channelResponseCode channel Response Code 输入值，参与 渠道响应编码 的查询、校验、转换、写入或日志摘要
+ * @param channelResponseMessage channel Response Message 输入值，参与 渠道响应说明 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ChannelTransactionStatusResolution base(String channelStatus,
                                                     String channelResponseCode,
@@ -413,26 +422,28 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
     }
 
     /**
-     * 标准化 normalize 输入值，统一大小写、空白字符或协议格式。
+     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 标准化后的业务字段值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
     }
 
     /**
-     * 完成 first Text 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultChannelTransactionStatusResolver 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String firstText(String... values) {
         if (values == null) {

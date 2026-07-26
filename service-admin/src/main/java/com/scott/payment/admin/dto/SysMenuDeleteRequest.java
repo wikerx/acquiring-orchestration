@@ -12,7 +12,7 @@ import java.io.Serializable;
  * @classname : SysMenuDeleteRequest
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : SysMenuDeleteRequest 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sys Menu Delete Request 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
 public class SysMenuDeleteRequest implements Serializable {
@@ -21,10 +21,11 @@ public class SysMenuDeleteRequest implements Serializable {
 
     @NotNull(message = "菜单ID不能为空")
     /**
-     * menu Id 字段，表示当前模型在所属业务流程中的对应属性。
+     * menu ID，用于定位 Sys Menu Delete Request 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Long menuId;

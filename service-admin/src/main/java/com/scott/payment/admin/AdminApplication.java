@@ -10,7 +10,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @classname : AdminApplication
  * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : AdminApplication Spring Boot 启动入口，用于装配当前服务的组件扫描、配置加载和运行时上下文，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Admin Application 协作组件，位于 运营后台服务，封装 adminapplication 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class AdminApplication {

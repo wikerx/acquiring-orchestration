@@ -10,7 +10,7 @@ import com.scott.payment.component.core.exception.ServiceException;
  * @classname : LuhnMod10Utils
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : LuhnMod10Utils 通用能力封装，用于提供无状态的格式转换、校验或安全处理函数，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Luhn Mod 10 Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  * @status : create
  */
 public final class LuhnMod10Utils {

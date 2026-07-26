@@ -30,19 +30,21 @@ public class GatewayClientIpHeaderFilter implements GlobalFilter, Ordered {
     public static final String HEADER_GATEWAY_CLIENT_IP = "X-Gateway-Client-Ip";
 
     /**
-     * HEADER X FORWARDED FOR 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * HEADER X FORWARDED FOR，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String HEADER_X_FORWARDED_FOR = "X-Forwarded-For";
 
     /**
-     * client Ip Properties 字段，表示当前模型在所属业务流程中的对应属性。
+     * client IP Properties 依赖，用于 Gateway Client IP Header Filter 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final GatewayClientIpProperties clientIpProperties;

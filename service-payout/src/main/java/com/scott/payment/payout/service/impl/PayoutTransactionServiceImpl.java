@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
  * @classname : PayoutTransactionServiceImpl
  * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : PayoutTransactionServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 代付服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payout Transaction Service Impl 服务实现，位于 代付服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
 public class PayoutTransactionServiceImpl implements PayoutTransactionService {

@@ -98,13 +98,14 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
     }
 
     /**
-     * 解析 parse Version 输入文本并转换为内部可校验的数据结构。
+     * 解析parseversion，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 ApiVersionCondition 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param version version 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析后的内部数据结构或业务值
+     * @param version version 输入值，参与 version 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private Integer parseVersion(String version) {
         String value = version.trim();

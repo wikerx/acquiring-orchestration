@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * @classname : PayoutCreateClientRequestDTO
  * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : PayoutCreateClientRequestDTO 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payout Create Client Request DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
 public class PayoutCreateClientRequestDTO implements Serializable {

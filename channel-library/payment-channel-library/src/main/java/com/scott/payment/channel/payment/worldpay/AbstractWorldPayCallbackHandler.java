@@ -28,10 +28,11 @@ import java.util.Map;
 public abstract class AbstractWorldPayCallbackHandler implements PaymentChannelCallbackHandler {
 
     /**
-     * trade Status Mapper 字段，表示当前模型在所属业务流程中的对应属性。
+     * trade Status Mapper，表示当前记录在业务流程中的处理状态。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 容器构造器注入。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
      * </p>
      */
     private final WorldPayTradeStatusMapper tradeStatusMapper = new WorldPayTradeStatusMapper();

@@ -168,17 +168,18 @@ public class OpenApiCallbackSecuritySupport {
     }
 
 /**
- * 写入或更新 record And Return Open Api Exception 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 记录andreturnopenapi异常，写入安全、审计或链路排障所需的脱敏上下文。
  * <p>
- * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiCallbackSecuritySupport 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
- * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
- * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
- * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param eventType event Type 输入值，参与 eventtype 的查询、校验、转换、写入或日志摘要
+ * @param riskLevel risk Level 输入值，参与 风控level 的查询、校验、转换、写入或日志摘要
+ * @param hitRuleCode hit Rule Code 输入值，参与 hit规则编码 的查询、校验、转换、写入或日志摘要
+ * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ApiException recordAndReturnOpenApiException(HttpServletRequest request,
                                                          String eventType,
@@ -200,17 +201,18 @@ public class OpenApiCallbackSecuritySupport {
     }
 
 /**
- * 写入或更新 record And Return Channel Exception 相关数据，保持数据库记录与当前业务处理结果一致。
+ * 记录andreturn渠道异常，写入安全、审计或链路排障所需的脱敏上下文。
  * <p>
- * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiCallbackSecuritySupport 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
- * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
- * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
- * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param eventType event Type 输入值，参与 eventtype 的查询、校验、转换、写入或日志摘要
+ * @param riskLevel risk Level 输入值，参与 风控level 的查询、校验、转换、写入或日志摘要
+ * @param hitRuleCode hit Rule Code 输入值，参与 hit规则编码 的查询、校验、转换、写入或日志摘要
+ * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private ApiException recordAndReturnChannelException(HttpServletRequest request,
                                                          String eventType,
@@ -232,13 +234,14 @@ public class OpenApiCallbackSecuritySupport {
     }
 
     /**
-     * 解析 parse Timestamp 输入文本并转换为内部可校验的数据结构。
+     * 解析parsetimestamp，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiCallbackSecuritySupport 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
      * @param timestampText 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 解析后的内部数据结构或业务值
+     * @return 构造、转换或解析后的业务值
      */
     private long parseTimestamp(String timestampText) {
         try {
@@ -249,13 +252,14 @@ public class OpenApiCallbackSecuritySupport {
     }
 
     /**
-     * 完成 sha256 Hex 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 计算SHA-256 十六进制摘要，用不可逆指纹关联原始内容而不暴露明文。
      * <p>
-     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiCallbackSecuritySupport 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param rawBody raw Body 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param rawBody raw Body 输入值，参与 raw报文体 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String sha256Hex(String rawBody) {
         try {

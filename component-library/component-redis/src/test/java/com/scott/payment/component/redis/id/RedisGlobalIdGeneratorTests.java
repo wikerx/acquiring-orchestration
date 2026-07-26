@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @classname : RedisGlobalIdGeneratorTests
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : RedisGlobalIdGeneratorTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Redis Global ID Generator Tests 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class RedisGlobalIdGeneratorTests {
@@ -114,10 +114,11 @@ class RedisGlobalIdGeneratorTests {
     private static class FixedRedisServerTimeProvider extends RedisServerTimeProvider {
 
         /**
-         * current Millis 字段，表示当前模型在所属业务流程中的对应属性。
+         * current Millis，用于保存 Fixed Redis Server Time Provider 中与 currentmillis 相关的业务属性。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final long currentMillis;
@@ -136,28 +137,31 @@ class RedisGlobalIdGeneratorTests {
     private static class ScriptStringRedisTemplate extends StringRedisTemplate {
 
         /**
-         * script Results 字段，表示当前模型在所属业务流程中的对应属性。
+         * script Results，用于保存 Script String Redis Template 中与 scriptresults 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final Queue<List<?>> scriptResults = new ArrayDeque<>();
 
         /**
-         * failure 字段，表示当前模型在所属业务流程中的对应属性。
+         * failure，用于保存 Script String Redis Template 中与 failure 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private RuntimeException failure;
 
         /**
-         * execute Count 字段，表示当前模型在所属业务流程中的对应属性。
+         * execute Count，表示当前统计、分页、扫描或重试场景中的数量。
          * <p>
-         * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private int executeCount;

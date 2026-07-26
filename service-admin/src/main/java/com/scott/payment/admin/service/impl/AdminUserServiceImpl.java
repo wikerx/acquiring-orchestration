@@ -81,7 +81,7 @@ import java.util.stream.Collectors;
  * @classname : AdminUserServiceImpl
  * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : AdminUserServiceImpl 服务实现，用于执行领域规则、数据读写编排和业务异常转换，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Admin User Service Impl 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
 public class AdminUserServiceImpl implements AdminUserService {
@@ -1285,14 +1285,15 @@ public class AdminUserServiceImpl implements AdminUserService {
     }
 
     /**
-     * 执行 to Role DTO 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造角色dto对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminUserServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param role role 输入值，含义由调用方法名称和所属业务对象限定
-     * @param assignable assignable 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param role role 输入值，参与 角色 的查询、校验、转换、写入或日志摘要
+     * @param assignable assignable 输入值，参与 assignable 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private SysRoleDTO toRoleDTO(SysRoleDO role, boolean assignable) {
         SysRoleDTO dto = new SysRoleDTO();

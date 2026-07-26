@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : OpenApiMerchantKeyExportProperties
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : OpenApiMerchantKeyExportProperties 配置属性模型，用于绑定 application 配置项并提供默认值，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Merchant Key Export Properties 配置属性模型，位于 公共组件库，绑定 application 配置项并提供运行时默认值。
  * @status : create
  */
 public class OpenApiMerchantKeyExportProperties {

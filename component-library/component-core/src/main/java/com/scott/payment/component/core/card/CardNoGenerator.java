@@ -15,7 +15,7 @@ import java.util.random.RandomGenerator;
  * @classname : CardNoGenerator
  * @date : 2026-06-03 15:48
  * @email : scott_x@163.com
- * @description : CardNoGenerator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Card No Generator 协作组件，位于 公共组件库，封装 cardnogenerator 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public final class CardNoGenerator {
@@ -147,7 +147,7 @@ public final class CardNoGenerator {
     };
 
     /**
-     * 工具类不允许实例化。
+     * 私有构造方法，禁止外部实例化该测试卡号生成类型。
      */
     private CardNoGenerator() {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");

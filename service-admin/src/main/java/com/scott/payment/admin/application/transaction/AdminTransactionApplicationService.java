@@ -346,13 +346,14 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 load All Orders 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 查询全部交易主单，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param sourceQuery source Query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<TransactionOrderResponse> loadAllOrders(TransactionPageQuery sourceQuery) {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
@@ -373,13 +374,14 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 load All Operations 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 查询全部交易动作，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param sourceQuery source Query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<TransactionOperationResponse> loadAllOperations(TransactionPageQuery sourceQuery) {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
@@ -400,13 +402,14 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 load All Merchant Notifications 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 查询全部商户通知任务，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param sourceQuery source Query 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private List<Map<String, Object>> loadAllMerchantNotifications(MerchantNotificationQuery sourceQuery) {
         MerchantNotificationQuery query = copyNotificationQuery(sourceQuery);
@@ -427,12 +430,13 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 ensure Export Size 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 校验确保exportsize输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param total total 输入值，含义由调用方法名称和所属业务对象限定
+     * @param total total 输入值，参与 total 的查询、校验、转换、写入或日志摘要
      */
     private void ensureExportSize(long total) {
         if (total > MAX_SYNC_EXPORT_ROWS) {
@@ -466,13 +470,14 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 to Order Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造订单exportrow对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
      */
     private TransactionOrderExportRow toOrderExportRow(TransactionOrderResponse source) {
         TransactionOrderExportRow row = new TransactionOrderExportRow();
@@ -502,13 +507,14 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 to Operation Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造动作exportrow对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
      */
     private TransactionOperationExportRow toOperationExportRow(TransactionOperationResponse source) {
         TransactionOperationExportRow row = new TransactionOperationExportRow();
@@ -545,14 +551,15 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 to Merchant Notification Export Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造商户通知exportrow对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
      */
     private TransactionMerchantNotificationExportRow toMerchantNotificationExportRow(Map<String, Object> source) {
         TransactionMerchantNotificationExportRow row = new TransactionMerchantNotificationExportRow();
@@ -576,13 +583,14 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 copy Transaction Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造交易查询对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private TransactionPageQuery copyTransactionQuery(TransactionPageQuery source) {
         TransactionPageQuery query = source == null ? new TransactionPageQuery() : source;
@@ -612,13 +620,14 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 copy Notification Query 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造通知查询对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MerchantNotificationQuery copyNotificationQuery(MerchantNotificationQuery source) {
         MerchantNotificationQuery query = source == null ? new MerchantNotificationQuery() : source;
@@ -633,14 +642,15 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 query Summary 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 查询汇总数据，按调用方提供的过滤条件返回对应业务视图。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
      */
     private String querySummary(TransactionPageQuery query, Locale locale) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
@@ -660,14 +670,15 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 notification Query Summary 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理通知查询汇总，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param query query 输入值，含义由调用方法名称和所属业务对象限定
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String notificationQuerySummary(MerchantNotificationQuery query, Locale locale) {
         MerchantNotificationQuery safeQuery = query == null ? new MerchantNotificationQuery() : query;
@@ -681,15 +692,16 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 add Condition 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 创建查询条件，完成必要校验后写入或委托下游服务处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已完成 运营后台服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
      * </p>
-     * @param conditions conditions 输入值，含义由调用方法名称和所属业务对象限定
-     * @param labelKey label Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @param value 待校验或转换的原始值
-     * @param locale locale 输入值，含义由调用方法名称和所属业务对象限定
+     * @param conditions conditions 输入值，参与 conditions 的查询、校验、转换、写入或日志摘要
+     * @param labelKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
      */
     private void addCondition(List<String> conditions, String labelKey, Object value, Locale locale) {
         if (value == null) {
@@ -702,16 +714,17 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 text Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理文本值，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param camelKey camel Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @param snakeKey snake Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param camelKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param snakeKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String textValue(Map<String, Object> source, String camelKey, String snakeKey) {
         Object value = value(source, camelKey, snakeKey);
@@ -719,16 +732,17 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 integer Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理整数值，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param camelKey camel Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @param snakeKey snake Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param camelKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param snakeKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Integer integerValue(Map<String, Object> source, String camelKey, String snakeKey) {
         Object value = value(source, camelKey, snakeKey);
@@ -742,16 +756,17 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 time Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理时间值，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param camelKey camel Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @param snakeKey snake Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param camelKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param snakeKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private LocalDateTime timeValue(Map<String, Object> source, String camelKey, String snakeKey) {
         Object value = value(source, camelKey, snakeKey);
@@ -765,16 +780,17 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理值，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param Map Map 输入值，含义由调用方法名称和所属业务对象限定
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @param camelKey camel Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @param snakeKey snake Key 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param camelKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param snakeKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Object value(Map<String, Object> source, String camelKey, String snakeKey) {
         if (source == null) {
@@ -784,17 +800,18 @@ public class AdminTransactionApplicationService {
     }
 
 /**
- * 编排 build Action Request 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+ * 构造action请求对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
  * </p>
- * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
- * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
- * @param labelAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
- * @param transactionAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
- * @param orderIdPrefix order Id Prefix 输入值，含义由调用方法名称和所属业务对象限定
- * @return 转换或构建后的目标对象
+ * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
+ * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param labelAmount 金额值，单位必须结合 currency 或同名币种字段解释
+ * @param transactionAmount 金额值，单位必须结合 currency 或同名币种字段解释
+ * @param orderIdPrefix order ID Prefix 输入值，参与 订单IDprefix 的查询、校验、转换、写入或日志摘要
+ * @return 构造、转换或解析后的业务值
  */
     private PaymentTransactionActionClientRequestDTO buildActionRequest(TransactionOperationResponse sourceOperation,
                                                                        TransactionActionRequest request,
@@ -825,14 +842,15 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 resolve Source Operation 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 解析resolve来源动作，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param detailResponse detail Response 输入值，含义由调用方法名称和所属业务对象限定
-     * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
-     * @return 渠道 API 操作类型或平台操作映射结果
+     * @param detailResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+     * @return 构造、转换或解析后的业务值
      */
     private TransactionOperationResponse resolveSourceOperation(TransactionDetailResponse detailResponse, String transactionId) {
         if (detailResponse == null || detailResponse.getOperations() == null) {
@@ -845,14 +863,15 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 resolve Label Currency 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 解析resolvelabel币种，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
-     * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
-     * @return 标准化后的 ISO 4217 币种代码
+     * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveLabelCurrency(TransactionOperationResponse sourceOperation, TransactionActionRequest request) {
         if (StringUtils.hasText(request == null ? null : request.getCurrency())) {
@@ -865,14 +884,15 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 full Transaction Amount 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理full交易金额，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
-     * @param preferredAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
+     * @param preferredAmount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private BigDecimal fullTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal preferredAmount) {
         BigDecimal amount = preferredAmount == null ? sourceOperation.getTransactionAmount() : preferredAmount;
@@ -883,14 +903,15 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 full Label Amount 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理fulllabel金额，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
-     * @param transactionAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
+     * @param transactionAmount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private BigDecimal fullLabelAmount(TransactionOperationResponse sourceOperation, BigDecimal transactionAmount) {
         BigDecimal sourceTransactionAmount = sourceOperation.getTransactionAmount();
@@ -904,14 +925,15 @@ public class AdminTransactionApplicationService {
     }
 
     /**
-     * 编排 to Transaction Amount 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造交易金额对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminTransactionApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param sourceOperation source Operation 输入值，含义由调用方法名称和所属业务对象限定
-     * @param labelAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @param sourceOperation source Operation 输入值，参与 来源动作 的查询、校验、转换、写入或日志摘要
+     * @param labelAmount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @return 构造、转换或解析后的业务值
      */
     private BigDecimal toTransactionAmount(TransactionOperationResponse sourceOperation, BigDecimal labelAmount) {
         if (labelAmount == null || labelAmount.compareTo(BigDecimal.ZERO) <= 0) {

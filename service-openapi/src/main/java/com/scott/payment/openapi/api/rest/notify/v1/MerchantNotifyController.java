@@ -17,7 +17,7 @@ import static com.scott.payment.component.core.model.ApiResult.success;
  * @classname : MerchantNotifyController
  * @date : 2026-05-28 10:23
  * @email : scott_x@163.com
- * @description : MerchantNotifyController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Merchant Notify Controller 控制器，位于 商户开放接口服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
  * @status : create
  */
 public class MerchantNotifyController {

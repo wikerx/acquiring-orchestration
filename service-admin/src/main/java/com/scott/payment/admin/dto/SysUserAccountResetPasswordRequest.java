@@ -25,10 +25,11 @@ public class SysUserAccountResetPasswordRequest implements Serializable {
 
     @NotNull(message = "accountId")
     /**
-     * account Id 字段，表示当前模型在所属业务流程中的对应属性。
+     * account ID，用于定位 Sys User Account Reset Password Request 关联的上游配置、渠道、账号、角色或业务记录。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private Long accountId;

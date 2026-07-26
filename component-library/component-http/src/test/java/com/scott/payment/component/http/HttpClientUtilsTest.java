@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : HttpClientUtilsTest
  * @date : 未确认
  * @email : scott_x@163.com
- * @description : HttpClientUtilsTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Http Client Utils Test 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  * @status : create
  */
 class HttpClientUtilsTest {

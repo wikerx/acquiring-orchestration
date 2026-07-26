@@ -638,7 +638,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         String transactionType = resolveTransactionType(commandDTO);
         String idempotencyKey = transactionIdempotencyService.buildInitialTransactionKey(
                 commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
-        log.info("event: PAYMENT_TRANSACTION_START stage=ACCEPT merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} amount: {} idempotencyKey: {}",
+        log.info("event: PAYMENT_TRANSACTION_START stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 transactionType,
@@ -652,7 +653,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         boolean operationLocked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         boolean flowLocked = false;
         if (!operationLocked) {
-            log.warn("event: PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=OPERATION_LOCK merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+            log.warn("event: PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=OPERATION_LOCK traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+                    TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionType,
@@ -664,7 +666,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         try {
             flowLocked = tryLock(flowLockKey, lockValue);
             if (!flowLocked) {
-                log.warn("event: PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=FLOW_LOCK merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+                log.warn("event: PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=FLOW_LOCK traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+                        TraceContext.getTraceId(),
                         commandDTO.getMerchantId(),
                         commandDTO.getMerchantOrderNo(),
                         transactionType,
@@ -675,8 +678,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             }
             PaymentInitialPreparationResultDTO preparationResultDTO = paymentTransactionPreparationService.prepareInitialTransaction(
                     commandDTO, transactionType);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_TRANSACTION_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
             logRouteDecision(commandDTO, preparationResultDTO.getRouteResultDTO(), preparationResultDTO.getResultDTO());
-            log.info("event: PAYMENT_TRANSACTION_PREPARED stage=LOCAL_PREPARE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} callChannel: {} riskDecision: {} channelCode: {}",
+            log.info("event: PAYMENT_TRANSACTION_PREPARED stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} callChannel: {} riskDecision: {} channelCode: {}",
+                    TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     preparationResultDTO.getResultDTO() == null ? null : preparationResultDTO.getResultDTO().getTransactionId(),
@@ -715,14 +723,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 执行 create Capture Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 创建请款交易，完成必要校验后写入或委托下游服务处理。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+ * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+ * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+ * @return 写入、更新或删除后的处理结果
  */
     private PaymentCreateResultDTO createCaptureTransaction(PaymentCreateCommandDTO commandDTO,
                                                             PaymentTransactionTypeEnum transactionType) {
@@ -732,7 +741,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateFollowUpCommand(commandDTO, transactionType);
         long startNanos = System.nanoTime();
         String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, transactionType);
-        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT traceId: {} merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
                 transactionType.getCode(),
@@ -751,6 +761,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         try {
             CapturePreparationResultDTO preparationResultDTO = captureTransactionPreparationService.prepareCapture(
                     commandDTO, idempotencyKey, transactionType);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
             if (!preparationResultDTO.isCallChannel()) {
                 logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
                 return preparationResultDTO.getResultDTO();
@@ -779,13 +793,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 create Refund Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 创建退款交易，完成必要校验后写入或委托下游服务处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
      */
     private PaymentCreateResultDTO createRefundTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO != null) {
@@ -794,7 +809,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.REFUND);
         long startNanos = System.nanoTime();
         String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.REFUND);
-        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT traceId: {} merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
                 PaymentTransactionTypeEnum.REFUND.getCode(),
@@ -812,6 +828,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
         try {
             RefundPreparationResultDTO preparationResultDTO = refundTransactionPreparationService.prepareRefund(commandDTO, idempotencyKey);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
             if (!preparationResultDTO.isCallChannel()) {
                 logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
                 return preparationResultDTO.getResultDTO();
@@ -840,13 +860,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 create Void Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 创建撤销交易，完成必要校验后写入或委托下游服务处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
      */
     private PaymentCreateResultDTO createVoidTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO != null) {
@@ -855,7 +876,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.VOID);
         long startNanos = System.nanoTime();
         String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.VOID);
-        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT traceId: {} merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
                 PaymentTransactionTypeEnum.VOID.getCode(),
@@ -873,6 +895,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
         try {
             VoidPreparationResultDTO preparationResultDTO = voidTransactionPreparationService.prepareVoid(commandDTO, idempotencyKey);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
             if (!preparationResultDTO.isCallChannel()) {
                 logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
                 return preparationResultDTO.getResultDTO();
@@ -901,13 +927,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 create Incremental Authorization Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 创建增量授权交易，完成必要校验后写入或委托下游服务处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
      */
     private PaymentCreateResultDTO createIncrementalAuthorizationTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO != null) {
@@ -916,7 +943,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
         long startNanos = System.nanoTime();
         String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
-        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT traceId: {} merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
                 PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode(),
@@ -935,6 +963,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         try {
             IncrementalAuthorizationPreparationResultDTO preparationResultDTO =
                     incrementalAuthorizationTransactionPreparationService.prepareIncrementalAuthorization(commandDTO, idempotencyKey);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
             if (!preparationResultDTO.isCallChannel()) {
                 logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
                 return preparationResultDTO.getResultDTO();
@@ -964,13 +996,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 resolve Refund Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolverefund请求指纹，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveRefundRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
         TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
@@ -978,14 +1011,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 执行 resolve Capture Like Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 解析resolvecapturelike请求指纹，将原始输入转换为当前调用链需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
- * @return 解析或查询得到的业务值
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+ * @return 构造、转换或解析后的业务值
  */
     private String resolveCaptureLikeRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                         PaymentTransactionTypeEnum transactionType) {
@@ -994,13 +1028,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 resolve Void Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve撤销请求指纹，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
         TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
@@ -1008,13 +1043,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 resolve Incremental Authorization Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolveincrementalauthorization请求指纹，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveIncrementalAuthorizationRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
         TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
@@ -1144,7 +1180,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getRequestFingerprint(),
                 now);
         if (!transactionIdempotencyService.tryBegin(beginRecord)) {
-            log.warn("event: PAYMENT_IDEMPOTENCY_CONFLICT stage=IDEMPOTENCY_BEGIN merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+            log.warn("event: PAYMENT_IDEMPOTENCY_CONFLICT stage=IDEMPOTENCY_BEGIN traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+                    TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionType,
@@ -1278,17 +1315,18 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 执行 invoke Channel Safely 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 发送渠道安全消息或请求，补齐目标地址、链路标识和业务载荷。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param operationId 平台交易操作号，用于定位一次授权、请款、退款或撤销操作
- * @param transactionId 平台交易号，用于关联订单、操作记录、渠道请求和回调处理结果
- * @param preparedChannelRequestDTO prepared Channel Request DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
+ * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @param preparedChannelRequestDTO prepared Channel Request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private PaymentChannelInvokeResultDTO invokeChannelSafely(PaymentCreateCommandDTO commandDTO,
                                                               PaymentRouteResultDTO routeResultDTO,
@@ -1398,14 +1436,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 later Of 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化laterof，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param first first 输入值，含义由调用方法名称和所属业务对象限定
-     * @param second second 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param first first 输入值，参与 首个 的查询、校验、转换、写入或日志摘要
+     * @param second second 输入值，参与 second 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
         if (first == null) {
@@ -1457,15 +1496,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 执行 canonical Follow Up Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 整理规范化followup请求指纹，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param transactionTypeEnum 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param transactionTypeEnum transaction Type Enum 输入值，参与 交易typeenum 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private String canonicalFollowUpRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                        TransactionOrderDO sourceOrderDO,
@@ -1490,14 +1530,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 执行 canonical Void Request Fingerprint 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 整理撤销交易幂等指纹，返回当前业务步骤需要的规范化结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private String canonicalVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO,
                                                    TransactionOrderDO sourceOrderDO) {
@@ -1516,26 +1557,28 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 normalize Fingerprint Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize指纹文本，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 标准化后的业务字段值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeFingerprintText(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     /**
-     * 执行 normalize Fingerprint Amount 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize指纹金额，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param amount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
-     * @return 按渠道协议格式化后的金额字符串或金额计算结果
+     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeFingerprintAmount(BigDecimal amount) {
         if (amount == null) {
@@ -1545,13 +1588,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 sha256 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 计算sha256摘要，用不可逆指纹关联原始内容而不暴露明文。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String sha256(String source) {
         try {
@@ -1564,26 +1608,28 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 requires Request Currency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验requires请求币种输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param transactionTypeEnum 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param transactionTypeEnum transaction Type Enum 输入值，参与 交易typeenum 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean requiresRequestCurrency(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
     }
 
     /**
-     * 执行 requires Merchant Order No 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验requires商户订单no输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param transactionTypeEnum 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param transactionTypeEnum transaction Type Enum 输入值，参与 交易typeenum 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean requiresMerchantOrderNo(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
@@ -1614,13 +1660,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 is Initial Flow Type 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 is initial flow type 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param transactionType 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isInitialFlowType(String transactionType) {
         return PaymentTransactionTypeEnum.PAYMENT.getCode().equals(transactionType)
@@ -1629,27 +1676,29 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 is Failed Status 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 is failed status 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isFailedStatus(String transactionStatus) {
         return PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus);
     }
 
     /**
-     * 执行 merchant Order Flow Lock Key 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理商户订单flowlock密钥，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
-     * @param merchantOrderNo 商户订单号，用于商户侧幂等校验和订单查询
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @param merchantOrderNo merchant Order No 输入值，参与 商户订单no 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String merchantOrderFlowLockKey(String merchantId, String merchantOrderNo) {
         return MERCHANT_ORDER_FLOW_LOCK_PREFIX
@@ -1669,12 +1718,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 validate Source Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 校验来源交易输入，发现缺失、越权或格式错误时中断当前流程。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      */
     private void validateSourceTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO == null
@@ -1725,13 +1775,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 is Capture Like 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 is capture like 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param transactionTypeEnum 交易类型编码，取值来自平台交易能力枚举并会映射为渠道操作类型
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param transactionTypeEnum transaction Type Enum 输入值，参与 交易typeenum 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isCaptureLike(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.CAPTURE == transactionTypeEnum
@@ -2022,13 +2073,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 normalize Channel Card Number 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize渠道cardnumber，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param cardNumberMasked 卡相关输入，属于敏感或可识别数据，禁止直接写入日志
-     * @return 标准化后的业务字段值
+     * @param cardNumberMasked 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeChannelCardNumber(String cardNumberMasked) {
         if (!StringUtils.hasText(cardNumberMasked)) {
@@ -2171,14 +2223,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 执行 sum Captured On Success 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 统计sumcapturedonsuccess，返回分页、扫描或报表汇总所需的数量结果。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
  * </p>
- * @param existingAmount 金额值，单位由关联币种决定，调用前必须完成币种精度校验
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 方法签名声明的返回值，具体结构由返回类型定义
+ * @param existingAmount 金额值，单位必须结合 currency 或同名币种字段解释
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
     private BigDecimal sumCapturedOnSuccess(BigDecimal existingAmount,
                                             PaymentCreateResultDTO resultDTO) {
@@ -2193,13 +2246,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 enrich Merchant Response 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造商户响应对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @param channelResponse channel Response 输入值，含义由调用方法名称和所属业务对象限定
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
      */
     private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO, ChannelPaymentResponse channelResponse) {
         resultDTO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO.getStatus()));
@@ -2207,13 +2261,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 resolve Payment Brand 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolvepayment品牌，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolvePaymentBrand(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO.getTransactionInfo() != null && StringUtils.hasText(commandDTO.getTransactionInfo().getCardBrand())) {
@@ -2242,13 +2297,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 resolve Card Bin 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolvecardBIN，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveCardBin(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO.getCardInfo() == null || !StringUtils.hasText(commandDTO.getCardInfo().getCardNo())) {
@@ -2262,13 +2318,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 to Result Sub Merchant Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造子商户响应信息对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param source source 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
      */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
@@ -2293,13 +2350,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 is Empty Sub Merchant Info 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 is empty sub merchant info 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isEmptySubMerchantInfo(PaymentCreateResultDTO.SubMerchantInfoDTO value) {
         return value == null || Stream.of(
@@ -2320,13 +2378,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String firstText(String... values) {
         if (values == null) {
@@ -2341,14 +2400,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 merchant Visible Failure Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理商户可见失败说明，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @param failReasonCode fail Reason Code 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param failReasonCode fail Reason Code 输入值，参与 failreason编码 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String merchantVisibleFailureMessage(String transactionStatus, String failReasonCode) {
         if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
@@ -2359,13 +2419,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 resolve Merchant Response Code 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve商户响应编码，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 解析或查询得到的业务值
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveMerchantResponseCode(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
@@ -2381,13 +2442,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 resolve Merchant Response Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve商户响应说明，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param transactionStatus 状态编码，取值必须来自对应枚举或数据库受控字典
-     * @return 解析或查询得到的业务值
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveMerchantResponseMessage(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
@@ -2446,14 +2508,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 join Code And Message 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理拼接编码and说明，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param code code 输入值，含义由调用方法名称和所属业务对象限定
-     * @param message 错误提示或消息内容，供异常转换、日志摘要或返回结果使用
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String joinCodeAndMessage(String code, String message) {
         if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
@@ -2463,13 +2526,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 resolve Callback Url 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析resolve回调url，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
@@ -2548,12 +2612,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 apply No Conversion 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 应用应用no换汇，把校验后的配置、金额、状态或字段值写入目标对象。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
      */
     private void applyNoConversion(PaymentCreateCommandDTO commandDTO) {
         commandDTO.setTransactionCurrency(normalizeCurrency(commandDTO.getLabelCurrency()));
@@ -2566,25 +2631,27 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 default Transaction Rate 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理默认交易汇率，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
     /**
-     * 执行 normalize Currency 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 解析normalize币种，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
      * @param currency 币种代码，格式为 ISO 4217 三位大写字母
-     * @return 标准化后的 ISO 4217 币种代码
+     * @return 构造、转换或解析后的业务值
      */
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
@@ -2647,13 +2714,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 is Terminal 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 判断 is terminal 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
      * </p>
-     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 满足当前业务条件时返回 true，否则返回 false
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 条件满足时返回 true，否则返回 false
      */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return resultDTO != null
@@ -2705,16 +2773,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
 /**
- * 执行 record Follow Up Transaction 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 记录followup交易，写入安全、审计或链路排障所需的脱敏上下文。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
  * </p>
- * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param sourceOrderDO source Order DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResultDTO route Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param invokeResultDTO invoke Result DTO 输入值，含义由调用方法名称和所属业务对象限定
- * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
  * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
  */
     private void recordFollowUpTransaction(PaymentCreateCommandDTO commandDTO,
@@ -2784,29 +2853,37 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         eventDO.setCreateTime(message.getCreatedAt());
         eventDO.setUpdateTime(message.getCreatedAt());
         transactionEventOutboxService.save(eventDO);
-        log.info("event: PAYMENT_OUTBOX_SAVED transactionId: {} operationId: {} eventType: {} topic: {} tag: {}",
+        log.info("event: PAYMENT_OUTBOX_SAVED stage=MQ traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} eventType: {} topic: {} tag: {} retryCount: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
                 resultDTO.getTransactionId(),
                 resultDTO.getOperationId(),
+                resultDTO.getTransactionType(),
+                resultDTO.getStatus(),
                 eventDO.getEventType(),
                 eventDO.getTopic(),
-                eventDO.getTag());
+                eventDO.getTag(),
+                eventDO.getRetryCount());
     }
 
     /**
-     * 执行 log Payment End 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 记录paymentend，写入安全、审计或链路排障所需的脱敏上下文。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param event event 输入值，含义由调用方法名称和所属业务对象限定
-     * @param commandDTO command DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @param resultDTO result DTO 输入值，含义由调用方法名称和所属业务对象限定
-     * @param startNanos start Nanos 输入值，含义由调用方法名称和所属业务对象限定
+     * @param event event 输入值，参与 事件 的查询、校验、转换、写入或日志摘要
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param startNanos start Nanos 输入值，参与 startnanos 的查询、校验、转换、写入或日志摘要
      */
     private void logPaymentEnd(String event, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO, long startNanos) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event: {} stage=FINISH merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} platformStatus: {} durationMs: {}",
+        log.info("event: {} stage=FINISH traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} platformStatus: {} durationMs: {}",
                 event,
+                TraceContext.getTraceId(),
                 commandDTO == null ? null : commandDTO.getMerchantId(),
                 commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
                 resultDTO == null ? null : resultDTO.getTransactionId(),
@@ -2835,7 +2912,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount(),
                 resultDTO.getCurrency(),
                 JsonUtils.toJsonString(resultDTO));
-        log.info("event: PAYMENT_IDEMPOTENCY_COMPLETE stage=IDEMPOTENCY merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} currency: {} amount: {} idempotencyKey: {}",
+        log.info("event: PAYMENT_IDEMPOTENCY_COMPLETE stage=IDEMPOTENCY traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 resultDTO.getTransactionId(),
@@ -2854,13 +2932,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易响应
      */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
-        log.info("event: PAYMENT_IDEMPOTENCY_HIT stage=IDEMPOTENCY merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {}",
+        log.info("event: PAYMENT_IDEMPOTENCY_HIT stage=IDEMPOTENCY traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} currency: {} amount: {}",
+                TraceContext.getTraceId(),
                 record.getMerchantId(),
                 record.getMerchantOrderNo(),
                 record.getTransactionId(),
                 record.getOperationId(),
                 record.getTransactionType(),
-                record.getTransactionStatus());
+                record.getTransactionStatus(),
+                record.getTransactionCurrency(),
+                record.getTransactionAmount());
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
             if (resultDTO != null) {
@@ -2896,7 +2977,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                          String operationId,
                                          String transactionId,
                                          String idempotencyKey) {
-        log.info("event: PAYMENT_IDENTIFIERS_GENERATED stage=IDENTIFIER merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+        log.info("event: PAYMENT_IDENTIFIERS_GENERATED stage=IDENTIFIER traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
                 commandDTO == null ? null : commandDTO.getMerchantId(),
                 commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
                 transactionId,
@@ -2921,7 +3003,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private void logRouteDecision(PaymentCreateCommandDTO commandDTO,
                                   PaymentRouteResultDTO routeResultDTO,
                                   PaymentCreateResultDTO resultDTO) {
-        log.info("event: PAYMENT_ROUTE_DECISION stage=ROUTE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} channelCapability: {} midNo: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} supportedCurrencies: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routed: {} routeReason: {}",
+        log.info("event: PAYMENT_ROUTE_DECISION stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} channelCapability: {} midNo: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} supportedCurrencies: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routed: {} routeReason: {}",
+                TraceContext.getTraceId(),
                 commandDTO == null ? null : commandDTO.getMerchantId(),
                 commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
                 resultDTO == null ? null : resultDTO.getTransactionId(),
@@ -2957,7 +3040,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (commandDTO == null) {
             return;
         }
-        log.info("event: PAYMENT_OPENAPI_CONTEXT stage=ACCEPT merchantId: {} merchantOrderNo: {} merchantOrderId: {} transactionType: {} openApiRequestPath: {} requestFingerprint: {} requestCipherMasked: {} requestSource: {} plainRequestSummary: {}",
+        log.info("event: PAYMENT_OPENAPI_CONTEXT stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} merchantOrderId: {} transactionType: {} openApiRequestPath: {} requestFingerprint: {} requestCipherMasked: {} requestSource: {} plainRequestSummary: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 commandDTO.getMerchantOrderId(),
@@ -3062,7 +3146,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private void logStatusMapping(PaymentCreateResultDTO resultDTO,
                                   PaymentChannelInvokeResultDTO invokeResultDTO,
                                   ChannelPaymentResponse channelResponse) {
-        log.info("event: PAYMENT_STATUS_MAPPED stage=STATUS_MAPPING merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} acquirerCode: {} failureCode: {} requestStatus: {}",
+        log.info("event: PAYMENT_STATUS_MAPPED stage=STATUS_MAPPING traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} acquirerCode: {} failureCode: {} requestStatus: {}",
+                TraceContext.getTraceId(),
                 resultDTO == null ? null : resultDTO.getMerchantId(),
                 resultDTO == null ? null : resultDTO.getMerchantOrderNo(),
                 resultDTO == null ? null : resultDTO.getTransactionId(),
@@ -3088,7 +3173,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @param resultDTO 平台支付创建结果，提供交易标识、状态、业务码、币种和金额
      */
     private void logMerchantResponseBuilt(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
-        log.info("event: PAYMENT_MERCHANT_RESPONSE_BUILT stage=RESPONSE merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} platformCode: {} currency: {} amount: {}",
+        log.info("event: PAYMENT_MERCHANT_RESPONSE_BUILT stage=RESPONSE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} platformCode: {} currency: {} amount: {}",
+                TraceContext.getTraceId(),
                 commandDTO == null ? null : commandDTO.getMerchantId(),
                 commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
                 resultDTO == null ? null : resultDTO.getTransactionId(),
@@ -3101,14 +3187,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 执行 to Utc Time 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 构造utctime对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 PaymentTransactionServiceImpl 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
      * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 转换或构建后的目标对象
+     * @return 构造、转换或解析后的业务值
      */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);

@@ -18,7 +18,7 @@ import org.springframework.util.StringUtils;
  * @classname : OpenApiPayloadDecoder
  * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : OpenApiPayloadDecoder Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Payload Decoder 解码组件，位于 商户开放接口服务，解析加密或外部协议报文，转换为内部 DTO 并保持异常边界清晰。
  * @status : create
  */
 public class OpenApiPayloadDecoder {

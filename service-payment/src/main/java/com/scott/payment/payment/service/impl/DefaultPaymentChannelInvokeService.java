@@ -6,14 +6,19 @@ import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
 import com.scott.payment.channel.payment.exception.ChannelException;
 import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.iso.IsoCurrencyResolver;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -46,13 +51,19 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
     private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
 
     /**
-     * payment Channel Executor 字段，表示当前模型在所属业务流程中的对应属性。
+     * payment Channel Executor，用于保存 Default Payment Channel Invoke Service 中与 payment渠道executor 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentChannelExecutor paymentChannelExecutor;
+
+    /**
+     * 数据库 ISO 币种字典服务，用于读取 base_iso_currency 中维护的辅币位。
+     */
+    private final IsoDictionaryService isoDictionaryService;
 
     /**
      * 创建渠道调用服务。
@@ -60,7 +71,20 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
      * @param paymentChannelExecutor 渠道执行器
      */
     public DefaultPaymentChannelInvokeService(PaymentChannelExecutor paymentChannelExecutor) {
+        this(paymentChannelExecutor, null);
+    }
+
+    /**
+     * 创建渠道调用服务。
+     *
+     * @param paymentChannelExecutor 渠道执行器
+     * @param isoDictionaryService 数据库币种字典服务
+     */
+    @Autowired
+    public DefaultPaymentChannelInvokeService(PaymentChannelExecutor paymentChannelExecutor,
+                                              IsoDictionaryService isoDictionaryService) {
         this.paymentChannelExecutor = paymentChannelExecutor;
+        this.isoDictionaryService = isoDictionaryService;
     }
 
     /**
@@ -116,7 +140,8 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         resultDTO.setHttpMethod(resolveHttpMethod(commandDTO));
         resultDTO.setRequestScene(resolveRequestScene(commandDTO));
         resultDTO.setRequestUrlMasked(resolveRequestUrl(routeResult, channelRequest));
-        log.info("event: PAYMENT_CHANNEL_REQUEST_START merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} midNo: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} httpMethod: {} requestScene: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} requestSummary: {}",
+        log.info("event: PAYMENT_CHANNEL_REQUEST_START stage=CHANNEL_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} midNo: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} httpMethod: {} requestScene: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} requestSummary: {}",
+                TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
                 commandDTO.getMerchantOrderNo(),
                 transactionId,
@@ -149,7 +174,8 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setRequestStatus("SUCCESS");
             resultDTO.setResponseTime(responseTime);
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
-            log.info("event: PAYMENT_CHANNEL_REQUEST_END merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} channelResponseCode: {} rawChannelStatus: {} channelTradeStatus: {} acquirerCode: {} httpStatus: {} requestStatus: {} responseSummary: {} durationMs: {}",
+            log.info("event: PAYMENT_CHANNEL_REQUEST_END stage=CHANNEL_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} channelResponseCode: {} rawChannelStatus: {} channelTradeStatus: {} acquirerCode: {} httpStatus: {} requestStatus: {} responseSummary: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionId,
@@ -178,7 +204,8 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
             resultDTO.setExceptionType(exception.getClass().getSimpleName());
             resultDTO.setExceptionMessage(exception.getMessage());
-            log.warn("event: PAYMENT_CHANNEL_REQUEST_FAILED merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} requestStatus: {} exceptionType: {} durationMs: {}",
+            log.warn("event: PAYMENT_CHANNEL_REQUEST_FAILED stage=CHANNEL_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} requestStatus: {} exceptionType: {} durationMs: {}",
+                    TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
                     transactionId,
@@ -274,6 +301,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         request.getExtension().put("sourceUrl", emptyIfNull(commandDTO.getSourceUrl()));
         request.getExtension().put("payerIp", emptyIfNull(commandDTO.getPayerIp()));
         request.getExtension().put("userAgent", emptyIfNull(commandDTO.getUserAgent()));
+        request.getExtension().put("currencyExponent", resolveCurrencyExponent(request.getCurrency()));
         request.getExtension().put("midNo", emptyIfNull(routeResult.getMidNo()));
         request.getExtension().put("midConfigId", routeResult.getMidConfigId() == null ? "" : String.valueOf(routeResult.getMidConfigId()));
         request.getExtension().put("requestUrl", emptyIfNull(routeResult.getRequestUrl()));
@@ -367,6 +395,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
         summary.put("paymentMethod", request.getPaymentMethod());
         summary.put("currency", request.getCurrency());
         summary.put("amount", request.getAmount());
+        summary.put("currencyExponent", extension(request, "currencyExponent"));
         summary.put("cardNoMasked", SensitiveDataMaskUtils.maskPan(request.getCardNo()));
         summary.put("expirationMonth", request.getExpirationMonth());
         summary.put("expirationYear", request.getExpirationYear());
@@ -567,13 +596,40 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
     }
 
     /**
-     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 从统一 ISO 币种定义解析交易币种辅币位并透传给渠道库。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultPaymentChannelInvokeService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 渠道库不直接访问 payment 数据库；这里把支付核心已经使用的币种规则下沉到渠道请求，避免 Worldpay 最小单位金额默认按两位小数换算。
      * </p>
-     * @param values values 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param currency 交易币种
+     * @return 辅币位字符串；无法解析时返回空字符串，由渠道库再次按 ISO resolver 校验
+     */
+    private String resolveCurrencyExponent(String currency) {
+        if (!StringUtils.hasText(currency)) {
+            return "";
+        }
+        if (isoDictionaryService != null) {
+            return isoDictionaryService.getCurrency(currency)
+                    .map(IsoCurrencyInfo::defaultFractionDigits)
+                    .filter(exponent -> exponent >= 0)
+                    .map(String::valueOf)
+                    .orElse("");
+        }
+        return IsoCurrencyResolver.resolve(currency)
+                .map(IsoCurrencyInfo::defaultFractionDigits)
+                .filter(exponent -> exponent >= 0)
+                .map(String::valueOf)
+                .orElse("");
+    }
+
+    /**
+     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String firstText(String... values) {
         for (String value : values) {
@@ -590,10 +646,11 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
     public static class PaymentChannelInvokeException extends RuntimeException {
 
         /**
-         * invoke Result 字段，表示当前模型在所属业务流程中的对应属性。
+         * invoke Result，用于保存 Payment Channel Invoke Exception 中与 invokeresult 相关的业务属性。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final PaymentChannelInvokeResultDTO invokeResult;

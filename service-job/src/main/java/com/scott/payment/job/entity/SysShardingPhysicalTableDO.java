@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * @classname : SysShardingPhysicalTableDO
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : SysShardingPhysicalTableDO 数据库实体，用于映射持久化表字段、审计字段和业务状态，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sys Sharding Physical Table DO 持久化模型，位于 调度任务服务，映射数据库记录字段，承载主键、业务标识、状态、时间和审计信息。
  * @status : create
  */
 public class SysShardingPhysicalTableDO {

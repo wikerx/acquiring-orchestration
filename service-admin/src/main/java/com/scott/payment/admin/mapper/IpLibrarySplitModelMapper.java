@@ -10,7 +10,7 @@ import com.scott.payment.admin.entity.base.IpLibraryEntities;
  * @classname : IpLibrarySplitModelMapper
  * @date : 2026-07-05 00:34
  * @email : scott_x@163.com
- * @description : IpLibrarySplitModelMapper MyBatis 数据访问接口，用于映射数据库表读写语句和领域查询条件，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : IP Library Split Model Mapper 映射组件，位于 运营后台服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  * @status : create
  */
 public interface IpLibrarySplitModelMapper extends BaseMapper<IpLibraryEntities.IpLibrarySplitModelDO> {

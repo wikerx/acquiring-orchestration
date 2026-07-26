@@ -10,7 +10,7 @@ import com.scott.payment.admin.entity.base.MccEntities;
  * @classname : BaseMccLevel2Mapper
  * @date : 2026-06-27 16:49
  * @email : scott_x@163.com
- * @description : BaseMccLevel2Mapper MyBatis 数据访问接口，用于映射数据库表读写语句和领域查询条件，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Base MCC Level 2 Mapper 映射组件，位于 运营后台服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  * @status : create
  */
 public interface BaseMccLevel2Mapper extends BaseMapper<MccEntities.BaseMccLevel2DO> {

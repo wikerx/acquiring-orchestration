@@ -1,5 +1,6 @@
 package com.scott.payment.job.handler;
 
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.job.executor.JobHandlerDescriptor;
 import com.scott.payment.component.job.handler.AbstractJobHandler;
 import com.scott.payment.component.job.model.JobExecuteResult;
@@ -45,11 +46,13 @@ public class PaymentTimeoutCloseJob extends AbstractJobHandler {
     @Override
     public JobExecuteResult execute(String parameter) {
         long startNanos = System.nanoTime();
-        log.info("event: JOB_HANDLER_SCAN_START handler=paymentTimeoutClose paramsSummary: {} scanRange: {} limit: {}",
+        log.info("event: JOB_HANDLER_SCAN_START traceId: {} handler=paymentTimeoutClose paramsSummary: {} scanRange: {} limit: {}",
+                TraceContext.getTraceId(),
                 parameter,
                 null,
                 0);
-        log.info("event: JOB_HANDLER_SCAN_END handler=paymentTimeoutClose scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+        log.info("event: JOB_HANDLER_SCAN_END traceId: {} handler=paymentTimeoutClose scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+                TraceContext.getTraceId(),
                 0,
                 0,
                 0,

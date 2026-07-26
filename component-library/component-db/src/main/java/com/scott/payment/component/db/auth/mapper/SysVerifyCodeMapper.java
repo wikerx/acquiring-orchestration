@@ -9,7 +9,7 @@ import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
  * @classname : SysVerifyCodeMapper
  * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : SysVerifyCodeMapper MyBatis 数据访问接口，用于映射数据库表读写语句和领域查询条件，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sys Verify Code Mapper 映射组件，位于 公共组件库，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  * @status : create
  */
 public interface SysVerifyCodeMapper extends BaseMapper<SysVerifyCodeDO> {

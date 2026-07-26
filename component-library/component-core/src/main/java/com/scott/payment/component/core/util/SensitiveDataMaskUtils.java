@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * @classname : SensitiveDataMaskUtils
  * @date : 2026-05-28 16:48
  * @email : scott_x@163.com
- * @description : SensitiveDataMaskUtils 通用能力封装，用于提供无状态的格式转换、校验或安全处理函数，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sensitive Data Mask Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  * @status : create
  */
 public final class SensitiveDataMaskUtils {
@@ -77,7 +77,7 @@ public final class SensitiveDataMaskUtils {
     );
 
     /**
-     * 工具类不允许实例化。
+     * 私有构造方法，禁止外部实例化该脱敏支撑类型。
      */
     private SensitiveDataMaskUtils() {
     }
@@ -201,13 +201,14 @@ public final class SensitiveDataMaskUtils {
     }
 
     /**
-     * 完成 mask Mobile Field 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 脱敏mobilefield，返回可安全写入日志或展示的摘要文本。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 SensitiveDataMaskUtils 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private static String maskMobileField(String value) {
         return MOBILE_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
@@ -216,13 +217,14 @@ public final class SensitiveDataMaskUtils {
     }
 
     /**
-     * 完成 mask Email Field 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 脱敏emailfield，返回可安全写入日志或展示的摘要文本。
      * <p>
-     * 层级边界：公共组件层；输入来源、输出结构和异常语义由 SensitiveDataMaskUtils 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private static String maskEmailField(String value) {
         return EMAIL_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(

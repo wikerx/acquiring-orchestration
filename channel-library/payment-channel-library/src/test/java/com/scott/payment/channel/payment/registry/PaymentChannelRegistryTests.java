@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @classname : PaymentChannelRegistryTests
  * @date : 2026-07-12 22:43
  * @email : scott_x@163.com
- * @description : PaymentChannelRegistryTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 渠道适配层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payment Channel Registry Tests 自动化测试类，位于 渠道适配库，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class PaymentChannelRegistryTests {
@@ -69,10 +69,11 @@ class PaymentChannelRegistryTests {
     private static class StubChannelClient implements PaymentChannelClient {
 
         /**
-         * channel Code 字段，表示当前模型在所属业务流程中的对应属性。
+         * 渠道编码，用于定位 MPGS、WorldPay 等渠道适配实现和路由配置。
          * <p>
-         * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-         * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
         private final String channelCode;

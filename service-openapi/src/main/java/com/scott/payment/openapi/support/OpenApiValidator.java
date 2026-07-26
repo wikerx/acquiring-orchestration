@@ -16,7 +16,7 @@ import java.util.Set;
  * @classname : OpenApiValidator
  * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : OpenApiValidator Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Validator 校验组件，位于 商户开放接口服务，执行参数、状态、权限或配置规则校验，失败时返回统一异常。
  * @status : create
  */
 public class OpenApiValidator {

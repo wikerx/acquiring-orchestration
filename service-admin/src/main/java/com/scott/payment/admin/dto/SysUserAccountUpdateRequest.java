@@ -17,7 +17,7 @@ import java.util.List;
  * @classname : SysUserAccountUpdateRequest
  * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : SysUserAccountUpdateRequest 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sys User Account Update Request 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
 public class SysUserAccountUpdateRequest implements Serializable {

@@ -24,7 +24,7 @@ import java.util.UUID;
  * @classname : RocketMqProducer
  * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : RocketMqProducer 消息投递组件，用于补齐消息元数据并发送 MQ 事件，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Rocket MQ Producer 消息投递组件，位于 公共组件库，补齐消息标识、traceId、重试次数和业务载荷后发送 MQ。
  * @status : create
  */
 public class RocketMqProducer implements MqProducer {

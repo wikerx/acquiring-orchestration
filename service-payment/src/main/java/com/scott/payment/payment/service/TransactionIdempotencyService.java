@@ -45,14 +45,14 @@ public interface TransactionIdempotencyService {
     }
 
     /**
-     * 执行 normalize Key Part 服务能力，按当前领域规则完成校验、状态读取或数据写入。
-     * 接口契约要求实现类保持参数校验、状态变化、异常边界和返回结构一致。
+     * 解析normalize密钥part，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 TransactionIdempotencyService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 标准化后的业务字段值
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
      */
     private static String normalizeKeyPart(String value) {
         return value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);

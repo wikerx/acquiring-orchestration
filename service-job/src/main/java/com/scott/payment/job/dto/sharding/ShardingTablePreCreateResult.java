@@ -12,7 +12,7 @@ import java.util.List;
  * @classname : ShardingTablePreCreateResult
  * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : ShardingTablePreCreateResult 接口传输模型，用于约束请求入参、响应字段和跨层数据边界，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Sharding Table Pre Create Result 协作组件，位于 调度任务服务，封装 shardingtableprecreateresult 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class ShardingTablePreCreateResult {

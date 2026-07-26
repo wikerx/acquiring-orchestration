@@ -27,7 +27,7 @@ import java.util.Set;
  * @classname : AdminOpenApiSecurityConfig
  * @date : 2026-06-13 17:17
  * @email : scott_x@163.com
- * @description : AdminOpenApiSecurityConfig Spring 配置类，用于注册当前模块所需 Bean、客户端和拦截器，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Admin Open API Security Config 配置类，位于 运营后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
 public class AdminOpenApiSecurityConfig {

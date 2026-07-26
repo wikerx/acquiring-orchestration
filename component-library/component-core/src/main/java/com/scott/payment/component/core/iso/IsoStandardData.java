@@ -509,7 +509,7 @@ final class IsoStandardData {
     );
 
     /**
-     * 工具类不允许实例化。
+     * 私有构造方法，禁止外部实例化该 ISO 标准数据类型。
      */
     private IsoStandardData() {
     }

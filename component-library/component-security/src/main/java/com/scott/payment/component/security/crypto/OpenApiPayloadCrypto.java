@@ -38,7 +38,7 @@ import java.util.function.Function;
  * @classname : OpenApiPayloadCrypto
  * @date : 2026-05-29 22:06
  * @email : scott_x@163.com
- * @description : OpenApiPayloadCrypto Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Payload Crypto 协作组件，位于 公共组件库，封装 openapipayloadcrypto 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class OpenApiPayloadCrypto {

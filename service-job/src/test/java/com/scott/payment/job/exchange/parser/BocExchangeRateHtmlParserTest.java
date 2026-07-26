@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : BocExchangeRateHtmlParserTest
  * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : BocExchangeRateHtmlParserTest 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 调度任务服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Boc Exchange Rate Html Parser Test 自动化测试类，位于 调度任务服务，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class BocExchangeRateHtmlParserTest {

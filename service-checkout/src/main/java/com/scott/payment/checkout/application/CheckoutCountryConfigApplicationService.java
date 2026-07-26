@@ -21,7 +21,7 @@ import java.util.stream.IntStream;
  * @classname : CheckoutCountryConfigApplicationService
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : CheckoutCountryConfigApplicationService 应用服务，用于编排接口请求、权限上下文、领域服务和外部依赖，位于 收银台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Checkout Country Config Application Service 应用服务，位于 收银台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
 public class CheckoutCountryConfigApplicationService {

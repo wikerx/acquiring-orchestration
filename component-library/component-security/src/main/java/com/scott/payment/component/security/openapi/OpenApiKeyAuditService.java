@@ -7,7 +7,7 @@ package com.scott.payment.component.security.openapi;
  * @classname : OpenApiKeyAuditService
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : OpenApiKeyAuditService 服务契约，用于声明业务能力、调用边界和返回结果约束，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Key Audit Service 服务契约，位于 公共组件库，声明当前业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public class OpenApiKeyAuditService {

@@ -2,6 +2,8 @@ package com.scott.payment.openapi.support;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.web.trace.HttpTrafficLoggingFilter;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
@@ -19,17 +21,17 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 
 
-@Component
-@Slf4j
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestHeaderExtractor
  * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : OpenApiRequestHeaderExtractor Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Request Header Extractor 提取组件，位于 商户开放接口服务，从请求、响应或配置中读取关键字段，完成标准化、校验和脱敏日志准备。
  * @status : create
  */
+@Component
+@Slf4j
 public class OpenApiRequestHeaderExtractor {
 
     /**
@@ -152,36 +154,43 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
-        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {} jwtSummary: {} headerSummary: {}",
+        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
+                TraceContext.getTraceId(),
                 claims.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 digest8(claims.getJwtId()),
                 clientIp,
                 diagnosticLogSupport.jwtSummary(headerDTO),
-                diagnosticLogSupport.headerSummary(request));
+                diagnosticLogSupport.headerSummary(request),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE));
         return headerDTO;
     }
 
-/**
- * 写入或更新 record Blocked 相关数据，保持数据库记录与当前业务处理结果一致。
- * <p>
- * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiRequestHeaderExtractor 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
- * </p>
- * @param request request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
- * @param eventType event Type 输入值，含义由调用方法名称和所属业务对象限定
- * @param riskLevel risk Level 输入值，含义由调用方法名称和所属业务对象限定
- * @param merchantId 商户号，用于限定数据归属、幂等范围和权限边界
- * @param hitRuleCode hit Rule Code 输入值，含义由调用方法名称和所属业务对象限定
- * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
- */
+    /**
+     * 记录 OpenAPI 安全拦截事件。
+     * <p>
+     * 该日志覆盖缺失头、JWT 验签失败、IP 白名单拒绝和防重放拒绝等认证阶段异常；
+     * Authorization、JWT 原文和完整请求体只通过 header/body 摘要展示，不直接输出。
+     * </p>
+     *
+     * @param request     当前 HTTP 请求
+     * @param eventType   安全拦截事件类型
+     * @param riskLevel   风险等级
+     * @param merchantId  已解析出的商户号；认证前失败时允许为空
+     * @param hitRuleCode 命中的安全规则编码
+     * @param exception   触发拦截的业务异常
+     */
     private void recordBlocked(HttpServletRequest request,
                                String eventType,
                                String riskLevel,
                                String merchantId,
                                String hitRuleCode,
                                RuntimeException exception) {
+        if (request != null) {
+            request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
+        }
         securityInterceptEventRecorder.recordBlocked(
                 request,
                 SecurityInterceptEventRecorder.SOURCE_OPENAPI,
@@ -192,13 +201,18 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
-        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {} headerSummary: {}",
+        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {}",
+                TraceContext.getTraceId(),
                 merchantId,
                 request == null ? null : request.getRequestURI(),
                 request == null ? null : request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 hitRuleCode,
                 securityInterceptEventRecorder.reasonCode(exception),
-                diagnosticLogSupport.headerSummary(request));
+                exception.getClass().getSimpleName(),
+                diagnosticLogSupport.headerSummary(request),
+                request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
+                request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE),
+                request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_SUMMARY_ATTRIBUTE));
     }
 
     /**
@@ -240,13 +254,14 @@ public class OpenApiRequestHeaderExtractor {
     }
 
     /**
-     * 解析 resolve Replay Event Type 对应的业务值，按优先级从上下文、请求或配置中取值。
+     * 解析resolvereplayeventtype，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
-     * 层级边界：商户开放接口服务层；输入来源、输出结构和异常语义由 OpenApiRequestHeaderExtractor 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
      * </p>
-     * @param exception exception 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 解析或查询得到的业务值
+     * @param exception 下游调用、校验或持久化阶段捕获的异常对象
+     * @return 构造、转换或解析后的业务值
      */
     private String resolveReplayEventType(RuntimeException exception) {
         String reasonCode = securityInterceptEventRecorder.reasonCode(exception);

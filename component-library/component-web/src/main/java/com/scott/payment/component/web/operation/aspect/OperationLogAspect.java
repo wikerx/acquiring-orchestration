@@ -202,8 +202,9 @@ public class OperationLogAspect {
             return;
         }
         String event = isQuery(record.getBusinessType()) ? "ADMIN_QUERY_ACCESS" : "ADMIN_WRITE_OPERATION";
-        log.info("event: {} module: {} operation: {} businessType: {} method: {} path: {} requestMethod: {} merchantId: {} operatorId: {} operatorType: {} querySummary: {} resultRecorded: {} status: {} durationMs: {}",
+        log.info("event: {} traceId: {} module: {} operation: {} businessType: {} method: {} path: {} requestMethod: {} merchantId: {} operatorId: {} operatorType: {} querySummary: {} resultRecorded: {} status: {} durationMs: {}",
                 event,
+                record.getTraceId(),
                 record.getModuleName(),
                 record.getOperationName(),
                 record.getBusinessType(),

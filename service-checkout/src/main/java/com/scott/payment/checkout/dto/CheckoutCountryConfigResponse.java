@@ -9,7 +9,7 @@ import java.util.List;
  * @classname : CheckoutCountryConfigResponse
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : CheckoutCountryConfigResponse 不可变数据载体，用于在模块内部传递结构化参数或结果，位于 收银台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Checkout Country Config Response 不可变数据结构，位于 收银台服务，用于在当前调用链中传递固定字段集合，不承担状态写入职责。
  * @status : create
  */
 public record CheckoutCountryConfigResponse(String countryCode,

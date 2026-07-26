@@ -16,7 +16,7 @@ import org.springframework.web.client.RestTemplate;
  * @classname : PaymentClientConfig
  * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : PaymentClientConfig Spring 配置类，用于注册当前模块所需 Bean、客户端和拦截器，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Payment Client Config 配置类，位于 商户开放接口服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
 public class PaymentClientConfig {

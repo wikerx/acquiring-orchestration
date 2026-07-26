@@ -37,64 +37,71 @@ import java.time.LocalDateTime;
 public class DefaultTransactionChannelMatchService implements TransactionChannelMatchService {
 
     /**
-     * DEFAULT LIMIT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * DEFAULT LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final int DEFAULT_LIMIT = 100;
 
     /**
-     * MAX LIMIT 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * MAX LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
      * </p>
      */
     private static final int MAX_LIMIT = 500;
 
     /**
-     * transaction Record Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * transaction Record Service 依赖，用于 Default Transaction Channel Match Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final TransactionRecordService transactionRecordService;
 
     /**
-     * payment Channel Invoke Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * payment Channel Invoke Service 依赖，用于 Default Transaction Channel Match Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentChannelInvokeService paymentChannelInvokeService;
 
     /**
-     * match Result Transaction Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * match Result Transaction Service 依赖，用于 Default Transaction Channel Match Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final TransactionChannelMatchResultTransactionService matchResultTransactionService;
 
     /**
-     * payment Channel Route Service 字段，表示当前模型在所属业务流程中的对应属性。
+     * payment Channel Route Service 依赖，用于 Default Transaction Channel Match Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final PaymentChannelRouteService paymentChannelRouteService;
 
     /**
-     * channel Status Resolver 字段，表示当前模型在所属业务流程中的对应属性。
+     * channel Status Resolver，表示当前记录在业务流程中的处理状态。
      * <p>
-     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
      * </p>
      */
     private final ChannelTransactionStatusResolver channelStatusResolver;
@@ -221,14 +228,15 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
 /**
- * 执行 build Query Reference 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 构造queryreference对象，完成字段复制、格式标准化和敏感数据处理。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionChannelMatchService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
  * </p>
- * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param originalRequestDO original Request DO 输入值，含义由调用方法名称和所属业务对象限定
- * @return 转换或构建后的目标对象
+ * @param operationDO operation DO 输入值，参与 动作do 的查询、校验、转换、写入或日志摘要
+ * @param originalRequestDO original Request DO 输入值，参与 original请求do 的查询、校验、转换、写入或日志摘要
+ * @return 构造、转换或解析后的业务值
  */
     private PaymentPreparedChannelRequestDTO buildQueryReference(TransactionOperationDO operationDO,
                                                                 TransactionChannelRequestDO originalRequestDO) {
@@ -242,16 +250,17 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
 /**
- * 执行 has Supported Query Identity 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+ * 判断 has supported query identity 条件是否成立，用于控制 Default Transaction Channel Match Service 的后续分支。
  * <p>
- * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionChannelMatchService 的方法签名及调用链约束。
- * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+ * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+ * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+ * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
  * </p>
- * @param queryCommand query Command 输入值，含义由调用方法名称和所属业务对象限定
- * @param routeResult route Result 输入值，含义由调用方法名称和所属业务对象限定
- * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
- * @param preparedQueryRequest prepared Query Request 入参，来源于当前接口、服务或任务调用链，字段含义按所属 DTO、实体或协议模型定义
- * @return 满足当前业务条件时返回 true，否则返回 false
+ * @param queryCommand query Command 输入值，参与 querycommand 的查询、校验、转换、写入或日志摘要
+ * @param routeResult route Result 输入值，参与 route结果 的查询、校验、转换、写入或日志摘要
+ * @param operationDO operation DO 输入值，参与 动作do 的查询、校验、转换、写入或日志摘要
+ * @param preparedQueryRequest prepared Query Request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @return 条件满足时返回 true，否则返回 false
  */
     private boolean hasSupportedQueryIdentity(PaymentCreateCommandDTO queryCommand,
                                               PaymentRouteResultDTO routeResult,
@@ -268,14 +277,15 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
     /**
-     * 执行 missing Identity Reason 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 规范化missingidentityreason，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionChannelMatchService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param operationDO operation DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @param originalRequestDO original Request DO 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param operationDO operation DO 输入值，参与 动作do 的查询、校验、转换、写入或日志摘要
+     * @param originalRequestDO original Request DO 输入值，参与 original请求do 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String missingIdentityReason(TransactionOperationDO operationDO, TransactionChannelRequestDO originalRequestDO) {
         String requestId = firstText(originalRequestDO == null ? null : originalRequestDO.getRequestId(),
@@ -382,14 +392,15 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
     /**
-     * 执行 first Text 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionChannelMatchService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param first first 输入值，含义由调用方法名称和所属业务对象限定
-     * @param second second 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param first first 输入值，参与 首个 的查询、校验、转换、写入或日志摘要
+     * @param second second 输入值，参与 second 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String firstText(String first, String second) {
         return StringUtils.hasText(first) ? first : second;

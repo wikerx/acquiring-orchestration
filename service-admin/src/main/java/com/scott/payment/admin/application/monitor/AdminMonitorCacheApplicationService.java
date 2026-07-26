@@ -28,19 +28,21 @@ import java.util.Set;
 public class AdminMonitorCacheApplicationService {
 
     /**
-     * MAX SCAN KEYS 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * MAX SCAN KEYS，用于保存 Admin Monitor Cache Application Service 中与 maxscan密钥 相关的业务属性。
      * <p>
-     * 单位：个；格式：整数；是否允许为空由数据库约束、校验注解或调用契约决定；敏感或可识别字段，日志输出必须脱敏。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：个或次；格式：整数；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final int MAX_SCAN_KEYS = 1000;
 
     /**
-     * string Redis Template 字段，表示当前模型在所属业务流程中的对应属性。
+     * string Redis Template，用于定位邮件、通知或渠道参数模板。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private final StringRedisTemplate stringRedisTemplate;
@@ -131,13 +133,14 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 编排 scan Keys 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理scan密钥，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMonitorCacheApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param pattern pattern 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param pattern pattern 输入值，参与 pattern 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private List<String> scanKeys(String pattern) {
         if (stringRedisTemplate == null) {
@@ -151,13 +154,14 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 编排 to Key Row 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造密钥row对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMonitorCacheApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 构造、转换或解析后的业务值
      */
     private Map<String, Object> toKeyRow(String key) {
         Map<String, Object> row = new LinkedHashMap<>();
@@ -176,14 +180,15 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 编排 size Of 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 规范化sizeof，返回当前业务步骤需要的业务值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMonitorCacheApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
-     * @param type type 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param type type 输入值，参与 type 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private long sizeOf(String key, DataType type) {
         if (type == null) {
@@ -203,13 +208,14 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 编排 read Value 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理值，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMonitorCacheApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param key key 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private Object readValue(String key) {
         if (stringRedisTemplate == null || !StringUtils.hasText(key)) {
@@ -230,13 +236,14 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 编排 to Map 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 构造map对象，完成字段复制、格式标准化和敏感数据处理。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMonitorCacheApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
      * </p>
-     * @param properties properties 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 转换或构建后的目标对象
+     * @param properties properties 输入值，参与 properties 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
      */
     private Map<String, String> toMap(Properties properties) {
         Map<String, String> result = new LinkedHashMap<>();
@@ -250,13 +257,14 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 编排 default Long 应用动作，衔接接口 DTO、登录上下文、领域服务和返回模型。
+     * 整理默认long，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminMonitorCacheApplicationService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param value 待校验或转换的原始值
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private long defaultLong(Long value) {
         return value == null ? 0 : value;

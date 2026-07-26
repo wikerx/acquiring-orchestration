@@ -28,10 +28,11 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
 
     /**
-     * UNKNOWN ROUTE 常量，用于在当前模块内统一引用固定配置、状态或协议字段。
+     * UNKNOWN ROUTE，用于保存 Gateway Trace ID Filter 中与 unknownroute 相关的业务属性。
      * <p>
-     * 单位：无；格式：由上游接口、数据库字段或枚举定义约束；是否允许为空由数据库约束、校验注解或调用契约决定；非敏感字段，仍需按最小必要原则使用。
-     * 数据来源：接口请求、数据库记录、配置文件或上游服务返回；与同对象字段共同组成当前业务语义。
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
     private static final String UNKNOWN_ROUTE = "unknown";
@@ -142,13 +143,14 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 完成 safe User Agent 的本地校验、字段转换或结果组装，供当前调用链继续使用。
+     * 整理User-Agent 摘要，返回后续查询、通知或响应组装可直接使用的标准值。
      * <p>
-     * 层级边界：网关层；输入来源、输出结构和异常语义由 GatewayTraceIdFilter 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 网关服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param userAgent user Agent 输入值，含义由调用方法名称和所属业务对象限定
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @param userAgent user Agent 输入值，参与 User-Agent 摘要 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String safeUserAgent(String userAgent) {
         if (!StringUtils.hasText(userAgent)) {

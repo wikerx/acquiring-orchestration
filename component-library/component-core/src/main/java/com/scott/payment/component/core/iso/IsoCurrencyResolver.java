@@ -27,7 +27,7 @@ public final class IsoCurrencyResolver {
     private static final Map<String, IsoCurrencyInfo> CURRENCY_INDEX = buildCurrencyIndex();
 
     /**
-     * 工具类不允许实例化。
+     * 私有构造方法，禁止外部实例化该币种解析类型。
      */
     private IsoCurrencyResolver() {
     }

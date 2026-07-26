@@ -32,7 +32,7 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @classname : AdminEmailAccountController
  * @date : 2026-07-04 16:11
  * @email : scott_x@163.com
- * @description : AdminEmailAccountController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 运营后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Admin Email Account Controller 控制器，位于 运营后台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
  * @status : create
  */
 public class AdminEmailAccountController {
@@ -43,12 +43,13 @@ public class AdminEmailAccountController {
     private final AdminEmailApplicationService emailApplicationService;
 
     /**
-     * 创建 AdminEmailAccountController 实例并注入其运行所需依赖。
+     * 整理admin邮件账号controller，返回当前业务步骤需要的规范化结果。
      * <p>
-     * 层级边界：运营后台服务层；输入来源、输出结构和异常语义由 AdminEmailAccountController 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
-     * @param emailApplicationService email Application Service 输入值，含义由调用方法名称和所属业务对象限定
+     * @param emailApplicationService email Application Service 输入值，参与 邮件applicationservice 的查询、校验、转换、写入或日志摘要
      */
     public AdminEmailAccountController(AdminEmailApplicationService emailApplicationService) {
         this.emailApplicationService = emailApplicationService;

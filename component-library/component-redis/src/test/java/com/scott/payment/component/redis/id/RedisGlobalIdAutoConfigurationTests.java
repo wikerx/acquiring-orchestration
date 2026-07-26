@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : RedisGlobalIdAutoConfigurationTests
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : RedisGlobalIdAutoConfigurationTests 自动化测试类，用于验证对应模块的业务规则、异常边界和回归场景，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Redis Global ID Auto Configuration Tests 配置类，位于 公共组件库，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
 class RedisGlobalIdAutoConfigurationTests {

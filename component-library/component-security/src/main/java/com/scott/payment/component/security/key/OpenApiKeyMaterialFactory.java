@@ -15,7 +15,7 @@ import java.util.Objects;
  * @classname : OpenApiKeyMaterialFactory
  * @date : 2026-05-29 22:38
  * @email : scott_x@163.com
- * @description : OpenApiKeyMaterialFactory 工厂组件，用于创建领域对象、密钥材料、客户端参数或运行时配置，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Key Material Factory 协作组件，位于 公共组件库，封装 openapi密钥materialfactory 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class OpenApiKeyMaterialFactory {

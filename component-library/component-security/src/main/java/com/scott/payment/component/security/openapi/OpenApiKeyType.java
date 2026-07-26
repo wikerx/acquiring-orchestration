@@ -7,7 +7,7 @@ package com.scott.payment.component.security.openapi;
  * @classname : OpenApiKeyType
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : OpenApiKeyType 枚举类型，用于限定业务状态、配置选项或协议取值范围，位于 公共组件层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Key Type 枚举，位于 公共组件库，定义交易状态、配置类型或协议结果的受控取值，供状态机、接口返回和日志字段统一引用。
  * @status : create
  */
 public enum OpenApiKeyType {

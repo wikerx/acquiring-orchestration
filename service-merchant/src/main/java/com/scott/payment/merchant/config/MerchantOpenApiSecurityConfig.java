@@ -24,7 +24,7 @@ import org.springframework.context.annotation.Configuration;
  * @classname : MerchantOpenApiSecurityConfig
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : MerchantOpenApiSecurityConfig Spring 配置类，用于注册当前模块所需 Bean、客户端和拦截器，位于 商户后台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Merchant Open API Security Config 配置类，位于 商户后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
 public class MerchantOpenApiSecurityConfig {

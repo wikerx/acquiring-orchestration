@@ -1,5 +1,7 @@
 package com.scott.payment.openapi.support;
 
+import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.web.trace.HttpTrafficLoggingFilter;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import lombok.extern.slf4j.Slf4j;
@@ -16,17 +18,17 @@ import java.util.Collections;
 import java.util.List;
 
 
-@Component
-@Slf4j
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiHeaderInterceptor
  * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : OpenApiHeaderInterceptor 请求拦截组件，用于处理鉴权、链路追踪、上下文绑定和安全边界，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Header Interceptor 拦截组件，位于 商户开放接口服务，处理请求链路中的 traceId、鉴权、来源信息、上下文绑定或安全校验。
  * @status : create
  */
+@Component
+@Slf4j
 public class OpenApiHeaderInterceptor implements HandlerInterceptor {
 
     /**
@@ -74,19 +76,37 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         request.setAttribute(OpenApiRequestAttributes.REQUEST_START_NANOS, startNanos);
         request.setAttribute(OpenApiRequestAttributes.API_VERSION, apiVersion(request.getRequestURI()));
         request.setAttribute(OpenApiRequestAttributes.INTERFACE_TYPE, interfaceType(request.getRequestURI()));
-        log.info("event: OPENAPI_REQUEST_ENTER stage=ACCEPT method: {} path: {} queryKeys: {} apiVersion: {} interfaceType: {} clientIp: {} headerSummary: {}",
+        log.info("event: OPENAPI_REQUEST_ENTER stage=ACCEPT traceId: {} method: {} path: {} queryKeys: {} apiVersion: {} interfaceType: {} clientIp: {} contentType: {} contentLength: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {}",
+                TraceContext.getTraceId(),
                 request.getMethod(),
                 request.getRequestURI(),
                 queryKeys(request),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 request.getAttribute(OpenApiRequestAttributes.INTERFACE_TYPE),
                 clientIp(request),
-                diagnosticLogSupport.headerSummary(request));
+                request.getContentType(),
+                request.getContentLengthLong(),
+                diagnosticLogSupport.headerSummary(request),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_SUMMARY_ATTRIBUTE));
         OpenApiRequestHeaderDTO headerDTO = headerExtractor.extract(request, annotation.requiredHeaders());
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
         return true;
     }
 
+    /**
+     * 在请求结束时输出 OpenAPI 全阶段闭环日志。
+     * <p>
+     * 结束日志聚合请求头摘要、密文请求摘要、解密后明文摘要、响应明文摘要和响应密文摘要；
+     * Authorization、JWT、完整密文、卡号和安全码只允许以脱敏或摘要形式出现。
+     * </p>
+     *
+     * @param request   HTTP 请求
+     * @param response  HTTP 响应
+     * @param handler   MVC 处理器
+     * @param exception Spring MVC 传递的异常对象，正常完成时为空
+     */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception exception) {
         Object startValue = request.getAttribute(OpenApiRequestAttributes.REQUEST_START_NANOS);
@@ -95,15 +115,25 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
         }
         OpenApiRequestHeaderDTO headerDTO = (OpenApiRequestHeaderDTO) request.getAttribute(OpenApiRequestAttributes.REQUEST_HEADER);
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
-        log.info("event: OPENAPI_REQUEST_END stage=FINISH merchantId: {} path: {} apiVersion: {} interfaceType: {} httpStatus: {} platformCode: {} durationMs: {} exceptionType: {} cipherRequestSummary: {} plainRequestSummary: {} plainResponseSummary: {} cipherResponseSummary: {}",
+        log.info("event: OPENAPI_REQUEST_END stage=FINISH traceId: {} merchantId: {} method: {} path: {} queryKeys: {} apiVersion: {} interfaceType: {} clientIp: {} httpStatus: {} platformCode: {} durationMs: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {} cipherRequestSummary: {} plainRequestSummary: {} plainResponseSummary: {} cipherResponseSummary: {}",
+                TraceContext.getTraceId(),
                 headerDTO == null ? null : headerDTO.getMerchantId(),
+                request.getMethod(),
                 request.getRequestURI(),
+                queryKeys(request),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 request.getAttribute(OpenApiRequestAttributes.INTERFACE_TYPE),
+                headerDTO == null ? clientIp(request) : headerDTO.getClientIp(),
                 response.getStatus(),
                 request.getAttribute(OpenApiRequestAttributes.BUSINESS_CODE),
                 durationMs,
-                exception == null ? null : exception.getClass().getSimpleName(),
+                exception == null
+                        ? request.getAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE)
+                        : exception.getClass().getSimpleName(),
+                diagnosticLogSupport.headerSummary(request),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_SUMMARY_ATTRIBUTE),
                 request.getAttribute(OpenApiRequestAttributes.REQUEST_CIPHER_SUMMARY),
                 request.getAttribute(OpenApiRequestAttributes.REQUEST_PLAIN_SUMMARY),
                 request.getAttribute(OpenApiRequestAttributes.RESPONSE_PLAIN_SUMMARY),

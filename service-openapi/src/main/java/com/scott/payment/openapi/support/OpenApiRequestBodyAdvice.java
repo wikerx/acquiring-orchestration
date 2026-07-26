@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.support;
 
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.openapi.annotation.VerificationAndProcessing;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
@@ -18,17 +19,17 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.lang.reflect.Type;
 
 
-@Slf4j
-@RestControllerAdvice
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestBodyAdvice
  * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : OpenApiRequestBodyAdvice Java 类型，用于封装当前包内的领域数据、服务契约或模块协作逻辑，位于 商户开放接口服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Open API Request Body Advice MVC 扩展组件，位于 商户开放接口服务，在请求体读取或响应写出阶段执行解密、加密、校验、摘要记录和上下文回填。
  * @status : create
  */
+@Slf4j
+@RestControllerAdvice
 public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
 
     /**
@@ -106,7 +107,8 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         String requestBody = String.valueOf(body);
         String cipherSummary = diagnosticLogSupport.cipherRequestSummary(requestBody);
         request.setAttribute(OpenApiRequestAttributes.REQUEST_CIPHER_SUMMARY, cipherSummary);
-        log.info("event: OPENAPI_REQUEST_CIPHER_RECEIVED stage=DECRYPT merchantId: {} path: {} apiVersion: {} interfaceType: {} cipherSummary: {}",
+        log.info("event: OPENAPI_REQUEST_CIPHER_RECEIVED stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} cipherSummary: {}",
+                TraceContext.getTraceId(),
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
@@ -118,7 +120,9 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         } catch (RuntimeException exception) {
             recordBlocked(request, headerDTO, "OPENAPI_DECRYPT_FAILED", SecurityInterceptEventRecorder.RISK_HIGH,
                     "OPENAPI_PAYLOAD_DECRYPT", exception);
-            log.warn("event: OPENAPI_REQUEST_DECRYPT_FAILED stage=DECRYPT merchantId: {} path: {} apiVersion: {} interfaceType: {} reasonCode: {} exceptionType: {} cipherSummary: {}",
+            request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
+            log.warn("event: OPENAPI_REQUEST_DECRYPT_FAILED stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} reasonCode: {} exceptionType: {} cipherSummary: {}",
+                    TraceContext.getTraceId(),
                     headerDTO == null ? null : headerDTO.getMerchantId(),
                     request.getRequestURI(),
                     request.getAttribute(OpenApiRequestAttributes.API_VERSION),
@@ -128,26 +132,29 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
                     cipherSummary);
             throw exception;
         }
+        String maskedSummary = diagnosticLogSupport.plainRequestSummary(data);
+        request.setAttribute(OpenApiRequestAttributes.REQUEST_PLAIN_SUMMARY, maskedSummary);
         if (annotation.validator()) {
             try {
                 openApiValidator.validate(data, annotation.validationGroups());
             } catch (RuntimeException exception) {
                 recordBlocked(request, headerDTO, "OPENAPI_PARAM_INVALID", SecurityInterceptEventRecorder.RISK_MEDIUM,
                         "OPENAPI_PARAM_VALIDATION", exception);
-                log.warn("event: OPENAPI_REQUEST_VALIDATE_FAILED stage=VALIDATE merchantId: {} path: {} apiVersion: {} interfaceType: {} reasonCode: {} exceptionType: {} plainRequestSummary: {}",
+                request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
+                log.warn("event: OPENAPI_REQUEST_VALIDATE_FAILED stage=VALIDATE traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} reasonCode: {} exceptionType: {} plainRequestSummary: {}",
+                        TraceContext.getTraceId(),
                         headerDTO == null ? null : headerDTO.getMerchantId(),
                         request.getRequestURI(),
                         request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                         request.getAttribute(OpenApiRequestAttributes.INTERFACE_TYPE),
                         securityInterceptEventRecorder.reasonCode(exception),
                         exception.getClass().getSimpleName(),
-                        diagnosticLogSupport.plainRequestSummary(data));
+                        maskedSummary);
                 throw exception;
             }
         }
-        String maskedSummary = diagnosticLogSupport.plainRequestSummary(data);
-        request.setAttribute(OpenApiRequestAttributes.REQUEST_PLAIN_SUMMARY, maskedSummary);
-        log.info("event: OPENAPI_REQUEST_DECRYPT_END stage=DECRYPT merchantId: {} path: {} apiVersion: {} interfaceType: {} decryptSuccess=true cipherSummary: {} plainRequestSummary: {}",
+        log.info("event: OPENAPI_REQUEST_DECRYPT_END stage=DECRYPT traceId: {} merchantId: {} path: {} apiVersion: {} interfaceType: {} decryptSuccess=true cipherSummary: {} plainRequestSummary: {}",
+                TraceContext.getTraceId(),
                 headerDTO == null ? null : headerDTO.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),

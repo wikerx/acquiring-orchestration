@@ -167,13 +167,14 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     }
 
     /**
-     * 执行 sharding Context 服务能力，按当前领域规则完成校验、状态读取或数据写入。
+     * 计算shardingcontext摘要，用不可逆指纹关联原始内容而不暴露明文。
      * <p>
-     * 层级边界：支付核心服务层；输入来源、输出结构和异常语义由 DefaultTransactionEventOutboxService 的方法签名及调用链约束。
-     * 状态变更、事务提交、MQ 投递、远程调用和敏感数据处理以当前方法实现为准，调用方需沿用既有幂等与脱敏约束。
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
      * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法签名声明的返回值，具体结构由返回类型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private ShardingSingleTableContext shardingContext(LocalDateTime transactionDateTime) {
         return ShardingSingleTableContext.of(LOGICAL_TABLE, transactionDateTime, DataSourceName.MASTER);

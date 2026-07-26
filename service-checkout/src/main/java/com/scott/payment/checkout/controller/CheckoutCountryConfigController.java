@@ -15,7 +15,7 @@ import java.util.List;
  * @classname : CheckoutCountryConfigController
  * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : CheckoutCountryConfigController HTTP 接口控制器，用于接收请求、调用应用服务并返回统一响应，位于 收银台服务层，输入输出边界由所在包和公开方法契约限定。
+ * @description : Checkout Country Config Controller 控制器，位于 收银台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
  * @status : create
  */
 public class CheckoutCountryConfigController {
