@@ -76,7 +76,8 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
             validatePositiveAmount(requestAmount, nextTransactionType);
             return;
         }
-        if (PaymentTransactionTypeEnum.CAPTURE == nextTransactionType) {
+        if (PaymentTransactionTypeEnum.CAPTURE == nextTransactionType
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION == nextTransactionType) {
             validateType(sourceOrderDO, CAPTURE_SOURCE_TYPES, nextTransactionType);
             validateCurrency(sourceOrderDO, requestCurrency, nextTransactionType);
             validateAvailableAmount(requestAmount, sourceOrderDO.getAvailableCaptureAmount(), nextTransactionType);

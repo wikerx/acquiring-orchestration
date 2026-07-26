@@ -537,7 +537,20 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     @Override
     public PaymentCreateResultDTO capture(PaymentCreateCommandDTO commandDTO) {
-        return createCaptureTransaction(commandDTO);
+        return createCaptureTransaction(commandDTO, PaymentTransactionTypeEnum.CAPTURE);
+    }
+
+    /**
+     * 发起预授权完成交易。
+     * <p>
+     * 预授权完成与请款共享渠道 Capture 能力，但平台动作类型、幂等记录和商户响应保留 PRE_AUTH_COMPLETION。
+     *
+     * @param commandDTO 预授权完成命令
+     * @return 预授权完成结果
+     */
+    @Override
+    public PaymentCreateResultDTO preAuthCompletion(PaymentCreateCommandDTO commandDTO) {
+        return createCaptureTransaction(commandDTO, PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION);
     }
 
     /**
@@ -665,21 +678,24 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
-    private PaymentCreateResultDTO createCaptureTransaction(PaymentCreateCommandDTO commandDTO) {
+    private PaymentCreateResultDTO createCaptureTransaction(PaymentCreateCommandDTO commandDTO,
+                                                            PaymentTransactionTypeEnum transactionType) {
         if (commandDTO != null) {
-            commandDTO.setTransactionType(PaymentTransactionTypeEnum.CAPTURE.getCode());
+            commandDTO.setTransactionType(transactionType.getCode());
         }
-        validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.CAPTURE);
-        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.CAPTURE);
+        validateFollowUpCommand(commandDTO, transactionType);
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, transactionType);
         String lockValue = UUID.randomUUID().toString();
         boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         if (!locked) {
+            commandDTO.setRequestFingerprint(resolveCaptureLikeRequestFingerprint(commandDTO, transactionType));
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                     .map(record -> resolveDuplicateFollowUp(commandDTO, record))
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
         }
         try {
-            CapturePreparationResultDTO preparationResultDTO = captureTransactionPreparationService.prepareCapture(commandDTO, idempotencyKey);
+            CapturePreparationResultDTO preparationResultDTO = captureTransactionPreparationService.prepareCapture(
+                    commandDTO, idempotencyKey, transactionType);
             if (!preparationResultDTO.isCallChannel()) {
                 return preparationResultDTO.getResultDTO();
             }
@@ -833,6 +849,12 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private String resolveRefundRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
         TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
         return canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, PaymentTransactionTypeEnum.REFUND);
+    }
+
+    private String resolveCaptureLikeRequestFingerprint(PaymentCreateCommandDTO commandDTO,
+                                                        PaymentTransactionTypeEnum transactionType) {
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        return canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, transactionType);
     }
 
     private String resolveVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
@@ -1180,7 +1202,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                               TransactionOrderDO sourceOrderDO,
                                               PaymentTransactionTypeEnum transactionTypeEnum,
                                               LocalDateTime now) {
-        if (PaymentTransactionTypeEnum.CAPTURE != transactionTypeEnum) {
+        if (!isCaptureLike(transactionTypeEnum)) {
             return;
         }
         String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
@@ -1192,7 +1214,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             return;
         }
         throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
-                "source transaction has a pending capture action");
+                "source transaction has a pending capture-like action");
     }
 
     private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
@@ -1214,7 +1236,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private TransactionOrderDO lockSourceOrderForCapture(TransactionOrderDO sourceOrderDO,
                                                          PaymentTransactionTypeEnum transactionTypeEnum) {
-        if (PaymentTransactionTypeEnum.CAPTURE != transactionTypeEnum
+        if (!isCaptureLike(transactionTypeEnum)
                 || sourceOrderDO == null
                 || !StringUtils.hasText(sourceOrderDO.getOperationId())
                 || sourceOrderDO.getTransactionDateTime() == null) {
@@ -1410,6 +1432,11 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return sourceOrderDO;
     }
 
+    private boolean isCaptureLike(PaymentTransactionTypeEnum transactionTypeEnum) {
+        return PaymentTransactionTypeEnum.CAPTURE == transactionTypeEnum
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION == transactionTypeEnum;
+    }
+
     /**
      * 根据查询命中的动作单读取生命周期主单。
      *
@@ -1463,9 +1490,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setOrderAmount(orderDO.getLabelAmount());
         resultDTO.setOrderCurrency(orderDO.getLabelCurrency());
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(orderDO));
+        resultDTO.setTotalAuthorizedCancelAmount(orderDO.getAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(orderDO));
         resultDTO.setTotalRefundAmount(orderDO.getRefundedAmount());
-        resultDTO.setTotalChargebackAmount(orderDO.getChargebackAmount());
+        resultDTO.setTotalRefuseAmount(orderDO.getChargebackAmount());
         resultDTO.setLabelAmount(orderDO.getLabelAmount());
         resultDTO.setLabelCurrency(orderDO.getLabelCurrency());
         resultDTO.setTransactionAmount(orderDO.getTransactionAmount());
@@ -1621,6 +1649,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private boolean requiresAmount(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.CAPTURE == transactionTypeEnum
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION == transactionTypeEnum
                 || PaymentTransactionTypeEnum.REFUND == transactionTypeEnum
                 || PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION == transactionTypeEnum;
     }
@@ -1724,15 +1753,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setOrderAmount(commandDTO.getLabelAmount());
         resultDTO.setOrderCurrency(commandDTO.getLabelCurrency());
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(sourceOrderDO));
         resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalChargebackAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
         resultDTO.setTotalAuthorizedAmount(sumOnSuccess(resultDTO.getTotalAuthorizedAmount(), resultDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION));
-        resultDTO.setTotalCapturedAmount(sumOnSuccess(resultDTO.getTotalCapturedAmount(), resultDTO, PaymentTransactionTypeEnum.CAPTURE));
+        resultDTO.setTotalCapturedAmount(sumCapturedOnSuccess(resultDTO.getTotalCapturedAmount(), resultDTO));
         resultDTO.setTotalRefundAmount(sumOnSuccess(sourceOrderDO.getRefundedAmount(), resultDTO, PaymentTransactionTypeEnum.REFUND));
         if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())
                 && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
-            resultDTO.setTotalVoidAmount(sourceOrderDO.getAuthorizedAmount());
+            resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedAmount());
         }
     }
 
@@ -1795,6 +1825,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType())) {
+            if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())) {
+                resultDTO.setTotalAuthorizedAmount(resultDTO.getTransactionAmount());
+            }
             resultDTO.setTotalCapturedAmount(resultDTO.getTransactionAmount());
             return;
         }
@@ -1803,7 +1836,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             return;
         }
         if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())) {
-            resultDTO.setTotalVoidAmount(resultDTO.getTransactionAmount());
+            resultDTO.setTotalAuthorizedCancelAmount(resultDTO.getTransactionAmount());
         }
     }
 
@@ -1820,6 +1853,18 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                     PaymentTransactionTypeEnum targetTypeEnum) {
         BigDecimal current = existingAmount == null ? BigDecimal.ZERO : existingAmount;
         if (targetTypeEnum.getCode().equals(resultDTO.getTransactionType())
+                && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
+                && resultDTO.getTransactionAmount() != null) {
+            return current.add(resultDTO.getTransactionAmount());
+        }
+        return current;
+    }
+
+    private BigDecimal sumCapturedOnSuccess(BigDecimal existingAmount,
+                                            PaymentCreateResultDTO resultDTO) {
+        BigDecimal current = existingAmount == null ? BigDecimal.ZERO : existingAmount;
+        if ((PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType()))
                 && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 && resultDTO.getTransactionAmount() != null) {
             return current.add(resultDTO.getTransactionAmount());

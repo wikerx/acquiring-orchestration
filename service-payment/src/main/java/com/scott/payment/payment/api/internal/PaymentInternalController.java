@@ -113,6 +113,17 @@ public class PaymentInternalController {
     }
 
     /**
+     * 发起预授权完成交易。
+     *
+     * @param commandDTO 预授权完成命令
+     * @return 预授权完成结果
+     */
+    @PostMapping("/pre-auth-completion")
+    public CommonResult<PaymentCreateResultDTO> preAuthCompletion(@Valid @RequestBody PaymentCreateCommandDTO commandDTO) {
+        return success(paymentTransactionApplicationService.preAuthCompletion(commandDTO));
+    }
+
+    /**
      * 发起退款交易。
      *
      * @param commandDTO 退款命令

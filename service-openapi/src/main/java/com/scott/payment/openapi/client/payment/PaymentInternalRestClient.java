@@ -144,6 +144,17 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     }
 
     /**
+     * 调用 service-payment 发起预授权完成交易。
+     *
+     * @param requestDTO 预授权完成内部请求
+     * @return 预授权完成内部响应
+     */
+    @Override
+    public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
+        return postTransaction(OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION, requestDTO);
+    }
+
+    /**
      * 调用 service-payment 发起退款交易。
      *
      * @param requestDTO 退款内部请求
@@ -291,6 +302,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         }
         if (OpenApiPaymentOperationEnum.CAPTURE == operation) {
             return paymentClientProperties.getCaptureUrl();
+        }
+        if (OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION == operation) {
+            return paymentClientProperties.getPreAuthCompletionUrl();
         }
         if (OpenApiPaymentOperationEnum.REFUND == operation) {
             return paymentClientProperties.getRefundUrl();

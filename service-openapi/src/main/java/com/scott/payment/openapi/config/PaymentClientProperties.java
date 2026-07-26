@@ -51,6 +51,11 @@ public class PaymentClientProperties {
     private String captureUrl = "http://service-payment/internal/payment/capture";
 
     /**
+     * service-payment 内部预授权完成接口地址。
+     */
+    private String preAuthCompletionUrl = "http://service-payment/internal/payment/pre-auth-completion";
+
+    /**
      * service-payment 内部退款接口地址。
      */
     private String refundUrl = "http://service-payment/internal/payment/refund";

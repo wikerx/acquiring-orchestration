@@ -161,6 +161,11 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    public PaymentCreateVO preAuthCompletion(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
+        return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
+    }
+
+    @Override
     public PaymentCreateVO refund(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.REFUND);
     }
@@ -357,6 +362,8 @@ public class PaymentServiceImpl implements PaymentService {
             responseDTO.setTotalAuthorizedAmount(vo.getOrderInfo().getTotalAuthorizedAmount());
             responseDTO.setTotalCapturedAmount(vo.getOrderInfo().getTotalCapturedAmount());
             responseDTO.setTotalRefundAmount(vo.getOrderInfo().getTotalRefundAmount());
+            responseDTO.setTotalAuthorizedCancelAmount(vo.getOrderInfo().getTotalAuthorizedCancelAmount());
+            responseDTO.setTotalRefuseAmount(vo.getOrderInfo().getTotalRefuseAmount());
         }
         if (vo.getTransactionInfo() != null) {
             responseDTO.setTransactionId(vo.getTransactionInfo().getTransactionId());
@@ -500,6 +507,9 @@ public class PaymentServiceImpl implements PaymentService {
         }
         if (OpenApiPaymentOperationEnum.CAPTURE == operation) {
             return paymentInternalClient.capture(clientRequestDTO);
+        }
+        if (OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION == operation) {
+            return paymentInternalClient.preAuthCompletion(clientRequestDTO);
         }
         if (OpenApiPaymentOperationEnum.REFUND == operation) {
             return paymentInternalClient.refund(clientRequestDTO);

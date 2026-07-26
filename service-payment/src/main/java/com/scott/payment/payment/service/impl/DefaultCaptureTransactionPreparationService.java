@@ -104,25 +104,35 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CapturePreparationResultDTO prepareCapture(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
+        return prepareCapture(commandDTO, idempotencyKey, PaymentTransactionTypeEnum.CAPTURE);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public CapturePreparationResultDTO prepareCapture(PaymentCreateCommandDTO commandDTO,
+                                                      String idempotencyKey,
+                                                      PaymentTransactionTypeEnum transactionType) {
         if (transactionRecordService == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
+        PaymentTransactionTypeEnum captureLikeType = normalizeCaptureLikeType(transactionType);
         TransactionOrderDO resolvedSourceOrderDO = resolveSourceOrder(commandDTO);
         TransactionOrderDO sourceOrderDO = lockSourceOrderForCapture(resolvedSourceOrderDO);
-        commandDTO.setRequestFingerprint(canonicalCaptureRequestFingerprint(commandDTO, sourceOrderDO));
+        commandDTO.setRequestFingerprint(canonicalCaptureRequestFingerprint(commandDTO, sourceOrderDO, captureLikeType));
         return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                 .map(record -> CapturePreparationResultDTO.duplicate(resolveDuplicateCapture(commandDTO, record)))
-                .orElseGet(() -> prepareNewCapture(commandDTO, idempotencyKey, sourceOrderDO));
+                .orElseGet(() -> prepareNewCapture(commandDTO, idempotencyKey, sourceOrderDO, captureLikeType));
     }
 
     private CapturePreparationResultDTO prepareNewCapture(PaymentCreateCommandDTO commandDTO,
                                                           String idempotencyKey,
-                                                          TransactionOrderDO sourceOrderDO) {
+                                                          TransactionOrderDO sourceOrderDO,
+                                                          PaymentTransactionTypeEnum transactionType) {
         if (transactionStateMachineService == null) {
             throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED.getCode(), "transaction state machine is not configured");
         }
         transactionStateMachineService.validateFollowUpAction(
-                sourceOrderDO, PaymentTransactionTypeEnum.CAPTURE, commandDTO.getAmount(), commandDTO.getCurrency());
+                sourceOrderDO, transactionType, commandDTO.getAmount(), commandDTO.getCurrency());
         validateNoNonTerminalCapture(commandDTO, sourceOrderDO, LocalDateTime.now());
         validateNoNonTerminalIncrementalAuthorization(commandDTO, sourceOrderDO, LocalDateTime.now());
         validateNoNonTerminalVoid(commandDTO, sourceOrderDO, LocalDateTime.now());
@@ -133,7 +143,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                 commandDTO.getMerchantId(),
                 sourceOrderDO.getMerchantOrderNo(),
                 commandDTO.getMerchantOrderId(),
-                PaymentTransactionTypeEnum.CAPTURE.getCode(),
+                transactionType.getCode(),
                 commandDTO.getTransactionDateTime(),
                 DEFAULT_TIME_ZONE,
                 commandDTO.getRequestFingerprint(),
@@ -148,7 +158,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         normalizeCaptureCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
-        PaymentCreateResultDTO resultDTO = buildCaptureResult(commandDTO, sourceOrderDO, transactionId);
+        PaymentCreateResultDTO resultDTO = buildCaptureResult(commandDTO, sourceOrderDO, transactionId, transactionType);
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichCaptureResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
@@ -203,7 +213,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
             return;
         }
         throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
-                "source transaction has a pending capture action");
+                "source transaction has a pending capture-like action");
     }
 
     private void validateNoNonTerminalVoid(PaymentCreateCommandDTO commandDTO,
@@ -259,7 +269,8 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
     }
 
     private String canonicalCaptureRequestFingerprint(PaymentCreateCommandDTO commandDTO,
-                                                      TransactionOrderDO sourceOrderDO) {
+                                                      TransactionOrderDO sourceOrderDO,
+                                                      PaymentTransactionTypeEnum transactionType) {
         String sourceTransactionId = commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
         String effectiveCurrency = StringUtils.hasText(commandDTO.getCurrency())
@@ -272,7 +283,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                         ? commandDTO.getMerchantOrderNo()
                         : sourceOrderDO.getMerchantOrderNo()),
                 "merchantOperationNo=" + normalizeFingerprintText(commandDTO.getMerchantOrderId()),
-                "transactionType=" + PaymentTransactionTypeEnum.CAPTURE.getCode(),
+                "transactionType=" + transactionType.getCode(),
                 "sourceTransactionId=" + normalizeFingerprintText(sourceTransactionId),
                 "amount=" + normalizeFingerprintAmount(commandDTO.getAmount()),
                 "currency=" + normalizeFingerprintText(effectiveCurrency));
@@ -335,7 +346,8 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
 
     private PaymentCreateResultDTO buildCaptureResult(PaymentCreateCommandDTO commandDTO,
                                                       TransactionOrderDO sourceOrderDO,
-                                                      String transactionId) {
+                                                      String transactionId,
+                                                      PaymentTransactionTypeEnum transactionType) {
         PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
         resultDTO.setOperationId(sourceOrderDO.getOperationId());
         resultDTO.setTransactionId(transactionId);
@@ -344,7 +356,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         resultDTO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         resultDTO.setMerchantId(commandDTO.getMerchantId());
         resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
-        resultDTO.setTransactionType(PaymentTransactionTypeEnum.CAPTURE.getCode());
+        resultDTO.setTransactionType(transactionType.getCode());
         resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
         resultDTO.setAmount(toMinorAmount(commandDTO.getAmount(), sourceOrderDO.getTransactionCurrency()));
         return resultDTO;
@@ -386,7 +398,7 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         invokeResultDTO.setChannelRequest(channelRequest);
         invokeResultDTO.setRequestStatus("INIT");
         invokeResultDTO.setHttpMethod("PUT");
-        invokeResultDTO.setRequestScene(PaymentTransactionTypeEnum.CAPTURE.getCode());
+        invokeResultDTO.setRequestScene(commandDTO.getTransactionType());
         invokeResultDTO.setRequestStartTime(LocalDateTime.now());
         return invokeResultDTO;
     }
@@ -505,9 +517,10 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         enrichMerchantResponse(resultDTO, channelResponse);
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(sourceOrderDO.getCapturedAmount());
         resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalChargebackAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
     }
 
     private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
@@ -611,6 +624,16 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
 
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private PaymentTransactionTypeEnum normalizeCaptureLikeType(PaymentTransactionTypeEnum transactionType) {
+        if (transactionType == null || PaymentTransactionTypeEnum.CAPTURE == transactionType) {
+            return PaymentTransactionTypeEnum.CAPTURE;
+        }
+        if (PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION == transactionType) {
+            return transactionType;
+        }
+        throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
     }
 
     private BigDecimal defaultTransactionRate() {

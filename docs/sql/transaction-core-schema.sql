@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS `transaction_order` (
   `rate_source` VARCHAR(64) NULL COMMENT '汇率来源，如 PLATFORM、CHANNEL、MERCHANT。',
   `rate_time` DATETIME(3) NULL COMMENT '汇率生效或报价时间。',
   `authorized_amount` DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT '累计授权成功金额，交易币种单位。',
+  `authorized_cancel_amount` DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。',
   `captured_amount` DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT '累计请款成功金额，交易币种单位。',
   `refunded_amount` DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT '累计退款成功金额，交易币种单位。',
   `chargeback_amount` DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT '累计拒付金额，交易币种单位。',

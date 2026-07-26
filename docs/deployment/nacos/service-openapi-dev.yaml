@@ -15,3 +15,4 @@ openapi:
     remote-enabled: true
     # 通过 Nacos 服务发现调用 service-payment 内部接口；本地测试可改为具体地址。
     authorization-url: http://service-payment/internal/payment/authorization
+    pre-auth-completion-url: http://service-payment/internal/payment/pre-auth-completion

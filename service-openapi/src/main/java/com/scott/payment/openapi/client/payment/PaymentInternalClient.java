@@ -59,6 +59,14 @@ public interface PaymentInternalClient {
     PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO);
 
     /**
+     * 调用 service-payment 发起预授权完成交易。
+     *
+     * @param requestDTO 预授权完成内部请求
+     * @return 预授权完成内部响应
+     */
+    PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO);
+
+    /**
      * 调用 service-payment 发起退款交易。
      *
      * @param requestDTO 退款内部请求

@@ -38,9 +38,9 @@ public class PaymentQueryClientResponseDTO implements Serializable {
 
     private BigDecimal totalRefundAmount;
 
-    private BigDecimal totalVoidAmount;
+    private BigDecimal totalAuthorizedCancelAmount;
 
-    private BigDecimal totalChargebackAmount;
+    private BigDecimal totalRefuseAmount;
 
     private BigDecimal labelAmount;
 

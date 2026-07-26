@@ -66,8 +66,8 @@ public interface OpenApiRequestConverter {
         orderInfoVO.setTotalAuthorizedAmount(responseDTO.getTotalAuthorizedAmount());
         orderInfoVO.setTotalCapturedAmount(responseDTO.getTotalCapturedAmount());
         orderInfoVO.setTotalRefundAmount(responseDTO.getTotalRefundAmount());
-        orderInfoVO.setTotalVoidAmount(responseDTO.getTotalVoidAmount());
-        orderInfoVO.setTotalChargebackAmount(responseDTO.getTotalChargebackAmount());
+        orderInfoVO.setTotalAuthorizedCancelAmount(responseDTO.getTotalAuthorizedCancelAmount());
+        orderInfoVO.setTotalRefuseAmount(responseDTO.getTotalRefuseAmount());
         vo.setOrderInfo(orderInfoVO);
 
         PaymentCreateVO.TransactionInfoVO transactionInfoVO = new PaymentCreateVO.TransactionInfoVO();
@@ -189,8 +189,8 @@ public interface OpenApiRequestConverter {
             orderInfoVO.setTotalAuthorizedAmount(responseDTO.getTotalAuthorizedAmount());
             orderInfoVO.setTotalCapturedAmount(responseDTO.getTotalCapturedAmount());
             orderInfoVO.setTotalRefundAmount(responseDTO.getTotalRefundAmount());
-            orderInfoVO.setTotalVoidAmount(responseDTO.getTotalVoidAmount());
-            orderInfoVO.setTotalChargebackAmount(responseDTO.getTotalChargebackAmount());
+            orderInfoVO.setTotalAuthorizedCancelAmount(responseDTO.getTotalAuthorizedCancelAmount());
+            orderInfoVO.setTotalRefuseAmount(responseDTO.getTotalRefuseAmount());
             vo.setBillingInfo(toBillingInfoVO(responseDTO));
             vo.setTransactionInfo((responseDTO.getTransactionInfo() == null ? List.<PaymentQueryClientResponseDTO.TransactionInfoDTO>of()
                     : responseDTO.getTransactionInfo()).stream()

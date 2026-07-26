@@ -63,14 +63,14 @@ public class PaymentQueryResultDTO implements Serializable {
     private BigDecimal totalRefundAmount;
 
     /**
-     * 当前生命周期累计撤销金额。
+     * 当前生命周期累计授权取消、预授权取消或未请款金额释放成功金额。
      */
-    private BigDecimal totalVoidAmount;
+    private BigDecimal totalAuthorizedCancelAmount;
 
     /**
-     * 当前生命周期累计拒付金额。
+     * 当前生命周期累计拒付成立或确认成功金额。
      */
-    private BigDecimal totalChargebackAmount;
+    private BigDecimal totalRefuseAmount;
 
     /**
      * 商户上送或页面标签展示的原始金额。

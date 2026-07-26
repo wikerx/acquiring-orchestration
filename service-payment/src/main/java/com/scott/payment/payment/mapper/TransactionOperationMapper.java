@@ -400,7 +400,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}
               AND source_transaction_id = #{sourceTransactionId}
-              AND transaction_type = 'CAPTURE'
+              AND transaction_type IN ('CAPTURE', 'PRE_AUTH_COMPLETION')
               AND transaction_status IN ('PROCESSING', 'PENDING')
               AND deleted = 0
             ORDER BY transaction_date_time ASC, id ASC

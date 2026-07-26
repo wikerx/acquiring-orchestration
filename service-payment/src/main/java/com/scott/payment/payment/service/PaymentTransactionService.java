@@ -56,6 +56,14 @@ public interface PaymentTransactionService {
     PaymentCreateResultDTO capture(PaymentCreateCommandDTO commandDTO);
 
     /**
+     * 发起预授权完成交易。
+     *
+     * @param commandDTO 预授权完成命令
+     * @return 预授权完成结果
+     */
+    PaymentCreateResultDTO preAuthCompletion(PaymentCreateCommandDTO commandDTO);
+
+    /**
      * 发起退款交易。
      *
      * @param commandDTO 退款命令

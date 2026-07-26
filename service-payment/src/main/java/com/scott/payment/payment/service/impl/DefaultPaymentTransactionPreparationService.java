@@ -645,6 +645,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
             return;
         }
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())) {
+            resultDTO.setTotalAuthorizedAmount(resultDTO.getTransactionAmount());
             resultDTO.setTotalCapturedAmount(resultDTO.getTransactionAmount());
         }
     }

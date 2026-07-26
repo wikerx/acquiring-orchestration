@@ -101,6 +101,21 @@ class PaymentServiceImplTests {
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
     }
 
+    @Test
+    void shouldPassPreAuthCompletionOperationToPaymentService() {
+        CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
+        bindRequestContext();
+
+        paymentService.preAuthCompletion("encrypted-body", buildRequest());
+
+        assertThat(paymentInternalClient.calledOperation).isEqualTo(OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
+        assertThat(paymentInternalClient.requestDTO.getTransactionType()).isEqualTo("PRE_AUTH_COMPLETION");
+        assertThat(paymentInternalClient.requestDTO.getMerchantOrderNo()).isEqualTo("M202607120001");
+        assertThat(paymentInternalClient.requestDTO.getMerchantOrderId()).isEqualTo("REQ202607120001");
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionId()).isEqualTo("source-001");
+    }
+
     /**
      * 服务接口应暴露明确的交易动作方法，不再让应用层传枚举做分发。
      */
@@ -524,6 +539,11 @@ class PaymentServiceImplTests {
         }
 
         @Override
+        public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
+            return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
+        }
+
+        @Override
         public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.REFUND);
         }
@@ -595,6 +615,7 @@ class PaymentServiceImplTests {
             if (OpenApiPaymentOperationEnum.PAYMENT == operation) {
                 responseDTO.setStatus(nextPaymentStatus);
                 if ("SUCCESS".equals(nextPaymentStatus)) {
+                    responseDTO.setTotalAuthorizedAmount(requestDTO.getAmount());
                     responseDTO.setTotalCapturedAmount(requestDTO.getAmount());
                 }
             }

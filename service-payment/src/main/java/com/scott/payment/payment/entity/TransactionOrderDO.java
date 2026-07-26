@@ -194,6 +194,11 @@ public class TransactionOrderDO implements Serializable {
     private BigDecimal authorizedAmount;
 
     /**
+     * 累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。
+     */
+    private BigDecimal authorizedCancelAmount;
+
+    /**
      * 累计请款成功金额，交易币种单位。
      */
     private BigDecimal capturedAmount;

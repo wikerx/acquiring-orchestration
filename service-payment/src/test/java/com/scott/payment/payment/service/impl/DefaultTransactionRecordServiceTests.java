@@ -266,7 +266,8 @@ class DefaultTransactionRecordServiceTests {
         TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
         when(operationMapper.countByOperationIdPhysical(anyString(), anyString())).thenReturn(1);
         when(operationMapper.insertPhysical(anyString(), any(TransactionOperationDO.class))).thenReturn(1);
-        when(orderMapper.markVoidSuccessPhysical(anyString(), anyString(), anyString(), any())).thenReturn(1);
+        when(orderMapper.markVoidSuccessPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any()))
+                .thenReturn(1);
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
                 operationMapper,
@@ -294,6 +295,7 @@ class DefaultTransactionRecordServiceTests {
                 "transaction_order_202603",
                 "OP202607010030000000001",
                 "TX202610011000000000002",
+                new BigDecimal("12.34"),
                 0);
     }
 
@@ -947,6 +949,7 @@ class DefaultTransactionRecordServiceTests {
         sourceOrderDO.setTransactionCurrency("USD");
         sourceOrderDO.setTransactionAmount(new BigDecimal("12.34"));
         sourceOrderDO.setAuthorizedAmount(new BigDecimal("12.34"));
+        sourceOrderDO.setAuthorizedCancelAmount(BigDecimal.ZERO);
         sourceOrderDO.setCapturedAmount(BigDecimal.ZERO);
         sourceOrderDO.setRefundedAmount(BigDecimal.ZERO);
         sourceOrderDO.setAvailableCaptureAmount(new BigDecimal("12.34"));
@@ -1018,6 +1021,11 @@ class DefaultTransactionRecordServiceTests {
         orderDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         orderDO.setTransactionCurrency("USD");
         orderDO.setTransactionAmount(new BigDecimal("12.34"));
+        orderDO.setAuthorizedAmount(BigDecimal.ZERO);
+        orderDO.setAuthorizedCancelAmount(BigDecimal.ZERO);
+        orderDO.setCapturedAmount(BigDecimal.ZERO);
+        orderDO.setRefundedAmount(BigDecimal.ZERO);
+        orderDO.setChargebackAmount(BigDecimal.ZERO);
         orderDO.setCurrencyExponent(2);
         orderDO.setTransactionDateTime(LocalDateTime.of(2026, 7, 1, 0, 30));
         orderDO.setVersion(0);

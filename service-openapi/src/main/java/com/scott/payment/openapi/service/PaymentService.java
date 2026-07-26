@@ -61,6 +61,15 @@ public interface PaymentService {
     PaymentCreateVO capture(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO);
 
     /**
+     * 提交预授权完成交易。
+     *
+     * @param encryptedData 商户原始密文，仅用于生成安全指纹，禁止打印和落库明文
+     * @param requestDTO 解密后的预授权完成请求参数
+     * @return 预授权完成交易受理响应
+     */
+    PaymentCreateVO preAuthCompletion(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO);
+
+    /**
      * 提交退款交易。
      *
      * @param encryptedData 商户原始密文，仅用于生成安全指纹，禁止打印和落库明文

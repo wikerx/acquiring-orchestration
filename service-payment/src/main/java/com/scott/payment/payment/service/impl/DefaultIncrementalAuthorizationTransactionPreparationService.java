@@ -494,9 +494,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         enrichMerchantResponse(resultDTO, channelResponse);
         resultDTO.setTotalAuthorizedAmount(sourceOrderDO.getAuthorizedAmount());
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(sourceOrderDO.getCapturedAmount());
         resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalChargebackAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
     }
 
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {

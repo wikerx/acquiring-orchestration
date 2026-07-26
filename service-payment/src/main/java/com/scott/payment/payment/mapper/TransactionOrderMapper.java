@@ -39,7 +39,7 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
               label_currency, label_amount, transaction_currency, transaction_amount,
               channel_request_currency, channel_request_amount, settlement_currency, settlement_amount,
               currency_exponent, dcc_enabled, edc_enabled, transaction_rate, rate_source, rate_time,
-              authorized_amount, captured_amount, refunded_amount, chargeback_amount,
+              authorized_amount, authorized_cancel_amount, captured_amount, refunded_amount, chargeback_amount,
               available_capture_amount, available_refund_amount, settlement_status, reconciliation_status,
               accounting_status, channel_match_status, channel_match_result, channel_match_count,
               last_channel_match_request_id, last_channel_match_time, next_channel_match_time,
@@ -61,7 +61,7 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
               #{orderDO.channelRequestCurrency}, #{orderDO.channelRequestAmount}, #{orderDO.settlementCurrency},
               #{orderDO.settlementAmount}, #{orderDO.currencyExponent}, #{orderDO.dccEnabled}, #{orderDO.edcEnabled},
               #{orderDO.transactionRate}, #{orderDO.rateSource}, #{orderDO.rateTime}, #{orderDO.authorizedAmount},
-              #{orderDO.capturedAmount}, #{orderDO.refundedAmount}, #{orderDO.chargebackAmount},
+              #{orderDO.authorizedCancelAmount}, #{orderDO.capturedAmount}, #{orderDO.refundedAmount}, #{orderDO.chargebackAmount},
               #{orderDO.availableCaptureAmount}, #{orderDO.availableRefundAmount}, #{orderDO.settlementStatus},
               #{orderDO.reconciliationStatus}, #{orderDO.accountingStatus}, #{orderDO.channelMatchStatus},
               #{orderDO.channelMatchResult}, #{orderDO.channelMatchCount}, #{orderDO.lastChannelMatchRequestId},
@@ -309,6 +309,7 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
     @Update("""
             UPDATE ${physicalTableName}
             SET latest_transaction_id = #{latestTransactionId},
+                authorized_cancel_amount = authorized_cancel_amount + #{amount},
                 available_capture_amount = 0,
                 transaction_status = 'SUCCESS',
                 process_stage = 'FINISHED',
@@ -319,12 +320,16 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
               AND transaction_status = 'SUCCESS'
               AND captured_amount = 0
               AND refunded_amount = 0
+              AND available_capture_amount >= #{amount}
+              AND authorized_amount - authorized_cancel_amount = #{amount}
+              AND #{amount} > 0
               AND version = #{expectedVersion}
               AND deleted = 0
             """)
     int markVoidSuccessPhysical(@Param("physicalTableName") String physicalTableName,
                                 @Param("operationId") String operationId,
                                 @Param("latestTransactionId") String latestTransactionId,
+                                @Param("amount") BigDecimal amount,
                                 @Param("expectedVersion") Integer expectedVersion);
 
     /**
@@ -397,7 +402,7 @@ public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
                 next_channel_match_time = NULL,
                 channel_match_fail_reason = NULL,
                 authorized_amount = CASE
-                    WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION') THEN #{amount}
+                    WHEN transaction_type IN ('AUTHORIZATION', 'PRE_AUTHORIZATION', 'PAYMENT') THEN #{amount}
                     ELSE authorized_amount
                 END,
                 captured_amount = CASE

@@ -67,7 +67,7 @@ WHERE table_schema = @schema_name
     (table_name = 'transaction_idempotency'
       AND column_name IN ('merchant_order_id', 'idempotency_scope', 'idempotency_key', 'transaction_id', 'operation_id', 'request_fingerprint', 'result_snapshot', 'expire_time', 'version'))
     OR (table_name REGEXP '^transaction_order(_202603|_202604)?$'
-      AND column_name IN ('operation_id', 'root_transaction_id', 'latest_transaction_id', 'merchant_order_id', 'root_operation_id', 'latest_operation_id', 'merchant_transaction_id', 'version'))
+      AND column_name IN ('operation_id', 'root_transaction_id', 'latest_transaction_id', 'merchant_order_id', 'authorized_cancel_amount', 'root_operation_id', 'latest_operation_id', 'merchant_transaction_id', 'version'))
     OR (table_name REGEXP '^transaction_operation(_202603|_202604)?$'
       AND column_name IN ('operation_id', 'transaction_id', 'source_transaction_id', 'source_operation_id', 'merchant_order_id', 'merchant_operation_no', 'version'))
     OR (table_name REGEXP '^transaction_channel_request(_202603|_202604)?$'
@@ -88,6 +88,7 @@ FROM (
   UNION ALL SELECT 'transaction_order', 'root_transaction_id'
   UNION ALL SELECT 'transaction_order', 'latest_transaction_id'
   UNION ALL SELECT 'transaction_order', 'merchant_order_id'
+  UNION ALL SELECT 'transaction_order', 'authorized_cancel_amount'
   UNION ALL SELECT 'transaction_operation', 'source_operation_id'
   UNION ALL SELECT 'transaction_operation', 'merchant_operation_no'
   UNION ALL SELECT 'transaction_channel_request', 'request_id'
@@ -97,6 +98,7 @@ FROM (
   UNION ALL SELECT CONCAT('transaction_order_', @current_quarter_suffix), 'root_transaction_id'
   UNION ALL SELECT CONCAT('transaction_order_', @current_quarter_suffix), 'latest_transaction_id'
   UNION ALL SELECT CONCAT('transaction_order_', @current_quarter_suffix), 'merchant_order_id'
+  UNION ALL SELECT CONCAT('transaction_order_', @current_quarter_suffix), 'authorized_cancel_amount'
   UNION ALL SELECT CONCAT('transaction_operation_', @current_quarter_suffix), 'source_operation_id'
   UNION ALL SELECT CONCAT('transaction_operation_', @current_quarter_suffix), 'merchant_operation_no'
   UNION ALL SELECT CONCAT('transaction_channel_request_', @current_quarter_suffix), 'request_id'
@@ -106,6 +108,7 @@ FROM (
   UNION ALL SELECT CONCAT('transaction_order_', @next_quarter_suffix), 'root_transaction_id'
   UNION ALL SELECT CONCAT('transaction_order_', @next_quarter_suffix), 'latest_transaction_id'
   UNION ALL SELECT CONCAT('transaction_order_', @next_quarter_suffix), 'merchant_order_id'
+  UNION ALL SELECT CONCAT('transaction_order_', @next_quarter_suffix), 'authorized_cancel_amount'
   UNION ALL SELECT CONCAT('transaction_operation_', @next_quarter_suffix), 'source_operation_id'
   UNION ALL SELECT CONCAT('transaction_operation_', @next_quarter_suffix), 'merchant_operation_no'
   UNION ALL SELECT CONCAT('transaction_channel_request_', @next_quarter_suffix), 'request_id'
@@ -220,21 +223,21 @@ SELECT merchant_id, source_transaction_id, transaction_type, merchant_operation_
        MIN(transaction_date_time) AS min_time, MAX(transaction_date_time) AS max_time
 FROM transaction_operation
 WHERE deleted = 0
-  AND transaction_type IN ('CAPTURE', 'REFUND', 'VOID', 'INCREMENTAL_AUTHORIZATION')
+  AND transaction_type IN ('CAPTURE', 'PRE_AUTH_COMPLETION', 'REFUND', 'VOID', 'INCREMENTAL_AUTHORIZATION')
 GROUP BY merchant_id, source_transaction_id, transaction_type, merchant_operation_no
 HAVING COUNT(*) > 1;
 
 SELECT merchant_id, source_transaction_id, transaction_type, merchant_operation_no, COUNT(*) AS cnt
 FROM transaction_operation_202603
 WHERE deleted = 0
-  AND transaction_type IN ('CAPTURE', 'REFUND', 'VOID', 'INCREMENTAL_AUTHORIZATION')
+  AND transaction_type IN ('CAPTURE', 'PRE_AUTH_COMPLETION', 'REFUND', 'VOID', 'INCREMENTAL_AUTHORIZATION')
 GROUP BY merchant_id, source_transaction_id, transaction_type, merchant_operation_no
 HAVING COUNT(*) > 1;
 
 SELECT merchant_id, source_transaction_id, transaction_type, merchant_operation_no, COUNT(*) AS cnt
 FROM transaction_operation_202604
 WHERE deleted = 0
-  AND transaction_type IN ('CAPTURE', 'REFUND', 'VOID', 'INCREMENTAL_AUTHORIZATION')
+  AND transaction_type IN ('CAPTURE', 'PRE_AUTH_COMPLETION', 'REFUND', 'VOID', 'INCREMENTAL_AUTHORIZATION')
 GROUP BY merchant_id, source_transaction_id, transaction_type, merchant_operation_no
 HAVING COUNT(*) > 1;
 
@@ -242,7 +245,7 @@ HAVING COUNT(*) > 1;
 SELECT 'transaction_operation.source_operation_id' AS check_item, COUNT(*) AS null_cnt
 FROM transaction_operation
 WHERE deleted = 0
-  AND transaction_type IN ('CAPTURE', 'REFUND', 'VOID', 'INCREMENTAL_AUTHORIZATION')
+  AND transaction_type IN ('CAPTURE', 'PRE_AUTH_COMPLETION', 'REFUND', 'VOID', 'INCREMENTAL_AUTHORIZATION')
   AND source_operation_id IS NULL;
 
 SELECT 'transaction_operation.merchant_operation_no' AS check_item, COUNT(*) AS null_cnt
@@ -254,6 +257,11 @@ SELECT 'transaction_order.merchant_order_id' AS check_item, COUNT(*) AS null_cnt
 FROM transaction_order
 WHERE deleted = 0
   AND merchant_order_id IS NULL;
+
+SELECT 'transaction_order.authorized_cancel_amount' AS check_item, COUNT(*) AS null_cnt
+FROM transaction_order
+WHERE deleted = 0
+  AND authorized_cancel_amount IS NULL;
 
 -- 3.7 渠道请求恢复身份重复检查。
 SELECT channel_code, channel_order_no, channel_transaction_id, COUNT(*) AS cnt,
@@ -292,7 +300,8 @@ ALTER TABLE transaction_order
   ADD COLUMN operation_id VARCHAR(64) NULL COMMENT '平台内部生命周期关联标识，同一原始交易生命周期内保持不变，不返回商户。' AFTER id,
   ADD COLUMN root_transaction_id VARCHAR(64) NULL COMMENT '生命周期内首个平台开户交易ID。' AFTER operation_id,
   ADD COLUMN latest_transaction_id VARCHAR(64) NULL COMMENT '最近一次平台开户交易ID。' AFTER root_transaction_id,
-  ADD COLUMN merchant_order_id VARCHAR(128) NULL COMMENT '商户本次API请求唯一标识，来自 orderInfo.orderId，用于幂等和排查。' AFTER merchant_order_no;
+  ADD COLUMN merchant_order_id VARCHAR(128) NULL COMMENT '商户本次API请求唯一标识，来自 orderInfo.orderId，用于幂等和排查。' AFTER merchant_order_no,
+  ADD COLUMN authorized_cancel_amount DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。' AFTER authorized_amount;
 
 UPDATE transaction_order
 SET operation_id = COALESCE(operation_id, transaction_id),
@@ -361,13 +370,15 @@ ALTER TABLE transaction_order_202603
   ADD COLUMN operation_id VARCHAR(64) NULL COMMENT '平台内部生命周期关联标识，同一原始交易生命周期内保持不变，不返回商户。' AFTER id,
   ADD COLUMN root_transaction_id VARCHAR(64) NULL COMMENT '生命周期内首个平台开户交易ID。' AFTER operation_id,
   ADD COLUMN latest_transaction_id VARCHAR(64) NULL COMMENT '最近一次平台开户交易ID。' AFTER root_transaction_id,
-  ADD COLUMN merchant_order_id VARCHAR(128) NULL COMMENT '商户本次API请求唯一标识，来自 orderInfo.orderId，用于幂等和排查。' AFTER merchant_order_no;
+  ADD COLUMN merchant_order_id VARCHAR(128) NULL COMMENT '商户本次API请求唯一标识，来自 orderInfo.orderId，用于幂等和排查。' AFTER merchant_order_no,
+  ADD COLUMN authorized_cancel_amount DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。' AFTER authorized_amount;
 
 ALTER TABLE transaction_order_202604
   ADD COLUMN operation_id VARCHAR(64) NULL COMMENT '平台内部生命周期关联标识，同一原始交易生命周期内保持不变，不返回商户。' AFTER id,
   ADD COLUMN root_transaction_id VARCHAR(64) NULL COMMENT '生命周期内首个平台开户交易ID。' AFTER operation_id,
   ADD COLUMN latest_transaction_id VARCHAR(64) NULL COMMENT '最近一次平台开户交易ID。' AFTER root_transaction_id,
-  ADD COLUMN merchant_order_id VARCHAR(128) NULL COMMENT '商户本次API请求唯一标识，来自 orderInfo.orderId，用于幂等和排查。' AFTER merchant_order_no;
+  ADD COLUMN merchant_order_id VARCHAR(128) NULL COMMENT '商户本次API请求唯一标识，来自 orderInfo.orderId，用于幂等和排查。' AFTER merchant_order_no,
+  ADD COLUMN authorized_cancel_amount DECIMAL(20,6) NOT NULL DEFAULT 0 COMMENT '累计授权取消、预授权取消或未请款金额释放成功金额，交易币种单位。' AFTER authorized_amount;
 
 UPDATE transaction_order_202603
 SET operation_id = COALESCE(operation_id, transaction_id),
@@ -479,6 +490,7 @@ WHERE table_schema = @schema_name
   )
   AND column_name IN (
     'merchant_order_id',
+    'authorized_cancel_amount',
     'operation_id',
     'root_transaction_id',
     'latest_transaction_id',

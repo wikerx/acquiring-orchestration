@@ -147,6 +147,16 @@ public class PaymentTransactionApplicationService {
     }
 
     /**
+     * 发起预授权完成交易。
+     *
+     * @param commandDTO 预授权完成命令
+     * @return 预授权完成结果
+     */
+    public PaymentCreateResultDTO preAuthCompletion(PaymentCreateCommandDTO commandDTO) {
+        return paymentTransactionService.preAuthCompletion(commandDTO);
+    }
+
+    /**
      * 发起退款交易。
      *
      * @param commandDTO 退款命令

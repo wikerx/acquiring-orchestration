@@ -1314,7 +1314,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setTransactionRate(resolveTransactionRate(commandDTO));
         orderDO.setRateSource(commandDTO.getRateSource());
         orderDO.setRateTime(commandDTO.getRateTime());
-        orderDO.setAuthorizedAmount(success && isAuthorizationLike(resultDTO.getTransactionType()) ? transactionAmount : zero);
+        orderDO.setAuthorizedAmount(success && (isAuthorizationLike(resultDTO.getTransactionType())
+                || PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())) ? transactionAmount : zero);
+        orderDO.setAuthorizedCancelAmount(zero);
         orderDO.setCapturedAmount(success && PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType()) ? transactionAmount : zero);
         orderDO.setRefundedAmount(zero);
         orderDO.setChargebackAmount(zero);
@@ -1968,7 +1970,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                          PaymentCreateResultDTO resultDTO) {
         BigDecimal amount = amountFromResult(resultDTO, sourceOrderDO);
         int updated;
-        if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())) {
+        if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType())) {
             updated = transactionOrderMapper.increaseCapturedAmountPhysical(
                     orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion());
         } else if (PaymentTransactionTypeEnum.REFUND.getCode().equals(resultDTO.getTransactionType())) {
@@ -1978,8 +1981,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             updated = transactionOrderMapper.increaseAuthorizedAmountPhysical(
                     orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion());
         } else if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())) {
+            BigDecimal cancelAmount = remainingAuthorizedAmount(sourceOrderDO);
             updated = transactionOrderMapper.markVoidSuccessPhysical(
-                    orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), sourceOrderDO.getVersion());
+                    orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), cancelAmount, sourceOrderDO.getVersion());
         } else {
             updated = 1;
         }
@@ -2001,6 +2005,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         int exponent = sourceOrderDO.getCurrencyExponent() == null ? 0 : sourceOrderDO.getCurrencyExponent();
         return BigDecimal.valueOf(resultDTO.getAmount()).movePointLeft(exponent);
+    }
+
+    private BigDecimal remainingAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
+        BigDecimal authorizedAmount = sourceOrderDO.getAuthorizedAmount() == null
+                ? BigDecimal.ZERO : sourceOrderDO.getAuthorizedAmount();
+        BigDecimal authorizedCancelAmount = sourceOrderDO.getAuthorizedCancelAmount() == null
+                ? BigDecimal.ZERO : sourceOrderDO.getAuthorizedCancelAmount();
+        return authorizedAmount.subtract(authorizedCancelAmount);
     }
 
     /**
@@ -2796,7 +2808,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setRefundedAfter(refunded);
         logDO.setAvailableCaptureAfter(availableCapture);
         logDO.setAvailableRefundAfter(availableRefund);
-        if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(transactionType)) {
+        if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(transactionType)
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(transactionType)) {
             logDO.setCapturedAfter(captured.add(amount));
             logDO.setAvailableCaptureAfter(availableCapture.subtract(amount));
             logDO.setAvailableRefundAfter(availableRefund.add(amount));
@@ -2945,10 +2958,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         putIfPresent(orderInfo, "amount", firstAmount(resultDTO.getOrderAmount(), commandDTO.getLabelAmount(), commandDTO.getAmount()));
         putIfPresent(orderInfo, "currency", firstText(resultDTO.getOrderCurrency(), commandDTO.getLabelCurrency(), commandDTO.getCurrency()));
         putIfPresent(orderInfo, "totalAuthorizedAmount", resultDTO.getTotalAuthorizedAmount());
+        putIfPresent(orderInfo, "totalAuthorizedCancelAmount", resultDTO.getTotalAuthorizedCancelAmount());
         putIfPresent(orderInfo, "totalCapturedAmount", resultDTO.getTotalCapturedAmount());
         putIfPresent(orderInfo, "totalRefundAmount", resultDTO.getTotalRefundAmount());
-        putIfPresent(orderInfo, "totalVoidAmount", resultDTO.getTotalVoidAmount());
-        putIfPresent(orderInfo, "totalChargebackAmount", resultDTO.getTotalChargebackAmount());
+        putIfPresent(orderInfo, "totalRefuseAmount", resultDTO.getTotalRefuseAmount());
         return compactMap(orderInfo);
     }
 
