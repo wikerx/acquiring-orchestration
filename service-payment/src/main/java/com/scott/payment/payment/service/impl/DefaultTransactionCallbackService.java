@@ -119,6 +119,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     private static final String PROCESS_RESULT_TERMINAL_IGNORED = "TERMINAL_IGNORED";
 
     /**
+     * 回调来源安全校验失败处理结果。
+     */
+    private static final String PROCESS_RESULT_SECURITY_REJECTED = "SECURITY_REJECTED";
+
+    /**
      * 未能解析平台交易号时的占位值，确保回调原文仍可按时间分表落库排查。
      */
     private static final String UNKNOWN_TRANSACTION_ID = "UNKNOWN";
@@ -488,6 +493,29 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                              CallbackContext context,
                                                              String callbackId,
                                                              LocalDateTime now) {
+        String securityFailReason = callbackSecurityFailReason(commandDTO);
+        if (securityFailReason != null) {
+            log.warn("event: PAYMENT_CHANNEL_CALLBACK_SECURITY_REJECTED stage=CALLBACK_SECURITY traceId: {} channelCode: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} signatureValid: {} ipAllowed: {} failReason: {}",
+                    TraceContext.getTraceId(),
+                    normalizeChannelCode(commandDTO.getChannelCode()),
+                    callbackId,
+                    context.transactionId(),
+                    context.operationId(),
+                    context.channelOrderNo(),
+                    context.channelTransactionId(),
+                    commandDTO.getSignatureValid(),
+                    commandDTO.getIpAllowed(),
+                    securityFailReason);
+            return updateCallbackProcessResult(callbackTable,
+                    callbackId,
+                    CALLBACK_STATUS_FAILED,
+                    null,
+                    context.operationDO() == null ? null : context.operationDO().getTransactionStatus(),
+                    null,
+                    PROCESS_RESULT_SECURITY_REJECTED,
+                    securityFailReason,
+                    now);
+        }
         if (!context.transactionIdResolved() || context.operationDO() == null || context.orderDO() == null) {
             log.warn("event: PAYMENT_CHANNEL_CALLBACK_UNRESOLVED stage=CALLBACK_PROCESS traceId: {} channelCode: {} transactionId: {} channelOrderNo: {} channelTransactionId: {}",
                     TraceContext.getTraceId(),
@@ -563,6 +591,24 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 changed ? PROCESS_RESULT_STATUS_CHANGED : PROCESS_RESULT_TERMINAL_IGNORED,
                 changed ? null : "operation is already terminal or state has changed",
                 now);
+    }
+
+    /**
+     * 判断 OpenAPI 入口安全校验结果是否允许继续推进交易状态。
+     * <p>
+     * 渠道回调即使已经落原文日志，只要签名或 IP 白名单未通过，就只能保留排障记录，不能更新交易终态或触发商户通知。
+     *
+     * @param commandDTO OpenAPI 转发的回调命令
+     * @return 拒绝原因；为空表示允许继续业务处理
+     */
+    private String callbackSecurityFailReason(TransactionChannelCallbackCommandDTO commandDTO) {
+        if (!Boolean.TRUE.equals(commandDTO.getSignatureValid())) {
+            return "channel callback signature is not valid";
+        }
+        if (!Boolean.TRUE.equals(commandDTO.getIpAllowed())) {
+            return "channel callback source ip is not allowed";
+        }
+        return null;
     }
 
     /**

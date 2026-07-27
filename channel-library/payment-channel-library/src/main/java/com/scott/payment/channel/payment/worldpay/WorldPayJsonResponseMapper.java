@@ -66,11 +66,13 @@ public class WorldPayJsonResponseMapper {
         String rawStatus = normalizeStatus(firstText(response.getStatus(), response.getOutcome()));
         target.setRawChannelStatus(rawStatus);
         target.setChannelTradeStatus(tradeStatusMapper.map(rawStatus));
-        target.setChannelResponseCode(firstText(response.getResponseCode(), response.getResultCode(), response.getOutcome(), errorCode(response)));
-        target.setChannelResponseMessage(firstText(response.getResultMessage(), errorMessage(response), rawStatus));
-        target.setAuthCode(response.getAuthorizationCode());
-        target.setRrn(response.getRrn());
-        target.setAcquirerReferenceNo(response.getAcquirerReference());
+        target.setChannelResponseCode(firstText(response.getResponseCode(), issuerResponseCode(response),
+                response.getRefusalCode(), response.getResultCode(), response.getOutcome(), errorCode(response)));
+        target.setChannelResponseMessage(firstText(response.getResultMessage(), issuerResponseMessage(response),
+                response.getRefusalDescription(), errorMessage(response), rawStatus));
+        target.setAuthCode(firstText(response.getAuthorizationCode(), issuerAuthorizationCode(response)));
+        target.setRrn(firstText(response.getRrn(), issuerRrn(response)));
+        target.setAcquirerReferenceNo(firstText(response.getAcquirerReference(), issuerAcquirerReference(response)));
         if (StringUtils.hasText(response.getOrderCode())) {
             target.setChannelOrderNo(response.getOrderCode());
         }
@@ -84,13 +86,19 @@ public class WorldPayJsonResponseMapper {
         putIfText(target, "rawStatusNormalized", rawStatus);
         putIfText(target, "resultCode", response.getResultCode());
         putIfText(target, "resultMessage", response.getResultMessage());
+        putIfText(target, "refusalCode", response.getRefusalCode());
+        putIfText(target, "refusalDescription", response.getRefusalDescription());
+        putIfText(target, "refusalSource", response.getRefusalSource());
         putIfText(target, "requestId", response.getRequestId());
-        putIfText(target, "acquirerCode", response.getAcquirerCode());
-        putIfText(target, "responseCode", response.getResponseCode());
-        putIfText(target, "authorizationCode", response.getAuthorizationCode());
-        putIfText(target, "stan", response.getStan());
-        putIfText(target, "rrn", response.getRrn());
-        putIfText(target, "acquirerReference", response.getAcquirerReference());
+        putIfText(target, "acquirerCode", firstText(response.getAcquirerCode(), issuerResponseCode(response)));
+        putIfText(target, "responseCode", firstText(response.getResponseCode(), issuerResponseCode(response)));
+        putIfText(target, "authorizationCode", firstText(response.getAuthorizationCode(), issuerAuthorizationCode(response)));
+        putIfText(target, "stan", firstText(response.getStan(), issuerStan(response)));
+        putIfText(target, "rrn", firstText(response.getRrn(), issuerRrn(response)));
+        putIfText(target, "acquirerReference", firstText(response.getAcquirerReference(), issuerAcquirerReference(response)));
+        putIfText(target, "riskDecision", response.getRisk() == null ? null : response.getRisk().getDecision());
+        putIfText(target, "riskReasonCode", response.getRisk() == null ? null : response.getRisk().getReasonCode());
+        putIfText(target, "riskScore", response.getRisk() == null ? null : response.getRisk().getScore());
         putIfText(target, "errorCode", errorCode(response));
         putIfText(target, "errorType", response.getError() == null ? null : response.getError().getType());
         putIfText(target, "errorMessage", errorMessage(response));
@@ -111,13 +119,13 @@ public class WorldPayJsonResponseMapper {
         }
         PaymentMethodSummary summary = new PaymentMethodSummary();
         summary.setPaymentMethod(source.getType());
-        summary.setPaymentBrand(source.getBrand());
+        summary.setPaymentBrand(firstText(source.getBrand(), source.getCardBrand()));
         summary.setScheme(source.getScheme());
-        summary.setCardNumberMasked(source.getCardNumberMasked());
+        summary.setCardNumberMasked(firstText(source.getCardNumberMasked(), maskedPan(source.getCardBin(), source.getLastFour())));
         summary.setExpiryMonth(source.getExpiryMonth());
         summary.setExpiryYear(source.getExpiryYear());
-        summary.setIssuerCountry(source.getIssuerCountry());
-        summary.setFundingMethod(source.getFundingMethod());
+        summary.setIssuerCountry(firstText(source.getIssuerCountry(), source.getCountryCode()));
+        summary.setFundingMethod(firstText(source.getFundingMethod(), source.getFundingType()));
         summary.setCscResult(source.getCscResult());
         return summary;
     }
@@ -131,11 +139,30 @@ public class WorldPayJsonResponseMapper {
     private boolean hasPaymentMethodSummary(WorldPayJsonResponsePayload.PaymentInstrument source) {
         return StringUtils.hasText(source.getType())
                 || StringUtils.hasText(source.getBrand())
+                || StringUtils.hasText(source.getCardBrand())
                 || StringUtils.hasText(source.getScheme())
                 || StringUtils.hasText(source.getCardNumberMasked())
+                || StringUtils.hasText(source.getCardBin())
+                || StringUtils.hasText(source.getLastFour())
                 || StringUtils.hasText(source.getIssuerCountry())
+                || StringUtils.hasText(source.getCountryCode())
                 || StringUtils.hasText(source.getFundingMethod())
+                || StringUtils.hasText(source.getFundingType())
                 || StringUtils.hasText(source.getCscResult());
+    }
+
+    /**
+     * 根据 BIN 和尾四位生成脱敏卡号摘要。
+     *
+     * @param cardBin 卡 BIN
+     * @param lastFour 卡尾四位
+     * @return 脱敏卡号；字段不足时为空
+     */
+    private String maskedPan(String cardBin, String lastFour) {
+        if (!StringUtils.hasText(cardBin) || !StringUtils.hasText(lastFour)) {
+            return null;
+        }
+        return cardBin.trim() + "******" + lastFour.trim();
     }
 
     /**
@@ -156,6 +183,66 @@ public class WorldPayJsonResponseMapper {
      */
     private String errorMessage(WorldPayJsonResponsePayload response) {
         return response == null || response.getError() == null ? null : response.getError().getMessage();
+    }
+
+    /**
+     * 读取发卡行授权码。
+     *
+     * @param response WPGJSON 响应
+     * @return 授权码
+     */
+    private String issuerAuthorizationCode(WorldPayJsonResponsePayload response) {
+        return response == null || response.getIssuer() == null ? null : response.getIssuer().getAuthorizationCode();
+    }
+
+    /**
+     * 读取发卡行响应码。
+     *
+     * @param response WPGJSON 响应
+     * @return 响应码
+     */
+    private String issuerResponseCode(WorldPayJsonResponsePayload response) {
+        return response == null || response.getIssuer() == null ? null : response.getIssuer().getResponseCode();
+    }
+
+    /**
+     * 读取发卡行响应描述。
+     *
+     * @param response WPGJSON 响应
+     * @return 响应描述
+     */
+    private String issuerResponseMessage(WorldPayJsonResponsePayload response) {
+        return response == null || response.getIssuer() == null ? null : response.getIssuer().getResponseMessage();
+    }
+
+    /**
+     * 读取发卡行 STAN。
+     *
+     * @param response WPGJSON 响应
+     * @return STAN
+     */
+    private String issuerStan(WorldPayJsonResponsePayload response) {
+        return response == null || response.getIssuer() == null ? null : response.getIssuer().getStan();
+    }
+
+    /**
+     * 读取发卡行检索参考号。
+     *
+     * @param response WPGJSON 响应
+     * @return RRN
+     */
+    private String issuerRrn(WorldPayJsonResponsePayload response) {
+        return response == null || response.getIssuer() == null ? null : response.getIssuer().getRetrievalReferenceNumber();
+    }
+
+    /**
+     * 读取收单参考号。
+     *
+     * @param response WPGJSON 响应
+     * @return 收单参考号
+     */
+    private String issuerAcquirerReference(WorldPayJsonResponsePayload response) {
+        return response == null || response.getIssuer() == null ? null : response.getIssuer().getAcquirerReferenceNumber();
     }
 
     /**

@@ -17,17 +17,39 @@ import java.util.Set;
  */
 public class WorldPayTradeStatusMapper {
 
+    /**
+     * Worldpay 成功方向原始状态集合。
+     * <p>
+     * 单位：无；格式：Worldpay lastEvent/outcome 归一化文本；不允许为空；非敏感字段。
+     * 数据来源：WPGXML/WPGJSON 协议状态；这里只映射渠道事件方向，平台资金终态由 service-payment 再按交易类型确认。
+     * </p>
+     */
     private static final Set<String> SUCCESS_STATUSES = Set.of(
             "AUTHORISED", "AUTHORIZED", "CAPTURED", "SETTLED", "REFUNDED", "SENT_FOR_REFUND"
     );
 
+    /**
+     * Worldpay 失败方向原始状态集合。
+     * <p>
+     * 单位：无；格式：Worldpay lastEvent/outcome 归一化文本；不允许为空；非敏感字段。
+     * 数据来源：WPGXML/WPGJSON 协议状态；命中后返回渠道统一失败状态。
+     * </p>
+     */
     private static final Set<String> FAILED_STATUSES = Set.of(
             "REFUSED", "ERROR", "FAILED", "FAILURE", "CANCELLED", "CANCELED", "DECLINED", "EXPIRED"
     );
 
+    /**
+     * Worldpay 待处理方向原始状态集合。
+     * <p>
+     * 单位：无；格式：Worldpay lastEvent/outcome 归一化文本；不允许为空；非敏感字段。
+     * 数据来源：WPGXML/WPGJSON 协议状态；命中后返回渠道统一待处理状态，等待回调或查询确认。
+     * </p>
+     */
     private static final Set<String> PENDING_STATUSES = Set.of(
             "PENDING", "PROCESSING", "SENT_FOR_AUTHORISATION", "SENT_FOR_AUTHORIZATION",
-            "SHOPPER_REDIRECTED", "OPEN", "UNKNOWN"
+            "SHOPPER_REDIRECTED", "OPEN", "UNKNOWN", "CAPTURE_REQUESTED", "REFUND_REQUESTED",
+            "CANCEL_REQUESTED", "CANCEL_OR_REFUND_REQUESTED"
     );
 
     /**
@@ -57,14 +79,13 @@ public class WorldPayTradeStatusMapper {
     }
 
     /**
-     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
+     * 规范化 Worldpay 原始状态文本。
      * <p>
-     * 前置条件：调用方已传入 渠道适配库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * 将 null 归一为空字符串，并把连字符和空格转换为下划线，便于匹配 Worldpay 状态集合。
      * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 构造、转换或解析后的业务值
+     *
+     * @param value Worldpay lastEvent、outcome、journalType 或错误状态
+     * @return 大写下划线形式的状态文本
      */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');

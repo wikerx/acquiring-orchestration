@@ -10,6 +10,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -93,19 +94,29 @@ public class WorldPayJsonApiClient {
     private static final String HTTP_METHOD_GET = "GET";
 
     /**
-     * Access Worldpay Card Payments 默认媒体类型；可通过 MID 元数据 contentType 覆盖。
+     * Access Worldpay Payments API 默认媒体类型；可通过 MID 元数据 contentType 覆盖。
      */
     private static final String DEFAULT_CONTENT_TYPE = "application/vnd.worldpay.payments-v7+json";
 
     /**
-     * Access Worldpay Card Payments 默认响应媒体类型；可通过 MID 元数据 accept 覆盖。
+     * Access Worldpay Payments API 默认响应媒体类型；可通过 MID 元数据 accept 覆盖。
      */
     private static final String DEFAULT_ACCEPT = "application/vnd.worldpay.payments-v7+json";
 
     /**
-     * WPGJSON 首笔交易默认路径，保留现有后台配置习惯；可通过 mid.endpointPath 覆盖为 cardPayments/customerInitiatedTransactions。
+     * Access Worldpay Card Payments v7 媒体类型；选择 CARD_PAYMENTS API 族时使用。
+     */
+    private static final String CARD_PAYMENTS_CONTENT_TYPE = "application/vnd.worldpay.cardPayments-v7+json";
+
+    /**
+     * WPGJSON 首笔交易默认路径，按 Access Worldpay Payments API 使用 /api/payments。
      */
     private static final String DEFAULT_PAYMENT_PATH = "/api/payments";
+
+    /**
+     * Access Worldpay Card Payments v7 首笔交易默认路径。
+     */
+    private static final String CARD_PAYMENTS_PAYMENT_PATH = "/api/cardPayments/customerInitiatedTransactions";
 
     /**
      * WPGJSON 查询默认路径，按 transactionReference 和 merchant entity 查询事件。
@@ -124,7 +135,15 @@ public class WorldPayJsonApiClient {
      * WorldPay 凭据和认证敏感字段脱敏规则。
      */
     private static final Pattern WORLDPAY_SECRET_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:cvc|cavv|password|apiPassword|basicAuthPassword|interfacePassword|authorization|Authorization)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:cvc|cavv|authenticationValue|password|apiPassword|basicAuthPassword|interfacePassword|authorization|Authorization)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * WorldPay JSON 个人信息字段脱敏规则，避免持卡人姓名和账单地址完整进入渠道日志。
+     */
+    private static final Pattern WORLDPAY_PERSONAL_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:cardHolderName|address1|postalCode|email|phone)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -149,6 +168,7 @@ public class WorldPayJsonApiClient {
      * @param requestMapper 请求映射器
      * @param responseMapper 响应映射器
      */
+    @Autowired
     public WorldPayJsonApiClient(WorldPayJsonRequestMapper requestMapper,
                                  WorldPayJsonResponseMapper responseMapper) {
         this(requestMapper, responseMapper, HttpClient.newBuilder()
@@ -367,8 +387,24 @@ public class WorldPayJsonApiClient {
                     "WorldPay JSON follow-up action link is required");
             return appendPath(baseUrl, expandPath(actionPath, request, midConfig));
         }
-        String endpointPath = firstText(extensionValue(request, "mid.endpointPath"), extensionValue(request, "mid.paymentPath"), DEFAULT_PAYMENT_PATH);
+        String endpointPath = firstText(extensionValue(request, "mid.endpointPath"), extensionValue(request, "mid.paymentPath"),
+                isCardPaymentsApi(request) ? CARD_PAYMENTS_PAYMENT_PATH : DEFAULT_PAYMENT_PATH);
         return appendPath(baseUrl, expandPath(endpointPath, request, midConfig));
+    }
+
+    /**
+     * 判断是否显式选择 Access Worldpay Card Payments v7 API 族。
+     *
+     * @param request 平台统一渠道请求
+     * @return true 表示使用 Card Payments v7 默认路径和媒体类型
+     */
+    private boolean isCardPaymentsApi(ChannelPaymentRequest request) {
+        String apiFamily = firstText(extensionValue(request, "mid.apiFamily"), extensionValue(request, "apiFamily"));
+        if ("CARD_PAYMENTS".equalsIgnoreCase(apiFamily)) {
+            return true;
+        }
+        String endpointPath = firstText(extensionValue(request, "mid.endpointPath"), extensionValue(request, "mid.paymentPath"));
+        return StringUtils.hasText(endpointPath) && endpointPath.toLowerCase(Locale.ROOT).contains("cardpayments");
     }
 
     /**
@@ -804,23 +840,25 @@ public class WorldPayJsonApiClient {
     }
 
     /**
-     * 读取请求 Content-Type，默认使用 Access Worldpay Card Payments v7 媒体类型。
+     * 读取请求 Content-Type，默认使用 Access Worldpay Payments API 媒体类型。
      *
      * @param request 平台统一渠道请求
      * @return HTTP Content-Type
      */
     private String contentType(ChannelPaymentRequest request) {
-        return firstText(extensionValue(request, "mid.contentType"), extensionValue(request, "mid.mediaType"), DEFAULT_CONTENT_TYPE);
+        return firstText(extensionValue(request, "mid.contentType"), extensionValue(request, "mid.mediaType"),
+                isCardPaymentsApi(request) ? CARD_PAYMENTS_CONTENT_TYPE : DEFAULT_CONTENT_TYPE);
     }
 
     /**
-     * 读取请求 Accept，默认使用 Access Worldpay Card Payments v7 媒体类型。
+     * 读取请求 Accept，默认使用 Access Worldpay Payments API 媒体类型。
      *
      * @param request 平台统一渠道请求
      * @return HTTP Accept
      */
     private String accept(ChannelPaymentRequest request) {
-        return firstText(extensionValue(request, "mid.accept"), extensionValue(request, "mid.mediaType"), DEFAULT_ACCEPT);
+        return firstText(extensionValue(request, "mid.accept"), extensionValue(request, "mid.mediaType"),
+                isCardPaymentsApi(request) ? CARD_PAYMENTS_CONTENT_TYPE : DEFAULT_ACCEPT);
     }
 
     /**
@@ -975,7 +1013,8 @@ public class WorldPayJsonApiClient {
                         + matchResult.group(4)
                         + matchResult.group(5)
         ));
-        return WORLDPAY_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = WORLDPAY_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        return WORLDPAY_PERSONAL_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
     }
 
     /**
@@ -997,7 +1036,8 @@ public class WorldPayJsonApiClient {
      */
     private String rawAcquirerCode(String body) {
         WorldPayJsonResponsePayload payload = tryParse(body);
-        return payload == null ? null : payload.getAcquirerCode();
+        return payload == null ? null : firstText(payload.getAcquirerCode(),
+                payload.getIssuer() == null ? null : payload.getIssuer().getResponseCode());
     }
 
     /**
@@ -1008,7 +1048,9 @@ public class WorldPayJsonApiClient {
      */
     private String rawResponseCode(String body) {
         WorldPayJsonResponsePayload payload = tryParse(body);
-        return payload == null ? null : firstText(payload.getResponseCode(), payload.getResultCode(), payload.getOutcome());
+        return payload == null ? null : firstText(payload.getResponseCode(),
+                payload.getIssuer() == null ? null : payload.getIssuer().getResponseCode(),
+                payload.getRefusalCode(), payload.getResultCode(), payload.getOutcome());
     }
 
     /**
@@ -1019,7 +1061,8 @@ public class WorldPayJsonApiClient {
      */
     private String rawStan(String body) {
         WorldPayJsonResponsePayload payload = tryParse(body);
-        return payload == null ? null : payload.getStan();
+        return payload == null ? null : firstText(payload.getStan(),
+                payload.getIssuer() == null ? null : payload.getIssuer().getStan());
     }
 
     /**

@@ -10,12 +10,14 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import java.util.HexFormat;
 import java.util.UUID;
 
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_NONCE_HEADER;
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_SIGNATURE_HEADER;
 import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.CHANNEL_TIMESTAMP_HEADER;
+import static com.scott.payment.openapi.support.OpenApiCallbackSecuritySupport.WORLDPAY_EVENT_SIGNATURE_HEADER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -80,6 +82,74 @@ class OpenApiCallbackSecuritySupportTests {
                 .hasMessageContaining("channel callback signature is invalid");
     }
 
+    /**
+     * Worldpay Event-Signature 使用 keyId/SHA256/signature 头时应按原始 body 计算 HMAC-SHA256。
+     */
+    @Test
+    void shouldVerifyWorldpayEventSignature() {
+        OpenApiCallbackProperties properties = properties();
+        properties.getChannelEventSecrets().put("WPGJSON", java.util.Map.of("AWAPGTEST", SECRET));
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties, mock(SecurityInterceptEventRecorder.class));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/channel/v1/callbacks/WPGJSON");
+        request.addHeader(WORLDPAY_EVENT_SIGNATURE_HEADER, "AWAPGTEST/SHA256/" + hmacSha256(RAW_BODY, SECRET));
+
+        OpenApiCallbackSecuritySupport.CallbackSecurityResult result =
+                support.verifyChannelCallback("WPGJSON", request, RAW_BODY);
+
+        assertThat(result.signatureValid()).isTrue();
+        assertThat(result.ipAllowed()).isTrue();
+    }
+
+    /**
+     * Worldpay Event-Signature 与回调原文不匹配时必须拒绝，避免伪造 CAPTURED 等终态通知。
+     */
+    @Test
+    void shouldRejectWorldpayEventSignatureWhenBodyIsTampered() {
+        OpenApiCallbackProperties properties = properties();
+        properties.getChannelEventSecrets().put("WPGJSON", java.util.Map.of("AWAPGTEST", SECRET));
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties, mock(SecurityInterceptEventRecorder.class));
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/channel/v1/callbacks/WPGJSON");
+        request.addHeader(WORLDPAY_EVENT_SIGNATURE_HEADER, "AWAPGTEST/SHA256/" + hmacSha256(RAW_BODY, SECRET));
+
+        assertThatThrownBy(() -> support.verifyChannelCallback("WPGJSON", request,
+                "{\"eventType\":\"sentForSettlement\",\"paymentId\":\"WP-PAY-002\"}"))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("worldpay callback event signature is invalid");
+    }
+
+    /**
+     * 渠道配置 IP 白名单后，命中的 Gateway 可信客户端 IP 才允许进入后续回调处理。
+     */
+    @Test
+    void shouldAllowConfiguredChannelCallbackIp() {
+        OpenApiCallbackProperties properties = properties();
+        properties.getChannelAllowedIps().put(CHANNEL_CODE, List.of("192.0.2.10"));
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties, mock(SecurityInterceptEventRecorder.class));
+        MockHttpServletRequest request = signedRequest(RAW_BODY);
+        request.addHeader("X-Gateway-Client-Ip", "192.0.2.10");
+
+        OpenApiCallbackSecuritySupport.CallbackSecurityResult result =
+                support.verifyChannelCallback(CHANNEL_CODE, request, RAW_BODY);
+
+        assertThat(result.ipAllowed()).isTrue();
+    }
+
+    /**
+     * 渠道配置 IP 白名单后，非白名单来源必须拒绝，避免绕过渠道来源边界。
+     */
+    @Test
+    void shouldRejectChannelCallbackWhenIpIsNotAllowed() {
+        OpenApiCallbackProperties properties = properties();
+        properties.getChannelAllowedIps().put(CHANNEL_CODE, List.of("192.0.2.10"));
+        OpenApiCallbackSecuritySupport support = new OpenApiCallbackSecuritySupport(properties, mock(SecurityInterceptEventRecorder.class));
+        MockHttpServletRequest request = signedRequest(RAW_BODY);
+        request.addHeader("X-Gateway-Client-Ip", "198.51.100.20");
+
+        assertThatThrownBy(() -> support.verifyChannelCallback(CHANNEL_CODE, request, RAW_BODY))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("channel callback source ip is not allowed");
+    }
+
     private OpenApiCallbackProperties properties() {
         OpenApiCallbackProperties properties = new OpenApiCallbackProperties();
         properties.setChannelSignatureRequired(true);
@@ -111,6 +181,16 @@ class OpenApiCallbackSecuritySupportTests {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest((rawBody == null ? "" : rawBody).getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
+    private String hmacSha256(String rawBody, String secret) {
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(rawBody.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception exception) {
             throw new IllegalStateException(exception);
         }
     }

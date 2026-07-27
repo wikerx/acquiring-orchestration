@@ -4,6 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,4 +39,20 @@ public class OpenApiCallbackProperties {
      * 渠道编码到 HMAC-SHA256 共享密钥的映射。
      */
     private Map<String, String> channelSecrets = new HashMap<>();
+
+    /**
+     * 渠道编码到事件签名 keyId 和 HMAC-SHA256 共享密钥的映射。
+     * <p>
+     * 用于 Worldpay Event-Signature 这类携带 keyId 的回调签名；未配置时会回退读取 channelSecrets。
+     * </p>
+     */
+    private Map<String, Map<String, String>> channelEventSecrets = new HashMap<>();
+
+    /**
+     * 渠道编码到允许回调源 IP 的映射。
+     * <p>
+     * 未配置或列表为空时表示暂不启用该渠道 IP 白名单；配置后仅允许精确 IPv4/IPv6 地址命中。
+     * </p>
+     */
+    private Map<String, List<String>> channelAllowedIps = new HashMap<>();
 }

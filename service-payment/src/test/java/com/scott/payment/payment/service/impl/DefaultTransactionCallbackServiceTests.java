@@ -143,6 +143,43 @@ class DefaultTransactionCallbackServiceTests {
                 eq("CAPTURED"), eq("CAPTURED"), eq("CAPTURED"));
     }
 
+    /**
+     * OpenAPI 入口标记签名非法的渠道回调只能落库排查，支付核心不得推进交易状态或发送商户通知事件。
+     */
+    @Test
+    void shouldRejectUnsafeCallbackWithoutChangingTransactionStatus() {
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackMapper.insertPhysical(anyString(), any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(recordService.findOperationByChannelTransaction("TX202607141000000000001", "CH202607141000000000001"))
+                .thenReturn(operation());
+        when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
+                .thenReturn(order());
+        CapturingEventOutboxService eventOutboxService = new CapturingEventOutboxService();
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                mock(TransactionChannelCallbackLogMapper.class),
+                callbackMapper,
+                recordService,
+                eventOutboxService,
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
+        TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
+        commandDTO.setSignatureValid(false);
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(commandDTO);
+
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("FAILED");
+        assertThat(resultDTO.getProcessResult()).isEqualTo("SECURITY_REJECTED");
+        assertThat(resultDTO.getFailReason()).isEqualTo("channel callback signature is not valid");
+        verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
+                anyString(), any(), any(), any(), any(), any());
+        assertThat(eventOutboxService.eventDO).isNull();
+    }
+
     private TransactionChannelCallbackCommandDTO callbackCommand() {
         TransactionChannelCallbackCommandDTO commandDTO = new TransactionChannelCallbackCommandDTO();
         commandDTO.setChannelCode("MPGS");

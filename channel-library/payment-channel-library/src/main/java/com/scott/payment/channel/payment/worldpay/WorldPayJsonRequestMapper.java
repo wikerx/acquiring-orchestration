@@ -26,9 +26,14 @@ import java.util.Map;
 public class WorldPayJsonRequestMapper {
 
     /**
-     * 默认支付工具类型，表示本次使用明文卡数据提交到 Worldpay。
+     * Access Worldpay Payments API 默认明文卡支付工具类型，用于 /api/payments。
      */
-    private static final String DEFAULT_PAYMENT_INSTRUMENT_TYPE = "card/plain";
+    private static final String DEFAULT_PAYMENTS_PAYMENT_INSTRUMENT_TYPE = "plain";
+
+    /**
+     * Access Worldpay Card Payments v7 明文卡支付工具类型，用于 /cardPayments/customerInitiatedTransactions。
+     */
+    private static final String CARD_PAYMENTS_PAYMENT_INSTRUMENT_TYPE = "card/plain";
 
     /**
      * 默认交易通道，表示电商持卡人发起交易。
@@ -59,6 +64,9 @@ public class WorldPayJsonRequestMapper {
         payload.setActionLink(sourceTransactionId(request, transactionType));
         if (requiresInstruction(transactionType)) {
             payload.setInstruction(instruction(request, transactionType));
+        }
+        if (requiresActionValue(transactionType)) {
+            payload.setValue(value(request));
         }
         putMetadata(payload, request, "paymentFacilitator", extensionValue(request, "mid.paymentFacilitator"));
         putMetadata(payload, request, "subMerchantId", extensionValue(request, "mid.subMerchantId"));
@@ -119,9 +127,21 @@ public class WorldPayJsonRequestMapper {
      * @return true 表示需要 instruction
      */
     private boolean requiresInstruction(String transactionType) {
-        return !ChannelCapability.QUERY.getCode().equals(transactionType)
-                && !ChannelCapability.VOID.getCode().equals(transactionType)
-                && !ChannelCapability.REVERSAL.getCode().equals(transactionType);
+        return ChannelCapability.PAYMENT.getCode().equals(transactionType)
+                || ChannelCapability.AUTHORIZATION.getCode().equals(transactionType)
+                || ChannelCapability.PRE_AUTHORIZATION.getCode().equals(transactionType);
+    }
+
+    /**
+     * 判断当前交易是否需要顶层 value 节点。
+     *
+     * @param transactionType 平台交易类型
+     * @return true 表示请款、预授权完成或退款需要顶层金额
+     */
+    private boolean requiresActionValue(String transactionType) {
+        return ChannelCapability.CAPTURE.getCode().equals(transactionType)
+                || ChannelCapability.PRE_AUTH_COMPLETION.getCode().equals(transactionType)
+                || ChannelCapability.REFUND.getCode().equals(transactionType);
     }
 
     /**
@@ -148,6 +168,7 @@ public class WorldPayJsonRequestMapper {
         instruction.setMethod(firstText(extensionValue(request, "mid.method"), extensionValue(request, "paymentMethod"), "card"));
         instruction.setRequestAutoSettlement(requestAutoSettlement(request, transactionType));
         instruction.setNarrative(narrative(request));
+        instruction.setAuthentication(authentication(request));
         if (requiresAmount(transactionType)) {
             instruction.setValue(value(request));
         }
@@ -223,12 +244,39 @@ public class WorldPayJsonRequestMapper {
         requiredText(request.getExpirationYear(), "WorldPay JSON card expiry year is required");
         requiredText(request.getSecurityCode(), "WorldPay JSON card security code is required");
         WorldPayJsonRequestPayload.PaymentInstrument paymentInstrument = new WorldPayJsonRequestPayload.PaymentInstrument();
-        paymentInstrument.setType(firstText(extensionValue(request, "mid.paymentInstrumentType"), DEFAULT_PAYMENT_INSTRUMENT_TYPE));
+        paymentInstrument.setType(paymentInstrumentType(request));
         paymentInstrument.setCardNumber(request.getCardNo());
-        paymentInstrument.setExpiryDate(expiryDate(request));
+        paymentInstrument.setCardExpiryDate(expiryDate(request));
         paymentInstrument.setCvc(request.getSecurityCode());
         paymentInstrument.setCardBrand(request.getCardBrand());
+        paymentInstrument.setCardHolderName(firstText(extensionValue(request, "cardHolderName"), billingFullName(request)));
+        paymentInstrument.setBillingAddress(billingAddress(request));
         return paymentInstrument;
+    }
+
+    /**
+     * 解析 Worldpay JSON 支付工具类型。
+     * <p>
+     * Payments API 的 /api/payments 使用 plain；Card Payments v7 的 /cardPayments/customerInitiatedTransactions 使用 card/plain。
+     * 调用方可通过 MID 元数据显式覆盖，避免不同 Worldpay API 族混用导致 validation error。
+     * </p>
+     *
+     * @param request 平台统一渠道请求
+     * @return paymentInstrument.type
+     */
+    private String paymentInstrumentType(ChannelPaymentRequest request) {
+        String configured = firstText(extensionValue(request, "mid.paymentInstrumentType"),
+                extensionValue(request, "paymentInstrumentType"));
+        if (StringUtils.hasText(configured)) {
+            return configured;
+        }
+        String apiFamily = firstText(extensionValue(request, "mid.apiFamily"), extensionValue(request, "apiFamily"));
+        String endpointPath = firstText(extensionValue(request, "mid.endpointPath"), extensionValue(request, "mid.paymentPath"));
+        if ("CARD_PAYMENTS".equalsIgnoreCase(apiFamily)
+                || (StringUtils.hasText(endpointPath) && endpointPath.toLowerCase(Locale.ROOT).contains("cardpayments"))) {
+            return CARD_PAYMENTS_PAYMENT_INSTRUMENT_TYPE;
+        }
+        return DEFAULT_PAYMENTS_PAYMENT_INSTRUMENT_TYPE;
     }
 
     /**
@@ -242,6 +290,57 @@ public class WorldPayJsonRequestMapper {
         expiryDate.setMonth(normalizeMonth(request.getExpirationMonth()));
         expiryDate.setYear(normalizeYear(request.getExpirationYear()));
         return expiryDate;
+    }
+
+    /**
+     * 构造 Worldpay 账单地址节点。
+     *
+     * @param request 平台统一渠道请求
+     * @return 账单地址；未提供任何地址字段时返回 null
+     */
+    private WorldPayJsonRequestPayload.BillingAddress billingAddress(ChannelPaymentRequest request) {
+        ChannelPaymentRequest.BillingInfo billing = request.getBillingInfo();
+        if (billing == null) {
+            return null;
+        }
+        if (!StringUtils.hasText(billing.getStreet())
+                && !StringUtils.hasText(billing.getPostal())
+                && !StringUtils.hasText(billing.getCity())
+                && !StringUtils.hasText(billing.getState())
+                && !StringUtils.hasText(billing.getCountry())) {
+            return null;
+        }
+        WorldPayJsonRequestPayload.BillingAddress address = new WorldPayJsonRequestPayload.BillingAddress();
+        address.setAddress1(billing.getStreet());
+        address.setPostalCode(billing.getPostal());
+        address.setCity(billing.getCity());
+        address.setState(billing.getState());
+        address.setCountryCode(billing.getCountry());
+        return address;
+    }
+
+    /**
+     * 构造 Worldpay 认证节点。
+     *
+     * @param request 平台统一渠道请求
+     * @return 认证节点；没有 3DS 结果时返回 null
+     */
+    private WorldPayJsonRequestPayload.Authentication authentication(ChannelPaymentRequest request) {
+        ChannelPaymentRequest.ThreeDsInfo threeDsInfo = request.getThreeDsInfo();
+        if (threeDsInfo == null || (!StringUtils.hasText(threeDsInfo.getEci())
+                && !StringUtils.hasText(threeDsInfo.getCavv())
+                && !StringUtils.hasText(threeDsInfo.getDsTransactionId())
+                && !StringUtils.hasText(threeDsInfo.getThreeDsVersion()))) {
+            return null;
+        }
+        WorldPayJsonRequestPayload.ThreeDS threeDS = new WorldPayJsonRequestPayload.ThreeDS();
+        threeDS.setVersion(threeDsInfo.getThreeDsVersion());
+        threeDS.setEci(threeDsInfo.getEci());
+        threeDS.setAuthenticationValue(threeDsInfo.getCavv());
+        threeDS.setDsTransactionId(threeDsInfo.getDsTransactionId());
+        WorldPayJsonRequestPayload.Authentication authentication = new WorldPayJsonRequestPayload.Authentication();
+        authentication.setThreeDS(threeDS);
+        return authentication;
     }
 
     /**
@@ -274,6 +373,20 @@ public class WorldPayJsonRequestMapper {
                 request.getChannelTransactionId(),
                 extensionValue(request, "requestId"),
                 request.getTransactionId()), "WorldPay JSON transactionReference is required");
+    }
+
+    /**
+     * 从账单信息生成持卡人姓名。
+     *
+     * @param request 平台统一渠道请求
+     * @return 持卡人姓名；账单姓名为空时返回 null
+     */
+    private String billingFullName(ChannelPaymentRequest request) {
+        ChannelPaymentRequest.BillingInfo billing = request == null ? null : request.getBillingInfo();
+        if (billing == null) {
+            return null;
+        }
+        return firstText((firstText(billing.getFirstName(), "") + " " + firstText(billing.getLastName(), "")).trim(), null);
     }
 
     /**

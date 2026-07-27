@@ -21,7 +21,7 @@ import java.util.Set;
  * @classname : AbstractWorldPayPaymentChannelClient
  * @date : 2026-07-19 22:50
  * @email : scott_x@163.com
- * @description : WorldPay 收单渠道客户端抽象基类，位于 payment-channel-library 渠道实现层，只复用 WPGXML/WPGJSON 的计划能力分发和 SPI 入口约束；当前不承载真实渠道请求，真实 XML 与 JSON 协议实现必须分别落在各自独立渠道客户端中。
+ * @description : WorldPay 收单渠道客户端抽象基类，位于 payment-channel-library 渠道实现层，只复用 WPGXML/WPGJSON 的能力分发和 SPI 入口约束；真实 XML 与 JSON 协议实现分别落在各自独立渠道客户端中。
  * @status : create
  */
 public abstract class AbstractWorldPayPaymentChannelClient extends AbstractPaymentChannelClient {
@@ -29,8 +29,7 @@ public abstract class AbstractWorldPayPaymentChannelClient extends AbstractPayme
     /**
      * 获取 WorldPay 计划接入的渠道能力。
      * <p>
-     * 这里声明的是平台路由可识别的“计划能力”，用于后续接入时保持渠道能力模型完整；它不代表 WPGXML/WPGJSON
-     * 的真实 HTTP 请求、渠道认证、签名或响应解析已经接通。当前具体渠道类的 execute 会抛出明确异常，防止误用于生产扣款、请款、退款或查询。
+     * 这里声明的是平台路由可识别的 WorldPay 渠道能力集合。抽象层只负责能力声明和入口分发，真实 HTTP 请求、渠道认证和响应解析由 WPGXML/WPGJSON 子类独立实现。
      *
      * @return 渠道能力集合
      */
@@ -51,7 +50,7 @@ public abstract class AbstractWorldPayPaymentChannelClient extends AbstractPayme
     /**
      * 提交 WorldPay 一步支付请求。
      * <p>
-     * 当前抽象层只做计划能力校验和请求分发；WPGXML/WPGJSON 子类在真实 API 未接通前会通过 execute 抛出未实现异常。
+     * 当前抽象层只做能力校验和请求分发；WPGXML/WPGJSON 子类分别负责具体协议报文、HTTP 调用、脱敏审计和响应映射。
      *
      * @param request 渠道一步支付请求
      * @return 渠道统一响应
@@ -141,7 +140,7 @@ public abstract class AbstractWorldPayPaymentChannelClient extends AbstractPayme
     /**
      * 查询 WorldPay 交易状态。
      * <p>
-     * 查询用于自动勾兑确认终态；当前 WPGXML/WPGJSON Inquiry 未实现前，子类必须继续抛出未接通异常。
+     * 查询用于自动勾兑确认终态；具体 XML inquiry 或 JSON events 查询由对应子类按协议实现。
      *
      * @param request 渠道查询请求
      * @return 渠道统一响应
