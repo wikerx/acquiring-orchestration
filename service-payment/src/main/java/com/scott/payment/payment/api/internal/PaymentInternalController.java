@@ -2,7 +2,16 @@ package com.scott.payment.payment.api.internal;
 
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.payment.application.PaymentCheckoutApplicationService;
 import com.scott.payment.payment.application.PaymentTransactionApplicationService;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentStatusCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutPaymentSubmitCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionCreateResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutSessionQueryResultDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCheckoutThreeDsReturnCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentQueryResultDTO;
@@ -50,12 +59,79 @@ public class PaymentInternalController {
     private final PaymentTransactionApplicationService paymentTransactionApplicationService;
 
     /**
+     * Hosted Checkout 应用服务。
+     */
+    private final PaymentCheckoutApplicationService paymentCheckoutApplicationService;
+
+    /**
      * 创建内部交易接口控制器。
      *
      * @param paymentTransactionApplicationService 收单交易应用服务
      */
-    public PaymentInternalController(PaymentTransactionApplicationService paymentTransactionApplicationService) {
+    public PaymentInternalController(PaymentTransactionApplicationService paymentTransactionApplicationService,
+                                     PaymentCheckoutApplicationService paymentCheckoutApplicationService) {
         this.paymentTransactionApplicationService = paymentTransactionApplicationService;
+        this.paymentCheckoutApplicationService = paymentCheckoutApplicationService;
+    }
+
+    /**
+     * 创建 Hosted Checkout 会话。
+     *
+     * @param commandDTO 创建收银台会话命令
+     * @return 收银台会话创建结果
+     */
+    @PostMapping("/checkout/session")
+    public CommonResult<PaymentCheckoutSessionCreateResultDTO> createCheckoutSession(
+            @Valid @RequestBody PaymentCheckoutSessionCreateCommandDTO commandDTO) {
+        return success(paymentCheckoutApplicationService.createSession(commandDTO));
+    }
+
+    /**
+     * 查询 Hosted Checkout 会话展示状态。
+     *
+     * @param commandDTO 查询收银台命令
+     * @return 收银台展示数据
+     */
+    @PostMapping("/checkout/session/query")
+    public CommonResult<PaymentCheckoutSessionQueryResultDTO> queryCheckoutSession(
+            @Valid @RequestBody PaymentCheckoutSessionQueryCommandDTO commandDTO) {
+        return success(paymentCheckoutApplicationService.querySession(commandDTO));
+    }
+
+    /**
+     * 提交 Hosted Checkout 银行卡支付。
+     *
+     * @param commandDTO 支付提交命令
+     * @return 支付提交结果
+     */
+    @PostMapping("/checkout/payment/submit")
+    public CommonResult<PaymentCheckoutPaymentResultDTO> submitCheckoutPayment(
+            @Valid @RequestBody PaymentCheckoutPaymentSubmitCommandDTO commandDTO) {
+        return success(paymentCheckoutApplicationService.submitPayment(commandDTO));
+    }
+
+    /**
+     * 查询 Hosted Checkout 支付处理状态。
+     *
+     * @param commandDTO 支付状态查询命令
+     * @return 支付状态结果
+     */
+    @PostMapping("/checkout/payment/status")
+    public CommonResult<PaymentCheckoutPaymentResultDTO> queryCheckoutPaymentStatus(
+            @Valid @RequestBody PaymentCheckoutPaymentStatusCommandDTO commandDTO) {
+        return success(paymentCheckoutApplicationService.queryPaymentStatus(commandDTO));
+    }
+
+    /**
+     * 处理 Hosted Checkout 3DS 浏览器回跳。
+     *
+     * @param commandDTO 3DS 回跳命令
+     * @return 支付状态结果
+     */
+    @PostMapping("/checkout/3ds/return")
+    public CommonResult<PaymentCheckoutPaymentResultDTO> handleCheckoutThreeDsReturn(
+            @Valid @RequestBody PaymentCheckoutThreeDsReturnCommandDTO commandDTO) {
+        return success(paymentCheckoutApplicationService.handleThreeDsReturn(commandDTO));
     }
 
     /**

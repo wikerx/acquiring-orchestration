@@ -181,6 +181,11 @@ public class PaymentCreateCommandDTO implements Serializable {
     private ThreeDsInfoDTO threeDsInfo;
 
     /**
+     * Hosted Checkout 等内部编排透传的渠道身份，不对商户开放。
+     */
+    private ChannelIdentityDTO channelIdentity;
+
+    /**
      * 交易扩展信息，包含原平台交易 ID、描述和回调地址。
      */
     private TransactionInfoDTO transactionInfo;
@@ -525,6 +530,11 @@ public class PaymentCreateCommandDTO implements Serializable {
         private static final long serialVersionUID = 1L;
 
         /**
+         * MPGS 3DS authentication transaction id，PAY/AUTHORIZE 必须引用同一认证交易。
+         */
+        private String authenticationTransactionId;
+
+        /**
          * eci，用于保存 Three Ds Info DTO 中与 eci 相关的业务属性。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -558,6 +568,15 @@ public class PaymentCreateCommandDTO implements Serializable {
          * </p>
          */
         private String threeDsVersion;
+    }
+
+    @Data
+    public static class ChannelIdentityDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        private String channelOrderNo;
+        private String channelTransactionId;
     }
 
     @Data

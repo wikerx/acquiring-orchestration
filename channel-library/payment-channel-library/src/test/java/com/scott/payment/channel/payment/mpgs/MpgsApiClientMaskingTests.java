@@ -73,6 +73,25 @@ class MpgsApiClientMaskingTests {
     }
 
     /**
+     * 3DS returnUrl 会写入 MPGS 请求体，URL query 中的一次性回跳 token 必须先脱敏再进入日志。
+     */
+    @Test
+    void shouldMaskThreeDsReturnUrlQuerySecrets() {
+        String json = "{\"browserPayment\":{\"returnUrl\":\"https://pay.example.com/checkout/api/v1/3ds/bridge"
+                + "?checkoutSessionId=CS-001&checkoutAttemptId=CA-001&threeDsReturnToken=return-token-value"
+                + "&threeDSSessionData=session-secret-value\"},"
+                + "\"authentication\":{\"redirect\":{\"html\":\"<form><input name=creq value=sensitive-creq></form>\"}},"
+                + "\"encoded\":\"threeDsReturnToken%3Dencoded-token-value%26cres%3Dencoded-cres-value\"}";
+
+        String masked = MpgsApiClient.maskMpgsJson(json);
+
+        assertThat(masked).contains("threeDsReturnToken=***", "threeDSSessionData=***");
+        assertThat(masked).contains("threeDsReturnToken%3D***", "cres%3D***");
+        assertThat(masked).doesNotContain("return-token-value", "session-secret-value", "encoded-token-value", "encoded-cres-value");
+        assertThat(masked).contains("\"html\":\"***\"");
+    }
+
+    /**
      * 验证 MPGS MID 元数据标准字段 password 能用于 Basic Auth。
      * <p>
      * 后台保存的 metadata_value_json 字段为 password，支付核心组装渠道请求时会转成 mid.password；

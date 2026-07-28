@@ -23,11 +23,6 @@ public class PayoutClientProperties {
     private boolean remoteEnabled = true;
 
     /**
-     * service-payout 内部创建接口地址。
-     */
-    private String createUrl = "http://service-payout/internal/payout/create";
-
-    /**
      * 内部服务调用方标识，用于 service-payout 审计调用来源。
      */
     private String internalCaller = "service-openapi";

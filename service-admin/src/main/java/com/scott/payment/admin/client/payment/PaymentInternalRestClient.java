@@ -68,6 +68,33 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
+     * service-payment 内部管理接口路径属于代码级服务契约，避免环境配置覆盖真实调用目标。
+     */
+    private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
+
+    private static final String ORDER_SEARCH_PATH = "/internal/payment/transactions/orders/search";
+
+    private static final String OPERATION_SEARCH_PATH = "/internal/payment/transactions/operations/search";
+
+    private static final String OPERATION_SEARCH_WITH_SUMMARY_PATH =
+            "/internal/payment/transactions/operations/search-with-summary";
+
+    private static final String CAPTURE_PATH = "/internal/payment/capture";
+
+    private static final String REFUND_PATH = "/internal/payment/refund";
+
+    private static final String VOID_PATH = "/internal/payment/void";
+
+    private static final String DETAIL_BASE_PATH = "/internal/payment/transactions";
+
+    private static final String CHANNEL_LOG_SEARCH_PATH = "/internal/payment/transactions/channel-logs/search";
+
+    private static final String CHANNEL_CALLBACK_SEARCH_PATH = "/internal/payment/transactions/channel-callbacks/search";
+
+    private static final String MERCHANT_NOTIFICATION_SEARCH_PATH =
+            "/internal/payment/transactions/merchant-notifications/search";
+
+    /**
      * direct Rest Template，用于定位邮件、通知或渠道参数模板。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -121,7 +148,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         CommonResult<PageResult<TransactionOrderResponse>> result = post(
-                properties.getOrderSearchUrl(),
+                servicePaymentUrl(ORDER_SEARCH_PATH),
                 query,
                 new TypeReference<CommonResult<PageResult<TransactionOrderResponse>>>() {
                 });
@@ -137,7 +164,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
         CommonResult<PageResult<TransactionOperationResponse>> result = post(
-                properties.getOperationSearchUrl(),
+                servicePaymentUrl(OPERATION_SEARCH_PATH),
                 query,
                 new TypeReference<CommonResult<PageResult<TransactionOperationResponse>>>() {
                 });
@@ -153,7 +180,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
         CommonResult<TransactionOperationSearchResponse> result = post(
-                properties.getOperationSearchWithSummaryUrl(),
+                servicePaymentUrl(OPERATION_SEARCH_WITH_SUMMARY_PATH),
                 query,
                 new TypeReference<CommonResult<TransactionOperationSearchResponse>>() {
                 });
@@ -169,7 +196,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionActionResponse capture(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
-                properties.getCaptureUrl(),
+                servicePaymentUrl(CAPTURE_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
@@ -185,7 +212,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionActionResponse refund(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
-                properties.getRefundUrl(),
+                servicePaymentUrl(REFUND_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
@@ -201,7 +228,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionActionResponse voidPayment(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
-                properties.getVoidUrl(),
+                servicePaymentUrl(VOID_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
@@ -217,7 +244,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionDetailResponse detail(String transactionId) {
         CommonResult<TransactionDetailResponse> result = get(
-                properties.getDetailBaseUrl() + "/" + transactionId,
+                servicePaymentUrl(DETAIL_BASE_PATH) + "/" + transactionId,
                 new TypeReference<CommonResult<TransactionDetailResponse>>() {
                 });
         return unwrapData(result);
@@ -232,7 +259,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
         CommonResult<PageResult<Map<String, Object>>> result = post(
-                properties.getChannelLogSearchUrl(),
+                servicePaymentUrl(CHANNEL_LOG_SEARCH_PATH),
                 query,
                 new TypeReference<CommonResult<PageResult<Map<String, Object>>>>() {
                 });
@@ -248,7 +275,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
         CommonResult<PageResult<Map<String, Object>>> result = post(
-                properties.getChannelCallbackSearchUrl(),
+                servicePaymentUrl(CHANNEL_CALLBACK_SEARCH_PATH),
                 query,
                 new TypeReference<CommonResult<PageResult<Map<String, Object>>>>() {
                 });
@@ -264,7 +291,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
         CommonResult<PageResult<Map<String, Object>>> result = post(
-                properties.getMerchantNotificationSearchUrl(),
+                servicePaymentUrl(MERCHANT_NOTIFICATION_SEARCH_PATH),
                 query,
                 new TypeReference<CommonResult<PageResult<Map<String, Object>>>>() {
                 });
@@ -283,6 +310,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             log.warn("service-payment get call failed, targetUri: {}", uri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment get call failed");
         }
+    }
+
+    private String servicePaymentUrl(String path) {
+        return SERVICE_PAYMENT_BASE_URL + path;
     }
 
     private <T> T post(String url, Object body, TypeReference<T> typeReference) {

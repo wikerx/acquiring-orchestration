@@ -84,6 +84,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     private static final String DEFAULT_CALLBACK_TYPE = "CHANNEL_CALLBACK";
 
     /**
+     * MPGS 3DS callback only confirms payer-authentication progress and never proves payment finality.
+     */
+    private static final String MPGS_3DS_CALLBACK_TYPE = "MPGS_3DS_CALLBACK";
+
+    /**
      * 回调接收状态。
      */
     private static final String CALLBACK_STATUS_RECEIVED = "RECEIVED";
@@ -527,6 +532,23 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     null, null, "transaction_id can not be resolved from callback", now);
         }
         ParsedCallbackStatus parsedStatus = parseCallbackStatus(commandDTO, channelCallbackResult, context.operationDO().getTransactionType());
+        if (isThreeDsCallback(commandDTO)) {
+            log.info("event: PAYMENT_CHANNEL_CALLBACK_3DS_RECEIVED stage=CALLBACK_PROCESS traceId: {} channelCode: {} callbackId: {} transactionId: {} operationId: {} rawChannelStatus: {} channelTradeStatus: {}",
+                    TraceContext.getTraceId(),
+                    normalizeChannelCode(commandDTO.getChannelCode()),
+                    callbackId,
+                    context.operationDO().getTransactionId(),
+                    context.operationDO().getOperationId(),
+                    channelCallbackResult == null ? null : channelCallbackResult.getRawChannelStatus(),
+                    channelCallbackResult == null ? null : channelCallbackResult.getChannelTradeStatus());
+            return updateCallbackProcessResult(callbackTable, callbackId, CALLBACK_STATUS_RECEIVED,
+                    parsedStatus.targetStatus(),
+                    context.operationDO().getTransactionStatus(),
+                    parsedStatus.targetStatus(),
+                    PROCESS_RESULT_PENDING,
+                    "mpgs 3ds callback waits payer authentication or payment result confirmation",
+                    now);
+        }
         if (parsedStatus.targetStatus() == null) {
             log.warn("event: PAYMENT_CHANNEL_CALLBACK_STATUS_UNMAPPED stage=CALLBACK_PROCESS traceId: {} channelCode: {} callbackId: {} transactionId: {} operationId: {} rawChannelStatus: {} channelTradeStatus: {}",
                     TraceContext.getTraceId(),
@@ -793,7 +815,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         boolean resolved = transactionDateTime != null;
         if (resolved) {
             try {
-                operationDO = resolveCallbackOperation(transactionId, channelOrderNo, channelTransactionId);
+                operationDO = resolveCallbackOperation(commandDTO, transactionId, channelOrderNo, channelTransactionId);
                 LocalDateTime orderTransactionDateTime = parseOperationDateTime(operationDO.getOperationId());
                 if (orderTransactionDateTime == null) {
                     orderTransactionDateTime = operationDO.getTransactionDateTime();
@@ -836,9 +858,13 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
  * @param channelTransactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
  * @return 构造、转换或解析后的业务值
  */
-    private TransactionOperationDO resolveCallbackOperation(String transactionId,
+    private TransactionOperationDO resolveCallbackOperation(TransactionChannelCallbackCommandDTO commandDTO,
+                                                            String transactionId,
                                                             String channelOrderNo,
                                                             String channelTransactionId) {
+        if (isThreeDsCallback(commandDTO)) {
+            return transactionRecordService.findSourceOperationByTransactionId(transactionId);
+        }
         if (StringUtils.hasText(channelOrderNo) && StringUtils.hasText(channelTransactionId)) {
             try {
                 return transactionRecordService.findOperationByChannelTransaction(channelOrderNo, channelTransactionId);
@@ -960,6 +986,16 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return channelCallbackResult == null ? null : firstText(
                 channelCallbackResult.getRawChannelStatus(),
                 channelCallbackResult.getChannelTradeStatus());
+    }
+
+    /**
+     * 识别 MPGS 3DS 专用回调，避免认证结果回调误走普通支付入账状态机。
+     *
+     * @param commandDTO 渠道回调内部命令
+     * @return true 表示该回调只处理 3DS 认证状态
+     */
+    private boolean isThreeDsCallback(TransactionChannelCallbackCommandDTO commandDTO) {
+        return MPGS_3DS_CALLBACK_TYPE.equalsIgnoreCase(resolveCallbackType(commandDTO));
     }
 
     /**

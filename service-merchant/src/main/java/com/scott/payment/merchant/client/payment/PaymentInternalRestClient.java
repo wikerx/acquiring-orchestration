@@ -58,6 +58,17 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
+     * 商户后台调用支付核心的内部动作路径是服务契约，不通过配置中心覆盖。
+     */
+    private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
+
+    private static final String CAPTURE_PATH = "/internal/payment/capture";
+
+    private static final String REFUND_PATH = "/internal/payment/refund";
+
+    private static final String VOID_PATH = "/internal/payment/void";
+
+    /**
      * direct Rest Template，用于定位邮件、通知或渠道参数模板。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -111,7 +122,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionActionResponse capture(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
-                properties.getCaptureUrl(),
+                servicePaymentUrl(CAPTURE_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
@@ -127,7 +138,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionActionResponse refund(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
-                properties.getRefundUrl(),
+                servicePaymentUrl(REFUND_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
@@ -143,7 +154,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionActionResponse voidPayment(PaymentTransactionActionClientRequestDTO requestDTO) {
         CommonResult<TransactionActionResponse> result = post(
-                properties.getVoidUrl(),
+                servicePaymentUrl(VOID_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<TransactionActionResponse>>() {
                 });
@@ -162,6 +173,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             log.warn("service-payment post call failed, targetUri: {}", uri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment post call failed");
         }
+    }
+
+    private String servicePaymentUrl(String path) {
+        return SERVICE_PAYMENT_BASE_URL + path;
     }
 
     private HttpEntity<String> buildSignedEntity(URI uri, HttpMethod method, Object body) {

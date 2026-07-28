@@ -76,9 +76,24 @@ public class GatewayRouteConfig {
     private static final String MERCHANT_API_PATH = "/merchant/**";
 
     /**
-     * 收银台公开 API 路径，形如 /checkout/config/countries。
+     * 商户 Hosted Checkout OpenAPI 路径，形如 /api/rest/checkout/v1/session。
      */
-    private static final String CHECKOUT_API_PATH = "/checkout/**";
+    private static final String CHECKOUT_OPENAPI_PATH = "/api/rest/checkout/**";
+
+    /**
+     * 付款人浏览器 Hosted Checkout API 路径，形如 /checkout/api/v1/session/query。
+     */
+    private static final String CHECKOUT_BROWSER_API_PATH = "/checkout/api/**";
+
+    /**
+     * 收银台公开展示配置路径，形如 /checkout/config/countries。
+     */
+    private static final String CHECKOUT_CONFIG_PATH = "/checkout/config/**";
+
+    /**
+     * 收银台服务健康检查路径。
+     */
+    private static final String CHECKOUT_HEALTH_PATH = "/checkout/health";
 
     /**
      * 网关本地兜底路径，用于输出统一 JSON 错误响应。
@@ -113,11 +128,13 @@ public class GatewayRouteConfig {
                 .route("merchant-payment-openapi", route -> route.path(PAYMENT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("merchant-payout-openapi", route -> route.path(PAYOUT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("merchant-iso-openapi", route -> route.path(ISO_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("merchant-checkout-openapi", route -> route.path(CHECKOUT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("checkout-browser-api", route -> route.path(CHECKOUT_BROWSER_API_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("channel-callback-openapi", route -> route.path(CHANNEL_CALLBACK_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("openapi-support", route -> route.path(OPENAPI_SUPPORT_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("admin-api", route -> route.path(ADMIN_API_PATH).uri(SERVICE_ADMIN_URI))
                 .route("merchant-api", route -> route.path(MERCHANT_API_PATH).uri(SERVICE_MERCHANT_URI))
-                .route("checkout-api", route -> route.path(CHECKOUT_API_PATH).uri(SERVICE_CHECKOUT_URI))
+                .route("checkout-config", route -> route.path(CHECKOUT_CONFIG_PATH, CHECKOUT_HEALTH_PATH).uri(SERVICE_CHECKOUT_URI))
                 .route("gateway-unmatched-path", route -> route.order(Ordered.LOWEST_PRECEDENCE)
                         .path(ANY_PATH)
                         .and()

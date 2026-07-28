@@ -6,6 +6,7 @@
 
 * [支付收单平台系统架构说明](architecture/system-architecture.md)：后端与前端双仓库边界、整体服务关系、OpenAPI 授权链路、退款/授权/回调目标链路、状态机目标和当前风险。
 * [支付收单系统工程约束](architecture/payment-engineering.md)：资金安全、模块边界、状态机、幂等、金额币种、OpenAPI、渠道回调、内部接口和前端限制。
+* [Hosted Checkout V1 数据库与状态机设计草案](architecture/hosted-checkout-v1-database-design.md)：自建收银台的会话表、token、支付尝试、事件、安全事件和 MPGS 3DS 状态机设计。
 * [企业级重构路线图](architecture/refactor-roadmap.md)：后续分阶段重构顺序和重点。
 * [操作日志后续规划](architecture/operation-log-roadmap.md)：操作日志链路的后续演进方向。
 
@@ -16,6 +17,7 @@
 * [OpenAPI 商户接入文档](api/openapi/openapi-integration-guide.md)
 * [OpenAPI 鉴权与加密流程](api/openapi/openapi-security-flow.md)
 * [OpenAPI 版本升级规范](api/openapi/openapi-versioning.md)
+* [Hosted Checkout V1 接口契约草案](api/openapi/hosted-checkout-api-contract.md)
 
 ### 内部接口
 
@@ -40,6 +42,7 @@ Nacos 配置样例位于 `docs/deployment/nacos/`。
 ## 5. SQL 脚本
 
 * [基础 ISO 字典建表脚本](sql/base-iso-dictionary-schema.sql)
+* [Hosted Checkout V1 dev/test 表结构脚本](sql/checkout-session-ddl-dev.sql)
 
 SQL 参考脚本统一放在 `docs/sql/`。
 

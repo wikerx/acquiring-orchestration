@@ -73,6 +73,11 @@ public class MpgsResponsePayload {
     private Risk risk;
 
     /**
+     * MPGS 3DS 认证响应节点。
+     */
+    private Authentication authentication;
+
+    /**
      * MPGS 记录时间，ISO-8601 字符串。
      */
     private String timeOfRecord;
@@ -81,6 +86,26 @@ public class MpgsResponsePayload {
      * MPGS 最近更新时间，ISO-8601 字符串。
      */
     private String timeOfLastUpdate;
+
+    /**
+     * MPGS 3DS browser return or callback order identifier.
+     */
+    private String orderId;
+
+    /**
+     * MPGS 3DS browser return or callback authentication transaction identifier.
+     */
+    private String transactionId;
+
+    /**
+     * EMV 3DS Server Transaction ID.
+     */
+    private String threeDSServerTransID;
+
+    /**
+     * MPGS encrypted 3DS session data. This field is sensitive and must only be stored masked.
+     */
+    private String threeDSSessionData;
 
     @Data
     /**
@@ -688,5 +713,92 @@ public class MpgsResponsePayload {
          * MPGS 校验错误类型。
          */
         private String validationType;
+    }
+
+    @Data
+    public static class Authentication {
+
+        /**
+         * MPGS 3DS authentication transaction id。
+         */
+        private String transactionId;
+
+        /**
+         * 认证版本，例如 3DS2。
+         */
+        private String version;
+
+        /**
+         * 认证状态，例如 AUTHENTICATION_SUCCESSFUL。
+         */
+        private String status;
+
+        /**
+         * 网关建议，例如 PROCEED、DO_NOT_PROCEED。
+         */
+        private String gatewayRecommendation;
+
+        /**
+         * 持卡人交互状态，例如 REQUIRED、NOT_REQUIRED。
+         */
+        private String payerInteraction;
+
+        /**
+         * 认证重定向或 Method HTML。
+         */
+        private Redirect redirect;
+
+        /**
+         * 通用 3DS 认证数据。
+         */
+        private ThreeDs threeDs;
+
+        /**
+         * 3DS1 兼容字段。
+         */
+        private ThreeDs1 threeDs1;
+
+        /**
+         * 3DS2 兼容字段。
+         */
+        private ThreeDs2 threeDs2;
+    }
+
+    @Data
+    public static class Redirect {
+
+        /**
+         * MPGS 返回给浏览器渲染的 HTML，日志和落库只能保存摘要。
+         */
+        private String html;
+
+        /**
+         * 部分响应可能返回重定向 URL。
+         */
+        private String url;
+    }
+
+    @Data
+    public static class ThreeDs {
+
+        private String acsEci;
+        private String authenticationToken;
+        private String transactionId;
+    }
+
+    @Data
+    public static class ThreeDs1 {
+
+        private String paResStatus;
+        private String veResEnrolled;
+    }
+
+    @Data
+    public static class ThreeDs2 {
+
+        private String acsTransactionId;
+        private String dsTransactionId;
+        private String threeDSServerTransactionId;
+        private String transactionStatus;
     }
 }

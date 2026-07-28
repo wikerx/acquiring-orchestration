@@ -24,7 +24,7 @@ public final class SensitiveDataMaskUtils {
      * 密钥类字段统一替换为固定星号，禁止日志中出现任何明文片段。
      */
     private static final Pattern SECRET_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:password|mid\\.password|oldPassword|newPassword|apiPassword|mid\\.apiPassword|Authorization|accessToken|refreshToken|token|apiToken|authenticationToken|apiKey|secret|apiSecret|secretKey|privateKey|publicKey|merchantKey|merchantSecret)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:password|mid\\.password|oldPassword|newPassword|apiPassword|mid\\.apiPassword|Authorization|accessToken|refreshToken|token|opaqueToken|tokenHash|threeDsReturnToken|threeDsReturnTokenHash|apiToken|authenticationToken|apiKey|secret|apiSecret|secretKey|privateKey|publicKey|merchantKey|merchantSecret)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -72,7 +72,15 @@ public final class SensitiveDataMaskUtils {
      * 安全码、CAVV 等认证敏感数据统一隐藏。
      */
     private static final Pattern SECURITY_CODE_PATTERN = Pattern.compile(
-            "(\"(?:securityCode|cvv|cvc|cavv)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:securityCode|cvv|cvc|cavv|threeDSSessionData|threeDSMethodData|paReq|paRes|cres|md)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * URL encoded 表单中的 3DS 敏感字段统一隐藏。
+     */
+    private static final Pattern FORM_SECRET_FIELD_PATTERN = Pattern.compile(
+            "((?:^|[&?])(?:threeDSSessionData|threeDSMethodData|PaReq|PaRes|cres|MD|threeDsReturnToken|opaqueToken|token)=)([^&\"'\\\\\\s]*)",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -98,7 +106,8 @@ public final class SensitiveDataMaskUtils {
         masked = maskMobileField(masked);
         masked = maskEmailField(masked);
         masked = SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
-        return ID_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = ID_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        return FORM_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***");
     }
 
     /**

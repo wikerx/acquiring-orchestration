@@ -252,6 +252,11 @@ public class ChannelPaymentRequest implements Serializable {
         private static final long serialVersionUID = 1L;
 
         /**
+         * MPGS 3DS authentication transaction id，PAY/AUTHORIZE 时必须引用同一认证交易。
+         */
+        private String authenticationTransactionId;
+
+        /**
          * eci，用于保存 Three Ds Info 中与 eci 相关的业务属性。
          * <p>
          * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。

@@ -9,27 +9,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : PaymentInternalClientProperties
  * @date : 2026-07-19 00:00
  * @email : scott_x@163.com
- * @description : service-payment 内部客户端配置，位于 service-merchant 配置层，仅维护商户后台退款等状态变更动作调用支付核心的地址和内部签名密钥。
+ * @description : service-payment 内部客户端配置，位于 service-merchant 配置层，仅维护内部服务签名密钥。
  * @status : create
  */
 @Data
 @ConfigurationProperties(prefix = "merchant.payment-client")
 public class PaymentInternalClientProperties {
-
-    /**
-     * 请款动作接口地址。
-     */
-    private String captureUrl = "http://service-payment/internal/payment/capture";
-
-    /**
-     * 退款动作接口地址。
-     */
-    private String refundUrl = "http://service-payment/internal/payment/refund";
-
-    /**
-     * 撤销动作接口地址。
-     */
-    private String voidUrl = "http://service-payment/internal/payment/void";
 
     /**
      * 内部服务调用方标识，用于 service-payment 审计调用来源。

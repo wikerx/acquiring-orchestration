@@ -330,18 +330,20 @@ flowchart LR
 
     AdminWeb --> AdminApi["/admin/**"]
     MerchantWeb --> MerchantApi["/merchant/**"]
-    CheckoutWeb --> CheckoutApi["/checkout/**"]
+    CheckoutWeb --> CheckoutApi["/checkout/api/**"]
+    CheckoutWeb --> CheckoutConfig["/checkout/config/**"]
 
     AdminApi --> Admin["service-admin"]
     MerchantApi --> Merchant["service-merchant"]
-    CheckoutApi --> Checkout["service-checkout"]
+    CheckoutApi --> OpenAPI["service-openapi"]
+    CheckoutConfig --> Checkout["service-checkout"]
 ```
 
 前端当前状态：
 
 1. `admin-system` 已使用后端菜单动态生成路由，并通过权限码控制路由和按钮。
 2. `merchant-portal` 已使用共享 HTTP 客户端和动态菜单，但业务页面仍以商户系统管理为主。
-3. `hosted-checkout` 当前是独立收银台体验与国家配置读取，尚未接入真实 checkout session 和支付提交。
+3. `hosted-checkout` 当前是独立收银台体验，收银台交易 API 走 `service-openapi`，国家配置读取可继续走 `service-checkout`。
 4. `packages/shared` 是品牌、支付图标、HTTP、通用类型的共享来源。
 
 ## 9. 当前主要架构风险

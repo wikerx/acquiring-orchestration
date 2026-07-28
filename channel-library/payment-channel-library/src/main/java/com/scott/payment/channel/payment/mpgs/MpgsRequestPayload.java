@@ -35,6 +35,11 @@ public class MpgsRequestPayload {
     private SourceOfFunds sourceOfFunds;
 
     /**
+     * MPGS 浏览器返回配置，3DS 回跳 URL 由平台生成的一次性 token 保护。
+     */
+    private BrowserPayment browserPayment;
+
+    /**
      * MPGS 3DS 认证信息，CAVV / authenticationToken 属于认证敏感值，日志必须脱敏。
      */
     private Authentication authentication;
@@ -205,6 +210,26 @@ public class MpgsRequestPayload {
     public static class Authentication {
 
         /**
+         * MPGS 认证交易 ID，PAY/AUTHORIZE 时用于引用已完成的 3DS 认证。
+         */
+        private String transactionId;
+
+        /**
+         * 3DS 协议版本，由网关认证响应返回。
+         */
+        private String version;
+
+        /**
+         * 持卡人交互类型，例如 REQUIRED、NOT_REQUIRED。
+         */
+        private String payerInteraction;
+
+        /**
+         * 认证重定向或 Method HTML。
+         */
+        private Redirect redirect;
+
+        /**
          * 通用 3DS 认证数据。
          */
         private ThreeDs threeDs;
@@ -218,6 +243,29 @@ public class MpgsRequestPayload {
          * 3DS2 兼容字段。
          */
         private ThreeDs2 threeDs2;
+    }
+
+    @Data
+    public static class BrowserPayment {
+
+        /**
+         * 3DS challenge 完成后 MPGS/ACS 回跳到平台收银台的地址。
+         */
+        private String returnUrl;
+    }
+
+    @Data
+    public static class Redirect {
+
+        /**
+         * 需由浏览器渲染的 MPGS 3DS HTML，可能包含自动提交表单。
+         */
+        private String html;
+
+        /**
+         * 跳转 URL，部分 MPGS 响应可能返回该字段。
+         */
+        private String url;
     }
 
     @Data

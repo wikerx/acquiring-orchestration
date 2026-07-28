@@ -71,6 +71,16 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
+     * service-job 调用支付核心补偿接口的路径是固定服务契约，不由 Nacos 或参数表覆盖。
+     */
+    private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
+
+    private static final String MERCHANT_NOTIFICATION_NOTIFY_DUE_PATH =
+            "/internal/payment/transactions/merchant-notifications/notify-due";
+
+    private static final String CHANNEL_MATCH_DUE_PATH = "/internal/payment/transactions/channel-match/match-due";
+
+    /**
      * direct Rest Template，用于定位邮件、通知或渠道参数模板。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -124,7 +134,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public Integer notifyDueMerchantNotifications(PaymentMerchantNotificationNotifyDueClientRequestDTO requestDTO) {
         CommonResult<Integer> result = post(
-                properties.getMerchantNotificationNotifyDueUrl(),
+                servicePaymentUrl(MERCHANT_NOTIFICATION_NOTIFY_DUE_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<Integer>>() {
                 });
@@ -140,7 +150,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public PaymentChannelMatchClientResultDTO matchDueChannelTransactions(PaymentChannelMatchClientRequestDTO requestDTO) {
         CommonResult<PaymentChannelMatchClientResultDTO> result = post(
-                properties.getChannelMatchDueUrl(),
+                servicePaymentUrl(CHANNEL_MATCH_DUE_PATH),
                 requestDTO,
                 new TypeReference<CommonResult<PaymentChannelMatchClientResultDTO>>() {
                 });
@@ -159,6 +169,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             log.warn("service-payment compensation call failed, targetUri: {}", uri, exception);
             throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-payment compensation call failed", exception);
         }
+    }
+
+    private String servicePaymentUrl(String path) {
+        return SERVICE_PAYMENT_BASE_URL + path;
     }
 
     private HttpEntity<String> buildSignedEntity(URI uri, Object body) {

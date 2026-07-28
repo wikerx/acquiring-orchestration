@@ -8,6 +8,7 @@
 | --- | --- | --- | --- |
 | v1.0.0 | 2026-06-03 | scott | 创建商户 OpenAPI 对接文档，包含鉴权、加密、响应解密、ISO 国家地区和币种查询接口 |
 | v1.1.0 | 2026-06-12 | scott | 拆分 ISO 对外 API 控制器，补充响应模型和 HTTP Method 规范 |
+| v1.2.4 | 2026-07-27 | scott | 补充 Hosted Checkout 收银台创建接口、SDK 调用示例和收银台前端地址配置来源 |
 | v1.2.3 | 2026-07-17 | scott | 明确退款最小请求参数、可选币种和商户订单号校验规则，以及退款响应累计金额口径 |
 | v1.2.2 | 2026-07-14 | scott | 补充 MPGS 渠道订单映射、渠道回调终态推进和商户异步通知说明 |
 | v1.2.1 | 2026-07-14 | scott | 明确收单交易订单标识、MPGS 订单号映射和后续动作按本次交易时间分表规则 |
@@ -22,6 +23,7 @@
 | ISO 字典 | 查询国家地区列表 | v1 |
 | ISO 字典 | 查询币种列表 | v1 |
 | 支付 | 一步支付、授权、预授权、增量授权、请款、退款、撤销、查询 | v1 |
+| Hosted Checkout | 创建收银台会话 | v1 |
 | 代付 | 创建代付 | v1 |
 
 后续支付、退款、代付、回调等接口均在本文档上继续追加。
@@ -517,6 +519,7 @@ eyJ0eXAiOiJQQVlNRU5ULVBBWUxPQUQiLCJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NN
 | 发起退款 | POST | `/api/rest/payment/v1/refund` | 对成功支付或已请款交易发起退款 |
 | 发起撤销 | POST | `/api/rest/payment/v1/void` | 撤销未清算、未请款、未退款的授权或支付动作 |
 | 查询交易 | POST | `/api/rest/payment/v1/query` | 按商户订单号查询关联交易动作列表，可选平台交易 ID 精确过滤 |
+| 创建 Hosted Checkout 会话 | POST | `/api/rest/checkout/v1/session` | 创建系统收银台会话，返回付款人可打开的 `checkoutUrl` |
 | 创建代付 | POST | `/api/rest/payout/v1/create` | 创建一笔代付交易 |
 
 ### 10.1 收单交易 V1 接口说明
@@ -749,6 +752,153 @@ eyJ0eXAiOiJQQVlNRU5ULVBBWUxPQUQiLCJhbGciOiJSU0EtT0FFUC0yNTYiLCJlbmMiOiJBMjU2R0NN
 退款响应中，`orderInfo.amount` 和 `billingInfo.labelAmount/transactionAmount` 表示本次退款金额；`orderInfo.totalAuthorizedAmount` 和 `orderInfo.totalCapturedAmount` 表示原支付或授权生命周期的成功金额；`orderInfo.totalRefundAmount` 表示包含本次退款在内的累计退款金额。例如一步支付 102 USD 后退款 22 USD，退款响应应展示 `amount=22`、`totalAuthorizedAmount=102`、`totalCapturedAmount=102`、`totalRefundAmount=22`。
 
 当商户在 `transactionInfo.callbackUrl` 或平台商户配置中登记回调地址时，平台会在交易进入终态后创建商户通知任务并按重试策略推送结果。商户通知只包含商户可见字段和模糊失败原因；渠道真实失败码、收单响应和内部排查信息只在平台后台交易详情、渠道交互日志和渠道回调记录中展示。
+
+### 10.2 Hosted Checkout V1 接口说明
+
+Hosted Checkout 用于商户系统不直接收集卡号、有效期和 CVV 的场景。商户只调用 OpenAPI 创建收银台会话，平台返回 `checkoutUrl`；付款人在平台收银台页面填写银行卡信息并完成 MPGS 卡支付和 3DS 认证。
+
+创建收银台会话仍走商户 OpenAPI 安全链路：`POST`、JWT 鉴权、请求 `data` 解密、参数校验、`jti` 防重放、成功响应 `data` 加密。商户不要直接调用 `service-payment` 的 `/internal/payment/checkout/**` 接口，也不要让付款人浏览器调用商户 OpenAPI。
+
+收银台 URL 由平台拼装，格式为：
+
+```text
+{platform.checkout.frontend-base-url}/checkout/{opaqueToken}/{cover}
+```
+
+其中 `platform.checkout.frontend-base-url` 来源于系统参数设置表 `sys_config.config_key = 'platform.checkout.frontend-base-url'`，不是 Nacos，也不是商户请求参数。`opaqueToken` 唯一绑定一笔收银台会话，数据库只保存 token hash；`cover` 仅用于遮盖真实 token 形态，不参与查询、支付、状态判断或幂等。
+
+接口地址：
+
+```http
+POST /api/rest/checkout/v1/session
+```
+
+明文请求示例：
+
+```json
+{
+  "merchantInfo": {
+    "merchantId": "200045",
+    "subMerchantInfo": {
+      "subId": "SUB001",
+      "subCompanyName": "Scott Demo Store",
+      "subCountryCode": "USA",
+      "merchantCategory": "5311"
+    }
+  },
+  "orderInfo": {
+    "orderNo": "M202607270001",
+    "orderId": "CHECKOUT202607270001",
+    "amount": 49.97,
+    "currency": "USD",
+    "subject": "Hosted Checkout Order",
+    "description": "Order summary for hosted checkout"
+  },
+  "checkoutInfo": {
+    "locale": "en-US",
+    "expireMinutes": 30,
+    "allowedPaymentMethods": [
+      {
+        "paymentMethod": "BANK_CARD",
+        "channelCode": "MPGS",
+        "brands": ["VISA", "MASTERCARD", "AMEX", "JCB"],
+        "threeDsMode": "AUTO"
+      }
+    ],
+    "retryAllowed": true,
+    "maxAttemptCount": 3,
+    "returnUrl": "https://merchant.example.com/payment/result",
+    "cancelUrl": "https://merchant.example.com/cart",
+    "notifyUrl": "https://merchant.example.com/api/payment/notify"
+  },
+  "payerInfo": {
+    "payerId": "CUST10001",
+    "email": "customer@example.com",
+    "country": "USA"
+  }
+}
+```
+
+核心字段说明：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `merchantInfo.merchantId` | M | 平台商户号，必须与 JWT 中的商户号一致 |
+| `orderInfo.orderNo` | M | 商户业务订单号 |
+| `orderInfo.orderId` | M | 商户本次创建收银台请求唯一标识，SDK 使用该字段作为 JWT `jti` |
+| `orderInfo.amount` | M | 订单金额，主币种单位，必须大于 0 |
+| `orderInfo.currency` | M | ISO 4217 三位大写币种 |
+| `checkoutInfo.allowedPaymentMethods` | M | 商户允许的支付方式快照，当前 MPGS 收银台以 `BANK_CARD + MPGS` 为例 |
+| `checkoutInfo.returnUrl` | M | 付款人点击结果页返回商户网站的地址 |
+| `checkoutInfo.cancelUrl` | O | 付款人取消时返回商户网站的地址 |
+| `checkoutInfo.notifyUrl` | O | 商户异步通知地址，终态通知规则与常规支付通知保持一致 |
+| `checkoutInfo.checkoutDomain` | O | 兼容旧字段；平台生成 `checkoutUrl` 时忽略该字段 |
+
+明文响应示例：
+
+```json
+{
+  "merchantInfo": {
+    "merchantId": "200045"
+  },
+  "checkoutInfo": {
+    "checkoutSessionId": "2607271118051230000017",
+    "checkoutUrl": "https://pay.example.com/checkout/7xB5rLQm9kN2sP6vT3wY8zA1cD4eF0hJ/pY4nQ8sT2v",
+    "status": "PAYABLE",
+    "expireTime": "2026-07-27T11:48:05+08:00",
+    "idempotentHit": false
+  },
+  "orderInfo": {
+    "orderNo": "M202607270001",
+    "orderId": "CHECKOUT202607270001",
+    "amount": 49.97,
+    "currency": "USD"
+  }
+}
+```
+
+幂等规则：
+
+1. 首次请求创建 checkout session、token 和安全事件。
+2. 相同 `merchantInfo.merchantId + orderInfo.orderId` 且请求摘要一致时，平台返回同一 `checkoutSessionId` 并重新签发新的 `checkoutUrl`。
+3. 相同幂等键但金额、币种、订单号、允许支付方式、回跳地址等核心字段不一致时，平台返回幂等冲突错误。
+
+Java SDK 调用示例：
+
+```java
+OpenApiClient client = OpenApiClient.create();
+
+HostedCheckoutCreateRequest request = new HostedCheckoutCreateRequest();
+HostedCheckoutCreateRequest.MerchantInfo merchantInfo = new HostedCheckoutCreateRequest.MerchantInfo();
+merchantInfo.setMerchantId("200045");
+request.setMerchantInfo(merchantInfo);
+
+HostedCheckoutCreateRequest.OrderInfo orderInfo = new HostedCheckoutCreateRequest.OrderInfo();
+orderInfo.setOrderNo("M202607270001");
+orderInfo.setOrderId("CHECKOUT202607270001");
+orderInfo.setAmount(new BigDecimal("49.97"));
+orderInfo.setCurrency("USD");
+orderInfo.setSubject("Hosted Checkout Order");
+request.setOrderInfo(orderInfo);
+
+HostedCheckoutCreateRequest.AllowedPaymentMethod method = new HostedCheckoutCreateRequest.AllowedPaymentMethod();
+method.setPaymentMethod("BANK_CARD");
+method.setChannelCode("MPGS");
+method.setBrands(Arrays.asList("VISA", "MASTERCARD", "AMEX", "JCB"));
+method.setThreeDsMode("AUTO");
+
+HostedCheckoutCreateRequest.CheckoutInfo checkoutInfo = new HostedCheckoutCreateRequest.CheckoutInfo();
+checkoutInfo.setAllowedPaymentMethods(Collections.singletonList(method));
+checkoutInfo.setReturnUrl("https://merchant.example.com/payment/result");
+checkoutInfo.setCancelUrl("https://merchant.example.com/cart");
+checkoutInfo.setNotifyUrl("https://merchant.example.com/api/payment/notify");
+request.setCheckoutInfo(checkoutInfo);
+
+OpenApiResult<HostedCheckoutCreateResponse> result = client.createHostedCheckoutSession(request);
+String checkoutUrl = result.getData().getCheckoutInfo().getCheckoutUrl();
+```
+
+说明：当前付款人结果页的“返回商户网站”使用 `returnUrl` 原样跳转；如商户需要浏览器回跳携带结果摘要和签名参数，需要后续单独启用 returnUrl 回跳参数规范。资金最终结果仍以平台交易状态、商户异步通知和查询接口为准。
 
 ## 11. 查询国家地区列表
 

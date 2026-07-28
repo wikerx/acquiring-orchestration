@@ -14,6 +14,7 @@ import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDT
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
+import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.PaymentClientProperties;
 import com.scott.payment.openapi.enums.OpenApiPaymentOperationEnum;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +67,91 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * URL 主机分隔符。
      */
     private static final String DOMAIN_SEPARATOR = ".";
+
+    /**
+     * service-payment 服务发现名称和内部路径属于服务契约，避免放入 Nacos 或业务参数表。
+     */
+    private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
+
+    /**
+     * service-payment 授权内部接口路径，固定随服务版本演进。
+     */
+    private static final String AUTHORIZATION_PATH = "/internal/payment/authorization";
+
+    /**
+     * service-payment 支付内部接口路径，固定随服务版本演进。
+     */
+    private static final String PAYMENT_PATH = "/internal/payment/payment";
+
+    /**
+     * service-payment 预授权内部接口路径，固定随服务版本演进。
+     */
+    private static final String PRE_AUTHORIZATION_PATH = "/internal/payment/pre-authorization";
+
+    /**
+     * service-payment 增量授权内部接口路径，固定随服务版本演进。
+     */
+    private static final String INCREMENTAL_AUTHORIZATION_PATH = "/internal/payment/incremental-authorization";
+
+    /**
+     * service-payment 请款内部接口路径，固定随服务版本演进。
+     */
+    private static final String CAPTURE_PATH = "/internal/payment/capture";
+
+    /**
+     * service-payment 预授权完成内部接口路径，固定随服务版本演进。
+     */
+    private static final String PRE_AUTH_COMPLETION_PATH = "/internal/payment/pre-auth-completion";
+
+    /**
+     * service-payment 退款内部接口路径，固定随服务版本演进。
+     */
+    private static final String REFUND_PATH = "/internal/payment/refund";
+
+    /**
+     * service-payment 撤销内部接口路径，固定随服务版本演进。
+     */
+    private static final String VOID_PATH = "/internal/payment/void";
+
+    /**
+     * service-payment 交易查询内部接口路径，固定随服务版本演进。
+     */
+    private static final String QUERY_PATH = "/internal/payment/query";
+
+    /**
+     * service-payment 渠道回调内部入口，公网回调必须先经过 OpenAPI 安全校验。
+     */
+    private static final String CHANNEL_CALLBACK_PATH = "/internal/payment/channel-callback";
+
+    /**
+     * service-payment 商户响应日志内部入口，只记录脱敏响应摘要。
+     */
+    private static final String MERCHANT_API_RESPONSE_LOG_PATH = "/internal/payment/transactions/merchant-api-logs/response";
+
+    /**
+     * Hosted Checkout 创建会话内部路径。
+     */
+    private static final String CHECKOUT_SESSION_CREATE_PATH = "/internal/payment/checkout/session";
+
+    /**
+     * Hosted Checkout 查询会话内部路径。
+     */
+    private static final String CHECKOUT_SESSION_QUERY_PATH = "/internal/payment/checkout/session/query";
+
+    /**
+     * Hosted Checkout 提交付款内部路径，卡信息只在该调用链中过境。
+     */
+    private static final String CHECKOUT_PAYMENT_SUBMIT_PATH = "/internal/payment/checkout/payment/submit";
+
+    /**
+     * Hosted Checkout 付款状态查询内部路径。
+     */
+    private static final String CHECKOUT_PAYMENT_STATUS_PATH = "/internal/payment/checkout/payment/status";
+
+    /**
+     * Hosted Checkout 3DS bridge 回跳内部路径。
+     */
+    private static final String CHECKOUT_THREE_DS_RETURN_PATH = "/internal/payment/checkout/3ds/return";
 
     /**
      * 直连 RestTemplate，用于 localhost、IP 或完整域名。
@@ -262,7 +348,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
-        String targetUrl = paymentClientProperties.getChannelCallbackUrl();
+        String targetUrl = servicePaymentUrl(CHANNEL_CALLBACK_PATH);
         URI uri = URI.create(targetUrl);
         HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
         log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation=CHANNEL_CALLBACK channelCode: {} transactionId: {} targetService: {} path: {} requestSummary: {}",
@@ -323,7 +409,7 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     @Override
     public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
-        String targetUrl = paymentClientProperties.getMerchantApiResponseLogUrl();
+        String targetUrl = servicePaymentUrl(MERCHANT_API_RESPONSE_LOG_PATH);
         URI uri = URI.create(targetUrl);
         log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation=MERCHANT_API_RESPONSE_LOG transactionId: {} requestId: {} targetService: {} path: {} requestSummary: {}",
                 TraceContext.getTraceId(),
@@ -369,6 +455,66 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
                     exception.getClass().getSimpleName());
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment merchant api log update failed");
         }
+    }
+
+    @Override
+    public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
+            PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
+        return postCheckout(
+                "CHECKOUT_SESSION_CREATE",
+                servicePaymentUrl(CHECKOUT_SESSION_CREATE_PATH),
+                requestDTO,
+                new TypeReference<CommonResult<PaymentCheckoutClientDTOs.SessionCreateResponse>>() {
+                }
+        );
+    }
+
+    @Override
+    public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
+            PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
+        return postCheckout(
+                "CHECKOUT_SESSION_QUERY",
+                servicePaymentUrl(CHECKOUT_SESSION_QUERY_PATH),
+                requestDTO,
+                new TypeReference<CommonResult<PaymentCheckoutClientDTOs.SessionQueryResponse>>() {
+                }
+        );
+    }
+
+    @Override
+    public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
+            PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
+        return postCheckout(
+                "CHECKOUT_PAYMENT_SUBMIT",
+                servicePaymentUrl(CHECKOUT_PAYMENT_SUBMIT_PATH),
+                requestDTO,
+                new TypeReference<CommonResult<PaymentCheckoutClientDTOs.PaymentResultResponse>>() {
+                }
+        );
+    }
+
+    @Override
+    public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
+            PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
+        return postCheckout(
+                "CHECKOUT_PAYMENT_STATUS",
+                servicePaymentUrl(CHECKOUT_PAYMENT_STATUS_PATH),
+                requestDTO,
+                new TypeReference<CommonResult<PaymentCheckoutClientDTOs.PaymentResultResponse>>() {
+                }
+        );
+    }
+
+    @Override
+    public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
+            PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
+        return postCheckout(
+                "CHECKOUT_THREE_DS_RETURN",
+                servicePaymentUrl(CHECKOUT_THREE_DS_RETURN_PATH),
+                requestDTO,
+                new TypeReference<CommonResult<PaymentCheckoutClientDTOs.PaymentResultResponse>>() {
+                }
+        );
     }
 
     /**
@@ -443,6 +589,59 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     }
 
     /**
+     * 调用 Hosted Checkout 内部接口并解包统一响应。
+     *
+     * @param operation  checkout 操作标识
+     * @param targetUrl  service-payment 内部接口地址
+     * @param requestDTO 内部请求
+     * @param typeRef    响应泛型
+     * @param <T>        响应 data 类型
+     * @return 解包后的响应 data
+     */
+    private <T> T postCheckout(String operation, String targetUrl, Object requestDTO,
+                               TypeReference<CommonResult<T>> typeRef) {
+        long startNanos = System.nanoTime();
+        URI uri = URI.create(targetUrl);
+        HttpEntity<String> requestEntity = buildSignedEntity(uri, requestDTO);
+        log.info("event: OPENAPI_PAYMENT_CALL_START stage=PAYMENT_CALL traceId: {} operation: {} targetService: {} path: {} requestSummary: {}",
+                TraceContext.getTraceId(),
+                operation,
+                uri.getHost(),
+                uri.getPath(),
+                requestSummary(requestDTO));
+        try {
+            ResponseEntity<String> responseEntity = chooseRestTemplate(targetUrl).postForEntity(
+                    targetUrl,
+                    requestEntity,
+                    String.class
+            );
+            String responseBody = responseEntity.getBody();
+            CommonResult<T> result = JsonUtils.parseObject(responseBody, typeRef);
+            log.info("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} httpStatus: {} platformCode: {} success: {} responseSummary: {} responseLength: {} responseDigest: {} durationMs: {}",
+                    TraceContext.getTraceId(),
+                    operation,
+                    responseEntity.getStatusCode().value(),
+                    result == null ? null : result.getCode(),
+                    CommonResult.isSuccess(result),
+                    responseSummary(result),
+                    responseBody == null ? 0 : responseBody.length(),
+                    digest16(responseBody),
+                    elapsedMillis(startNanos));
+            return unwrapCheckoutResult(result, operation);
+        } catch (RestClientException exception) {
+            log.warn("event: OPENAPI_PAYMENT_CALL_END stage=PAYMENT_CALL traceId: {} operation: {} targetService: {} path: {} requestDigest: {} durationMs: {} exceptionType: {}",
+                    TraceContext.getTraceId(),
+                    operation,
+                    uri.getHost(),
+                    uri.getPath(),
+                    digest16(SensitiveDataMaskUtils.maskJsonSafely(JsonUtils.toJsonString(requestDTO))),
+                    elapsedMillis(startNanos),
+                    exception.getClass().getSimpleName());
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment checkout call failed");
+        }
+    }
+
+    /**
      * 获取交易动作对应的内部接口地址。
      *
      * @param operation 交易动作
@@ -450,33 +649,40 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private String targetUrl(OpenApiPaymentOperationEnum operation) {
         if (OpenApiPaymentOperationEnum.PAYMENT == operation) {
-            return paymentClientProperties.getPaymentUrl();
+            return servicePaymentUrl(PAYMENT_PATH);
         }
         if (OpenApiPaymentOperationEnum.AUTHORIZATION == operation) {
-            return paymentClientProperties.getAuthorizationUrl();
+            return servicePaymentUrl(AUTHORIZATION_PATH);
         }
         if (OpenApiPaymentOperationEnum.PRE_AUTHORIZATION == operation) {
-            return paymentClientProperties.getPreAuthorizationUrl();
+            return servicePaymentUrl(PRE_AUTHORIZATION_PATH);
         }
         if (OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION == operation) {
-            return paymentClientProperties.getIncrementalAuthorizationUrl();
+            return servicePaymentUrl(INCREMENTAL_AUTHORIZATION_PATH);
         }
         if (OpenApiPaymentOperationEnum.CAPTURE == operation) {
-            return paymentClientProperties.getCaptureUrl();
+            return servicePaymentUrl(CAPTURE_PATH);
         }
         if (OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION == operation) {
-            return paymentClientProperties.getPreAuthCompletionUrl();
+            return servicePaymentUrl(PRE_AUTH_COMPLETION_PATH);
         }
         if (OpenApiPaymentOperationEnum.REFUND == operation) {
-            return paymentClientProperties.getRefundUrl();
+            return servicePaymentUrl(REFUND_PATH);
         }
         if (OpenApiPaymentOperationEnum.VOID == operation) {
-            return paymentClientProperties.getVoidUrl();
+            return servicePaymentUrl(VOID_PATH);
         }
         if (OpenApiPaymentOperationEnum.QUERY == operation) {
-            return paymentClientProperties.getQueryUrl();
+            return servicePaymentUrl(QUERY_PATH);
         }
         throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
+    }
+
+    /**
+     * 拼接 service-payment 服务发现 URL；服务名和内部路径由代码契约维护，不放业务配置表。
+     */
+    private String servicePaymentUrl(String path) {
+        return SERVICE_PAYMENT_BASE_URL + path;
     }
 
     /**
@@ -714,6 +920,27 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
             throw new ApiException(result.getCode(), result.getMessage());
         }
         return Boolean.TRUE.equals(result.getData());
+    }
+
+    /**
+     * 解包 Hosted Checkout 内部服务响应。
+     *
+     * @param result    内部服务统一响应
+     * @param operation checkout 操作标识
+     * @param <T>       响应 data 类型
+     * @return 响应 data
+     */
+    private <T> T unwrapCheckoutResult(CommonResult<T> result, String operation) {
+        if (result == null) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment checkout response is empty");
+        }
+        if (!CommonResult.isSuccess(result)) {
+            throw new ApiException(result.getCode(), result.getMessage());
+        }
+        if (result.getData() == null) {
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, operation + " response data is empty");
+        }
+        return result.getData();
     }
 
     /**

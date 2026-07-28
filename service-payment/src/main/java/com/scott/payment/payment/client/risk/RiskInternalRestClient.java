@@ -63,6 +63,11 @@ public class RiskInternalRestClient implements RiskInternalClient {
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
+     * service-risk 服务名和内部路径是代码级服务契约，不进入 Nacos 或参数设置表。
+     */
+    private static final String SERVICE_RISK_EVALUATE_URL = "http://service-risk/internal/risk/evaluate/payment";
+
+    /**
      * 直连 RestTemplate，用于 localhost、IP 或完整域名。
      */
     private final RestTemplate directRestTemplate;
@@ -101,8 +106,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
     @Override
     public RiskPaymentEvaluateClientResponseDTO evaluatePayment(RiskPaymentEvaluateClientRequestDTO requestDTO) {
         long startNanos = System.nanoTime();
-        String evaluateUrl = riskClientProperties.getEvaluateUrl();
-        URI uri = URI.create(evaluateUrl);
+        URI uri = URI.create(SERVICE_RISK_EVALUATE_URL);
         log.info("event: PAYMENT_RISK_CALL_START stage=RISK_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} currency: {} amount: {} targetService: {} path: {} requestSummary: {}",
                 TraceContext.getTraceId(),
                 requestDTO == null ? null : requestDTO.getMerchantId(),
@@ -115,8 +119,8 @@ public class RiskInternalRestClient implements RiskInternalClient {
                 uri.getPath(),
                 requestSummary(requestDTO));
         try {
-            String responseBody = chooseRestTemplate(evaluateUrl).postForObject(
-                    evaluateUrl,
+            String responseBody = chooseRestTemplate(SERVICE_RISK_EVALUATE_URL).postForObject(
+                    SERVICE_RISK_EVALUATE_URL,
                     buildSignedEntity(uri, requestDTO),
                     String.class
             );

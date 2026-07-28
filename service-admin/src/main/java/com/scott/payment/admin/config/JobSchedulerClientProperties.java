@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : JobSchedulerClientProperties
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台任务调度客户端配置属性
+ * @description : 管理后台任务调度客户端配置属性，仅维护远程调用开关。
  * @status : create
  */
 @Data
@@ -21,48 +21,4 @@ public class JobSchedulerClientProperties {
      */
     private boolean remoteEnabled = true;
 
-    /**
-     * 任务定义分页查询接口地址。
-     */
-    private String taskSearchUrl = "http://service-job/internal/job/tasks/search";
-
-    /**
-     * 任务处理器白名单查询接口地址。
-     */
-    private String handlerListUrl = "http://service-job/internal/job/tasks/handlers";
-
-    /**
-     * 任务创建接口基础地址。
-     */
-    private String taskBaseUrl = "http://service-job/internal/job/tasks";
-
-    /**
-     * 执行日志分页查询接口地址。
-     */
-    private String runLogSearchUrl = "http://service-job/internal/job/logs/search";
-
-    /**
-     * 执行日志列表查询接口地址。
-     */
-    private String runLogListUrl = "http://service-job/internal/job/logs/list";
-
-    /**
-     * 执行日志清空接口地址。
-     */
-    private String runLogCleanUrl = "http://service-job/internal/job/logs/clean";
-
-    /**
-     * 执行节点查询接口地址。
-     */
-    private String nodeListUrl = "http://service-job/internal/job/nodes";
-
-    /**
-     * 分表物理表预创建预演接口地址。
-     */
-    private String shardingTableCreateDryRunUrl = "http://service-job/internal/job/sharding/table-create/dry-run";
-
-    /**
-     * 分表物理表立即创建接口地址。
-     */
-    private String shardingTableCreateExecuteUrl = "http://service-job/internal/job/sharding/table-create/execute";
 }

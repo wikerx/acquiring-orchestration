@@ -60,6 +60,9 @@ public class OpenApiCallbackSecuritySupport {
      */
     public static final String NOTIFY_RETRY_TOKEN_HEADER = "X-Notify-Retry-Token";
 
+    /**
+     * 渠道回调签名算法常量，签名原文和密钥不得写入日志。
+     */
     private static final String HMAC_SHA256 = "HmacSHA256";
 
     private static final Set<String> WORLDPAY_CHANNELS = Set.of("WPGJSON", "WPGXML");

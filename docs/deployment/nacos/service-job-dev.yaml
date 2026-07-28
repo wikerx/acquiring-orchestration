@@ -1,6 +1,5 @@
 # service-job 专属配置：任务服务调用其他业务服务的内部补偿客户端参数。
 job:
   payment-client:
-    merchant-notification-notify-due-url: ${PAYMENT_MERCHANT_NOTIFICATION_NOTIFY_DUE_URL:http://service-payment/internal/payment/transactions/merchant-notifications/notify-due}
     internal-caller: ${PAYMENT_INTERNAL_CALLER:service-job}
     internal-secret: ${PAYMENT_INTERNAL_SECRET:dev-internal-service-secret}

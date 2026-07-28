@@ -15,6 +15,7 @@ import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDT
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
+import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.PaymentClientProperties;
 import com.scott.payment.openapi.converter.OpenApiRequestConverter;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
@@ -662,6 +663,58 @@ class PaymentServiceImplTests {
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
             return true;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
+                PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
+            PaymentCheckoutClientDTOs.SessionCreateResponse responseDTO = new PaymentCheckoutClientDTOs.SessionCreateResponse();
+            responseDTO.setCheckoutSessionId("CS202607140001");
+            responseDTO.setCheckoutTokenId("CT202607140001");
+            responseDTO.setCheckoutUrl("https://pay.example.com/checkout/token/cover");
+            responseDTO.setCheckoutStatus("CREATED");
+            responseDTO.setExpireTime(requestDTO.getExpireTime());
+            responseDTO.setIdempotentHit(false);
+            return responseDTO;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
+                PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
+            PaymentCheckoutClientDTOs.SessionQueryResponse responseDTO = new PaymentCheckoutClientDTOs.SessionQueryResponse();
+            responseDTO.setCheckoutSessionId("CS202607140001");
+            responseDTO.setPageState("PAYABLE");
+            return responseDTO;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
+                PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
+            PaymentCheckoutClientDTOs.PaymentResultResponse responseDTO = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+            responseDTO.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+            responseDTO.setCheckoutAttemptId("CA202607140001");
+            responseDTO.setPageState("PROCESSING");
+            return responseDTO;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
+                PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
+            PaymentCheckoutClientDTOs.PaymentResultResponse responseDTO = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+            responseDTO.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+            responseDTO.setCheckoutAttemptId(requestDTO.getCheckoutAttemptId());
+            responseDTO.setPageState("PROCESSING");
+            return responseDTO;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
+                PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
+            PaymentCheckoutClientDTOs.PaymentResultResponse responseDTO = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+            responseDTO.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+            responseDTO.setCheckoutAttemptId(requestDTO.getCheckoutAttemptId());
+            responseDTO.setPageState("PROCESSING");
+            return responseDTO;
         }
 
         private PaymentCreateClientResponseDTO captureRequest(PaymentCreateClientRequestDTO requestDTO,

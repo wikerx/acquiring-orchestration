@@ -41,6 +41,12 @@ import static com.scott.payment.component.core.model.ApiResult.success;
 @Slf4j
 public class ChannelCallbackController {
 
+    private static final String CHANNEL_CALLBACK_TYPE = "CHANNEL_CALLBACK";
+
+    private static final String MPGS_3DS_CALLBACK_TYPE = "MPGS_3DS_CALLBACK";
+
+    private static final String THREE_DS_EVENT_TYPE = "THREE_DS_CALLBACK";
+
     /**
      * 回调类入口安全校验组件。
      */
@@ -88,7 +94,8 @@ public class ChannelCallbackController {
                 safeLength(SensitiveDataMaskUtils.maskJsonSafely(rawBody), 1200));
         OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
                 callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
-        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, request, rawBody, securityResult));
+        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, CHANNEL_CALLBACK_TYPE,
+                null, request, rawBody, securityResult));
         log.info("event: OPENAPI_CHANNEL_CALLBACK_RECEIVE_END stage=CALLBACK_RECEIVE traceId: {} channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 channelCode,
@@ -98,14 +105,53 @@ public class ChannelCallbackController {
         return success(channelCode + " accepted");
     }
 
+    /**
+     * 接收 MPGS 3DS 专用回调通知。
+     *
+     * @param channelCode 渠道编码
+     * @param request HTTP 请求上下文
+     * @param rawBody MPGS 3DS 回调原文
+     * @return 回调受理结果
+     */
+    @PostMapping("/{channelCode}/3ds")
+    public ApiResult<String> receiveThreeDs(@PathVariable("channelCode") String channelCode,
+                                            HttpServletRequest request,
+                                            @RequestBody(required = false) String rawBody) {
+        long startNanos = System.nanoTime();
+        log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_START stage=CALLBACK_RECEIVE traceId: {} channelCode: {} method: {} path: {} sourceIp: {} headerSummary: {} bodyLength: {} bodyDigest: {} bodySummary: {}",
+                TraceContext.getTraceId(),
+                channelCode,
+                request.getMethod(),
+                request.getRequestURI(),
+                resolveClientIp(request),
+                headers(request),
+                rawBody == null ? 0 : rawBody.length(),
+                digest16(rawBody),
+                safeLength(SensitiveDataMaskUtils.maskJsonSafely(rawBody), 1200));
+        OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult =
+                callbackSecuritySupport.verifyChannelCallback(channelCode, request, rawBody);
+        paymentInternalClient.recordChannelCallback(buildCallbackRequest(channelCode, MPGS_3DS_CALLBACK_TYPE,
+                THREE_DS_EVENT_TYPE, request, rawBody, securityResult));
+        log.info("event: OPENAPI_CHANNEL_3DS_CALLBACK_RECEIVE_END stage=CALLBACK_RECEIVE traceId: {} channelCode: {} signatureValid: {} ipAllowed: {} durationMs: {}",
+                TraceContext.getTraceId(),
+                channelCode,
+                securityResult.signatureValid(),
+                securityResult.ipAllowed(),
+                elapsedMillis(startNanos));
+        return success(channelCode + " 3ds accepted");
+    }
+
     private TransactionChannelCallbackClientRequestDTO buildCallbackRequest(
             String channelCode,
+            String callbackType,
+            String channelEventType,
             HttpServletRequest request,
             String rawBody,
             OpenApiCallbackSecuritySupport.CallbackSecurityResult securityResult) {
         TransactionChannelCallbackClientRequestDTO requestDTO = new TransactionChannelCallbackClientRequestDTO();
         requestDTO.setChannelCode(channelCode);
-        requestDTO.setCallbackType("CHANNEL_CALLBACK");
+        requestDTO.setCallbackType(callbackType);
+        requestDTO.setChannelEventType(channelEventType);
         requestDTO.setRequestUri(request.getRequestURI());
         requestDTO.setHttpMethod(request.getMethod());
         requestDTO.setSourceIp(resolveClientIp(request));

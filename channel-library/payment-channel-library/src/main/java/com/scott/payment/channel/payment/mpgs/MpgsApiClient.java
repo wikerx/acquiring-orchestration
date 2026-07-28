@@ -198,7 +198,17 @@ public class MpgsApiClient {
     );
 
     private static final Pattern MPGS_SECRET_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:authenticationToken|apiPassword)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:authenticationToken|apiPassword|threeDSSessionData|threeDSMethodData|creq|cres|PaRes|MD)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern MPGS_HTML_FIELD_PATTERN = Pattern.compile(
+            "(\"html\"\\s*:\\s*\")((?:\\\\.|[^\"\\\\])*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    private static final Pattern MPGS_SECRET_QUERY_PARAM_PATTERN = Pattern.compile(
+            "((?:threeDsReturnToken|creq|cres|PaRes|MD|threeDSSessionData)(?:%3[Dd]|=))([^&\"'\\\\\\s]+?)(?=(?:&|%26|[\"'\\\\\\s]|$))",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -304,6 +314,53 @@ public class MpgsApiClient {
             Thread.currentThread().interrupt();
             logRequestException(request, httpMethod, operation, url, startNanos, e);
             throw new ChannelRequestException("MPGS request was interrupted", e);
+        }
+    }
+
+    /**
+     * 调用 MPGS INITIATE_AUTHENTICATION，结果仅描述 3DS 认证准备状态。
+     */
+    public MpgsThreeDsAuthenticationResponse initiateAuthentication(MpgsThreeDsAuthenticationRequest request) {
+        return executeAuthentication(request, MpgsApiOperation.INITIATE_AUTHENTICATION);
+    }
+
+    /**
+     * 调用 MPGS AUTHENTICATE_PAYER，可能返回 frictionless 结果或 ACS 质询 HTML。
+     */
+    public MpgsThreeDsAuthenticationResponse authenticatePayer(MpgsThreeDsAuthenticationRequest request) {
+        return executeAuthentication(request, MpgsApiOperation.AUTHENTICATE_PAYER);
+    }
+
+    /**
+     * 执行 MPGS 3DS 认证请求，通道层只返回协议结果，不写平台交易状态。
+     */
+    private MpgsThreeDsAuthenticationResponse executeAuthentication(MpgsThreeDsAuthenticationRequest request,
+                                                                    String apiOperation) {
+        validateProperties(request);
+        long startNanos = System.nanoTime();
+        String url = null;
+        String requestBody = null;
+        try {
+            url = buildAuthenticationUrl(request);
+            MpgsRequestPayload payload = requestMapper.toMpgsThreeDsRequest(request, apiOperation);
+            requestBody = JsonUtils.toJsonString(payload);
+            log.info("MPGS 3DS请求上下文，context: {}", JsonUtils.toJsonString(new ThreeDsRequestLogContext(
+                    HTTP_METHOD_PUT, apiOperation, request.getOperationId(), request.getTransactionId(),
+                    request.getChannelOrderNo(), request.getAuthenticationTransactionId(), request.getMerchantOrderNo()
+            )));
+            log.info("MPGS 3DS请求报文，request: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(requestBody)));
+            HttpResponse<String> response = sendPut(request, url, requestBody);
+            return handleAuthenticationResponse(request, response, apiOperation, url, startNanos);
+        } catch (java.net.http.HttpTimeoutException e) {
+            logThreeDsException(request, apiOperation, url, startNanos, e);
+            throw new ChannelTimeoutException("MPGS 3DS request timed out", e);
+        } catch (IOException e) {
+            logThreeDsException(request, apiOperation, url, startNanos, e);
+            throw new ChannelRequestException("MPGS 3DS network request failed", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logThreeDsException(request, apiOperation, url, startNanos, e);
+            throw new ChannelRequestException("MPGS 3DS request was interrupted", e);
         }
     }
 
@@ -500,6 +557,20 @@ public class MpgsApiClient {
     }
 
     /**
+     * 使用 PUT 调用 MPGS 3DS API，Basic Auth 头只进入 HTTP 请求，不写日志。
+     */
+    private HttpResponse<String> sendPut(MpgsThreeDsAuthenticationRequest request, String url, String requestBody) throws IOException, InterruptedException {
+        HttpRequest httpRequest = HttpRequest.newBuilder(URI.create(url))
+                .timeout(readTimeout(request))
+                .header("Authorization", basicAuthHeader(request))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(requestBody, StandardCharsets.UTF_8))
+                .build();
+        return httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
+    /**
      * 使用 GET 调用 MPGS 交易查询 API。
      *
      * @param url MPGS 查询 URL
@@ -540,12 +611,39 @@ public class MpgsApiClient {
                 + "/transaction/" + encode(request.getChannelTransactionId());
     }
 
+    String buildAuthenticationUrl(MpgsThreeDsAuthenticationRequest request) {
+        requireText(request.getChannelOrderNo(), "MPGS 3DS channelOrderNo is required");
+        requireText(request.getAuthenticationTransactionId(), "MPGS 3DS authenticationTransactionId is required");
+        String configuredBaseUrl = extensionValue(request, EXT_REQUEST_URL, properties.getBaseUrl());
+        String baseUrl = configuredBaseUrl.endsWith("/")
+                ? configuredBaseUrl
+                : configuredBaseUrl + "/";
+        return baseUrl
+                + "version/" + encode(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()))
+                + "/merchant/" + encode(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()))
+                + "/order/" + encode(request.getChannelOrderNo())
+                + "/transaction/" + encode(request.getAuthenticationTransactionId());
+    }
+
     /**
      * 构造 MPGS Basic Auth 请求头。该值不得写入日志。
      *
      * @return Basic Auth 请求头
      */
     private String basicAuthHeader(ChannelPaymentRequest request) {
+        String merchantId = extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId());
+        String username = extensionValue(request, EXT_MPGS_API_USERNAME, properties.getApiUsername());
+        if (!StringUtils.hasText(username)) {
+            username = "merchant." + merchantId;
+        }
+        String raw = username + ":" + mpgsPassword(request);
+        return "Basic " + Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 构造 MPGS 3DS Basic Auth 请求头，该值不得进入日志、异常或审计表。
+     */
+    private String basicAuthHeader(MpgsThreeDsAuthenticationRequest request) {
         String merchantId = extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId());
         String username = extensionValue(request, EXT_MPGS_API_USERNAME, properties.getApiUsername());
         if (!StringUtils.hasText(username)) {
@@ -566,6 +664,116 @@ public class MpgsApiClient {
         requireText(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()), "MPGS version is required");
         requireText(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()), "MPGS merchantId is required");
         requireText(mpgsPassword(request), "MPGS password is required");
+    }
+
+    /**
+     * 校验 MPGS 3DS 通道配置，支持按路由 MID 扩展覆盖默认配置。
+     */
+    private void validateProperties(MpgsThreeDsAuthenticationRequest request) {
+        if (!properties.isEnabled()) {
+            throw new ChannelRequestException("MPGS live channel is disabled");
+        }
+        requireText(extensionValue(request, EXT_REQUEST_URL, properties.getBaseUrl()), "MPGS baseUrl is required");
+        requireText(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()), "MPGS version is required");
+        requireText(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()), "MPGS merchantId is required");
+        requireText(mpgsPassword(request), "MPGS password is required");
+    }
+
+    /**
+     * 解析 MPGS 3DS HTTP 响应，原始响应只保存脱敏文本。
+     */
+    private MpgsThreeDsAuthenticationResponse handleAuthenticationResponse(MpgsThreeDsAuthenticationRequest request,
+                                                                          HttpResponse<String> response,
+                                                                          String apiOperation,
+                                                                          String requestUrl,
+                                                                          long startNanos) {
+        String body = response.body();
+        log.info("MPGS 3DS响应上下文，context: {}", JsonUtils.toJsonString(new ThreeDsResponseLogContext(
+                HTTP_METHOD_PUT, apiOperation, request.getOperationId(), request.getTransactionId(),
+                request.getChannelOrderNo(), request.getAuthenticationTransactionId(), response.statusCode(),
+                elapsedMillis(startNanos)
+        )));
+        log.info("MPGS 3DS响应报文，response: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
+        if (!StringUtils.hasText(body)) {
+            throw new ChannelResponseException("MPGS 3DS response body is empty");
+        }
+        MpgsResponsePayload payload = parseResponseBody(body, response.statusCode());
+        if ((response.statusCode() < 200 || response.statusCode() >= 300) && !hasMpgsResult(payload)) {
+            throw new ChannelResponseException("MPGS 3DS HTTP response is not successful, status: " + response.statusCode());
+        }
+        MpgsThreeDsAuthenticationResponse result = toThreeDsAuthenticationResponse(request, payload);
+        result.setRawResponseMasked(maskMpgsJson(body));
+        result.getExtension().put("httpStatus", String.valueOf(response.statusCode()));
+        result.getExtension().put("httpMethod", HTTP_METHOD_PUT);
+        result.getExtension().put("requestUrlMasked", requestUrl);
+        return result;
+    }
+
+    /**
+     * 将 MPGS authentication 节点映射为平台 3DS 协议结果，保留 CAVV/ECI 给后续授权使用。
+     */
+    private MpgsThreeDsAuthenticationResponse toThreeDsAuthenticationResponse(MpgsThreeDsAuthenticationRequest request,
+                                                                             MpgsResponsePayload payload) {
+        MpgsThreeDsAuthenticationResponse response = new MpgsThreeDsAuthenticationResponse();
+        response.setChannelCode(request.getChannelCode());
+        response.setOperationId(request.getOperationId());
+        response.setTransactionId(request.getTransactionId());
+        response.setChannelOrderNo(request.getChannelOrderNo());
+        response.setAuthenticationTransactionId(request.getAuthenticationTransactionId());
+        response.setResult(payload == null ? null : payload.getResult());
+        MpgsResponsePayload.Response gatewayResponse = payload == null ? null : payload.getResponse();
+        MpgsResponsePayload.Authentication authentication = payload == null ? null : payload.getAuthentication();
+        MpgsResponsePayload.ErrorPayload error = payload == null ? null : payload.getError();
+        response.setGatewayCode(gatewayResponse == null ? null : gatewayResponse.getGatewayCode());
+        response.setGatewayRecommendation(firstText(
+                authentication == null ? null : authentication.getGatewayRecommendation(),
+                gatewayResponse == null ? null : gatewayResponse.getGatewayRecommendation()));
+        response.setAuthenticationStatus(authentication == null ? null : authentication.getStatus());
+        response.setPayerInteraction(authentication == null ? null : authentication.getPayerInteraction());
+        response.setThreeDsVersion(authentication == null ? null : authentication.getVersion());
+        response.setThreeDsTransactionId(authentication == null || authentication.getThreeDs() == null
+                ? null : authentication.getThreeDs().getTransactionId());
+        response.setThreeDsServerTransactionId(authentication == null || authentication.getThreeDs2() == null
+                ? null : authentication.getThreeDs2().getThreeDSServerTransactionId());
+        response.setAcsTransactionId(authentication == null || authentication.getThreeDs2() == null
+                ? null : authentication.getThreeDs2().getAcsTransactionId());
+        response.setDsTransactionId(firstText(
+                authentication == null || authentication.getThreeDs2() == null ? null : authentication.getThreeDs2().getDsTransactionId(),
+                authentication == null || authentication.getThreeDs() == null ? null : authentication.getThreeDs().getTransactionId()));
+        response.setEci(authentication == null || authentication.getThreeDs() == null
+                ? null : authentication.getThreeDs().getAcsEci());
+        response.setCavv(authentication == null || authentication.getThreeDs() == null
+                ? null : authentication.getThreeDs().getAuthenticationToken());
+        response.setRedirectHtml(authentication == null || authentication.getRedirect() == null
+                ? null : authentication.getRedirect().getHtml());
+        response.setRedirectUrl(authentication == null || authentication.getRedirect() == null
+                ? null : authentication.getRedirect().getUrl());
+        response.setResponseCode(firstText(
+                gatewayResponse == null ? null : gatewayResponse.getAcquirerCode(),
+                error == null ? null : error.getCause()));
+        response.setResponseMessage(firstText(
+                gatewayResponse == null ? null : gatewayResponse.getAcquirerMessage(),
+                error == null ? null : error.getExplanation()));
+        put(response, "gatewayCode", response.getGatewayCode());
+        put(response, "gatewayRecommendation", response.getGatewayRecommendation());
+        put(response, "authenticationStatus", response.getAuthenticationStatus());
+        put(response, "payerInteraction", response.getPayerInteraction());
+        put(response, "threeDsVersion", response.getThreeDsVersion());
+        put(response, "threeDsTransactionId", response.getThreeDsTransactionId());
+        put(response, "threeDsServerTransactionId", response.getThreeDsServerTransactionId());
+        put(response, "acsTransactionId", response.getAcsTransactionId());
+        put(response, "dsTransactionId", response.getDsTransactionId());
+        put(response, "eci", response.getEci());
+        return response;
+    }
+
+    /**
+     * 写入非空 3DS 扩展字段，方便上层排查渠道协议差异。
+     */
+    private void put(MpgsThreeDsAuthenticationResponse response, String key, String value) {
+        if (response != null && StringUtils.hasText(value)) {
+            response.getExtension().put(key, value);
+        }
     }
 
     /**
@@ -858,6 +1066,21 @@ public class MpgsApiClient {
     }
 
     /**
+     * 解析 MPGS 3DS 读超时，路由扩展值非法时退回渠道默认配置。
+     */
+    private Duration readTimeout(MpgsThreeDsAuthenticationRequest request) {
+        String configuredSeconds = request == null ? null : request.getExtension().get(EXT_READ_TIMEOUT_SECONDS);
+        if (StringUtils.hasText(configuredSeconds)) {
+            try {
+                return Duration.ofSeconds(Long.parseLong(configuredSeconds));
+            } catch (NumberFormatException ignored) {
+                return Duration.ofMillis(properties.getReadTimeoutMillis());
+            }
+        }
+        return Duration.ofMillis(properties.getReadTimeoutMillis());
+    }
+
+    /**
      * 整理扩展字段值，返回当前业务步骤需要的规范化结果。
      * <p>
      * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
@@ -870,6 +1093,16 @@ public class MpgsApiClient {
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String extensionValue(ChannelPaymentRequest request, String key, String fallback) {
+        if (request != null && request.getExtension() != null && StringUtils.hasText(request.getExtension().get(key))) {
+            return request.getExtension().get(key);
+        }
+        return fallback;
+    }
+
+    /**
+     * 读取 MPGS 3DS 路由扩展配置，优先使用 MID 维度配置，缺失时使用默认值。
+     */
+    private String extensionValue(MpgsThreeDsAuthenticationRequest request, String key, String fallback) {
         if (request != null && request.getExtension() != null && StringUtils.hasText(request.getExtension().get(key))) {
             return request.getExtension().get(key);
         }
@@ -910,6 +1143,36 @@ public class MpgsApiClient {
             return password;
         }
         return extensionValue(request, EXT_MPGS_API_PASSWORD, properties.getApiPassword());
+    }
+
+    /**
+     * 解析 MPGS 3DS MID 密码，兼容 password 和 apiPassword 两种历史键。
+     */
+    private String mpgsPassword(MpgsThreeDsAuthenticationRequest request) {
+        String password = extensionValue(request, EXT_MPGS_PASSWORD, null);
+        if (StringUtils.hasText(password)) {
+            return password;
+        }
+        return extensionValue(request, EXT_MPGS_API_PASSWORD, properties.getApiPassword());
+    }
+
+    /**
+     * 记录 MPGS 3DS 异常上下文，日志只包含交易标识和错误摘要。
+     */
+    private void logThreeDsException(MpgsThreeDsAuthenticationRequest request,
+                                     String operation,
+                                     String url,
+                                     long startNanos,
+                                     Exception exception) {
+        log.warn("MPGS 3DS请求异常，method: {}, operation: {}, url: {}, operationId: {}, transactionId: {}, "
+                        + "channelOrderNo: {}, authenticationTransactionId: {}, merchantOrderNo: {}, durationMillis: {}, errorType: {}, errorMessage: {}",
+                HTTP_METHOD_PUT, operation, url, request == null ? null : request.getOperationId(),
+                request == null ? null : request.getTransactionId(),
+                request == null ? null : request.getChannelOrderNo(),
+                request == null ? null : request.getAuthenticationTransactionId(),
+                request == null ? null : request.getMerchantOrderNo(),
+                elapsedMillis(startNanos), exception.getClass().getSimpleName(),
+                exception.getMessage(), exception);
     }
 
     /**
@@ -1003,7 +1266,9 @@ public class MpgsApiClient {
                         + matchResult.group(4)
                         + matchResult.group(5)
         ));
-        return MPGS_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = MPGS_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = MPGS_SECRET_QUERY_PARAM_PATTERN.matcher(masked).replaceAll("$1***");
+        return MPGS_HTML_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
     }
 
     /**
@@ -1037,6 +1302,25 @@ public class MpgsApiClient {
         } catch (RuntimeException e) {
             return masked;
         }
+    }
+
+    private record ThreeDsRequestLogContext(String httpMethod,
+                                            String operation,
+                                            String operationId,
+                                            String transactionId,
+                                            String channelOrderNo,
+                                            String authenticationTransactionId,
+                                            String merchantOrderNo) {
+    }
+
+    private record ThreeDsResponseLogContext(String httpMethod,
+                                             String operation,
+                                             String operationId,
+                                             String transactionId,
+                                             String channelOrderNo,
+                                             String authenticationTransactionId,
+                                             int httpStatus,
+                                             long durationMillis) {
     }
 
     private record RequestLogContext(String method,

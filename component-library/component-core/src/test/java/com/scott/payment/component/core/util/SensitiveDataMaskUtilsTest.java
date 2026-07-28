@@ -72,6 +72,27 @@ class SensitiveDataMaskUtilsTest {
                 "scott@example.com", "merchant@example.com");
     }
 
+    /**
+     * 渠道回调可能是 form-urlencoded，3DS session data 不得以明文进入日志或回调日志表。
+     */
+    @Test
+    void shouldMaskThreeDsFormPayloadFields() {
+        String formPayload = "threeDSServerTransID=7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8"
+                + "&threeDSSessionData=encrypted-session-data"
+                + "&PaRes=issuer-payer-authentication-response"
+                + "&MD=merchant-data"
+                + "&orderId=TX202607141000000000001";
+
+        String masked = SensitiveDataMaskUtils.maskJson(formPayload);
+
+        assertThat(masked).contains("threeDSServerTransID=7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
+        assertThat(masked).contains("threeDSSessionData=***");
+        assertThat(masked).contains("PaRes=***");
+        assertThat(masked).contains("MD=***");
+        assertThat(masked).contains("orderId=TX202607141000000000001");
+        assertThat(masked).doesNotContain("encrypted-session-data", "issuer-payer-authentication-response", "merchant-data");
+    }
+
     @Test
     void shouldMaskJsonSafelyWithoutLeakingOriginalTextWhenMaskingFails() {
         String rawJson = "{\"cardNo\":\"4111111111111111\",\"securityCode\":\"123\"}";

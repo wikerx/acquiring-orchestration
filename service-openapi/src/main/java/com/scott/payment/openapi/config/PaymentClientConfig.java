@@ -9,7 +9,7 @@ import org.springframework.web.client.RestTemplate;
 
 
 @Configuration
-@EnableConfigurationProperties(PaymentClientProperties.class)
+@EnableConfigurationProperties({PaymentClientProperties.class, HostedCheckoutProperties.class})
 /**
  * @author : scott
  * @version : v1.0.0

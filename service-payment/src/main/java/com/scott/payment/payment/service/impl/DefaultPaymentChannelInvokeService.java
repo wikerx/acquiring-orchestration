@@ -578,6 +578,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             return null;
         }
         ChannelPaymentRequest.ThreeDsInfo target = new ChannelPaymentRequest.ThreeDsInfo();
+        target.setAuthenticationTransactionId(source.getAuthenticationTransactionId());
         target.setEci(source.getEci());
         target.setCavv(source.getCavv());
         target.setDsTransactionId(source.getDsTransactionId());

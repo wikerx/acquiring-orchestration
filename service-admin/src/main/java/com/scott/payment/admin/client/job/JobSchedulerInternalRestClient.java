@@ -77,6 +77,31 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
+     * 管理后台调用调度中心的内部路径是固定服务契约，不通过配置中心覆盖。
+     */
+    private static final String SERVICE_JOB_BASE_URL = "http://service-job";
+
+    private static final String TASK_SEARCH_PATH = "/internal/job/tasks/search";
+
+    private static final String HANDLER_LIST_PATH = "/internal/job/tasks/handlers";
+
+    private static final String TASK_BASE_PATH = "/internal/job/tasks";
+
+    private static final String RUN_LOG_SEARCH_PATH = "/internal/job/logs/search";
+
+    private static final String RUN_LOG_LIST_PATH = "/internal/job/logs/list";
+
+    private static final String RUN_LOG_BASE_PATH = "/internal/job/logs";
+
+    private static final String RUN_LOG_CLEAN_PATH = "/internal/job/logs/clean";
+
+    private static final String NODE_LIST_PATH = "/internal/job/nodes";
+
+    private static final String SHARDING_TABLE_CREATE_DRY_RUN_PATH = "/internal/job/sharding/table-create/dry-run";
+
+    private static final String SHARDING_TABLE_CREATE_EXECUTE_PATH = "/internal/job/sharding/table-create/execute";
+
+    /**
      * direct Rest Template，用于定位邮件、通知或渠道参数模板。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -121,7 +146,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public List<JobHandlerOptionResponse> listHandlers() {
-        String responseBody = doGet(jobSchedulerClientProperties.getHandlerListUrl());
+        String responseBody = doGet(serviceJobUrl(HANDLER_LIST_PATH));
         CommonResult<List<JobHandlerOptionResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<List<JobHandlerOptionResponse>>>() {
@@ -132,7 +157,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public PageResult<JobTaskResponse> pageTasks(JobTaskQueryRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getTaskSearchUrl(), request);
+        String responseBody = doPost(serviceJobUrl(TASK_SEARCH_PATH), request);
         CommonResult<PageResult<JobTaskResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<PageResult<JobTaskResponse>>>() {
@@ -143,7 +168,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public JobTaskResponse createTask(JobTaskRemoteSaveRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getTaskBaseUrl(), request);
+        String responseBody = doPost(serviceJobUrl(TASK_BASE_PATH), request);
         CommonResult<JobTaskResponse> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<JobTaskResponse>>() {
@@ -154,7 +179,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public JobTaskResponse updateTask(Long taskId, JobTaskRemoteSaveRequest request) {
-        String responseBody = doPut(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId, request);
+        String responseBody = doPut(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId, request);
         CommonResult<JobTaskResponse> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<JobTaskResponse>>() {
@@ -165,7 +190,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public JobTaskResponse changeStatus(Long taskId, String status, String operator) {
-        String url = jobSchedulerClientProperties.getTaskBaseUrl()
+        String url = serviceJobUrl(TASK_BASE_PATH)
                 + "/" + taskId
                 + "/status?status=" + encode(status)
                 + "&operator=" + encode(operator);
@@ -180,7 +205,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public String trigger(Long taskId, JobManualTriggerRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId + "/trigger", request);
+        String responseBody = doPost(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId + "/trigger", request);
         CommonResult<String> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<String>>() {
@@ -191,7 +216,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public void deleteTask(Long taskId, String operator) {
-        String responseBody = doDelete(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId + "?operator=" + encode(operator));
+        String responseBody = doDelete(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId + "?operator=" + encode(operator));
         CommonResult<Void> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<Void>>() {
@@ -202,7 +227,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public PageResult<JobRunLogResponse> pageRunLogs(JobRunLogQueryRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getRunLogSearchUrl(), request);
+        String responseBody = doPost(serviceJobUrl(RUN_LOG_SEARCH_PATH), request);
         CommonResult<PageResult<JobRunLogResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<PageResult<JobRunLogResponse>>>() {
@@ -213,7 +238,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public List<JobRunLogResponse> listRunLogs(JobRunLogQueryRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getRunLogListUrl(), request);
+        String responseBody = doPost(serviceJobUrl(RUN_LOG_LIST_PATH), request);
         CommonResult<List<JobRunLogResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<List<JobRunLogResponse>>>() {
@@ -224,7 +249,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public void removeRunLog(Long id) {
-        String responseBody = doDelete(jobSchedulerClientProperties.getTaskBaseUrl().replace("/tasks", "/logs") + "/" + id);
+        String responseBody = doDelete(serviceJobUrl(RUN_LOG_BASE_PATH) + "/" + id);
         CommonResult<Void> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<Void>>() {
@@ -245,7 +270,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      */
     @Override
     public int cleanRunLogs(JobRunLogQueryRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getRunLogCleanUrl(), request);
+        String responseBody = doPost(serviceJobUrl(RUN_LOG_CLEAN_PATH), request);
         CommonResult<Integer> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<Integer>>() {
@@ -256,7 +281,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public List<JobExecutorNodeResponse> listNodes() {
-        String responseBody = doGet(jobSchedulerClientProperties.getNodeListUrl());
+        String responseBody = doGet(serviceJobUrl(NODE_LIST_PATH));
         CommonResult<List<JobExecutorNodeResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<List<JobExecutorNodeResponse>>>() {
@@ -267,7 +292,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public ShardingTablePreCreateResultResponse dryRunShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getShardingTableCreateDryRunUrl(), request);
+        String responseBody = doPost(serviceJobUrl(SHARDING_TABLE_CREATE_DRY_RUN_PATH), request);
         CommonResult<ShardingTablePreCreateResultResponse> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<ShardingTablePreCreateResultResponse>>() {
@@ -278,7 +303,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
 
     @Override
     public ShardingTablePreCreateResultResponse executeShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getShardingTableCreateExecuteUrl(), request);
+        String responseBody = doPost(serviceJobUrl(SHARDING_TABLE_CREATE_EXECUTE_PATH), request);
         CommonResult<ShardingTablePreCreateResultResponse> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<ShardingTablePreCreateResultResponse>>() {
@@ -303,6 +328,10 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
             log.warn("service-job get call failed, targetUri: {}", targetUri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job get call failed");
         }
+    }
+
+    private String serviceJobUrl(String path) {
+        return SERVICE_JOB_BASE_URL + path;
     }
 
     /**

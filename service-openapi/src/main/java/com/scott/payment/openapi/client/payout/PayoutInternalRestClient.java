@@ -53,6 +53,11 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
+     * service-payout 服务名和内部路径是代码级服务契约，不进入 Nacos 或参数设置表。
+     */
+    private static final String SERVICE_PAYOUT_CREATE_URL = "http://service-payout/internal/payout/create";
+
+    /**
      * 直连 RestTemplate。
      */
     private final RestTemplate directRestTemplate;
@@ -91,10 +96,9 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
     @Override
     public PayoutCreateClientResponseDTO createPayout(PayoutCreateClientRequestDTO requestDTO) {
         try {
-            String createUrl = payoutClientProperties.getCreateUrl();
-            String responseBody = chooseRestTemplate(createUrl).postForObject(
-                    createUrl,
-                    buildSignedEntity(URI.create(createUrl), requestDTO),
+            String responseBody = chooseRestTemplate(SERVICE_PAYOUT_CREATE_URL).postForObject(
+                    SERVICE_PAYOUT_CREATE_URL,
+                    buildSignedEntity(URI.create(SERVICE_PAYOUT_CREATE_URL), requestDTO),
                     String.class
             );
             CommonResult<PayoutCreateClientResponseDTO> result = JsonUtils.parseObject(

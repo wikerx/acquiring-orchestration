@@ -3,6 +3,7 @@ package com.scott.payment.channel.payment.mpgs;
 import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
+import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.channel.payment.enums.PaymentChannelCode;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.channel.payment.exception.ChannelRequestException;
@@ -10,6 +11,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * @author : scott
@@ -22,6 +27,12 @@ import java.math.BigDecimal;
  */
 @Component
 public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallbackHandler {
+
+    private static final String THREE_DS_CALLBACK_PATH_SEGMENT = "/3ds";
+
+    private static final String THREE_DS_METHOD_COMPLETED = "3DS_METHOD_COMPLETED";
+
+    private static final String THREE_DS_PAYER_AUTHENTICATION = "3DS_PAYER_AUTHENTICATION";
 
     /**
      * trade Status Mapper，表示当前记录在业务流程中的处理状态。
@@ -78,6 +89,9 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         if (request == null || !StringUtils.hasText(request.getBody())) {
             throw new ChannelRequestException("MPGS callback body can not be empty");
         }
+        if (isThreeDsCallback(request)) {
+            return handleThreeDsCallback(request);
+        }
         MpgsResponsePayload payload = JsonUtils.parseObject(request.getBody(), MpgsResponsePayload.class);
         if (payload == null) {
             throw new ChannelRequestException("MPGS callback body can not be parsed");
@@ -107,12 +121,127 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         return result;
     }
 
+    private ChannelCallbackResult handleThreeDsCallback(ChannelCallbackRequest request) {
+        MpgsResponsePayload payload = parsePayload(request.getBody());
+        Map<String, String> form = isJson(request.getBody()) ? Map.of() : parseForm(request.getBody());
+        String threeDsServerTransactionId = firstText(
+                payload == null ? null : payload.getThreeDSServerTransID(),
+                form.get("threeDSServerTransID"),
+                form.get("threeDSServerTransId"),
+                form.get("threeDsServerTransId"));
+        String orderId = firstText(
+                payload == null ? null : payload.getOrderId(),
+                payload == null || payload.getOrder() == null ? null : payload.getOrder().getId(),
+                form.get("orderId"),
+                form.get("order.id"));
+        String transactionId = firstText(
+                payload == null ? null : payload.getTransactionId(),
+                payload == null || payload.getTransaction() == null ? null : payload.getTransaction().getId(),
+                form.get("transactionId"),
+                form.get("transaction.id"),
+                threeDsServerTransactionId);
+        String gatewayRecommendation = firstText(
+                payload == null || payload.getResponse() == null ? null : payload.getResponse().getGatewayRecommendation(),
+                form.get("response.gatewayRecommendation"),
+                form.get("gatewayRecommendation"));
+        String resultValue = firstText(payload == null ? null : payload.getResult(), form.get("result"));
+        String sessionData = firstText(payload == null ? null : payload.getThreeDSSessionData(), form.get("threeDSSessionData"));
+        boolean methodCompletion = StringUtils.hasText(threeDsServerTransactionId)
+                && !StringUtils.hasText(gatewayRecommendation)
+                && !StringUtils.hasText(resultValue);
+
+        ChannelCallbackResult result = new ChannelCallbackResult();
+        result.setChannelCode(PaymentChannelCode.MPGS.getCode());
+        result.setCallbackEventId(firstText(threeDsServerTransactionId, transactionId, orderId));
+        result.setChannelOrderNo(orderId);
+        result.setChannelTransactionId(transactionId);
+        result.setRawChannelStatus(methodCompletion ? THREE_DS_METHOD_COMPLETED : firstText(gatewayRecommendation, resultValue, THREE_DS_PAYER_AUTHENTICATION));
+        result.setChannelTradeStatus(ChannelTradeStatus.PENDING.getCode());
+        result.setSignatureValid(true);
+        result.setChannelResponseCode(firstText(gatewayRecommendation, methodCompletion ? THREE_DS_METHOD_COMPLETED : resultValue));
+        result.setChannelResponseMessage(methodCompletion
+                ? "3DS method completion callback received"
+                : "3DS payer authentication callback received");
+        put(result, "callbackKind", methodCompletion ? "3DS_METHOD_COMPLETION" : THREE_DS_PAYER_AUTHENTICATION);
+        put(result, "threeDsServerTransactionId", threeDsServerTransactionId);
+        put(result, "gatewayRecommendation", gatewayRecommendation);
+        put(result, "result", resultValue);
+        if (StringUtils.hasText(sessionData)) {
+            put(result, "threeDsSessionData", "present,length=" + sessionData.length());
+        }
+        return result;
+    }
+
+    private boolean isThreeDsCallback(ChannelCallbackRequest request) {
+        String requestUri = request.getRequestUri();
+        if (StringUtils.hasText(requestUri) && requestUri.toLowerCase().contains(THREE_DS_CALLBACK_PATH_SEGMENT)) {
+            return true;
+        }
+        String body = request.getBody();
+        return containsIgnoreCase(body, "threeDSServerTransID")
+                || containsIgnoreCase(body, "threeDSSessionData")
+                || containsIgnoreCase(body, "gatewayRecommendation")
+                || containsIgnoreCase(body, "\"orderId\"")
+                || containsIgnoreCase(body, "orderId=");
+    }
+
+    private MpgsResponsePayload parsePayload(String body) {
+        if (!isJson(body)) {
+            return null;
+        }
+        return JsonUtils.parseObject(body, MpgsResponsePayload.class);
+    }
+
+    private boolean isJson(String body) {
+        return StringUtils.hasText(body) && body.trim().startsWith("{");
+    }
+
+    private Map<String, String> parseForm(String body) {
+        if (!StringUtils.hasText(body)) {
+            return Map.of();
+        }
+        Map<String, String> values = new LinkedHashMap<>();
+        for (String pair : body.split("&")) {
+            if (!StringUtils.hasText(pair)) {
+                continue;
+            }
+            String[] parts = pair.split("=", 2);
+            String key = decode(parts[0]);
+            String value = parts.length > 1 ? decode(parts[1]) : "";
+            if (StringUtils.hasText(key)) {
+                values.put(key, value);
+            }
+        }
+        return values;
+    }
+
+    /**
+     * 解码 MPGS 表单回调字段，空字段按空串处理以保持解析 Map 稳定。
+     */
+    private String decode(String value) {
+        return URLDecoder.decode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    /**
+     * 判断回调文本是否包含指定片段，兼容 MPGS 不同大小写的状态描述。
+     */
+    private boolean containsIgnoreCase(String value, String pattern) {
+        return value != null && pattern != null
+                && value.toLowerCase().contains(pattern.toLowerCase());
+    }
+
+    /**
+     * 提取 MPGS 回调幂等事件号，优先使用 transaction.id，缺失时退到 order.id。
+     */
     private String callbackEventId(MpgsResponsePayload payload) {
         String orderId = payload.getOrder() == null ? null : payload.getOrder().getId();
         String transactionId = payload.getTransaction() == null ? null : payload.getTransaction().getId();
         return firstText(transactionId, orderId);
     }
 
+    /**
+     * 解析渠道响应码，优先取 acquirerCode，缺失时使用统一错误码映射。
+     */
     private String channelResponseCode(MpgsResponsePayload payload) {
         if (payload.getResponse() != null && StringUtils.hasText(payload.getResponse().getAcquirerCode())) {
             return payload.getResponse().getAcquirerCode();

@@ -55,6 +55,25 @@ public class MpgsRequestMapper {
     }
 
     /**
+     * 将平台 3DS 认证请求转换为 MPGS authentication 请求体，不发起网络调用。
+     */
+    public MpgsRequestPayload toMpgsThreeDsRequest(MpgsThreeDsAuthenticationRequest request,
+                                                   String apiOperation) {
+        validateThreeDsRequest(request, apiOperation);
+        MpgsRequestPayload payload = new MpgsRequestPayload();
+        payload.setApiOperation(apiOperation);
+        payload.setOrder(order(request));
+        payload.setSourceOfFunds(sourceOfFunds(request));
+        payload.setAuthentication(authentication(request, apiOperation));
+        if (StringUtils.hasText(request.getRedirectResponseUrl())) {
+            MpgsRequestPayload.BrowserPayment browserPayment = new MpgsRequestPayload.BrowserPayment();
+            browserPayment.setReturnUrl(request.getRedirectResponseUrl());
+            payload.setBrowserPayment(browserPayment);
+        }
+        return payload;
+    }
+
+    /**
      * 校验 MPGS 请求映射所需的公共交易标识。
      * <p>
      * request 不能为空，channelOrderNo 用于 MPGS order 维度识别，channelTransactionId 用于渠道交易维度识别，transactionType 用于选择 apiOperation。
@@ -243,6 +262,7 @@ public class MpgsRequestMapper {
         threeDs.setAuthenticationToken(source.getCavv());
 
         MpgsRequestPayload.Authentication authentication = new MpgsRequestPayload.Authentication();
+        authentication.setTransactionId(source.getAuthenticationTransactionId());
         authentication.setThreeDs(threeDs);
         if ("3DS1".equalsIgnoreCase(source.getThreeDsVersion())) {
             MpgsRequestPayload.ThreeDs1 threeDs1 = new MpgsRequestPayload.ThreeDs1();
@@ -253,6 +273,70 @@ public class MpgsRequestMapper {
             MpgsRequestPayload.ThreeDs2 threeDs2 = new MpgsRequestPayload.ThreeDs2();
             threeDs2.setTransactionStatus("Y");
             authentication.setThreeDs2(threeDs2);
+        }
+        return authentication;
+    }
+
+    /**
+     * 校验 MPGS 3DS 请求必填字段，AUTHENTICATE_PAYER 必须携带平台回跳地址。
+     */
+    private void validateThreeDsRequest(MpgsThreeDsAuthenticationRequest request, String apiOperation) {
+        if (request == null) {
+            throw new ChannelRequestException("MPGS 3DS request is required");
+        }
+        requireText(request.getChannelOrderNo(), "MPGS 3DS channelOrderNo is required");
+        requireText(request.getAuthenticationTransactionId(), "MPGS 3DS authenticationTransactionId is required");
+        requireText(apiOperation, "MPGS 3DS apiOperation is required");
+        requireText(request.getCardNo(), "MPGS card number is required");
+        requireText(request.getExpirationMonth(), "MPGS card expiry month is required");
+        requireText(request.getExpirationYear(), "MPGS card expiry year is required");
+        if (MpgsApiOperation.AUTHENTICATE_PAYER.equals(apiOperation)) {
+            requireText(request.getRedirectResponseUrl(), "MPGS 3DS redirectResponseUrl is required");
+        }
+    }
+
+    /**
+     * 构造 MPGS 3DS order 节点，金额币种与后续支付请求保持一致。
+     */
+    private MpgsRequestPayload.Order order(MpgsThreeDsAuthenticationRequest request) {
+        MpgsRequestPayload.Order order = new MpgsRequestPayload.Order();
+        order.setAmount(amount(request.getAmount()));
+        order.setCurrency(currency(request.getCurrency()));
+        order.setReference(request.getTransactionId());
+        return order;
+    }
+
+    /**
+     * 构造 MPGS 3DS 卡信息节点，PAN/CVV 只进入渠道请求体。
+     */
+    private MpgsRequestPayload.SourceOfFunds sourceOfFunds(MpgsThreeDsAuthenticationRequest request) {
+        MpgsRequestPayload.Expiry expiry = new MpgsRequestPayload.Expiry();
+        expiry.setMonth(normalizeMonth(request.getExpirationMonth()));
+        expiry.setYear(normalizeYear(request.getExpirationYear()));
+
+        MpgsRequestPayload.Card card = new MpgsRequestPayload.Card();
+        card.setNumber(request.getCardNo());
+        card.setExpiry(expiry);
+        card.setSecurityCode(request.getSecurityCode());
+
+        MpgsRequestPayload.Provided provided = new MpgsRequestPayload.Provided();
+        provided.setCard(card);
+
+        MpgsRequestPayload.SourceOfFunds sourceOfFunds = new MpgsRequestPayload.SourceOfFunds();
+        sourceOfFunds.setType(MpgsApiOperation.CARD);
+        sourceOfFunds.setProvided(provided);
+        return sourceOfFunds;
+    }
+
+    /**
+     * 构造 MPGS authentication 节点，AUTHENTICATE_PAYER 阶段显式要求付款人交互。
+     */
+    private MpgsRequestPayload.Authentication authentication(MpgsThreeDsAuthenticationRequest request,
+                                                            String apiOperation) {
+        MpgsRequestPayload.Authentication authentication = new MpgsRequestPayload.Authentication();
+        authentication.setTransactionId(request.getAuthenticationTransactionId());
+        if (MpgsApiOperation.AUTHENTICATE_PAYER.equals(apiOperation)) {
+            authentication.setPayerInteraction("REQUIRED");
         }
         return authentication;
     }

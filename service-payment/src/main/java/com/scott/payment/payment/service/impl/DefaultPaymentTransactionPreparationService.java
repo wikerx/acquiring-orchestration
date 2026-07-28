@@ -269,7 +269,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 idempotencyKey);
         validateExistingInitialFlow(commandDTO);
         String operationId = PaymentOrderNoGenerator.nextOrderNo(OPERATION_ID_PREFIX, commandDTO.getTransactionDateTime());
-        String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
+        String transactionId = StringUtils.hasText(commandDTO.getTransactionId())
+                ? commandDTO.getTransactionId()
+                : PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         commandDTO.setTransactionId(transactionId);
         log.info("event: PAYMENT_IDENTIFIERS_GENERATED stage=IDENTIFIER traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
                 TraceContext.getTraceId(),
@@ -630,8 +632,13 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                                                                   String transactionId) {
         PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
         prepared.setRequestId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_REQUEST_ID_PREFIX, commandDTO.getTransactionDateTime()));
-        prepared.setChannelOrderNo(transactionId);
-        prepared.setChannelTransactionId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_TRANSACTION_ID_PREFIX));
+        PaymentCreateCommandDTO.ChannelIdentityDTO channelIdentity = commandDTO.getChannelIdentity();
+        prepared.setChannelOrderNo(channelIdentity != null && StringUtils.hasText(channelIdentity.getChannelOrderNo())
+                ? channelIdentity.getChannelOrderNo()
+                : transactionId);
+        prepared.setChannelTransactionId(channelIdentity != null && StringUtils.hasText(channelIdentity.getChannelTransactionId())
+                ? channelIdentity.getChannelTransactionId()
+                : PaymentOrderNoGenerator.nextOrderNo(CHANNEL_TRANSACTION_ID_PREFIX));
         return prepared;
     }
 

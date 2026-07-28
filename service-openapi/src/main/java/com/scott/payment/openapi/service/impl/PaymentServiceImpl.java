@@ -84,6 +84,56 @@ public class PaymentServiceImpl implements PaymentService {
     private static final int MAX_LOG_SUMMARY_LENGTH = 1600;
 
     /**
+     * 这里仅用于日志输出目标服务和路径；实际调用契约由 PaymentInternalRestClient 执行。
+     */
+    private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
+
+    /**
+     * service-payment 授权内部接口路径，属于微服务固定契约。
+     */
+    private static final String AUTHORIZATION_PATH = "/internal/payment/authorization";
+
+    /**
+     * service-payment 支付内部接口路径，属于微服务固定契约。
+     */
+    private static final String PAYMENT_PATH = "/internal/payment/payment";
+
+    /**
+     * service-payment 预授权内部接口路径，属于微服务固定契约。
+     */
+    private static final String PRE_AUTHORIZATION_PATH = "/internal/payment/pre-authorization";
+
+    /**
+     * service-payment 增量授权内部接口路径，属于微服务固定契约。
+     */
+    private static final String INCREMENTAL_AUTHORIZATION_PATH = "/internal/payment/incremental-authorization";
+
+    /**
+     * service-payment 请款内部接口路径，属于微服务固定契约。
+     */
+    private static final String CAPTURE_PATH = "/internal/payment/capture";
+
+    /**
+     * service-payment 预授权完成内部接口路径，属于微服务固定契约。
+     */
+    private static final String PRE_AUTH_COMPLETION_PATH = "/internal/payment/pre-auth-completion";
+
+    /**
+     * service-payment 退款内部接口路径，属于微服务固定契约。
+     */
+    private static final String REFUND_PATH = "/internal/payment/refund";
+
+    /**
+     * service-payment 撤销内部接口路径，属于微服务固定契约。
+     */
+    private static final String VOID_PATH = "/internal/payment/void";
+
+    /**
+     * service-payment 交易查询内部接口路径，属于微服务固定契约。
+     */
+    private static final String QUERY_PATH = "/internal/payment/query";
+
+    /**
      * OpenAPI 请求转换器，负责把外部公共请求 DTO 转换成当前接口响应或内部服务对象。
      */
     private final OpenApiRequestConverter converter;
@@ -564,33 +614,40 @@ public class PaymentServiceImpl implements PaymentService {
      */
     private String paymentTargetUrl(OpenApiPaymentOperationEnum operation) {
         if (OpenApiPaymentOperationEnum.PAYMENT == operation) {
-            return paymentClientProperties.getPaymentUrl();
+            return servicePaymentUrl(PAYMENT_PATH);
         }
         if (OpenApiPaymentOperationEnum.AUTHORIZATION == operation) {
-            return paymentClientProperties.getAuthorizationUrl();
+            return servicePaymentUrl(AUTHORIZATION_PATH);
         }
         if (OpenApiPaymentOperationEnum.PRE_AUTHORIZATION == operation) {
-            return paymentClientProperties.getPreAuthorizationUrl();
+            return servicePaymentUrl(PRE_AUTHORIZATION_PATH);
         }
         if (OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION == operation) {
-            return paymentClientProperties.getIncrementalAuthorizationUrl();
+            return servicePaymentUrl(INCREMENTAL_AUTHORIZATION_PATH);
         }
         if (OpenApiPaymentOperationEnum.CAPTURE == operation) {
-            return paymentClientProperties.getCaptureUrl();
+            return servicePaymentUrl(CAPTURE_PATH);
         }
         if (OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION == operation) {
-            return paymentClientProperties.getPreAuthCompletionUrl();
+            return servicePaymentUrl(PRE_AUTH_COMPLETION_PATH);
         }
         if (OpenApiPaymentOperationEnum.REFUND == operation) {
-            return paymentClientProperties.getRefundUrl();
+            return servicePaymentUrl(REFUND_PATH);
         }
         if (OpenApiPaymentOperationEnum.VOID == operation) {
-            return paymentClientProperties.getVoidUrl();
+            return servicePaymentUrl(VOID_PATH);
         }
         if (OpenApiPaymentOperationEnum.QUERY == operation) {
-            return paymentClientProperties.getQueryUrl();
+            return servicePaymentUrl(QUERY_PATH);
         }
         return null;
+    }
+
+    /**
+     * 拼接日志展示用 service-payment URL，真实调用入口仍由内部客户端按服务发现处理。
+     */
+    private String servicePaymentUrl(String path) {
+        return SERVICE_PAYMENT_BASE_URL + path;
     }
 
     /**
