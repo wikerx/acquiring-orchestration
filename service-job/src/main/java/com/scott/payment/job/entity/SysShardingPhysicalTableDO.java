@@ -7,17 +7,17 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+@Data
+@TableName("sys_sharding_physical_table")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysShardingPhysicalTableDO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 系统管理Sys Sharding Physical Table 数据库实体，位于 service-job 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Sys Sharding Physical Table DO 持久化模型，位于 调度任务服务，映射数据库记录字段，承载主键、业务标识、状态、时间和审计信息。
  * @status : create
  */
-@Data
-@TableName("sys_sharding_physical_table")
 public class SysShardingPhysicalTableDO {
 
     /**

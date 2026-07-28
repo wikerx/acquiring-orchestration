@@ -7,6 +7,7 @@ import com.scott.payment.openapi.api.rest.payment.v1.OpenApiCaptureController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiIncrementalAuthorizationController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPaymentQueryController;
+import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPreAuthCompletionController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiPreAuthorizationController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiRefundController;
 import com.scott.payment.openapi.api.rest.payment.v1.OpenApiVoidController;
@@ -15,6 +16,7 @@ import com.scott.payment.openapi.application.payment.OpenApiCaptureApplicationSe
 import com.scott.payment.openapi.application.payment.OpenApiIncrementalAuthorizationApplicationService;
 import com.scott.payment.openapi.application.payment.OpenApiPaymentApplicationService;
 import com.scott.payment.openapi.application.payment.OpenApiPaymentQueryApplicationService;
+import com.scott.payment.openapi.application.payment.OpenApiPreAuthCompletionApplicationService;
 import com.scott.payment.openapi.application.payment.OpenApiPreAuthorizationApplicationService;
 import com.scott.payment.openapi.application.payment.OpenApiRefundApplicationService;
 import com.scott.payment.openapi.application.payment.OpenApiVoidApplicationService;
@@ -49,7 +51,7 @@ class OpenApiPaymentControllerContractTest {
      */
     @Test
     void shouldKeepOneControllerPerOpenApiPaymentEndpoint() throws NoSuchMethodException {
-        log.info("开始校验收单 OpenAPI 控制器契约，caseCount={}", controllerCases().size());
+        log.info("开始校验收单 OpenAPI 控制器契约，caseCount: {}", controllerCases().size());
         for (ControllerCase controllerCase : controllerCases()) {
             Method method = controllerCase.controllerType().getDeclaredMethod(
                     controllerCase.methodName(),
@@ -64,7 +66,7 @@ class OpenApiPaymentControllerContractTest {
             assertOnlyOneEndpointMethod(controllerCase.controllerType());
             assertDedicatedApplicationService(controllerCase);
         }
-        log.info("收单 OpenAPI 控制器契约校验完成，caseCount={}", controllerCases().size());
+        log.info("收单 OpenAPI 控制器契约校验完成，caseCount: {}", controllerCases().size());
     }
 
     /**
@@ -151,6 +153,8 @@ class OpenApiPaymentControllerContractTest {
                         ApiMerchantPaymentRequestDTO.IncrementalAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiCaptureController.class, OpenApiCaptureApplicationService.class, 1, "capture", "/capture",
                         ApiMerchantPaymentRequestDTO.Capture.class, ApiMerchantPaymentRequestDTO.Format.class),
+                new ControllerCase(OpenApiPreAuthCompletionController.class, OpenApiPreAuthCompletionApplicationService.class, 1, "preAuthCompletion", "/pre-auth-completion",
+                        ApiMerchantPaymentRequestDTO.PreAuthCompletion.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiRefundController.class, OpenApiRefundApplicationService.class, 1, "refund", "/refund",
                         ApiMerchantPaymentRequestDTO.Refund.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiVoidController.class, OpenApiVoidApplicationService.class, 1, "voidPayment", "/void",

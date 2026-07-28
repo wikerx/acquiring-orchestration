@@ -59,69 +59,125 @@ import java.util.stream.Collectors;
  * <p>负责后台角色维护、状态切换、菜单授权和权限授权等核心领域规则，
  * 不承担控制器协议适配和页面交互逻辑。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminRoleServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Admin Role Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminRoleServiceImpl implements AdminRoleService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NOT DELETED，用于保存 Admin Role Service Impl 中与 notdeleted 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final long NOT_DELETED = 0L;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ROLE TYPE CUSTOM，用于区分 Admin Role Service Impl 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String ROLE_TYPE_CUSTOM = "CUSTOM";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ROLE TYPE SYSTEM，用于区分 Admin Role Service Impl 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String ROLE_TYPE_SYSTEM = "SYSTEM";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DATA SCOPE ALL，用于保存 Admin Role Service Impl 中与 datascopeall 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String DATA_SCOPE_ALL = "ALL";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DATA SCOPE SELF，用于保存 Admin Role Service Impl 中与 datascopeself 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String DATA_SCOPE_SELF = "SELF";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DATA SCOPE CUSTOM，用于保存 Admin Role Service Impl 中与 datascopecustom 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String DATA_SCOPE_CUSTOM = "CUSTOM";
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys App Mapper 依赖，用于 Admin Role Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysAppMapper sysAppMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Mapper 依赖，用于 Admin Role Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRoleMapper sysRoleMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Menu Mapper 依赖，用于 Admin Role Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRoleMenuMapper sysRoleMenuMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Permission Mapper 依赖，用于 Admin Role Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRolePermissionMapper sysRolePermissionMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Account Role Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysAccountRoleMapper sysAccountRoleMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Menu Mapper 依赖，用于 Admin Role Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMenuMapper sysMenuMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Permission Mapper 依赖，用于 Admin Role Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysPermissionMapper sysPermissionMapper;
 
@@ -158,11 +214,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      * @param request 查询条件
      * @return 角色分页结果
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<SysRoleDTO> pageRoles(SysRoleQueryRequest request) {
@@ -197,11 +248,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      * @param request 新增请求
      * @return 角色详情
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -230,11 +276,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      *
      * @param request 更新请求
      * @return 角色详情
-     */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -268,10 +309,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      *
      * @param request 状态请求
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -287,10 +324,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      * 删除后台角色，并同步逻辑删除菜单授权与权限授权关系。
      *
      * @param roleId 角色主键
-     */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param roleId 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -325,11 +358,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      * @param roleId 角色主键
      * @return 菜单授权信息
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param roleId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public SysRoleMenuAuthDTO roleMenus(Long roleId) {
@@ -353,10 +381,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      * 保存角色菜单授权。
      *
      * @param request 菜单授权请求
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -384,11 +408,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      *
      * @param roleId 角色主键
      * @return 权限授权信息
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param roleId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.SLAVE)
@@ -432,10 +451,6 @@ public class AdminRoleServiceImpl implements AdminRoleService {
      * 保存角色权限授权。
      *
      * @param request 权限授权请求
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -518,6 +533,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return role;
     }
 
+    /**
+     * 统计角色菜单，返回分页、扫描或报表汇总所需的数量结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param roleId role ID 输入值，参与 角色ID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Map<Long, Long> countRoleMenus(Long roleId) {
         return Map.of(roleId, sysRoleMenuMapper.selectCount(
                 Wrappers.<SysRoleMenuDO>lambdaQuery()
@@ -526,6 +551,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         ));
     }
 
+    /**
+     * 统计角色权限，返回分页、扫描或报表汇总所需的数量结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param roleId role ID 输入值，参与 角色ID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Map<Long, Long> countRolePermissions(Long roleId) {
         List<Long> menuIds = sysRoleMenuMapper.selectList(
                         Wrappers.<SysRoleMenuDO>lambdaQuery()
@@ -546,6 +581,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return Map.of(roleId, count == null ? 0L : count);
     }
 
+    /**
+     * 整理有效状态，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Integer validStatus(Integer status) {
         if (status == AuthConstants.ENABLED || status == AuthConstants.DISABLED) {
             return status;
@@ -553,6 +598,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "status is invalid");
     }
 
+    /**
+     * 解析resolvedatascope，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param dataScope data Scope 输入值，参与 datascope 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolveDataScope(String dataScope) {
         if (!StringUtils.hasText(dataScope)) {
             return DATA_SCOPE_SELF;
@@ -564,6 +619,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "data scope is invalid");
     }
 
+    /**
+     * 更新softdelete角色菜单，保持业务状态、配置项或展示字段与请求意图一致。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param roleId role ID 输入值，参与 角色ID 的查询、校验、转换、写入或日志摘要
+     */
     private void softDeleteRoleMenus(Long appId, Long roleId) {
         sysRoleMenuMapper.selectList(
                 Wrappers.<SysRoleMenuDO>lambdaQuery()
@@ -576,6 +641,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         });
     }
 
+    /**
+     * 更新softdelete角色权限，保持业务状态、配置项或展示字段与请求意图一致。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param roleId role ID 输入值，参与 角色ID 的查询、校验、转换、写入或日志摘要
+     */
     private void softDeleteRolePermissions(Long appId, Long roleId) {
         sysRolePermissionMapper.selectList(
                 Wrappers.<SysRolePermissionDO>lambdaQuery()
@@ -588,6 +663,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         });
     }
 
+    /**
+     * 解析normalize，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalize(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -595,6 +680,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return value.trim();
     }
 
+    /**
+     * 统计角色菜单，返回分页、扫描或报表汇总所需的数量结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param page page 输入值，参与 page 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Map<Long, Long> countRoleMenus(Page<SysRoleDO> page) {
         if (page.getRecords().isEmpty()) {
             return Collections.emptyMap();
@@ -606,6 +701,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         ).stream().collect(Collectors.groupingBy(SysRoleMenuDO::getRoleId, Collectors.counting()));
     }
 
+    /**
+     * 统计角色权限，返回分页、扫描或报表汇总所需的数量结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param page page 输入值，参与 page 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Map<Long, Long> countRolePermissions(Page<SysRoleDO> page) {
         if (page.getRecords().isEmpty()) {
             return Collections.emptyMap();
@@ -634,6 +739,19 @@ public class AdminRoleServiceImpl implements AdminRoleService {
                 .collect(Collectors.groupingBy(SysRoleMenuDO::getRoleId, Collectors.counting()));
     }
 
+    /**
+     * 构造dto对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param role role 输入值，参与 角色 的查询、校验、转换、写入或日志摘要
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param menuCountMap menu Count Map 输入值，参与 菜单countmap 的查询、校验、转换、写入或日志摘要
+     * @param permissionCountMap permission Count Map 输入值，参与 权限countmap 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private SysRoleDTO toDTO(SysRoleDO role, Map<Long, Long> menuCountMap, Map<Long, Long> permissionCountMap) {
         SysRoleDTO dto = new SysRoleDTO();
         dto.setRoleId(role.getId());
@@ -651,6 +769,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
+    /**
+     * 查询grantable菜单，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<SysMenuDO> loadGrantableMenus(Long appId) {
         return sysMenuMapper.selectList(
                 Wrappers.<SysMenuDO>lambdaQuery()
@@ -662,6 +790,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         );
     }
 
+    /**
+     * 构造菜单树对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param menus menus 输入值，参与 菜单 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private List<SysMenuDTO> buildMenuTree(List<SysMenuDO> menus) {
         Map<Long, SysMenuDTO> menuMap = new LinkedHashMap<>();
         menus.forEach(menu -> menuMap.put(menu.getId(), toMenuDTO(menu)));
@@ -677,6 +815,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return roots;
     }
 
+    /**
+     * 构造菜单dto对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param menu menu 输入值，参与 菜单 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private SysMenuDTO toMenuDTO(SysMenuDO menu) {
         SysMenuDTO dto = new SysMenuDTO();
         dto.setMenuId(menu.getId());
@@ -697,6 +845,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return dto;
     }
 
+    /**
+     * 解析normalizeID，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param ids 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 构造、转换或解析后的业务值
+     */
     private Set<Long> normalizeIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptySet();
@@ -704,6 +862,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         return ids.stream().filter(id -> id != null && id > 0).collect(Collectors.toSet());
     }
 
+    /**
+     * 校验菜单ID输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param menuIds menu Ids 输入值，参与 菜单ID 的查询、校验、转换、写入或日志摘要
+     */
     private void validateMenuIds(Long appId, Set<Long> menuIds) {
         if (menuIds.isEmpty()) {
             return;
@@ -720,6 +888,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         }
     }
 
+    /**
+     * 校验权限ID输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param permissionIds permission Ids 输入值，参与 权限ID 的查询、校验、转换、写入或日志摘要
+     */
     private void validatePermissionIds(Long appId, Set<Long> permissionIds) {
         if (permissionIds.isEmpty()) {
             return;
@@ -736,6 +914,16 @@ public class AdminRoleServiceImpl implements AdminRoleService {
         }
     }
 
+    /**
+     * 构造权限dto对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param permission permission 输入值，参与 权限 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private SysPermissionDTO toPermissionDTO(SysPermissionDO permission) {
         SysPermissionDTO dto = new SysPermissionDTO();
         dto.setPermissionId(permission.getId());

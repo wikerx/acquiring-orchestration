@@ -97,7 +97,7 @@ class MerchantClientResponseDecryptWithoutDatabaseTests {
 
         Map<String, Object> responseMap = JsonUtils.parseObject(encryptedHttpResponse, new TypeReference<>() {
         });
-        log.info("平台响应解析完成，code={}，message={}，data摘要={}",
+        log.info("平台响应解析完成，code: {}，message: {}，data摘要: {}",
                 responseMap.get("code"),
                 responseMap.get("message"),
                 MerchantOpenApiTestSupport.safeSecretSummary(String.valueOf(responseMap.get("data")), keyMaterialFactory));

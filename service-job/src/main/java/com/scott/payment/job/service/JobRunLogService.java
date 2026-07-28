@@ -18,7 +18,6 @@ import java.util.List;
  * @description : 任务运行日志服务接口
  * @status : create
  */
-
 public interface JobRunLogService {
 
     /**

@@ -4,16 +4,17 @@ import lombok.Data;
 
 import java.io.Serializable;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PageRequest
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : 通用分页请求模型，提供页码与页大小的基础兜底，避免后台查询误触发大结果集。
+ * @description : Page Request 传输模型，位于 公共组件库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
-@Data
 public class PageRequest implements Serializable {
 
     /**

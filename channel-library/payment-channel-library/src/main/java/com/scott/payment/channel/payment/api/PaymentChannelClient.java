@@ -12,6 +12,7 @@ import com.scott.payment.channel.payment.dto.request.ChannelVoidRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.exception.ChannelUnsupportedOperationException;
+import org.springframework.util.StringUtils;
 
 import java.util.Set;
 
@@ -138,6 +139,24 @@ public interface PaymentChannelClient {
      */
     default ChannelPaymentResponse query(ChannelQueryRequest request) {
         throw unsupported(ChannelCapability.QUERY);
+    }
+
+    /**
+     * 判断当前渠道是否支持使用请求中的持久化身份发起查询。
+     * <p>
+     * 默认规则允许渠道实现使用 channelTransactionId、channelOrderNo 或 requestId 执行查询；具体渠道若有更严格的 REST
+     * 身份要求，应在渠道实现内覆盖该方法，避免通用业务服务硬编码渠道差异。
+     *
+     * @param request 渠道查询请求
+     * @return true 表示当前查询引用可被该渠道识别
+     */
+    default boolean supportsQueryReference(ChannelQueryRequest request) {
+        return supports(ChannelCapability.QUERY)
+                && request != null
+                && (StringUtils.hasText(request.getChannelTransactionId())
+                || StringUtils.hasText(request.getChannelOrderNo())
+                || StringUtils.hasText(request.getRequestId())
+                || StringUtils.hasText(request.getExtension().get("requestId")));
     }
 
     /**

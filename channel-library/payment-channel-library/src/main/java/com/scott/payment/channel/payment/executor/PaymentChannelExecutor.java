@@ -28,6 +28,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class PaymentChannelExecutor {
 
+    /**
+     * channel Registry，用于保存 Payment Channel Executor 中与 渠道registry 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final PaymentChannelRegistry channelRegistry;
 
     /**
@@ -79,6 +87,19 @@ public class PaymentChannelExecutor {
         throw new ChannelUnsupportedOperationException(client.channelCode(), transactionType);
     }
 
+    /**
+     * 判断渠道是否支持使用当前查询请求中的持久化身份。
+     *
+     * @param request 渠道查询请求
+     * @return true 表示当前查询引用可被渠道识别
+     */
+    public boolean supportsQueryReference(ChannelPaymentRequest request) {
+        PaymentChannelClient client = channelRegistry.getRequired(request.getChannelCode());
+        ChannelQueryRequest queryRequest = copy(request, new ChannelQueryRequest());
+        queryRequest.setRequestId(request.getExtension() == null ? null : request.getExtension().get("requestId"));
+        return client.supportsQueryReference(queryRequest);
+    }
+
     private <T extends ChannelPaymentRequest> T copy(ChannelPaymentRequest source, T target) {
         target.setChannelCode(source.getChannelCode());
         target.setOperationId(source.getOperationId());
@@ -102,6 +123,9 @@ public class PaymentChannelExecutor {
         target.setBillingInfo(source.getBillingInfo());
         target.setThreeDsInfo(source.getThreeDsInfo());
         target.setExtension(source.getExtension());
+        if (target instanceof ChannelQueryRequest queryRequest) {
+            queryRequest.setRequestId(source.getExtension() == null ? null : source.getExtension().get("requestId"));
+        }
         return target;
     }
 }

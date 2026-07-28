@@ -61,74 +61,138 @@ import java.util.Map;
  * <p>负责商户基础资料维护、商户状态切换以及 OpenAPI 密钥材料初始化与轮换等核心领域规则，
  * 不承担控制器协议适配和权限控制逻辑。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantInfoServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Admin Merchant Info Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MCC LEVEL 1 VALUE PREFIX，用于保存 Admin Merchant Info Service Impl 中与 mcclevel1valueprefix 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String MCC_LEVEL1_VALUE_PREFIX = "L1:";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MCC LEVEL 2 VALUE PREFIX，用于保存 Admin Merchant Info Service Impl 中与 mcclevel2valueprefix 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String MCC_LEVEL2_VALUE_PREFIX = "L2:";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NOT DELETED，用于保存 Admin Merchant Info Service Impl 中与 notdeleted 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int NOT_DELETED = 0;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ENABLED，表示当前配置项或业务能力的启停开关。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int ENABLED = 1;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DISABLED，表示当前配置项或业务能力的启停开关。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int DISABLED = 0;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DEFAULT STATUS，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
      */
     private static final int DEFAULT_STATUS = 1;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DEFAULT RISK LEVEL，用于保存 Admin Merchant Info Service Impl 中与 defaultrisklevel 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int DEFAULT_RISK_LEVEL = 2;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * DEFAULT KEY SIZE，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
      */
     private static final int DEFAULT_KEY_SIZE = 2048;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MERCHANT ID GENERATE MAX ATTEMPTS，用于保存 Admin Merchant Info Service Impl 中与 商户IDgeneratemaxattempts 相关的业务属性。
+     * <p>
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；不允许为空；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int MERCHANT_ID_GENERATE_MAX_ATTEMPTS = 5;
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MERCHANT ID PREFIX，用于保存 Admin Merchant Info Service Impl 中与 商户IDprefix 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String MERCHANT_ID_PREFIX = "M";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * JWT ALGORITHM，用于保存 Admin Merchant Info Service Impl 中与 jwtalgorithm 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String JWT_ALGORITHM = "HS256";
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * PAYLOAD ALGORITHM，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
     /**
      * 商户主体名称和账单描述需要进入渠道侧及卡组织资料，限制为可打印英文字符避免中文导致渠道拒绝。
      */
     private static final String PRINTABLE_ASCII_PATTERN = "^[\\x20-\\x7E]+$";
+    /**
+     * KEY VERSION FORMATTER，用于保存 Admin Merchant Info Service Impl 中与 密钥versionformatter 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final DateTimeFormatter KEY_VERSION_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * merchant Info Mapper 依赖，用于 Admin Merchant Info Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final BaseMerchantInfoMapper merchantInfoMapper;
     /**
@@ -144,19 +208,39 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      */
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * MCC Level 1 Mapper 依赖，用于 Admin Merchant Info Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final BaseMccLevel1Mapper mccLevel1Mapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * MCC Level 2 Mapper 依赖，用于 Admin Merchant Info Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final BaseMccLevel2Mapper mccLevel2Mapper;
     /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     * MCC Code Mapper，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final BaseMccCodeMapper mccCodeMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * ISO Country Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自平台支持国家地区；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final IsoCountryMapper isoCountryMapper;
     /**
@@ -212,10 +296,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @return 商户新增和编辑表单选项
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public AdminMerchantFormOptionsDTO getFormOptions() {
         AdminMerchantFormOptionsDTO result = new AdminMerchantFormOptionsDTO();
@@ -253,11 +333,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param request 查询条件
      * @return 商户分页结果
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PageResult<AdminMerchantInfoDTO> pageMerchants(AdminMerchantQueryRequest request) {
         AdminMerchantQueryRequest query = request == null ? new AdminMerchantQueryRequest() : request;
@@ -284,11 +359,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param id 商户主键
      * @return 商户详情
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public AdminMerchantInfoDTO getMerchant(Long id) {
         return toDTO(requireMerchantById(id));
@@ -299,11 +369,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @param request 保存请求
      * @return 商户详情
-     */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -327,12 +392,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param request 保存请求
      * @return 商户详情
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchant(Long id, AdminMerchantSaveRequest request) {
@@ -354,12 +413,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantStatus 商户状态
      * @return 商户详情
      */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param merchantStatus 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateStatus(Long id, Integer merchantStatus) {
@@ -376,11 +429,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @param merchantId 商户号
      * @return 一次性安全材料
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -408,11 +456,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @param merchantId 商户号
      * @return 密钥集合
-     */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public AdminMerchantKeyBundleDTO getMerchantKeys(String merchantId) {
@@ -445,11 +488,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantId 商户号
      * @return 最新安全材料
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateJwtKey(String merchantId) {
@@ -470,11 +508,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantId 商户号
      * @return 最新安全材料
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotatePlatformPayloadKey(String merchantId) {
@@ -491,11 +524,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      *
      * @param merchantId 商户号
      * @return 最新安全材料
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -515,12 +543,6 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param merchantId 商户号
      * @param request    公钥更新请求
      * @return 商户详情
-     */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -600,6 +622,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return generated;
     }
 
+    /**
+     * 整理rotate响应密钥internal，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private RsaKeyMaterial rotateResponseKeyInternal(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         RsaKeyMaterial generated = keyMaterialFactory.generateMerchantResponseRsaKey(merchantId);
@@ -624,6 +656,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return generated;
     }
 
+    /**
+     * 构造合并对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     */
     private void merge(BaseMerchantInfoDO row, AdminMerchantSaveRequest request) {
         String merchantName = trimRequiredAscii(request.getMerchantName(), "商户名称仅支持英文、数字、空格及常见英文符号");
         String billingDescriptor = trimRequiredAscii(request.getBillingDescriptor(), "账单描述仅支持英文、数字、空格及常见英文符号");
@@ -784,6 +826,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return builder.toString();
     }
 
+    /**
+     * 构造dto对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantInfoDTO toDTO(BaseMerchantInfoDO row) {
         AdminMerchantInfoDTO dto = new AdminMerchantInfoDTO();
         dto.setId(row.getId());
@@ -812,6 +864,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 整理基础material，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param merchant merchant 输入值，参与 商户 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private AdminMerchantSecurityMaterialDTO baseMaterial(BaseMerchantInfoDO merchant) {
         AdminMerchantSecurityMaterialDTO dto = new AdminMerchantSecurityMaterialDTO();
         dto.setMerchantId(merchant.getMerchantId());
@@ -819,6 +881,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 构造jwt汇总对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantKeySummaryDTO toJwtSummary(BaseMerchantJwtKeyDO row) {
         if (row == null) {
             return null;
@@ -836,6 +908,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 构造platform汇总对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantKeySummaryDTO toPlatformSummary(BasePlatformPayloadKeyDO row) {
         if (row == null) {
             return null;
@@ -850,6 +932,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 构造响应汇总对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantKeySummaryDTO toResponseSummary(BaseMerchantResponseKeyDO row) {
         if (row == null) {
             return null;
@@ -864,6 +956,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 构造jwtmaterial对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantKeyMaterialDTO toJwtMaterial(BaseMerchantJwtKeyDO row) {
         AdminMerchantKeyMaterialDTO dto = new AdminMerchantKeyMaterialDTO();
         dto.setKeyType("MERCHANT_JWT");
@@ -883,6 +985,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 构造platformmaterial对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantKeyMaterialDTO toPlatformMaterial(BasePlatformPayloadKeyDO row) {
         AdminMerchantKeyMaterialDTO dto = new AdminMerchantKeyMaterialDTO();
         dto.setKeyType("PLATFORM_REQUEST_PAYLOAD_RSA");
@@ -900,6 +1012,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 构造响应material对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantKeyMaterialDTO toResponseMaterial(BaseMerchantResponseKeyDO row) {
         AdminMerchantKeyMaterialDTO dto = new AdminMerchantKeyMaterialDTO();
         dto.setKeyType("MERCHANT_RESPONSE_PAYLOAD_RSA");
@@ -917,6 +1039,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return dto;
     }
 
+    /**
+     * 校验商户byID输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private BaseMerchantInfoDO requireMerchantById(Long id) {
         BaseMerchantInfoDO row = merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
                 .eq(BaseMerchantInfoDO::getId, id)
@@ -928,6 +1060,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return row;
     }
 
+    /**
+     * 校验商户by商户ID输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private BaseMerchantInfoDO requireMerchantByMerchantId(String merchantId) {
         BaseMerchantInfoDO row = selectMerchantByMerchantId(normalizeMerchantId(merchantId));
         if (row == null) {
@@ -936,6 +1078,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return row;
     }
 
+    /**
+     * 查询商户by商户ID，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private BaseMerchantInfoDO selectMerchantByMerchantId(String merchantId) {
         return merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
                 .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
@@ -943,6 +1095,15 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 创建unique商户ID，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String generateUniqueMerchantId() {
         for (int attempt = 0; attempt < MERCHANT_ID_GENERATE_MAX_ATTEMPTS; attempt++) {
             String merchantId = PaymentOrderNoGenerator.nextOrderNo(MERCHANT_ID_PREFIX);
@@ -953,6 +1114,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "商户号生成失败，请稍后重试");
     }
 
+    /**
+     * 查询activejwt密钥，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private BaseMerchantJwtKeyDO selectActiveJwtKey(String merchantId) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
                 .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
@@ -962,6 +1133,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询platform密钥，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private BasePlatformPayloadKeyDO selectPlatformKey(String merchantId) {
         return platformPayloadKeyMapper.selectOne(Wrappers.<BasePlatformPayloadKeyDO>lambdaQuery()
                 .eq(BasePlatformPayloadKeyDO::getMerchantId, merchantId)
@@ -969,6 +1150,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询response密钥，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private BaseMerchantResponseKeyDO selectResponseKey(String merchantId) {
         return responseKeyMapper.selectOne(Wrappers.<BaseMerchantResponseKeyDO>lambdaQuery()
                 .eq(BaseMerchantResponseKeyDO::getMerchantId, merchantId)
@@ -976,6 +1167,16 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 解析normalize商户ID，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalizeMerchantId(String value) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户号不能为空");
@@ -983,6 +1184,17 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return value.trim();
     }
 
+    /**
+     * 解析normalize基础64，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param errorMessage error Message 输入值，参与 错误说明 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalizeBase64(String value, String errorMessage) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), errorMessage);
@@ -999,18 +1211,60 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         }
     }
 
+    /**
+     * 解析normalizeoptional基础64，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param errorMessage error Message 输入值，参与 错误说明 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalizeOptionalBase64(String value, String errorMessage) {
         return StringUtils.hasText(value) ? normalizeBase64(value, errorMessage) : null;
     }
 
+    /**
+     * 规范化trimupper，返回调用链后续步骤可直接使用的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String trimUpper(String value) {
         return value == null ? null : value.trim().toUpperCase();
     }
 
+    /**
+     * 规范化trimtonull，返回调用链后续步骤可直接使用的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * 规范化trimrequiredascii，返回调用链后续步骤可直接使用的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param errorMessage error Message 输入值，参与 错误说明 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String trimRequiredAscii(String value, String errorMessage) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), errorMessage);
@@ -1022,10 +1276,30 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return trimmed;
     }
 
+    /**
+     * 计算fingerprint摘要，用不可逆指纹关联原始内容而不暴露明文。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String fingerprint(String value) {
         return StringUtils.hasText(value) ? keyMaterialFactory.fingerprint(value) : null;
     }
 
+    /**
+     * 脱敏脱敏，返回可安全写入日志或展示的摘要文本。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String mask(String value) {
         if (!StringUtils.hasText(value)) {
             return "";
@@ -1036,12 +1310,30 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return value.substring(0, 6) + "******" + value.substring(value.length() - 4);
     }
 
+    /**
+     * 校验状态输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     */
     private void validateStatus(Integer status) {
         if (status == null || status < 1 || status > 3) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户状态必须为1正常、2冻结或3关闭");
         }
     }
 
+    /**
+     * 校验风控level输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param riskLevel risk Level 输入值，参与 风控level 的查询、校验、转换、写入或日志摘要
+     */
     private void validateRiskLevel(Integer riskLevel) {
         if (riskLevel == null || riskLevel < 1 || riskLevel > 3) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风险等级必须为1低、2中或3高");

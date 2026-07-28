@@ -15,9 +15,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author : scott
  * @version : v1.0.0
  * @classname : LocalGlobalIdGeneratorTests
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 收单支付Local Global Id Generator Tests，位于 component-library/component-core 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Local Global ID Generator Tests 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class LocalGlobalIdGeneratorTests {
@@ -48,13 +48,7 @@ class LocalGlobalIdGeneratorTests {
     @Test
     void nextIdShouldNotDuplicateWhenCalledConcurrently() throws InterruptedException {
         LocalGlobalIdGenerator generator = new LocalGlobalIdGenerator();
-        /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-         */
         int threadCount = 20;
-        /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-         */
         int perThreadCount = 5_000;
         Set<String> ids = ConcurrentHashMap.newKeySet();
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);

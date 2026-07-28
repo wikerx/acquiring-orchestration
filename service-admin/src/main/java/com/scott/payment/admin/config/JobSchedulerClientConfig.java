@@ -1,5 +1,7 @@
 package com.scott.payment.admin.config;
 
+import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
+import com.scott.payment.component.web.trace.TraceIdRestTemplateInterceptor;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
@@ -17,15 +19,6 @@ import java.net.Proxy;
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
  * @description : 管理后台任务调度客户端配置类
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerClientConfig
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Scheduler Client 配置，位于 service-admin 的配置层，用于承载该模块对应的业务职责和数据流转边界。
  * @status : create
  */
 @Configuration
@@ -47,17 +40,13 @@ public class JobSchedulerClientConfig {
      *
      * @return 直连 RestTemplate
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Bean("jobSchedulerRestTemplate")
-    public RestTemplate jobSchedulerRestTemplate() {
+    public RestTemplate jobSchedulerRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setProxy(Proxy.NO_PROXY);
         requestFactory.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
         requestFactory.setReadTimeout(READ_TIMEOUT_MILLIS);
-        return new RestTemplate(requestFactory);
+        return traceIdRestTemplateCustomizer.customize(new RestTemplate(requestFactory));
     }
 
     /**
@@ -65,17 +54,14 @@ public class JobSchedulerClientConfig {
      *
      * @return 负载均衡 RestTemplate
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param restTemplateBuilder 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Bean("jobSchedulerLoadBalancedRestTemplate")
     @LoadBalanced
-    public RestTemplate jobSchedulerLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder) {
+    public RestTemplate jobSchedulerLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder,
+                                                             TraceIdRestTemplateInterceptor traceIdRestTemplateInterceptor) {
         return restTemplateBuilder
                 .setConnectTimeout(java.time.Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
                 .setReadTimeout(java.time.Duration.ofMillis(READ_TIMEOUT_MILLIS))
+                .additionalInterceptors(traceIdRestTemplateInterceptor)
                 .build();
     }
 }

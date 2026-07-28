@@ -2,6 +2,7 @@ package com.scott.payment.job.executor;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.job.enums.JobExecuteModeEnum;
 import com.scott.payment.component.job.enums.JobRunStatusEnum;
 import com.scott.payment.component.job.enums.JobSchedulerModeEnum;
@@ -20,6 +21,7 @@ import com.scott.payment.job.service.JobTaskTimingService;
 import com.scott.payment.job.support.JobNodeContext;
 import com.scott.payment.job.support.JobParameterMasker;
 import com.scott.payment.job.support.TraceIdSupport;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * @author : scott
@@ -41,53 +44,90 @@ import java.util.concurrent.TimeoutException;
  * @description : 调度中心任务分发编排服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobDispatchService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Dispatch 服务契约，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
+@Slf4j
 @Service
 public class JobDispatchService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * LOCK BUFFER SECONDS，用于保存 Job Dispatch Service 中与 lockbufferseconds 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int LOCK_BUFFER_SECONDS = 30;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Task Service 依赖，用于 Job Dispatch Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobTaskService jobTaskService;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Run Log Service 依赖，用于 Job Dispatch Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobRunLogService jobRunLogService;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Task Timing Service 依赖，用于 Job Dispatch Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobTaskTimingService jobTaskTimingService;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Handler Registry，用于保存 Job Dispatch Service 中与 jobhandlerregistry 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobHandlerRegistry jobHandlerRegistry;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Future Registry，用于保存 Job Dispatch Service 中与 jobfutureregistry 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobFutureRegistry jobFutureRegistry;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Task Executor，用于保存 Job Dispatch Service 中与 jobtaskexecutor 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ThreadPoolTaskExecutor jobTaskExecutor;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Delay Task Scheduler，用于保存 Job Dispatch Service 中与 jobdelaytaskscheduler 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ThreadPoolTaskScheduler jobDelayTaskScheduler;
     /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     * job Node Context，用于保存 Job Dispatch Service 中与 jobnodecontext 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobNodeContext jobNodeContext;
 
@@ -126,12 +166,8 @@ public class JobDispatchService {
      *
      * @param task 到期任务
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param task 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     public void triggerScheduled(SysJobTaskDO task) {
-        dispatch(task, JobTriggerTypeEnum.SCHEDULE, task.getParams(), null, null, 0);
+        dispatch(task, JobTriggerTypeEnum.SCHEDULE, task.getParams(), null, null, 0, null);
     }
 
     /**
@@ -141,28 +177,18 @@ public class JobDispatchService {
      * @param request 手动执行请求
      * @return 首次执行生成的 runId
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String triggerManual(Long taskId, JobManualTriggerRequest request) {
         SysJobTaskDO task = jobTaskService.getRequiredTask(taskId);
         String paramsJson = request.getParamsJson() == null || request.getParamsJson().isBlank()
                 ? task.getParams()
                 : request.getParamsJson();
-        return dispatch(task, JobTriggerTypeEnum.MANUAL, paramsJson, request.getOperatorId(), request.getOperatorName(), 0);
+        return dispatch(task, JobTriggerTypeEnum.MANUAL, paramsJson, request.getOperatorId(), request.getOperatorName(), 0, null);
     }
 
     /**
      * 标记超时执行。
      *
      * @param runLog 超时执行日志
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param runLog 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void markTimeout(SysJobRunLogDO runLog) {
         jobFutureRegistry.cancel(runLog.getRunId());
@@ -181,6 +207,7 @@ public class JobDispatchService {
      * @param operatorId   操作人 ID
      * @param operatorName 操作人名称
      * @param retryIndex   当前重试序号
+     * @param traceId      重试链路沿用的 traceId，首次执行为空时生成新值
      * @return 执行批次号
      */
     private String dispatch(SysJobTaskDO task,
@@ -188,12 +215,13 @@ public class JobDispatchService {
                             String paramsJson,
                             String operatorId,
                             String operatorName,
-                            int retryIndex) {
+                            int retryIndex,
+                            String traceId) {
         JobHandlerDescriptor descriptor = jobHandlerRegistry.getRequiredDescriptor(task.getHandlerCode());
         if (triggerType == JobTriggerTypeEnum.MANUAL && Boolean.FALSE.equals(descriptor.getAllowManualTrigger())) {
             throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "job handler does not allow manual trigger");
         }
-        JobExecuteContext context = buildContext(task, triggerType, paramsJson, operatorId, operatorName, retryIndex);
+        JobExecuteContext context = buildContext(task, triggerType, paramsJson, operatorId, operatorName, retryIndex, traceId);
         LocalDateTime triggerTime = context.getActualTriggerTime();
         jobTaskService.extendLock(task.getId(), jobNodeContext.nodeId(), calculateLockUntil(task, triggerTime));
         if (triggerType == JobTriggerTypeEnum.SCHEDULE) {
@@ -201,6 +229,7 @@ public class JobDispatchService {
         }
         SysJobRunLogDO runLog = jobRunLogService.createWaitingLog(task, context, JobParameterMasker.mask(paramsJson));
         jobRunLogService.markRunning(runLog.getId());
+        logJobStart(context);
         JobHandler handler = jobHandlerRegistry.getRequiredHandler(task.getHandlerCode());
         AsyncJobHandler asyncJobHandler = handler instanceof AsyncJobHandler
                 ? (AsyncJobHandler) handler
@@ -241,6 +270,7 @@ public class JobDispatchService {
         } catch (TimeoutException exception) {
             future.cancel(true);
             markTimeout(runLog);
+            logJobEnd(context, Duration.between(start, Instant.now()).toMillis(), JobRunStatusEnum.TIMEOUT.name(), exception.getMessage());
         } catch (Exception exception) {
             JobExecuteResult result = JobExecuteResult.failed(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), exception.getMessage());
             finishSuccessOrFailure(task, runLog, context, result, start);
@@ -262,30 +292,29 @@ public class JobDispatchService {
                               SysJobRunLogDO runLog,
                               AsyncJobHandler handler) {
         Instant start = Instant.now();
-        /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-         */
         CompletableFuture<JobExecuteResult> future;
         try {
-            future = handler.executeAsync(context);
+            future = callWithTrace(context, () -> handler.executeAsync(context));
         } catch (Exception exception) {
             future = CompletableFuture.failedFuture(exception);
         }
         jobFutureRegistry.register(context.getRunId(), future);
         future.whenComplete((result, throwable) -> {
-            try {
-                if (throwable != null) {
-                    JobExecuteResult failedResult = JobExecuteResult.failed(
-                            ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
-                            throwable.getMessage()
-                    );
-                    finishSuccessOrFailure(task, runLog, context, failedResult, start);
-                    return;
+            runWithTrace(context, () -> {
+                try {
+                    if (throwable != null) {
+                        JobExecuteResult failedResult = JobExecuteResult.failed(
+                                ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                                throwable.getMessage()
+                        );
+                        finishSuccessOrFailure(task, runLog, context, failedResult, start);
+                        return;
+                    }
+                    finishSuccessOrFailure(task, runLog, context, result, start);
+                } finally {
+                    jobFutureRegistry.unregister(context.getRunId());
                 }
-                finishSuccessOrFailure(task, runLog, context, result, start);
-            } finally {
-                jobFutureRegistry.unregister(context.getRunId());
-            }
+            });
         });
     }
 
@@ -305,11 +334,13 @@ public class JobDispatchService {
                                         Instant start) {
         long durationMs = Duration.between(start, Instant.now()).toMillis();
         if (result != null && result.isAccepted()) {
+            logJobEnd(context, durationMs, "ACCEPTED", null);
             return;
         }
         if (result != null && result.isSuccess()) {
             jobRunLogService.finishAsSuccess(runLog.getId(), durationMs, result.getMessage());
             jobTaskService.finishTaskRun(task.getId(), JobRunStatusEnum.SUCCESS);
+            logJobEnd(context, durationMs, JobRunStatusEnum.SUCCESS.name(), null);
             return;
         }
         String failureMessage = result == null ? "job execute result is null"
@@ -317,9 +348,11 @@ public class JobDispatchService {
         jobRunLogService.finishAsFailed(runLog.getId(), durationMs, failureMessage);
         if (context.getRetryIndex() < task.getRetryCount()) {
             scheduleRetry(task, context, context.getRetryIndex() + 1);
+            logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
             return;
         }
         jobTaskService.finishTaskRun(task.getId(), JobRunStatusEnum.FAILED);
+        logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
     }
 
     /**
@@ -333,8 +366,17 @@ public class JobDispatchService {
      */
     private void scheduleRetry(SysJobTaskDO task, JobExecuteContext context, int retryIndex) {
         jobTaskService.extendLock(task.getId(), jobNodeContext.nodeId(), calculateLockUntil(task, LocalDateTime.now()));
+        runWithTrace(context, () -> log.info("event: JOB_RETRY_SCHEDULED traceId: {} jobId: {} handler: {} runId: {} retryIndex: {} nextRetryIndex: {} shardIndex: {} shardTotal: {}",
+                context.getTraceId(),
+                context.getJobId(),
+                context.getHandlerCode(),
+                context.getRunId(),
+                context.getRetryIndex(),
+                retryIndex,
+                context.getShardIndex(),
+                context.getShardTotal()));
         jobDelayTaskScheduler.schedule(
-                () -> dispatch(task, JobTriggerTypeEnum.RETRY, context.getParamsJson(), context.getOperatorId(), context.getOperatorName(), retryIndex),
+                () -> dispatch(task, JobTriggerTypeEnum.RETRY, context.getParamsJson(), context.getOperatorId(), context.getOperatorName(), retryIndex, context.getTraceId()),
                 Instant.now().plusSeconds(task.getRetryIntervalSeconds())
         );
     }
@@ -348,6 +390,7 @@ public class JobDispatchService {
      * @param operatorId   操作人 ID
      * @param operatorName 操作人名称
      * @param retryIndex   重试序号
+     * @param traceId      重试链路沿用的 traceId，首次执行为空时生成新值
      * @return 执行上下文
      */
     private JobExecuteContext buildContext(SysJobTaskDO task,
@@ -355,7 +398,8 @@ public class JobDispatchService {
                                            String paramsJson,
                                            String operatorId,
                                            String operatorName,
-                                           int retryIndex) {
+                                           int retryIndex,
+                                           String traceId) {
         JobExecuteContext context = new JobExecuteContext();
         context.setJobId(task.getId());
         context.setJobCode(task.getJobCode());
@@ -370,11 +414,84 @@ public class JobDispatchService {
         context.setActualTriggerTime(LocalDateTime.now());
         context.setRetryIndex(retryIndex);
         context.setMaxRetryCount(task.getRetryCount());
+        context.setShardIndex(0);
+        context.setShardTotal(1);
         context.setOperatorId(operatorId);
         context.setOperatorName(operatorName);
         context.setExecutorNode(jobNodeContext.nodeId());
-        context.setTraceId(TraceIdSupport.newTraceId());
+        context.setTraceId(traceId == null || traceId.isBlank() ? TraceIdSupport.newTraceId() : traceId);
         return context;
+    }
+
+    /**
+     * 记录调度任务执行开始事件。
+     *
+     * @param context 任务执行上下文
+     */
+    private void logJobStart(JobExecuteContext context) {
+        runWithTrace(context, () -> log.info("event: JOB_EXECUTE_START traceId: {} jobId: {} handler: {} runId: {} triggerType: {} retryIndex: {} shardIndex: {} shardTotal: {}",
+                context.getTraceId(),
+                context.getJobId(),
+                context.getHandlerCode(),
+                context.getRunId(),
+                context.getTriggerType(),
+                context.getRetryIndex(),
+                context.getShardIndex(),
+                context.getShardTotal()));
+    }
+
+    /**
+     * 记录调度任务执行结束事件。
+     *
+     * @param context        任务执行上下文
+     * @param durationMs     执行耗时，单位毫秒
+     * @param status         执行状态
+     * @param failureMessage 失败原因摘要
+     */
+    private void logJobEnd(JobExecuteContext context, long durationMs, String status, String failureMessage) {
+        runWithTrace(context, () -> log.info("event: JOB_EXECUTE_END traceId: {} jobId: {} handler: {} runId: {} status: {} retryIndex: {} shardIndex: {} shardTotal: {} durationMs: {} failureMessage: {}",
+                context.getTraceId(),
+                context.getJobId(),
+                context.getHandlerCode(),
+                context.getRunId(),
+                status,
+                context.getRetryIndex(),
+                context.getShardIndex(),
+                context.getShardTotal(),
+                durationMs,
+                failureMessage));
+    }
+
+    /**
+     * 在当前线程临时绑定任务 traceId 并执行逻辑，执行完成后恢复原 traceId。
+     *
+     * @param context 任务执行上下文
+     * @param action  需要记录任务链路的逻辑
+     */
+    private void runWithTrace(JobExecuteContext context, Runnable action) {
+        callWithTrace(context, () -> {
+            action.run();
+            return null;
+        });
+    }
+
+    /**
+     * 在当前线程临时绑定任务 traceId 并返回调用结果，执行完成后恢复原 traceId。
+     *
+     * @param context  任务执行上下文
+     * @param supplier 需要记录任务链路的逻辑
+     * @param <T>      返回值类型
+     * @return 调用结果
+     */
+    private <T> T callWithTrace(JobExecuteContext context, Supplier<T> supplier) {
+        String previousTraceId = TraceContext.getTraceId();
+        TraceIdSupport.bindTraceId(context.getTraceId());
+        try {
+            return supplier.get();
+        } finally {
+            TraceIdSupport.clear();
+            TraceIdSupport.bindTraceId(previousTraceId);
+        }
     }
 
     /**

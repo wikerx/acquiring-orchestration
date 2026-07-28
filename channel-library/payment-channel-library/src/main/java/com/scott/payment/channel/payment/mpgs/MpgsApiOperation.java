@@ -47,6 +47,16 @@ public final class MpgsApiOperation {
     public static final String RETRIEVE = "RETRIEVE";
 
     /**
+     * MPGS 3DS 认证初始化操作。
+     */
+    public static final String INITIATE_AUTHENTICATION = "INITIATE_AUTHENTICATION";
+
+    /**
+     * MPGS 3DS 持卡人认证操作。
+     */
+    public static final String AUTHENTICATE_PAYER = "AUTHENTICATE_PAYER";
+
+    /**
      * MPGS 卡支付资金来源类型。
      */
     public static final String CARD = "CARD";

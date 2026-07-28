@@ -76,7 +76,8 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
             validatePositiveAmount(requestAmount, nextTransactionType);
             return;
         }
-        if (PaymentTransactionTypeEnum.CAPTURE == nextTransactionType) {
+        if (PaymentTransactionTypeEnum.CAPTURE == nextTransactionType
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION == nextTransactionType) {
             validateType(sourceOrderDO, CAPTURE_SOURCE_TYPES, nextTransactionType);
             validateCurrency(sourceOrderDO, requestCurrency, nextTransactionType);
             validateAvailableAmount(requestAmount, sourceOrderDO.getAvailableCaptureAmount(), nextTransactionType);
@@ -117,12 +118,33 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+    /**
+     * 校验positive金额输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param requestAmount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @param nextTransactionType next Transaction Type 输入值，参与 next交易type 的查询、校验、转换、写入或日志摘要
+     */
     private void validatePositiveAmount(BigDecimal requestAmount, PaymentTransactionTypeEnum nextTransactionType) {
         if (requestAmount == null || requestAmount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), nextTransactionType.getCode() + " amount must be greater than zero");
         }
     }
 
+/**
+ * 校验币种输入，发现缺失、越权或格式错误时中断当前流程。
+ * <p>
+ * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+ * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+ * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+ * </p>
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param requestCurrency 币种代码，格式为 ISO 4217 三位大写字母
+ * @param nextTransactionType next Transaction Type 输入值，参与 next交易type 的查询、校验、转换、写入或日志摘要
+ */
     private void validateCurrency(TransactionOrderDO sourceOrderDO,
                                   String requestCurrency,
                                   PaymentTransactionTypeEnum nextTransactionType) {
@@ -134,6 +156,17 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+/**
+ * 校验optional币种输入，发现缺失、越权或格式错误时中断当前流程。
+ * <p>
+ * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+ * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+ * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+ * </p>
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param requestCurrency 币种代码，格式为 ISO 4217 三位大写字母
+ * @param nextTransactionType next Transaction Type 输入值，参与 next交易type 的查询、校验、转换、写入或日志摘要
+ */
     private void validateOptionalCurrency(TransactionOrderDO sourceOrderDO,
                                           String requestCurrency,
                                           PaymentTransactionTypeEnum nextTransactionType) {
@@ -145,6 +178,17 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+/**
+ * 校验available金额输入，发现缺失、越权或格式错误时中断当前流程。
+ * <p>
+ * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+ * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+ * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+ * </p>
+ * @param requestAmount 金额值，单位必须结合 currency 或同名币种字段解释
+ * @param availableAmount 金额值，单位必须结合 currency 或同名币种字段解释
+ * @param nextTransactionType next Transaction Type 输入值，参与 next交易type 的查询、校验、转换、写入或日志摘要
+ */
     private void validateAvailableAmount(BigDecimal requestAmount,
                                          BigDecimal availableAmount,
                                          PaymentTransactionTypeEnum nextTransactionType) {
@@ -155,6 +199,15 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+    /**
+     * 校验void金额输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     */
     private void validateVoidAmount(TransactionOrderDO sourceOrderDO) {
         BigDecimal capturedAmount = sourceOrderDO.getCapturedAmount() == null ? BigDecimal.ZERO : sourceOrderDO.getCapturedAmount();
         BigDecimal refundedAmount = sourceOrderDO.getRefundedAmount() == null ? BigDecimal.ZERO : sourceOrderDO.getRefundedAmount();

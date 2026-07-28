@@ -22,21 +22,17 @@ import java.util.List;
  * @description : 通知公告管理控制器，提供通知公告的增删改查分页接口
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminNoticeController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Admin Notice 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/system/notice")
 public class AdminNoticeController {
 
     /**
-     * 系统管理编码或编号字段，用于业务识别、查询和幂等关联。
+     * admin Notice Application Service 依赖，用于 Admin Notice Controller 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final AdminNoticeApplicationService adminNoticeApplicationService;
 
@@ -90,11 +86,6 @@ public class AdminNoticeController {
      * @param id 通知公告主键 ID
      * @return 通知公告实体
      */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/{id}")
     @RequiresPermission("system:notice:list")
     public CommonResult<SysNoticeDO> detail(@PathVariable("id") Long id) {
@@ -106,11 +97,6 @@ public class AdminNoticeController {
      *
      * @param notice 通知公告实体（JSON 请求体）
      * @return 新增后的通知公告实体
-     */
-    /**
-     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
-     * @param notice 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping
     @RequiresPermission("system:notice:add")
@@ -126,12 +112,6 @@ public class AdminNoticeController {
      * @param notice 通知公告实体（JSON 请求体，只更新非空字段）
      * @return 更新后的通知公告实体
      */
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param notice 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}")
     @RequiresPermission("system:notice:edit")
     @OperationLog(moduleName = "通知公告", businessType = OperationTypeConstants.UPDATE, operation = "修改通知公告")
@@ -144,11 +124,6 @@ public class AdminNoticeController {
      *
      * @param id 通知公告主键 ID
      * @return 空响应
-     */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/{id}")
     @RequiresPermission("system:notice:remove")
@@ -163,11 +138,6 @@ public class AdminNoticeController {
      *
      * @param request 批量删除请求
      * @return 空响应
-     */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/batch")
     @RequiresPermission("system:notice:remove")

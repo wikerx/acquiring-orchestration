@@ -4,6 +4,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
+import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
@@ -44,6 +45,26 @@ public interface TransactionRecordService {
                                   int currencyExponent);
 
     /**
+     * 记录首次类交易渠道同步结果。
+     * <p>
+     * 该方法只处理渠道调用后的本地持久化和状态 CAS 推进；调用方必须通过独立 Spring Bean 提供事务边界，
+     * 不得在调用方类中自调用事务方法。
+     *
+     * @param commandDTO       创建交易命令
+     * @param routeResultDTO   渠道路由结果
+     * @param channelInvokeResultDTO 渠道调用结果
+     * @param resultDTO        渠道映射后的平台结果
+     * @param riskDecisionEnum 内风控决策
+     * @param currencyExponent 交易币种默认小数位
+     */
+    void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
+                                      PaymentRouteResultDTO routeResultDTO,
+                                      PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+                                      PaymentCreateResultDTO resultDTO,
+                                      PaymentRiskDecisionEnum riskDecisionEnum,
+                                      int currencyExponent);
+
+    /**
      * 按原交易业务时间和内部 operation_id 定位交易生命周期主单。
      *
      * @param transactionDateTime 原交易业务时间，对应 transaction_date_time 分表字段
@@ -62,6 +83,17 @@ public interface TransactionRecordService {
      * @return 原交易生命周期主单
      */
     TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId);
+
+    /**
+     * 按原交易业务时间和 operation_id 锁定生命周期主单。
+     * <p>
+     * 同一授权下创建 Capture 前使用数据库行锁串行化余额和未终态动作检查，避免并发绕过未恢复 Capture 阻断。
+     *
+     * @param transactionDateTime 原交易业务时间
+     * @param operationId         平台内部生命周期关联标识
+     * @return 加锁后的交易生命周期主单
+     */
+    TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId);
 
     /**
      * 按平台当前交易 ID 定位原交易动作单。
@@ -99,6 +131,80 @@ public interface TransactionRecordService {
     List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo);
 
     /**
+     * 查询同一原始交易生命周期下结果尚未明确的请款动作。
+     * <p>
+     * Capture 的 PROCESSING/PENDING 动作可能已被渠道受理；恢复为 SUCCESS/FAILED 前必须阻断新的 Capture 渠道请求。
+     *
+     * @param merchantId           平台商户号
+     * @param operationId          平台内部生命周期关联标识
+     * @param sourceTransactionId  原授权或预授权平台交易 ID
+     * @param beginTime            查询开始时间
+     * @param endTime              查询结束时间
+     * @return 未终态请款动作列表
+     */
+    List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
+                                                         String operationId,
+                                                         String sourceTransactionId,
+                                                         LocalDateTime beginTime,
+                                                         LocalDateTime endTime);
+
+    /**
+     * 查询同一交易生命周期下结果尚未明确的退款动作。
+     * <p>
+     * Refund 的 PROCESSING/PENDING 动作可能已经被渠道受理；恢复为 SUCCESS/FAILED 前必须占用可退额度。
+     *
+     * @param merchantId  平台商户号
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime   查询开始时间
+     * @param endTime     查询结束时间
+     * @return 未终态退款动作列表
+     */
+    default List<TransactionOperationDO> findNonTerminalRefunds(String merchantId,
+                                                                String operationId,
+                                                                LocalDateTime beginTime,
+                                                                LocalDateTime endTime) {
+        return List.of();
+    }
+
+    /**
+     * 查询同一交易生命周期下结果尚未明确的 Void 动作。
+     * <p>
+     * Void / Authorization Cancel 的 PROCESSING/PENDING 动作可能已经被渠道受理；恢复为 SUCCESS/FAILED 前必须阻断
+     * Capture、Refund 或新的 Void，避免重复释放授权或重复返还资金。
+     *
+     * @param merchantId  平台商户号
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime   查询开始时间
+     * @param endTime     查询结束时间
+     * @return 未终态 Void 动作列表
+     */
+    default List<TransactionOperationDO> findNonTerminalVoids(String merchantId,
+                                                              String operationId,
+                                                              LocalDateTime beginTime,
+                                                              LocalDateTime endTime) {
+        return List.of();
+    }
+
+    /**
+     * 查询同一授权生命周期下结果尚未明确的 Incremental Authorization 动作。
+     * <p>
+     * PROCESSING/PENDING/UNKNOWN 等价未确认增量授权可能已经被渠道受理；恢复为 SUCCESS/FAILED 前必须阻断新的
+     * Incremental Authorization，避免 timeout/unknown 重试导致重复增加授权金额。
+     *
+     * @param merchantId  平台商户号
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime   查询开始时间
+     * @param endTime     查询结束时间
+     * @return 未终态 Incremental Authorization 动作列表
+     */
+    default List<TransactionOperationDO> findNonTerminalIncrementalAuthorizations(String merchantId,
+                                                                                  String operationId,
+                                                                                  LocalDateTime beginTime,
+                                                                                  LocalDateTime endTime) {
+        return List.of();
+    }
+
+    /**
      * 按渠道订单号和渠道交易 ID 定位平台交易动作。
      * <p>
      * MPGS 回调的 order.id 对应原始授权/支付平台 transactionId，transaction.id 对应平台生成的
@@ -125,11 +231,123 @@ public interface TransactionRecordService {
                                                          int limit);
 
     /**
+     * 定位主动查询需要关联的原资金动作渠道请求记录。
+     * <p>
+     * 主动查询只能复用原 request_id 与原渠道身份，不能把本地查询请求号或平台 transaction_id 伪装成渠道交易 ID。
+     *
+     * @param operationDO 待恢复交易动作单
+     * @return 原资金动作渠道请求记录，不存在时返回 null
+     */
+    default TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
+        return null;
+    }
+
+    /**
      * 记录后续交易动作事实，并在渠道同步成功时使用 CAS 推进主单金额汇总。
      *
      * @param recordDTO 后续交易动作记录上下文
      */
     void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO);
+
+    /**
+     * 在独立结果事务中保存 Capture 渠道同步结果。
+     * <p>
+     * Capture 明确失败只终结 Capture 动作，不终结原授权生命周期；成功结果才通过源主单金额 CAS 增加 captured
+     * 并扣减 available_capture。
+     *
+     * @param operationDO 已预提交的 Capture 动作单
+     * @param sourceOrderDO 原授权生命周期主单
+     * @param commandDTO Capture 命令
+     * @param routeResultDTO 渠道路由结果
+     * @param invokeResultDTO 渠道调用结果
+     * @param resultDTO 平台映射后的 Capture 结果
+     * @param currencyExponent 交易币种默认辅币位
+     * @return true 表示动作状态推进成功，false 表示已被回调或查询抢先推进
+     */
+    default boolean completeCaptureChannelResult(TransactionOperationDO operationDO,
+                                                 TransactionOrderDO sourceOrderDO,
+                                                 PaymentCreateCommandDTO commandDTO,
+                                                 PaymentRouteResultDTO routeResultDTO,
+                                                 PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                 PaymentCreateResultDTO resultDTO,
+                                                 int currencyExponent) {
+        return false;
+    }
+
+    /**
+     * 在独立结果事务中保存 Refund 渠道同步结果。
+     * <p>
+     * Refund 明确失败只终结本次 Refund 动作；成功结果才通过源主单金额 CAS 增加 refunded
+     * 并扣减 available_refund。非终态结果保持查询恢复入口，不重新发起渠道 Refund。
+     *
+     * @param operationDO 已预提交的 Refund 动作单
+     * @param sourceOrderDO 原交易生命周期主单
+     * @param commandDTO Refund 命令
+     * @param routeResultDTO 渠道路由结果
+     * @param invokeResultDTO 渠道调用结果
+     * @param resultDTO 平台映射后的 Refund 结果
+     * @param currencyExponent 交易币种默认辅币位
+     * @return true 表示动作状态推进成功，false 表示已被回调或查询抢先推进
+     */
+    default boolean completeRefundChannelResult(TransactionOperationDO operationDO,
+                                                TransactionOrderDO sourceOrderDO,
+                                                PaymentCreateCommandDTO commandDTO,
+                                                PaymentRouteResultDTO routeResultDTO,
+                                                PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                PaymentCreateResultDTO resultDTO,
+                                                int currencyExponent) {
+        return false;
+    }
+
+    /**
+     * 在独立结果事务中保存 Void 渠道同步结果。
+     * <p>
+     * Void 明确失败只终结本次撤销动作；成功结果才通过源主单 CAS 标记可请款金额为 0。
+     * 非终态结果保持查询恢复入口，不重新发起渠道 Void / Authorization Cancel。
+     *
+     * @param operationDO 已预提交的 Void 动作单
+     * @param sourceOrderDO 原交易生命周期主单
+     * @param commandDTO Void 命令
+     * @param routeResultDTO 渠道路由结果
+     * @param invokeResultDTO 渠道调用结果
+     * @param resultDTO 平台映射后的 Void 结果
+     * @param currencyExponent 交易币种默认辅币位
+     * @return true 表示动作状态推进成功，false 表示已被回调或查询抢先推进
+     */
+    default boolean completeVoidChannelResult(TransactionOperationDO operationDO,
+                                              TransactionOrderDO sourceOrderDO,
+                                              PaymentCreateCommandDTO commandDTO,
+                                              PaymentRouteResultDTO routeResultDTO,
+                                              PaymentChannelInvokeResultDTO invokeResultDTO,
+                                              PaymentCreateResultDTO resultDTO,
+                                              int currencyExponent) {
+        return false;
+    }
+
+    /**
+     * 在独立结果事务中保存 Incremental Authorization 渠道同步结果。
+     * <p>
+     * Incremental Authorization 明确失败只终结本次增量授权动作；成功结果才通过源主单金额 CAS 增加 authorized、
+     * transaction_amount 和 available_capture。非终态结果保持查询恢复入口，不重新发起渠道增量授权。
+     *
+     * @param operationDO 已预提交的 Incremental Authorization 动作单
+     * @param sourceOrderDO 原授权生命周期主单
+     * @param commandDTO Incremental Authorization 命令
+     * @param routeResultDTO 渠道路由结果
+     * @param invokeResultDTO 渠道调用结果
+     * @param resultDTO 平台映射后的 Incremental Authorization 结果
+     * @param currencyExponent 交易币种默认辅币位
+     * @return true 表示动作状态推进成功，false 表示已被回调或查询抢先推进
+     */
+    default boolean completeIncrementalAuthorizationChannelResult(TransactionOperationDO operationDO,
+                                                                  TransactionOrderDO sourceOrderDO,
+                                                                  PaymentCreateCommandDTO commandDTO,
+                                                                  PaymentRouteResultDTO routeResultDTO,
+                                                                  PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                                  PaymentCreateResultDTO resultDTO,
+                                                                  int currencyExponent) {
+        return false;
+    }
 
     /**
      * 按渠道回调或渠道查询确认结果推进交易动作终态。
@@ -174,6 +392,24 @@ public interface TransactionRecordService {
                                LocalDateTime matchTime,
                                LocalDateTime nextMatchTime,
                                String failReason);
+
+    /**
+     * 根据主动查询结果回写原资金动作渠道请求记录。
+     *
+     * @param operationDO 待恢复交易动作单
+     * @param originalRequestDO 原资金动作渠道请求记录
+     * @param invokeResultDTO 渠道查询调用结果
+     * @param platformResultCode 平台解析结果
+     * @param failReason 平台失败或待恢复原因
+     * @return true 表示原请求记录更新成功或无需更新
+     */
+    default boolean updateOriginalChannelRequestByQuery(TransactionOperationDO operationDO,
+                                                        TransactionChannelRequestDO originalRequestDO,
+                                                        PaymentChannelInvokeResultDTO invokeResultDTO,
+                                                        String platformResultCode,
+                                                        String failReason) {
+        return true;
+    }
 
     /**
      * 回写商户 OpenAPI 响应加密后的摘要信息。

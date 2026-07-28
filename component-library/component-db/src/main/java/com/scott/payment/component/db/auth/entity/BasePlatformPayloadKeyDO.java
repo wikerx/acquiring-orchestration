@@ -7,27 +7,37 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+@Data
+@TableName("base_platform_payload_key")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : BasePlatformPayloadKeyDO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-13 17:17
  * @email : scott_x@163.com
- * @description : 收单支付Base Platform Payload Key 数据库实体，位于 component-library/component-db 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Base Platform Payload Key DO 持久化模型，位于 公共组件库，映射数据库记录字段，承载主键、业务标识、状态、时间和审计信息。
  * @status : create
  */
-@Data
-@TableName("base_platform_payload_key")
 public class BasePlatformPayloadKeyDO {
 
-    /**
-     * 收单支付标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
-     */
     @TableId(type = IdType.AUTO)
+    /**
+     * Base Platform Payload Key DO 数据库主键，用于唯一标识当前记录。
+     * <p>
+     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private Long id;
 
     /**
-     * 收单支付标识字段，用于关联数据库记录或业务主体，不能为空时由请求校验或数据库约束保证。
+     * 商户号，用于限定商户配置、交易数据、风控规则和权限归属。
+     * <p>
+     * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：数据库表记录或持久化写入对象。
+     * 字段关系：与 merchantOrderNo、transactionId 共同限定商户交易归属。
+     * </p>
      */
     private String merchantId;
 
@@ -42,7 +52,12 @@ public class BasePlatformPayloadKeyDO {
     private String privateKeyPkcs8Base64;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * algorithm，用于保存 Base Platform Payload Key DO 中与 algorithm 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：数据库表记录或持久化写入对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private String algorithm;
 
@@ -52,22 +67,42 @@ public class BasePlatformPayloadKeyDO {
     private Integer keySize;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * enabled，表示当前配置项或业务能力的启停开关。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private Integer enabled;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * gmt Create，用于保存 Base Platform Payload Key DO 中与 gmtcreate 相关的业务属性。
+     * <p>
+     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private LocalDateTime gmtCreate;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * gmt Modified，用于保存 Base Platform Payload Key DO 中与 gmtmodified 相关的业务属性。
+     * <p>
+     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：数据库表记录或持久化写入对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private LocalDateTime gmtModified;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * deleted，用于保存 Base Platform Payload Key DO 中与 deleted 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：数据库表记录或持久化写入对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private Integer deleted;
 }

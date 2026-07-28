@@ -16,17 +16,17 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+@Configuration
+@EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantOpenApiSecurityConfig
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : 商户管理Merchant Open Api Security 配置，位于 service-merchant 的配置层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Merchant Open API Security Config 配置类，位于 商户后台服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
-@Configuration
-@EnableConfigurationProperties(OpenApiMerchantKeyExportProperties.class)
 public class MerchantOpenApiSecurityConfig {
 
     /**

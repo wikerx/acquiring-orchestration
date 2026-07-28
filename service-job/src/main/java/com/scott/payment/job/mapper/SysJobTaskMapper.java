@@ -18,7 +18,6 @@ import java.util.List;
  * @description : 系统任务任务数据访问接口
  * @status : create
  */
-
 public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
 
     /**

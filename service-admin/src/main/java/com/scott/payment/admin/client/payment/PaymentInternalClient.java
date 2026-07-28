@@ -50,6 +50,14 @@ public interface PaymentInternalClient {
     TransactionOperationSearchResponse searchOperations(TransactionPageQuery query);
 
     /**
+     * 通过支付核心发起请款动作。
+     *
+     * @param requestDTO 支付核心内部请款命令
+     * @return 请款动作结果
+     */
+    TransactionActionResponse capture(PaymentTransactionActionClientRequestDTO requestDTO);
+
+    /**
      * 通过支付核心发起退款动作。
      *
      * @param commandDTO 支付核心内部退款命令

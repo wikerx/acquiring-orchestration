@@ -1,6 +1,7 @@
 package com.scott.payment.merchant.mq;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.OperationLogMessage;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
@@ -38,9 +39,9 @@ import org.springframework.stereotype.Component;
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantOperationLogConsumer
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-20 10:32
  * @email : scott_x@163.com
- * @description : 商户管理Merchant Operation Log Consumer，位于 service-merchant 的消息消费层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Merchant Operation Log Consumer 消息消费组件，位于 商户后台服务，解析 MQ 消息、绑定 traceId 和重试次数，并触发后续业务处理。
  * @status : create
  */
 public class MerchantOperationLogConsumer implements RocketMQListener<String> {
@@ -87,25 +88,66 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
      *
      * @param payload 操作日志消息 JSON 字符串
      */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param payload 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void onMessage(String payload) {
+        long startNanos = System.nanoTime();
         OperationLogMessage message = JsonUtils.parseObject(payload, OperationLogMessage.class);
         if (message == null) {
-            log.warn("商户操作日志消息体为空或无法解析，payload：{}", payload);
+            log.warn("event: MERCHANT_OPERATION_LOG_CONSUME_SKIP stage=MQ_CONSUME traceId: {} reason=messageInvalid payloadLength: {} durationMs: {}",
+                    TraceContext.getTraceId(),
+                    payload == null ? 0 : payload.length(),
+                    elapsedMillis(startNanos));
             return;
         }
-        String idempotentKey = "operation-log:consume:merchant:" + message.getIdempotentKey();
-        if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
-            log.info("商户操作日志重复消息已跳过，messageId：{}，idempotentKey：{}",
+        TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
+        try {
+            log.info("event: MERCHANT_OPERATION_LOG_CONSUME_START stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationType: {} operatorId: {} merchantId: {} requestUri: {}",
+                    TraceContext.getTraceId(),
                     message.getMessageId(),
-                    message.getIdempotentKey());
-            return;
+                    message.getRetryCount(),
+                    message.getOperationModule(),
+                    message.getOperationType(),
+                    message.getOperatorId(),
+                    message.getMerchantId(),
+                    message.getRequestUri());
+            String idempotentKey = "operation-log:consume:merchant:" + message.getIdempotentKey();
+            if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
+                log.info("event: MERCHANT_OPERATION_LOG_DUPLICATE stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationType: {} idempotentKey: {} durationMs: {}",
+                        TraceContext.getTraceId(),
+                        message.getMessageId(),
+                        message.getRetryCount(),
+                        message.getOperationModule(),
+                        message.getOperationType(),
+                        message.getIdempotentKey(),
+                        elapsedMillis(startNanos));
+                return;
+            }
+            SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
+            merchantOperLogService.recordOperLog(request);
+            log.info("event: MERCHANT_OPERATION_LOG_CONSUMED stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationName: {} operationType: {} operatorId: {} merchantId: {} requestUri: {} operationStatus: {} durationMs: {}",
+                    TraceContext.getTraceId(),
+                    message.getMessageId(),
+                    message.getRetryCount(),
+                    message.getOperationModule(),
+                    message.getOperationName(),
+                    message.getOperationType(),
+                    message.getOperatorId(),
+                    message.getMerchantId(),
+                    message.getRequestUri(),
+                    message.getOperationStatus(),
+                    elapsedMillis(startNanos));
+        } finally {
+            TraceContext.clear();
         }
-        SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
-        merchantOperLogService.recordOperLog(request);
+    }
+
+    /**
+     * 计算单条操作日志消息消费耗时。
+     *
+     * @param startNanos System.nanoTime 起始值
+     * @return 耗时毫秒数
+     */
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 }

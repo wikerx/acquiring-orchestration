@@ -48,28 +48,124 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ExtendWith(OutputCaptureExtension.class)
 class MpgsPaymentChannelClientAllApiTests {
 
+    /**
+     * TEST CARD NO，用于保存 Mpgs Payment Channel Client All API Tests 中与 testcardno 相关的业务属性。
+     * <p>
+     * 单位：无；格式：业务编号字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String TEST_CARD_NO = "5123450000000008";
 
+    /**
+     * TEST MASKED CARD NO，用于保存 Mpgs Payment Channel Client All API Tests 中与 test脱敏cardno 相关的业务属性。
+     * <p>
+     * 单位：无；格式：业务编号字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String TEST_MASKED_CARD_NO = "512345xxxxxx0008";
 
+    /**
+     * TEST CVV，用于保存 Mpgs Payment Channel Client All API Tests 中与 testcvv 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String TEST_CVV = "100";
 
+    /**
+     * TEST AUTHENTICATION TOKEN，用于保存 Mpgs Payment Channel Client All API Tests 中与 testauthenticationtoken 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String TEST_AUTHENTICATION_TOKEN = "AAABBIIFmAAAAAAAAAAAAAAAAAA=";
 
+    /**
+     * TEST MERCHANT ID，用于定位 Mpgs Payment Channel Client All API Tests 关联的上游配置、渠道、账号、角色或业务记录。
+     * <p>
+     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String TEST_MERCHANT_ID = "TESTMID";
 
+    /**
+     * TEST USERNAME，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String TEST_USERNAME = "merchant.TESTMID";
 
+    /**
+     * TEST PASSWORD，用于保存 Mpgs Payment Channel Client All API Tests 中与 testpassword 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String TEST_PASSWORD = "local-test-secret";
 
+    /**
+     * server，用于保存 Mpgs Payment Channel Client All API Tests 中与 server 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private HttpServer server;
 
+    /**
+     * requests，用于保存 Mpgs Payment Channel Client All API Tests 中与 requests 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private List<RecordedRequest> requests;
 
+    /**
+     * client 依赖，用于 Mpgs Payment Channel Client All API Tests 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private MpgsPaymentChannelClient client;
 
+    /**
+     * next Http Status，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private volatile int nextHttpStatus;
 
+    /**
+     * next Response Body，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private volatile String nextResponseBody;
 
     /**
@@ -120,7 +216,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.PAY);
-        assertSuccessResponse(response, request, MpgsApiOperation.PAY);
+        assertSuccessResponse(response, request, MpgsApiOperation.PAY, 201);
         logCaseEnd("PAY一步支付", response, recordedRequest);
         assertMaskedLogs(output, MpgsApiOperation.PAY);
     }
@@ -139,7 +235,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.AUTHORIZE);
-        assertSuccessResponse(response, request, MpgsApiOperation.AUTHORIZE);
+        assertSuccessResponse(response, request, MpgsApiOperation.AUTHORIZE, 201);
         logCaseEnd("AUTHORIZE授权", response, recordedRequest);
         assertMaskedLogs(output, MpgsApiOperation.AUTHORIZE);
     }
@@ -158,7 +254,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.AUTHORIZE);
-        assertSuccessResponse(response, request, MpgsApiOperation.AUTHORIZE);
+        assertSuccessResponse(response, request, MpgsApiOperation.AUTHORIZE, 201);
         logCaseEnd("PRE_AUTHORIZATION预授权", response, recordedRequest);
         assertMaskedLogs(output, MpgsApiOperation.AUTHORIZE);
     }
@@ -177,7 +273,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.CAPTURE);
-        assertSuccessResponse(response, request, MpgsApiOperation.CAPTURE);
+        assertSuccessResponse(response, request, MpgsApiOperation.CAPTURE, 201);
         logCaseEnd("CAPTURE请款", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.CAPTURE);
     }
@@ -196,7 +292,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.CAPTURE);
-        assertSuccessResponse(response, request, MpgsApiOperation.CAPTURE);
+        assertSuccessResponse(response, request, MpgsApiOperation.CAPTURE, 201);
         logCaseEnd("PRE_AUTH_COMPLETION预授权完成", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.CAPTURE);
     }
@@ -215,7 +311,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.REFUND);
-        assertSuccessResponse(response, request, MpgsApiOperation.REFUND);
+        assertSuccessResponse(response, request, MpgsApiOperation.REFUND, 201);
         logCaseEnd("REFUND退款", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.REFUND);
     }
@@ -238,7 +334,7 @@ class MpgsPaymentChannelClientAllApiTests {
         RecordedRequest recordedRequest = onlyRequest();
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.UPDATE_AUTHORIZATION);
-        assertSuccessResponse(response, request, MpgsApiOperation.UPDATE_AUTHORIZATION);
+        assertSuccessResponse(response, request, MpgsApiOperation.UPDATE_AUTHORIZATION, 201);
         logCaseEnd("UPDATE_AUTHORIZATION增量授权", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.UPDATE_AUTHORIZATION);
     }
@@ -288,7 +384,7 @@ class MpgsPaymentChannelClientAllApiTests {
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.VOID);
         assertThat(recordedRequest.body()).contains("\"targetTransactionId\":\"CH-AUTH-ORIGINAL\"");
-        assertSuccessResponse(response, request, MpgsApiOperation.VOID);
+        assertSuccessResponse(response, request, MpgsApiOperation.VOID, 201);
         logCaseEnd("VOID撤销", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.VOID);
     }
@@ -309,7 +405,7 @@ class MpgsPaymentChannelClientAllApiTests {
 
         assertPutRequest(recordedRequest, request, MpgsApiOperation.VOID);
         assertThat(recordedRequest.body()).contains("\"targetTransactionId\":\"TX-PAY-ORIGINAL\"");
-        assertSuccessResponse(response, request, MpgsApiOperation.VOID);
+        assertSuccessResponse(response, request, MpgsApiOperation.VOID, 201);
         logCaseEnd("REVERSAL冲正", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.VOID);
     }
@@ -332,7 +428,7 @@ class MpgsPaymentChannelClientAllApiTests {
                 + "/transaction/" + request.getChannelTransactionId());
         assertThat(recordedRequest.body()).isEmpty();
         assertBasicAuth(recordedRequest);
-        assertSuccessResponse(response, request, MpgsApiOperation.RETRIEVE);
+        assertSuccessResponse(response, request, MpgsApiOperation.RETRIEVE, 200);
         logCaseEnd("RETRIEVE查询", response, recordedRequest);
         assertMaskedLogsWithoutCard(output, MpgsApiOperation.RETRIEVE);
     }
@@ -355,12 +451,12 @@ class MpgsPaymentChannelClientAllApiTests {
                 body
         );
         requests.add(recordedRequest);
-        log.info("MPGS本地Fake服务收到请求，request={}",
+        log.info("MPGS本地Fake服务收到请求，request: {}",
                 JsonUtils.toJsonString(new LogRequest(recordedRequest.method(), recordedRequest.path(),
                         authorization != null, toMaskedJsonLogObject(body))));
 
         String response = nextResponseBody == null ? successResponse(recordedRequest) : nextResponseBody;
-        log.info("MPGS本地Fake服务返回响应，response={}",
+        log.info("MPGS本地Fake服务返回响应，response: {}",
                 JsonUtils.toJsonString(new LogResponse(nextHttpStatus > 0 ? nextHttpStatus : defaultHttpStatus(recordedRequest),
                         toMaskedJsonLogObject(response))));
         byte[] responseBytes = response.getBytes(StandardCharsets.UTF_8);
@@ -482,9 +578,9 @@ class MpgsPaymentChannelClientAllApiTests {
      * @param request   原始渠道请求
      * @param operation 预期 MPGS 交易类型
      */
-    private void assertSuccessResponse(ChannelPaymentResponse response, ChannelPaymentRequest request, String operation) {
+    private void assertSuccessResponse(ChannelPaymentResponse response, ChannelPaymentRequest request, String operation, int expectedHttpStatus) {
         assertThat(response.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.SUCCESS.getCode());
-        assertThat(response.getChannelResponseCode()).isEqualTo("APPROVED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("00");
         assertThat(response.getChannelResponseMessage()).isEqualTo("Approved");
         assertThat(response.getOperationId()).isEqualTo(request.getOperationId());
         assertThat(response.getTransactionId()).isEqualTo(request.getTransactionId());
@@ -492,6 +588,29 @@ class MpgsPaymentChannelClientAllApiTests {
         assertThat(response.getChannelTransactionId()).isEqualTo(request.getChannelTransactionId());
         assertThat(response.getRawResponse()).containsEntry("transactionType", operation);
         assertThat(response.getRawResponse()).containsEntry("acquirerCode", "00");
+        assertThat(response.getRawResponse()).containsEntry("httpStatus", String.valueOf(expectedHttpStatus));
+        assertThat(response.getRawResponse()).containsEntry("httpMethod", MpgsApiOperation.RETRIEVE.equals(operation) ? "GET" : "PUT");
+        assertThat(response.getRawResponse().get("requestUrlMasked")).contains("/version/100/merchant/TESTMID/order/"
+                + request.getChannelOrderNo() + "/transaction/" + request.getChannelTransactionId());
+        assertThat(response.getHttpStatus()).isEqualTo(expectedHttpStatus);
+        assertThat(response.getHttpMethod()).isEqualTo(MpgsApiOperation.RETRIEVE.equals(operation) ? "GET" : "PUT");
+        assertThat(response.getRequestUrlMasked()).contains("/version/100/merchant/TESTMID/order/"
+                + request.getChannelOrderNo() + "/transaction/" + request.getChannelTransactionId());
+        assertThat(response.getRequestHeaderJsonMasked()).contains("Basic ***");
+        assertThat(response.getRequestHeaderJsonMasked()).doesNotContain(TEST_PASSWORD);
+        assertThat(response.getResponseBodyJsonMasked()).contains("\"result\":\"SUCCESS\"");
+        assertThat(response.getResponseBodyJsonMasked()).contains("\"order\"");
+        assertThat(response.getResponseBodyJsonMasked()).contains("\"transaction\"");
+        assertThat(response.getResponseBodyJsonMasked()).doesNotContain("\"securityCode\":\"" + TEST_CVV + "\"");
+        assertThat(response.getResponseBodyJsonMasked()).doesNotContain(TEST_AUTHENTICATION_TOKEN);
+        if (MpgsApiOperation.RETRIEVE.equals(operation)) {
+            assertThat(response.getRequestBodyJsonMasked()).isEqualTo("{}");
+        } else {
+            assertThat(response.getRequestBodyJsonMasked()).contains("\"apiOperation\":\"" + operation + "\"");
+            assertThat(response.getRequestBodyJsonMasked()).doesNotContain(TEST_CARD_NO);
+            assertThat(response.getRequestBodyJsonMasked()).doesNotContain("\"securityCode\":\"" + TEST_CVV + "\"");
+            assertThat(response.getRequestBodyJsonMasked()).doesNotContain(TEST_AUTHENTICATION_TOKEN);
+        }
     }
 
     /**
@@ -522,18 +641,19 @@ class MpgsPaymentChannelClientAllApiTests {
         assertThat(logs).contains("MPGS渠道响应报文");
         assertThat(logs).contains("\"operation\":\"" + operation + "\"");
         if (MpgsApiOperation.RETRIEVE.equals(operation)) {
-            assertThat(logs).contains("request={}");
+            assertThat(logs).contains("request: {}");
         } else {
-            assertThat(logs).contains("request={\"apiOperation\":\"" + operation + "\"");
+            assertThat(logs).contains("request: {\"apiOperation\":\"" + operation + "\"");
         }
-        assertThat(logs).contains("response={");
+        assertThat(logs).contains("response: {");
         assertThat(logs).doesNotContain("\"request\":\"{\\\"");
         assertThat(logs).doesNotContain("\"response\":\"{\\\"");
         assertThat(logs).doesNotContain(TEST_CARD_NO);
         assertThat(logs).doesNotContain("\"securityCode\":\"" + TEST_CVV + "\"");
         assertThat(logs).doesNotContain(TEST_AUTHENTICATION_TOKEN);
         assertThat(logs).doesNotContain(TEST_PASSWORD);
-        assertThat(logs).doesNotContain("Basic ");
+        assertThat(logs).doesNotContain("Basic " + Base64.getEncoder()
+                .encodeToString((TEST_USERNAME + ":" + TEST_PASSWORD).getBytes(StandardCharsets.UTF_8)));
         return logs;
     }
 
@@ -556,7 +676,7 @@ class MpgsPaymentChannelClientAllApiTests {
      * @param request  渠道请求
      */
     private void logCaseStart(String caseName, ChannelPaymentRequest request) {
-        log.info("MPGS API测试开始，case={}, request={}", caseName, JsonUtils.toJsonString(new LogCaseRequest(
+        log.info("MPGS API测试开始，case: {}, request: {}", caseName, JsonUtils.toJsonString(new LogCaseRequest(
                 request.getTransactionType(), request.getOperationId(), request.getTransactionId(),
                 request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
                 request.getMerchantOrderId(), String.valueOf(request.getAmount()), request.getCurrency(),
@@ -572,7 +692,7 @@ class MpgsPaymentChannelClientAllApiTests {
      * @param recordedRequest 本地 fake server 记录的请求摘要
      */
     private void logCaseEnd(String caseName, ChannelPaymentResponse response, RecordedRequest recordedRequest) {
-        log.info("MPGS API测试完成，case={}, result={}", caseName,
+        log.info("MPGS API测试完成，case: {}, result: {}", caseName,
                 JsonUtils.toJsonString(new LogCaseResult(recordedRequest.method(), recordedRequest.path(), response)));
     }
 

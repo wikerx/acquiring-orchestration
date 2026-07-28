@@ -47,15 +47,6 @@ import java.util.regex.Pattern;
  * @description : 管理后台调用调度中心的 REST 客户端实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobSchedulerInternalRestClient
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Scheduler Internal Rest Client，位于 service-admin 的外部调用层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 @Slf4j
 public class JobSchedulerInternalRestClient implements JobSchedulerInternalClient {
@@ -86,15 +77,55 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
     private static final String DOMAIN_SEPARATOR = ".";
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * 管理后台调用调度中心的内部路径是固定服务契约，不通过配置中心覆盖。
+     */
+    private static final String SERVICE_JOB_BASE_URL = "http://service-job";
+
+    private static final String TASK_SEARCH_PATH = "/internal/job/tasks/search";
+
+    private static final String HANDLER_LIST_PATH = "/internal/job/tasks/handlers";
+
+    private static final String TASK_BASE_PATH = "/internal/job/tasks";
+
+    private static final String RUN_LOG_SEARCH_PATH = "/internal/job/logs/search";
+
+    private static final String RUN_LOG_LIST_PATH = "/internal/job/logs/list";
+
+    private static final String RUN_LOG_BASE_PATH = "/internal/job/logs";
+
+    private static final String RUN_LOG_CLEAN_PATH = "/internal/job/logs/clean";
+
+    private static final String NODE_LIST_PATH = "/internal/job/nodes";
+
+    private static final String SHARDING_TABLE_CREATE_DRY_RUN_PATH = "/internal/job/sharding/table-create/dry-run";
+
+    private static final String SHARDING_TABLE_CREATE_EXECUTE_PATH = "/internal/job/sharding/table-create/execute";
+
+    /**
+     * direct Rest Template，用于定位邮件、通知或渠道参数模板。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final RestTemplate directRestTemplate;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Scheduler Client Properties 依赖，用于 Job Scheduler Internal Rest Client 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobSchedulerClientProperties jobSchedulerClientProperties;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * discovery Client 依赖，用于 Job Scheduler Internal Rest Client 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final DiscoveryClient discoveryClient;
 
@@ -113,13 +144,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         this.discoveryClient = discoveryClient;
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<JobHandlerOptionResponse> listHandlers() {
-        String responseBody = doGet(jobSchedulerClientProperties.getHandlerListUrl());
+        String responseBody = doGet(serviceJobUrl(HANDLER_LIST_PATH));
         CommonResult<List<JobHandlerOptionResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<List<JobHandlerOptionResponse>>>() {
@@ -128,14 +155,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PageResult<JobTaskResponse> pageTasks(JobTaskQueryRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getTaskSearchUrl(), request);
+        String responseBody = doPost(serviceJobUrl(TASK_SEARCH_PATH), request);
         CommonResult<PageResult<JobTaskResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<PageResult<JobTaskResponse>>>() {
@@ -144,14 +166,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public JobTaskResponse createTask(JobTaskRemoteSaveRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getTaskBaseUrl(), request);
+        String responseBody = doPost(serviceJobUrl(TASK_BASE_PATH), request);
         CommonResult<JobTaskResponse> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<JobTaskResponse>>() {
@@ -160,15 +177,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public JobTaskResponse updateTask(Long taskId, JobTaskRemoteSaveRequest request) {
-        String responseBody = doPut(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId, request);
+        String responseBody = doPut(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId, request);
         CommonResult<JobTaskResponse> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<JobTaskResponse>>() {
@@ -177,16 +188,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public JobTaskResponse changeStatus(Long taskId, String status, String operator) {
-        String url = jobSchedulerClientProperties.getTaskBaseUrl()
+        String url = serviceJobUrl(TASK_BASE_PATH)
                 + "/" + taskId
                 + "/status?status=" + encode(status)
                 + "&operator=" + encode(operator);
@@ -199,15 +203,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public String trigger(Long taskId, JobManualTriggerRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId + "/trigger", request);
+        String responseBody = doPost(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId + "/trigger", request);
         CommonResult<String> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<String>>() {
@@ -216,14 +214,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void deleteTask(Long taskId, String operator) {
-        String responseBody = doDelete(jobSchedulerClientProperties.getTaskBaseUrl() + "/" + taskId + "?operator=" + encode(operator));
+        String responseBody = doDelete(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId + "?operator=" + encode(operator));
         CommonResult<Void> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<Void>>() {
@@ -232,14 +225,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         unwrap(result);
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PageResult<JobRunLogResponse> pageRunLogs(JobRunLogQueryRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getRunLogSearchUrl(), request);
+        String responseBody = doPost(serviceJobUrl(RUN_LOG_SEARCH_PATH), request);
         CommonResult<PageResult<JobRunLogResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<PageResult<JobRunLogResponse>>>() {
@@ -248,14 +236,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<JobRunLogResponse> listRunLogs(JobRunLogQueryRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getRunLogListUrl(), request);
+        String responseBody = doPost(serviceJobUrl(RUN_LOG_LIST_PATH), request);
         CommonResult<List<JobRunLogResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<List<JobRunLogResponse>>>() {
@@ -264,13 +247,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void removeRunLog(Long id) {
-        String responseBody = doDelete(jobSchedulerClientProperties.getTaskBaseUrl().replace("/tasks", "/logs") + "/" + id);
+        String responseBody = doDelete(serviceJobUrl(RUN_LOG_BASE_PATH) + "/" + id);
         CommonResult<Void> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<Void>>() {
@@ -280,13 +259,18 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
     }
 
     /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 整理清理run日志，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     @Override
     public int cleanRunLogs(JobRunLogQueryRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getRunLogCleanUrl(), request);
+        String responseBody = doPost(serviceJobUrl(RUN_LOG_CLEAN_PATH), request);
         CommonResult<Integer> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<Integer>>() {
@@ -295,13 +279,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<JobExecutorNodeResponse> listNodes() {
-        String responseBody = doGet(jobSchedulerClientProperties.getNodeListUrl());
+        String responseBody = doGet(serviceJobUrl(NODE_LIST_PATH));
         CommonResult<List<JobExecutorNodeResponse>> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<List<JobExecutorNodeResponse>>>() {
@@ -310,14 +290,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public ShardingTablePreCreateResultResponse dryRunShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getShardingTableCreateDryRunUrl(), request);
+        String responseBody = doPost(serviceJobUrl(SHARDING_TABLE_CREATE_DRY_RUN_PATH), request);
         CommonResult<ShardingTablePreCreateResultResponse> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<ShardingTablePreCreateResultResponse>>() {
@@ -326,14 +301,9 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public ShardingTablePreCreateResultResponse executeShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
-        String responseBody = doPost(jobSchedulerClientProperties.getShardingTableCreateExecuteUrl(), request);
+        String responseBody = doPost(serviceJobUrl(SHARDING_TABLE_CREATE_EXECUTE_PATH), request);
         CommonResult<ShardingTablePreCreateResultResponse> result = JsonUtils.parseObject(
                 responseBody,
                 new TypeReference<CommonResult<ShardingTablePreCreateResultResponse>>() {
@@ -355,9 +325,13 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("get", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job get call failed, targetUri={}", targetUri, exception);
+            log.warn("service-job get call failed, targetUri: {}", targetUri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job get call failed");
         }
+    }
+
+    private String serviceJobUrl(String path) {
+        return SERVICE_JOB_BASE_URL + path;
     }
 
     /**
@@ -374,7 +348,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("post", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job post call failed, targetUri={}", targetUri, exception);
+            log.warn("service-job post call failed, targetUri: {}", targetUri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job post call failed");
         }
     }
@@ -393,7 +367,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("put", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job put call failed, targetUri={}", targetUri, exception);
+            log.warn("service-job put call failed, targetUri: {}", targetUri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job put call failed");
         }
     }
@@ -411,7 +385,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         } catch (HttpStatusCodeException exception) {
             throw translateHttpException("delete", targetUri, exception);
         } catch (RestClientException exception) {
-            log.warn("service-job delete call failed, targetUri={}", targetUri, exception);
+            log.warn("service-job delete call failed, targetUri: {}", targetUri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-job delete call failed");
         }
     }
@@ -464,7 +438,7 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      * @return 平台异常
      */
     private ApiException translateHttpException(String method, URI targetUri, HttpStatusCodeException exception) {
-        log.warn("service-job {} call returned non-success status, targetUri={}, status={}",
+        log.warn("service-job {} call returned non-success status, targetUri: {}, status: {}",
                 method,
                 targetUri,
                 exception.getStatusCode().value(),

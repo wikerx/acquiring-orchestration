@@ -18,7 +18,6 @@ import java.util.List;
  * @description : 任务任务服务接口
  * @status : create
  */
-
 public interface JobTaskService {
 
     /**

@@ -17,7 +17,6 @@ import java.time.LocalDateTime;
  * @description : 系统任务执行器节点数据访问接口
  * @status : create
  */
-
 public interface SysJobExecutorNodeMapper extends BaseMapper<SysJobExecutorNodeDO> {
 
     /**

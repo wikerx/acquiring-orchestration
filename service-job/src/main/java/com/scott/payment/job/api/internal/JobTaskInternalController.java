@@ -32,21 +32,17 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @description : 调度中心任务管理内部控制器
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskInternalController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Task Internal 管理接口，位于 service-job 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/internal/job/tasks")
 public class JobTaskInternalController {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Task Application Service 依赖，用于 Job Task Internal Controller 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobTaskApplicationService jobTaskApplicationService;
 
@@ -63,10 +59,6 @@ public class JobTaskInternalController {
      * 查询任务处理器白名单列表。
      *
      * @return 处理器选项列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/handlers")
     public CommonResult<List<JobHandlerOptionResponse>> listHandlers() {
@@ -90,11 +82,6 @@ public class JobTaskInternalController {
      * @param request 任务保存请求
      * @return 保存结果
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping
     public CommonResult<JobTaskResponse> createTask(@RequestBody @Valid JobTaskSaveRequest request) {
         return success(jobTaskApplicationService.createTask(request));
@@ -106,12 +93,6 @@ public class JobTaskInternalController {
      * @param taskId   任务主键
      * @param request  任务保存请求
      * @return 更新结果
-     */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/{taskId}")
     public CommonResult<JobTaskResponse> updateTask(@PathVariable("taskId") Long taskId,
@@ -127,13 +108,6 @@ public class JobTaskInternalController {
      * @param operator  操作人
      * @return 更新结果
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{taskId}/status")
     public CommonResult<JobTaskResponse> changeStatus(@PathVariable("taskId") Long taskId,
                                                       @RequestParam("status") String status,
@@ -148,12 +122,6 @@ public class JobTaskInternalController {
      * @param request  执行请求
      * @return 本次执行生成的 runId
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/{taskId}/trigger")
     public CommonResult<String> trigger(@PathVariable("taskId") Long taskId,
                                         @RequestBody @Valid JobManualTriggerRequest request) {
@@ -166,12 +134,6 @@ public class JobTaskInternalController {
      * @param taskId   任务主键
      * @param operator 操作人
      * @return 删除结果
-     */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @DeleteMapping("/{taskId}")
     public CommonResult<Void> deleteTask(@PathVariable("taskId") Long taskId,

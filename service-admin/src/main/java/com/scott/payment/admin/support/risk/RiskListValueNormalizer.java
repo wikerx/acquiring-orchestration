@@ -29,14 +29,54 @@ import java.util.Locale;
 @Component
 public class RiskListValueNormalizer {
 
+    /**
+     * CARD BIN MIN LENGTH，用于保存 Risk List Value Normalizer 中与 cardbinminlength 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final int CARD_BIN_MIN_LENGTH = 6;
+    /**
+     * CARD BIN MAX LENGTH，用于保存 Risk List Value Normalizer 中与 cardbinmaxlength 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final int CARD_BIN_MAX_LENGTH = 11;
+    /**
+     * CARD MIN LENGTH，用于保存 Risk List Value Normalizer 中与 cardminlength 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final int CARD_MIN_LENGTH = 12;
+    /**
+     * CARD MAX LENGTH，用于保存 Risk List Value Normalizer 中与 cardmaxlength 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final int CARD_MAX_LENGTH = 19;
     private static final String EMAIL_USERNAME_REGEX = "^(?!\\.)(?!.*\\.\\.)(?!.*\\.$)[A-Z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}$";
     private static final String EMAIL_DOMAIN_REGEX = "^(?=.{1,253}$)(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\\.)+[A-Z]{2,63}$";
     private static final String POSTAL_CODE_REGEX = "^(?=.{2,20}$)[A-Z0-9]+(?:[ -][A-Z0-9]+)*$";
 
+    /**
+     * sensitive Value Crypto，用于保存 Risk List Value Normalizer 中与 sensitivevaluecrypto 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final RiskSensitiveValueCrypto sensitiveValueCrypto;
 
     /**
@@ -106,6 +146,16 @@ public class RiskListValueNormalizer {
         return sensitiveValueCrypto.decrypt(cipherText);
     }
 
+    /**
+     * 解析normalizecard，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeCard(RiskDTOs.RiskListSaveRequest request) {
         String cardNo = digits(requiredPlain(request));
         if (cardNo.length() < CARD_MIN_LENGTH || cardNo.length() > CARD_MAX_LENGTH) {
@@ -114,6 +164,16 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(SensitiveDataMaskUtils.maskPan(cardNo), sha256(cardNo), sensitiveValueCrypto.encrypt(cardNo));
     }
 
+    /**
+     * 解析normalizecardBIN，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeCardBin(RiskDTOs.RiskListSaveRequest request) {
         String start = digits(defaultIfBlank(request.getMatchValueStart(), request.getMatchValuePlain()));
         String end = digits(defaultIfBlank(request.getMatchValueEnd(), start));
@@ -133,6 +193,17 @@ public class RiskListValueNormalizer {
         return NormalizedValue.range(masked, sha256(normalizedStart + "-" + normalizedEnd), normalizedStart, normalizedEnd, startNumber.toString(), endNumber.toString(), null);
     }
 
+    /**
+     * 解析normalizeip，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param definition definition 输入值，参与 definition 的查询、校验、转换、写入或日志摘要
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeIp(RiskFunctionDefinition definition, RiskDTOs.RiskListSaveRequest request) {
         String start = defaultIfBlank(request.getMatchValueStart(), request.getMatchValuePlain());
         String end = request.getMatchValueEnd();
@@ -163,6 +234,16 @@ public class RiskListValueNormalizer {
                 startIp.original(), endIp.original(), startIp.number().toString(), endIp.number().toString(), null, startIp.version());
     }
 
+    /**
+     * 解析normalizecountry，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeCountry(RiskDTOs.RiskListSaveRequest request) {
         String country = upper(defaultIfBlank(request.getCountryAlpha3(), request.getMatchValuePlain()));
         if (!StringUtils.hasText(country) || country.length() != 3) {
@@ -171,16 +252,46 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(country, sha256(country), null);
     }
 
+    /**
+     * 解析normalizephone，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizePhone(RiskDTOs.RiskListSaveRequest request) {
         String phone = requiredPlain(request).replaceAll("\\s+", "");
         return NormalizedValue.fixed(SensitiveDataMaskUtils.maskMobile(phone), sha256(phone), sensitiveValueCrypto.encrypt(phone));
     }
 
+    /**
+     * 解析normalize邮件，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeEmail(RiskDTOs.RiskListSaveRequest request) {
         String email = normalizedEmail(requiredPlain(request));
         return NormalizedValue.fixed(SensitiveDataMaskUtils.maskEmail(email), sha256(email), sensitiveValueCrypto.encrypt(email));
     }
 
+    /**
+     * 解析normalize邮件ordomain，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeEmailOrDomain(RiskDTOs.RiskListSaveRequest request) {
         String value = requiredPlain(request).trim();
         if (value.contains("@")) {
@@ -189,6 +300,16 @@ public class RiskListValueNormalizer {
         return normalizeEmailDomain(request);
     }
 
+    /**
+     * 解析normalize邮件username，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeEmailUsername(RiskDTOs.RiskListSaveRequest request) {
         String username = requiredPlain(request).trim().toLowerCase(Locale.ROOT);
         if (!username.toUpperCase(Locale.ROOT).matches(EMAIL_USERNAME_REGEX)) {
@@ -197,6 +318,16 @@ public class RiskListValueNormalizer {
         return normalizeSimple(username, true);
     }
 
+    /**
+     * 解析normalized邮件，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param rawEmail raw Email 输入值，参与 raw邮件 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalizedEmail(String rawEmail) {
         String email = rawEmail.trim().toLowerCase(Locale.ROOT);
         int atIndex = email.indexOf('@');
@@ -211,11 +342,31 @@ public class RiskListValueNormalizer {
         return username + "@" + domain;
     }
 
+    /**
+     * 解析normalize邮件domain，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeEmailDomain(RiskDTOs.RiskListSaveRequest request) {
         String domain = normalizeDomain(requiredPlain(request));
         return NormalizedValue.fixed(domain, sha256(domain), null);
     }
 
+    /**
+     * 解析normalizedomain，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param rawDomain raw Domain 输入值，参与 rawdomain 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalizeDomain(String rawDomain) {
         String domain = rawDomain.trim().toLowerCase(Locale.ROOT);
         while (domain.startsWith("@")) {
@@ -232,6 +383,16 @@ public class RiskListValueNormalizer {
         return domain;
     }
 
+    /**
+     * 解析normalize商户，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeMerchant(RiskDTOs.RiskListSaveRequest request) {
         String merchantId = defaultIfBlank(request.getMatchValuePlain(), request.getMatchValueMasked());
         if (!StringUtils.hasText(merchantId)) {
@@ -240,6 +401,16 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(merchantId, sha256(merchantId), null);
     }
 
+    /**
+     * 解析normalizepostal编码，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizePostalCode(RiskDTOs.RiskListSaveRequest request) {
         String displayValue = requiredPlain(request).trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
         if (!displayValue.matches(POSTAL_CODE_REGEX)) {
@@ -249,6 +420,17 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(displayValue, sha256(lookupValue), null);
     }
 
+    /**
+     * 解析normalizesimple，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param sensitive sensitive 输入值，参与 sensitive 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedValue normalizeSimple(String value, boolean sensitive) {
         String normalized = value.trim();
         String masked = sensitive && normalized.length() > 8
@@ -257,10 +439,30 @@ public class RiskListValueNormalizer {
         return NormalizedValue.fixed(masked, sha256(normalized.toLowerCase(Locale.ROOT)), sensitive ? sensitiveValueCrypto.encrypt(normalized) : null);
     }
 
+    /**
+     * 判断 is country function 条件是否成立，用于控制 Risk List Value Normalizer 的后续分支。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * </p>
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean isCountryFunction(String code) {
         return "country".equals(code) || code.endsWith("Country") || code.contains("Country");
     }
 
+    /**
+     * 判断 is sensitive function 条件是否成立，用于控制 Risk List Value Normalizer 的后续分支。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * </p>
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean isSensitiveFunction(String code) {
         return code.contains("Fingerprint")
                 || code.contains("Name")
@@ -271,12 +473,32 @@ public class RiskListValueNormalizer {
                 || code.contains("Customer");
     }
 
+    /**
+     * 校验卡 BIN输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param label label 输入值，参与 label 的查询、校验、转换、写入或日志摘要
+     */
     private void validateCardBin(String value, String label) {
         if (value.length() < CARD_BIN_MIN_LENGTH || value.length() > CARD_BIN_MAX_LENGTH) {
             throw invalid("BIN必须为 6-11 位纯数字");
         }
     }
 
+    /**
+     * 解析parseip，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param ip IP 输入值，参与 ip 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private ParsedIp parseIp(String ip) {
         if (!StringUtils.hasText(ip)) {
             throw invalid("请输入IP地址");
@@ -288,6 +510,16 @@ public class RiskListValueNormalizer {
         return parseIpv4(value);
     }
 
+    /**
+     * 解析parseipv4，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
     private ParsedIp parseIpv4(String value) {
         String[] parts = value.split("\\.", -1);
         if (parts.length != 4) {
@@ -310,6 +542,16 @@ public class RiskListValueNormalizer {
         return new ParsedIp(value, "IPV4", number, segments);
     }
 
+    /**
+     * 解析parseipv6，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
     private ParsedIp parseIpv6(String value) {
         if (!value.matches("[0-9a-fA-F:]+")) {
             throw invalid("IP地址格式不正确");
@@ -329,6 +571,17 @@ public class RiskListValueNormalizer {
         }
     }
 
+    /**
+     * 整理differingsegment计数，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param startSegments start Segments 输入值，参与 startsegments 的查询、校验、转换、写入或日志摘要
+     * @param endSegments end Segments 输入值，参与 endsegments 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private int differingSegmentCount(int[] startSegments, int[] endSegments) {
         int count = 0;
         for (int index = 0; index < startSegments.length; index++) {
@@ -339,12 +592,31 @@ public class RiskListValueNormalizer {
         return count;
     }
 
+    /**
+     * 整理拒绝multipleranges，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     */
     private void rejectMultipleRanges(String value) {
         if (value != null && (value.contains(",") || value.contains(";") || value.contains("\n"))) {
             throw invalid("一次只能录入一个IP区间");
         }
     }
 
+    /**
+     * 校验requiredplain输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String requiredPlain(RiskDTOs.RiskListSaveRequest request) {
         String plain = defaultIfBlank(request.getMatchValuePlain(), request.getMatchValueMasked());
         if (!StringUtils.hasText(plain)) {
@@ -353,6 +625,16 @@ public class RiskListValueNormalizer {
         return plain;
     }
 
+    /**
+     * 规范化digits，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String digits(String value) {
         if (!StringUtils.hasText(value)) {
             throw invalid("请输入数字值");
@@ -364,6 +646,18 @@ public class RiskListValueNormalizer {
         return digits;
     }
 
+    /**
+     * 规范化rightpad，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param length length 输入值，参与 length 的查询、校验、转换、写入或日志摘要
+     * @param ch ch 输入值，参与 ch 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String rightPad(String value, int length, char ch) {
         if (value.length() >= length) {
             return value;
@@ -371,14 +665,45 @@ public class RiskListValueNormalizer {
         return value + String.valueOf(ch).repeat(length - value.length());
     }
 
+    /**
+     * 规范化upper，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String upper(String value) {
         return StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : null;
     }
 
+    /**
+     * 整理默认ifblank，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param fallback fallback 输入值，参与 fallback 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String defaultIfBlank(String value, String fallback) {
         return StringUtils.hasText(value) ? value.trim() : fallback;
     }
 
+    /**
+     * 计算sha256摘要，用不可逆指纹关联原始内容而不暴露明文。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String sha256(String value) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
@@ -388,6 +713,16 @@ public class RiskListValueNormalizer {
         }
     }
 
+    /**
+     * 规范化invalid，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }

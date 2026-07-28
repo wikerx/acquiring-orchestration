@@ -82,7 +82,6 @@ class MerchantClientRequestWithoutDatabaseTests {
         log.info("请求参数加密完成，data摘要：{}",
                 MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory));
 
-
         String authorization = MerchantOpenApiTestSupport.createMerchantJwt(
                 MERCHANT_ID,
                 MERCHANT_KEY,

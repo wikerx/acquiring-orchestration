@@ -21,21 +21,17 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * @description : 管理后台任务执行节点控制器
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorJobNodeController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Monitor Job Node 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/monitor/job-node")
 public class MonitorJobNodeController {
 
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Job Scheduler Application Service 依赖，用于 Monitor Job Node Controller 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final AdminJobSchedulerApplicationService adminJobSchedulerApplicationService;
 
@@ -52,10 +48,6 @@ public class MonitorJobNodeController {
      * 查询执行节点列表。
      *
      * @return 执行节点列表
-     */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/list")
     @RequiresPermission("monitor:jobNode:list")

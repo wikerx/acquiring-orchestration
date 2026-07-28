@@ -414,7 +414,6 @@ public final class TransactionQueryDTOs {
          */
         private String merchantResponseMessage;
 
-
         /**
          * 当前生命周期累计授权成功金额，交易币种单位。
          */

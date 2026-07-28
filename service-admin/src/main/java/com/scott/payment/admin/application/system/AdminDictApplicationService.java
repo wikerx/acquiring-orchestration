@@ -32,15 +32,6 @@ import java.util.Locale;
  * @description : 管理后台数据字典应用服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminDictApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Admin Dict Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminDictApplicationService {
 
@@ -50,19 +41,39 @@ public class AdminDictApplicationService {
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Dict Service 依赖，用于 Admin Dict Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final AdminDictService adminDictService;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Export Service 依赖，用于 Admin Dict Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelExportService excelExportService;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel I 18 n Message Resolver，用于保存 Admin Dict Application Service 中与 exceli18nmessageresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Locale Resolver，用于保存 Admin Dict Application Service 中与 excellocaleresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelLocaleResolver excelLocaleResolver;
     /**
@@ -97,11 +108,6 @@ public class AdminDictApplicationService {
      * @param request 保存请求
      * @return 字典类型详情
      */
-    /**
-     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SysDictTypeDTO saveDictType(SysDictTypeSaveRequest request) {
         return adminDictService.saveDictType(request);
     }
@@ -111,11 +117,6 @@ public class AdminDictApplicationService {
      *
      * @param request 查询条件
      * @return 分页结果
-     */
-    /**
-     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<SysDictTypeDTO> pageDictTypes(SysDictTypeQueryRequest request) {
         return adminDictService.pageDictTypes(request);
@@ -127,12 +128,6 @@ public class AdminDictApplicationService {
      * @param request 查询条件
      * @param operator 导出人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportDictTypes(SysDictTypeQueryRequest request,
                                 String operator,
@@ -164,10 +159,6 @@ public class AdminDictApplicationService {
      *
      * @param dictType 字典类型编码
      */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     public void deleteDictType(String dictType) {
         adminDictService.deleteDictType(dictType);
     }
@@ -177,11 +168,6 @@ public class AdminDictApplicationService {
      *
      * @param request 保存请求
      * @return 字典数据详情
-     */
-    /**
-     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public SysDictDataDTO saveDictData(SysDictDataSaveRequest request) {
         return adminDictService.saveDictData(request);
@@ -193,11 +179,6 @@ public class AdminDictApplicationService {
      * @param request 查询条件
      * @return 分页结果
      */
-    /**
-     * 查询系统管理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<SysDictDataDTO> pageDictData(SysDictDataQueryRequest request) {
         return adminDictService.pageDictData(request);
     }
@@ -208,12 +189,6 @@ public class AdminDictApplicationService {
      * @param request 查询条件
      * @param operator 导出人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportDictData(SysDictDataQueryRequest request,
                                String operator,
@@ -246,11 +221,6 @@ public class AdminDictApplicationService {
      * @param id 字典数据主键
      * @return 字典数据详情
      */
-    /**
-     * 获取系统管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public SysDictDataDTO getDictDataById(Long id) {
         return adminDictService.getDictDataById(id);
     }
@@ -261,12 +231,6 @@ public class AdminDictApplicationService {
      * @param id      字典数据主键
      * @param request 保存请求
      * @return 更新后的字典数据
-     */
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public SysDictDataDTO updateDictDataById(Long id, SysDictDataSaveRequest request) {
         return adminDictService.updateDictDataById(id, request);
@@ -279,12 +243,6 @@ public class AdminDictApplicationService {
      * @param dictValue 字典值
      * @param locale    语言区域
      */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param dictType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param dictValue 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param locale 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     public void deleteDictData(String dictType, String dictValue, String locale) {
         adminDictService.deleteDictData(dictType, dictValue, locale);
     }
@@ -293,10 +251,6 @@ public class AdminDictApplicationService {
      * 按主键删除字典数据。
      *
      * @param id 字典数据主键
-     */
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void deleteDictDataById(Long id) {
         adminDictService.deleteDictDataById(id);
@@ -381,15 +335,49 @@ public class AdminDictApplicationService {
         return builder.isEmpty() ? excelI18nMessageResolver.resolve("excel.common.noCondition", locale) : builder.toString();
     }
 
+    /**
+     * 构造查询条件对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param builder builder 输入值，参与 builder 的查询、校验、转换、写入或日志摘要
+     * @param labelKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     */
     private void appendCondition(StringBuilder builder, String labelKey, String value, Locale locale) {
         appendSeparator(builder);
         builder.append(excelI18nMessageResolver.resolve(labelKey, locale)).append("=").append(value);
     }
 
+    /**
+     * 解析resolve状态文本，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param enabled enabled 输入值，参与 enabled 的查询、校验、转换、写入或日志摘要
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolveStatusText(boolean enabled, Locale locale) {
         return excelI18nMessageResolver.resolve(enabled ? "excel.common.enabled" : "excel.common.disabled", locale);
     }
 
+    /**
+     * 解析resolveboolean文本，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param yes yes 输入值，参与 yes 的查询、校验、转换、写入或日志摘要
+     * @param locale locale 输入值，参与 locale 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolveBooleanText(boolean yes, Locale locale) {
         return excelI18nMessageResolver.resolve(yes ? "excel.common.yes" : "excel.common.no", locale);
     }

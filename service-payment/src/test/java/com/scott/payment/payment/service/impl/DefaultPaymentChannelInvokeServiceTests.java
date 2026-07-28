@@ -4,15 +4,19 @@ import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.channel.payment.executor.PaymentChannelExecutor;
+import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -74,16 +78,89 @@ class DefaultPaymentChannelInvokeServiceTests {
         DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
         PaymentCreateCommandDTO commandDTO = followUpCommand();
         commandDTO.setTransactionType("QUERY");
+        PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+        prepared.setRequestId("CR-ORIGINAL");
+        prepared.setChannelOrderNo("ORDER-MPGS-001");
+        prepared.setChannelTransactionId("CH-MPGS-001");
 
-        invokeService.invoke(commandDTO, routeResult(), "OP260714180001", "CH260714180001", "TX260714180001");
+        invokeService.invoke(commandDTO, routeResult(), "OP260714180001", "TX260714180099", prepared);
 
         ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
         verify(executor).execute(captor.capture());
         ChannelPaymentRequest request = captor.getValue();
-        assertThat(request.getTransactionId()).isEqualTo("CH260714180001");
-        assertThat(request.getChannelOrderNo()).isEqualTo("TX260714180001");
-        assertThat(request.getChannelTransactionId()).isEqualTo("CH260714180001");
+        assertThat(request.getTransactionId()).isEqualTo("TX260714180099");
+        assertThat(request.getChannelOrderNo()).isEqualTo("ORDER-MPGS-001");
+        assertThat(request.getChannelTransactionId()).isEqualTo("CH-MPGS-001");
+        assertThat(request.getChannelTransactionId()).isNotEqualTo(request.getTransactionId());
         assertThat(request.getTransactionType()).isEqualTo("QUERY");
+    }
+
+    /**
+     * QUERY 缺少已持久化渠道交易 ID 时，通用调用服务不得把平台 transactionId 回填成 channelTransactionId。
+     */
+    @Test
+    void shouldNotFallbackPlatformTransactionIdAsChannelTransactionIdForQueryRequest() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+        when(executor.execute(any(ChannelPaymentRequest.class))).thenReturn(response);
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+        PaymentCreateCommandDTO commandDTO = followUpCommand();
+        commandDTO.setTransactionType("QUERY");
+
+        invokeService.invoke(commandDTO, routeResult(), "OP260714180001", "TX260714180099", "ORDER-MPGS-001");
+
+        ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
+        verify(executor).execute(captor.capture());
+        ChannelPaymentRequest request = captor.getValue();
+        assertThat(request.getTransactionId()).isEqualTo("TX260714180099");
+        assertThat(request.getChannelOrderNo()).isEqualTo("ORDER-MPGS-001");
+        assertThat(request.getChannelTransactionId()).isNull();
+    }
+
+    @Test
+    void shouldDelegateQueryReferenceSupportToChannelExecutor() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        when(executor.supportsQueryReference(any(ChannelPaymentRequest.class))).thenReturn(true);
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
+        PaymentCreateCommandDTO commandDTO = followUpCommand();
+        commandDTO.setTransactionType("QUERY");
+        PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+        prepared.setRequestId("CR-ORIGINAL");
+        prepared.setChannelOrderNo("ORDER-MPGS-001");
+        prepared.setChannelTransactionId("CH-MPGS-001");
+
+        boolean supported = invokeService.supportsQueryReference(
+                commandDTO, routeResult(), "OP260714180001", "TX260714180099", prepared);
+
+        assertThat(supported).isTrue();
+        ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
+        verify(executor).supportsQueryReference(captor.capture());
+        assertThat(captor.getValue().getTransactionId()).isEqualTo("TX260714180099");
+        assertThat(captor.getValue().getChannelOrderNo()).isEqualTo("ORDER-MPGS-001");
+        assertThat(captor.getValue().getChannelTransactionId()).isEqualTo("CH-MPGS-001");
+        assertThat(captor.getValue().getExtension()).containsEntry("requestId", "CR-ORIGINAL");
+    }
+
+    /**
+     * 渠道请求必须优先透传数据库币种表解析出的辅币位，避免 Worldpay JSON 默认按两位小数换算金额。
+     */
+    @Test
+    void shouldPropagateDatabaseCurrencyExponentToChannelRequest() {
+        PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
+        ChannelPaymentResponse response = new ChannelPaymentResponse();
+        response.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());
+        when(executor.execute(any(ChannelPaymentRequest.class))).thenReturn(response);
+        IsoDictionaryService isoDictionaryService = mock(IsoDictionaryService.class);
+        when(isoDictionaryService.getCurrency("USD")).thenReturn(Optional.of(new IsoCurrencyInfo(
+                "USD", "840", "US Dollar", "美元", 3, 1000, new BigDecimal("0.001"), "$")));
+        DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor, isoDictionaryService);
+
+        invokeService.invoke(followUpCommand(), routeResult(), "OP260714180001", "TX260714180002", "TX260714180001");
+
+        ArgumentCaptor<ChannelPaymentRequest> captor = ArgumentCaptor.forClass(ChannelPaymentRequest.class);
+        verify(executor).execute(captor.capture());
+        assertThat(captor.getValue().getExtension()).containsEntry("currencyExponent", "3");
     }
 
     private PaymentCreateCommandDTO followUpCommand() {

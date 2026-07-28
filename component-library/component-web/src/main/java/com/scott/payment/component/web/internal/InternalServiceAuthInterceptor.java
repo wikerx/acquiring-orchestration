@@ -25,6 +25,14 @@ import java.time.Duration;
  */
 public class InternalServiceAuthInterceptor implements HandlerInterceptor {
 
+    /**
+     * PATH MATCHER，表示接口路径、资源路径或路由匹配路径。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
@@ -99,6 +107,17 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
         return Math.abs(InternalServiceSignature.currentTimeMillis() - timestamp) > skewMillis;
     }
 
+    /**
+     * 解析parsetimestamp，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param timestampText 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @return 构造、转换或解析后的业务值
+     */
     private long parseTimestamp(String timestampText, HttpServletResponse response) throws IOException {
         try {
             return Long.parseLong(timestampText);
@@ -108,6 +127,17 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
         }
     }
 
+    /**
+     * 整理write错误，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     */
     private void writeError(HttpServletResponse response, String code, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

@@ -72,17 +72,18 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+
+@Slf4j
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminUserServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : 后台用户领域服务实现，位于 service-admin 服务实现层；负责用户资料、账号状态、岗位绑定和角色授权边界校验。
+ * @description : Admin User Service Impl 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
-@Slf4j
-@Service
 public class AdminUserServiceImpl implements AdminUserService {
 
     /**
@@ -521,10 +522,6 @@ public class AdminUserServiceImpl implements AdminUserService {
         logoutSessions(app.getId(), account.getId(), now);
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param accountIds 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -1247,7 +1244,7 @@ public class AdminUserServiceImpl implements AdminUserService {
             request.setVariables(variables);
             adminEmailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("admin account created notice send failed, accountId={}", account.getId(), exception);
+            log.warn("admin account created notice send failed, accountId: {}", account.getId(), exception);
         }
     }
 
@@ -1287,6 +1284,17 @@ public class AdminUserServiceImpl implements AdminUserService {
         dto.setMfaLockedUntil(mfa == null ? null : mfa.getLockedUntil());
     }
 
+    /**
+     * 构造角色dto对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param role role 输入值，参与 角色 的查询、校验、转换、写入或日志摘要
+     * @param assignable assignable 输入值，参与 assignable 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private SysRoleDTO toRoleDTO(SysRoleDO role, boolean assignable) {
         SysRoleDTO dto = new SysRoleDTO();
         dto.setRoleId(role.getId());

@@ -3,22 +3,28 @@ package com.scott.payment.component.core.util;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SensitiveDataMaskUtils
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:48
  * @email : scott_x@163.com
- * @description : 日志敏感数据脱敏工具，统一处理卡号、CVV、JWT、渠道凭据、商户密钥和个人联系信息，避免明文进入日志或审计表。
+ * @description : Sensitive Data Mask Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  * @status : create
  */
 public final class SensitiveDataMaskUtils {
 
     /**
+     * 脱敏失败时返回固定占位符，禁止回退输出原文。
+     */
+    private static final String MASK_FAILED_PLACEHOLDER = "***MASK_FAILED***";
+
+    /**
      * 密钥类字段统一替换为固定星号，禁止日志中出现任何明文片段。
      */
     private static final Pattern SECRET_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:password|mid\\.password|oldPassword|newPassword|apiPassword|mid\\.apiPassword|Authorization|accessToken|refreshToken|token|apiToken|authenticationToken|apiKey|secret|apiSecret|secretKey|privateKey|publicKey|merchantKey|merchantSecret)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:password|mid\\.password|oldPassword|newPassword|apiPassword|mid\\.apiPassword|Authorization|accessToken|refreshToken|token|opaqueToken|tokenHash|threeDsReturnToken|threeDsReturnTokenHash|apiToken|authenticationToken|apiKey|secret|apiSecret|secretKey|privateKey|publicKey|merchantKey|merchantSecret)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -66,12 +72,20 @@ public final class SensitiveDataMaskUtils {
      * 安全码、CAVV 等认证敏感数据统一隐藏。
      */
     private static final Pattern SECURITY_CODE_PATTERN = Pattern.compile(
-            "(\"(?:securityCode|cvv|cvc|cavv)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            "(\"(?:securityCode|cvv|cvc|cavv|threeDSSessionData|threeDSMethodData|paReq|paRes|cres|md)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
             Pattern.CASE_INSENSITIVE
     );
 
     /**
-     * 工具类不允许实例化。
+     * URL encoded 表单中的 3DS 敏感字段统一隐藏。
+     */
+    private static final Pattern FORM_SECRET_FIELD_PATTERN = Pattern.compile(
+            "((?:^|[&?])(?:threeDSSessionData|threeDSMethodData|PaReq|PaRes|cres|MD|threeDsReturnToken|opaqueToken|token)=)([^&\"'\\\\\\s]*)",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * 私有构造方法，禁止外部实例化该脱敏支撑类型。
      */
     private SensitiveDataMaskUtils() {
     }
@@ -92,7 +106,24 @@ public final class SensitiveDataMaskUtils {
         masked = maskMobileField(masked);
         masked = maskEmailField(masked);
         masked = SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
-        return ID_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = ID_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        return FORM_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***");
+    }
+
+    /**
+     * 对 JSON 文本执行安全脱敏。
+     * <p>
+     * 该方法用于日志落库和审计日志输出；一旦脱敏流程出现异常，返回固定占位符而不是原始报文。
+     *
+     * @param json 原始 JSON 文本
+     * @return 脱敏文本或固定失败占位符
+     */
+    public static String maskJsonSafely(String json) {
+        try {
+            return maskJson(json);
+        } catch (RuntimeException exception) {
+            return MASK_FAILED_PLACEHOLDER;
+        }
     }
 
     /**
@@ -178,12 +209,32 @@ public final class SensitiveDataMaskUtils {
         return cardNo.substring(0, 6) + "******" + cardNo.substring(cardNo.length() - 4);
     }
 
+    /**
+     * 脱敏mobilefield，返回可安全写入日志或展示的摘要文本。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private static String maskMobileField(String value) {
         return MOBILE_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
                 matchResult.group(1) + maskMobile(matchResult.group(2)) + matchResult.group(3)
         ));
     }
 
+    /**
+     * 脱敏emailfield，返回可安全写入日志或展示的摘要文本。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private static String maskEmailField(String value) {
         return EMAIL_FIELD_PATTERN.matcher(value).replaceAll(matchResult -> Matcher.quoteReplacement(
                 matchResult.group(1) + maskEmail(matchResult.group(2) + matchResult.group(3)) + matchResult.group(4)

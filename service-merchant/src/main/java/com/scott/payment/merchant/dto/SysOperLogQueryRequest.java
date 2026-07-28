@@ -6,17 +6,17 @@ import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 
+@Data
+@EqualsAndHashCode(callSuper = true)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysOperLogQueryRequest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : 商户管理Sys Oper Log Query 请求对象，位于 service-merchant 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Sys Oper Log Query Request 传输模型，位于 商户后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
-@Data
-@EqualsAndHashCode(callSuper = true)
 public class SysOperLogQueryRequest extends PageRequest {
 
     /**

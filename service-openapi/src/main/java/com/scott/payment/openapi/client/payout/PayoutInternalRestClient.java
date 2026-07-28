@@ -20,16 +20,16 @@ import java.net.URI;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PayoutInternalRestClient
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIPayout Internal Rest Client，位于 service-openapi 的外部调用层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Payout Internal Rest Client 客户端，位于 商户开放接口服务，封装内部服务或渠道接口调用，统一处理请求构造、响应解析、超时和异常转换。
  * @status : create
  */
-@Service
 public class PayoutInternalRestClient implements PayoutInternalClient {
 
     /**
@@ -51,6 +51,11 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
      * 域名分隔符。
      */
     private static final String DOMAIN_SEPARATOR = ".";
+
+    /**
+     * service-payout 服务名和内部路径是代码级服务契约，不进入 Nacos 或参数设置表。
+     */
+    private static final String SERVICE_PAYOUT_CREATE_URL = "http://service-payout/internal/payout/create";
 
     /**
      * 直连 RestTemplate。
@@ -88,18 +93,12 @@ public class PayoutInternalRestClient implements PayoutInternalClient {
      * @param requestDTO 创建代付内部请求
      * @return 创建代付内部响应
      */
-    /**
-     * 创建或保存商户 OpenAPI数据，保持请求校验、默认值和审计字段一致。
-     * @param requestDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PayoutCreateClientResponseDTO createPayout(PayoutCreateClientRequestDTO requestDTO) {
         try {
-            String createUrl = payoutClientProperties.getCreateUrl();
-            String responseBody = chooseRestTemplate(createUrl).postForObject(
-                    createUrl,
-                    buildSignedEntity(URI.create(createUrl), requestDTO),
+            String responseBody = chooseRestTemplate(SERVICE_PAYOUT_CREATE_URL).postForObject(
+                    SERVICE_PAYOUT_CREATE_URL,
+                    buildSignedEntity(URI.create(SERVICE_PAYOUT_CREATE_URL), requestDTO),
                     String.class
             );
             CommonResult<PayoutCreateClientResponseDTO> result = JsonUtils.parseObject(

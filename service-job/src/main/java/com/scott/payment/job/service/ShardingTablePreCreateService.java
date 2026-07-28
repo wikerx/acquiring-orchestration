@@ -4,13 +4,14 @@ import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.job.dto.sharding.ShardingTablePreCreateRequest;
 import com.scott.payment.job.dto.sharding.ShardingTablePreCreateResult;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingTablePreCreateService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 分表物理表预创建服务。 <p>负责读取 Nacos 分表配置、计算目标季度、检查模板表和物理表、执行 dryRun 或真实建表， 并登记物理表状态和批次日志。</p>
+ * @description : Sharding Table Pre Create Service 服务契约，位于 调度任务服务，声明当前业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public interface ShardingTablePreCreateService {

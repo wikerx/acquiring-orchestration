@@ -34,32 +34,43 @@ import java.util.Locale;
  * @description : 管理后台任务调度应用编排服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminJobSchedulerApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Admin Job Scheduler Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminJobSchedulerApplicationService {
 
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Scheduler Internal Client 依赖，用于 Admin Job Scheduler Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobSchedulerInternalClient jobSchedulerInternalClient;
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Export Service 依赖，用于 Admin Job Scheduler Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelExportService excelExportService;
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel I 18 n Message Resolver，用于保存 Admin Job Scheduler Application Service 中与 exceli18nmessageresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Locale Resolver，用于保存 Admin Job Scheduler Application Service 中与 excellocaleresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelLocaleResolver excelLocaleResolver;
     /**
@@ -93,10 +104,6 @@ public class AdminJobSchedulerApplicationService {
      *
      * @return 处理器列表
      */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public List<JobHandlerOptionResponse> listHandlers() {
         return jobSchedulerInternalClient.listHandlers();
     }
@@ -106,11 +113,6 @@ public class AdminJobSchedulerApplicationService {
      *
      * @param request 查询条件
      * @return 任务分页结果
-     */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<JobTaskResponse> pageTasks(JobTaskQueryRequest request) {
         return jobSchedulerInternalClient.pageTasks(request);
@@ -122,12 +124,6 @@ public class AdminJobSchedulerApplicationService {
      * @param request 保存请求
      * @param operator 操作人
      * @return 任务响应
-     */
-    /**
-     * 创建或保存监控治理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public JobTaskResponse createTask(JobTaskSaveRequest request, String operator) {
         request.setDescription(trimToNull(request.getDescription()));
@@ -144,13 +140,6 @@ public class AdminJobSchedulerApplicationService {
      * @param operator 操作人
      * @return 任务响应
      */
-    /**
-     * 更新监控治理数据，保持已有记录、状态和审计字段的一致性。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public JobTaskResponse updateTask(Long taskId, JobTaskSaveRequest request, String operator) {
         request.setDescription(trimToNull(request.getDescription()));
         request.setParams(trimToNull(request.getParams()));
@@ -166,13 +155,6 @@ public class AdminJobSchedulerApplicationService {
      * @param operator 操作人
      * @return 任务响应
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public JobTaskResponse changeStatus(Long taskId, String status, String operator) {
         return jobSchedulerInternalClient.changeStatus(taskId, status, operator);
     }
@@ -186,14 +168,6 @@ public class AdminJobSchedulerApplicationService {
      * @param operatorName 当前操作人名称
      * @return 执行批次号
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operatorName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String trigger(Long taskId, JobManualTriggerRequest request, String operatorId, String operatorName) {
         request.setOperatorId(operatorId);
         request.setOperatorName(operatorName);
@@ -206,11 +180,6 @@ public class AdminJobSchedulerApplicationService {
      * @param taskId   任务主键
      * @param operator 操作人
      */
-    /**
-     * 删除监控治理数据，按业务规则处理引用校验和删除边界。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     public void deleteTask(Long taskId, String operator) {
         jobSchedulerInternalClient.deleteTask(taskId, operator);
     }
@@ -220,11 +189,6 @@ public class AdminJobSchedulerApplicationService {
      *
      * @param request 查询条件
      * @return 日志分页结果
-     */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<JobRunLogResponse> pageRunLogs(JobRunLogQueryRequest request) {
         return jobSchedulerInternalClient.pageRunLogs(request);
@@ -236,11 +200,6 @@ public class AdminJobSchedulerApplicationService {
      * @param request 查询条件
      * @return 执行日志列表
      */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public List<JobRunLogResponse> listRunLogs(JobRunLogQueryRequest request) {
         return jobSchedulerInternalClient.listRunLogs(request);
     }
@@ -249,10 +208,6 @@ public class AdminJobSchedulerApplicationService {
      * 删除单条执行日志。
      *
      * @param id 日志主键
-     */
-    /**
-     * 删除监控治理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void removeRunLog(Long id) {
         jobSchedulerInternalClient.removeRunLog(id);
@@ -264,11 +219,6 @@ public class AdminJobSchedulerApplicationService {
      * @param request 查询条件
      * @return 删除数量
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public int cleanRunLogs(JobRunLogQueryRequest request) {
         return jobSchedulerInternalClient.cleanRunLogs(request);
     }
@@ -279,12 +229,6 @@ public class AdminJobSchedulerApplicationService {
      * @param request 查询条件
      * @param operator 导出人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportRunLogs(JobRunLogQueryRequest request,
                               String operator,
@@ -314,10 +258,6 @@ public class AdminJobSchedulerApplicationService {
      * 查询执行节点列表。
      *
      * @return 执行节点列表
-     */
-    /**
-     * 查询监控治理列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public List<JobExecutorNodeResponse> listNodes() {
         return jobSchedulerInternalClient.listNodes();

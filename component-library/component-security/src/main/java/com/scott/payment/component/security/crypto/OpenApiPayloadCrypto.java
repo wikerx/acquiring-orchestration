@@ -31,13 +31,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiPayloadCrypto
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-29 22:06
  * @email : scott_x@163.com
- * @description : OpenAPI 报文混合加密组件，负责 RSA-OAEP-SHA256 包裹 AES-256-GCM 会话密钥。该组件只处理加解密和 JCA 密钥解析，PEM 展示格式统一委托 {@link OpenApiPemUtils}。
+ * @description : Open API Payload Crypto 协作组件，位于 公共组件库，封装 openapipayloadcrypto 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class OpenApiPayloadCrypto {

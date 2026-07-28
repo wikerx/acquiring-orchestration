@@ -13,6 +13,14 @@ import org.springframework.util.StringUtils;
  */
 public class MpgsErrorCodeMapper {
 
+    /**
+     * DEFAULT FAILED CODE，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String DEFAULT_FAILED_CODE = "MPGS_FAILED";
 
     /**
@@ -27,6 +35,9 @@ public class MpgsErrorCodeMapper {
         }
         if (response.getError() != null && StringUtils.hasText(response.getError().getCause())) {
             return response.getError().getCause();
+        }
+        if (response.getResponse() != null && StringUtils.hasText(response.getResponse().getAcquirerCode())) {
+            return response.getResponse().getAcquirerCode();
         }
         if (response.getResponse() != null && StringUtils.hasText(response.getResponse().getGatewayCode())) {
             return response.getResponse().getGatewayCode();
@@ -51,13 +62,10 @@ public class MpgsErrorCodeMapper {
             return response.getResult();
         }
         String acquirerMessage = response.getResponse().getAcquirerMessage();
-        String gatewayRecommendation = response.getResponse().getGatewayRecommendation();
-        if (StringUtils.hasText(acquirerMessage) && StringUtils.hasText(gatewayRecommendation)) {
-            return acquirerMessage + ", " + gatewayRecommendation;
-        }
         if (StringUtils.hasText(acquirerMessage)) {
             return acquirerMessage;
         }
+        String gatewayRecommendation = response.getResponse().getGatewayRecommendation();
         if (StringUtils.hasText(gatewayRecommendation)) {
             return gatewayRecommendation;
         }

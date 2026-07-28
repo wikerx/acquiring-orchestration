@@ -101,15 +101,6 @@ import java.util.stream.Collectors;
  * @description : 管理类系统登录注册与权限服务实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : SystemAuthServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理System Auth Service Impl，位于 component-library/component-db 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class SystemAuthServiceImpl implements SystemAuthService {
 
@@ -267,67 +258,147 @@ public class SystemAuthServiceImpl implements SystemAuthService {
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys App Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysAppMapper sysAppMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys User Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysUserMapper sysUserMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Account Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysAccountMapper sysAccountMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRoleMapper sysRoleMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Account Role Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysAccountRoleMapper sysAccountRoleMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Menu Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRoleMenuMapper sysRoleMenuMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Permission Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRolePermissionMapper sysRolePermissionMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Menu Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMenuMapper sysMenuMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Permission Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysPermissionMapper sysPermissionMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Menu Grant Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantMenuGrantMapper sysMerchantMenuGrantMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Permission Grant Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant User Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantUserMapper sysMerchantUserMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant User Role Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Login Log Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysLoginLogMapper sysLoginLogMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Login Session Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysLoginSessionMapper sysLoginSessionMapper;
     /**
-     * 系统管理编码或编号字段，用于业务识别、查询和幂等关联。
+     * sys Verify Code Mapper，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysVerifyCodeMapper sysVerifyCodeMapper;
     /**
@@ -343,7 +414,12 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private final SysAccountMfaLogMapper sysAccountMfaLogMapper;
     /**
-     * 系统管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * base Merchant Info Mapper 依赖，用于 System Auth Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
     /**
@@ -418,12 +494,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param appCode 系统应用编码
      * @param request 注册请求
      * @return 注册后的账号信息
-     */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -501,14 +571,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param clientIp  客户端IP
      * @param userAgent 客户端 User-Agent
      * @return 登录响应
-     */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param clientIp 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param userAgent 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -682,12 +744,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param token   登录 token
      * @return 当前账号和权限信息
      */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param token 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     public AuthLoginResponse currentUser(String appCode, String token) {
@@ -784,11 +840,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param appCode 系统应用编码
      * @param token   登录 token
      */
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param token 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     @DS(DataSourceName.MASTER)
     public void logout(String appCode, String token) {
@@ -810,15 +861,6 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param requestPath   请求路径
      * @param permissionCode 接口显式声明的权限编码
      * @return 当前登录账号上下文
-     */
-    /**
-     * 校验系统管理业务规则，发现不符合要求的数据时抛出业务异常。
-     * @param appCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param authorization 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param requestMethod 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param requestPath 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param permissionCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -1093,6 +1135,17 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         }
     }
 
+    /**
+     * 规范化drawcaptchanoise，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param graphics graphics 输入值，参与 graphics 的查询、校验、转换、写入或日志摘要
+     * @param width width 输入值，参与 width 的查询、校验、转换、写入或日志摘要
+     * @param height height 输入值，参与 height 的查询、校验、转换、写入或日志摘要
+     */
     private void drawCaptchaNoise(Graphics2D graphics, int width, int height) {
         for (int i = 0; i < 8; i++) {
             graphics.setColor(new Color(180 + VERIFY_CODE_RANDOM.nextInt(50), 195 + VERIFY_CODE_RANDOM.nextInt(40), 215 + VERIFY_CODE_RANDOM.nextInt(35)));
@@ -1108,6 +1161,16 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         }
     }
 
+    /**
+     * 整理captcha文本color，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param index index 输入值，参与 index 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Color captchaTextColor(int index) {
         Color[] colors = {
                 new Color(29, 78, 216),

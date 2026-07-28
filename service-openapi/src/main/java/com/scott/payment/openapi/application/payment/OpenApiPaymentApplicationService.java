@@ -5,16 +5,17 @@ import com.scott.payment.openapi.service.PaymentService;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import org.springframework.stereotype.Service;
 
+
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiPaymentApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 一步支付应用服务，位于 service-openapi 应用编排层，仅编排 payment 独立外部 API 到内部支付服务的调用。
+ * @description : Open API Payment Application Service 应用服务，位于 商户开放接口服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
-@Service
 public class OpenApiPaymentApplicationService {
 
     /**

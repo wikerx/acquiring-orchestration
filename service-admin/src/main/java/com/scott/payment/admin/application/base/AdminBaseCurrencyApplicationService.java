@@ -36,15 +36,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  *
  * <p>负责管理后台币种基础资料用例编排，包括分页查询、详情查询、新增、更新、状态切换和逻辑删除。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseCurrencyApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 基础数据Admin Base Currency Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminBaseCurrencyApplicationService {
 
@@ -73,15 +64,30 @@ public class AdminBaseCurrencyApplicationService {
      */
     private final IsoCurrencyMapper isoCurrencyMapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Export Service 依赖，用于 Admin Base Currency Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelExportService excelExportService;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel I 18 n Message Resolver，用于保存 Admin Base Currency Application Service 中与 exceli18nmessageresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Locale Resolver，用于保存 Admin Base Currency Application Service 中与 excellocaleresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
@@ -110,14 +116,6 @@ public class AdminBaseCurrencyApplicationService {
      * @param status   状态
      * @return 分页结果
      */
-    /**
-     * 查询基础数据列表或分页数据，供页面筛选和展示使用。
-     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyword 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<IsoCurrencyDO> pageCurrencies(int pageNo, int pageSize, String keyword, Integer status) {
         LambdaQueryWrapper<IsoCurrencyDO> queryWrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(keyword)) {
@@ -141,11 +139,6 @@ public class AdminBaseCurrencyApplicationService {
      * @param id 主键
      * @return 币种详情
      */
-    /**
-     * 获取基础数据明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public IsoCurrencyDO getCurrency(Long id) {
         return isoCurrencyMapper.selectById(id);
     }
@@ -154,11 +147,6 @@ public class AdminBaseCurrencyApplicationService {
      * 导出全部币种资料。
      *
      * @return 币种列表
-     */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportCurrencies(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -190,11 +178,6 @@ public class AdminBaseCurrencyApplicationService {
      * @param currency 币种实体
      * @return 保存后的实体
      */
-    /**
-     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
-     * @param currency 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public IsoCurrencyDO createCurrency(IsoCurrencyDO currency) {
         currency.setId(null);
         currency.setCreatedAt(LocalDateTime.now());
@@ -214,12 +197,6 @@ public class AdminBaseCurrencyApplicationService {
      * @param input 更新输入
      * @return 更新结果
      */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param input 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<IsoCurrencyDO> updateCurrency(Long id, IsoCurrencyDO input) {
         IsoCurrencyDO currency = isoCurrencyMapper.selectById(id);
         if (currency == null) {
@@ -238,13 +215,6 @@ public class AdminBaseCurrencyApplicationService {
      * @param body 状态请求体
      * @return 更新结果
      */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<IsoCurrencyDO> updateStatus(Long id, Map<String, Integer> body) {
         IsoCurrencyDO currency = isoCurrencyMapper.selectById(id);
         if (currency == null) {
@@ -260,10 +230,6 @@ public class AdminBaseCurrencyApplicationService {
      * 逻辑删除币种资料。
      *
      * @param id 主键
-     */
-    /**
-     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void removeCurrency(Long id) {
         IsoCurrencyDO currency = isoCurrencyMapper.selectById(id);

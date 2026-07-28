@@ -9,7 +9,6 @@ package com.scott.payment.component.job.enums;
  * @description : 任务错过触发Strategy枚举
  * @status : create
  */
-
 public enum JobMisfireStrategyEnum {
 
     /**

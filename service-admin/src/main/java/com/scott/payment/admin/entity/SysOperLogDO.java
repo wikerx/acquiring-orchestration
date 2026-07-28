@@ -16,15 +16,6 @@ import java.time.LocalDateTime;
  * @description : 系统后台操作日志数据库实体，只记录管理后台审计信息，不承载交易明文
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : SysOperLogDO
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Sys Oper Log 数据库实体，位于 service-admin 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 @TableName("sys_oper_log")
 public class SysOperLogDO {

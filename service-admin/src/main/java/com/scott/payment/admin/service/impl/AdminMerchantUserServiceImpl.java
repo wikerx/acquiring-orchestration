@@ -55,80 +55,177 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMerchantUserServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : 收单支付Admin Merchant User Service Impl，位于 service-admin 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Admin Merchant User Service Impl 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
-@Service
 public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
 
     /**
-     * 收单支付固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ROOT PARENT ID，用于定位 Admin Merchant User Service Impl 关联的上游配置、渠道、账号、角色或业务记录。
+     * <p>
+     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
+     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final long ROOT_PARENT_ID = 0L;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys App Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysAppMapper sysAppMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Account Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysAccountMapper sysAccountMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant User Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantUserMapper sysMerchantUserMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant User Role Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantUserRoleMapper sysMerchantUserRoleMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRoleMapper sysRoleMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Menu Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRoleMenuMapper sysRoleMenuMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Role Permission Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysRolePermissionMapper sysRolePermissionMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Menu Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMenuMapper sysMenuMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Permission Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysPermissionMapper sysPermissionMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Dept Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantDeptMapper sysMerchantDeptMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Post Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantPostMapper sysMerchantPostMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Account Dept Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantAccountDeptMapper sysMerchantAccountDeptMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Merchant Account Post Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysMerchantAccountPostMapper sysMerchantAccountPostMapper;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * base Merchant Info Mapper 依赖，用于 Admin Merchant User Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
 
+/**
+ * 整理admin商户用户serviceimpl，返回当前业务步骤需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param sysAppMapper sys App Mapper 输入值，参与 sysapp映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysAccountMapper sys Account Mapper 输入值，参与 sys账号映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysMerchantUserMapper sys Merchant User Mapper 输入值，参与 sys商户用户映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysMerchantUserRoleMapper sys Merchant User Role Mapper 输入值，参与 sys商户用户角色映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysRoleMapper sys Role Mapper 输入值，参与 sys角色映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysRoleMenuMapper sys Role Menu Mapper 输入值，参与 sys角色菜单映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysRolePermissionMapper sys Role Permission Mapper 输入值，参与 sys角色权限映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysMenuMapper sys Menu Mapper 输入值，参与 sys菜单映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysPermissionMapper sys Permission Mapper 输入值，参与 sys权限映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysMerchantDeptMapper sys Merchant Dept Mapper 输入值，参与 sys商户部门映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysMerchantPostMapper sys Merchant Post Mapper 输入值，参与 sys商户岗位映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysMerchantAccountDeptMapper sys Merchant Account Dept Mapper 输入值，参与 sys商户账号部门映射器 的查询、校验、转换、写入或日志摘要
+ * @param sysMerchantAccountPostMapper sys Merchant Account Post Mapper 输入值，参与 sys商户账号岗位映射器 的查询、校验、转换、写入或日志摘要
+ * @param baseMerchantInfoMapper base Merchant Info Mapper 输入值，参与 基础商户信息映射器 的查询、校验、转换、写入或日志摘要
+ */
     public AdminMerchantUserServiceImpl(SysAppMapper sysAppMapper,
                                         SysAccountMapper sysAccountMapper,
                                         SysMerchantUserMapper sysMerchantUserMapper,
@@ -159,11 +256,6 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<AdminMerchantUserListDTO> pageMerchantUsers(AdminMerchantUserQueryRequest request) {
@@ -200,11 +292,6 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         );
     }
 
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param accountId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     @DS(DataSourceName.SLAVE)
     public AdminMerchantUserDetailDTO getMerchantUser(Long accountId) {
@@ -245,6 +332,22 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .toList();
     }
 
+/**
+ * 构造listdto对象，完成字段复制、格式标准化和敏感数据处理。
+ * <p>
+ * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+ * </p>
+ * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
+ * @param merchantUser merchant User 输入值，参与 商户用户 的查询、校验、转换、写入或日志摘要
+ * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+ * @param merchantMap merchant Map 输入值，参与 商户map 的查询、校验、转换、写入或日志摘要
+ * @param roleMap role Map 输入值，参与 角色map 的查询、校验、转换、写入或日志摘要
+ * @param deptMap dept Map 输入值，参与 部门map 的查询、校验、转换、写入或日志摘要
+ * @param postMap post Map 输入值，参与 岗位map 的查询、校验、转换、写入或日志摘要
+ * @return 构造、转换或解析后的业务值
+ */
     private AdminMerchantUserListDTO toListDTO(SysAccountDO account,
                                                SysMerchantUserDO merchantUser,
                                                Map<String, BaseMerchantInfoDO> merchantMap,
@@ -276,6 +379,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 整理筛选商户ID，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Set<String> filterMerchantIds(AdminMerchantUserQueryRequest query) {
         if (!StringUtils.hasText(query.getMerchantName())) {
             return StringUtils.hasText(query.getMerchantId()) ? Set.of(query.getMerchantId().trim()) : null;
@@ -287,6 +400,17 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(BaseMerchantInfoDO::getMerchantId).collect(Collectors.toCollection(HashSet::new));
     }
 
+    /**
+     * 整理筛选账号ID，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Set<Long> filterAccountIds(Long appId, AdminMerchantUserQueryRequest query) {
         Set<Long> result = null;
         if (StringUtils.hasText(query.getRealName())) {
@@ -317,6 +441,17 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return result;
     }
 
+    /**
+     * 整理账号ID按角色，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param roleIds role Ids 输入值，参与 角色ID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Set<Long> accountIdsByRole(Long appId, List<Long> roleIds) {
         if (roleIds.isEmpty()) {
             return Collections.emptySet();
@@ -335,6 +470,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(SysMerchantUserDO::getAccountId).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
+    /**
+     * 整理账号ID按部门，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param deptIds dept Ids 输入值，参与 部门ID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Set<Long> accountIdsByDept(List<Long> deptIds) {
         if (deptIds.isEmpty()) {
             return Collections.emptySet();
@@ -344,6 +489,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(SysMerchantAccountDeptDO::getAccountId).collect(Collectors.toSet());
     }
 
+    /**
+     * 整理账号ID按岗位，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param postIds post Ids 输入值，参与 岗位ID 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Set<Long> accountIdsByPost(List<Long> postIds) {
         if (postIds.isEmpty()) {
             return Collections.emptySet();
@@ -353,6 +508,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(SysMerchantAccountPostDO::getAccountId).collect(Collectors.toSet());
     }
 
+    /**
+     * 查询商户用户map，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param accountIds account Ids 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private Map<Long, SysMerchantUserDO> loadMerchantUserMap(List<Long> accountIds) {
         if (accountIds.isEmpty()) {
             return Collections.emptyMap();
@@ -363,6 +528,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().collect(Collectors.toMap(SysMerchantUserDO::getAccountId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 查询商户map，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantIds 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private Map<String, BaseMerchantInfoDO> loadMerchantMap(List<String> merchantIds) {
         List<String> ids = merchantIds.stream().filter(StringUtils::hasText).distinct().toList();
         if (ids.isEmpty()) {
@@ -374,6 +549,17 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().collect(Collectors.toMap(BaseMerchantInfoDO::getMerchantId, Function.identity(), (left, right) -> left));
     }
 
+    /**
+     * 查询角色map，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param merchantUserIds merchant User Ids 输入值，参与 商户用户ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private Map<Long, List<SysRoleDO>> loadRoleMap(Long appId, List<Long> merchantUserIds) {
         if (merchantUserIds.isEmpty()) {
             return Collections.emptyMap();
@@ -392,6 +578,17 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         ));
     }
 
+    /**
+     * 查询账号角色，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param accountId account ID 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<SysRoleDO> loadAccountRoles(Long appId, Long accountId) {
         SysMerchantUserDO merchantUser = sysMerchantUserMapper.selectOne(Wrappers.<SysMerchantUserDO>lambdaQuery()
                 .eq(SysMerchantUserDO::getAccountId, accountId)
@@ -403,6 +600,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return loadRoleMap(appId, List.of(merchantUser.getId())).getOrDefault(merchantUser.getId(), Collections.emptyList());
     }
 
+    /**
+     * 查询角色，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param roleIds role Ids 输入值，参与 角色ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<SysRoleDO> loadRoles(List<Long> roleIds) {
         List<Long> ids = roleIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
@@ -413,6 +620,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .eq(SysRoleDO::getDeleted, AuthConstants.NOT_DELETED));
     }
 
+    /**
+     * 查询部门map，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param accountIds account Ids 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private Map<Long, List<SysMerchantDeptDO>> loadDeptMap(List<Long> accountIds) {
         if (accountIds.isEmpty()) {
             return Collections.emptyMap();
@@ -429,6 +646,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         ));
     }
 
+    /**
+     * 查询岗位map，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param accountIds account Ids 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private Map<Long, List<SysMerchantPostDO>> loadPostMap(List<Long> accountIds) {
         if (accountIds.isEmpty()) {
             return Collections.emptyMap();
@@ -445,18 +672,50 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         ));
     }
 
+    /**
+     * 查询部门summaries，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @param accountId account ID 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<AdminMerchantUserDetailDTO.DeptSummary> loadDeptSummaries(String merchantId, Long accountId) {
         return loadDeptMap(List.of(accountId)).getOrDefault(accountId, Collections.emptyList()).stream()
                 .filter(dept -> Objects.equals(dept.getMerchantId(), merchantId))
                 .map(this::toDeptSummary).toList();
     }
 
+    /**
+     * 查询岗位summaries，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @param accountId account ID 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<AdminMerchantUserDetailDTO.PostSummary> loadPostSummaries(String merchantId, Long accountId) {
         return loadPostMap(List.of(accountId)).getOrDefault(accountId, Collections.emptyList()).stream()
                 .filter(post -> Objects.equals(post.getMerchantId(), merchantId))
                 .map(this::toPostSummary).toList();
     }
 
+    /**
+     * 查询部门，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param deptIds dept Ids 输入值，参与 部门ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<SysMerchantDeptDO> loadDepts(List<Long> deptIds) {
         List<Long> ids = deptIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
@@ -467,6 +726,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .eq(SysMerchantDeptDO::getDeleted, AuthConstants.NOT_DELETED));
     }
 
+    /**
+     * 查询岗位，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param postIds post Ids 输入值，参与 岗位ID 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<SysMerchantPostDO> loadPosts(List<Long> postIds) {
         List<Long> ids = postIds.stream().filter(Objects::nonNull).distinct().toList();
         if (ids.isEmpty()) {
@@ -477,6 +746,17 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .eq(SysMerchantPostDO::getDeleted, AuthConstants.NOT_DELETED));
     }
 
+    /**
+     * 查询final菜单，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param roles roles 输入值，参与 角色 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<SysMenuDTO> loadFinalMenus(Long appId, List<SysRoleDO> roles) {
         List<Long> roleIds = roles.stream().map(SysRoleDO::getId).toList();
         if (roleIds.isEmpty()) {
@@ -499,6 +779,17 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return buildMenuTree(nodes);
     }
 
+    /**
+     * 查询final权限codes，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param appId app ID 输入值，参与 appID 的查询、校验、转换、写入或日志摘要
+     * @param roles roles 输入值，参与 角色 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<String> loadFinalPermissionCodes(Long appId, List<SysRoleDO> roles) {
         List<Long> roleIds = roles.stream().map(SysRoleDO::getId).toList();
         if (roleIds.isEmpty()) {
@@ -519,6 +810,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
                 .stream().map(SysPermissionDO::getPermissionCode).filter(StringUtils::hasText).sorted().toList();
     }
 
+    /**
+     * 构造菜单树对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param flat flat 输入值，参与 flat 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private List<SysMenuDTO> buildMenuTree(List<SysMenuDTO> flat) {
         Map<Long, SysMenuDTO> nodeMap = flat.stream()
                 .collect(Collectors.toMap(SysMenuDTO::getMenuId, Function.identity(), (left, right) -> left, LinkedHashMap::new));
@@ -533,6 +834,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return roots;
     }
 
+    /**
+     * 构造菜单dto对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private SysMenuDTO toMenuDTO(SysMenuDO row) {
         SysMenuDTO dto = new SysMenuDTO();
         dto.setMenuId(row.getId());
@@ -553,6 +864,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 构造商户汇总对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param merchant merchant 输入值，参与 商户 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantUserDetailDTO.MerchantSummary toMerchantSummary(BaseMerchantInfoDO merchant) {
         if (merchant == null) {
             return null;
@@ -565,6 +886,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 构造部门汇总对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param dept dept 输入值，参与 部门 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantUserDetailDTO.DeptSummary toDeptSummary(SysMerchantDeptDO dept) {
         AdminMerchantUserDetailDTO.DeptSummary dto = new AdminMerchantUserDetailDTO.DeptSummary();
         dto.setDeptId(dept.getId());
@@ -573,6 +904,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 构造岗位汇总对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param post post 输入值，参与 岗位 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantUserDetailDTO.PostSummary toPostSummary(SysMerchantPostDO post) {
         AdminMerchantUserDetailDTO.PostSummary dto = new AdminMerchantUserDetailDTO.PostSummary();
         dto.setPostId(post.getId());
@@ -581,6 +922,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 构造角色汇总对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param role role 输入值，参与 角色 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private AdminMerchantUserDetailDTO.RoleSummary toRoleSummary(SysRoleDO role) {
         AdminMerchantUserDetailDTO.RoleSummary dto = new AdminMerchantUserDetailDTO.RoleSummary();
         dto.setRoleId(role.getId());
@@ -591,6 +942,15 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return dto;
     }
 
+    /**
+     * 整理商户app，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private SysAppDO merchantApp() {
         SysAppDO app = sysAppMapper.selectOne(Wrappers.<SysAppDO>lambdaQuery()
                 .eq(SysAppDO::getAppCode, AuthConstants.APP_MERCHANT)
@@ -602,6 +962,17 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return app;
     }
 
+    /**
+     * 整理展示登录账号，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
+     * @param merchantUser merchant User 输入值，参与 商户用户 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String displayLoginAccount(SysAccountDO account, SysMerchantUserDO merchantUser) {
         if (merchantUser != null && StringUtils.hasText(merchantUser.getLoginAccount())) {
             return merchantUser.getLoginAccount();
@@ -611,6 +982,17 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return raw != null && raw.endsWith(suffix) ? raw.substring(0, raw.length() - suffix.length()) : raw;
     }
 
+    /**
+     * 规范化intersect，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param base base 输入值，参与 基础 的查询、校验、转换、写入或日志摘要
+     * @param next next 输入值，参与 next 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Set<Long> intersect(Set<Long> base, Set<Long> next) {
         if (base == null) {
             return next;
@@ -619,6 +1001,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return base;
     }
 
+    /**
+     * 脱敏mobile，返回可安全写入日志或展示的摘要文本。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String maskMobile(String value) {
         if (!StringUtils.hasText(value)) {
             return value;
@@ -630,6 +1022,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return text.substring(0, Math.min(3, text.length())) + "****" + text.substring(text.length() - 4);
     }
 
+    /**
+     * 脱敏email，返回可安全写入日志或展示的摘要文本。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String maskEmail(String value) {
         if (!StringUtils.hasText(value) || !value.contains("@")) {
             return value;
@@ -640,6 +1042,16 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return maskedName + "@" + parts[1];
     }
 
+    /**
+     * 脱敏ip，返回可安全写入日志或展示的摘要文本。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String maskIp(String value) {
         if (!StringUtils.hasText(value)) {
             return value;

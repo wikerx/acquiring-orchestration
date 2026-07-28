@@ -4,13 +4,14 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : GlobalIdConstants
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 全局数字 ID 生成规则常量，统一约束时间片、毫秒内序列和 Luhn 校验位长度。
+ * @description : Global ID Constants 协作组件，位于 公共组件库，封装 globalIDconstants 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public final class GlobalIdConstants {

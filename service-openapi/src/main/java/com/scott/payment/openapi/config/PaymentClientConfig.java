@@ -1,22 +1,24 @@
 package com.scott.payment.openapi.config;
 
+import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
 
+
+@Configuration
+@EnableConfigurationProperties({PaymentClientProperties.class, HostedCheckoutProperties.class})
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentClientConfig
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 调用支付核心的 REST 客户端配置，区分本地直连和 Nacos 服务发现两种内部调用方式。
+ * @description : Payment Client Config 配置类，位于 商户开放接口服务，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
-@Configuration
-@EnableConfigurationProperties(PaymentClientProperties.class)
 public class PaymentClientConfig {
 
     /**
@@ -28,8 +30,8 @@ public class PaymentClientConfig {
      * @return RestTemplate
      */
     @Bean("paymentRestTemplate")
-    public RestTemplate paymentRestTemplate() {
-        return new RestTemplate();
+    public RestTemplate paymentRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
+        return traceIdRestTemplateCustomizer.customize(new RestTemplate());
     }
 
     /**
@@ -42,7 +44,7 @@ public class PaymentClientConfig {
      */
     @Bean("paymentLoadBalancedRestTemplate")
     @LoadBalanced
-    public RestTemplate paymentLoadBalancedRestTemplate() {
-        return new RestTemplate();
+    public RestTemplate paymentLoadBalancedRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
+        return traceIdRestTemplateCustomizer.customize(new RestTemplate());
     }
 }

@@ -11,9 +11,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminExchangeRateServiceImplTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 收单支付Admin Exchange Rate Service Impl Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Admin Exchange Rate Service Impl Test 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
 class AdminExchangeRateServiceImplTest {

@@ -2,6 +2,7 @@ package com.scott.payment.job.handler.transaction;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.component.job.executor.JobHandler;
 import com.scott.payment.component.job.executor.JobHandlerDescriptor;
@@ -9,6 +10,7 @@ import com.scott.payment.component.job.model.JobExecuteResult;
 import com.scott.payment.job.client.payment.PaymentInternalClient;
 import com.scott.payment.job.client.payment.dto.PaymentMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.dto.transaction.MerchantNotificationRetryRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -26,6 +28,7 @@ import java.util.Map;
  * @status : create
  */
 @Component
+@Slf4j
 public class MerchantNotificationRetryJob implements JobHandler {
 
     /**
@@ -38,10 +41,34 @@ public class MerchantNotificationRetryJob implements JobHandler {
      */
     public static final String HANDLER_CODE = "merchantNotificationRetry";
 
+    /**
+     * DEFAULT LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int DEFAULT_LIMIT = 100;
 
+    /**
+     * MAX LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int MAX_LIMIT = 500;
 
+    /**
+     * payment Internal Client 依赖，用于 Merchant Notification Retry Job 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final PaymentInternalClient paymentInternalClient;
 
     /**
@@ -82,19 +109,62 @@ public class MerchantNotificationRetryJob implements JobHandler {
         }
         int limit = normalizeLimit(request.getLimit());
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
+        long startNanos = System.nanoTime();
+        log.info("event: JOB_HANDLER_SCAN_START traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} limit: {}",
+                context == null ? TraceContext.getTraceId() : context.getTraceId(),
+                context == null ? null : context.getJobId(),
+                HANDLER_CODE,
+                context == null ? null : context.getRunId(),
+                context == null ? null : context.getShardIndex(),
+                context == null ? null : context.getShardTotal(),
+                context == null ? null : context.getParamsJson(),
+                transactionDateTimes,
+                limit);
         Map<String, Integer> result = new LinkedHashMap<>();
         int totalSuccessCount = 0;
+        int failCount = 0;
         for (LocalDateTime transactionDateTime : transactionDateTimes) {
             PaymentMerchantNotificationNotifyDueClientRequestDTO clientRequestDTO =
                     new PaymentMerchantNotificationNotifyDueClientRequestDTO();
             clientRequestDTO.setTransactionDateTime(transactionDateTime);
             clientRequestDTO.setLimit(limit);
-            Integer successCount = paymentInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
+            Integer successCount;
+            try {
+                successCount = paymentInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
+            } catch (RuntimeException exception) {
+                failCount++;
+                log.warn("event: JOB_HANDLER_SCAN_ITEM_FAILED traceId: {} jobId: {} handler: {} runId: {} scanRange: {} failureReason: {}",
+                        context == null ? TraceContext.getTraceId() : context.getTraceId(),
+                        context == null ? null : context.getJobId(),
+                        HANDLER_CODE,
+                        context == null ? null : context.getRunId(),
+                        transactionDateTime,
+                        exception.getClass().getSimpleName());
+                throw exception;
+            }
             int safeSuccessCount = successCount == null ? 0 : successCount;
             totalSuccessCount += safeSuccessCount;
             result.put(transactionDateTime.toString(), safeSuccessCount);
         }
+        log.info("event: JOB_HANDLER_SCAN_END traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} scanRanges: {} scannedCount: {} successCount: {} failureCount: {} skipCount: {} failureReasons: {} durationMs: {}",
+                context == null ? TraceContext.getTraceId() : context.getTraceId(),
+                context == null ? null : context.getJobId(),
+                HANDLER_CODE,
+                context == null ? null : context.getRunId(),
+                context == null ? null : context.getShardIndex(),
+                context == null ? null : context.getShardTotal(),
+                transactionDateTimes,
+                transactionDateTimes.size(),
+                totalSuccessCount,
+                failCount,
+                0,
+                failCount == 0 ? Map.of() : Map.of("PAYMENT_INTERNAL_CALL_FAILED", failCount),
+                elapsedMillis(startNanos));
         return JobExecuteResult.success("merchant notification retry finished, successCount=" + totalSuccessCount, result);
+    }
+
+    private long elapsedMillis(long startNanos) {
+        return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
     private List<LocalDateTime> resolveTransactionDateTimes(MerchantNotificationRetryRequest request) {

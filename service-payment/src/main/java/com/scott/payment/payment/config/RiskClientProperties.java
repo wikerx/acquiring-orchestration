@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : RiskClientProperties
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : service-payment 调用 service-risk 的客户端配置，控制风控远程调用开关、地址和内部服务签名密钥。
+ * @description : service-payment 调用 service-risk 的客户端配置，控制风控远程调用开关和内部服务签名密钥。
  * @status : create
  */
 @Data
@@ -20,11 +20,6 @@ public class RiskClientProperties {
      * 是否启用远程 service-risk 调用；本地骨架默认关闭，生产接入前必须通过配置中心开启并关闭 Noop 风控。
      */
     private boolean remoteEnabled = false;
-
-    /**
-     * service-risk 支付风控评估接口地址。
-     */
-    private String evaluateUrl = "http://service-risk/internal/risk/evaluate/payment";
 
     /**
      * 内部服务调用方标识。

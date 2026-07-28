@@ -6,13 +6,14 @@ import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : IpLibraryDataMapper
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-05 00:34
  * @email : scott_x@163.com
- * @description : IP 库物理分表查询 Mapper。 <p>{@code tableName} 只能由应用服务从固定白名单解析后传入，禁止使用前端参数直接拼接。</p>
+ * @description : IP Library Data Mapper 映射组件，位于 运营后台服务，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  * @status : create
  */
 public interface IpLibraryDataMapper {

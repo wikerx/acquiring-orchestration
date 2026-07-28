@@ -1,0 +1,1140 @@
+package com.scott.payment.payment.service.impl;
+
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.iso.IsoCurrencyInfo;
+import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
+import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
+import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
+import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
+import com.scott.payment.payment.domain.state.TransactionStateMachineService;
+import com.scott.payment.payment.entity.TransactionEventOutboxDO;
+import com.scott.payment.payment.entity.TransactionIdempotencyDO;
+import com.scott.payment.payment.entity.TransactionOperationDO;
+import com.scott.payment.payment.entity.TransactionOrderDO;
+import com.scott.payment.payment.mq.TransactionMqConstants;
+import com.scott.payment.payment.mq.message.TransactionEventMessage;
+import com.scott.payment.payment.service.PaymentChannelRouteService;
+import com.scott.payment.payment.service.TransactionEventOutboxService;
+import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.service.VoidTransactionPreparationService;
+import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
+import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
+import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
+import com.scott.payment.payment.service.dto.VoidPreparationResultDTO;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultVoidTransactionPreparationService
+ * @date : 2026-07-24 00:00
+ * @description : Void 本地准备默认实现，确保 Void / Authorization Cancel 调用前提交幂等、动作单、渠道请求 INIT 和恢复入口。
+ * @status : create
+ */
+@Service
+public class DefaultVoidTransactionPreparationService implements VoidTransactionPreparationService {
+
+    /**
+     * CHANNEL REQUEST ID PREFIX，用于保存 Default Void Transaction Preparation Service 中与 渠道requestIDprefix 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
+     * </p>
+     */
+    private static final String CHANNEL_REQUEST_ID_PREFIX = "CR";
+
+    /**
+     * CHANNEL TRANSACTION ID PREFIX，用于保存 Default Void Transaction Preparation Service 中与 渠道交易IDprefix 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与 channelCode、channelMidId 或渠道交易号共同定位渠道侧记录。
+     * </p>
+     */
+    private static final String CHANNEL_TRANSACTION_ID_PREFIX = "CH";
+
+    /**
+     * TRANSACTION OPERATION SCOPE，用于保存 Default Void Transaction Preparation Service 中与 交易动作scope 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
+
+    /**
+     * DEFAULT TIME ZONE，用于保存 Default Void Transaction Preparation Service 中与 defaulttimezone 相关的业务属性。
+     * <p>
+     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private static final String DEFAULT_TIME_ZONE = "Asia/Shanghai";
+
+    /**
+     * PAYMENT TRANSACTION AGGREGATE，用于保存 Default Void Transaction Preparation Service 中与 payment交易aggregate 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private static final String PAYMENT_TRANSACTION_AGGREGATE = "PAYMENT_TRANSACTION";
+
+    /**
+     * EVENT STATUS INIT，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
+    private static final String EVENT_STATUS_INIT = "INIT";
+
+    /**
+     * DEFAULT EVENT MAX RETRY COUNT，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private static final int DEFAULT_EVENT_MAX_RETRY_COUNT = 200;
+
+    /**
+     * INITIAL VERSION，用于保存 Default Void Transaction Preparation Service 中与 initialversion 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private static final int INITIAL_VERSION = 0;
+
+    /**
+     * NOT DELETED，用于保存 Default Void Transaction Preparation Service 中与 notdeleted 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private static final int NOT_DELETED = 0;
+
+    /**
+     * ISO Dictionary Service 依赖，用于 Default Void Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：布尔值或 0/1 开关；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：仅允许平台约定的启停取值；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private final IsoDictionaryService isoDictionaryService;
+
+    /**
+     * payment Channel Route Service 依赖，用于 Default Void Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private final PaymentChannelRouteService paymentChannelRouteService;
+
+    /**
+     * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private final TransactionIdempotencyService transactionIdempotencyService;
+
+    /**
+     * transaction Event Outbox Service 依赖，用于 Default Void Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private final TransactionEventOutboxService transactionEventOutboxService;
+
+    /**
+     * transaction Record Service 依赖，用于 Default Void Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private final TransactionRecordService transactionRecordService;
+
+    /**
+     * transaction State Machine Service 依赖，用于 Default Void Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
+    private final TransactionStateMachineService transactionStateMachineService;
+
+/**
+ * 整理默认void交易preparationservice，返回后续查询、通知或响应组装可直接使用的标准值。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param isoDictionaryService ISO Dictionary Service 输入值，参与 isodictionaryservice 的查询、校验、转换、写入或日志摘要
+ * @param paymentChannelRouteService payment Channel Route Service 输入值，参与 payment渠道routeservice 的查询、校验、转换、写入或日志摘要
+ * @param transactionIdempotencyService 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @param transactionEventOutboxService transaction Event Outbox Service 输入值，参与 交易eventoutboxservice 的查询、校验、转换、写入或日志摘要
+ * @param transactionRecordService transaction Record Service 输入值，参与 交易记录service 的查询、校验、转换、写入或日志摘要
+ * @param transactionStateMachineService transaction State Machine Service 输入值，参与 交易状态machineservice 的查询、校验、转换、写入或日志摘要
+ */
+    public DefaultVoidTransactionPreparationService(IsoDictionaryService isoDictionaryService,
+                                                    PaymentChannelRouteService paymentChannelRouteService,
+                                                    TransactionIdempotencyService transactionIdempotencyService,
+                                                    TransactionEventOutboxService transactionEventOutboxService,
+                                                    TransactionRecordService transactionRecordService,
+                                                    TransactionStateMachineService transactionStateMachineService) {
+        this.isoDictionaryService = isoDictionaryService;
+        this.paymentChannelRouteService = paymentChannelRouteService;
+        this.transactionIdempotencyService = transactionIdempotencyService;
+        this.transactionEventOutboxService = transactionEventOutboxService;
+        this.transactionRecordService = transactionRecordService;
+        this.transactionStateMachineService = transactionStateMachineService;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public VoidPreparationResultDTO prepareVoid(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
+        if (transactionRecordService == null) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        TransactionOrderDO resolvedSourceOrderDO = resolveSourceOrder(commandDTO);
+        TransactionOrderDO sourceOrderDO = lockSourceOrder(resolvedSourceOrderDO);
+        commandDTO.setRequestFingerprint(canonicalVoidRequestFingerprint(commandDTO, sourceOrderDO));
+        return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                .map(record -> VoidPreparationResultDTO.duplicate(resolveDuplicateVoid(commandDTO, record)))
+                .orElseGet(() -> prepareNewVoid(commandDTO, idempotencyKey, sourceOrderDO));
+    }
+
+    private VoidPreparationResultDTO prepareNewVoid(PaymentCreateCommandDTO commandDTO,
+                                                    String idempotencyKey,
+                                                    TransactionOrderDO sourceOrderDO) {
+        if (transactionStateMachineService == null) {
+            throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED.getCode(), "transaction state machine is not configured");
+        }
+        transactionStateMachineService.validateFollowUpAction(
+                sourceOrderDO, PaymentTransactionTypeEnum.VOID, commandDTO.getAmount(), commandDTO.getCurrency());
+        validateNoConflictingFundAction(commandDTO, sourceOrderDO, LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
+                TRANSACTION_OPERATION_SCOPE,
+                idempotencyKey,
+                commandDTO.getMerchantId(),
+                sourceOrderDO.getMerchantOrderNo(),
+                commandDTO.getMerchantOrderId(),
+                PaymentTransactionTypeEnum.VOID.getCode(),
+                commandDTO.getTransactionDateTime(),
+                DEFAULT_TIME_ZONE,
+                commandDTO.getRequestFingerprint(),
+                now);
+        if (!transactionIdempotencyService.tryBegin(beginRecord)) {
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> VoidPreparationResultDTO.duplicate(resolveDuplicateVoid(commandDTO, record)))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
+        }
+        TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
+                commandDTO.getTransactionInfo().getSourceTransactionId());
+        normalizeVoidCommand(commandDTO, sourceOrderDO, sourceOperationDO);
+        String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
+        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
+        PaymentCreateResultDTO resultDTO = buildVoidResult(commandDTO, sourceOrderDO, transactionId);
+        resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+        resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
+        enrichVoidResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
+        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        PaymentPreparedChannelRequestDTO preparedChannelRequestDTO = prepareChannelRequest(commandDTO, sourceOrderDO);
+        PaymentChannelInvokeResultDTO preparedInvokeResultDTO = buildPreparedInvokeResult(
+                commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);
+        recordVoidPreparedFact(commandDTO, sourceOrderDO, routeResultDTO, preparedInvokeResultDTO, resultDTO, currencyExponent);
+        saveTransactionCreatedEvent(commandDTO, resultDTO);
+        completeIdempotency(idempotencyKey, commandDTO, resultDTO);
+
+        VoidPreparationResultDTO target = new VoidPreparationResultDTO();
+        target.setCallChannel(true);
+        target.setIdempotencyKey(idempotencyKey);
+        target.setCommandDTO(commandDTO);
+        target.setSourceOrderDO(sourceOrderDO);
+        target.setRouteResultDTO(routeResultDTO);
+        target.setPreparedChannelRequestDTO(preparedChannelRequestDTO);
+        target.setResultDTO(resultDTO);
+        target.setCurrencyExponent(currencyExponent);
+        return target;
+    }
+
+    /**
+     * 解析resolve来源订单，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
+    private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
+        String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findSourceOrderByTransactionId(sourceTransactionId);
+        if (sourceOrderDO == null) {
+            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
+        }
+        return sourceOrderDO;
+    }
+
+    /**
+     * 整理lock来源订单，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private TransactionOrderDO lockSourceOrder(TransactionOrderDO sourceOrderDO) {
+        if (sourceOrderDO == null
+                || !StringUtils.hasText(sourceOrderDO.getOperationId())
+                || sourceOrderDO.getTransactionDateTime() == null) {
+            return sourceOrderDO;
+        }
+        return transactionRecordService.lockOrder(sourceOrderDO.getTransactionDateTime(), sourceOrderDO.getOperationId());
+    }
+
+/**
+ * 校验noconflictingfundaction输入，发现缺失、越权或格式错误时中断当前流程。
+ * <p>
+ * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+ * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+ * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
+ */
+    private void validateNoConflictingFundAction(PaymentCreateCommandDTO commandDTO,
+                                                 TransactionOrderDO sourceOrderDO,
+                                                 LocalDateTime now) {
+        LocalDateTime beginTime = sourceOrderDO.getTransactionDateTime();
+        LocalDateTime endTime = laterOf(now, commandDTO.getTransactionDateTime());
+        String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
+        List<TransactionOperationDO> captures = transactionRecordService.findNonTerminalCaptures(
+                commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), sourceTransactionId, beginTime, endTime);
+        if (!captures.isEmpty()) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "source transaction has a pending capture action");
+        }
+        List<TransactionOperationDO> voids = transactionRecordService.findNonTerminalVoids(
+                commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), beginTime, endTime);
+        if (!voids.isEmpty()) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "source transaction has a pending void action");
+        }
+        List<TransactionOperationDO> incrementalAuthorizations = transactionRecordService.findNonTerminalIncrementalAuthorizations(
+                commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), beginTime, endTime);
+        if (!incrementalAuthorizations.isEmpty()) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "source transaction has a pending incremental authorization action");
+        }
+        if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
+            List<TransactionOperationDO> refunds = transactionRecordService.findNonTerminalRefunds(
+                    commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), beginTime, endTime);
+            if (!refunds.isEmpty()) {
+                throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                        "source transaction has a pending refund action");
+            }
+        }
+    }
+
+    /**
+     * 规范化laterof，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param first first 输入值，参与 首个 的查询、校验、转换、写入或日志摘要
+     * @param second second 输入值，参与 second 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first.isAfter(second) ? first : second;
+    }
+
+/**
+ * 解析resolve重复撤销，将原始输入转换为当前调用链需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param record record 输入值，参与 记录 的查询、校验、转换、写入或日志摘要
+ * @return 构造、转换或解析后的业务值
+ */
+    private PaymentCreateResultDTO resolveDuplicateVoid(PaymentCreateCommandDTO commandDTO,
+                                                        TransactionIdempotencyDO record) {
+        if (StringUtils.hasText(record.getRequestFingerprint())
+                && !Objects.equals(record.getRequestFingerprint(), commandDTO.getRequestFingerprint())) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "merchant operation number already has a different request");
+        }
+        if (!StringUtils.hasText(record.getTransactionId())) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "merchant operation is being processed");
+        }
+        return toDuplicateResult(record);
+    }
+
+/**
+ * 整理撤销交易幂等指纹，返回当前业务步骤需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+ */
+    private String canonicalVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO,
+                                                   TransactionOrderDO sourceOrderDO) {
+        String sourceTransactionId = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
+        String canonical = String.join("|",
+                "v1",
+                "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
+                "merchantOrderNo=" + normalizeFingerprintText(sourceOrderDO == null
+                        ? commandDTO.getMerchantOrderNo()
+                        : sourceOrderDO.getMerchantOrderNo()),
+                "merchantOperationNo=" + normalizeFingerprintText(commandDTO.getMerchantOrderId()),
+                "transactionType=" + PaymentTransactionTypeEnum.VOID.getCode(),
+                "sourceTransactionId=" + normalizeFingerprintText(sourceTransactionId));
+        return sha256(canonical);
+    }
+
+    /**
+     * 解析normalize指纹文本，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
+    private String normalizeFingerprintText(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * 计算sha256摘要，用不可逆指纹关联原始内容而不暴露明文。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private String sha256(String source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "request fingerprint can not be calculated", exception);
+        }
+    }
+
+/**
+ * 解析normalize撤销command，将原始输入转换为当前调用链需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param sourceOperationDO source Operation DO 输入值，参与 来源动作do 的查询、校验、转换、写入或日志摘要
+ */
+    private void normalizeVoidCommand(PaymentCreateCommandDTO commandDTO,
+                                      TransactionOrderDO sourceOrderDO,
+                                      TransactionOperationDO sourceOperationDO) {
+        BigDecimal transactionAmount = commandDTO.getAmount() == null ? sourceOrderDO.getTransactionAmount() : commandDTO.getAmount();
+        commandDTO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
+        commandDTO.setLabelCurrency(resolveLabelCurrency(commandDTO, sourceOrderDO));
+        commandDTO.setLabelAmount(commandDTO.getLabelAmount() == null ? transactionAmount : commandDTO.getLabelAmount());
+        commandDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
+        commandDTO.setAmount(transactionAmount);
+        if (sourceOperationDO == null || !StringUtils.hasText(sourceOperationDO.getChannelTransactionId())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "source channel transaction id is required for VOID");
+        }
+        if (commandDTO.getTransactionInfo() != null) {
+            commandDTO.getTransactionInfo().setSourceChannelTransactionId(sourceOperationDO.getChannelTransactionId());
+        }
+        commandDTO.setTransactionCurrency(sourceOrderDO.getTransactionCurrency());
+        commandDTO.setTransactionAmount(transactionAmount);
+        commandDTO.setTransactionRate(defaultTransactionRate());
+        commandDTO.setRateSource(null);
+        commandDTO.setRateTime(null);
+        commandDTO.setDccEnabled(0);
+        commandDTO.setEdcEnabled(0);
+    }
+
+    /**
+     * 解析resolvelabel币种，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
+    private String resolveLabelCurrency(PaymentCreateCommandDTO commandDTO, TransactionOrderDO sourceOrderDO) {
+        if (StringUtils.hasText(commandDTO.getLabelCurrency())) {
+            return normalizeCurrency(commandDTO.getLabelCurrency());
+        }
+        if (StringUtils.hasText(commandDTO.getCurrency())) {
+            return normalizeCurrency(commandDTO.getCurrency());
+        }
+        if (StringUtils.hasText(sourceOrderDO.getLabelCurrency())) {
+            return sourceOrderDO.getLabelCurrency();
+        }
+        return sourceOrderDO.getTransactionCurrency();
+    }
+
+/**
+ * 构造void结果对象，完成字段复制、格式标准化和敏感数据处理。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @return 构造、转换或解析后的业务值
+ */
+    private PaymentCreateResultDTO buildVoidResult(PaymentCreateCommandDTO commandDTO,
+                                                   TransactionOrderDO sourceOrderDO,
+                                                   String transactionId) {
+        PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
+        resultDTO.setOperationId(sourceOrderDO.getOperationId());
+        resultDTO.setTransactionId(transactionId);
+        resultDTO.setSourceTransactionId(commandDTO.getTransactionInfo().getSourceTransactionId());
+        resultDTO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
+        resultDTO.setMerchantOrderId(commandDTO.getMerchantOrderId());
+        resultDTO.setMerchantId(commandDTO.getMerchantId());
+        resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
+        resultDTO.setTransactionType(PaymentTransactionTypeEnum.VOID.getCode());
+        resultDTO.setCurrency(sourceOrderDO.getTransactionCurrency());
+        resultDTO.setAmount(toMinorAmount(sourceOrderDO.getTransactionAmount(), sourceOrderDO.getTransactionCurrency()));
+        return resultDTO;
+    }
+
+/**
+ * 整理prepare渠道请求，返回当前业务步骤需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+ */
+    private PaymentPreparedChannelRequestDTO prepareChannelRequest(PaymentCreateCommandDTO commandDTO,
+                                                                  TransactionOrderDO sourceOrderDO) {
+        PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+        prepared.setRequestId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_REQUEST_ID_PREFIX, commandDTO.getTransactionDateTime()));
+        prepared.setChannelOrderNo(resolveChannelOrderNo(sourceOrderDO));
+        prepared.setChannelTransactionId(PaymentOrderNoGenerator.nextOrderNo(CHANNEL_TRANSACTION_ID_PREFIX));
+        return prepared;
+    }
+
+/**
+ * 构造preparedinvokeresult对象，完成字段复制、格式标准化和敏感数据处理。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
+ * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @param preparedChannelRequestDTO prepared Channel Request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @return 构造、转换或解析后的业务值
+ */
+    private PaymentChannelInvokeResultDTO buildPreparedInvokeResult(PaymentCreateCommandDTO commandDTO,
+                                                                    PaymentRouteResultDTO routeResultDTO,
+                                                                    String operationId,
+                                                                    String transactionId,
+                                                                    PaymentPreparedChannelRequestDTO preparedChannelRequestDTO) {
+        com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest channelRequest =
+                new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest();
+        channelRequest.setChannelCode(routeResultDTO.getChannelCode());
+        channelRequest.setOperationId(operationId);
+        channelRequest.setTransactionId(transactionId);
+        channelRequest.setSourceTransactionId(commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getSourceTransactionId());
+        channelRequest.setChannelOrderNo(preparedChannelRequestDTO.getChannelOrderNo());
+        channelRequest.setChannelTransactionId(preparedChannelRequestDTO.getChannelTransactionId());
+        channelRequest.setMerchantId(commandDTO.getMerchantId());
+        channelRequest.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
+        channelRequest.setMerchantOrderId(commandDTO.getMerchantOrderId());
+        channelRequest.setTransactionType(commandDTO.getTransactionType());
+        channelRequest.setPaymentMethod(commandDTO.getPaymentMethod());
+        channelRequest.setAmount(commandDTO.getTransactionAmount());
+        channelRequest.setCurrency(commandDTO.getTransactionCurrency());
+        channelRequest.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        PaymentChannelInvokeResultDTO invokeResultDTO = new PaymentChannelInvokeResultDTO();
+        invokeResultDTO.setRequestId(preparedChannelRequestDTO.getRequestId());
+        invokeResultDTO.setChannelRequest(channelRequest);
+        invokeResultDTO.setRequestStatus("INIT");
+        invokeResultDTO.setHttpMethod("PUT");
+        invokeResultDTO.setRequestScene(PaymentTransactionTypeEnum.VOID.getCode());
+        invokeResultDTO.setRequestStartTime(LocalDateTime.now());
+        return invokeResultDTO;
+    }
+
+/**
+ * 记录voidpreparedfact，写入安全、审计或链路排障所需的脱敏上下文。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ */
+    private void recordVoidPreparedFact(PaymentCreateCommandDTO commandDTO,
+                                        TransactionOrderDO sourceOrderDO,
+                                        PaymentRouteResultDTO routeResultDTO,
+                                        PaymentChannelInvokeResultDTO invokeResultDTO,
+                                        PaymentCreateResultDTO resultDTO,
+                                        int currencyExponent) {
+        TransactionFollowUpRecordDTO recordDTO = new TransactionFollowUpRecordDTO();
+        recordDTO.setSourceOrderDO(sourceOrderDO);
+        recordDTO.setCommandDTO(commandDTO);
+        recordDTO.setRouteResultDTO(routeResultDTO);
+        recordDTO.setChannelInvokeResultDTO(invokeResultDTO);
+        recordDTO.setResultDTO(resultDTO);
+        recordDTO.setCurrencyExponent(currencyExponent);
+        transactionRecordService.recordFollowUpTransaction(recordDTO);
+    }
+
+    /**
+     * 创建交易createdevent，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     */
+    private void saveTransactionCreatedEvent(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
+        TransactionEventMessage message = new TransactionEventMessage();
+        message.setMessageId(resultDTO.getTransactionId());
+        message.setCreatedAt(LocalDateTime.now());
+        message.setTransactionId(resultDTO.getTransactionId());
+        message.setOperationId(resultDTO.getOperationId());
+        message.setMerchantId(commandDTO.getMerchantId());
+        message.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
+        message.setTransactionType(resultDTO.getTransactionType());
+        message.setTransactionStatus(resultDTO.getStatus());
+        message.setEventType(TransactionMqConstants.TRANSACTION_CREATED_TAG);
+        message.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        TransactionEventOutboxDO eventDO = new TransactionEventOutboxDO();
+        eventDO.setEventNo(resultDTO.getTransactionId());
+        eventDO.setAggregateType(PAYMENT_TRANSACTION_AGGREGATE);
+        eventDO.setAggregateNo(resultDTO.getOperationId());
+        eventDO.setOperationId(resultDTO.getOperationId());
+        eventDO.setTransactionId(resultDTO.getTransactionId());
+        eventDO.setMerchantId(commandDTO.getMerchantId());
+        eventDO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
+        eventDO.setTransactionType(resultDTO.getTransactionType());
+        eventDO.setEventType(TransactionMqConstants.TRANSACTION_CREATED_TAG);
+        eventDO.setEventStatus(EVENT_STATUS_INIT);
+        eventDO.setTopic(MqTopic.PAYMENT_EVENT);
+        eventDO.setTag(TransactionMqConstants.TRANSACTION_CREATED_TAG);
+        eventDO.setMessageKey(resultDTO.getTransactionId());
+        eventDO.setMessageGroup(resultDTO.getOperationId());
+        eventDO.setPayloadJson(JsonUtils.toJsonString(message));
+        eventDO.setEventTime(message.getCreatedAt());
+        eventDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        eventDO.setTransactionUtcTime(toUtcTime(commandDTO.getTransactionDateTime(), DEFAULT_TIME_ZONE));
+        eventDO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
+        eventDO.setRetryCount(0);
+        eventDO.setMaxRetryCount(DEFAULT_EVENT_MAX_RETRY_COUNT);
+        eventDO.setNextRetryTime(message.getCreatedAt());
+        eventDO.setVersion(INITIAL_VERSION);
+        eventDO.setDeleted(NOT_DELETED);
+        eventDO.setCreateTime(message.getCreatedAt());
+        eventDO.setUpdateTime(message.getCreatedAt());
+        transactionEventOutboxService.save(eventDO);
+    }
+
+    /**
+     * 规范化completeidempotency，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param idempotencyKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     */
+    private void completeIdempotency(String idempotencyKey, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
+        transactionIdempotencyService.complete(
+                TRANSACTION_OPERATION_SCOPE,
+                idempotencyKey,
+                resultDTO.getOperationId(),
+                resultDTO.getTransactionId(),
+                resultDTO.getStatus(),
+                commandDTO.getTransactionAmount(),
+                resultDTO.getCurrency(),
+                JsonUtils.toJsonString(resultDTO));
+    }
+
+    /**
+     * 构造重复请求结果对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param record record 输入值，参与 记录 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
+    private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
+        if (StringUtils.hasText(record.getResultSnapshot())) {
+            PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
+            if (resultDTO != null) {
+                return resultDTO;
+            }
+        }
+        PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
+        resultDTO.setOperationId(record.getOperationId());
+        resultDTO.setTransactionId(record.getTransactionId());
+        resultDTO.setMerchantOrderNo(record.getMerchantOrderNo());
+        resultDTO.setMerchantOrderId(record.getMerchantOrderId());
+        resultDTO.setTransactionType(record.getTransactionType());
+        resultDTO.setStatus(record.getTransactionStatus());
+        resultDTO.setAmount(record.getTransactionAmount() == null || record.getTransactionCurrency() == null
+                ? null
+                : toMinorAmount(record.getTransactionAmount(), record.getTransactionCurrency()));
+        resultDTO.setCurrency(record.getTransactionCurrency());
+        return resultDTO;
+    }
+
+/**
+ * 构造撤销结果对象，完成字段复制、格式标准化和敏感数据处理。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ */
+    private void enrichVoidResult(PaymentCreateCommandDTO commandDTO,
+                                  TransactionOrderDO sourceOrderDO,
+                                  PaymentRouteResultDTO routeResultDTO,
+                                  com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse channelResponse,
+                                  PaymentCreateResultDTO resultDTO) {
+        resultDTO.setMerchantId(commandDTO.getMerchantId());
+        resultDTO.setSubMerchantInfo(toResultSubMerchantInfo(commandDTO.getSubMerchantInfo()));
+        resultDTO.setOrderAmount(commandDTO.getLabelAmount());
+        resultDTO.setOrderCurrency(commandDTO.getLabelCurrency());
+        resultDTO.setLabelAmount(commandDTO.getLabelAmount());
+        resultDTO.setLabelCurrency(commandDTO.getLabelCurrency());
+        resultDTO.setTransactionAmount(commandDTO.getTransactionAmount());
+        resultDTO.setTransactionCurrency(commandDTO.getTransactionCurrency());
+        resultDTO.setTransactionRate(commandDTO.getTransactionRate());
+        resultDTO.setRateSource(commandDTO.getRateSource());
+        resultDTO.setRateTime(commandDTO.getRateTime());
+        resultDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        resultDTO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
+        resultDTO.setPaymentMethod(sourceOrderDO.getPaymentMethod());
+        resultDTO.setPaymentBrand(sourceOrderDO.getPaymentBrand());
+        resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
+        enrichMerchantResponse(resultDTO, channelResponse);
+        resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
+        resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(sourceOrderDO));
+        resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
+        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
+            resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedAmount());
+        }
+    }
+
+    /**
+     * 解析resolve展示authorized金额，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
+    private BigDecimal resolveDisplayAuthorizedAmount(TransactionOrderDO sourceOrderDO) {
+        if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
+            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+        }
+        return sourceOrderDO.getAuthorizedAmount();
+    }
+
+    /**
+     * 解析resolve展示captured金额，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
+    private BigDecimal resolveDisplayCapturedAmount(TransactionOrderDO sourceOrderDO) {
+        if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(sourceOrderDO.getTransactionType())) {
+            return firstPositive(sourceOrderDO.getCapturedAmount(), sourceOrderDO.getTransactionAmount());
+        }
+        return sourceOrderDO.getCapturedAmount();
+    }
+
+    /**
+     * 整理首个positive，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param first first 输入值，参与 首个 的查询、校验、转换、写入或日志摘要
+     * @param second second 输入值，参与 second 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private BigDecimal firstPositive(BigDecimal first, BigDecimal second) {
+        if (first != null && first.compareTo(BigDecimal.ZERO) > 0) {
+            return first;
+        }
+        return second;
+    }
+
+    /**
+     * 解析resolve回调url，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
+    private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
+        if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
+            return commandDTO.getCallbackUrl();
+        }
+        if (commandDTO.getTransactionInfo() != null && StringUtils.hasText(commandDTO.getTransactionInfo().getCallbackUrl())) {
+            return commandDTO.getTransactionInfo().getCallbackUrl();
+        }
+        return null;
+    }
+
+/**
+ * 构造商户响应对象，完成字段复制、格式标准化和敏感数据处理。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+ */
+    private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO,
+                                        com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse channelResponse) {
+        resultDTO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO.getStatus()));
+        resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO, channelResponse));
+    }
+
+    /**
+     * 解析resolve商户响应编码，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
+     */
+    private String resolveMerchantResponseCode(String transactionStatus) {
+        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
+            return ApiResultEnum.PAYMENT_SUCCESS.getCode();
+        }
+        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
+            return ApiResultEnum.PAYMENT_REJECTED.getCode();
+        }
+        return ApiResultEnum.PROCESSING.getCode();
+    }
+
+/**
+ * 解析resolve商户响应说明，将原始输入转换为当前调用链需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+ * </p>
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+ * @return 构造、转换或解析后的业务值
+ */
+    private String resolveMerchantResponseMessage(PaymentCreateResultDTO resultDTO,
+                                                  com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse response) {
+        if (resultDTO == null) {
+            return ApiResultEnum.PROCESSING.getMessage();
+        }
+        if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
+            return PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
+                    ? ApiResultEnum.PAYMENT_SUCCESS.getMessage()
+                    : ApiResultEnum.PROCESSING.getMessage();
+        }
+        if (response == null || "ERROR".equalsIgnoreCase(response.getRawChannelStatus())) {
+            return ApiResultEnum.PAYMENT_REJECTED.getMessage();
+        }
+        return firstText(joinCodeAndMessage(response.getChannelResponseCode(), response.getChannelResponseMessage()),
+                ApiResultEnum.PAYMENT_REJECTED.getMessage());
+    }
+
+    /**
+     * 整理拼接编码and说明，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private String joinCodeAndMessage(String code, String message) {
+        if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
+            return code + ": " + message;
+        }
+        return firstText(code, message);
+    }
+
+    /**
+     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private String firstText(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 解析resolve渠道订单no，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
+    private String resolveChannelOrderNo(TransactionOrderDO sourceOrderDO) {
+        return StringUtils.hasText(sourceOrderDO.getRootTransactionId())
+                ? sourceOrderDO.getRootTransactionId()
+                : sourceOrderDO.getLatestTransactionId();
+    }
+
+    /**
+     * 构造minor金额对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
+     * @return 构造、转换或解析后的业务值
+     */
+    private Long toMinorAmount(BigDecimal amount, String currency) {
+        try {
+            return isoDictionaryService.toMinorUnit(amount, currency);
+        } catch (IllegalArgumentException | ArithmeticException exception) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "amount fraction digits exceed currency minor unit", exception);
+        }
+    }
+
+    /**
+     * 解析resolve币种小数位，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
+     * @return 构造、转换或解析后的业务值
+     */
+    private int resolveCurrencyExponent(String currency) {
+        IsoCurrencyInfo currencyInfo = isoDictionaryService.getCurrency(currency)
+                .orElseThrow(() -> new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency can not be resolved"));
+        if (currencyInfo.defaultFractionDigits() < 0) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "currency fraction digits can not be resolved");
+        }
+        return currencyInfo.defaultFractionDigits();
+    }
+
+    /**
+     * 整理默认交易汇率，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private BigDecimal defaultTransactionRate() {
+        return new BigDecimal("1.00000000");
+    }
+
+    /**
+     * 解析normalize币种，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
+     * @return 构造、转换或解析后的业务值
+     */
+    private String normalizeCurrency(String currency) {
+        return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * 构造子商户响应信息对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
+    private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
+        if (source == null) {
+            return null;
+        }
+        PaymentCreateResultDTO.SubMerchantInfoDTO target = new PaymentCreateResultDTO.SubMerchantInfoDTO();
+        target.setSubId(source.getSubId());
+        target.setSubName(source.getSubName());
+        target.setSubCompanyName(source.getSubCompanyName());
+        target.setSubCountryCode(source.getSubCountryCode());
+        target.setSubState(source.getSubState());
+        target.setSubCity(source.getSubCity());
+        target.setSubStreet(source.getSubStreet());
+        target.setSubPostal(source.getSubPostal());
+        target.setSubEmail(source.getSubEmail());
+        target.setSubPhone(source.getSubPhone());
+        target.setSubTaxId(source.getSubTaxId());
+        target.setMerchantCategory(source.getMerchantCategory());
+        target.setIntesCode(source.getIntesCode());
+        return target;
+    }
+
+    /**
+     * 构造utctime对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param localTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 构造、转换或解析后的业务值
+     */
+    private LocalDateTime toUtcTime(LocalDateTime localTime, String timeZone) {
+        if (localTime == null) {
+            return null;
+        }
+        ZoneId sourceZone = StringUtils.hasText(timeZone) ? ZoneId.of(timeZone) : ZoneId.systemDefault();
+        return localTime.atZone(sourceZone)
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
+    }
+}

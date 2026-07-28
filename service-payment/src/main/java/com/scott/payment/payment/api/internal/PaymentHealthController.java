@@ -6,16 +6,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.ApiResult.success;
 
+
+@RestController
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentHealthController
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : 收单支付服务健康检查接口，位于 service-payment 接口层，仅用于服务存活探测。
+ * @description : Payment Health Controller 控制器，位于 支付核心服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
  * @status : create
  */
-@RestController
 public class PaymentHealthController {
 
     /**

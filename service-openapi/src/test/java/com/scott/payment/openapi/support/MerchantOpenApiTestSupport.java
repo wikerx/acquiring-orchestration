@@ -32,6 +32,11 @@ import java.util.UUID;
 public final class MerchantOpenApiTestSupport {
 
     /**
+     * SDK live 联调专属商户号，自动化测试不得清理或重建该商户的密钥材料。
+     */
+    public static final String SDK_LIVE_MERCHANT_ID = "200045";
+
+    /**
      * OpenAPI 授权接口路径。
      */
     public static final String AUTHORIZATION_PATH = "/api/rest/payment/v1/authorization";
@@ -107,6 +112,9 @@ public final class MerchantOpenApiTestSupport {
     public static void cleanMerchantSecurityData(JdbcTemplate jdbcTemplate,
                                                  List<String> merchantIdList) {
         merchantIdList.forEach(merchantId -> {
+            Assertions.assertThat(merchantId)
+                    .as("SDK live merchant %s must not be cleaned by automated tests", SDK_LIVE_MERCHANT_ID)
+                    .isNotEqualTo(SDK_LIVE_MERCHANT_ID);
             jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id = ?", merchantId);
             jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE merchant_id = ?", merchantId);

@@ -13,7 +13,6 @@ import java.util.List;
  * @description : 任务执行器节点服务接口
  * @status : create
  */
-
 public interface JobExecutorNodeService {
 
     /**

@@ -8,13 +8,14 @@ import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : LocalGlobalIdGenerator
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 本地全局唯一标识生成器。 <p>该实现仅保证单 JVM 内唯一，不保证多 JVM、多实例、分布式环境全局唯一。 禁止用于生产支付资金链路。</p>
+ * @description : Local Global ID Generator 协作组件，位于 公共组件库，封装 localglobalIDgenerator 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
 public class LocalGlobalIdGenerator implements GlobalIdGenerator {

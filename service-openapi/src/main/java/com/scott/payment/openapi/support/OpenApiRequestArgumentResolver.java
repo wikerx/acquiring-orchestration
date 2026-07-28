@@ -13,16 +13,17 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestArgumentResolver
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 解密参数解析器，位于 service-openapi 支撑层，把 RequestBodyAdvice 解密后的 DTO 注入控制器参数。
+ * @description : Open API Request Argument Resolver 解析组件，位于 商户开放接口服务，根据请求路径、配置、分表条件或协议字段解析后续处理需要的标准结果。
  * @status : create
  */
-@Component
 public class OpenApiRequestArgumentResolver implements HandlerMethodArgumentResolver {
 
     /**

@@ -15,18 +15,17 @@ import java.util.concurrent.ConcurrentHashMap;
  * @description : 任务Future注册表注册中心
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobFutureRegistry
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Future Registry，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Component
 public class JobFutureRegistry {
 
+    /**
+     * future Map，用于保存 Job Future Registry 中与 futuremap 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final Map<String, CompletableFuture<?>> futureMap = new ConcurrentHashMap<>();
 
     /**
@@ -34,11 +33,6 @@ public class JobFutureRegistry {
      *
      * @param runId  执行批次号
      * @param future 执行 Future
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param runId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param future 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void register(String runId, CompletableFuture<?> future) {
         if (runId != null && future != null) {
@@ -51,10 +45,6 @@ public class JobFutureRegistry {
      *
      * @param runId 执行批次号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param runId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     public void unregister(String runId) {
         if (runId != null) {
             futureMap.remove(runId);
@@ -66,11 +56,6 @@ public class JobFutureRegistry {
      *
      * @param runId 执行批次号
      * @return true 表示找到了对应 Future 并发起取消
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param runId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public boolean cancel(String runId) {
         CompletableFuture<?> future = futureMap.remove(runId);

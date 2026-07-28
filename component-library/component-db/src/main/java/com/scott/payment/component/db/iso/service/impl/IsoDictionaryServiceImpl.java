@@ -38,15 +38,6 @@ import java.util.function.Supplier;
  * @description : ISO 国家地区与币种基础字典公共查询服务实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : IsoDictionaryServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Iso Dictionary Service Impl，位于 component-library/component-db 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Slf4j
 @Service
 @DS(DataSourceName.SLAVE)
@@ -112,10 +103,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      *
      * @return 启用国家地区列表
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<IsoCountryInfo> listCountries() {
         return loadFromCache(
@@ -132,11 +119,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      *
      * @param keyword 查询关键字，空值时返回全部启用国家地区
      * @return 命中的国家地区列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param keyword 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<IsoCountryInfo> searchCountries(String keyword) {
@@ -156,11 +138,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      * @param value 国家地区代码或名称
      * @return 命中的国家地区
      */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public Optional<IsoCountryInfo> getCountry(String value) {
         if (!StringUtils.hasText(value)) {
@@ -178,11 +155,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      *
      * @param continentCode 七大洲代码：AS/EU/AF/NA/SA/OC/AN
      * @return 指定大洲下的国家地区列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param continentCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<IsoCountryInfo> listCountriesByContinent(String continentCode) {
@@ -202,11 +174,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      * @param currencyAlpha3Code ISO 4217 三位字母币种代码
      * @return 默认使用该币种的国家地区列表
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param currencyAlpha3Code 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<IsoCountryInfo> listCountriesByCurrency(String currencyAlpha3Code) {
         if (!StringUtils.hasText(currencyAlpha3Code)) {
@@ -223,10 +190,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      * 查询全部启用币种。
      *
      * @return 启用币种列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public List<IsoCurrencyInfo> listCurrencies() {
@@ -245,11 +208,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      * @param keyword 查询关键字，空值时返回全部启用币种
      * @return 命中的币种列表
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param keyword 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<IsoCurrencyInfo> searchCurrencies(String keyword) {
         if (!StringUtils.hasText(keyword)) {
@@ -267,11 +225,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      *
      * @param value 币种代码或名称
      * @return 命中的币种信息
-     */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param value 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public Optional<IsoCurrencyInfo> getCurrency(String value) {
@@ -292,12 +245,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      * @param currencyValue 币种代码或名称
      * @return true 表示金额小数位合法
      */
-    /**
-     * 判断收单支付条件是否满足，供业务分支或权限控制使用。
-     * @param amount 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param currencyValue 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public boolean isCurrencyFractionValid(BigDecimal amount, String currencyValue) {
         return getCurrency(currencyValue)
@@ -311,12 +258,6 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      * @param amount        主币单位金额
      * @param currencyValue 币种代码或名称
      * @return 最小辅币单位金额
-     */
-    /**
-     * 转换收单支付数据结构，避免数据库实体直接暴露到外部接口。
-     * @param amount 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param currencyValue 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public long toMinorUnit(BigDecimal amount, String currencyValue) {
@@ -365,7 +306,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
             List<T> values = JsonUtils.parseObject(cachedJson, typeReference);
             return values == null ? List.of() : values;
         } catch (RuntimeException exception) {
-            log.warn("读取 ISO 字典 Redis 缓存失败，cacheKey={}，原因={}", cacheKey, exception.getMessage());
+            log.warn("读取 ISO 字典 Redis 缓存失败，cacheKey: {}，原因: {}", cacheKey, exception.getMessage());
             return List.of();
         }
     }
@@ -384,7 +325,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
         try {
             stringRedisTemplate.opsForValue().set(cacheKey, JsonUtils.toJsonString(values), ISO_CACHE_TTL);
         } catch (RuntimeException exception) {
-            log.warn("写入 ISO 字典 Redis 缓存失败，cacheKey={}，原因={}", cacheKey, exception.getMessage());
+            log.warn("写入 ISO 字典 Redis 缓存失败，cacheKey: {}，原因: {}", cacheKey, exception.getMessage());
         }
     }
 
@@ -404,7 +345,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
             }
             log.warn("ISO 字典数据库结果为空，临时使用内置 ISO 数据兜底");
         } catch (DataAccessException exception) {
-            log.warn("ISO 字典数据库读取失败，临时使用内置 ISO 数据兜底，原因={}", exception.getMessage());
+            log.warn("ISO 字典数据库读取失败，临时使用内置 ISO 数据兜底，原因: {}", exception.getMessage());
         }
         return fallbackLoader.get();
     }

@@ -73,6 +73,11 @@ public class MpgsResponsePayload {
     private Risk risk;
 
     /**
+     * MPGS 3DS 认证响应节点。
+     */
+    private Authentication authentication;
+
+    /**
      * MPGS 记录时间，ISO-8601 字符串。
      */
     private String timeOfRecord;
@@ -82,7 +87,36 @@ public class MpgsResponsePayload {
      */
     private String timeOfLastUpdate;
 
+    /**
+     * MPGS 3DS browser return or callback order identifier.
+     */
+    private String orderId;
+
+    /**
+     * MPGS 3DS browser return or callback authentication transaction identifier.
+     */
+    private String transactionId;
+
+    /**
+     * EMV 3DS Server Transaction ID.
+     */
+    private String threeDSServerTransID;
+
+    /**
+     * MPGS encrypted 3DS session data. This field is sensitive and must only be stored masked.
+     */
+    private String threeDSSessionData;
+
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Response
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class Response {
 
         /**
@@ -112,6 +146,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : CardSecurityCode
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Card Security Code 协作组件，位于 渠道适配库，封装 cardsecuritycode 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class CardSecurityCode {
 
         /**
@@ -126,6 +169,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : AuthorizationResponse
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Authorization Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class AuthorizationResponse {
 
         /**
@@ -175,6 +227,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Transaction
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Transaction 协作组件，位于 渠道适配库，封装 交易 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Transaction {
 
         /**
@@ -239,6 +300,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Acquirer
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Acquirer 协作组件，位于 渠道适配库，封装 acquirer 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Acquirer {
 
         /**
@@ -278,6 +348,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Order
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Order 协作组件，位于 渠道适配库，封装 订单 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Order {
 
         /**
@@ -362,6 +441,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Chargeback
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Chargeback 协作组件，位于 渠道适配库，封装 chargeback 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Chargeback {
 
         /**
@@ -376,6 +464,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : SourceOfFunds
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Source Of Funds 协作组件，位于 渠道适配库，封装 来源offunds 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class SourceOfFunds {
 
         /**
@@ -390,6 +487,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Provided
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Provided 协作组件，位于 渠道适配库，封装 provided 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Provided {
 
         /**
@@ -399,6 +505,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Card
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Card 协作组件，位于 渠道适配库，封装 card 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Card {
 
         /**
@@ -438,6 +553,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Expiry
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Expiry 协作组件，位于 渠道适配库，封装 expiry 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Expiry {
 
         /**
@@ -452,6 +576,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Risk
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Risk 协作组件，位于 渠道适配库，封装 risk 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Risk {
 
         /**
@@ -461,6 +594,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : RiskResponse
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Risk Response 传输模型，位于 渠道适配库，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class RiskResponse {
 
         /**
@@ -490,6 +632,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Review
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Review 协作组件，位于 渠道适配库，封装 review 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Review {
 
         /**
@@ -499,6 +650,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : RiskRule
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Risk Rule 协作组件，位于 渠道适配库，封装 risk规则 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class RiskRule {
 
         /**
@@ -523,6 +683,15 @@ public class MpgsResponsePayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ErrorPayload
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Error Payload 协作组件，位于 渠道适配库，封装 errorpayload 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class ErrorPayload {
 
         /**
@@ -544,5 +713,92 @@ public class MpgsResponsePayload {
          * MPGS 校验错误类型。
          */
         private String validationType;
+    }
+
+    @Data
+    public static class Authentication {
+
+        /**
+         * MPGS 3DS authentication transaction id。
+         */
+        private String transactionId;
+
+        /**
+         * 认证版本，例如 3DS2。
+         */
+        private String version;
+
+        /**
+         * 认证状态，例如 AUTHENTICATION_SUCCESSFUL。
+         */
+        private String status;
+
+        /**
+         * 网关建议，例如 PROCEED、DO_NOT_PROCEED。
+         */
+        private String gatewayRecommendation;
+
+        /**
+         * 持卡人交互状态，例如 REQUIRED、NOT_REQUIRED。
+         */
+        private String payerInteraction;
+
+        /**
+         * 认证重定向或 Method HTML。
+         */
+        private Redirect redirect;
+
+        /**
+         * 通用 3DS 认证数据。
+         */
+        private ThreeDs threeDs;
+
+        /**
+         * 3DS1 兼容字段。
+         */
+        private ThreeDs1 threeDs1;
+
+        /**
+         * 3DS2 兼容字段。
+         */
+        private ThreeDs2 threeDs2;
+    }
+
+    @Data
+    public static class Redirect {
+
+        /**
+         * MPGS 返回给浏览器渲染的 HTML，日志和落库只能保存摘要。
+         */
+        private String html;
+
+        /**
+         * 部分响应可能返回重定向 URL。
+         */
+        private String url;
+    }
+
+    @Data
+    public static class ThreeDs {
+
+        private String acsEci;
+        private String authenticationToken;
+        private String transactionId;
+    }
+
+    @Data
+    public static class ThreeDs1 {
+
+        private String paResStatus;
+        private String veResEnrolled;
+    }
+
+    @Data
+    public static class ThreeDs2 {
+
+        private String acsTransactionId;
+        private String dsTransactionId;
+        private String threeDSServerTransactionId;
+        private String transactionStatus;
     }
 }

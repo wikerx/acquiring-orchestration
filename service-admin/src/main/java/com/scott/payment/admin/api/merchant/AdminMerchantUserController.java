@@ -15,44 +15,48 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+@RestController
+@RequestMapping("/admin/merchant-users")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMerchantUserController
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : 商户管理Admin Merchant User 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Admin Merchant User Controller 控制器，位于 运营后台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
  * @status : create
  */
-@RestController
-@RequestMapping("/admin/merchant-users")
 public class AdminMerchantUserController {
 
     /**
-     * 商户管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * admin Merchant User Application Service 依赖，用于 Admin Merchant User Controller 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：构造器注入的应用服务或 HTTP 请求对象。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final AdminMerchantUserApplicationService adminMerchantUserApplicationService;
 
+    /**
+     * 整理admin商户用户controller，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param adminMerchantUserApplicationService admin Merchant User Application Service 输入值，参与 admin商户用户applicationservice 的查询、校验、转换、写入或日志摘要
+     */
     public AdminMerchantUserController(AdminMerchantUserApplicationService adminMerchantUserApplicationService) {
         this.adminMerchantUserApplicationService = adminMerchantUserApplicationService;
     }
 
-    /**
-     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping
     @RequiresPermission("admin:merchant:user:list")
     public CommonResult<PageResult<AdminMerchantUserListDTO>> pageMerchantUsers(@ModelAttribute AdminMerchantUserQueryRequest request) {
         return success(adminMerchantUserApplicationService.pageMerchantUsers(request));
     }
 
-    /**
-     * 获取商户管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param accountId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/{accountId}")
     @RequiresPermission("admin:merchant:user:detail")
     public CommonResult<AdminMerchantUserDetailDTO> getMerchantUser(@PathVariable("accountId") Long accountId) {

@@ -6,16 +6,17 @@ import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PageResult
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 09:28
  * @email : scott_x@163.com
- * @description : 分页响应模型，统一管理后台、商户后台和内部查询接口的分页元数据与记录列表。
+ * @description : Page Result 协作组件，位于 公共组件库，封装 pageresult 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
-@Data
 public class PageResult<T> implements Serializable {
 
     /**

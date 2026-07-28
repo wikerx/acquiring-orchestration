@@ -32,76 +32,136 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminBaseMccApplicationServiceTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-27 16:49
  * @email : scott_x@163.com
- * @description : 基础数据Admin Base Mcc Application Service Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Admin Base MCC Application Service Test 应用服务，位于 运营后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
-@ExtendWith(MockitoExtension.class)
 class AdminBaseMccApplicationServiceTest {
 
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * level 1 Mapper 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private BaseMccLevel1Mapper level1Mapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * level 2 Mapper 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private BaseMccLevel2Mapper level2Mapper;
-    /**
-     * 基础数据编码或编号字段，用于业务识别、查询和幂等关联。
-     */
     @Mock
+    /**
+     * code Mapper，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private BaseMccCodeMapper codeMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * risk Policy Mapper 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private BaseMccRiskPolicyMapper riskPolicyMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * dict Data Mapper 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private SysDictDataMapper dictDataMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * admin Dict Service 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private AdminDictService adminDictService;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * ISO Country Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自平台支持国家地区；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private IsoCountryMapper isoCountryMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * merchant Info Mapper 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private BaseMerchantInfoMapper merchantInfoMapper;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel Export Service 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ExcelExportService excelExportService;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel I 18 n Message Resolver，用于保存 Admin Base MCC Application Service Test 中与 exceli18nmessageresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ExcelI18nMessageResolver excelI18nMessageResolver;
-    /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * excel Locale Resolver，用于保存 Admin Base MCC Application Service Test 中与 excellocaleresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ExcelLocaleResolver excelLocaleResolver;
 
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * service 依赖，用于 Admin Base MCC Application Service Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private AdminBaseMccApplicationService service;
 

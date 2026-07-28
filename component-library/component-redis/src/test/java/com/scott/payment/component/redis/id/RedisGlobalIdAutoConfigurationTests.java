@@ -12,9 +12,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author : scott
  * @version : v1.0.0
  * @classname : RedisGlobalIdAutoConfigurationTests
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 收单支付Redis Global Id Auto Configuration Tests，位于 component-library/component-redis 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Redis Global ID Auto Configuration Tests 配置类，位于 公共组件库，注册当前模块运行所需 Bean、拦截器、客户端或配置属性。
  * @status : create
  */
 class RedisGlobalIdAutoConfigurationTests {
@@ -60,9 +60,6 @@ class RedisGlobalIdAutoConfigurationTests {
 
     private static class TestStringRedisTemplate extends StringRedisTemplate {
 
-        /**
-         * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-         */
         @Override
         public void afterPropertiesSet() {
             // 测试自动配置装配关系，不需要真实 Redis 连接工厂。

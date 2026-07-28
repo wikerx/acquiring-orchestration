@@ -27,7 +27,7 @@ public final class OperatorTypeConstants {
     public static final int SYSTEM_JOB = 3;
 
     /**
-     * 工具类不允许实例化。
+     * 私有构造方法，禁止外部实例化该操作人类型常量集合。
      */
     private OperatorTypeConstants() {
     }

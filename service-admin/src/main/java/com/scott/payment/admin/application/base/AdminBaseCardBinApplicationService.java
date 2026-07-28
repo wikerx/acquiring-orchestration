@@ -50,31 +50,223 @@ import java.util.stream.Collectors;
 @Service
 public class AdminBaseCardBinApplicationService {
 
+    /**
+     * EXPORT TIME FORMATTER，用于保存 Admin Base Card Bin Application Service 中与 exporttimeformatter 相关的业务属性。
+     * <p>
+     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final DateTimeFormatter EXPORT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    /**
+     * BATCH TIME FORMATTER，用于保存 Admin Base Card Bin Application Service 中与 batchtimeformatter 相关的业务属性。
+     * <p>
+     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；不允许为空；非敏感字段。
+     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final DateTimeFormatter BATCH_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
+    /**
+     * NOT DELETED，用于保存 Admin Base Card Bin Application Service 中与 notdeleted 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final long NOT_DELETED = AuthConstants.NOT_DELETED;
+    /**
+     * STATUS DISABLED，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final int STATUS_DISABLED = 0;
+    /**
+     * STATUS ENABLED，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final int STATUS_ENABLED = 1;
+    /**
+     * STATUS PENDING，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final int STATUS_PENDING = 2;
+    /**
+     * STATUS EXPIRED，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final int STATUS_EXPIRED = 3;
+    /**
+     * DEFAULT PRIORITY，用于保存 Admin Base Card Bin Application Service 中与 defaultpriority 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final int DEFAULT_PRIORITY = 50;
+    /**
+     * NORMALIZED BIN LENGTH，用于保存 Admin Base Card Bin Application Service 中与 normalizedbinlength 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final int NORMALIZED_BIN_LENGTH = 11;
+    /**
+     * CARD BRAND DICT，用于保存 Admin Base Card Bin Application Service 中与 cardbranddict 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String CARD_BRAND_DICT = "card_brand";
+    /**
+     * CARD TYPE DICT，用于区分 Admin Base Card Bin Application Service 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String CARD_TYPE_DICT = "base_card_type";
+    /**
+     * CARD BIN STATUS DICT，表示当前记录在业务流程中的处理状态。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+     * </p>
+     */
     private static final String CARD_BIN_STATUS_DICT = "base_card_bin_status";
+    /**
+     * DATA SOURCE DICT，用于保存 Admin Base Card Bin Application Service 中与 data来源dict 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String DATA_SOURCE_DICT = "base_card_bin_data_source";
+    /**
+     * DEFAULT LOCALE，用于保存 Admin Base Card Bin Application Service 中与 defaultlocale 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String DEFAULT_LOCALE = "zh-CN";
+    /**
+     * DATA SOURCE MANUAL，用于保存 Admin Base Card Bin Application Service 中与 data来源manual 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String DATA_SOURCE_MANUAL = "MANUAL";
+    /**
+     * DATA SOURCE LEGACY，用于保存 Admin Base Card Bin Application Service 中与 data来源legacy 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String DATA_SOURCE_LEGACY = "LEGACY_DB";
+    /**
+     * IMPORT TYPE DB INIT，用于区分 Admin Base Card Bin Application Service 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final String IMPORT_TYPE_DB_INIT = "DB_INIT";
     private static final Set<Integer> VALID_STATUSES = Set.of(STATUS_DISABLED, STATUS_ENABLED, STATUS_PENDING, STATUS_EXPIRED);
 
+    /**
+     * 卡 BIN，用于识别发卡行、卡组织、国家地区和风控规则。
+     * <p>
+     * 单位：无；格式：卡 BIN 或尾号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：仅保存识别片段，不保存完整 PAN；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final BaseCardBinRangeMapper cardBinRangeMapper;
+    /**
+     * import Batch Mapper 依赖，用于 Admin Base Card Bin Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final BaseCardBinImportBatchMapper importBatchMapper;
+    /**
+     * admin Dict Service 依赖，用于 Admin Base Card Bin Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final AdminDictService adminDictService;
+    /**
+     * ISO Country Mapper，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自平台支持国家地区；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final IsoCountryMapper isoCountryMapper;
+    /**
+     * excel Export Service 依赖，用于 Admin Base Card Bin Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final ExcelExportService excelExportService;
+    /**
+     * excel I 18 n Message Resolver，用于保存 Admin Base Card Bin Application Service 中与 exceli18nmessageresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
+    /**
+     * excel Locale Resolver，用于保存 Admin Base Card Bin Application Service 中与 excellocaleresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final ExcelLocaleResolver excelLocaleResolver;
 
     /**
@@ -374,6 +566,16 @@ public class AdminBaseCardBinApplicationService {
         return response;
     }
 
+    /**
+     * 构造listquery对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 构造、转换或解析后的业务值
+     */
     private LambdaQueryWrapper<CardBinEntities.BaseCardBinRangeDO> buildListQuery(CardBinDTOs.CardBinQueryRequest query) {
         LambdaQueryWrapper<CardBinEntities.BaseCardBinRangeDO> wrapper = Wrappers.<CardBinEntities.BaseCardBinRangeDO>lambdaQuery()
                 .eq(CardBinEntities.BaseCardBinRangeDO::getDeleted, NOT_DELETED)
@@ -392,6 +594,19 @@ public class AdminBaseCardBinApplicationService {
                 .orderByDesc(CardBinEntities.BaseCardBinRangeDO::getId);
     }
 
+/**
+ * 构造savefields对象，完成字段复制、格式标准化和敏感数据处理。
+ * <p>
+ * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+ * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+ * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+ * </p>
+ * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+ * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param range range 输入值，参与 范围 的查询、校验、转换、写入或日志摘要
+ * @param dataSource data Source 输入值，参与 data来源 的查询、校验、转换、写入或日志摘要
+ * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+ */
     private void fillSaveFields(CardBinEntities.BaseCardBinRangeDO row,
                                 CardBinDTOs.CardBinSaveRequest request,
                                 NormalizedBinRange range,
@@ -419,6 +634,18 @@ public class AdminBaseCardBinApplicationService {
         row.setRemark(trimToNull(request.getRemark()));
     }
 
+    /**
+     * 整理adjust状态按conflicts，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param currentId current ID 输入值，参与 当前ID 的查询、校验、转换、写入或日志摘要
+     * @param range range 输入值，参与 范围 的查询、校验、转换、写入或日志摘要
+     * @param requestedStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Integer adjustStatusByConflicts(Long currentId, NormalizedBinRange range, Integer requestedStatus) {
         List<CardBinEntities.BaseCardBinRangeDO> conflicts = cardBinRangeMapper.selectList(
                 Wrappers.<CardBinEntities.BaseCardBinRangeDO>lambdaQuery()
@@ -449,6 +676,17 @@ public class AdminBaseCardBinApplicationService {
         return requestedStatus;
     }
 
+    /**
+     * 解析normalize范围，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param start start 输入值，参与 start 的查询、校验、转换、写入或日志摘要
+     * @param end end 输入值，参与 end 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private NormalizedBinRange normalizeRange(String start, String end) {
         String normalizedStart = validateBin(start, "CardBin 仅允许输入 6 到 11 位数字，不允许输入完整卡号。");
         String normalizedEnd = StringUtils.hasText(end) ? validateBin(end, "CardBin 仅允许输入 6 到 11 位数字，不允许输入完整卡号。") : normalizedStart;
@@ -463,6 +701,17 @@ public class AdminBaseCardBinApplicationService {
         return new NormalizedBinRange(startValue, endValue, normalizedStart.length());
     }
 
+    /**
+     * 校验BIN输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 运营后台服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String validateBin(String value, String message) {
         String normalized = trimToNull(value);
         if (normalized == null || !normalized.matches("^[0-9]{6,11}$")) {
@@ -471,14 +720,44 @@ public class AdminBaseCardBinApplicationService {
         return normalized;
     }
 
+    /**
+     * 解析normalizestart值，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
     private long normalizeStartValue(String value) {
         return Long.parseLong(value + "0".repeat(NORMALIZED_BIN_LENGTH - value.length()));
     }
 
+    /**
+     * 解析normalizeend值，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
     private long normalizeEndValue(String value) {
         return Long.parseLong(value + "9".repeat(NORMALIZED_BIN_LENGTH - value.length()));
     }
 
+    /**
+     * 整理BINto展示，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String binToDisplay(Long value) {
         if (value == null) {
             return null;
@@ -486,6 +765,17 @@ public class AdminBaseCardBinApplicationService {
         return String.format("%011d", value);
     }
 
+    /**
+     * 解析normalize状态，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param defaultStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
+     */
     private Integer normalizeStatus(Integer status, Integer defaultStatus) {
         Integer target = status == null ? defaultStatus : status;
         if (target == null || !VALID_STATUSES.contains(target)) {
@@ -494,6 +784,16 @@ public class AdminBaseCardBinApplicationService {
         return target;
     }
 
+    /**
+     * 校验断言状态transition输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param currentStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param targetStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     */
     private void assertStatusTransition(Integer currentStatus, Integer targetStatus) {
         if (Objects.equals(currentStatus, targetStatus)) {
             return;
@@ -510,6 +810,17 @@ public class AdminBaseCardBinApplicationService {
         }
     }
 
+    /**
+     * 校验断言dictvalue输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param dictType dict Type 输入值，参与 dicttype 的查询、校验、转换、写入或日志摘要
+     * @param dictValue dict Value 输入值，参与 dictvalue 的查询、校验、转换、写入或日志摘要
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     */
     private void assertDictValue(String dictType, String dictValue, String message) {
         String value = upper(trimToNull(dictValue));
         if (value == null) {
@@ -522,6 +833,16 @@ public class AdminBaseCardBinApplicationService {
         }
     }
 
+    /**
+     * 查询字典数据，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param dictType dict Type 输入值，参与 dicttype 的查询、校验、转换、写入或日志摘要
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private List<SysDictDataDTO> listDict(String dictType) {
         SysDictDataQueryRequest request = new SysDictDataQueryRequest();
         request.setDictType(dictType);
@@ -531,6 +852,16 @@ public class AdminBaseCardBinApplicationService {
         return adminDictService.listDictData(request);
     }
 
+    /**
+     * 规范化dictoptions，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param dictType dict Type 输入值，参与 dicttype 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private List<CardBinDTOs.CardBinOption> dictOptions(String dictType) {
         return listDict(dictType).stream()
                 .map(item -> {
@@ -541,6 +872,15 @@ public class AdminBaseCardBinApplicationService {
                 .toList();
     }
 
+    /**
+     * 统计countryoptions，返回分页、扫描或报表汇总所需的数量结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private List<CardBinDTOs.CardBinOption> countryOptions() {
         return isoCountryMapper.selectList(Wrappers.<IsoCountryDO>lambdaQuery()
                         .eq(IsoCountryDO::getDeleted, 0)
@@ -562,6 +902,17 @@ public class AdminBaseCardBinApplicationService {
                 .toList();
     }
 
+    /**
+     * 规范化option，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param label label 输入值，参与 label 的查询、校验、转换、写入或日志摘要
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private CardBinDTOs.CardBinOption option(String label, String value) {
         CardBinDTOs.CardBinOption option = new CardBinDTOs.CardBinOption();
         option.setLabel(label);
@@ -569,6 +920,15 @@ public class AdminBaseCardBinApplicationService {
         return option;
     }
 
+    /**
+     * 查询字典标签，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private DictLabels loadDictLabels() {
         return new DictLabels(
                 labels(CARD_BRAND_DICT),
@@ -578,6 +938,16 @@ public class AdminBaseCardBinApplicationService {
         );
     }
 
+    /**
+     * 规范化labels，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param dictType dict Type 输入值，参与 dicttype 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Map<String, String> labels(String dictType) {
         return listDict(dictType).stream()
                 .collect(Collectors.toMap(
@@ -588,6 +958,17 @@ public class AdminBaseCardBinApplicationService {
                 ));
     }
 
+    /**
+     * 构造响应对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param labels labels 输入值，参与 labels 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private CardBinDTOs.CardBinResponse toResponse(CardBinEntities.BaseCardBinRangeDO row, DictLabels labels) {
         CardBinDTOs.CardBinResponse response = new CardBinDTOs.CardBinResponse();
         response.setId(row.getId());
@@ -624,6 +1005,17 @@ public class AdminBaseCardBinApplicationService {
         return response;
     }
 
+    /**
+     * 构造exportrow对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param labels labels 输入值，参与 labels 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private CardBinExportRow toExportRow(CardBinEntities.BaseCardBinRangeDO row, DictLabels labels) {
         CardBinDTOs.CardBinResponse response = toResponse(row, labels);
         CardBinExportRow exportRow = new CardBinExportRow();
@@ -653,6 +1045,16 @@ public class AdminBaseCardBinApplicationService {
         return exportRow;
     }
 
+    /**
+     * 构造batch响应对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private CardBinDTOs.CardBinImportBatchResponse toBatchResponse(CardBinEntities.BaseCardBinImportBatchDO row) {
         CardBinDTOs.CardBinImportBatchResponse response = new CardBinDTOs.CardBinImportBatchResponse();
         response.setId(row.getId());
@@ -674,6 +1076,16 @@ public class AdminBaseCardBinApplicationService {
         return response;
     }
 
+    /**
+     * 判断 exists legacy row 条件是否成立，用于控制 Admin Base Card Bin Application Service 的后续分支。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * </p>
+     * @param legacyPkId legacy Pk ID 输入值，参与 legacypkID 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean existsLegacyRow(Long legacyPkId) {
         Long count = cardBinRangeMapper.selectCount(
                 Wrappers.<CardBinEntities.BaseCardBinRangeDO>lambdaQuery()
@@ -684,6 +1096,18 @@ public class AdminBaseCardBinApplicationService {
         return count != null && count > 0;
     }
 
+    /**
+     * 构造范围fromlegacy对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param legacy legacy 输入值，参与 legacy 的查询、校验、转换、写入或日志摘要
+     * @param batchNo batch No 输入值，参与 batchno 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private CardBinEntities.BaseCardBinRangeDO toRangeFromLegacy(Map<String, Object> legacy, String batchNo) {
         Long start = longValue(legacy.get("cardBinStart"));
         Long end = longValue(legacy.get("cardBinEnd"));
@@ -715,6 +1139,17 @@ public class AdminBaseCardBinApplicationService {
         return row;
     }
 
+    /**
+     * 规范化inferBINlength，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param start start 输入值，参与 start 的查询、校验、转换、写入或日志摘要
+     * @param end end 输入值，参与 end 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private int inferBinLength(Long start, Long end) {
         if (start == null || end == null) {
             return NORMALIZED_BIN_LENGTH;
@@ -731,6 +1166,16 @@ public class AdminBaseCardBinApplicationService {
         return NORMALIZED_BIN_LENGTH;
     }
 
+    /**
+     * 解析normalizelegacycardtype，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalizeLegacyCardType(String value) {
         String normalized = upper(trimToNull(value));
         if (normalized == null) {
@@ -742,6 +1187,16 @@ public class AdminBaseCardBinApplicationService {
         };
     }
 
+    /**
+     * 整理long值，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Long longValue(Object value) {
         if (value instanceof Number number) {
             return number.longValue();
@@ -752,10 +1207,30 @@ public class AdminBaseCardBinApplicationService {
         return Long.parseLong(value.toString());
     }
 
+    /**
+     * 整理string值，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String stringValue(Object value) {
         return value == null ? null : value.toString();
     }
 
+    /**
+     * 整理localdate时间值，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private LocalDateTime localDateTimeValue(Object value) {
         if (value instanceof LocalDateTime localDateTime) {
             return localDateTime;
@@ -763,6 +1238,16 @@ public class AdminBaseCardBinApplicationService {
         return LocalDateTime.now();
     }
 
+    /**
+     * 查询生效记录，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private CardBinEntities.BaseCardBinRangeDO getActiveRow(Long id) {
         if (id == null) {
             throw badRequest("id is required");
@@ -778,6 +1263,15 @@ public class AdminBaseCardBinApplicationService {
         return row;
     }
 
+    /**
+     * 整理当前操作人名称，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -789,6 +1283,16 @@ public class AdminBaseCardBinApplicationService {
         return StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount() : "admin";
     }
 
+    /**
+     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String firstText(String... values) {
         for (String value : values) {
             if (StringUtils.hasText(value)) {
@@ -798,11 +1302,32 @@ public class AdminBaseCardBinApplicationService {
         return "";
     }
 
+    /**
+     * 整理默认ifblank，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param defaultValue default Value 输入值，参与 默认value 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String defaultIfBlank(String value, String defaultValue) {
         String normalized = trimToNull(value);
         return normalized == null ? defaultValue : normalized;
     }
 
+    /**
+     * 规范化trimtonull，返回调用链后续步骤可直接使用的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String trimToNull(String value) {
         if (!StringUtils.hasText(value)) {
             return null;
@@ -810,10 +1335,30 @@ public class AdminBaseCardBinApplicationService {
         return value.trim();
     }
 
+    /**
+     * 规范化upper，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String upper(String value) {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 整理bad请求，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private ServiceException badRequest(String message) {
         return new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), message);
     }

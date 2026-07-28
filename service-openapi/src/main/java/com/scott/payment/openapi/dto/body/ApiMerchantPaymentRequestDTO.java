@@ -14,17 +14,18 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
+
+@Data
+@NoArgsConstructor
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ApiMerchantPaymentRequestDTO
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:48
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 收单交易统一请求 DTO，承载授权、预授权、请款、退款、撤销和冲正的外部入参校验。
+ * @description : API Merchant Payment Request DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
-@Data
-@NoArgsConstructor
 public class ApiMerchantPaymentRequestDTO implements Serializable {
 
     /**
@@ -63,6 +64,12 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     }
 
     /**
+     * 预授权完成校验分组，适用于对预授权订单执行完成确认。
+     */
+    public interface PreAuthCompletion {
+    }
+
+    /**
      * 退款交易校验分组，适用于对成功交易发起全额或部分退款。
      */
     public interface Refund {
@@ -96,14 +103,14 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * 商户信息，包含支付平台商户号以及子商户信息，所有收单类交易都需要用它定位商户配置。
      */
     @Valid
-    @NotNull(message = "merchantInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+    @NotNull(message = "merchantInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private MerchantInfoDTO merchantInfo;
 
     /**
      * 订单信息，包含金额、币种、商户订单号和商户本次请求唯一标识。
      */
     @Valid
-    @NotNull(message = "orderInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+    @NotNull(message = "orderInfo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private OrderInfoDTO orderInfo;
 
     /**
@@ -133,11 +140,20 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
      * 平台交易信息。首次类交易不要求商户传入；后续动作通过 sourceTransactionId 定位原平台交易，查询接口可传 transactionId 精确过滤。
      */
     @Valid
-    @NotNull(message = "transactionInfo", groups = {IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+    @NotNull(message = "transactionInfo", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private TransactionInfoDTO transactionInfo;
 
     @Data
     @NoArgsConstructor
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : MerchantInfoDTO
+     * @date : 2026-05-28 16:48
+     * @email : scott_x@163.com
+     * @description : Merchant Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class MerchantInfoDTO implements Serializable {
 
         /**
@@ -148,7 +164,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 支付平台颁发的商户号，必须与 JWT 中的 merchantId 保持一致，避免商户冒用其他商户配置。
          */
-        @NotBlank(message = "merchantInfo.merchantId", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        @NotBlank(message = "merchantInfo.merchantId", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
         @Pattern(regexp = "^[2-9]\\d{5,16}$", message = "merchantInfo.merchantId format does not match", groups = {Format.class})
         private String merchantId;
 
@@ -161,6 +177,15 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
 
     @Data
     @NoArgsConstructor
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : SubMerchantInfoDTO
+     * @date : 2026-05-28 16:48
+     * @email : scott_x@163.com
+     * @description : Sub Merchant Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class SubMerchantInfoDTO implements Serializable {
 
         /**
@@ -273,6 +298,15 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
 
     @Data
     @NoArgsConstructor
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : OrderInfoDTO
+     * @date : 2026-05-28 16:48
+     * @email : scott_x@163.com
+     * @description : Order Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class OrderInfoDTO implements Serializable {
 
         /**
@@ -283,34 +317,43 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 订单金额，主币种单位，最多 12 位整数和 3 位小数，进入核心后可转换为最小币种单位。
          */
-        @NotNull(message = "orderInfo.amount", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class})
+        @NotNull(message = "orderInfo.amount", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class})
         @Digits(integer = 12, fraction = 3, message = "orderInfo.amount format does not match", groups = {Format.class})
         private BigDecimal amount;
 
         /**
          * 订单币种，使用 ISO 4217 三位大写币种代码，例如 USD、EUR、CNY。
          */
-        @NotBlank(message = "orderInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class})
+        @NotBlank(message = "orderInfo.currency", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class})
         @Pattern(regexp = "^[A-Z]{3}$", message = "orderInfo.currency format does not match", groups = {Format.class})
         private String currency;
 
         /**
          * 商户订单号，由商户侧生成，是商户业务订单在平台侧的主要查询和对账字段。
          */
-        @NotBlank(message = "orderInfo.orderNo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        @NotBlank(message = "orderInfo.orderNo", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, AuthorizationCancel.class, Query.class, Reversal.class})
         @Pattern(regexp = "^$|^[A-Za-z0-9]{1,64}$", message = "orderInfo.orderNo format does not match", groups = {Format.class})
         private String orderNo;
 
         /**
          * 商户本次 API 请求唯一标识，由商户侧生成，用作创建、请款、退款、撤销、查询等 OpenAPI 幂等键。
          */
-        @NotBlank(message = "orderInfo.orderId", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        @NotBlank(message = "orderInfo.orderId", groups = {Payment.class, Authorization.class, PreAuthorization.class, IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
         @Pattern(regexp = "^[\\x21-\\x7E\\s]{1,64}$", message = "orderInfo.orderId format does not match", groups = {Format.class})
         private String orderId;
     }
 
     @Data
     @NoArgsConstructor
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : BillingCardHolderInfoDTO
+     * @date : 2026-05-28 16:48
+     * @email : scott_x@163.com
+     * @description : Billing Card Holder Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class BillingCardHolderInfoDTO implements Serializable {
 
         /**
@@ -394,6 +437,15 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
 
     @Data
     @NoArgsConstructor
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : CardInfoDTO
+     * @date : 2026-05-28 16:48
+     * @email : scott_x@163.com
+     * @description : Card Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class CardInfoDTO implements Serializable {
 
         /**
@@ -432,6 +484,15 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
 
     @Data
     @NoArgsConstructor
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ThreeDsInfoDTO
+     * @date : 2026-05-28 16:48
+     * @email : scott_x@163.com
+     * @description : Three Ds Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class ThreeDsInfoDTO implements Serializable {
 
         /**
@@ -466,6 +527,15 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
 
     @Data
     @NoArgsConstructor
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : TransactionInfoDTO
+     * @date : 2026-05-28 16:48
+     * @email : scott_x@163.com
+     * @description : Transaction Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class TransactionInfoDTO implements Serializable {
 
         /**
@@ -476,7 +546,7 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         /**
          * 原平台交易 ID，后续请款、退款、撤销、冲正和查询场景用于定位原交易。
          */
-        @NotBlank(message = "transactionInfo.sourceTransactionId", groups = {IncrementalAuthorization.class, Capture.class, Refund.class, AuthorizationCancel.class, Reversal.class})
+        @NotBlank(message = "transactionInfo.sourceTransactionId", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Reversal.class})
         @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "transactionInfo.sourceTransactionId format does not match", groups = {Format.class})
         private String sourceTransactionId;
 

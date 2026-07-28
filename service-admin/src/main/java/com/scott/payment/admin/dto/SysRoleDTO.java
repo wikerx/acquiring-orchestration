@@ -4,16 +4,17 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysRoleDTO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : 管理后台角色响应 DTO，位于 service-admin 接口传输层；用于角色列表、详情和用户授权弹窗展示角色基础信息。
+ * @description : Sys Role DTO 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
-@Data
 public class SysRoleDTO {
 
     /**

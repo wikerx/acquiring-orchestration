@@ -3,13 +3,14 @@ package com.scott.payment.component.core.id;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : LuhnMod10Utils
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : Luhn Mod10 校验工具，用于平台数字交易标识的校验位生成与格式校验。
+ * @description : Luhn Mod 10 Utils 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  * @status : create
  */
 public final class LuhnMod10Utils {

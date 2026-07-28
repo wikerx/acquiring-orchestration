@@ -15,6 +15,7 @@ import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDT
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
+import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 import com.scott.payment.openapi.config.PaymentClientProperties;
 import com.scott.payment.openapi.converter.OpenApiRequestConverter;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
@@ -99,6 +100,21 @@ class PaymentServiceImplTests {
         assertThat(paymentInternalClient.requestDTO.getMerchantOrderId()).isEqualTo("REQ202607120001");
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionId()).isEqualTo("source-001");
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
+    }
+
+    @Test
+    void shouldPassPreAuthCompletionOperationToPaymentService() {
+        CapturingPaymentInternalClient paymentInternalClient = new CapturingPaymentInternalClient();
+        PaymentServiceImpl paymentService = newPaymentService(paymentInternalClient);
+        bindRequestContext();
+
+        paymentService.preAuthCompletion("encrypted-body", buildRequest());
+
+        assertThat(paymentInternalClient.calledOperation).isEqualTo(OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
+        assertThat(paymentInternalClient.requestDTO.getTransactionType()).isEqualTo("PRE_AUTH_COMPLETION");
+        assertThat(paymentInternalClient.requestDTO.getMerchantOrderNo()).isEqualTo("M202607120001");
+        assertThat(paymentInternalClient.requestDTO.getMerchantOrderId()).isEqualTo("REQ202607120001");
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionId()).isEqualTo("source-001");
     }
 
     /**
@@ -482,20 +498,84 @@ class PaymentServiceImplTests {
 
     private static class CapturingPaymentInternalClient implements PaymentInternalClient {
 
+        /**
+         * request DTO 依赖，用于 Capturing Payment Internal Client 调用对应的数据访问、远程调用或领域服务能力。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private PaymentCreateClientRequestDTO requestDTO;
 
+        /**
+         * called Operation，用于保存 Capturing Payment Internal Client 中与 called动作 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private OpenApiPaymentOperationEnum calledOperation;
 
+        /**
+         * next Payment Status，表示当前记录在业务流程中的处理状态。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+         * </p>
+         */
         private String nextPaymentStatus = "SUCCESS";
 
+        /**
+         * next Authorization Status，表示当前记录在业务流程中的处理状态。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与时间字段、操作记录和状态历史共同描述当前处理阶段。
+         * </p>
+         */
         private String nextAuthorizationStatus = "SUCCESS";
 
+        /**
+         * next Merchant Response Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String nextMerchantResponseCode = "T202";
 
+        /**
+         * next Merchant Response Message，用于保存 Capturing Payment Internal Client 中与 next商户响应说明 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String nextMerchantResponseMessage = "Processing";
 
+        /**
+         * next Fail Reason Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String nextFailReasonCode;
 
+        /**
+         * next Fail Reason Message，用于保存 Capturing Payment Internal Client 中与 nextfailreason说明 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String nextFailReasonMessage;
 
         @Override
@@ -521,6 +601,11 @@ class PaymentServiceImplTests {
         @Override
         public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.CAPTURE);
+        }
+
+        @Override
+        public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
+            return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
         }
 
         @Override
@@ -580,6 +665,58 @@ class PaymentServiceImplTests {
             return true;
         }
 
+        @Override
+        public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
+                PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
+            PaymentCheckoutClientDTOs.SessionCreateResponse responseDTO = new PaymentCheckoutClientDTOs.SessionCreateResponse();
+            responseDTO.setCheckoutSessionId("CS202607140001");
+            responseDTO.setCheckoutTokenId("CT202607140001");
+            responseDTO.setCheckoutUrl("https://pay.example.com/checkout/token/cover");
+            responseDTO.setCheckoutStatus("CREATED");
+            responseDTO.setExpireTime(requestDTO.getExpireTime());
+            responseDTO.setIdempotentHit(false);
+            return responseDTO;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
+                PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
+            PaymentCheckoutClientDTOs.SessionQueryResponse responseDTO = new PaymentCheckoutClientDTOs.SessionQueryResponse();
+            responseDTO.setCheckoutSessionId("CS202607140001");
+            responseDTO.setPageState("PAYABLE");
+            return responseDTO;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
+                PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
+            PaymentCheckoutClientDTOs.PaymentResultResponse responseDTO = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+            responseDTO.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+            responseDTO.setCheckoutAttemptId("CA202607140001");
+            responseDTO.setPageState("PROCESSING");
+            return responseDTO;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
+                PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
+            PaymentCheckoutClientDTOs.PaymentResultResponse responseDTO = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+            responseDTO.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+            responseDTO.setCheckoutAttemptId(requestDTO.getCheckoutAttemptId());
+            responseDTO.setPageState("PROCESSING");
+            return responseDTO;
+        }
+
+        @Override
+        public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
+                PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {
+            PaymentCheckoutClientDTOs.PaymentResultResponse responseDTO = new PaymentCheckoutClientDTOs.PaymentResultResponse();
+            responseDTO.setCheckoutSessionId(requestDTO.getCheckoutSessionId());
+            responseDTO.setCheckoutAttemptId(requestDTO.getCheckoutAttemptId());
+            responseDTO.setPageState("PROCESSING");
+            return responseDTO;
+        }
+
         private PaymentCreateClientResponseDTO captureRequest(PaymentCreateClientRequestDTO requestDTO,
                                                               OpenApiPaymentOperationEnum operation) {
             this.requestDTO = requestDTO;
@@ -595,6 +732,7 @@ class PaymentServiceImplTests {
             if (OpenApiPaymentOperationEnum.PAYMENT == operation) {
                 responseDTO.setStatus(nextPaymentStatus);
                 if ("SUCCESS".equals(nextPaymentStatus)) {
+                    responseDTO.setTotalAuthorizedAmount(requestDTO.getAmount());
                     responseDTO.setTotalCapturedAmount(requestDTO.getAmount());
                 }
             }

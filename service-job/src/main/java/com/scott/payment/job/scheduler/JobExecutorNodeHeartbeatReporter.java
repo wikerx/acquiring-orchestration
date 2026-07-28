@@ -14,24 +14,25 @@ import org.springframework.stereotype.Component;
  * @description : 任务执行器节点心跳上报器
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecutorNodeHeartbeatReporter
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Executor Node Heartbeat Reporter，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Component
 public class JobExecutorNodeHeartbeatReporter {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Scheduler Properties，用于保存 Job Executor Node Heartbeat Reporter 中与 jobschedulerproperties 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobSchedulerProperties jobSchedulerProperties;
     /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     * job Executor Node Service 依赖，用于 Job Executor Node Heartbeat Reporter 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobExecutorNodeService jobExecutorNodeService;
 
@@ -50,9 +51,6 @@ public class JobExecutorNodeHeartbeatReporter {
     /**
      * 周期性上报当前节点心跳。
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     */
     @Scheduled(fixedDelayString = "#{@jobSchedulerProperties.heartbeatIntervalMillis()}")
     public void reportHeartbeat() {
         if (!jobSchedulerProperties.isEnabled()) {
@@ -63,9 +61,6 @@ public class JobExecutorNodeHeartbeatReporter {
 
     /**
      * 周期性将超时节点标记为离线。
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
      */
     @Scheduled(fixedDelayString = "#{@jobSchedulerProperties.heartbeatIntervalMillis()}")
     public void markOfflineNodes() {

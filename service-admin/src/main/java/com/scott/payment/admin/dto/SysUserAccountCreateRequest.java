@@ -8,16 +8,17 @@ import lombok.Data;
 import java.io.Serializable;
 import java.util.List;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserAccountCreateRequest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-06 10:36
  * @email : scott_x@163.com
- * @description : 后台用户新增请求，位于 service-admin 接口传输层；只承载用户资料、账号状态和岗位关系，不暴露角色授权明细。
+ * @description : Sys User Account Create Request 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
-@Data
 public class SysUserAccountCreateRequest implements Serializable {
 
     /**

@@ -5,16 +5,17 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserAccountDTO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-07 08:26
  * @email : scott_x@163.com
- * @description : 后台用户账号展示 DTO，位于 service-admin 接口传输层；用于用户列表、详情和导出展示，不返回密码、盐等敏感字段。
+ * @description : Sys User Account DTO 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
-@Data
 public class SysUserAccountDTO {
 
     /**

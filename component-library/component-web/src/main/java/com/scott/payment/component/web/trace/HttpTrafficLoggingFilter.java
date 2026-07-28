@@ -1,0 +1,707 @@
+package com.scott.payment.component.web.trace;
+
+import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.ServletOutputStream;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.WriteListener;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponseWrapper;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.MediaType;
+import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.ContentCachingRequestWrapper;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : HttpTrafficLoggingFilter
+ * @date : 2026-07-26 16:45
+ * @email : scott_x@163.com
+ * @description : Servlet HTTP 请求响应摘要日志过滤器，位于 component-web 公共 Web 层，为各微服务输出统一的请求体、响应体长度、指纹和脱敏摘要。
+ * @status : create
+ */
+@Slf4j
+@Order(Ordered.HIGHEST_PRECEDENCE + 20)
+public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
+
+    /**
+     * 请求体长度请求属性名，供 OpenAPI 异常日志在认证失败等未进入 Controller 的场景补充请求摘要。
+     */
+    public static final String REQUEST_BODY_LENGTH_ATTRIBUTE = HttpTrafficLoggingFilter.class.getName() + ".REQUEST_BODY_LENGTH";
+
+    /**
+     * 请求体 SHA-256 短摘要请求属性名，只保存不可逆指纹，不保存完整 body。
+     */
+    public static final String REQUEST_BODY_DIGEST_ATTRIBUTE = HttpTrafficLoggingFilter.class.getName() + ".REQUEST_BODY_DIGEST";
+
+    /**
+     * 请求体脱敏摘要请求属性名，敏感字段、密文 data 和 token 会被遮蔽后再写入。
+     */
+    public static final String REQUEST_BODY_SUMMARY_ATTRIBUTE = HttpTrafficLoggingFilter.class.getName() + ".REQUEST_BODY_SUMMARY";
+
+    /**
+     * 日志摘要最大字符数。
+     */
+    private static final int MAX_SUMMARY_LENGTH = 1200;
+
+    /**
+     * 请求体预读最大字节数，保证认证失败等业务未读取 body 的场景也可记录密文摘要。
+     */
+    private static final int MAX_REQUEST_CAPTURE_BYTES = 16 * 1024;
+
+    /**
+     * 响应体预览最大字节数，避免导出文件或大列表完整进入内存。
+     */
+    private static final int MAX_RESPONSE_CAPTURE_BYTES = 16 * 1024;
+
+    /**
+     * 加密报文、认证头和原始 body 字段正则，日志中只允许输出长度和摘要。
+     */
+    private static final Pattern OPAQUE_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:data|encryptedData|rawBody|requestBody|authorization|Authorization|token|accessToken|refreshToken)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+        long startNanos = System.nanoTime();
+        HttpServletRequest requestWrapper;
+        byte[] requestBody;
+        if (shouldPreReadRequest(request)) {
+            requestBody = request.getInputStream().readAllBytes();
+            requestWrapper = new RequestReplayWrapper(request, requestBody);
+            exposeRequestBodySummary(requestWrapper, requestBody);
+        } else {
+            ContentCachingRequestWrapper cachingRequestWrapper = new ContentCachingRequestWrapper(request, MAX_REQUEST_CAPTURE_BYTES);
+            requestWrapper = cachingRequestWrapper;
+            requestBody = null;
+        }
+        ResponseCaptureWrapper responseWrapper = new ResponseCaptureWrapper(response);
+        Throwable failure = null;
+        try {
+            filterChain.doFilter(requestWrapper, responseWrapper);
+        } catch (ServletException | IOException | RuntimeException exception) {
+            failure = exception;
+            throw exception;
+        } finally {
+            responseWrapper.flushCapture();
+            logTraffic(requestWrapper, responseWrapper, requestBody, startNanos, failure);
+        }
+    }
+
+    /**
+     * 输出一次 HTTP 请求响应摘要。
+     * <p>
+     * 摘要覆盖 traceId、路径、状态、请求/响应长度、短摘要和脱敏 JSON 片段，用于微服务间排障。
+     * 方法不记录完整 Authorization、完整密文、完整卡号、CVV 或大 body。
+     * </p>
+     * @param request 请求包装器
+     * @param response 响应缓存包装器
+     * @param preReadRequestBody 预读请求体；未预读时从 ContentCachingRequestWrapper 获取
+     * @param startNanos 请求开始时间，单位为纳秒
+     * @param failure 业务链路抛出的异常，正常完成时为空
+     */
+    private void logTraffic(HttpServletRequest request,
+                            ResponseCaptureWrapper response,
+                            byte[] preReadRequestBody,
+                            long startNanos,
+                            Throwable failure) {
+        long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
+        byte[] requestBody = requestBody(request, preReadRequestBody);
+        exposeRequestBodySummary(request, requestBody);
+        log.info("event: HTTP_TRAFFIC_SUMMARY traceId: {} method: {} path: {} status: {} requestContentType: {} requestLength: {} requestDigest: {} requestSummary: {} responseContentType: {} responseLength: {} responseDigest: {} responseSummary: {} durationMs: {} exceptionType: {}",
+                TraceContext.getTraceId(),
+                request.getMethod(),
+                request.getRequestURI(),
+                response.getStatus(),
+                request.getContentType(),
+                bodyLength(requestBody, request.getContentLengthLong()),
+                digest16(requestBody),
+                bodySummary(requestBody, request.getContentType(), request.getCharacterEncoding()),
+                response.getContentType(),
+                response.bodyLength(),
+                response.bodyDigest(),
+                bodySummary(response.previewBytes(), response.getContentType(), response.getCharacterEncoding()),
+                durationMs,
+                failure == null ? null : failure.getClass().getSimpleName());
+    }
+
+    /**
+     * 将通用请求体排障摘要挂到当前请求。
+     * <p>
+     * 只暴露长度、摘要和脱敏片段，供异常处理器在请求尚未进入业务方法时仍能记录商户密文报文线索。
+     * </p>
+     * @param request 当前请求包装器
+     * @param requestBody 已缓存或预读的请求体字节
+     */
+    private void exposeRequestBodySummary(HttpServletRequest request, byte[] requestBody) {
+        if (requestBody == null || requestBody.length == 0) {
+            return;
+        }
+        request.setAttribute(REQUEST_BODY_LENGTH_ATTRIBUTE, requestBody.length);
+        request.setAttribute(REQUEST_BODY_DIGEST_ATTRIBUTE, digest16(requestBody));
+        request.setAttribute(REQUEST_BODY_SUMMARY_ATTRIBUTE,
+                bodySummary(requestBody, request.getContentType(), request.getCharacterEncoding()));
+    }
+
+    /**
+     * 判断是否需要在进入业务链路前预读请求体。
+     * <p>
+     * 仅对小体积文本请求执行预读，覆盖 OpenAPI 在鉴权失败时业务层不会读取 body 的诊断需求。
+     * 大请求、未知长度请求和二进制请求继续使用下游读取时缓存的方式。
+     * </p>
+     * @param request 当前 HTTP 请求
+     * @return true 表示可安全预读并回放请求体
+     */
+    private boolean shouldPreReadRequest(HttpServletRequest request) {
+        long contentLength = request.getContentLengthLong();
+        return contentLength >= 0
+                && contentLength <= MAX_REQUEST_CAPTURE_BYTES
+                && isTextBody(request.getContentType());
+    }
+
+    /**
+     * 读取可用于日志的请求体字节。
+     *
+     * @param request 当前请求包装器
+     * @param preReadRequestBody 预读请求体
+     * @return 请求体字节；未读取时返回空数组
+     */
+    private byte[] requestBody(HttpServletRequest request, byte[] preReadRequestBody) {
+        if (preReadRequestBody != null) {
+            return preReadRequestBody;
+        }
+        if (request instanceof ContentCachingRequestWrapper cachingRequestWrapper) {
+            return cachingRequestWrapper.getContentAsByteArray();
+        }
+        return new byte[0];
+    }
+
+    /**
+     * 计算 body 长度。
+     * <p>
+     * 请求体尚未被下游读取时缓存为空，此时回退到 Content-Length，便于定位客户端是否实际发送 body。
+     * </p>
+     * @param cachedBody 已缓存 body 字节
+     * @param declaredLength 请求头声明长度
+     * @return 可用于日志的长度
+     */
+    private long bodyLength(byte[] cachedBody, long declaredLength) {
+        if (cachedBody.length > 0) {
+            return cachedBody.length;
+        }
+        return Math.max(declaredLength, 0);
+    }
+
+    /**
+     * 生成请求或响应 body 摘要。
+     * <p>
+     * JSON 和文本类内容输出脱敏、遮蔽和截断后的片段；其它二进制或未知类型只输出长度和摘要指纹。
+     * </p>
+     * @param body body 字节
+     * @param contentType Content-Type
+     * @param encoding 字符编码
+     * @return 可写入日志的 body 摘要
+     */
+    private String bodySummary(byte[] body, String contentType, String encoding) {
+        if (body.length == 0 || !isTextBody(contentType)) {
+            return null;
+        }
+        String raw = new String(body, resolveCharset(encoding));
+        String masked = maskOpaqueFields(SensitiveDataMaskUtils.maskJsonSafely(raw));
+        return truncate(masked);
+    }
+
+    /**
+     * 判断 body 类型是否适合输出文本摘要。
+     * <p>
+     * 只允许 JSON、文本和 XML 类响应进入脱敏摘要；文件、图片、表格和二进制流不输出内容。
+     * </p>
+     * @param contentType Content-Type
+     * @return true 表示允许生成文本摘要
+     */
+    private boolean isTextBody(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        return contentType.contains(MediaType.APPLICATION_JSON_VALUE)
+                || contentType.startsWith("text/")
+                || contentType.contains("xml");
+    }
+
+    /**
+     * 遮蔽日志中不应出现原文的字段。
+     * <p>
+     * OpenAPI 的 data 密文、原始 body 和认证 token 只保留长度、SHA-256 短摘要和首尾掩码，便于比对不泄露完整内容。
+     * </p>
+     * @param value 已经过基础脱敏的文本
+     * @return 二次遮蔽后的文本
+     */
+    private String maskOpaqueFields(String value) {
+        if (value == null || value.isEmpty()) {
+            return value;
+        }
+        Matcher matcher = OPAQUE_FIELD_PATTERN.matcher(value);
+        return matcher.replaceAll(match -> Matcher.quoteReplacement(
+                match.group(1)
+                        + "{length=" + match.group(2).length()
+                        + ",digest=" + digest16(match.group(2).getBytes(StandardCharsets.UTF_8))
+                        + ",masked=" + maskOpaqueValue(match.group(2))
+                        + "}"
+                        + match.group(3)
+        ));
+    }
+
+    /**
+     * 对密文、token 或原始 body 做首尾掩码。
+     * <p>
+     * 返回值只用于日志排障，不允许还原原始报文；短值统一显示为固定占位，避免泄露完整凭证。
+     * </p>
+     * @param value 原始不可透明字段值
+     * @return 首尾掩码后的摘要
+     */
+    private String maskOpaqueValue(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() <= 16) {
+            return "***";
+        }
+        return normalized.substring(0, 8) + "***" + normalized.substring(normalized.length() - 8);
+    }
+
+    /**
+     * 解析 body 字符集。
+     * <p>
+     * 缺失或非法编码统一使用 UTF-8，避免日志摘要阶段影响真实业务响应。
+     * </p>
+     * @param encoding Servlet 提供的字符编码
+     * @return 可用于构造字符串的字符集
+     */
+    private Charset resolveCharset(String encoding) {
+        if (encoding == null || encoding.isBlank()) {
+            return StandardCharsets.UTF_8;
+        }
+        try {
+            return Charset.forName(encoding);
+        } catch (RuntimeException exception) {
+            return StandardCharsets.UTF_8;
+        }
+    }
+
+    /**
+     * 截断日志摘要。
+     * <p>
+     * 长文本只保留前 1200 字符，避免单次请求响应撑爆控制台或文件日志。
+     * </p>
+     * @param value 原始日志摘要
+     * @return 截断后的日志摘要
+     */
+    private String truncate(String value) {
+        if (value == null || value.length() <= MAX_SUMMARY_LENGTH) {
+            return value;
+        }
+        return value.substring(0, MAX_SUMMARY_LENGTH) + "...";
+    }
+
+    /**
+     * 计算 body 短摘要。
+     * <p>
+     * 使用 SHA-256 前 16 位十六进制，便于比对请求响应内容是否一致，不记录完整 body。
+     * </p>
+     * @param bytes body 字节
+     * @return 短摘要；空 body 返回 null
+     */
+    private String digest16(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return null;
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+            return HexFormat.of().formatHex(digest).substring(0, 16);
+        } catch (NoSuchAlgorithmException exception) {
+            return "sha256_unavailable";
+        }
+    }
+
+    /**
+     * 小体积请求体回放包装器。
+     * <p>
+     * 过滤器预读请求体后通过该包装器把相同字节重新提供给 MVC 参数解析器，保证日志诊断不改变业务读取行为。
+     * </p>
+     */
+    private static final class RequestReplayWrapper extends HttpServletRequestWrapper {
+
+        /**
+         * 已预读的请求体字节。
+         */
+        private final byte[] body;
+
+        /**
+         * 创建请求体回放包装器。
+         *
+         * @param request 原始 HTTP 请求
+         * @param body 已预读 body 字节
+         */
+        private RequestReplayWrapper(HttpServletRequest request, byte[] body) {
+            super(request);
+            this.body = body == null ? new byte[0] : body.clone();
+        }
+
+        @Override
+        public ServletInputStream getInputStream() {
+            return new ReplayServletInputStream(new ByteArrayInputStream(body));
+        }
+
+        @Override
+        public BufferedReader getReader() {
+            Charset charset = resolveReaderCharset(getCharacterEncoding());
+            return new BufferedReader(new InputStreamReader(getInputStream(), charset));
+        }
+
+        @Override
+        public int getContentLength() {
+            return body.length;
+        }
+
+        @Override
+        public long getContentLengthLong() {
+            return body.length;
+        }
+
+        private Charset resolveReaderCharset(String encoding) {
+            if (encoding == null || encoding.isBlank()) {
+                return StandardCharsets.UTF_8;
+            }
+            try {
+                return Charset.forName(encoding);
+            } catch (RuntimeException exception) {
+                return StandardCharsets.UTF_8;
+            }
+        }
+    }
+
+    /**
+     * 请求体回放输入流。
+     * <p>
+     * 该流包装内存中的请求体副本，满足 ServletInputStream 接口并支持 MVC 再次读取 body。
+     * </p>
+     */
+    private static final class ReplayServletInputStream extends ServletInputStream {
+
+        /**
+         * 请求体字节输入流。
+         */
+        private final ByteArrayInputStream delegate;
+
+        /**
+         * 创建请求体回放输入流。
+         *
+         * @param delegate 请求体字节输入流
+         */
+        private ReplayServletInputStream(ByteArrayInputStream delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean isFinished() {
+            return delegate.available() == 0;
+        }
+
+        @Override
+        public boolean isReady() {
+            return true;
+        }
+
+        @Override
+        public void setReadListener(ReadListener listener) {
+            if (listener == null) {
+                return;
+            }
+            try {
+                listener.onDataAvailable();
+                if (isFinished()) {
+                    listener.onAllDataRead();
+                }
+            } catch (IOException exception) {
+                listener.onError(exception);
+            }
+        }
+
+        @Override
+        public int read() {
+            return delegate.read();
+        }
+    }
+
+    /**
+     * 响应体截取包装器。
+     * <p>
+     * 包装器将响应继续写给客户端，同时只保留前 16KB 文本预览并计算全量字节数和 SHA-256 指纹，
+     * 避免后台导出、文件下载或大列表响应被完整缓存到内存。
+     * </p>
+     */
+    private static final class ResponseCaptureWrapper extends HttpServletResponseWrapper {
+
+        /**
+         * 响应体捕获器。
+         */
+        private final ResponseBodyCapture capture = new ResponseBodyCapture();
+
+        /**
+         * Servlet 输出流包装器。
+         */
+        private CapturingServletOutputStream outputStream;
+
+        /**
+         * Writer 包装器。
+         */
+        private PrintWriter writer;
+
+        /**
+         * 创建响应体截取包装器。
+         *
+         * @param response 原始 Servlet 响应对象
+         */
+        private ResponseCaptureWrapper(HttpServletResponse response) {
+            super(response);
+        }
+
+        @Override
+        public ServletOutputStream getOutputStream() throws IOException {
+            if (writer != null) {
+                throw new IllegalStateException("getWriter() has already been called");
+            }
+            if (outputStream == null) {
+                outputStream = new CapturingServletOutputStream(getResponse().getOutputStream(), capture);
+            }
+            return outputStream;
+        }
+
+        @Override
+        public PrintWriter getWriter() throws IOException {
+            if (writer == null) {
+                Charset charset = resolveWriterCharset(getCharacterEncoding());
+                writer = new PrintWriter(new OutputStreamWriter(getOutputStream(), charset));
+            }
+            return writer;
+        }
+
+        @Override
+        public void flushBuffer() throws IOException {
+            flushCapture();
+            super.flushBuffer();
+        }
+
+        private void flushCapture() throws IOException {
+            if (writer != null) {
+                writer.flush();
+            }
+            if (outputStream != null) {
+                outputStream.flush();
+            }
+        }
+
+        private long bodyLength() {
+            return capture.length();
+        }
+
+        private String bodyDigest() {
+            return capture.digest16();
+        }
+
+        private byte[] previewBytes() {
+            return capture.previewBytes();
+        }
+
+        private Charset resolveWriterCharset(String encoding) {
+            if (encoding == null || encoding.isBlank()) {
+                return StandardCharsets.UTF_8;
+            }
+            try {
+                return Charset.forName(encoding);
+            } catch (RuntimeException exception) {
+                return StandardCharsets.UTF_8;
+            }
+        }
+    }
+
+    /**
+     * 响应输出流代理。
+     * <p>
+     * 所有写入先进入摘要捕获器再写到原始 Servlet 输出流，不改变业务响应。
+     * </p>
+     */
+    private static final class CapturingServletOutputStream extends ServletOutputStream {
+
+        /**
+         * 原始响应输出流。
+         */
+        private final ServletOutputStream delegate;
+
+        /**
+         * 响应体捕获器。
+         */
+        private final ResponseBodyCapture capture;
+
+        /**
+         * 创建响应输出流代理。
+         *
+         * @param delegate 原始 Servlet 输出流
+         * @param capture 响应体摘要捕获器
+         */
+        private CapturingServletOutputStream(ServletOutputStream delegate, ResponseBodyCapture capture) {
+            this.delegate = delegate;
+            this.capture = capture;
+        }
+
+        @Override
+        public boolean isReady() {
+            return delegate.isReady();
+        }
+
+        @Override
+        public void setWriteListener(WriteListener listener) {
+            delegate.setWriteListener(listener);
+        }
+
+        @Override
+        public void write(int value) throws IOException {
+            capture.capture(new byte[]{(byte) value}, 0, 1);
+            delegate.write(value);
+        }
+
+        @Override
+        public void write(byte[] bytes, int off, int len) throws IOException {
+            capture.capture(bytes, off, len);
+            delegate.write(bytes, off, len);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+    }
+
+    /**
+     * 响应体摘要捕获器。
+     * <p>
+     * 捕获器统计全量响应长度、全量 SHA-256 摘要，并只保留有限预览字节用于脱敏日志。
+     * </p>
+     */
+    private static final class ResponseBodyCapture {
+
+        /**
+         * 响应预览缓冲区。
+         */
+        private final ByteArrayOutputStream preview = new ByteArrayOutputStream(MAX_RESPONSE_CAPTURE_BYTES);
+
+        /**
+         * 响应体 SHA-256 摘要器。
+         */
+        private final MessageDigest digest = newDigest();
+
+        /**
+         * 响应体全量字节数。
+         */
+        private long length;
+
+        /**
+         * 捕获响应字节并继续累计摘要。
+         * <p>
+         * 全量字节参与长度和 SHA-256 计算，预览区只保留前 16KB，避免大响应完整进内存。
+         * </p>
+         * @param bytes 响应写入字节数组
+         * @param off 起始偏移
+         * @param len 写入长度，单位为字节
+         */
+        private void capture(byte[] bytes, int off, int len) {
+            if (bytes == null || len <= 0) {
+                return;
+            }
+            digest.update(bytes, off, len);
+            length += len;
+            int remaining = MAX_RESPONSE_CAPTURE_BYTES - preview.size();
+            if (remaining > 0) {
+                preview.write(bytes, off, Math.min(len, remaining));
+            }
+        }
+
+        /**
+         * 返回响应体累计长度。
+         *
+         * @return 响应体全量字节数
+         */
+        private long length() {
+            return length;
+        }
+
+        /**
+         * 返回响应体短摘要。
+         * <p>
+         * 摘要基于全量响应体 SHA-256 前 16 位，用于跨日志比对同一响应内容。
+         * </p>
+         * @return 响应体短摘要；无响应体时返回 null
+         */
+        private String digest16() {
+            if (length == 0) {
+                return null;
+            }
+            return HexFormat.of().formatHex(digest.digest()).substring(0, 16);
+        }
+
+        /**
+         * 返回响应体预览字节。
+         * <p>
+         * 预览只包含前 16KB，用于生成脱敏日志片段，不代表完整响应体。
+         * </p>
+         * @return 响应体预览字节数组
+         */
+        private byte[] previewBytes() {
+            return preview.toByteArray();
+        }
+
+        /**
+         * 整理SHA-256 摘要器，返回当前业务步骤需要的规范化结果。
+         * <p>
+         * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+         * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+         * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+         * </p>
+         * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+         */
+        private static MessageDigest newDigest() {
+            try {
+                return MessageDigest.getInstance("SHA-256");
+            } catch (NoSuchAlgorithmException exception) {
+                throw new IllegalStateException("SHA-256 digest unavailable", exception);
+            }
+        }
+    }
+}

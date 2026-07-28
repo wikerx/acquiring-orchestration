@@ -1,5 +1,6 @@
 package com.scott.payment.payment.config;
 
+import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;
@@ -22,7 +23,7 @@ public class MerchantNotificationConfig {
      * @return 商户通知 HTTP 客户端
      */
     @Bean("merchantNotificationRestTemplate")
-    public RestTemplate merchantNotificationRestTemplate() {
-        return new RestTemplate();
+    public RestTemplate merchantNotificationRestTemplate(TraceIdRestTemplateCustomizer traceIdRestTemplateCustomizer) {
+        return traceIdRestTemplateCustomizer.customize(new RestTemplate());
     }
 }

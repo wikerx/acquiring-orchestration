@@ -14,15 +14,6 @@ import lombok.EqualsAndHashCode;
  * @description : OpenAPI 商户基础信息数据库实体
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantInfoDO
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPIMerchant Info 数据库实体，位于 service-openapi 的数据实体层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("base_merchant_info")

@@ -46,47 +46,67 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminChannelServiceImplTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 16:10
  * @email : scott_x@163.com
- * @description : 收单支付Admin Channel Service Impl Test，位于 service-admin 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Admin Channel Service Impl Test 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
-@ExtendWith(MockitoExtension.class)
 class AdminChannelServiceImplTest {
 
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * channel Info Mapper 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ChannelInfoMapper channelInfoMapper;
     /**
      * 渠道 MID 参数模板数据访问对象。
      */
     @Mock
     private ChannelMetadataSchemaMapper metadataSchemaMapper;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * capability Mapper 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ChannelPaymentCapabilityMapper capabilityMapper;
     /**
      * 收单支付币种字段，通常使用 ISO 4217 三位字母代码，不能为空时由上层校验。
      */
     @Mock
     private ChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * capability Card Brand Mapper 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ChannelCapabilityCardBrandMapper capabilityCardBrandMapper;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * limit Rule Mapper，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：Spring 容器构造器注入。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private ChannelLimitRuleMapper limitRuleMapper;
     /**
      * 渠道真实 MID 配置数据访问对象，用于验证 MID 配置新增、更新和重复校验。
@@ -98,14 +118,24 @@ class AdminChannelServiceImplTest {
      */
     @Mock
     private MerchantChannelMidBindingMapper midBindingMapper;
-    /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * dict Data Mapper 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private SysDictDataMapper dictDataMapper;
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * service 依赖，用于 Admin Channel Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private AdminChannelServiceImpl service;
 

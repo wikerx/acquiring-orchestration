@@ -1,6 +1,7 @@
 package com.scott.payment.channel.payment.mpgs;
 
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
+import com.scott.payment.channel.payment.dto.request.ChannelQueryRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import lombok.extern.slf4j.Slf4j;
@@ -47,10 +48,10 @@ class MpgsApiClientMaskingTests {
         String json = "{\"sourceOfFunds\":{\"provided\":{\"card\":{\"number\":\"5123450000000008\",\"securityCode\":\"100\"}}},"
                 + "\"authentication\":{\"threeDs\":{\"authenticationToken\":\"AAABBIIFmAAAAAAAAAAAAAAAAAA=\"}},"
                 + "\"apiPassword\":\"secret-value\"}";
-        log.info("MPGS脱敏测试开始，case=卡号、CVV、authenticationToken、apiPassword");
+        log.info("MPGS脱敏测试开始，case=卡号、安全码、认证令牌、渠道密码");
 
         String masked = MpgsApiClient.maskMpgsJson(json);
-        log.info("MPGS脱敏测试输出，masked={}", masked);
+        log.info("MPGS脱敏测试输出，masked: {}", masked);
 
         assertThat(masked).contains("\"number\":\"512345******0008\"");
         assertThat(masked).contains("\"securityCode\":\"***\"");
@@ -69,6 +70,25 @@ class MpgsApiClientMaskingTests {
         String masked = MpgsApiClient.maskMpgsJson(null);
 
         assertThat(masked).isNull();
+    }
+
+    /**
+     * 3DS returnUrl 会写入 MPGS 请求体，URL query 中的一次性回跳 token 必须先脱敏再进入日志。
+     */
+    @Test
+    void shouldMaskThreeDsReturnUrlQuerySecrets() {
+        String json = "{\"browserPayment\":{\"returnUrl\":\"https://pay.example.com/checkout/api/v1/3ds/bridge"
+                + "?checkoutSessionId=CS-001&checkoutAttemptId=CA-001&threeDsReturnToken=return-token-value"
+                + "&threeDSSessionData=session-secret-value\"},"
+                + "\"authentication\":{\"redirect\":{\"html\":\"<form><input name=creq value=sensitive-creq></form>\"}},"
+                + "\"encoded\":\"threeDsReturnToken%3Dencoded-token-value%26cres%3Dencoded-cres-value\"}";
+
+        String masked = MpgsApiClient.maskMpgsJson(json);
+
+        assertThat(masked).contains("threeDsReturnToken=***", "threeDSSessionData=***");
+        assertThat(masked).contains("threeDsReturnToken%3D***", "cres%3D***");
+        assertThat(masked).doesNotContain("return-token-value", "session-secret-value", "encoded-token-value", "encoded-cres-value");
+        assertThat(masked).contains("\"html\":\"***\"");
     }
 
     /**
@@ -93,9 +113,57 @@ class MpgsApiClientMaskingTests {
 
         ChannelPaymentResponse response = client.execute(request);
 
-        assertThat(response.getChannelResponseCode()).isEqualTo("APPROVED");
+        assertThat(response.getChannelResponseCode()).isEqualTo("00");
         assertThat(httpClient.authorizationHeader()).startsWith("Basic ");
         assertThat(httpClient.decodedAuthorization()).isEqualTo("merchant.TESTDEVMER031:metadata-password");
+    }
+
+    /**
+     * MPGS RETRIEVE 查询必须使用 order.id 和 transaction.id 组成 URL，不能用平台 transactionId 或本地 requestId 替代。
+     */
+    @Test
+    void shouldBuildQueryUrlFromChannelOrderNoAndChannelTransactionId() {
+        CapturingHttpClient httpClient = new CapturingHttpClient();
+        MpgsChannelProperties properties = new MpgsChannelProperties();
+        properties.setEnabled(true);
+        properties.setBaseUrl("https://test-gateway.mastercard.com/api/rest");
+        properties.setVersion("100");
+        properties.setMerchantId("TESTDEVMER031");
+        properties.setReadTimeoutMillis(30000);
+        properties.setConnectTimeoutMillis(10000);
+        MpgsApiClient client = new MpgsApiClient(properties, new MpgsRequestMapper(), new MpgsResponseMapper(), httpClient);
+        ChannelPaymentRequest request = paymentRequest();
+        request.setTransactionType(ChannelCapability.QUERY.getCode());
+        request.setTransactionId("TX-PLATFORM-QUERY-001");
+        request.setChannelOrderNo("ORDER-MPGS-QUERY-001");
+        request.setChannelTransactionId("CH-MPGS-QUERY-001");
+        request.getExtension().put("mid.password", "metadata-password");
+
+        client.execute(request);
+
+        assertThat(httpClient.lastRequest().method()).isEqualTo("GET");
+        assertThat(httpClient.lastRequest().uri().toString())
+                .contains("/order/ORDER-MPGS-QUERY-001/transaction/CH-MPGS-QUERY-001");
+        assertThat(httpClient.lastRequest().uri().toString()).doesNotContain("TX-PLATFORM-QUERY-001");
+    }
+
+    @Test
+    void shouldRequireOrderAndTransactionIdForMpgsQueryReference() {
+        MpgsPaymentChannelClient client = new MpgsPaymentChannelClient(null);
+        ChannelQueryRequest requestIdOnly = new ChannelQueryRequest();
+        requestIdOnly.setRequestId("CR-LOCAL-001");
+        ChannelQueryRequest orderOnly = new ChannelQueryRequest();
+        orderOnly.setChannelOrderNo("ORDER-MPGS-001");
+        ChannelQueryRequest transactionOnly = new ChannelQueryRequest();
+        transactionOnly.setChannelTransactionId("CH-MPGS-001");
+        ChannelQueryRequest complete = new ChannelQueryRequest();
+        complete.setChannelOrderNo("ORDER-MPGS-001");
+        complete.setChannelTransactionId("CH-MPGS-001");
+
+        assertThat(client.supportsQueryReference(requestIdOnly)).isFalse();
+        assertThat(client.supportsQueryReference(orderOnly)).isFalse();
+        assertThat(client.supportsQueryReference(transactionOnly)).isFalse();
+        assertThat(client.supportsQueryReference(complete)).isTrue();
     }
 
     private ChannelPaymentRequest paymentRequest() {
@@ -122,10 +190,32 @@ class MpgsApiClientMaskingTests {
 
     private static class CapturingHttpClient extends HttpClient {
 
+        /**
+         * authorization Header，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；高敏感字段，禁止明文打印日志，禁止写入异常消息。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String authorizationHeader;
+
+        /**
+         * last Request，用于保存 Capturing Http Client 中与 last请求 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
+        private HttpRequest lastRequest;
 
         private String authorizationHeader() {
             return authorizationHeader;
+        }
+
+        private HttpRequest lastRequest() {
+            return lastRequest;
         }
 
         private String decodedAuthorization() {
@@ -186,6 +276,7 @@ class MpgsApiClientMaskingTests {
         @Override
         public <T> HttpResponse<T> send(HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler)
                 throws IOException, InterruptedException {
+            this.lastRequest = request;
             this.authorizationHeader = request.headers().firstValue("Authorization").orElse(null);
             @SuppressWarnings("unchecked")
             T body = (T) ("{\"result\":\"SUCCESS\",\"response\":{\"gatewayCode\":\"APPROVED\",\"gatewayRecommendation\":\"NO_ACTION\","
@@ -236,6 +327,15 @@ class MpgsApiClientMaskingTests {
             return HttpClient.Version.HTTP_1_1;
         }
 
+        /**
+         * 规范化sslsession，返回当前业务步骤需要的业务值。
+         * <p>
+         * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
+         * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+         * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+         * </p>
+         * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+         */
         @Override
         public Optional<javax.net.ssl.SSLSession> sslSession() {
             return Optional.empty();

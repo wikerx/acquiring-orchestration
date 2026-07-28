@@ -24,17 +24,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
+@RestController
+@RequestMapping("/admin/email/templates")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminEmailTemplateController
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-04 16:11
  * @email : scott_x@163.com
- * @description : 邮件管理Admin Email Template 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Admin Email Template Controller 控制器，位于 运营后台服务，接收 HTTP 请求、提取路径和查询条件、委托应用服务处理，并返回统一响应。
  * @status : create
  */
-@RestController
-@RequestMapping("/admin/email/templates")
 public class AdminEmailTemplateController {
 
     /**
@@ -42,6 +42,15 @@ public class AdminEmailTemplateController {
      */
     private final AdminEmailApplicationService emailApplicationService;
 
+    /**
+     * 整理admin邮件templatecontroller，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param emailApplicationService email Application Service 输入值，参与 邮件applicationservice 的查询、校验、转换、写入或日志摘要
+     */
     public AdminEmailTemplateController(AdminEmailApplicationService emailApplicationService) {
         this.emailApplicationService = emailApplicationService;
     }
@@ -52,22 +61,12 @@ public class AdminEmailTemplateController {
         return success(emailApplicationService.pageTemplates(query));
     }
 
-    /**
-     * 获取邮件管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/{id}")
     @RequiresPermission("email:template:detail")
     public CommonResult<EmailTemplateResponse> getTemplate(@PathVariable("id") Long id) {
         return success(emailApplicationService.getTemplate(id));
     }
 
-    /**
-     * 创建或保存邮件管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping
     @RequiresPermission("email:template:add")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.CREATE, operation = "新增邮件模板")
@@ -75,12 +74,6 @@ public class AdminEmailTemplateController {
         return success(emailApplicationService.createTemplate(request));
     }
 
-    /**
-     * 更新邮件管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}")
     @RequiresPermission("email:template:edit")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.UPDATE, operation = "修改邮件模板")
@@ -89,11 +82,6 @@ public class AdminEmailTemplateController {
         return success(emailApplicationService.updateTemplate(id, request));
     }
 
-    /**
-     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/{id}/copy")
     @RequiresPermission("email:template:copy")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.CREATE, operation = "复制邮件模板")
@@ -101,12 +89,6 @@ public class AdminEmailTemplateController {
         return success(emailApplicationService.copyTemplate(id));
     }
 
-    /**
-     * 更新邮件管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}/status")
     @RequiresPermission("email:template:status")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.UPDATE, operation = "切换邮件模板状态")
@@ -115,22 +97,12 @@ public class AdminEmailTemplateController {
         return success(emailApplicationService.updateTemplateStatus(id, request.getStatus()));
     }
 
-    /**
-     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/preview")
     @RequiresPermission("email:template:preview")
     public CommonResult<EmailTemplatePreviewResponse> previewTemplate(@Valid @RequestBody EmailTemplatePreviewRequest request) {
         return success(emailApplicationService.previewTemplate(request));
     }
 
-    /**
-     * 删除邮件管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @DeleteMapping("/{id}")
     @RequiresPermission("email:template:remove")
     @OperationLog(moduleName = "邮件模板管理", businessType = OperationTypeConstants.DELETE, operation = "删除邮件模板")

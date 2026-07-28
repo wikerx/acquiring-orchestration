@@ -8,9 +8,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @author : scott
  * @version : v1.0.0
  * @classname : GlobalIdValidatorTests
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 收单支付Global Id Validator Tests，位于 component-library/component-core 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Global ID Validator Tests 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class GlobalIdValidatorTests {

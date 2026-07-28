@@ -11,13 +11,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : CheckoutCountryConfigApplicationServiceTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-23 12:55
  * @email : scott_x@163.com
- * @description : 收银台国家地区配置应用服务测试。
+ * @description : Checkout Country Config Application Service Test 应用服务，位于 收银台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
 class CheckoutCountryConfigApplicationServiceTest {

@@ -2278,6 +2278,7 @@ VALUES
 (1064, 1, 1042, 'transaction:operation:detail', '交易动作详情', 'BUTTON', 'GET', '/admin/transactions/operations/*', 1, 0),
 (1065, 1, 1042, 'transaction:operation:refund', '交易退款', 'BUTTON', 'POST', '/admin/transactions/operations/*/refund', 1, 0),
 (1066, 1, 1042, 'transaction:operation:void', '交易撤销', 'BUTTON', 'POST', '/admin/transactions/operations/*/void', 1, 0),
+(1076, 1, 1042, 'transaction:operation:capture', '交易请款', 'BUTTON', 'POST', '/admin/transactions/operations/*/capture', 1, 0),
 (1067, 1, 1043, 'transaction:channel-log:list', '交易日志查询', 'MENU', 'POST', '/admin/transactions/channel-logs/search', 1, 0),
 (1068, 1, 1043, 'transaction:channel-log:detail', '交易日志详情', 'BUTTON', 'POST', '/admin/transactions/channel-logs/search', 1, 0),
 (1069, 1, 1044, 'transaction:channel-callback:list', '渠道回调记录查询', 'MENU', 'POST', '/admin/transactions/channel-callbacks/search', 1, 0),
@@ -2296,8 +2297,9 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_order_v1', 'admin_transaction_order_export_v1', '交易主单导出', 'transaction:order:export', 2
     UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_detail_v1', '交易动作详情', 'transaction:operation:detail', 1
     UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_refund_v1', '交易退款', 'transaction:operation:refund', 2
-    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_void_v1', '交易撤销', 'transaction:operation:void', 3
-    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_export_v1', '交易动作导出', 'transaction:operation:export', 4
+    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_capture_v1', '交易请款', 'transaction:operation:capture', 3
+    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_void_v1', '交易撤销', 'transaction:operation:void', 4
+    UNION ALL SELECT 'admin_transaction_operation_v1', 'admin_transaction_operation_export_v1', '交易动作导出', 'transaction:operation:export', 5
     UNION ALL SELECT 'admin_transaction_channel_log_v1', 'admin_transaction_channel_log_detail_v1', '交易日志详情', 'transaction:channel-log:detail', 1
     UNION ALL SELECT 'admin_transaction_channel_callback_v1', 'admin_transaction_channel_callback_detail_v1', '渠道回调记录详情', 'transaction:channel-callback:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_detail_v1', '商户回调记录详情', 'transaction:merchant-notification:detail', 1
@@ -2325,6 +2327,44 @@ FROM sys_permission
 WHERE app_id = 1
   AND deleted = 0
   AND (permission_code = 'transaction' OR permission_code LIKE 'transaction:%');
+
+-- 兼容已有库中 1060-1076 ID 段被历史菜单占用的情况，避免交易请款按钮权限被 INSERT IGNORE 静默跳过。
+INSERT INTO sys_permission (app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
+SELECT 1, menu.id, 'transaction:operation:capture', '交易请款', 'BUTTON', 'POST', '/admin/transactions/operations/*/capture', 1, 0
+FROM sys_menu menu
+WHERE menu.app_id = 1
+  AND menu.menu_code = 'admin_transaction_operation_v1'
+  AND menu.deleted = 0
+  AND NOT EXISTS (
+      SELECT 1
+      FROM sys_permission permission
+      WHERE permission.app_id = 1
+        AND permission.permission_code = 'transaction:operation:capture'
+        AND permission.deleted = 0
+  );
+
+UPDATE sys_permission permission
+JOIN sys_menu menu ON menu.app_id = permission.app_id
+                  AND menu.menu_code = 'admin_transaction_operation_v1'
+                  AND menu.deleted = 0
+SET permission.menu_id = menu.id,
+    permission.permission_name = '交易请款',
+    permission.permission_type = 'BUTTON',
+    permission.resource_method = 'POST',
+    permission.resource_path = '/admin/transactions/operations/*/capture',
+    permission.status = 1,
+    permission.updated_at = CURRENT_TIMESTAMP(3)
+WHERE permission.app_id = 1
+  AND permission.permission_code = 'transaction:operation:capture'
+  AND permission.deleted = 0;
+
+INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
+SELECT 1, 1, permission.id, 0
+FROM sys_permission permission
+WHERE permission.app_id = 1
+  AND permission.permission_code = 'transaction:operation:capture'
+  AND permission.deleted = 0
+  AND permission.status = 1;
 
 -- =============================================================================
 -- 管理端菜单最终校准

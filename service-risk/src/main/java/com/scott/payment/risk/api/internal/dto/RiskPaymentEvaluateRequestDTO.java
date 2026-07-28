@@ -36,6 +36,11 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
     private String merchantOrderNo;
 
     /**
+     * 支付核心生成的平台当前交易号，用于串联 OpenAPI、payment、risk 和渠道日志。
+     */
+    private String transactionId;
+
+    /**
      * 交易类型，对齐字典 transaction_type，例如 AUTHORIZATION。
      */
     private String transactionType;

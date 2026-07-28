@@ -17,7 +17,6 @@ import java.util.List;
  * @description : 系统任务运行日志数据访问接口
  * @status : create
  */
-
 public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
 
     /**

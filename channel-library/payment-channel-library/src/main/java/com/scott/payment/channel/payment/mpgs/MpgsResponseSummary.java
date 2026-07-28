@@ -251,12 +251,12 @@ public class MpgsResponseSummary {
     String transactionReference;
 
     /**
-     * 渠道真实返回的收单参考号，例如 MPGS transaction.acquirer.transactionId。
+     * MPGS transaction.acquirer.transactionId，仅用于后台排查；MPGS 未明确返回 ARN 时不能映射为平台 ARN/RRN。
      */
     String acquirerReference;
 
     /**
-     * 渠道回单号。
+     * MPGS transaction.receipt，仅用于后台排查；不能当作 RRN 返回给商户或管理端 ARN 字段。
      */
     String receipt;
 
@@ -462,18 +462,54 @@ public class MpgsResponseSummary {
         return raw;
     }
 
+    /**
+     * 整理写入，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param target 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     */
     private void put(Map<String, String> target, String key, String value) {
         if (value != null) {
             target.put(key, value);
         }
     }
 
+    /**
+     * 整理写入，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param target 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     */
     private void put(Map<String, String> target, String key, BigDecimal value) {
         if (value != null) {
             target.put(key, value.toPlainString());
         }
     }
 
+    /**
+     * 整理写入，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
+     * @param target 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     */
     private void put(Map<String, String> target, String key, Integer value) {
         if (value != null) {
             target.put(key, String.valueOf(value));

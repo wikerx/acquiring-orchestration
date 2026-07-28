@@ -24,25 +24,26 @@ import java.util.Set;
  * @description : 管理后台 Redis 缓存监控应用服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMonitorCacheApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Admin Monitor Cache Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminMonitorCacheApplicationService {
 
     /**
-     * 监控治理固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * MAX SCAN KEYS，用于保存 Admin Monitor Cache Application Service 中与 maxscan密钥 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int MAX_SCAN_KEYS = 1000;
 
     /**
-     * 监控治理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * string Redis Template，用于定位邮件、通知或渠道参数模板。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -59,10 +60,6 @@ public class AdminMonitorCacheApplicationService {
      * 查询 Redis 运行信息。
      *
      * @return Redis 连接状态与运行信息
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public Map<String, Object> info() {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -92,13 +89,6 @@ public class AdminMonitorCacheApplicationService {
      * @param pageSize   每页大小
      * @return Key 列表与分页摘要
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param keyPattern 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public Map<String, Object> keys(String keyPattern, int pageNo, int pageSize) {
         String pattern = StringUtils.hasText(keyPattern) ? keyPattern.trim() : "*";
         List<String> keys = scanKeys(pattern);
@@ -123,11 +113,6 @@ public class AdminMonitorCacheApplicationService {
      * @param key Redis Key
      * @return Key 详情
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public Map<String, Object> value(String key) {
         Map<String, Object> result = toKeyRow(key);
         result.put("value", readValue(key));
@@ -140,11 +125,6 @@ public class AdminMonitorCacheApplicationService {
      * @param key Redis Key
      * @return 是否删除成功
      */
-    /**
-     * 删除监控治理数据，按业务规则处理引用校验和删除边界。
-     * @param key 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public boolean delete(String key) {
         if (stringRedisTemplate == null || !StringUtils.hasText(key)) {
             return false;
@@ -152,6 +132,16 @@ public class AdminMonitorCacheApplicationService {
         return Boolean.TRUE.equals(stringRedisTemplate.delete(key));
     }
 
+    /**
+     * 整理scan密钥，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param pattern pattern 输入值，参与 pattern 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private List<String> scanKeys(String pattern) {
         if (stringRedisTemplate == null) {
             return List.of();
@@ -163,6 +153,16 @@ public class AdminMonitorCacheApplicationService {
         return keys.stream().sorted(Comparator.naturalOrder()).limit(MAX_SCAN_KEYS).toList();
     }
 
+    /**
+     * 构造密钥row对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 构造、转换或解析后的业务值
+     */
     private Map<String, Object> toKeyRow(String key) {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("key", key);
@@ -179,6 +179,17 @@ public class AdminMonitorCacheApplicationService {
         return row;
     }
 
+    /**
+     * 规范化sizeof，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @param type type 输入值，参与 type 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private long sizeOf(String key, DataType type) {
         if (type == null) {
             return 0;
@@ -196,6 +207,16 @@ public class AdminMonitorCacheApplicationService {
         };
     }
 
+    /**
+     * 整理值，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Object readValue(String key) {
         if (stringRedisTemplate == null || !StringUtils.hasText(key)) {
             return null;
@@ -214,6 +235,16 @@ public class AdminMonitorCacheApplicationService {
         };
     }
 
+    /**
+     * 构造map对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param properties properties 输入值，参与 properties 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private Map<String, String> toMap(Properties properties) {
         Map<String, String> result = new LinkedHashMap<>();
         if (properties == null) {
@@ -225,6 +256,16 @@ public class AdminMonitorCacheApplicationService {
         return result;
     }
 
+    /**
+     * 整理默认long，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private long defaultLong(Long value) {
         return value == null ? 0 : value;
     }

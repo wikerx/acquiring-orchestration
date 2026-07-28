@@ -40,15 +40,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>负责管理后台国家地区与默认币种映射关系的用例编排，避免控制器直接拼装 Mapper 查询结果，
  * 并统一处理分页展示、详情查询、导出、绑定更新与状态切换。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminBaseRegionCurrencyApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 基础数据Admin Base Region Currency Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class AdminBaseRegionCurrencyApplicationService {
 
@@ -72,15 +63,30 @@ public class AdminBaseRegionCurrencyApplicationService {
      */
     private final IsoCurrencyMapper isoCurrencyMapper;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Export Service 依赖，用于 Admin Base Region Currency Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelExportService excelExportService;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel I 18 n Message Resolver，用于保存 Admin Base Region Currency Application Service 中与 exceli18nmessageresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelI18nMessageResolver excelI18nMessageResolver;
     /**
-     * 基础数据业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * excel Locale Resolver，用于保存 Admin Base Region Currency Application Service 中与 excellocaleresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final ExcelLocaleResolver excelLocaleResolver;
 
@@ -112,14 +118,6 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param continentCode 大洲编码
      * @return 分页结果
      */
-    /**
-     * 查询基础数据列表或分页数据，供页面筛选和展示使用。
-     * @param pageNo 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param pageSize 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyword 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param continentCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<Map<String, Object>> pageRegionCurrencies(int pageNo, int pageSize,
                                                                 String keyword, String continentCode) {
         Map<String, IsoCurrencyDO> currencyMap = enabledCurrencyMap();
@@ -149,11 +147,6 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param id 国家地区主键
      * @return 映射详情
      */
-    /**
-     * 获取基础数据明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<Map<String, Object>> getRegionCurrency(Long id) {
         IsoCountryDO country = isoCountryMapper.selectById(id);
         if (country == null) {
@@ -166,11 +159,6 @@ public class AdminBaseRegionCurrencyApplicationService {
      * 导出地区与币种映射。
      *
      * @return 全量映射列表
-     */
-    /**
-     * 执行基础数据相关处理，保持当前层级的职责边界和返回语义。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportRegionCurrencies(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -203,12 +191,6 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param body 请求体
      * @return 处理结果
      */
-    /**
-     * 创建或保存基础数据数据，保持请求校验、默认值和审计字段一致。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<Void> createRegionCurrency(Map<String, String> body) {
         return updateCountryCurrency(Long.valueOf(body.get("countryId")), body.get("currencyAlpha3Code"));
     }
@@ -220,13 +202,6 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param body 请求体
      * @return 处理结果
      */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<Void> updateRegionCurrency(Long id, Map<String, String> body) {
         return updateCountryCurrency(id, body.get("currencyAlpha3Code"));
     }
@@ -236,11 +211,6 @@ public class AdminBaseRegionCurrencyApplicationService {
      *
      * @param id 国家地区主键
      * @return 处理结果
-     */
-    /**
-     * 删除基础数据数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public CommonResult<Void> removeRegionCurrency(Long id) {
         return updateCountryCurrency(id, "");
@@ -252,13 +222,6 @@ public class AdminBaseRegionCurrencyApplicationService {
      * @param id   国家地区主键
      * @param body 状态请求体
      * @return 处理结果
-     */
-    /**
-     * 更新基础数据数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param Map<String 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param body 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public CommonResult<Void> updateStatus(Long id, Map<String, Integer> body) {
         IsoCountryDO country = isoCountryMapper.selectById(id);

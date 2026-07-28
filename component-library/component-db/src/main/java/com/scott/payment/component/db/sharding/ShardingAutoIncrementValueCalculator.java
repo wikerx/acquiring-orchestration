@@ -6,18 +6,26 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigInteger;
 
+@Component
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ShardingAutoIncrementValueCalculator
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 收单支付Sharding Auto Increment Value Calculator，位于 component-library/component-db 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Sharding Auto Increment Value Calculator 协作组件，位于 公共组件库，封装 shardingautoincrementvaluecalculator 相关的校验、转换、持久化访问或运行时协作入口。
  * @status : create
  */
-@Component
 public class ShardingAutoIncrementValueCalculator {
 
+    /**
+     * BIGINT MAX VALUE，用于保存 Sharding Auto Increment Value Calculator 中与 bigintmaxvalue 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final BigInteger BIGINT_MAX_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
 
     /**
@@ -26,12 +34,6 @@ public class ShardingAutoIncrementValueCalculator {
      * @param properties 分表配置
      * @param quarter    目标季度
      * @return AUTO_INCREMENT 范围
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param properties 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param quarter 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public ShardingAutoIncrementRange calculate(PaymentQuarterShardingProperties properties, ShardingQuarter quarter) {
         if (quarter == null) {
@@ -58,6 +60,17 @@ public class ShardingAutoIncrementValueCalculator {
         return new ShardingAutoIncrementRange(prefix, startValue.longValueExact(), maxValue.longValueExact());
     }
 
+    /**
+     * 校验sequence输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param sequenceWidth sequence Width 输入值，参与 sequencewidth 的查询、校验、转换、写入或日志摘要
+     * @param startSequence start Sequence 输入值，参与 startsequence 的查询、校验、转换、写入或日志摘要
+     * @param maxSequence max Sequence 输入值，参与 最大序列值 的查询、校验、转换、写入或日志摘要
+     */
     private void validateSequence(int sequenceWidth, long startSequence, long maxSequence) {
         if (sequenceWidth < 1 || sequenceWidth > 12) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "sequence width must be between 1 and 12");

@@ -17,6 +17,7 @@ import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecuritySeedDTO;
 import com.scott.payment.openapi.enums.MerchantRiskLevelEnum;
 import com.scott.payment.openapi.service.MerchantSecurityService;
+import com.scott.payment.openapi.support.MerchantOpenApiTestSupport;
 import com.scott.payment.openapi.vo.payment.PaymentCreateVO;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,15 +52,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * @description : OpenAPI 商户密钥 MySQL 存储、MyBatisPlus 查询和加密接口调用集成测试
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantSecurityDatabaseFlowTests
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPIMerchant Security Database Flow Tests，位于 service-openapi 的测试层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Slf4j
 @AutoConfigureMockMvc
 @ActiveProfiles("mysql-test")
@@ -69,14 +61,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MerchantSecurityDatabaseFlowTests {
 
     /**
-     * 主测试商户号，模拟真实外卡收单商户。
+     * 主测试商户号，避免污染 SDK live 联调商户 200045。
      */
-    private static final String MERCHANT_ID = "200045";
+    private static final String MERCHANT_ID = "240045";
 
     /**
      * 第二个测试商户号，用于证明数据库可以承载多个商户的独立密钥材料。
      */
-    private static final String SECOND_MERCHANT_ID = "200046";
+    private static final String SECOND_MERCHANT_ID = "240046";
 
     /**
      * OpenAPI 授权接口路径。
@@ -142,10 +134,10 @@ class MerchantSecurityDatabaseFlowTests {
      */
     @BeforeEach
     void cleanMerchantSecurityData() {
-        jdbcTemplate.update("DELETE FROM base_merchant_response_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM base_merchant_jwt_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM base_platform_payload_key WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
-        jdbcTemplate.update("DELETE FROM base_merchant_info WHERE merchant_id IN (?, ?)", MERCHANT_ID, SECOND_MERCHANT_ID);
+        MerchantOpenApiTestSupport.cleanMerchantSecurityData(
+                jdbcTemplate,
+                List.of(MERCHANT_ID, SECOND_MERCHANT_ID)
+        );
     }
 
     /**
@@ -217,12 +209,12 @@ class MerchantSecurityDatabaseFlowTests {
         log.info("系统生成商户密钥材料，商户数量：2，主商户号：{}，第二商户号：{}",
                 merchantMaterial.getMerchantId(),
                 secondMerchantMaterial.getMerchantId());
-        log.info("商户默认必需材料摘要：merchantKey指纹：{}，平台公钥指纹：{}，商户响应私钥指纹：{}",
+        log.info("商户默认必需材料摘要：JWT共享密钥指纹：{}，平台公钥指纹：{}，商户响应私钥指纹：{}",
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantKey()),
                 keyMaterialFactory.fingerprint(merchantMaterial.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(merchantMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));
-        log.info("平台保留的材料：每个merchant_id独立关联平台请求体RSA私钥、商户响应公钥和merchantKey；平台不保存商户响应私钥");
-        log.info("密钥关联关系：merchant_id关联merchantKey、平台请求体RSA密钥、商户响应公钥；请求体和响应体都不再携带密钥编号");
+        log.info("平台保留的材料：每个merchant_id独立关联平台请求体RSA私钥、商户响应公钥和JWT共享密钥；平台不保存商户响应私钥");
+        log.info("密钥关联关系：merchant_id关联JWT共享密钥、平台请求体RSA密钥、商户响应公钥；请求体和响应体都不再携带密钥编号");
     }
 
     private void assertDatabaseLookupByMyBatisPlus(MerchantSecurityMaterialDTO merchantMaterial,
@@ -291,7 +283,7 @@ class MerchantSecurityDatabaseFlowTests {
         assertThatThrownBy(() -> merchantJwtVerifier.verify(authorization, "wrong-merchant-key"))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining(ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getMessage());
-        log.info("反向用例校验通过-错误merchantKey会被拒绝，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getCode());
+        log.info("反向用例校验通过-错误JWT共享密钥会被拒绝，预期错误码：{}", ApiResultEnum.AUTHORIZATION_JWT_SIGNATURE_INVALID.getCode());
 
         String expiredJwt = createMerchantJwt(
                 merchantMaterial.getMerchantId(),

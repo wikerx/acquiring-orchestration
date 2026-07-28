@@ -40,16 +40,16 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminMonitorDatasourceApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-21 22:32
  * @email : scott_x@163.com
- * @description : 监控治理Admin Monitor Datasource Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Admin Monitor Datasource Application Service 应用服务，位于 运营后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
-@Service
 public class AdminMonitorDatasourceApplicationService {
 
     /**
@@ -97,10 +97,34 @@ public class AdminMonitorDatasourceApplicationService {
      */
     private final PaymentOrderShardingAlgorithm paymentOrderShardingAlgorithm = new PaymentOrderShardingAlgorithm();
 
+    /**
+     * sharding Quarter Resolver，用于保存 Admin Monitor Datasource Application Service 中与 shardingquarterresolver 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final ShardingQuarterResolver shardingQuarterResolver = new ShardingQuarterResolver();
 
+    /**
+     * sharding Physical Table Name Resolver，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final ShardingPhysicalTableNameResolver shardingPhysicalTableNameResolver = new ShardingPhysicalTableNameResolver();
 
+    /**
+     * sharding Auto Increment Value Calculator，用于保存 Admin Monitor Datasource Application Service 中与 shardingautoincrementvaluecalculator 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final ShardingAutoIncrementValueCalculator shardingAutoIncrementValueCalculator = new ShardingAutoIncrementValueCalculator();
 
     /**
@@ -139,10 +163,6 @@ public class AdminMonitorDatasourceApplicationService {
      *
      * @return 数据源监控响应
      */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public DataSourceMonitorResponse snapshot() {
         DataSourceMonitorResponse response = new DataSourceMonitorResponse();
         Map<String, DataSource> runtimeDataSources = runtimeDataSources();
@@ -164,11 +184,6 @@ public class AdminMonitorDatasourceApplicationService {
      *
      * @param operator 操作人
      * @param response HTTP 响应
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void exportSnapshot(String operator, HttpServletResponse response) {
         Locale locale = excelLocaleResolver.resolveCurrentLocale();
@@ -378,6 +393,17 @@ public class AdminMonitorDatasourceApplicationService {
         return snapshot;
     }
 
+    /**
+     * 解析resolve物理表name，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 运营后台服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param rule rule 输入值，参与 规则 的查询、校验、转换、写入或日志摘要
+     * @param quarter quarter 输入值，参与 quarter 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolvePhysicalTableName(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
         if (!shardingQuarterResolver.inRange(rule, quarter)) {
             return null;

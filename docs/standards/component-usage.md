@@ -127,7 +127,6 @@ PA202605312040001230001
 openapi:
   payment-client:
     remote-enabled: true
-    authorization-url: http://service-payment/internal/payment/authorization
 ```
 
 测试环境可以设置：
@@ -142,6 +141,11 @@ openapi:
 
 当 `remote-enabled=false` 时，`service-openapi` 会在本地生成模拟平台订单号和 `RECEIVED` 状态，方便商户侧
 验证响应解析、日志追踪和加解密闭环；该模式只用于单元测试或单服务本地调试。
+
+内部微服务 URL 不写入 Nacos，也不写入参数设置表。`http://service-payment`、`/internal/payment/**`
+这类服务名和接口路径属于代码级服务契约，由对应内部 REST 客户端常量维护；Nacos 只维护远程调用开关、
+超时、重试、内部 HMAC 密钥等环境级参数。业务运行期参数，例如 Hosted Checkout 前端域名
+`platform.checkout.frontend-base-url`，才进入参数设置表。
 
 ## ISO 国家与币种工具
 

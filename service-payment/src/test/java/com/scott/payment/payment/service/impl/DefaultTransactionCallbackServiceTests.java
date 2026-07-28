@@ -143,6 +143,84 @@ class DefaultTransactionCallbackServiceTests {
                 eq("CAPTURED"), eq("CAPTURED"), eq("CAPTURED"));
     }
 
+    /**
+     * OpenAPI 入口标记签名非法的渠道回调只能落库排查，支付核心不得推进交易状态或发送商户通知事件。
+     */
+    @Test
+    void shouldRejectUnsafeCallbackWithoutChangingTransactionStatus() {
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackMapper.insertPhysical(anyString(), any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(recordService.findOperationByChannelTransaction("TX202607141000000000001", "CH202607141000000000001"))
+                .thenReturn(operation());
+        when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
+                .thenReturn(order());
+        CapturingEventOutboxService eventOutboxService = new CapturingEventOutboxService();
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                mock(TransactionChannelCallbackLogMapper.class),
+                callbackMapper,
+                recordService,
+                eventOutboxService,
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
+        TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
+        commandDTO.setSignatureValid(false);
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(commandDTO);
+
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("FAILED");
+        assertThat(resultDTO.getProcessResult()).isEqualTo("SECURITY_REJECTED");
+        assertThat(resultDTO.getFailReason()).isEqualTo("channel callback signature is not valid");
+        verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
+                anyString(), any(), any(), any(), any(), any());
+        assertThat(eventOutboxService.eventDO).isNull();
+    }
+
+    /**
+     * MPGS 3DS Method callback 只是认证前置通知，不得推进支付终态或发送商户通知事件。
+     */
+    @Test
+    void shouldRecordMpgsThreeDsCallbackWithoutChangingTransactionStatus() {
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        when(callbackMapper.insertPhysical(anyString(), any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(1);
+        when(recordService.findSourceOperationByTransactionId("TX202607141000000000001"))
+                .thenReturn(operation());
+        when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
+                .thenReturn(order());
+        CapturingEventOutboxService eventOutboxService = new CapturingEventOutboxService();
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                mock(TransactionChannelCallbackLogMapper.class),
+                callbackMapper,
+                recordService,
+                eventOutboxService,
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
+        TransactionChannelCallbackCommandDTO commandDTO = callbackCommand();
+        commandDTO.setCallbackType("MPGS_3DS_CALLBACK");
+        commandDTO.setChannelEventType("THREE_DS_METHOD_COMPLETION");
+        commandDTO.setRequestUri("/channel/v1/callbacks/MPGS/3ds");
+        commandDTO.setRequestBody("threeDSServerTransID=7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8"
+                + "&threeDSSessionData=encrypted-session-data"
+                + "&orderId=TX202607141000000000001");
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(commandDTO);
+
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("RECEIVED");
+        assertThat(resultDTO.getProcessResult()).isEqualTo("PENDING_STATE_MAPPING");
+        verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
+                anyString(), any(), any(), any(), any(), any());
+        assertThat(eventOutboxService.eventDO).isNull();
+    }
+
     private TransactionChannelCallbackCommandDTO callbackCommand() {
         TransactionChannelCallbackCommandDTO commandDTO = new TransactionChannelCallbackCommandDTO();
         commandDTO.setChannelCode("MPGS");
@@ -228,6 +306,14 @@ class DefaultTransactionCallbackServiceTests {
 
     private static class CapturingEventOutboxService implements TransactionEventOutboxService {
 
+        /**
+         * event DO，用于保存 Capturing Event Outbox Service 中与 eventdo 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private TransactionEventOutboxDO eventDO;
 
         @Override

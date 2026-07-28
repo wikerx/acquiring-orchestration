@@ -37,11 +37,6 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      * @param other 其他版本条件
      * @return 合并后的版本条件
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param other 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public ApiVersionCondition combine(ApiVersionCondition other) {
         return other;
@@ -54,11 +49,6 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      *
      * @param request HTTP 请求
      * @return 匹配成功返回当前条件，不匹配返回 null
-     */
-    /**
-     * 获取收单支付明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public ApiVersionCondition getMatchingCondition(HttpServletRequest request) {
@@ -75,12 +65,6 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
      * @param other   其他版本条件
      * @param request HTTP 请求
      * @return 排序结果
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param other 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public int compareTo(ApiVersionCondition other, HttpServletRequest request) {
@@ -113,6 +97,16 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
         return null;
     }
 
+    /**
+     * 解析parseversion，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param version version 输入值，参与 version 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private Integer parseVersion(String version) {
         String value = version.trim();
         if (value.startsWith("v") || value.startsWith("V")) {

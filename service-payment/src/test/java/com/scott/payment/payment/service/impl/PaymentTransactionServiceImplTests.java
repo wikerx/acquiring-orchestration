@@ -30,6 +30,7 @@ import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.TransactionRecordService;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
@@ -115,7 +116,7 @@ class PaymentTransactionServiceImplTests {
         assertThat(eventOutboxService.eventDO.getMessageKey()).isEqualTo(resultDTO.getTransactionId());
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("INIT");
         assertThat(eventOutboxService.eventDO.getEventType()).isEqualTo("TRANSACTION_CREATED");
-        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:AUTH202607120001:AUTHORIZATION"))
+        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:M202607120001:INITIAL"))
                 .get()
                 .extracting(TransactionIdempotencyDO::getTransactionId)
                 .isEqualTo(resultDTO.getTransactionId());
@@ -251,7 +252,8 @@ class PaymentTransactionServiceImplTests {
         assertThat(transactionRecordService.commandDTO.getMerchantOrderNo()).isEqualTo("M202607120001");
         assertThat(transactionRecordService.resultDTO.getTransactionId()).isEqualTo(resultDTO.getTransactionId());
         assertThat(transactionRecordService.routeResultDTO.getChannelCode()).isEqualTo("MPGS");
-        assertThat(transactionRecordService.channelResponse.getChannelResponseCode()).isEqualTo("00");
+        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
+        assertThat(transactionRecordService.channelResponse).isNull();
         assertThat(transactionRecordService.riskDecisionEnum).isEqualTo(PaymentRiskDecisionEnum.PASS);
         assertThat(transactionRecordService.currencyExponent).isEqualTo(2);
     }
@@ -279,8 +281,7 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
         assertThat(resultDTO.getFailReasonCode()).isNull();
         assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
-        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("FAILED");
-        assertThat(transactionRecordService.channelInvokeResultDTO.getExceptionMessage()).isEqualTo("MPGS password is required");
+        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
         assertThat(eventOutboxService.eventDO.getPayloadJson()).contains("\"transactionStatus\":\"PROCESSING\"");
     }
 
@@ -326,7 +327,7 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
         assertThat(channelInvokeService.commandDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
-        assertThat(idempotencyService.records).containsKey("TRANSACTION_OPERATION:200001:AUTH202607120001:PAYMENT");
+        assertThat(idempotencyService.records).containsKey("TRANSACTION_OPERATION:200001:M202607120001:INITIAL");
     }
 
     /**
@@ -1181,32 +1182,164 @@ class PaymentTransactionServiceImplTests {
 
     private static class CapturingTransactionRecordService implements TransactionRecordService {
 
+        /**
+         * command DTO，用于保存 Capturing Transaction Record Service 中与 commanddto 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private PaymentCreateCommandDTO commandDTO;
 
+        /**
+         * route Result DTO，用于保存 Capturing Transaction Record Service 中与 routeresultdto 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private PaymentRouteResultDTO routeResultDTO;
 
+        /**
+         * channel Response，用于保存 Capturing Transaction Record Service 中与 渠道response 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private ChannelPaymentResponse channelResponse;
 
+        /**
+         * channel Invoke Result DTO，用于保存 Capturing Transaction Record Service 中与 渠道invokeresultdto 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private PaymentChannelInvokeResultDTO channelInvokeResultDTO;
 
+        /**
+         * result Channel Response，用于保存 Capturing Transaction Record Service 中与 result渠道response 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
+        private ChannelPaymentResponse resultChannelResponse;
+
+        /**
+         * result Channel Invoke Result DTO，用于保存 Capturing Transaction Record Service 中与 result渠道invokeresultdto 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
+        private PaymentChannelInvokeResultDTO resultChannelInvokeResultDTO;
+
+        /**
+         * result DTO，用于保存 Capturing Transaction Record Service 中与 resultdto 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private PaymentCreateResultDTO resultDTO;
 
+        /**
+         * risk Decision Enum，用于保存 Capturing Transaction Record Service 中与 riskdecisionenum 相关的业务属性。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private PaymentRiskDecisionEnum riskDecisionEnum;
 
+        /**
+         * currency Exponent，表示金额字段使用的币种。
+         * <p>
+         * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持币种；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
+         * </p>
+         */
         private int currencyExponent;
 
+        /**
+         * follow Up Record DTO，用于保存 Capturing Transaction Record Service 中与 followuprecorddto 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private TransactionFollowUpRecordDTO followUpRecordDTO;
 
+        /**
+         * 交易类型，标识本次动作是支付、授权、请款、退款、撤销还是增量授权，用于选择状态机和渠道能力。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String sourceTransactionType = PaymentTransactionTypeEnum.AUTHORIZATION.getCode();
 
+        /**
+         * source Transaction Amount，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal sourceTransactionAmount = new BigDecimal("12.34");
 
+        /**
+         * source Authorized Amount，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal sourceAuthorizedAmount = new BigDecimal("12.34");
 
+        /**
+         * source Captured Amount，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal sourceCapturedAmount = BigDecimal.ZERO;
 
+        /**
+         * source Available Refund Amount，表示当前交易、费用、限额或统计口径下的金额值。
+         * <p>
+         * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：必须与 currency 或同名币种字段一起解释。
+         * </p>
+         */
         private BigDecimal sourceAvailableRefundAmount = new BigDecimal("5.00");
 
+        /**
+         * initial Operations，用于保存 Capturing Transaction Record Service 中与 initial动作 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private List<TransactionOperationDO> initialOperations = List.of();
 
         @Override
@@ -1226,7 +1359,48 @@ class PaymentTransactionServiceImplTests {
         }
 
         @Override
+        public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
+                                                 PaymentRouteResultDTO routeResultDTO,
+                                                 PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+                                                 PaymentCreateResultDTO resultDTO,
+                                                 PaymentRiskDecisionEnum riskDecisionEnum,
+                                                 int currencyExponent) {
+            this.commandDTO = commandDTO;
+            this.routeResultDTO = routeResultDTO;
+            this.resultChannelInvokeResultDTO = channelInvokeResultDTO;
+            this.resultChannelResponse = channelInvokeResultDTO == null ? null : channelInvokeResultDTO.getChannelResponse();
+            this.resultDTO = resultDTO;
+            this.riskDecisionEnum = riskDecisionEnum;
+            this.currencyExponent = currencyExponent;
+        }
+
+        @Override
         public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
+            if (isRecordedInitialOperation(transactionDateTime, operationId)) {
+                TransactionOrderDO orderDO = new TransactionOrderDO();
+                orderDO.setOperationId(resultDTO.getOperationId());
+                orderDO.setRootTransactionId(resultDTO.getTransactionId());
+                orderDO.setLatestTransactionId(resultDTO.getTransactionId());
+                orderDO.setMerchantId(commandDTO.getMerchantId());
+                orderDO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
+                orderDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
+                orderDO.setTransactionType(resultDTO.getTransactionType());
+                orderDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+                orderDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
+                orderDO.setTransactionCurrency(commandDTO.getTransactionCurrency());
+                orderDO.setTransactionAmount(commandDTO.getTransactionAmount());
+                orderDO.setAuthorizedAmount(BigDecimal.ZERO);
+                orderDO.setCapturedAmount(BigDecimal.ZERO);
+                orderDO.setRefundedAmount(BigDecimal.ZERO);
+                orderDO.setAvailableCaptureAmount(BigDecimal.ZERO);
+                orderDO.setAvailableRefundAmount(BigDecimal.ZERO);
+                orderDO.setCurrencyExponent(2);
+                orderDO.setTransactionDateTime(transactionDateTime);
+                orderDO.setTransactionUtcTime(transactionDateTime);
+                orderDO.setTransactionTimeZone("Asia/Shanghai");
+                orderDO.setVersion(0);
+                return orderDO;
+            }
             if (!LocalDateTime.of(2026, 7, 12, 10, 30).equals(transactionDateTime)
                     || !SOURCE_OPERATION_ID.equals(operationId)) {
                 return null;
@@ -1265,7 +1439,35 @@ class PaymentTransactionServiceImplTests {
         }
 
         @Override
+        public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
+            return findOrder(transactionDateTime, operationId);
+        }
+
+        @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
+            if (resultDTO != null && sourceTransactionId.equals(resultDTO.getTransactionId())) {
+                TransactionOperationDO operationDO = new TransactionOperationDO();
+                operationDO.setId(1L);
+                operationDO.setOperationId(resultDTO.getOperationId());
+                operationDO.setTransactionId(resultDTO.getTransactionId());
+                operationDO.setMerchantId(commandDTO.getMerchantId());
+                operationDO.setMerchantOrderNo(commandDTO.getMerchantOrderNo());
+                operationDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
+                operationDO.setTransactionType(resultDTO.getTransactionType());
+                operationDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+                operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
+                operationDO.setTransactionAmount(commandDTO.getTransactionAmount());
+                operationDO.setTransactionCurrency(commandDTO.getTransactionCurrency());
+                PaymentChannelInvokeResultDTO invokeResultDTO = resultChannelInvokeResultDTO == null
+                        ? channelInvokeResultDTO : resultChannelInvokeResultDTO;
+                if (invokeResultDTO != null && invokeResultDTO.getChannelRequest() != null) {
+                    operationDO.setChannelOrderNo(invokeResultDTO.getChannelRequest().getChannelOrderNo());
+                    operationDO.setChannelTransactionId(invokeResultDTO.getChannelRequest().getChannelTransactionId());
+                }
+                operationDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+                operationDO.setVersion(0);
+                return operationDO;
+            }
             if (!SOURCE_TRANSACTION_ID.equals(sourceTransactionId) && !CAPTURE_TRANSACTION_ID.equals(sourceTransactionId)) {
                 return null;
             }
@@ -1282,6 +1484,26 @@ class PaymentTransactionServiceImplTests {
             return operationDO;
         }
 
+        private boolean isRecordedInitialOperation(LocalDateTime transactionDateTime, String operationId) {
+            return resultDTO != null
+                    && commandDTO != null
+                    && transactionDateTime != null
+                    && transactionDateTime.equals(commandDTO.getTransactionDateTime())
+                    && resultDTO.getOperationId().equals(operationId);
+        }
+
+/**
+ * 查询动作by商户订单，按调用方提供的过滤条件返回对应业务视图。
+ * <p>
+ * 前置条件：调用方已按 支付核心服务 的权限和数据范围传入查询条件。
+ * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+ * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+ * </p>
+ * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+ * @param merchantOrderNo merchant Order No 输入值，参与 商户订单no 的查询、校验、转换、写入或日志摘要
+ * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @return 查询得到的业务对象、分页结果或空结果
+ */
         @Override
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
                                                                           String merchantOrderNo,
@@ -1311,6 +1533,15 @@ class PaymentTransactionServiceImplTests {
                 return List.of();
             }
             return initialOperations;
+        }
+
+        @Override
+        public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
+                                                                    String operationId,
+                                                                    String sourceTransactionId,
+                                                                    LocalDateTime beginTime,
+                                                                    LocalDateTime endTime) {
+            return List.of();
         }
 
         @Override
@@ -1366,6 +1597,14 @@ class PaymentTransactionServiceImplTests {
 
     private static class CapturingTransactionEventOutboxService implements TransactionEventOutboxService {
 
+        /**
+         * event DO，用于保存 Capturing Transaction Event Outbox Service 中与 eventdo 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private TransactionEventOutboxDO eventDO;
 
         @Override
@@ -1399,16 +1638,64 @@ class PaymentTransactionServiceImplTests {
 
     private static class CapturingPaymentChannelInvokeService implements PaymentChannelInvokeService {
 
+        /**
+         * response，用于保存 Capturing Payment Channel Invoke Service 中与 response 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private final ChannelPaymentResponse response;
 
+        /**
+         * command DTO，用于保存 Capturing Payment Channel Invoke Service 中与 commanddto 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private PaymentCreateCommandDTO commandDTO;
 
+        /**
+         * route Result DTO，用于保存 Capturing Payment Channel Invoke Service 中与 routeresultdto 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private PaymentRouteResultDTO routeResultDTO;
 
+        /**
+         * 平台操作号，由支付核心生成，用于定位一次授权、请款、退款、撤销或回调处理动作。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与 transactionId、transactionType 共同定位一次交易动作。
+         * </p>
+         */
         private String operationId;
 
+        /**
+         * 平台交易号，由支付核心生成，用于串联主单、动作单、渠道请求、回调和通知。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与 operationId、merchantOrderNo 共同定位一笔平台交易。
+         * </p>
+         */
         private String transactionId;
 
+        /**
+         * channel Order No，用于保存 Capturing Payment Channel Invoke Service 中与 渠道订单no 相关的业务属性。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String channelOrderNo;
 
         private CapturingPaymentChannelInvokeService(ChannelPaymentResponse response) {
@@ -1421,12 +1708,34 @@ class PaymentTransactionServiceImplTests {
                                                     String operationId,
                                                     String transactionId,
                                                     String channelOrderNo) {
+            PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+            prepared.setRequestId("CR-" + transactionId);
+            prepared.setChannelOrderNo(channelOrderNo);
+            prepared.setChannelTransactionId("CH-" + transactionId);
+            return invoke(commandDTO, routeResult, operationId, transactionId, prepared);
+        }
+
+        @Override
+        public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResult,
+                                                    String operationId,
+                                                    String transactionId,
+                                                    PaymentPreparedChannelRequestDTO preparedChannelRequest) {
             this.commandDTO = commandDTO;
             this.routeResultDTO = routeResult;
             this.operationId = operationId;
             this.transactionId = transactionId;
-            this.channelOrderNo = channelOrderNo;
+            this.channelOrderNo = preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo();
             PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
+            resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
+            resultDTO.setChannelRequest(new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest());
+            resultDTO.getChannelRequest().setChannelCode(routeResult.getChannelCode());
+            resultDTO.getChannelRequest().setOperationId(operationId);
+            resultDTO.getChannelRequest().setTransactionId(transactionId);
+            resultDTO.getChannelRequest().setChannelOrderNo(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo());
+            resultDTO.getChannelRequest().setChannelTransactionId(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
+            resultDTO.getChannelRequest().setAmount(commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount());
+            resultDTO.getChannelRequest().setCurrency(commandDTO.getTransactionCurrency() == null ? commandDTO.getCurrency() : commandDTO.getTransactionCurrency());
             resultDTO.setChannelResponse(response);
             resultDTO.setRequestStatus("SUCCESS");
             return resultDTO;
@@ -1441,7 +1750,27 @@ class PaymentTransactionServiceImplTests {
                                                     String operationId,
                                                     String transactionId,
                                                     String channelOrderNo) {
+            PaymentPreparedChannelRequestDTO prepared = new PaymentPreparedChannelRequestDTO();
+            prepared.setRequestId("CR-" + transactionId);
+            prepared.setChannelOrderNo(channelOrderNo);
+            prepared.setChannelTransactionId("CH-" + transactionId);
+            return invoke(commandDTO, routeResult, operationId, transactionId, prepared);
+        }
+
+        @Override
+        public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
+                                                    PaymentRouteResultDTO routeResult,
+                                                    String operationId,
+                                                    String transactionId,
+                                                    PaymentPreparedChannelRequestDTO preparedChannelRequest) {
             PaymentChannelInvokeResultDTO resultDTO = new PaymentChannelInvokeResultDTO();
+            resultDTO.setRequestId(preparedChannelRequest == null ? null : preparedChannelRequest.getRequestId());
+            resultDTO.setChannelRequest(new com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest());
+            resultDTO.getChannelRequest().setChannelCode(routeResult.getChannelCode());
+            resultDTO.getChannelRequest().setOperationId(operationId);
+            resultDTO.getChannelRequest().setTransactionId(transactionId);
+            resultDTO.getChannelRequest().setChannelOrderNo(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelOrderNo());
+            resultDTO.getChannelRequest().setChannelTransactionId(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
             resultDTO.setRequestStatus("FAILED");
             resultDTO.setExceptionType("ChannelRequestException");
             resultDTO.setExceptionMessage("MPGS password is required");
@@ -1451,6 +1780,14 @@ class PaymentTransactionServiceImplTests {
 
     private static class InMemoryTransactionIdempotencyService implements TransactionIdempotencyService {
 
+        /**
+         * records，用于保存 In Memory Transaction Idempotency Service 中与 记录 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private final Map<String, TransactionIdempotencyDO> records = new LinkedHashMap<>();
 
         @Override
@@ -1527,6 +1864,7 @@ class PaymentTransactionServiceImplTests {
             record.setTransactionDateTime(transactionDateTime);
             record.setTransactionTimeZone(timeZone);
             record.setTransactionUtcTime(transactionDateTime);
+            record.setRequestFingerprint(requestFingerprint);
             return record;
         }
     }

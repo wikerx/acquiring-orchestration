@@ -134,14 +134,14 @@ public class PaymentCreateClientResponseDTO implements Serializable {
     private BigDecimal totalRefundAmount;
 
     /**
-     * 当前生命周期累计撤销金额，平台交易币种单位。
+     * 当前生命周期累计授权取消、预授权取消或未请款金额释放成功金额，平台交易币种单位。
      */
-    private BigDecimal totalVoidAmount;
+    private BigDecimal totalAuthorizedCancelAmount;
 
     /**
-     * 当前生命周期累计拒付金额，平台交易币种单位。
+     * 当前生命周期累计拒付成立或确认成功金额，平台交易币种单位。
      */
-    private BigDecimal totalChargebackAmount;
+    private BigDecimal totalRefuseAmount;
 
     /**
      * 商户上送或页面标签展示的原始金额。
@@ -234,36 +234,157 @@ public class PaymentCreateClientResponseDTO implements Serializable {
     private String callbackUrl;
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : SubMerchantInfoDTO
+     * @date : 2026-05-31 21:11
+     * @email : scott_x@163.com
+     * @description : Sub Merchant Info DTO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class SubMerchantInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /**
+         * sub Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subName;
 
+        /**
+         * sub Company Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；银行卡敏感字段，只允许脱敏或摘要化使用。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subCompanyName;
 
+        /**
+         * sub ID，用于定位 Sub Merchant Info DTO 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subId;
 
+        /**
+         * sub Street，用于保存 Sub Merchant Info DTO 中与 substreet 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subStreet;
 
+        /**
+         * sub City，用于保存 Sub Merchant Info DTO 中与 subcity 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subCity;
 
+        /**
+         * sub State，用于保存 Sub Merchant Info DTO 中与 substate 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subState;
 
+        /**
+         * sub Country Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * <p>
+         * 单位：无；格式：ISO 国家或地区代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自平台支持国家地区；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subCountryCode;
 
+        /**
+         * sub Email，用于保存 Sub Merchant Info DTO 中与 subemail 相关的业务属性。
+         * <p>
+         * 单位：无；格式：邮箱地址或邮箱地址集合；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subEmail;
 
+        /**
+         * sub Phone，用于保存 Sub Merchant Info DTO 中与 subphone 相关的业务属性。
+         * <p>
+         * 单位：无；格式：电话号码字符串；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：长度和格式由接口校验约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subPhone;
 
+        /**
+         * sub Postal，用于保存 Sub Merchant Info DTO 中与 subpostal 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subPostal;
 
+        /**
+         * sub Tax ID，用于定位 Sub Merchant Info DTO 关联的上游配置、渠道、账号、角色或业务记录。
+         * <p>
+         * 单位：无；格式：业务编号字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String subTaxId;
 
+        /**
+         * merchant Category，用于保存 Sub Merchant Info DTO 中与 商户category 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String merchantCategory;
 
+        /**
+         * intes Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String intesCode;
 
+        /**
+         * charge Type，用于区分 Sub Merchant Info DTO 记录的处理类别、配置维度或外部协议枚举。
+         * <p>
+         * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：上游接口请求、内部服务调用或远程服务响应。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private String chargeType;
     }
 

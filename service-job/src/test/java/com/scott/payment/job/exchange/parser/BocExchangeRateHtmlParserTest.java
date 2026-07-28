@@ -7,13 +7,14 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : BocExchangeRateHtmlParserTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 中国银行汇率 HTML 解析测试。
+ * @description : Boc Exchange Rate Html Parser Test 自动化测试类，位于 调度任务服务，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class BocExchangeRateHtmlParserTest {

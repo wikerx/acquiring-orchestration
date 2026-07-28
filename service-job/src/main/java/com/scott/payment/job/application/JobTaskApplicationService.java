@@ -24,28 +24,34 @@ import java.util.List;
  * @description : 调度中心任务管理应用服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobTaskApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Task Application 服务契约，位于 service-job 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class JobTaskApplicationService {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Task Service 依赖，用于 Job Task Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobTaskService jobTaskService;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Dispatch Service 依赖，用于 Job Task Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobDispatchService jobDispatchService;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Handler Registry，用于保存 Job Task Application Service 中与 jobhandlerregistry 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobHandlerRegistry jobHandlerRegistry;
     /**
@@ -76,10 +82,6 @@ public class JobTaskApplicationService {
      *
      * @return 处理器选项列表
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public List<JobHandlerOptionResponse> listHandlers() {
         return jobHandlerRegistry.listDescriptors().stream()
                 .map(jobSchedulerConverter::toHandlerOption)
@@ -91,11 +93,6 @@ public class JobTaskApplicationService {
      *
      * @param request 查询条件
      * @return 任务分页结果
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public PageResult<JobTaskResponse> pageTasks(JobTaskQueryRequest request) {
         PageResult<SysJobTaskDO> pageResult = jobTaskService.pageTasks(request);
@@ -115,11 +112,6 @@ public class JobTaskApplicationService {
      * @param request 保存请求
      * @return 任务响应
      */
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public JobTaskResponse createTask(JobTaskSaveRequest request) {
         return jobSchedulerConverter.toTaskResponse(jobTaskService.createTask(request));
     }
@@ -130,12 +122,6 @@ public class JobTaskApplicationService {
      * @param taskId  任务主键
      * @param request 保存请求
      * @return 任务响应
-     */
-    /**
-     * 更新收单支付数据，保持已有记录、状态和审计字段的一致性。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public JobTaskResponse updateTask(Long taskId, JobTaskSaveRequest request) {
         return jobSchedulerConverter.toTaskResponse(jobTaskService.updateTask(taskId, request));
@@ -149,13 +135,6 @@ public class JobTaskApplicationService {
      * @param operator 操作人
      * @return 任务响应
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public JobTaskResponse changeStatus(Long taskId, String status, String operator) {
         return jobSchedulerConverter.toTaskResponse(jobTaskService.changeStatus(taskId, status, operator));
     }
@@ -167,12 +146,6 @@ public class JobTaskApplicationService {
      * @param request  手动触发请求
      * @return 执行批次号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String trigger(Long taskId, JobManualTriggerRequest request) {
         return jobDispatchService.triggerManual(taskId, request);
     }
@@ -182,11 +155,6 @@ public class JobTaskApplicationService {
      *
      * @param taskId   任务主键
      * @param operator 操作人
-     */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param taskId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param operator 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     public void deleteTask(Long taskId, String operator) {
         jobTaskService.deleteTask(taskId, operator);

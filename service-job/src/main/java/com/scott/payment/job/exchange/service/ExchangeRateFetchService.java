@@ -4,13 +4,14 @@ import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.job.dto.exchange.ExchangeRateFetchDTOs.ExchangeRateFetchRequest;
 import com.scott.payment.job.dto.exchange.ExchangeRateFetchDTOs.ExchangeRateFetchResult;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ExchangeRateFetchService
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 汇率源拉取服务。
+ * @description : Exchange Rate Fetch Service 服务契约，位于 调度任务服务，声明当前业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public interface ExchangeRateFetchService {

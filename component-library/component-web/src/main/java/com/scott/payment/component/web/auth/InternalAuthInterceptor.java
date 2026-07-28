@@ -47,15 +47,30 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /**
-     * 收单支付编码或编号字段，用于业务识别、查询和幂等关联。
+     * app Code，用于在系统、渠道、字典或配置中稳定引用当前业务取值。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final String appCode;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * auth Checker，用于保存 Internal Auth Interceptor 中与 authchecker 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final InternalAuthChecker authChecker;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * whitelist Patterns，用于保存 Internal Auth Interceptor 中与 whitelistpatterns 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final List<String> whitelistPatterns;
 
@@ -80,14 +95,6 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
      * @param handler  处理器
      * @return true 表示放行
      * @throws IOException 写响应失败
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param handler 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     * @throws Exception 当下游调用、数据访问或业务校验失败时抛出。
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws IOException {
@@ -130,13 +137,6 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
      * @param handler  处理器
      * @param ex       请求异常
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param response 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param handler 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param ex 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
         InternalAuthContextHolder.clear();
@@ -158,10 +158,33 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
         return typePermission == null ? null : typePermission.value();
     }
 
+    /**
+     * 整理write错误，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @param httpStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param result 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     */
     private void writeError(HttpServletResponse response, int httpStatus, ApiResultEnum result) throws IOException {
         writeError(response, httpStatus, result.getCode(), result.getMessage());
     }
 
+    /**
+     * 整理write错误，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param response 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     * @param httpStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     */
     private void writeError(HttpServletResponse response, int httpStatus, String code, String message) throws IOException {
         response.setStatus(httpStatus);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());

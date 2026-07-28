@@ -61,6 +61,17 @@ public class TransactionShardingKeyParser {
         return parseBusinessDateTime(operationId, OPERATION_ID_PREFIX);
     }
 
+    /**
+     * 解析parsebusinessdate时间，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param prefix prefix 输入值，参与 prefix 的查询、校验、转换、写入或日志摘要
+     * @return 构造、转换或解析后的业务值
+     */
     private LocalDateTime parseBusinessDateTime(String value, String prefix) {
         if (!StringUtils.hasText(value) || value.length() < prefix.length() + ORDER_TIME_PART_LENGTH) {
             return null;

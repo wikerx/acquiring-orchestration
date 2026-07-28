@@ -15,15 +15,6 @@ import lombok.EqualsAndHashCode;
  *
  * <p>用于任务运行日志分页检索，支持按任务、状态、触发方式和执行节点过滤。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogQueryRequest
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Job Run Log Query 请求对象，位于 service-admin 的接口传输层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class JobRunLogQueryRequest extends PageRequest {

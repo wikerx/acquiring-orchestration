@@ -15,16 +15,16 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantOperLogServiceImpl
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-20 10:46
  * @email : scott_x@163.com
- * @description : 商户管理Merchant Oper Log Service Impl，位于 service-merchant 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Merchant Oper Log Service Impl 服务实现，位于 商户后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
-@Service
 public class MerchantOperLogServiceImpl implements MerchantOperLogService {
 
     /**
@@ -55,10 +55,6 @@ public class MerchantOperLogServiceImpl implements MerchantOperLogService {
      * 写入商户管理系统操作日志。
      *
      * @param request 操作日志写入请求
-     */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
      */
     @Override
     public void recordOperLog(SysOperLogRecordRequest request) {
@@ -102,11 +98,6 @@ public class MerchantOperLogServiceImpl implements MerchantOperLogService {
      *
      * @param request 查询条件
      * @return 商户操作日志分页结果
-     */
-    /**
-     * 查询商户管理列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public PageResult<SysOperLogDTO> pageOperLogs(SysOperLogQueryRequest request) {

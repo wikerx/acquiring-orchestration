@@ -10,9 +10,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @author : scott
  * @version : v1.0.0
  * @classname : LuhnMod10UtilsTests
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 收单支付Luhn Mod10 Utils Tests，位于 component-library/component-core 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Luhn Mod 10 Utils Tests 通用函数集合，位于 公共组件库，封装格式化、校验、脱敏、加密、编码或标准化逻辑，调用方以静态方法获取本地计算结果。
  * @status : create
  */
 class LuhnMod10UtilsTests {

@@ -14,6 +14,7 @@ import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import com.scott.payment.channel.payment.enums.PaymentChannelCode;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -30,6 +31,14 @@ import java.util.Set;
 @Component
 public class MpgsPaymentChannelClient extends AbstractPaymentChannelClient {
 
+    /**
+     * mpgs API Client 依赖，用于 Mpgs Payment Channel Client 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 配置和构造器注入的内部客户端依赖。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final MpgsApiClient mpgsApiClient;
 
     /**
@@ -178,5 +187,19 @@ public class MpgsPaymentChannelClient extends AbstractPaymentChannelClient {
     public ChannelPaymentResponse query(ChannelQueryRequest request) {
         requireCapability(ChannelCapability.QUERY);
         return mpgsApiClient.execute(request);
+    }
+
+    /**
+     * MPGS RETRIEVE 交易级查询要求同时具备 order.id 与 transaction.id。
+     *
+     * @param request 渠道查询请求
+     * @return true 表示当前查询引用满足 MPGS REST URL 身份要求
+     */
+    @Override
+    public boolean supportsQueryReference(ChannelQueryRequest request) {
+        return supports(ChannelCapability.QUERY)
+                && request != null
+                && StringUtils.hasText(request.getChannelOrderNo())
+                && StringUtils.hasText(request.getChannelTransactionId());
     }
 }

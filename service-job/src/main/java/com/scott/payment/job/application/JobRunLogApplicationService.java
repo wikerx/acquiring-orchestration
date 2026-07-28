@@ -19,20 +19,16 @@ import java.util.List;
  * @description : 任务运行日志应用服务
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogApplicationService
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Run Log Application 服务契约，位于 service-job 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class JobRunLogApplicationService {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Run Log Service 依赖，用于 Job Run Log Application Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobRunLogService jobRunLogService;
     /**
@@ -58,11 +54,6 @@ public class JobRunLogApplicationService {
      * @param request 查询条件
      * @return 日志分页结果
      */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public PageResult<JobRunLogResponse> pageLogs(JobRunLogQueryRequest request) {
         PageResult<SysJobRunLogDO> pageResult = jobRunLogService.pageLogs(request);
         return PageResult.of(
@@ -80,10 +71,6 @@ public class JobRunLogApplicationService {
      *
      * @param id 日志主键
      */
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     public void removeLog(Long id) {
         jobRunLogService.removeLog(id);
     }
@@ -94,11 +81,6 @@ public class JobRunLogApplicationService {
      * @param request 查询条件
      * @return 删除数量
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public int cleanLogs(JobRunLogQueryRequest request) {
         return jobRunLogService.cleanLogs(request);
     }
@@ -108,11 +90,6 @@ public class JobRunLogApplicationService {
      *
      * @param request 查询条件
      * @return 日志响应列表
-     */
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public List<JobRunLogResponse> listLogs(JobRunLogQueryRequest request) {
         return jobRunLogService.listLogs(request).stream()

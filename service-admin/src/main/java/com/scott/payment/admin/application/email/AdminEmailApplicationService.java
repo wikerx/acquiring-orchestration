@@ -17,16 +17,16 @@ import com.scott.payment.admin.service.AdminEmailService;
 import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminEmailApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-04 16:11
  * @email : scott_x@163.com
- * @description : 邮件管理Admin Email Application 服务契约，位于 service-admin 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Admin Email Application Service 应用服务，位于 运营后台服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
-@Service
 public class AdminEmailApplicationService {
 
     /**
@@ -34,209 +34,298 @@ public class AdminEmailApplicationService {
      */
     private final AdminEmailService adminEmailService;
 
+    /**
+     * 整理admin邮件applicationservice，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param adminEmailService admin Email Service 输入值，参与 admin邮件service 的查询、校验、转换、写入或日志摘要
+     */
     public AdminEmailApplicationService(AdminEmailService adminEmailService) {
         this.adminEmailService = adminEmailService;
     }
 
     /**
-     * 查询邮件管理列表或分页数据，供页面筛选和展示使用。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询账号，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
-
     public PageResult<EmailAccountResponse> pageAccounts(EmailAccountQuery query) {
         return adminEmailService.pageAccounts(query);
     }
 
     /**
-     * 获取邮件管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询账号，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
-
     public EmailAccountResponse getAccount(Long id) {
         return adminEmailService.getAccount(id);
     }
 
     /**
-     * 创建或保存邮件管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 创建账号，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 前置条件：调用方已完成 运营后台服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
      */
-
     public EmailAccountResponse createAccount(EmailAccountSaveRequest request) {
         return adminEmailService.createAccount(request);
     }
 
     /**
-     * 更新邮件管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新账号，保持业务状态、配置项或展示字段与请求意图一致。
+     * <p>
+     * 前置条件：调用方已确认 运营后台服务 中目标记录存在且当前状态允许变更。
+     * 该方法可能更新状态、配置或审计时间；调用方需关注返回值或受影响行数判断是否真正生效。
+     * 异常边界：状态冲突、版本冲突或持久化失败按当前模块异常规范返回。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
      */
-
     public EmailAccountResponse updateAccount(Long id, EmailAccountSaveRequest request) {
         return adminEmailService.updateAccount(id, request);
     }
 
     /**
-     * 更新邮件管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新账号状态，保持业务状态、配置项或展示字段与请求意图一致。
+     * <p>
+     * 前置条件：调用方已确认 运营后台服务 中目标记录存在且当前状态允许变更。
+     * 该方法可能更新状态、配置或审计时间；调用方需关注返回值或受影响行数判断是否真正生效。
+     * 异常边界：状态冲突、版本冲突或持久化失败按当前模块异常规范返回。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 写入、更新或删除后的处理结果
      */
-
     public EmailAccountResponse updateAccountStatus(Long id, Integer status) {
         return adminEmailService.updateAccountStatus(id, status);
     }
 
     /**
-     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 写入set默认账号，保持配置属性或测试夹具中的字段值与调用方输入一致。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
-
     public EmailAccountResponse setDefaultAccount(Long id) {
         return adminEmailService.setDefaultAccount(id);
     }
 
     /**
-     * 删除邮件管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 删除或停用账号，调用方需保证权限和状态允许该操作。
+     * <p>
+     * 前置条件：调用方已确认 运营后台服务 中目标记录存在、权限满足且状态允许删除或停用。
+     * 该方法通常执行软删除、停用或批量标记；幂等结果以记录状态或受影响行数为准。
+     * 异常边界：记录不存在、状态禁止删除或数据库更新失败会阻断后续流程。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
      */
-
     public void deleteAccount(Long id) {
         adminEmailService.deleteAccount(id);
     }
 
     /**
-     * 发送邮件管理消息或外部请求，并记录必要的执行结果。
-     * @param accountId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 发送testemail消息或请求，补齐目标地址、链路标识和业务载荷。
+     * <p>
+     * 前置条件：调用方已确定 运营后台服务 的目标地址、消息主题、业务编号和重试策略。
+     * 该方法可能调用外部系统、内部服务或 MQ；traceId 必须沿调用链透传，重试应保留原业务标识。
+     * 异常边界：网络异常、超时或投递失败需转换为当前模块可识别的失败结果并记录脱敏摘要。
+     * </p>
+     * @param accountId account ID 输入值，参与 账号ID 的查询、校验、转换、写入或日志摘要
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
-
     public EmailSendResult sendTestEmail(Long accountId, EmailAccountTestRequest request) {
         return adminEmailService.sendTestEmail(accountId, request);
     }
 
     /**
-     * 查询邮件管理列表或分页数据，供页面筛选和展示使用。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询模板，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
-
     public PageResult<EmailTemplateResponse> pageTemplates(EmailTemplateQuery query) {
         return adminEmailService.pageTemplates(query);
     }
 
     /**
-     * 获取邮件管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询模板，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
-
     public EmailTemplateResponse getTemplate(Long id) {
         return adminEmailService.getTemplate(id);
     }
 
     /**
-     * 创建或保存邮件管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 创建模板，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 前置条件：调用方已完成 运营后台服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
      */
-
     public EmailTemplateResponse createTemplate(EmailTemplateSaveRequest request) {
         return adminEmailService.createTemplate(request);
     }
 
     /**
-     * 更新邮件管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新模板，保持业务状态、配置项或展示字段与请求意图一致。
+     * <p>
+     * 前置条件：调用方已确认 运营后台服务 中目标记录存在且当前状态允许变更。
+     * 该方法可能更新状态、配置或审计时间；调用方需关注返回值或受影响行数判断是否真正生效。
+     * 异常边界：状态冲突、版本冲突或持久化失败按当前模块异常规范返回。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
      */
-
     public EmailTemplateResponse updateTemplate(Long id, EmailTemplateSaveRequest request) {
         return adminEmailService.updateTemplate(id, request);
     }
 
     /**
-     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 构造模板对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
-
     public EmailTemplateResponse copyTemplate(Long id) {
         return adminEmailService.copyTemplate(id);
     }
 
     /**
-     * 更新邮件管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param status 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 更新template状态，保持业务状态、配置项或展示字段与请求意图一致。
+     * <p>
+     * 前置条件：调用方已确认 运营后台服务 中目标记录存在且当前状态允许变更。
+     * 该方法可能更新状态、配置或审计时间；调用方需关注返回值或受影响行数判断是否真正生效。
+     * 异常边界：状态冲突、版本冲突或持久化失败按当前模块异常规范返回。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @param status 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 写入、更新或删除后的处理结果
      */
-
     public EmailTemplateResponse updateTemplateStatus(Long id, Integer status) {
         return adminEmailService.updateTemplateStatus(id, status);
     }
 
     /**
-     * 删除邮件管理数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
+     * 删除或停用模板，调用方需保证权限和状态允许该操作。
+     * <p>
+     * 前置条件：调用方已确认 运营后台服务 中目标记录存在、权限满足且状态允许删除或停用。
+     * 该方法通常执行软删除、停用或批量标记；幂等结果以记录状态或受影响行数为准。
+     * 异常边界：记录不存在、状态禁止删除或数据库更新失败会阻断后续流程。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
      */
-
     public void deleteTemplate(Long id) {
         adminEmailService.deleteTemplate(id);
     }
 
     /**
-     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 整理模板，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
-
     public EmailTemplatePreviewResponse previewTemplate(EmailTemplatePreviewRequest request) {
         return adminEmailService.previewTemplate(request);
     }
 
     /**
-     * 查询邮件管理列表或分页数据，供页面筛选和展示使用。
-     * @param query 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询记录，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param query 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
+     * @return 查询得到的业务对象、分页结果或空结果
      */
-
     public PageResult<EmailRecordResponse> pageRecords(EmailRecordQuery query) {
         return adminEmailService.pageRecords(query);
     }
 
     /**
-     * 获取邮件管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 查询记录，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 查询得到的业务对象、分页结果或空结果
      */
-
     public EmailRecordResponse getRecord(Long id) {
         return adminEmailService.getRecord(id);
     }
 
     /**
-     * 发送邮件管理消息或外部请求，并记录必要的执行结果。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 发送bytemplate消息或请求，补齐目标地址、链路标识和业务载荷。
+     * <p>
+     * 前置条件：调用方已确定 运营后台服务 的目标地址、消息主题、业务编号和重试策略。
+     * 该方法可能调用外部系统、内部服务或 MQ；traceId 必须沿调用链透传，重试应保留原业务标识。
+     * 异常边界：网络异常、超时或投递失败需转换为当前模块可识别的失败结果并记录脱敏摘要。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
-
     public EmailSendResult sendByTemplate(EmailSendRequest request) {
         return adminEmailService.sendByTemplate(request);
     }
 
     /**
-     * 执行邮件管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
+     * 发送resend消息或请求，补齐目标地址、链路标识和业务载荷。
+     * <p>
+     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
-
     public EmailSendResult resend(Long id) {
         return adminEmailService.resend(id);
     }

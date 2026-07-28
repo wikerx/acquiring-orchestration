@@ -2,27 +2,36 @@ package com.scott.payment.openapi.support;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.web.trace.HttpTrafficLoggingFilter;
 import com.scott.payment.component.security.jwt.JwtMerchantClaims;
 import com.scott.payment.component.security.jwt.MerchantJwtVerifier;
 import com.scott.payment.openapi.dto.header.OpenApiRequestHeaderDTO;
 import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.security.MerchantKeyProvider;
 import com.scott.payment.openapi.security.SecurityInterceptEventRecorder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+
 
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiRequestHeaderExtractor
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 16:17
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 请求头提取器，位于 service-openapi 支撑层，负责必填头校验、JWT 验签、防重放登记和请求上下文标准化。
+ * @description : Open API Request Header Extractor 提取组件，位于 商户开放接口服务，从请求、响应或配置中读取关键字段，完成标准化、校验和脱敏日志准备。
  * @status : create
  */
 @Component
+@Slf4j
 public class OpenApiRequestHeaderExtractor {
 
     /**
@@ -61,6 +70,11 @@ public class OpenApiRequestHeaderExtractor {
     private final SecurityInterceptEventRecorder securityInterceptEventRecorder;
 
     /**
+     * OpenAPI 诊断日志支撑组件，用于生成请求头和 JWT 的安全摘要。
+     */
+    private final OpenApiDiagnosticLogSupport diagnosticLogSupport;
+
+    /**
      * 创建开放接口请求头提取器。
      *
      * @param merchantJwtVerifier    商户 JWT 验签器
@@ -73,12 +87,14 @@ public class OpenApiRequestHeaderExtractor {
                                          MerchantKeyProvider merchantKeyProvider,
                                          OpenApiJwtReplayProtectionService replayProtectionService,
                                          MerchantIpWhitelistAccessService ipWhitelistAccessService,
-                                         SecurityInterceptEventRecorder securityInterceptEventRecorder) {
+                                         SecurityInterceptEventRecorder securityInterceptEventRecorder,
+                                         OpenApiDiagnosticLogSupport diagnosticLogSupport) {
         this.merchantJwtVerifier = merchantJwtVerifier;
         this.merchantKeyProvider = merchantKeyProvider;
         this.replayProtectionService = replayProtectionService;
         this.ipWhitelistAccessService = ipWhitelistAccessService;
         this.securityInterceptEventRecorder = securityInterceptEventRecorder;
+        this.diagnosticLogSupport = diagnosticLogSupport;
     }
 
     /**
@@ -131,7 +147,6 @@ public class OpenApiRequestHeaderExtractor {
                     claims.getMerchantId(), "OPENAPI_JWT_REPLAY", exception);
             throw exception;
         }
-
         OpenApiRequestHeaderDTO headerDTO = new OpenApiRequestHeaderDTO();
         headerDTO.setAuthorization(token);
         headerDTO.setMerchantId(claims.getMerchantId());
@@ -139,15 +154,43 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
+        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
+                TraceContext.getTraceId(),
+                claims.getMerchantId(),
+                request.getRequestURI(),
+                request.getAttribute(OpenApiRequestAttributes.API_VERSION),
+                digest8(claims.getJwtId()),
+                clientIp,
+                diagnosticLogSupport.jwtSummary(headerDTO),
+                diagnosticLogSupport.headerSummary(request),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
+                request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE));
         return headerDTO;
     }
 
+    /**
+     * 记录 OpenAPI 安全拦截事件。
+     * <p>
+     * 该日志覆盖缺失头、JWT 验签失败、IP 白名单拒绝和防重放拒绝等认证阶段异常；
+     * Authorization、JWT 原文和完整请求体只通过 header/body 摘要展示，不直接输出。
+     * </p>
+     *
+     * @param request     当前 HTTP 请求
+     * @param eventType   安全拦截事件类型
+     * @param riskLevel   风险等级
+     * @param merchantId  已解析出的商户号；认证前失败时允许为空
+     * @param hitRuleCode 命中的安全规则编码
+     * @param exception   触发拦截的业务异常
+     */
     private void recordBlocked(HttpServletRequest request,
                                String eventType,
                                String riskLevel,
                                String merchantId,
                                String hitRuleCode,
                                RuntimeException exception) {
+        if (request != null) {
+            request.setAttribute(OpenApiRequestAttributes.EXCEPTION_TYPE, exception.getClass().getSimpleName());
+        }
         securityInterceptEventRecorder.recordBlocked(
                 request,
                 SecurityInterceptEventRecorder.SOURCE_OPENAPI,
@@ -158,8 +201,68 @@ public class OpenApiRequestHeaderExtractor {
                 securityInterceptEventRecorder.reasonCode(exception),
                 securityInterceptEventRecorder.reasonMessage(exception)
         );
+        log.warn("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=false ipAllowed=false hitRuleCode: {} reasonCode: {} exceptionType: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {} httpRequestSummary: {}",
+                TraceContext.getTraceId(),
+                merchantId,
+                request == null ? null : request.getRequestURI(),
+                request == null ? null : request.getAttribute(OpenApiRequestAttributes.API_VERSION),
+                hitRuleCode,
+                securityInterceptEventRecorder.reasonCode(exception),
+                exception.getClass().getSimpleName(),
+                diagnosticLogSupport.headerSummary(request),
+                request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
+                request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE),
+                request == null ? null : request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_SUMMARY_ATTRIBUTE));
     }
 
+    /**
+     * 生成开放接口幂等标识的短摘要，用于日志关联 JWT jti、防重放记录和安全拦截记录。
+     * <p>
+     * 输入值可能来自商户 JWT 声明；只输出 SHA-256 前 16 位十六进制摘要，不记录原始 jti。
+     * 该方法不修改请求状态，不访问外部系统，摘要仅用于排查同一次开放接口认证链路。
+     * </p>
+     * @param value 商户 JWT jti 或其他待摘要文本，允许为空
+     * @return 摘要文本；入参为空时返回 null；本地算法不可用时返回固定降级标识
+     */
+    private String digest8(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        try {
+            byte[] bytes = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(bytes).substring(0, 16);
+        } catch (NoSuchAlgorithmException exception) {
+            return "sha256_unavailable";
+        }
+    }
+
+    /**
+     * 解析开放接口调用方 IP，用于认证日志、IP 白名单判断记录和安全拦截事件。
+     * <p>
+     * 优先使用网关透传的 X-Forwarded-For 首个地址，缺失时回退到 Servlet 远端地址。
+     * 返回值只作为访问来源摘要，不承载 IP 库明细，不写入商户请求密文或 JWT 内容。
+     * </p>
+     * @param request 当前开放接口 HTTP 请求，不允许为空
+     * @return 调用方 IP 文本
+     */
+    private String clientIp(HttpServletRequest request) {
+        String forwardedFor = request.getHeader("X-Forwarded-For");
+        if (StringUtils.hasText(forwardedFor)) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    /**
+     * 解析resolvereplayeventtype，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param exception 下游调用、校验或持久化阶段捕获的异常对象
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolveReplayEventType(RuntimeException exception) {
         String reasonCode = securityInterceptEventRecorder.reasonCode(exception);
         if (ApiResultEnum.INTERNAL_SERVER_ERROR.getCode().equals(reasonCode)) {

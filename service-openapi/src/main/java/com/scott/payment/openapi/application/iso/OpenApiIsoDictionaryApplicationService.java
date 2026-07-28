@@ -9,16 +9,16 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiIsoDictionaryApplicationService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-19 19:19
  * @email : scott_x@163.com
- * @description : 商户 OpenAPIOpen Api Iso Dictionary Application 服务契约，位于 service-openapi 的应用编排层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Open API ISO Dictionary Application Service 应用服务，位于 商户开放接口服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
  * @status : create
  */
-@Service
 public class OpenApiIsoDictionaryApplicationService {
 
     /**
@@ -41,11 +41,6 @@ public class OpenApiIsoDictionaryApplicationService {
      * @param requestDTO 商户查询条件
      * @return 国家地区响应列表
      */
-    /**
-     * 查询商户 OpenAPI列表或分页数据，供页面筛选和展示使用。
-     * @param requestDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public List<IsoCountryVO> queryCountries(IsoCountryQueryRequestDTO requestDTO) {
         return isoDictionaryService.queryCountries(requestDTO);
     }
@@ -55,11 +50,6 @@ public class OpenApiIsoDictionaryApplicationService {
      *
      * @param requestDTO 商户查询条件
      * @return 币种响应列表
-     */
-    /**
-     * 查询商户 OpenAPI列表或分页数据，供页面筛选和展示使用。
-     * @param requestDTO 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public List<IsoCurrencyVO> queryCurrencies(IsoCurrencyQueryRequestDTO requestDTO) {
         return isoDictionaryService.queryCurrencies(requestDTO);

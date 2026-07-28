@@ -9,6 +9,15 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskEvaluationApplicationServiceTests
+ * @date : 2026-07-12 22:43
+ * @email : scott_x@163.com
+ * @description : Risk Evaluation Application Service Tests 应用服务，位于 风控服务，编排控制器入参、登录或商户上下文、领域服务调用和响应模型组装。
+ * @status : create
+ */
 class RiskEvaluationApplicationServiceTests {
 
     @Test

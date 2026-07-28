@@ -31,46 +31,76 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : ExchangeRateFetchServiceImplTest
- * @date : 2026-07-04 16:30
+ * @date : 2026-07-03 19:00
  * @email : scott_x@163.com
- * @description : 汇率管理Exchange Rate Fetch Service Impl Test，位于 service-job 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Exchange Rate Fetch Service Impl Test 服务实现，位于 调度任务服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
  * @status : create
  */
-@ExtendWith(MockitoExtension.class)
 class ExchangeRateFetchServiceImplTest {
 
-    /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * source Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ExchangeJobRateSourceMapper sourceMapper;
-    /**
-     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
-     */
     @Mock
+    /**
+     * raw Rate Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ExchangeJobRawRateMapper rawRateMapper;
-    /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * rule Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ExchangeJobRateRuleMapper ruleMapper;
-    /**
-     * 汇率管理金额、费率或数值字段，需保持精度语义，禁止使用浮点数替代。
-     */
     @Mock
+    /**
+     * business Rate Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：比例值；格式：decimal，按费率或汇率精度保存；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由费率、汇率或预警配置定义；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ExchangeJobBusinessRateMapper businessRateMapper;
-    /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
-     */
     @Mock
+    /**
+     * fetch Log Mapper 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private ExchangeRateFetchLogMapper fetchLogMapper;
 
     /**
-     * 汇率管理业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * service 依赖，用于 Exchange Rate Fetch Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private ExchangeRateFetchServiceImpl service;
 
@@ -161,7 +191,6 @@ class ExchangeRateFetchServiceImplTest {
         assertThat(captor.getValue().getEffectiveTime()).isEqualTo("2026-07-03T10:31:00");
     }
 
-
     private ExchangeRateSourceDO source() {
         ExchangeRateSourceDO source = new ExchangeRateSourceDO();
         source.setSourceCode("BOC");
@@ -209,20 +238,11 @@ class ExchangeRateFetchServiceImplTest {
      */
     private static class SingleUsdProvider implements ExchangeRateProvider {
 
-        /**
-         * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
         public String sourceCode() {
             return "BOC";
         }
 
-        /**
-         * 执行汇率管理相关处理，保持当前层级的职责边界和返回语义。
-         * @param source 请求参数或业务处理上下文，不能为空时由上层校验约束。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
         public List<RawRateItem> fetch(ExchangeRateSourceDO source) {
             RawRateItem item = new RawRateItem();

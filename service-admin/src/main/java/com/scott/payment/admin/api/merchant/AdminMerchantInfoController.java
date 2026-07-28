@@ -37,15 +37,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>商户管理菜单下的接口入口，负责商户基础资料、状态维护和 OpenAPI 安全材料管理的参数接收、
  * 权限校验与 HTTP 映射，具体业务编排由应用服务层处理。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminMerchantInfoController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户管理Admin Merchant Info 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/merchants")
 public class AdminMerchantInfoController {
@@ -68,10 +59,6 @@ public class AdminMerchantInfoController {
      * 查询商户新增和编辑表单选项。
      *
      * @return 表单选项
-     */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/form-options")
     @RequiresPermission("merchant:info:list")
@@ -97,11 +84,6 @@ public class AdminMerchantInfoController {
      * @param id 商户主键
      * @return 商户详情
      */
-    /**
-     * 获取商户管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/{id}")
     @RequiresPermission("merchant:info:query")
     public CommonResult<AdminMerchantInfoDTO> getMerchant(@PathVariable("id") Long id) {
@@ -113,11 +95,6 @@ public class AdminMerchantInfoController {
      *
      * @param request 商户保存请求
      * @return 新增后的商户资料
-     */
-    /**
-     * 创建或保存商户管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping
     @RequiresPermission("merchant:info:add")
@@ -132,12 +109,6 @@ public class AdminMerchantInfoController {
      * @param id      商户主键
      * @param request 商户保存请求
      * @return 更新后的商户资料
-     */
-    /**
-     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/{id}")
     @RequiresPermission("merchant:info:edit")
@@ -154,12 +125,6 @@ public class AdminMerchantInfoController {
      * @param request 状态变更请求
      * @return 更新后的商户资料
      */
-    /**
-     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PutMapping("/{id}/status")
     @RequiresPermission("merchant:info:changeStatus")
     @OperationLog(moduleName = "商户信息管理", businessType = OperationTypeConstants.UPDATE, operation = "修改商户状态")
@@ -174,11 +139,6 @@ public class AdminMerchantInfoController {
      * @param merchantId 商户号
      * @return 一次性安全材料
      */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/{merchantId}/security-material/provision")
     @RequiresPermission("merchant:material:view")
     @OperationLog(moduleName = "商户信息管理", businessType = OperationTypeConstants.UPDATE, operation = "生成商户OpenAPI对接材料")
@@ -192,11 +152,6 @@ public class AdminMerchantInfoController {
      * @param merchantId 商户号
      * @return 商户密钥集合
      */
-    /**
-     * 获取商户管理明细数据，并在不存在或不满足条件时按业务边界处理。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @GetMapping("/{merchantId}/keys")
     @RequiresPermission("merchant:key:manage")
     public CommonResult<AdminMerchantKeyBundleDTO> getMerchantKeys(@PathVariable("merchantId") String merchantId) {
@@ -208,11 +163,6 @@ public class AdminMerchantInfoController {
      *
      * @param merchantId 商户号
      * @return 轮换后的安全材料
-     */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/{merchantId}/jwt-key/rotate")
     @RequiresPermission("merchant:key:rotate")
@@ -227,11 +177,6 @@ public class AdminMerchantInfoController {
      * @param merchantId 商户号
      * @return 轮换后的安全材料
      */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @PostMapping("/{merchantId}/platform-payload-key/rotate")
     @RequiresPermission("merchant:platform-payload-key:rotate")
     @OperationLog(moduleName = "商户信息管理", businessType = OperationTypeConstants.UPDATE, operation = "轮换平台请求体密钥")
@@ -244,11 +189,6 @@ public class AdminMerchantInfoController {
      *
      * @param merchantId 商户号
      * @return 轮换后的安全材料
-     */
-    /**
-     * 执行商户管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PostMapping("/{merchantId}/response-key/rotate")
     @RequiresPermission("merchant:response-key:update")
@@ -263,12 +203,6 @@ public class AdminMerchantInfoController {
      * @param merchantId 商户号
      * @param request    响应公钥更新请求
      * @return 更新后的商户资料
-     */
-    /**
-     * 更新商户管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @PutMapping("/{merchantId}/response-key")
     @RequiresPermission("merchant:response-key:update")

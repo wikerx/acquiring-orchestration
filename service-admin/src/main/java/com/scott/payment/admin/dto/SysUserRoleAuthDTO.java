@@ -4,16 +4,17 @@ import lombok.Data;
 
 import java.util.List;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysUserRoleAuthDTO
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-12 11:47
  * @email : scott_x@163.com
- * @description : 后台用户角色授权响应 DTO，位于 service-admin 接口传输层；返回目标账号、角色清单和当前已绑定角色。
+ * @description : Sys User Role Auth DTO 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
-@Data
 public class SysUserRoleAuthDTO {
 
     /**

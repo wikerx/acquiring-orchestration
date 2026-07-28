@@ -31,21 +31,22 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOpenApiEndToEndTests
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPI 端到端测试，验证商户请求加密、JWT 验签、响应加密和响应字段契约。
- * @status : create
- */
+
 @Slf4j
 @AutoConfigureMockMvc
 @ActiveProfiles("mysql-test")
 @SpringBootTest(classes = OpenApiApplication.class)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : MerchantOpenApiEndToEndTests
+ * @date : 2026-05-30 09:37
+ * @email : scott_x@163.com
+ * @description : Merchant Open API End To End Tests 自动化测试类，位于 商户开放接口服务，验证当前模块的正常路径、异常边界和回归场景。
+ * @status : create
+ */
 class MerchantOpenApiEndToEndTests {
 
     /**
@@ -141,7 +142,7 @@ class MerchantOpenApiEndToEndTests {
         log.info("商户完成HTTP请求体封装-body摘要：{}",
                 MerchantOpenApiTestSupport.safeSecretSummary(httpRequestBody, keyMaterialFactory));
 
-        log.info("商户准备调用OpenAPI-密钥摘要：merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+        log.info("商户准备调用OpenAPI-密钥摘要：merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
                 keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(onboardingMaterial.getMerchantResponsePrivateKeyPkcs8Base64()));
@@ -161,7 +162,7 @@ class MerchantOpenApiEndToEndTests {
                 .andReturn();
 
         PaymentCreateVO decryptedResponse = decryptMerchantResponseData(onboardingMaterial, mvcResult.getResponse().getContentAsString());
-        log.info("decryptedResponse={}", decryptedResponse);
+        log.info("decryptedResponse: {}", decryptedResponse);
 
         assertThat(decryptedResponse.getOrderInfo().getOrderNo()).isEqualTo(SUCCESS_TRADE_NO);
         assertThat(decryptedResponse.getBillingInfo().getTransactionCurrency()).isEqualTo("USD");
@@ -269,7 +270,7 @@ class MerchantOpenApiEndToEndTests {
                 encryptedResponseData,
                 MerchantOpenApiTestSupport.resolveMerchantResponsePrivateKey(merchantMaterial, payloadCrypto)
         );
-        log.info("商户响应解密成功-响应码={}，响应消息={}，响应明文={}",
+        log.info("商户响应解密成功-响应码: {}，响应消息: {}，响应明文: {}",
                 responseMap.get("code"),
                 responseMap.get("message"),
                 plainResponseData);

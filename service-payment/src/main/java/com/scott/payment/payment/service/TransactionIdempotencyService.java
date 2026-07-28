@@ -28,6 +28,37 @@ public interface TransactionIdempotencyService {
     String buildTransactionOperationKey(String merchantId, String merchantOrderId, String transactionType);
 
     /**
+     * 构建首次交易全局幂等键。
+     * <p>
+     * Payment/Auth/PreAuth 起点动作以 merchantId + merchantOrderNo + INITIAL 作为持久化幂等维度，
+     * 不能依赖单次 API 请求号 merchantOrderId 或 Redis 锁作为最终兜底。
+     *
+     * @param merchantId       商户号
+     * @param merchantOrderNo  商户订单号
+     * @return 首次交易幂等键
+     */
+    default String buildInitialTransactionKey(String merchantId, String merchantOrderNo) {
+        return String.join(":",
+                normalizeKeyPart(merchantId),
+                normalizeKeyPart(merchantOrderNo),
+                "INITIAL");
+    }
+
+    /**
+     * 解析normalize密钥part，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
+    private static String normalizeKeyPart(String value) {
+        return value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    /**
      * 查询幂等记录。
      *
      * @param scope 幂等范围

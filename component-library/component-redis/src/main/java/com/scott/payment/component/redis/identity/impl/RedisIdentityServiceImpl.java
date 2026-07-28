@@ -26,15 +26,6 @@ import java.util.Locale;
  * @description : Redis 分布式业务标识生成服务实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : RedisIdentityServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Redis Identity Service Impl，位于 component-library/component-redis 的业务组件层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 @ConditionalOnBean(StringRedisTemplate.class)
 public class RedisIdentityServiceImpl implements RedisIdentityService {
@@ -92,11 +83,6 @@ public class RedisIdentityServiceImpl implements RedisIdentityService {
      * @param businessPrefix 业务前缀，例如 PA 表示收单支付
      * @return 平台业务标识
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param businessPrefix 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public String nextIdentityId(String businessPrefix) {
         return redisOrderNoGenerator.nextOrderNo(businessPrefix);
@@ -107,11 +93,6 @@ public class RedisIdentityServiceImpl implements RedisIdentityService {
      *
      * @param institutionCode 机构号或通道机构编码
      * @return 6 位系统追踪号
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param institutionCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public String nextDailyStan(String institutionCode) {
@@ -135,12 +116,6 @@ public class RedisIdentityServiceImpl implements RedisIdentityService {
      * @param institutionCode 机构号或通道机构编码
      * @return 6 位系统追踪号
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param cardBrand 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param institutionCode 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public String nextDailyStan(String cardBrand, String institutionCode) {
         String businessKey = StringUtils.hasText(cardBrand)
@@ -154,11 +129,6 @@ public class RedisIdentityServiceImpl implements RedisIdentityService {
      *
      * @param businessKey 业务隔离键
      * @return 6 位系统追踪号
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param businessKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Override
     public String nextDailyDecrementStan(String businessKey) {

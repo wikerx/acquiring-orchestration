@@ -32,8 +32,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
     @Insert("""
             INSERT INTO ${physicalTableName}
             (
-              operation_id, transaction_id, source_transaction_id, merchant_id,
-              merchant_order_no, merchant_order_id, operation_sequence, transaction_type, transaction_status,
+              operation_id, transaction_id, source_transaction_id, source_operation_id, merchant_id,
+              merchant_order_no, merchant_operation_no, operation_sequence, transaction_type, transaction_status,
               process_stage, pending_reason_code, fail_reason_code, fail_reason_message, label_currency, label_amount,
               transaction_currency, transaction_amount, approved_currency, approved_amount,
               channel_request_currency, channel_request_amount, settlement_currency, settlement_amount,
@@ -49,7 +49,8 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             VALUES
             (
               #{operationDO.operationId}, #{operationDO.transactionId}, #{operationDO.sourceTransactionId},
-              #{operationDO.merchantId}, #{operationDO.merchantOrderNo}, #{operationDO.merchantOrderId},
+              #{operationDO.sourceOperationId}, #{operationDO.merchantId}, #{operationDO.merchantOrderNo},
+              #{operationDO.merchantOperationNo},
               #{operationDO.operationSequence}, #{operationDO.transactionType},
               #{operationDO.transactionStatus}, #{operationDO.processStage}, #{operationDO.pendingReasonCode},
               #{operationDO.failReasonCode}, #{operationDO.failReasonMessage}, #{operationDO.labelCurrency}, #{operationDO.labelAmount},
@@ -125,6 +126,10 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
      * @param channelStatus         渠道原始状态
      * @param channelResponseCode   渠道响应码
      * @param channelResponseMessage 渠道响应描述
+     * @param authCode              授权码
+     * @param rrn                   检索参考号或渠道回单号
+     * @param acquirerReferenceNo   收单机构参考号
+     * @param channelMatchStatus    渠道勾兑状态；同步终态为 NOT_REQUIRED，回调/主动查询确认为 MATCHED
      * @return 影响行数，1 表示状态推进成功
      */
     @Update("""
@@ -136,7 +141,10 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                 channel_status = #{channelStatus},
                 channel_response_code = #{channelResponseCode},
                 channel_response_message = #{channelResponseMessage},
-                channel_match_status = 'MATCHED',
+                auth_code = #{authCode},
+                rrn = #{rrn},
+                acquirer_reference_no = #{acquirerReferenceNo},
+                channel_match_status = #{channelMatchStatus},
                 channel_match_result = #{transactionStatus},
                 next_channel_match_time = NULL,
                 channel_match_fail_reason = NULL,
@@ -157,7 +165,69 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                                @Param("failReasonMessage") String failReasonMessage,
                                @Param("channelStatus") String channelStatus,
                                @Param("channelResponseCode") String channelResponseCode,
-                               @Param("channelResponseMessage") String channelResponseMessage);
+                               @Param("channelResponseMessage") String channelResponseMessage,
+                               @Param("authCode") String authCode,
+                               @Param("rrn") String rrn,
+                               @Param("acquirerReferenceNo") String acquirerReferenceNo,
+                               @Param("channelMatchStatus") String channelMatchStatus);
+
+    /**
+     * CAS 记录渠道同步非终态结果。
+     * <p>
+     * 非终态结果只更新渠道摘要、处理阶段和勾兑入口，不写 complete_time，也不把勾兑状态标记为 MATCHED，
+     * 便于后续主动查询或回调继续推进终态。
+     *
+     * @param physicalTableName     经分表规则解析器校验后的物理表名
+     * @param id                    动作单物理主键
+     * @param expectedVersion       读取动作单时的版本号
+     * @param transactionStatus     目标非终态交易状态
+     * @param processStage          目标处理阶段
+     * @param pendingReasonCode     挂起原因码
+     * @param failReasonCode        失败原因码
+     * @param failReasonMessage     后台可见失败原因
+     * @param channelStatus         渠道原始状态
+     * @param channelResponseCode   渠道响应码
+     * @param channelResponseMessage 渠道响应描述
+     * @param requestId             原渠道请求 ID
+     * @param matchTime             本次记录时间
+     * @return 影响行数，1 表示状态记录成功
+     */
+    @Update("""
+            UPDATE ${physicalTableName}
+            SET transaction_status = #{transactionStatus},
+                process_stage = #{processStage},
+                pending_reason_code = #{pendingReasonCode},
+                fail_reason_code = #{failReasonCode},
+                fail_reason_message = #{failReasonMessage},
+                channel_status = #{channelStatus},
+                channel_response_code = #{channelResponseCode},
+                channel_response_message = #{channelResponseMessage},
+                channel_match_status = 'PENDING',
+                channel_match_result = #{transactionStatus},
+                last_channel_match_request_id = #{requestId},
+                last_channel_match_time = #{matchTime},
+                next_channel_match_time = COALESCE(next_channel_match_time, #{matchTime}),
+                channel_match_fail_reason = #{failReasonMessage},
+                version = version + 1,
+                update_time = #{matchTime}
+            WHERE id = #{id}
+              AND version = #{expectedVersion}
+              AND transaction_status NOT IN ('SUCCESS', 'FAILED')
+              AND deleted = 0
+            """)
+    int updateNonTerminalChannelResultPhysical(@Param("physicalTableName") String physicalTableName,
+                                               @Param("id") Long id,
+                                               @Param("expectedVersion") Integer expectedVersion,
+                                               @Param("transactionStatus") String transactionStatus,
+                                               @Param("processStage") String processStage,
+                                               @Param("pendingReasonCode") String pendingReasonCode,
+                                               @Param("failReasonCode") String failReasonCode,
+                                               @Param("failReasonMessage") String failReasonMessage,
+                                               @Param("channelStatus") String channelStatus,
+                                               @Param("channelResponseCode") String channelResponseCode,
+                                               @Param("channelResponseMessage") String channelResponseMessage,
+                                               @Param("requestId") String requestId,
+                                               @Param("matchTime") LocalDateTime matchTime);
 
     /**
      * 查询待渠道勾兑的动作单。
@@ -176,8 +246,6 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               AND channel_match_status = 'PENDING'
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND channel_code IS NOT NULL
-              AND channel_order_no IS NOT NULL
-              AND channel_transaction_id IS NOT NULL
               AND (next_channel_match_time IS NULL OR next_channel_match_time &lt;= #{now})
               <if test="channelCode != null and channelCode != ''">
                 AND channel_code = #{channelCode}
@@ -218,6 +286,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                 update_time = #{matchTime}
             WHERE id = #{id}
               AND version = #{expectedVersion}
+              AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND deleted = 0
             """)
     int updateChannelMatchPhysical(@Param("physicalTableName") String physicalTableName,
@@ -313,6 +382,106 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
     List<TransactionOperationDO> selectInitialByMerchantOrderPhysical(@Param("physicalTableName") String physicalTableName,
                                                                       @Param("merchantId") String merchantId,
                                                                       @Param("merchantOrderNo") String merchantOrderNo);
+
+    /**
+     * 查询同一生命周期下未终态 Capture 动作。
+     * <p>
+     * 该查询只读取真实动作事实，不按商户订单号推断 Capture 动作号，避免把原 Payment/Auth 订单号误作多次请款标识。
+     *
+     * @param physicalTableName   经分表规则解析器校验后的物理表名
+     * @param merchantId          平台商户号
+     * @param operationId         平台内部生命周期关联标识
+     * @param sourceTransactionId 原授权或预授权平台交易 ID
+     * @return 未终态 Capture 动作列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND operation_id = #{operationId}
+              AND source_transaction_id = #{sourceTransactionId}
+              AND transaction_type IN ('CAPTURE', 'PRE_AUTH_COMPLETION')
+              AND transaction_status IN ('PROCESSING', 'PENDING')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectNonTerminalCapturesPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                   @Param("merchantId") String merchantId,
+                                                                   @Param("operationId") String operationId,
+                                                                   @Param("sourceTransactionId") String sourceTransactionId);
+
+    /**
+     * 查询同一生命周期下未终态 Refund 动作。
+     * <p>
+     * Refund 额度按生命周期共享，PROCESSING/PENDING 动作恢复为 SUCCESS/FAILED 前必须纳入占用。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param merchantId        平台商户号
+     * @param operationId       平台内部生命周期关联标识
+     * @return 未终态 Refund 动作列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND operation_id = #{operationId}
+              AND transaction_type = 'REFUND'
+              AND transaction_status IN ('PROCESSING', 'PENDING')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectNonTerminalRefundsPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                  @Param("merchantId") String merchantId,
+                                                                  @Param("operationId") String operationId);
+
+    /**
+     * 查询同一生命周期下未终态 Void 动作。
+     * <p>
+     * Void / Authorization Cancel 恢复为明确终态前必须阻断 Capture、Refund 和新的 Void，避免重复释放授权或重复返还资金。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param merchantId        平台商户号
+     * @param operationId       平台内部生命周期关联标识
+     * @return 未终态 Void 动作列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND operation_id = #{operationId}
+              AND transaction_type = 'VOID'
+              AND transaction_status IN ('PROCESSING', 'PENDING')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectNonTerminalVoidsPhysical(@Param("physicalTableName") String physicalTableName,
+                                                                @Param("merchantId") String merchantId,
+                                                                @Param("operationId") String operationId);
+
+    /**
+     * 查询同一授权生命周期下未终态 Incremental Authorization 动作。
+     * <p>
+     * PROCESSING/PENDING 动作恢复为明确终态前必须阻断新的增量授权，避免 timeout/unknown 重发渠道请求后重复加授权金额。
+     *
+     * @param physicalTableName 经分表规则解析器校验后的物理表名
+     * @param merchantId        平台商户号
+     * @param operationId       平台内部生命周期关联标识
+     * @return 未终态 Incremental Authorization 动作列表
+     */
+    @Select("""
+            SELECT *
+            FROM ${physicalTableName}
+            WHERE merchant_id = #{merchantId}
+              AND operation_id = #{operationId}
+              AND transaction_type = 'INCREMENTAL_AUTHORIZATION'
+              AND transaction_status IN ('PROCESSING', 'PENDING')
+              AND deleted = 0
+            ORDER BY transaction_date_time ASC, id ASC
+            """)
+    List<TransactionOperationDO> selectNonTerminalIncrementalAuthorizationsPhysical(
+            @Param("physicalTableName") String physicalTableName,
+            @Param("merchantId") String merchantId,
+            @Param("operationId") String operationId);
 
     /**
      * 按交易时间范围查询动作单列表。

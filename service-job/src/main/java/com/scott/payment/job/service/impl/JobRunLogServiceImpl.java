@@ -25,20 +25,16 @@ import java.util.List;
  * @description : 任务运行日志服务实现
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobRunLogServiceImpl
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Run Log Service Impl，位于 service-job 的服务实现层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Service
 public class JobRunLogServiceImpl implements JobRunLogService {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * sys Job Run Log Mapper 依赖，用于 Job Run Log Service Impl 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final SysJobRunLogMapper sysJobRunLogMapper;
 
@@ -51,13 +47,6 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         this.sysJobRunLogMapper = sysJobRunLogMapper;
     }
 
-    /**
-     * 创建或保存收单支付数据，保持请求校验、默认值和审计字段一致。
-     * @param task 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param maskedParams 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public SysJobRunLogDO createWaitingLog(SysJobTaskDO task, JobExecuteContext context, String maskedParams) {
         LocalDateTime now = LocalDateTime.now();
@@ -85,10 +74,6 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         return runLog;
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param logId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void markRunning(Long logId) {
         SysJobRunLogDO runLog = new SysJobRunLogDO();
@@ -99,33 +84,16 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         sysJobRunLogMapper.updateById(runLog);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param logId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param durationMs 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param resultMessage 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void finishAsSuccess(Long logId, long durationMs, String resultMessage) {
         sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.SUCCESS.name(), resultMessage, null, durationMs);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param logId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param durationMs 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param errorMessage 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void finishAsFailed(Long logId, long durationMs, String errorMessage) {
         sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.FAILED.name(), null, errorMessage, durationMs);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param runLog 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public boolean finishAsTimeout(SysJobRunLogDO runLog) {
         long durationMs = runLog.getStartTime() == null ? 0L
@@ -139,11 +107,6 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         ) > 0;
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public PageResult<SysJobRunLogDO> pageLogs(JobRunLogQueryRequest request) {
         JobRunLogQueryRequest query = request == null ? new JobRunLogQueryRequest() : request;
@@ -154,39 +117,21 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
-    /**
-     * 删除收单支付数据，按业务规则处理引用校验和删除边界。
-     * @param id 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     */
     @Override
     public void removeLog(Long id) {
         sysJobRunLogMapper.deleteById(id);
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public int cleanLogs(JobRunLogQueryRequest request) {
         return sysJobRunLogMapper.delete(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
     }
 
-    /**
-     * 查询收单支付列表或分页数据，供页面筛选和展示使用。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<SysJobRunLogDO> listLogs(JobRunLogQueryRequest request) {
         return sysJobRunLogMapper.selectList(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
     }
 
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Override
     public List<SysJobRunLogDO> selectTimeoutCandidates() {
         return sysJobRunLogMapper.selectTimeoutCandidates();

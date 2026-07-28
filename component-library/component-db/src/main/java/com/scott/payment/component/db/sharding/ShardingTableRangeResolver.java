@@ -134,11 +134,31 @@ public class ShardingTableRangeResolver {
         return rule;
     }
 
+    /**
+     * 规范化quarterstart，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param quarter quarter 输入值，参与 quarter 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private LocalDateTime quarterStart(ShardingQuarter quarter) {
         int month = (quarter.quarter() - 1) * 3 + 1;
         return LocalDateTime.of(quarter.year(), month, 1, 0, 0, 0, 0);
     }
 
+    /**
+     * 规范化previous，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param quarter quarter 输入值，参与 quarter 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private ShardingQuarter previous(ShardingQuarter quarter) {
         if (quarter.quarter() == 1) {
             return new ShardingQuarter(quarter.year() - 1, 4);

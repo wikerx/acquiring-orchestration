@@ -22,15 +22,6 @@ import java.util.Map;
  * <p>系统监控菜单下的服务器信息接口入口，负责服务监控相关 HTTP 映射与权限校验，
  * 具体节点运行指标采集由应用服务层完成。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MonitorServerController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 监控治理Monitor Server 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/monitor")
 public class MonitorServerController {
@@ -55,10 +46,6 @@ public class MonitorServerController {
      * <p>返回 CPU 核心数与系统负载、JVM 内存使用、操作系统信息、运行时长和磁盘使用情况。
      *
      * @return 服务器运行信息 Map
-     */
-    /**
-     * 执行监控治理相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @GetMapping("/server")
     @RequiresPermission("system:server:list")

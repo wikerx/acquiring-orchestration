@@ -17,15 +17,6 @@ import java.time.LocalDateTime;
  * @description : 调度中心任务执行上下文对象
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobExecuteContext
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Execute Context，位于 component-library/component-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Data
 public class JobExecuteContext {
 
@@ -95,6 +86,24 @@ public class JobExecuteContext {
     private Integer maxRetryCount;
 
     /**
+     * 当前执行分片序号。
+     * <p>
+     * 单位：片；格式：从 0 开始的整数；允许为空，调度中心默认补齐为 0；非敏感字段。
+     * 与 shardTotal 配合标识同一次任务执行中的分片位置。
+     * </p>
+     */
+    private Integer shardIndex;
+
+    /**
+     * 当前执行分片总数。
+     * <p>
+     * 单位：片；格式：大于 0 的整数；允许为空，调度中心默认补齐为 1；非敏感字段。
+     * 与 shardIndex 配合用于日志定位同一次任务执行的分片范围。
+     * </p>
+     */
+    private Integer shardTotal;
+
+    /**
      * 手动触发的操作人 ID。
      */
     private String operatorId;
@@ -120,11 +129,6 @@ public class JobExecuteContext {
      * @param clazz 参数对象类型
      * @param <T>   参数泛型
      * @return 参数对象
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param clazz 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public <T> T parseParams(Class<T> clazz) {
         return JsonUtils.parseObject(paramsJson, clazz);

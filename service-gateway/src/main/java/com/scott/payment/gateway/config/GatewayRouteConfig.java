@@ -16,15 +16,6 @@ import org.springframework.core.Ordered;
  * @description : 网关路由配置，统一声明外部请求可以进入系统的路径规则
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : GatewayRouteConfig
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Gateway Route 配置，位于 service-gateway 的配置层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Configuration
 @EnableConfigurationProperties(GatewayClientIpProperties.class)
 public class GatewayRouteConfig {
@@ -60,6 +51,11 @@ public class GatewayRouteConfig {
     private static final String PAYOUT_OPENAPI_PATH = "/api/rest/payout/**";
 
     /**
+     * ISO 基础资料 API 路径，形如 /api/rest/iso/v1/countries/query。
+     */
+    private static final String ISO_OPENAPI_PATH = "/api/rest/iso/**";
+
+    /**
      * 渠道回调路径，当前由 service-openapi 统一承接后再转发到支付或代付服务。
      */
     private static final String CHANNEL_CALLBACK_PATH = "/channel/**";
@@ -80,9 +76,24 @@ public class GatewayRouteConfig {
     private static final String MERCHANT_API_PATH = "/merchant/**";
 
     /**
-     * 收银台公开 API 路径，形如 /checkout/config/countries。
+     * 商户 Hosted Checkout OpenAPI 路径，形如 /api/rest/checkout/v1/session。
      */
-    private static final String CHECKOUT_API_PATH = "/checkout/**";
+    private static final String CHECKOUT_OPENAPI_PATH = "/api/rest/checkout/**";
+
+    /**
+     * 付款人浏览器 Hosted Checkout API 路径，形如 /checkout/api/v1/session/query。
+     */
+    private static final String CHECKOUT_BROWSER_API_PATH = "/checkout/api/**";
+
+    /**
+     * 收银台公开展示配置路径，形如 /checkout/config/countries。
+     */
+    private static final String CHECKOUT_CONFIG_PATH = "/checkout/config/**";
+
+    /**
+     * 收银台服务健康检查路径。
+     */
+    private static final String CHECKOUT_HEALTH_PATH = "/checkout/health";
 
     /**
      * 网关本地兜底路径，用于输出统一 JSON 错误响应。
@@ -111,21 +122,19 @@ public class GatewayRouteConfig {
      * @param builder Spring Cloud Gateway 路由构建器
      * @return 网关路由集合
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @param builder 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Bean
     public RouteLocator openApiRoutes(RouteLocatorBuilder builder) {
         return builder.routes()
                 .route("merchant-payment-openapi", route -> route.path(PAYMENT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("merchant-payout-openapi", route -> route.path(PAYOUT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("merchant-iso-openapi", route -> route.path(ISO_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("merchant-checkout-openapi", route -> route.path(CHECKOUT_OPENAPI_PATH).uri(SERVICE_OPENAPI_URI))
+                .route("checkout-browser-api", route -> route.path(CHECKOUT_BROWSER_API_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("channel-callback-openapi", route -> route.path(CHANNEL_CALLBACK_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("openapi-support", route -> route.path(OPENAPI_SUPPORT_PATH).uri(SERVICE_OPENAPI_URI))
                 .route("admin-api", route -> route.path(ADMIN_API_PATH).uri(SERVICE_ADMIN_URI))
                 .route("merchant-api", route -> route.path(MERCHANT_API_PATH).uri(SERVICE_MERCHANT_URI))
-                .route("checkout-api", route -> route.path(CHECKOUT_API_PATH).uri(SERVICE_CHECKOUT_URI))
+                .route("checkout-config", route -> route.path(CHECKOUT_CONFIG_PATH, CHECKOUT_HEALTH_PATH).uri(SERVICE_CHECKOUT_URI))
                 .route("gateway-unmatched-path", route -> route.order(Ordered.LOWEST_PRECEDENCE)
                         .path(ANY_PATH)
                         .and()

@@ -16,7 +16,7 @@
 
     <!-- 统一日志格式 -->
     <property name="logPattern"
-              value="%d{yyyy-MM-dd HH:mm:ss.SSS,Asia/Shanghai} %-5level [%thread] [traceId=%X{traceId:-} spanId=%X{spanId:-}] ${applicationName} %logger{36} - %msg%n"/>
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS,Asia/Shanghai} %-5level [%thread] [traceId=%X{traceId:-}] ${applicationName} %logger{36} - %msg%n"/>
 
     <!-- 控制台日志 -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">

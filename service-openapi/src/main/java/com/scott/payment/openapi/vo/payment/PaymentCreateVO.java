@@ -7,16 +7,17 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
+
+@Data
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : PaymentCreateVO
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-28 10:23
  * @email : scott_x@163.com
- * @description : 商户 OpenAPI 收单交易响应 VO，按商户接入文档返回商户请求回显、平台交易信息和账单金额信息；不返回 cardInfo、operationId、渠道内部交易号和空字段。
+ * @description : Payment Create VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
  * @status : create
  */
-@Data
 public class PaymentCreateVO implements Serializable {
 
     /**
@@ -62,6 +63,15 @@ public class PaymentCreateVO implements Serializable {
     private String status;
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : MerchantInfoVO
+     * @date : 2026-05-28 10:23
+     * @email : scott_x@163.com
+     * @description : Merchant Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class MerchantInfoVO implements Serializable {
 
         /**
@@ -81,6 +91,15 @@ public class PaymentCreateVO implements Serializable {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : SubMerchantInfoVO
+     * @date : 2026-05-28 10:23
+     * @email : scott_x@163.com
+     * @description : Sub Merchant Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class SubMerchantInfoVO implements Serializable {
 
         /**
@@ -160,6 +179,15 @@ public class PaymentCreateVO implements Serializable {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : BillingCardHolderInfoVO
+     * @date : 2026-05-28 10:23
+     * @email : scott_x@163.com
+     * @description : Billing Card Holder Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class BillingCardHolderInfoVO implements Serializable {
 
         /**
@@ -214,6 +242,15 @@ public class PaymentCreateVO implements Serializable {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : OrderInfoVO
+     * @date : 2026-05-28 10:23
+     * @email : scott_x@163.com
+     * @description : Order Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class OrderInfoVO implements Serializable {
 
         /**
@@ -257,17 +294,26 @@ public class PaymentCreateVO implements Serializable {
         private BigDecimal totalRefundAmount;
 
         /**
-         * 当前生命周期累计撤销金额，平台交易币种单位。
+         * 当前生命周期累计授权取消、预授权取消或未请款金额释放成功金额，平台交易币种单位。
          */
-        private BigDecimal totalVoidAmount;
+        private BigDecimal totalAuthorizedCancelAmount;
 
         /**
-         * 当前生命周期累计拒付金额，平台交易币种单位。
+         * 当前生命周期累计拒付成立或确认成功金额，平台交易币种单位。
          */
-        private BigDecimal totalChargebackAmount;
+        private BigDecimal totalRefuseAmount;
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : TransactionInfoVO
+     * @date : 2026-05-28 10:23
+     * @email : scott_x@163.com
+     * @description : Transaction Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class TransactionInfoVO implements Serializable {
 
         /**
@@ -371,6 +417,15 @@ public class PaymentCreateVO implements Serializable {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : BillingInfoVO
+     * @date : 2026-05-28 10:23
+     * @email : scott_x@163.com
+     * @description : Billing Info VO 传输模型，位于 商户开放接口服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class BillingInfoVO implements Serializable {
 
         /**

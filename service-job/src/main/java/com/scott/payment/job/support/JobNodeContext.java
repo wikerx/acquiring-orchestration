@@ -17,38 +17,62 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @description : 调度中心执行节点上下文
  * @status : create
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : JobNodeContext
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 收单支付Job Node Context，位于 service-job 的任务调度层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @Component
 public class JobNodeContext {
 
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * app Name，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final String appName;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * configured Host，表示远程服务主机、商户域名或渠道访问域名。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final String configuredHost;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * port，用于保存 Job Node Context 中与 port 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final int port;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * registration，用于保存 Job Node Context 中与 registration 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final Registration registration;
     /**
-     * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * job Scheduler Properties，用于保存 Job Node Context 中与 jobschedulerproperties 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final JobSchedulerProperties jobSchedulerProperties;
+    /**
+     * running Count，表示当前统计、分页、扫描或重试场景中的数量。
+     * <p>
+     * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final AtomicInteger runningCount = new AtomicInteger();
 
     /**
@@ -77,10 +101,6 @@ public class JobNodeContext {
      *
      * @return 节点唯一标识
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String nodeId() {
         return appName + "@" + host() + ":" + port;
     }
@@ -90,10 +110,6 @@ public class JobNodeContext {
      *
      * @return 服务名称
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String appName() {
         return appName;
     }
@@ -102,10 +118,6 @@ public class JobNodeContext {
      * 返回当前主机地址。
      *
      * @return 主机地址
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public String host() {
         if (configuredHost != null && !configuredHost.isBlank()) {
@@ -126,10 +138,6 @@ public class JobNodeContext {
      *
      * @return 端口
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public int port() {
         return port;
     }
@@ -139,10 +147,6 @@ public class JobNodeContext {
      *
      * @return 实例 ID
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String instanceId() {
         return registration == null ? nodeId() : registration.getInstanceId();
     }
@@ -150,18 +154,12 @@ public class JobNodeContext {
     /**
      * 进入执行中的任务数量加一。
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     */
     public void incrementRunningCount() {
         runningCount.incrementAndGet();
     }
 
     /**
      * 执行结束的任务数量减一。
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
      */
     public void decrementRunningCount() {
         runningCount.updateAndGet(value -> Math.max(value - 1, 0));
@@ -172,10 +170,6 @@ public class JobNodeContext {
      *
      * @return 当前运行任务数
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public int runningCount() {
         return runningCount.get();
     }
@@ -185,10 +179,6 @@ public class JobNodeContext {
      *
      * @return 最大并发配置
      */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public int maxConcurrentCount() {
         return 16;
     }
@@ -197,10 +187,6 @@ public class JobNodeContext {
      * 返回节点离线判定秒数。
      *
      * @return 离线判定秒数
-     */
-    /**
-     * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public int offlineSeconds() {
         return jobSchedulerProperties.getNodeOfflineSeconds();

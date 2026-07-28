@@ -84,7 +84,8 @@ class AdminTransactionApplicationServiceTests {
         assertThat(actual).isSameAs(expected);
         PaymentTransactionActionClientRequestDTO command = captor.getValue();
         assertThat(command.getMerchantOrderId()).startsWith("ADMVD");
-        assertThat(command.getAmount()).isNull();
+        assertThat(command.getAmount()).isEqualByComparingTo("3.00");
+        assertThat(command.getLabelAmount()).isEqualByComparingTo("3.00");
         assertThat(command.getCurrency()).isEqualTo("USD");
         assertThat(command.getTransactionInfo().getSourceTransactionId()).isEqualTo("TX202607140010");
     }
@@ -106,27 +107,19 @@ class AdminTransactionApplicationServiceTests {
     }
 
     /**
-     * 用户在授权行发起退款时，后台应选择同生命周期内成功的请款或支付动作作为退款源。
+     * 授权成功交易不支持直接退款，需先请款成功后再按请款交易退款。
      */
     @Test
-    void refundShouldUseCapturedOperationWhenAuthorizationRowSelected() {
+    void refundShouldRejectAuthorizationOperation() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
         AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
         AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
-        TransactionDetailResponse detailResponse = new TransactionDetailResponse();
-        TransactionOperationResponse authorization = operation("TX202607140020", "AUTHORIZATION", LocalDateTime.of(2026, 7, 14, 10, 0));
-        TransactionOperationResponse capture = operation("TX202607140021", "CAPTURE", LocalDateTime.of(2026, 7, 14, 10, 5));
-        detailResponse.setOperations(List.of(authorization, capture));
-        when(transactionQueryService.detail("TX202607140020")).thenReturn(detailResponse);
-        ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
-                ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
-        when(paymentInternalClient.refund(captor.capture())).thenReturn(actionResponse("TX202607140022", "REFUND"));
+        when(transactionQueryService.detail("TX202607140020")).thenReturn(detail("TX202607140020", "AUTHORIZATION"));
         TransactionActionRequest request = new TransactionActionRequest();
         request.setAmount(new BigDecimal("1.00"));
 
-        service.refund("TX202607140020", request);
-
-        assertThat(captor.getValue().getTransactionInfo().getSourceTransactionId()).isEqualTo("TX202607140021");
+        assertThatThrownBy(() -> service.refund("TX202607140020", request))
+                .isInstanceOf(ApiException.class);
     }
 
     private AdminTransactionApplicationService buildService(PaymentInternalClient paymentInternalClient) {

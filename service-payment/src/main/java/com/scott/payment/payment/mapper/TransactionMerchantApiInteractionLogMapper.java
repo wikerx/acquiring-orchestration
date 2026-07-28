@@ -108,4 +108,48 @@ public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<T
                                      @Param("responseCipherDigest") String responseCipherDigest,
                                      @Param("responseCipherMasked") String responseCipherMasked,
                                      @Param("responseTime") LocalDateTime responseTime);
+
+    /**
+     * 回写商户 OpenAPI 同步响应最终业务结果。
+     * <p>
+     * 首次交易在渠道调用前会先记录 PROCESSING 受理日志；同步渠道返回后需要把日志更新成实际返回商户的终态响应。
+     *
+     * @param physicalTableName       经分表规则解析器校验后的物理表名
+     * @param transactionId           平台当前交易 ID
+     * @param requestId               商户请求唯一号，可为空
+     * @param requestResult           最终请求处理结果
+     * @param responseResult          最终响应处理结果
+     * @param merchantResponseCode    商户侧可见响应码
+     * @param merchantResponseMessage 商户侧可见响应描述
+     * @param responsePlainJsonMasked 平台最终响应脱敏明文
+     * @param responseTime            响应完成时间
+     * @param durationMillis          OpenAPI 到当前响应耗时
+     * @return 影响行数
+     */
+    @Update("""
+            <script>
+            UPDATE ${physicalTableName}
+            SET request_result = #{requestResult},
+                response_result = #{responseResult},
+                merchant_response_code = #{merchantResponseCode},
+                merchant_response_message = #{merchantResponseMessage},
+                response_plain_json_masked = #{responsePlainJsonMasked},
+                response_time = #{responseTime},
+                duration_millis = #{durationMillis}
+            WHERE transaction_id = #{transactionId}
+              <if test="requestId != null and requestId != ''">
+                AND request_id = #{requestId}
+              </if>
+            </script>
+            """)
+    int updateFinalResultPhysical(@Param("physicalTableName") String physicalTableName,
+                                  @Param("transactionId") String transactionId,
+                                  @Param("requestId") String requestId,
+                                  @Param("requestResult") String requestResult,
+                                  @Param("responseResult") String responseResult,
+                                  @Param("merchantResponseCode") String merchantResponseCode,
+                                  @Param("merchantResponseMessage") String merchantResponseMessage,
+                                  @Param("responsePlainJsonMasked") String responsePlainJsonMasked,
+                                  @Param("responseTime") LocalDateTime responseTime,
+                                  @Param("durationMillis") Integer durationMillis);
 }

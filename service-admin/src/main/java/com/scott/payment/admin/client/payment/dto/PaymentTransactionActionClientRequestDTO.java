@@ -46,6 +46,16 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     private BigDecimal amount;
 
     /**
+     * 页面标签币种金额，供支付核心保留商户/后台展示口径。
+     */
+    private BigDecimal labelAmount;
+
+    /**
+     * 页面标签币种，供支付核心保留商户/后台展示口径。
+     */
+    private String labelCurrency;
+
+    /**
      * 动作币种，退款为空时支付核心按原交易币种归一。
      */
     private String currency;
@@ -66,6 +76,15 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     private TransactionInfoDTO transactionInfo;
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : TransactionInfoDTO
+     * @date : 2026-07-14 23:59
+     * @email : scott_x@163.com
+     * @description : Transaction Info DTO 传输模型，位于 运营后台服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
+     * @status : create
+     */
     public static class TransactionInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;

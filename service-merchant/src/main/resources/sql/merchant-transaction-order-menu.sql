@@ -91,6 +91,8 @@ JOIN (
     SELECT 'merchant_transaction_order_detail_v1' menu_code, '交易详情' menu_name, 'merchant:transaction:order:detail' permission_code, 1 sort_no
     UNION ALL SELECT 'merchant_transaction_order_export_v1', '交易导出', 'merchant:transaction:order:export', 2
     UNION ALL SELECT 'merchant_transaction_order_refund_v1', '交易退款', 'merchant:transaction:order:refund', 3
+    UNION ALL SELECT 'merchant_transaction_order_capture_v1', '交易请款', 'merchant:transaction:order:capture', 4
+    UNION ALL SELECT 'merchant_transaction_order_void_v1', '交易撤销', 'merchant:transaction:order:void', 5
 ) button
 WHERE app.app_code = 'MERCHANT'
   AND app.deleted = 0
@@ -111,6 +113,8 @@ JOIN (
     SELECT 'merchant_transaction_order_detail_v1' menu_code, '交易详情' menu_name, 'merchant:transaction:order:detail' permission_code, 1 sort_no
     UNION ALL SELECT 'merchant_transaction_order_export_v1', '交易导出', 'merchant:transaction:order:export', 2
     UNION ALL SELECT 'merchant_transaction_order_refund_v1', '交易退款', 'merchant:transaction:order:refund', 3
+    UNION ALL SELECT 'merchant_transaction_order_capture_v1', '交易请款', 'merchant:transaction:order:capture', 4
+    UNION ALL SELECT 'merchant_transaction_order_void_v1', '交易撤销', 'merchant:transaction:order:void', 5
 ) button ON button.menu_code = menu.menu_code
 SET menu.parent_id = parent.id,
     menu.menu_name = button.menu_name,
@@ -140,6 +144,8 @@ JOIN (
     UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:detail', '交易详情', 'BUTTON', 'GET', '/merchant/transactions/orders/*', '查询当前登录商户交易详情'
     UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:export', '交易导出', 'BUTTON', 'POST', '/merchant/transactions/orders/export', '导出当前登录商户交易动作流水'
     UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:refund', '交易退款', 'BUTTON', 'POST', '/merchant/transactions/orders/*/refund', '当前登录商户发起交易退款'
+    UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:capture', '交易请款', 'BUTTON', 'POST', '/merchant/transactions/orders/*/capture', '当前登录商户发起授权交易请款'
+    UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:void', '交易撤销', 'BUTTON', 'POST', '/merchant/transactions/orders/*/void', '当前登录商户发起授权交易撤销'
 ) permission
 JOIN sys_menu menu ON menu.app_id = app.id AND menu.menu_code = permission.menu_code AND menu.deleted = 0
 WHERE app.app_code = 'MERCHANT'
@@ -161,6 +167,8 @@ JOIN (
     UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:detail', '交易详情', 'BUTTON', 'GET', '/merchant/transactions/orders/*', '查询当前登录商户交易详情'
     UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:export', '交易导出', 'BUTTON', 'POST', '/merchant/transactions/orders/export', '导出当前登录商户交易动作流水'
     UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:refund', '交易退款', 'BUTTON', 'POST', '/merchant/transactions/orders/*/refund', '当前登录商户发起交易退款'
+    UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:capture', '交易请款', 'BUTTON', 'POST', '/merchant/transactions/orders/*/capture', '当前登录商户发起授权交易请款'
+    UNION ALL SELECT 'merchant_transaction_order_v1', 'merchant:transaction:order:void', '交易撤销', 'BUTTON', 'POST', '/merchant/transactions/orders/*/void', '当前登录商户发起授权交易撤销'
 ) expected ON expected.permission_code = permission.permission_code
 JOIN sys_menu menu ON menu.app_id = app.id AND menu.menu_code = expected.menu_code AND menu.deleted = 0
 SET permission.menu_id = menu.id,
@@ -187,7 +195,9 @@ WHERE role.deleted = 0
       'merchant_transaction_order_v1',
       'merchant_transaction_order_detail_v1',
       'merchant_transaction_order_export_v1',
-      'merchant_transaction_order_refund_v1'
+      'merchant_transaction_order_refund_v1',
+      'merchant_transaction_order_capture_v1',
+      'merchant_transaction_order_void_v1'
   );
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
@@ -206,7 +216,9 @@ WHERE role.deleted = 0
       'merchant:transaction:dict:list',
       'merchant:transaction:order:detail',
       'merchant:transaction:order:export',
-      'merchant:transaction:order:refund'
+      'merchant:transaction:order:refund',
+      'merchant:transaction:order:capture',
+      'merchant:transaction:order:void'
   );
 
 INSERT IGNORE INTO sys_merchant_menu_grant (
@@ -222,7 +234,9 @@ WHERE merchant.deleted = 0
       'merchant_transaction_order_v1',
       'merchant_transaction_order_detail_v1',
       'merchant_transaction_order_export_v1',
-      'merchant_transaction_order_refund_v1'
+      'merchant_transaction_order_refund_v1',
+      'merchant_transaction_order_capture_v1',
+      'merchant_transaction_order_void_v1'
   );
 
 INSERT IGNORE INTO sys_merchant_permission_grant (
@@ -239,5 +253,7 @@ WHERE merchant.deleted = 0
       'merchant:transaction:dict:list',
       'merchant:transaction:order:detail',
       'merchant:transaction:order:export',
-      'merchant:transaction:order:refund'
+      'merchant:transaction:order:refund',
+      'merchant:transaction:order:capture',
+      'merchant:transaction:order:void'
   );

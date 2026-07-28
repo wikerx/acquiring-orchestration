@@ -9,32 +9,53 @@ import java.nio.charset.StandardCharsets;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiKeyExportService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : OpenAPI 商户接入材料导出服务，统一生成 TXT、PEM、properties 和完整 SDK 接入包。
+ * @description : Open API Key Export Service 服务契约，位于 公共组件库，声明当前业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public class OpenApiKeyExportService {
 
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * TEXT CONTENT TYPE，用于区分 Open API Key Export Service 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String TEXT_CONTENT_TYPE = "text/plain;charset=UTF-8";
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * PROPERTIES CONTENT TYPE，用于区分 Open API Key Export Service 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；非敏感字段。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String PROPERTIES_CONTENT_TYPE = "text/plain;charset=UTF-8";
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ZIP CONTENT TYPE，用于区分 Open API Key Export Service 记录的处理类别、配置维度或外部协议枚举。
+     * <p>
+     * 单位：无；格式：枚举编码或受控字符串；不允许为空；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：取值必须来自对应枚举、字典或渠道协议；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String ZIP_CONTENT_TYPE = "application/zip";
 
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * base URL Resolver，表示回调、通知、来源站点或远程接口地址。
+     * <p>
+     * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：长度和协议由调用方校验；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final OpenApiBaseUrlResolver baseUrlResolver;
 
@@ -64,13 +85,6 @@ public class OpenApiKeyExportService {
      * @param format     导出格式
      * @return 下载文件
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param publicKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param format 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public OpenApiKeyDownloadFile platformPublicKeyFile(String merchantId, String publicKey, OpenApiKeyExportFormat format) {
         if (format == OpenApiKeyExportFormat.PEM) {
             return textFile("platform-public-key.pem", OpenApiPemUtils.toPublicKeyPem(publicKey));
@@ -88,13 +102,6 @@ public class OpenApiKeyExportService {
      * @param privateKey 平台请求 PKCS#8 私钥 Base64
      * @param format     导出格式
      * @return 下载文件
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param privateKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param format 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public OpenApiKeyDownloadFile platformPrivateKeyFile(String merchantId, String privateKey, OpenApiKeyExportFormat format) {
         if (format == OpenApiKeyExportFormat.PEM) {
@@ -114,13 +121,6 @@ public class OpenApiKeyExportService {
      * @param format      导出格式
      * @return 下载文件
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param privateKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param format 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public OpenApiKeyDownloadFile merchantResponsePrivateKeyFile(String merchantId, String privateKey, OpenApiKeyExportFormat format) {
         if (format == OpenApiKeyExportFormat.PEM) {
             return textFile("merchant-response-private-key.pem", OpenApiPemUtils.toPrivateKeyPem(privateKey));
@@ -139,13 +139,6 @@ public class OpenApiKeyExportService {
      * @param format     导出格式
      * @return 下载文件
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param publicKey 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param format 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public OpenApiKeyDownloadFile merchantResponsePublicKeyFile(String merchantId, String publicKey, OpenApiKeyExportFormat format) {
         if (format == OpenApiKeyExportFormat.PEM) {
             return textFile("merchant-response-public-key.pem", OpenApiPemUtils.toPublicKeyPem(publicKey));
@@ -161,11 +154,6 @@ public class OpenApiKeyExportService {
      *
      * @param context 接入材料上下文
      * @return ZIP 下载文件
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public OpenApiKeyDownloadFile sdkKit(OpenApiKeyExportContext context) {
         try {
@@ -189,11 +177,6 @@ public class OpenApiKeyExportService {
      * @param context 接入材料上下文
      * @return properties 文本
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String merchantConfig(OpenApiKeyExportContext context) {
         return ""
                 + "# OpenAPI SDK 配置文件路径版。推荐与 keys/ 目录一起放入 classpath。\n"
@@ -210,11 +193,6 @@ public class OpenApiKeyExportService {
      * @param context 接入材料上下文
      * @return properties 文本
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String merchantConfigText(OpenApiKeyExportContext context) {
         return ""
                 + "# OpenAPI SDK 配置文本版。私钥和 JWT 密钥请勿提交 Git 或写入日志。\n"
@@ -230,11 +208,6 @@ public class OpenApiKeyExportService {
      *
      * @param context 接入材料上下文
      * @return TXT 文本
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param context 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public String jwtText(OpenApiKeyExportContext context) {
         return ""
@@ -255,14 +228,6 @@ public class OpenApiKeyExportService {
      * @param jwtExpiresSeconds  JWT 有效期秒数
      * @return TXT 文本
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param merchantJwtSecret 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param jwtAlgorithm 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param jwtExpiresSeconds 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public String jwtText(String merchantId, String merchantJwtSecret, String jwtAlgorithm, Long jwtExpiresSeconds) {
         return ""
                 + "merchant.id=" + merchantId + "\n"
@@ -278,12 +243,6 @@ public class OpenApiKeyExportService {
      * @param content  文件内容
      * @return 下载文件
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param fileName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param content 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public OpenApiKeyDownloadFile textFile(String fileName, String content) {
         return new OpenApiKeyDownloadFile(fileName, TEXT_CONTENT_TYPE, content.getBytes(StandardCharsets.UTF_8));
     }
@@ -295,22 +254,36 @@ public class OpenApiKeyExportService {
      * @param content  文件内容
      * @return 下载文件
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param fileName 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param content 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public OpenApiKeyDownloadFile propertiesFile(String fileName, String content) {
         return new OpenApiKeyDownloadFile(fileName, PROPERTIES_CONTENT_TYPE, content.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 创建zipentry，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 前置条件：调用方已完成 公共组件库 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+     * </p>
+     * @param zip zip 输入值，参与 zip 的查询、校验、转换、写入或日志摘要
+     * @param name name 输入值，参与 name 的查询、校验、转换、写入或日志摘要
+     * @param content content 输入值，参与 content 的查询、校验、转换、写入或日志摘要
+     */
     private void addZipEntry(ZipOutputStream zip, String name, String content) throws IOException {
         zip.putNextEntry(new ZipEntry(name));
         zip.write(content.getBytes(StandardCharsets.UTF_8));
         zip.closeEntry();
     }
 
+    /**
+     * 规范化readme，返回调用链后续步骤可直接使用的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String readme() {
         return ""
                 + "1. 推荐将 merchant-config.properties 放到商户服务端 classpath 根目录。\n"
@@ -320,6 +293,15 @@ public class OpenApiKeyExportService {
                 + "5. 如密钥泄露，请立即在管理系统或商户系统中轮换密钥。\n";
     }
 
+    /**
+     * 整理openapi基础url，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String openApiBaseUrl() {
         String baseUrl = baseUrlResolver == null ? null : baseUrlResolver.resolve();
         if (baseUrl == null || baseUrl.trim().isEmpty()) {

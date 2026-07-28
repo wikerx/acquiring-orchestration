@@ -1,6 +1,7 @@
 package com.scott.payment.openapi;
 
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.openapi.dto.security.MerchantInfoDTO;
 import com.scott.payment.openapi.dto.security.MerchantKeyRevisionDTO;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
@@ -19,6 +20,7 @@ import org.springframework.test.context.jdbc.Sql;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @author : scott
@@ -27,15 +29,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @date : 2026-05-30 09:30
  * @email : scott_x@163.com
  * @description : 商户开户、密钥交付、密钥查询和密钥迭代记录集成测试
- * @status : create
- */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOnboardingFlowTests
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 商户 OpenAPIMerchant Onboarding Flow Tests，位于 service-openapi 的测试层，用于承载该模块对应的业务职责和数据流转边界。
  * @status : create
  */
 @Slf4j
@@ -102,7 +95,7 @@ class MerchantOnboardingFlowTests {
         assertThat(materialDTO.getMerchantResponsePublicKeyX509Base64()).isNotBlank();
         assertThat(materialDTO.getMerchantResponsePrivateKeyPkcs8Base64()).isNotBlank();
 
-        log.info("开户成功-商户号：{}，商户必拿材料：merchantKey指纹={}，平台公钥指纹={}，商户响应私钥指纹={}",
+        log.info("开户成功-商户号：{}，商户必拿材料：merchantKey指纹: {}，平台公钥指纹: {}，商户响应私钥指纹: {}",
                 materialDTO.getMerchantId(),
                 keyMaterialFactory.fingerprint(materialDTO.getMerchantKey()),
                 keyMaterialFactory.fingerprint(materialDTO.getPlatformPublicKeyX509Base64()),
@@ -128,12 +121,12 @@ class MerchantOnboardingFlowTests {
         assertThat(serverMaterial.getPlatformPrivateKeyPkcs8Base64()).isNotBlank();
         assertThat(serverMaterial.getMerchantResponsePublicKeyX509Base64()).isEqualTo(provisionedMaterial.getMerchantResponsePublicKeyX509Base64());
 
-        log.info("商户侧查询成功-商户号：{}，merchantKey指纹={}，平台公钥指纹={}，响应公钥指纹={}",
+        log.info("商户侧查询成功-商户号：{}，merchantKey指纹: {}，平台公钥指纹: {}，响应公钥指纹: {}",
                 clientMaterial.getMerchantId(),
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantKey()),
                 keyMaterialFactory.fingerprint(clientMaterial.getPlatformPublicKeyX509Base64()),
                 keyMaterialFactory.fingerprint(clientMaterial.getMerchantResponsePublicKeyX509Base64()));
-        log.info("服务端查询成功-商户号：{}，merchantKey指纹={}，平台私钥存在={}，响应公钥指纹={}",
+        log.info("服务端查询成功-商户号：{}，merchantKey指纹: {}，平台私钥存在: {}，响应公钥指纹: {}",
                 serverMaterial.getMerchantId(),
                 serverMaterial.getMerchantKeyFingerprint(),
                 serverMaterial.getPlatformPrivateKeyPkcs8Base64() != null,
@@ -171,6 +164,31 @@ class MerchantOnboardingFlowTests {
                 beforeRevisionList.size(),
                 afterRevisionList.size(),
                 rotatedRevision.getKeyFingerprint());
+    }
+
+    /**
+     * 验证 SDK live 联调商户不会被测试开户服务误重建密钥。
+     */
+    @Test
+    void shouldRejectProvisionForSdkLiveMerchant() {
+        assertThatThrownBy(() -> merchantSecurityService.provisionMerchantSecurityMaterial(
+                MerchantOpenApiTestSupport.buildMerchantSeed(MerchantOpenApiTestSupport.SDK_LIVE_MERCHANT_ID)
+        ))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("reserved for SDK live tests");
+    }
+
+    /**
+     * 验证测试数据清理工具不会误删 SDK live 联调商户。
+     */
+    @Test
+    void shouldRejectCleanupForSdkLiveMerchant() {
+        assertThatThrownBy(() -> MerchantOpenApiTestSupport.cleanMerchantSecurityData(
+                jdbcTemplate,
+                List.of(MerchantOpenApiTestSupport.SDK_LIVE_MERCHANT_ID)
+        ))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("must not be cleaned by automated tests");
     }
 
     /**

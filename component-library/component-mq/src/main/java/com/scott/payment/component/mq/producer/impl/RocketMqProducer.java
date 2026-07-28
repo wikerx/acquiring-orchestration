@@ -1,6 +1,7 @@
 package com.scott.payment.component.mq.producer.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import lombok.extern.slf4j.Slf4j;
@@ -14,23 +15,34 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
+
+@Slf4j
+@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : RocketMqProducer
- * @date : 2026-07-04 16:30
+ * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : RocketMQ 消息发送实现，位于 component-library/component-mq 基础组件层，负责补齐公共消息元数据并同步投递消息。
+ * @description : Rocket MQ Producer 消息投递组件，位于 公共组件库，补齐消息标识、traceId、重试次数和业务载荷后发送 MQ。
  * @status : create
  */
-@Slf4j
-@Service
 public class RocketMqProducer implements MqProducer {
 
     /**
      * RocketMQ Spring 模板。
      */
     private final ObjectProvider<RocketMQTemplate> rocketMQTemplateProvider;
+
+    /**
+     * MQ 消息头中的重试次数字段，生产者补齐后供消费者日志和排障使用。
+     */
+    private static final String RETRY_COUNT_HEADER = "retryCount";
+
+    /**
+     * MQ 消息头中的消息唯一标识字段，与消息体 messageId 保持一致。
+     */
+    private static final String MESSAGE_ID_HEADER = "messageId";
 
     /**
      * 创建 RocketMQ 消息发送服务。
@@ -54,6 +66,7 @@ public class RocketMqProducer implements MqProducer {
         if (!StringUtils.hasText(topic)) {
             throw new IllegalArgumentException("rocketmq topic can not be blank");
         }
+        fillMessageMetadata(message);
         RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
         if (rocketMQTemplate == null) {
             log.warn("RocketMQTemplate未就绪，消息发送已跳过，topic：{}，tag：{}，messageId：{}",
@@ -62,9 +75,12 @@ public class RocketMqProducer implements MqProducer {
                     message.getMessageId());
             return;
         }
-        fillMessageMetadata(message);
         String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;
-        rocketMQTemplate.syncSend(destination, MessageBuilder.withPayload(JsonUtils.toJsonString(message)).build());
+        rocketMQTemplate.syncSend(destination, MessageBuilder.withPayload(JsonUtils.toJsonString(message))
+                .setHeader(TraceContext.TRACE_ID_HEADER, message.getTraceId())
+                .setHeader(RETRY_COUNT_HEADER, message.getRetryCount())
+                .setHeader(MESSAGE_ID_HEADER, message.getMessageId())
+                .build());
     }
 
     /**
@@ -78,6 +94,12 @@ public class RocketMqProducer implements MqProducer {
         }
         if (message.getCreatedAt() == null) {
             message.setCreatedAt(LocalDateTime.now());
+        }
+        if (!StringUtils.hasText(message.getTraceId())) {
+            message.setTraceId(TraceContext.getOrCreateTraceId());
+        }
+        if (message.getRetryCount() == null || message.getRetryCount() < 0) {
+            message.setRetryCount(0);
         }
     }
 }

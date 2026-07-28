@@ -38,8 +38,24 @@ import org.springframework.stereotype.Service;
 @Service
 public class PaymentTransactionApplicationService {
 
+    /**
+     * DEFAULT MERCHANT NOTIFICATION NOTIFY LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int DEFAULT_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 100;
 
+    /**
+     * MAX MERCHANT NOTIFICATION NOTIFY LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
+     * <p>
+     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
+     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
+     * </p>
+     */
     private static final int MAX_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 500;
 
     /**
@@ -144,6 +160,16 @@ public class PaymentTransactionApplicationService {
      */
     public PaymentCreateResultDTO capture(PaymentCreateCommandDTO commandDTO) {
         return paymentTransactionService.capture(commandDTO);
+    }
+
+    /**
+     * 发起预授权完成交易。
+     *
+     * @param commandDTO 预授权完成命令
+     * @return 预授权完成结果
+     */
+    public PaymentCreateResultDTO preAuthCompletion(PaymentCreateCommandDTO commandDTO) {
+        return paymentTransactionService.preAuthCompletion(commandDTO);
     }
 
     /**

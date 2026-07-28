@@ -13,15 +13,16 @@ import org.apache.ibatis.annotations.Mapper;
  * @description : 岗位 MyBatis Plus Mapper 接口
  * @status : create
  */
+
+@Mapper
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : SysPostMapper
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-12 20:00
  * @email : scott_x@163.com
- * @description : 系统管理Sys Post 数据访问 Mapper，位于 component-library/component-db 的数据访问层，用于定义调用契约和职责边界。
+ * @description : Sys Post Mapper 映射组件，位于 公共组件库，在数据库记录、领域模型、接口 DTO 或渠道协议对象之间转换字段。
  * @status : create
  */
-@Mapper
 public interface SysPostMapper extends BaseMapper<SysPostDO> {
 }

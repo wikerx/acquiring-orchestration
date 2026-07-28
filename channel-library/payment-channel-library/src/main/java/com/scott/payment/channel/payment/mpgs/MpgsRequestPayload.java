@@ -35,11 +35,25 @@ public class MpgsRequestPayload {
     private SourceOfFunds sourceOfFunds;
 
     /**
+     * MPGS 浏览器返回配置，3DS 回跳 URL 由平台生成的一次性 token 保护。
+     */
+    private BrowserPayment browserPayment;
+
+    /**
      * MPGS 3DS 认证信息，CAVV / authenticationToken 属于认证敏感值，日志必须脱敏。
      */
     private Authentication authentication;
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Order
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Order 协作组件，位于 渠道适配库，封装 订单 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Order {
 
         /**
@@ -59,6 +73,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Transaction
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Transaction 协作组件，位于 渠道适配库，封装 交易 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Transaction {
 
         /**
@@ -83,6 +106,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : SourceOfFunds
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Source Of Funds 协作组件，位于 渠道适配库，封装 来源offunds 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class SourceOfFunds {
 
         /**
@@ -97,6 +129,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Provided
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Provided 协作组件，位于 渠道适配库，封装 provided 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Provided {
 
         /**
@@ -106,6 +147,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Card
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Card 协作组件，位于 渠道适配库，封装 card 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Card {
 
         /**
@@ -125,6 +175,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Expiry
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Expiry 协作组件，位于 渠道适配库，封装 expiry 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Expiry {
 
         /**
@@ -139,7 +198,36 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : Authentication
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Authentication 协作组件，位于 渠道适配库，封装 authentication 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class Authentication {
+
+        /**
+         * MPGS 认证交易 ID，PAY/AUTHORIZE 时用于引用已完成的 3DS 认证。
+         */
+        private String transactionId;
+
+        /**
+         * 3DS 协议版本，由网关认证响应返回。
+         */
+        private String version;
+
+        /**
+         * 持卡人交互类型，例如 REQUIRED、NOT_REQUIRED。
+         */
+        private String payerInteraction;
+
+        /**
+         * 认证重定向或 Method HTML。
+         */
+        private Redirect redirect;
 
         /**
          * 通用 3DS 认证数据。
@@ -158,6 +246,38 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    public static class BrowserPayment {
+
+        /**
+         * 3DS challenge 完成后 MPGS/ACS 回跳到平台收银台的地址。
+         */
+        private String returnUrl;
+    }
+
+    @Data
+    public static class Redirect {
+
+        /**
+         * 需由浏览器渲染的 MPGS 3DS HTML，可能包含自动提交表单。
+         */
+        private String html;
+
+        /**
+         * 跳转 URL，部分 MPGS 响应可能返回该字段。
+         */
+        private String url;
+    }
+
+    @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ThreeDs
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Three Ds 协作组件，位于 渠道适配库，封装 threeds 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class ThreeDs {
 
         /**
@@ -177,6 +297,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ThreeDs1
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Three Ds 1 协作组件，位于 渠道适配库，封装 threeds1 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class ThreeDs1 {
 
         /**
@@ -191,6 +320,15 @@ public class MpgsRequestPayload {
     }
 
     @Data
+    /**
+     * @author : scott
+     * @version : v1.0.0
+     * @classname : ThreeDs2
+     * @date : 2026-07-12 00:00
+     * @email : scott_x@163.com
+     * @description : Three Ds 2 协作组件，位于 渠道适配库，封装 threeds2 相关的校验、转换、持久化访问或运行时协作入口。
+     * @status : create
+     */
     public static class ThreeDs2 {
 
         /**

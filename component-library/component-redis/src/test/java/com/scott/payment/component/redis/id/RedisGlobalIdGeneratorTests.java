@@ -18,9 +18,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @author : scott
  * @version : v1.0.0
  * @classname : RedisGlobalIdGeneratorTests
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : 收单支付Redis Global Id Generator Tests，位于 component-library/component-redis 的测试层，用于承载该模块对应的业务职责和数据流转边界。
+ * @description : Redis Global ID Generator Tests 自动化测试类，位于 公共组件库，验证当前模块的正常路径、异常边界和回归场景。
  * @status : create
  */
 class RedisGlobalIdGeneratorTests {
@@ -114,7 +114,12 @@ class RedisGlobalIdGeneratorTests {
     private static class FixedRedisServerTimeProvider extends RedisServerTimeProvider {
 
         /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         * current Millis，用于保存 Fixed Redis Server Time Provider 中与 currentmillis 相关的业务属性。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
          */
         private final long currentMillis;
 
@@ -123,10 +128,6 @@ class RedisGlobalIdGeneratorTests {
             this.currentMillis = currentMillis;
         }
 
-        /**
-         * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
         public long currentTimeMillis() {
             return currentMillis;
@@ -135,15 +136,33 @@ class RedisGlobalIdGeneratorTests {
 
     private static class ScriptStringRedisTemplate extends StringRedisTemplate {
 
+        /**
+         * script Results，用于保存 Script String Redis Template 中与 scriptresults 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
+         */
         private final Queue<List<?>> scriptResults = new ArrayDeque<>();
 
         /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         * failure，用于保存 Script String Redis Template 中与 failure 相关的业务属性。
+         * <p>
+         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
          */
         private RuntimeException failure;
 
         /**
-         * 收单支付业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+         * execute Count，表示当前统计、分页、扫描或重试场景中的数量。
+         * <p>
+         * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+         * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+         * </p>
          */
         private int executeCount;
 
@@ -159,13 +178,6 @@ class RedisGlobalIdGeneratorTests {
             return executeCount;
         }
 
-        /**
-         * 执行收单支付相关处理，保持当前层级的职责边界和返回语义。
-         * @param script 请求参数或业务处理上下文，不能为空时由上层校验约束。
-         * @param keys 请求参数或业务处理上下文，不能为空时由上层校验约束。
-         * @param args 请求参数或业务处理上下文，不能为空时由上层校验约束。
-         * @return 处理后的业务结果或页面展示数据。
-         */
         @Override
         @SuppressWarnings("unchecked")
         public <T> T execute(RedisScript<T> script, List<String> keys, Object... args) {

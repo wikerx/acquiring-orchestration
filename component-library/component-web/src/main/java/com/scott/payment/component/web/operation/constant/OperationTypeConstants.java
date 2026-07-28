@@ -52,7 +52,7 @@ public final class OperationTypeConstants {
     public static final int UNFREEZE = 8;
 
     /**
-     * 工具类不允许实例化。
+     * 私有构造方法，禁止外部实例化该操作类型常量集合。
      */
     private OperationTypeConstants() {
     }

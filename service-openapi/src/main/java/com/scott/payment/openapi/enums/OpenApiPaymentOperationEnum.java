@@ -40,6 +40,11 @@ public enum OpenApiPaymentOperationEnum {
     CAPTURE("CAPTURE", "/capture"),
 
     /**
+     * 预授权完成交易，对预授权成功的交易发起完成确认。
+     */
+    PRE_AUTH_COMPLETION("PRE_AUTH_COMPLETION", "/pre-auth-completion"),
+
+    /**
      * 退款交易，对成功支付或请款交易进行原路退回。
      */
     REFUND("REFUND", "/refund"),

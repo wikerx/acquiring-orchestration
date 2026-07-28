@@ -39,15 +39,6 @@ import static com.scott.payment.component.core.model.CommonResult.success;
  * <p>Controller 仅接收参数、校验权限并调用
  * {@link AdminUserApplicationService}，用户、角色和密码规则均下沉到应用层及领域服务。</p>
  */
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : AdminUserController
- * @date : 2026-07-04 16:30
- * @email : scott_x@163.com
- * @description : 系统管理Admin User 管理接口，位于 service-admin 的接口层，用于承载该模块对应的业务职责和数据流转边界。
- * @status : create
- */
 @RestController
 @RequestMapping("/admin/system/users")
 public class AdminUserController {
@@ -104,11 +95,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:add")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.CREATE,
             operation = "新增后台用户", recordRequest = false, recordResponse = false)
-    /**
-     * 创建或保存系统管理数据，保持请求校验、默认值和审计字段一致。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<SysUserAccountDTO> createUser(@Valid @RequestBody SysUserAccountCreateRequest request) {
         return success(adminUserApplicationService.createUser(request));
     }
@@ -123,11 +109,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:edit")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "编辑后台用户", recordRequest = false, recordResponse = false)
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<SysUserAccountDTO> updateUser(@Valid @RequestBody SysUserAccountUpdateRequest request) {
         return success(adminUserApplicationService.updateUser(request));
     }
@@ -142,11 +123,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:changeStatus")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "更新后台用户状态", recordRequest = false, recordResponse = false)
-    /**
-     * 更新系统管理数据，保持已有记录、状态和审计字段的一致性。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<Void> updateStatus(@Valid @RequestBody SysUserAccountStatusRequest request) {
         adminUserApplicationService.updateStatus(request);
         return success();
@@ -162,11 +138,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:resetPwd")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "重置后台用户密码", recordRequest = false, recordResponse = false)
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<Void> resetPassword(@Valid @RequestBody SysUserAccountResetPasswordRequest request) {
         adminUserApplicationService.resetPassword(request);
         return success();
@@ -182,11 +153,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:assign-role")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.QUERY,
             operation = "查询后台用户角色授权")
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<SysUserRoleAuthDTO> userRoles(@Valid @RequestBody SysUserRoleGrantRequest request) {
         return success(adminUserApplicationService.userRoles(request.getAccountId()));
     }
@@ -201,11 +167,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:assign-role")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.UPDATE,
             operation = "分配后台用户角色", recordRequest = false, recordResponse = false)
-    /**
-     * 执行系统管理相关处理，保持当前层级的职责边界和返回语义。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<Void> grantRoles(@Valid @RequestBody SysUserRoleGrantRequest request) {
         adminUserApplicationService.grantRoles(request);
         return success();
@@ -221,11 +182,6 @@ public class AdminUserController {
     @RequiresPermission("system:user:remove")
     @OperationLog(moduleName = "用户管理", businessType = OperationTypeConstants.DELETE,
             operation = "删除后台用户", recordRequest = false, recordResponse = false)
-    /**
-     * 删除系统管理数据，按业务规则处理引用校验和删除边界。
-     * @param accountIds 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public CommonResult<Void> deleteUsers(@RequestBody List<Long> accountIds) {
         adminUserApplicationService.removeUsers(accountIds);
         return success();

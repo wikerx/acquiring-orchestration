@@ -11,11 +11,25 @@ import org.springframework.stereotype.Component;
  * @classname : WorldPayJsonPaymentChannelClient
  * @date : 2026-07-19 22:50
  * @email : scott_x@163.com
- * @description : WorldPay JSON 收单渠道客户端，位于 payment-channel-library 渠道实现层，仅代表独立渠道 WPGJSON 的 SPI 占位入口；当前尚未实现 JSON 报文构造、渠道认证、HTTP 调用和响应解析，禁止按已接通生产交易理解。
+ * @description : WorldPay JSON 收单渠道客户端，位于 payment-channel-library 渠道实现层，负责把平台统一渠道能力委托给 WPGJSON HTTP 客户端；不创建平台交易单、不更新平台交易状态。
  * @status : create
  */
 @Component
 public class WorldPayJsonPaymentChannelClient extends AbstractWorldPayPaymentChannelClient {
+
+    /**
+     * WorldPay JSON API 客户端，负责渠道认证、HTTP 调用、脱敏日志和响应映射。
+     */
+    private final WorldPayJsonApiClient apiClient;
+
+    /**
+     * 创建 WorldPay JSON 渠道客户端。
+     *
+     * @param apiClient WorldPay JSON API 客户端
+     */
+    public WorldPayJsonPaymentChannelClient(WorldPayJsonApiClient apiClient) {
+        this.apiClient = apiClient;
+    }
 
     /**
      * 获取 WorldPay JSON 渠道编码。
@@ -30,14 +44,13 @@ public class WorldPayJsonPaymentChannelClient extends AbstractWorldPayPaymentCha
     /**
      * 执行 WorldPay JSON 渠道请求。
      * <p>
-     * 当前方法故意抛出“未接通”异常，避免系统配置了 WPGJSON 后误发真实交易；后续正式接入时应在该类内实现
-     * WPG JSON Payment、Capture、Refund、Cancel 和 Inquiry 请求/响应，不和 WPGXML 共用协议实现。
+     * 当前方法只进入 WPGJSON 协议适配层，真实平台状态推进由 service-payment 根据渠道统一响应和状态机完成。
      *
      * @param request 渠道统一请求
      * @return 渠道统一响应
      */
     @Override
     protected ChannelPaymentResponse execute(ChannelPaymentRequest request) {
-        throw new WorldPayChannelNotImplementedException(channelCode(), request == null ? null : request.getTransactionType());
+        return apiClient.execute(request);
     }
 }

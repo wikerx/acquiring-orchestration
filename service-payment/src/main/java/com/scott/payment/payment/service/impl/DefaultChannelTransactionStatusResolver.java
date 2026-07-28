@@ -28,27 +28,70 @@ import java.util.Set;
 @Service
 public class DefaultChannelTransactionStatusResolver implements ChannelTransactionStatusResolver {
 
+    /**
+     * 需要按 Worldpay 特殊语义解析的平台渠道编码集合。
+     * <p>
+     * 单位：无；格式：渠道编码大写字符串；不允许为空；非敏感字段。
+     * 数据来源：平台渠道枚举约定；用于把 WPGXML/WPGJSON 从通用渠道状态映射中隔离出来。
+     * </p>
+     */
     private static final Set<String> WORLDPAY_CHANNELS = Set.of("WPGXML", "WPGJSON");
 
+    /**
+     * Worldpay 授权成功类原始状态集合。
+     * <p>
+     * 单位：无；格式：Worldpay lastEvent/outcome 归一化文本；不允许为空；非敏感字段。
+     * 数据来源：Worldpay XML/JSON 协议状态；是否推进平台成功必须结合 transactionType 判断。
+     * </p>
+     */
     private static final Set<String> WORLDPAY_AUTHORISED_STATUSES = Set.of(
             "AUTHORISED", "AUTHORIZED", "AUTHORISE", "AUTHORIZE"
     );
 
+    /**
+     * Worldpay 资金捕获完成类原始状态集合。
+     * <p>
+     * 单位：无；格式：Worldpay lastEvent/outcome 归一化文本；不允许为空；非敏感字段。
+     * 数据来源：Worldpay 回调、同步响应或查询响应；一步支付、请款和预授权完成只有命中这些状态才可推进成功。
+     * </p>
+     */
     private static final Set<String> WORLDPAY_CAPTURED_STATUSES = Set.of(
             "CAPTURED", "CAPTURED_OK", "SETTLED", "SETTLEMENT_REQUESTED"
     );
 
+    /**
+     * Worldpay 退款成功类原始状态集合。
+     * <p>
+     * 单位：无；格式：Worldpay lastEvent/outcome 归一化文本；不允许为空；非敏感字段。
+     * 数据来源：Worldpay 回调、同步响应或查询响应；仅在平台交易类型为 REFUND 时映射为退款成功。
+     * </p>
+     */
     private static final Set<String> WORLDPAY_REFUND_SUCCESS_STATUSES = Set.of(
             "REFUNDED", "REFUND", "SENT_FOR_REFUND"
     );
 
+    /**
+     * Worldpay 失败类原始状态集合。
+     * <p>
+     * 单位：无；格式：Worldpay lastEvent/outcome 归一化文本；不允许为空；非敏感字段。
+     * 数据来源：Worldpay 回调、同步响应或查询响应；命中后平台交易进入失败终态。
+     * </p>
+     */
     private static final Set<String> WORLDPAY_FAILED_STATUSES = Set.of(
             "REFUSED", "ERROR", "FAILED", "FAILURE", "CANCELLED", "CANCELED", "EXPIRED", "DECLINED"
     );
 
+    /**
+     * Worldpay 待处理类原始状态集合。
+     * <p>
+     * 单位：无；格式：Worldpay lastEvent/outcome 归一化文本；不允许为空；非敏感字段。
+     * 数据来源：Worldpay 同步响应、回调和查询响应；命中后平台保持 PENDING 并等待回调或查询勾兑。
+     * </p>
+     */
     private static final Set<String> WORLDPAY_PENDING_STATUSES = Set.of(
             "PENDING", "PROCESSING", "SENT_FOR_AUTHORISATION", "SENT_FOR_AUTHORIZATION",
-            "SHOPPER_REDIRECTED", "OPEN", "UNKNOWN"
+            "SHOPPER_REDIRECTED", "OPEN", "UNKNOWN", "CAPTURE_REQUESTED", "REFUND_REQUESTED",
+            "CANCEL_REQUESTED", "CANCEL_OR_REFUND_REQUESTED"
     );
 
     /**
@@ -240,6 +283,17 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return false;
     }
 
+    /**
+     * 构造平台成功终态解析结果。
+     * <p>
+     * 前置条件：调用方已确认渠道状态可代表当前交易类型的成功语义；该方法只组装解析结果，不写数据库、不发布 MQ。
+     * </p>
+     *
+     * @param channelStatus 渠道原始状态或统一状态
+     * @param channelResponseCode 渠道响应码
+     * @param channelResponseMessage 渠道响应描述
+     * @return 平台成功终态解析结果
+     */
     private ChannelTransactionStatusResolution success(String channelStatus,
                                                        String channelResponseCode,
                                                        String channelResponseMessage) {
@@ -249,6 +303,17 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 构造平台失败终态解析结果。
+     * <p>
+     * 前置条件：调用方已确认渠道状态或响应码表示拒绝、失败或不可恢复异常；该方法只设置失败原因，不覆盖终态交易。
+     * </p>
+     *
+     * @param channelStatus 渠道原始状态或统一状态
+     * @param channelResponseCode 渠道响应码
+     * @param channelResponseMessage 渠道响应描述
+     * @return 平台失败终态解析结果
+     */
     private ChannelTransactionStatusResolution failed(String channelStatus,
                                                       String channelResponseCode,
                                                       String channelResponseMessage) {
@@ -260,6 +325,17 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 构造等待 3DS 跳转的解析结果。
+     * <p>
+     * 前置条件：渠道明确返回 NEED_REDIRECT；平台交易保持 PENDING，后续由回跳、回调或查询继续推进。
+     * </p>
+     *
+     * @param channelStatus 渠道原始状态或统一状态
+     * @param channelResponseCode 渠道响应码
+     * @param channelResponseMessage 渠道响应描述
+     * @return 等待 3DS 跳转的状态解析结果
+     */
     private ChannelTransactionStatusResolution needRedirect(String channelStatus,
                                                             String channelResponseCode,
                                                             String channelResponseMessage) {
@@ -270,6 +346,17 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 构造等待渠道回调或查询确认的解析结果。
+     * <p>
+     * 前置条件：渠道同步响应只表示受理、授权层完成或处理中，尚不足以确认平台资金终态。
+     * </p>
+     *
+     * @param channelStatus 渠道原始状态或统一状态
+     * @param channelResponseCode 渠道响应码
+     * @param channelResponseMessage 渠道响应描述
+     * @return 等待渠道回调的状态解析结果
+     */
     private ChannelTransactionStatusResolution waitingCallback(String channelStatus,
                                                                String channelResponseCode,
                                                                String channelResponseMessage) {
@@ -280,10 +367,29 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 构造默认处理中解析结果。
+     * <p>
+     * 前置条件：渠道未返回可决策状态或响应为空；平台保持 CHANNEL_PROCESSING，等待后续查询或回调。
+     * </p>
+     *
+     * @return 默认处理中状态解析结果
+     */
     private ChannelTransactionStatusResolution processing() {
         return processing(null, null, null);
     }
 
+    /**
+     * 构造带渠道摘要的处理中解析结果。
+     * <p>
+     * 前置条件：渠道状态无法确认成功或失败；该方法保存原始渠道摘要，便于后续查询、回调和日志排查。
+     * </p>
+     *
+     * @param channelStatus 渠道原始状态或统一状态
+     * @param channelResponseCode 渠道响应码
+     * @param channelResponseMessage 渠道响应描述
+     * @return 处理中状态解析结果
+     */
     private ChannelTransactionStatusResolution processing(String channelStatus,
                                                           String channelResponseCode,
                                                           String channelResponseMessage) {
@@ -293,6 +399,15 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 构造未解析回调状态结果。
+     * <p>
+     * 前置条件：回调结果为空或缺少渠道统一状态；调用方保留当前平台状态，不应推进成功或失败终态。
+     * </p>
+     *
+     * @param callbackResult 渠道回调解析结果
+     * @return 未解析状态结果
+     */
     private ChannelTransactionStatusResolution unresolved(ChannelCallbackResult callbackResult) {
         if (callbackResult == null) {
             return new ChannelTransactionStatusResolution();
@@ -302,12 +417,34 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
                 callbackResult.getChannelResponseMessage());
     }
 
+    /**
+     * 构造带渠道摘要的未解析状态结果。
+     * <p>
+     * 前置条件：渠道返回了平台当前无法识别的状态；该方法只保留摘要字段，不设置目标状态和处理阶段。
+     * </p>
+     *
+     * @param channelStatus 渠道原始状态或统一状态
+     * @param channelResponseCode 渠道响应码
+     * @param channelResponseMessage 渠道响应描述
+     * @return 未解析状态结果
+     */
     private ChannelTransactionStatusResolution unresolved(String channelStatus,
                                                           String channelResponseCode,
                                                           String channelResponseMessage) {
         return base(channelStatus, channelResponseCode, channelResponseMessage);
     }
 
+    /**
+     * 构造状态解析结果基础对象。
+     * <p>
+     * 前置条件：调用方已完成渠道状态判断；该方法只复制渠道摘要字段，不设置平台目标状态。
+     * </p>
+     *
+     * @param channelStatus 渠道原始状态或统一状态
+     * @param channelResponseCode 渠道响应码
+     * @param channelResponseMessage 渠道响应描述
+     * @return 带渠道摘要的状态解析结果
+     */
     private ChannelTransactionStatusResolution base(String channelStatus,
                                                     String channelResponseCode,
                                                     String channelResponseMessage) {
@@ -318,10 +455,25 @@ public class DefaultChannelTransactionStatusResolver implements ChannelTransacti
         return resolution;
     }
 
+    /**
+     * 规范化渠道编码或渠道状态。
+     * <p>
+     * 将空值归一为空字符串，并把连字符、空格转为下划线，便于匹配 Worldpay 状态集合。
+     * </p>
+     *
+     * @param value 渠道编码、渠道统一状态或 Worldpay 原始状态
+     * @return 大写下划线形式的状态文本
+     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
     }
 
+    /**
+     * 返回首个非空渠道摘要文本。
+     *
+     * @param values 候选渠道状态、响应码或响应描述
+     * @return 首个非空文本；全部为空时返回 null
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;

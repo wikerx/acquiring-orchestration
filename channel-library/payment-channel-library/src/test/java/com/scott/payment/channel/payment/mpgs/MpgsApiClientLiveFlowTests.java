@@ -55,7 +55,7 @@ class MpgsApiClientLiveFlowTests {
         String orderId = nextId("CODXA");
         BigDecimal authorizeAmount = new BigDecimal(config.amount());
         BigDecimal updateAmount = authorizeAmount.add(new BigDecimal("0.10"));
-        log.info("MPGS真实流程测试开始，flow=授权-查询-增量授权-请款-退款，context={}",
+        log.info("MPGS真实流程测试开始，flow=授权-查询-增量授权-请款-退款，context: {}",
                 JsonUtils.toJsonString(new FlowContext(config.maskedSummary(), orderId)));
 
         ChannelPaymentResponse authorize = executeAndAssert(
@@ -91,7 +91,7 @@ class MpgsApiClientLiveFlowTests {
                 context.client()
         );
 
-        log.info("MPGS真实流程测试完成，flow=授权-查询-增量授权-请款-退款，result={}",
+        log.info("MPGS真实流程测试完成，flow=授权-查询-增量授权-请款-退款，result: {}",
                 JsonUtils.toJsonString(new AuthorizationFlowResult(summary(authorize), summary(updateAuthorization),
                         summary(capture), summary(refund))));
     }
@@ -108,7 +108,7 @@ class MpgsApiClientLiveFlowTests {
         MpgsLiveTestConfig config = context.config();
         String orderId = nextId("CODXV");
         BigDecimal amount = new BigDecimal(config.amount());
-        log.info("MPGS真实流程测试开始，flow=预授权-Void，context={}",
+        log.info("MPGS真实流程测试开始，flow=预授权-Void，context: {}",
                 JsonUtils.toJsonString(new FlowContext(config.maskedSummary(), orderId)));
 
         ChannelPreAuthorizeRequest preAuthorizeRequest = cardRequest(
@@ -126,7 +126,7 @@ class MpgsApiClientLiveFlowTests {
         voidRequest.getExtension().put("targetTransactionId", preAuthorize.getChannelTransactionId());
         ChannelPaymentResponse voidResponse = executeAndAssert("VOID撤销预授权", voidRequest, context.client());
 
-        log.info("MPGS真实流程测试完成，flow=预授权-Void，result={}",
+        log.info("MPGS真实流程测试完成，flow=预授权-Void，result: {}",
                 JsonUtils.toJsonString(new VoidFlowResult(summary(preAuthorize), summary(voidResponse))));
     }
 
@@ -152,13 +152,13 @@ class MpgsApiClientLiveFlowTests {
      * @return 渠道统一响应
      */
     private ChannelPaymentResponse executeAndRecord(String caseName, ChannelPaymentRequest request, MpgsApiClient client) {
-        log.info("MPGS真实接口开始，case={}, request={}", caseName, JsonUtils.toJsonString(new LiveCaseRequest(
+        log.info("MPGS真实接口开始，case: {}, request: {}", caseName, JsonUtils.toJsonString(new LiveCaseRequest(
                 request.getTransactionType(), request.getMerchantOrderNo(), request.getTransactionId(),
                 String.valueOf(request.getAmount()), request.getCurrency(),
                 MpgsApiClient.maskMpgsJson("{\"number\":\"" + request.getCardNo() + "\"}")
         )));
         ChannelPaymentResponse response = client.execute(request);
-        log.info("MPGS真实接口完成，case={}, response={}", caseName, JsonUtils.toJsonString(response));
+        log.info("MPGS真实接口完成，case: {}, response: {}", caseName, JsonUtils.toJsonString(response));
         assertThat(response.getChannelResponseCode()).as(caseName + " responseCode").isNotBlank();
         return response;
     }
@@ -182,7 +182,7 @@ class MpgsApiClientLiveFlowTests {
         assertThat(updateAuthorization.getChannelResponseMessage())
                 .as("MPGS增量授权失败原因")
                 .containsIgnoringCase("not supported");
-        log.warn("MPGS真实接口返回增量授权不支持，后续按原授权金额继续请款退款，updateAuthorization={}",
+        log.warn("MPGS真实接口返回增量授权不支持，后续按原授权金额继续请款退款，updateAuthorization: {}",
                 JsonUtils.toJsonString(summary(updateAuthorization)));
         return authorizeAmount;
     }

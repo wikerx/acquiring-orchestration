@@ -18,6 +18,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class MpgsPaymentChannelCallbackHandlerTests {
 
+    /**
+     * handler，用于保存 Mpgs Payment Channel Callback Handler Tests 中与 handler 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private final MpgsPaymentChannelCallbackHandler handler = new MpgsPaymentChannelCallbackHandler();
 
     /**
@@ -62,6 +70,49 @@ class MpgsPaymentChannelCallbackHandlerTests {
         assertThat(result.getChannelResponseMessage()).isEqualTo("Invalid card number");
         assertThat(result.getExtension()).containsEntry("gatewayCode", "DECLINED");
         assertThat(result.getExtension()).containsEntry("acquirerCode", "14");
+    }
+
+    /**
+     * MPGS 3DS Method completion callback 可能以表单 POST 方式发送，只表示 3DS Method 已完成，不代表支付终态。
+     */
+    @Test
+    void shouldParseMpgsThreeDsMethodCompletionFormCallbackAsPending() {
+        ChannelCallbackResult result = handler.handle(request(
+                "threeDSServerTransID=7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8"
+                        + "&threeDSSessionData=encrypted-session-data"
+                        + "&orderId=TX202607141000000000003"));
+
+        assertThat(result.getCallbackEventId()).isEqualTo("7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
+        assertThat(result.getChannelOrderNo()).isEqualTo("TX202607141000000000003");
+        assertThat(result.getChannelTransactionId()).isEqualTo("7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
+        assertThat(result.getRawChannelStatus()).isEqualTo("3DS_METHOD_COMPLETED");
+        assertThat(result.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.PENDING.getCode());
+        assertThat(result.getChannelResponseCode()).isEqualTo("3DS_METHOD_COMPLETED");
+        assertThat(result.getExtension()).containsEntry("threeDsServerTransactionId", "7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8");
+        assertThat(result.getExtension()).containsEntry("callbackKind", "3DS_METHOD_COMPLETION");
+    }
+
+    /**
+     * MPGS challenge 完成后的回跳/回调可能携带 result 与 gatewayRecommendation，仍应等待后续认证/支付结果确认。
+     */
+    @Test
+    void shouldParseMpgsThreeDsChallengeReturnJsonCallbackAsPending() {
+        ChannelCallbackResult result = handler.handle(request("""
+                {
+                  "orderId": "TX202607141000000000004",
+                  "transactionId": "AUTHENTICATE_PAYER_001",
+                  "result": "SUCCESS",
+                  "response": {"gatewayRecommendation": "PROCEED"}
+                }
+                """));
+
+        assertThat(result.getChannelOrderNo()).isEqualTo("TX202607141000000000004");
+        assertThat(result.getChannelTransactionId()).isEqualTo("AUTHENTICATE_PAYER_001");
+        assertThat(result.getRawChannelStatus()).isEqualTo("PROCEED");
+        assertThat(result.getChannelTradeStatus()).isEqualTo(ChannelTradeStatus.PENDING.getCode());
+        assertThat(result.getChannelResponseCode()).isEqualTo("PROCEED");
+        assertThat(result.getChannelResponseMessage()).isEqualTo("3DS payer authentication callback received");
+        assertThat(result.getExtension()).containsEntry("callbackKind", "3DS_PAYER_AUTHENTICATION");
     }
 
     private ChannelCallbackRequest request(String body) {

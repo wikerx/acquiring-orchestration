@@ -4,6 +4,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
@@ -25,23 +26,40 @@ import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.domain.state.TransactionStateMachineService;
 import com.scott.payment.payment.service.ChannelTransactionStatusResolver;
+import com.scott.payment.payment.service.CaptureChannelResultTransactionService;
+import com.scott.payment.payment.service.CaptureTransactionPreparationService;
+import com.scott.payment.payment.service.IncrementalAuthorizationChannelResultTransactionService;
+import com.scott.payment.payment.service.IncrementalAuthorizationTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.PaymentChannelResultTransactionService;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
 import com.scott.payment.payment.service.PaymentExchangeRateService;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
+import com.scott.payment.payment.service.RefundChannelResultTransactionService;
+import com.scott.payment.payment.service.RefundTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.PaymentTransactionService;
+import com.scott.payment.payment.service.PaymentTransactionPreparationService;
+import com.scott.payment.payment.service.VoidChannelResultTransactionService;
+import com.scott.payment.payment.service.VoidTransactionPreparationService;
+import com.scott.payment.payment.service.dto.CapturePreparationResultDTO;
+import com.scott.payment.payment.service.dto.IncrementalAuthorizationPreparationResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
+import com.scott.payment.payment.service.dto.PaymentInitialPreparationResultDTO;
+import com.scott.payment.payment.service.dto.PaymentPreparedChannelRequestDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
+import com.scott.payment.payment.service.dto.RefundPreparationResultDTO;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
+import com.scott.payment.payment.service.dto.VoidPreparationResultDTO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,12 +69,19 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -70,6 +95,7 @@ import java.util.stream.Stream;
  * @status : create
  */
 @Service
+@Slf4j
 public class PaymentTransactionServiceImpl implements PaymentTransactionService {
 
     /**
@@ -153,6 +179,56 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private final PaymentChannelInvokeService paymentChannelInvokeService;
 
     /**
+     * 首次交易本地准备服务，用于在渠道调用前独立提交幂等、交易事实和渠道请求 INIT。
+     */
+    private final PaymentTransactionPreparationService paymentTransactionPreparationService;
+
+    /**
+     * 渠道同步结果事务服务，用于在渠道调用后通过独立事务保存结果并推进状态。
+     */
+    private final PaymentChannelResultTransactionService paymentChannelResultTransactionService;
+
+    /**
+     * Capture 本地准备事务服务，用于在渠道 Capture 前提交幂等、动作事实和渠道请求 INIT。
+     */
+    private final CaptureTransactionPreparationService captureTransactionPreparationService;
+
+    /**
+     * Capture 渠道结果事务服务，用于在渠道调用后独立保存结果并 CAS 推进动作。
+     */
+    private final CaptureChannelResultTransactionService captureChannelResultTransactionService;
+
+    /**
+     * Refund 本地准备事务服务，用于在渠道 Refund 前提交幂等、退款事实和渠道请求 INIT。
+     */
+    private final RefundTransactionPreparationService refundTransactionPreparationService;
+
+    /**
+     * Refund 渠道结果事务服务，用于在渠道调用后独立保存结果并 CAS 推进退款动作。
+     */
+    private final RefundChannelResultTransactionService refundChannelResultTransactionService;
+
+    /**
+     * Void 本地准备事务服务，用于在渠道 Void 前提交幂等、撤销事实和渠道请求 INIT。
+     */
+    private final VoidTransactionPreparationService voidTransactionPreparationService;
+
+    /**
+     * Void 渠道结果事务服务，用于在渠道调用后独立保存结果并 CAS 推进撤销动作。
+     */
+    private final VoidChannelResultTransactionService voidChannelResultTransactionService;
+
+    /**
+     * Incremental Authorization 本地准备事务服务，用于在渠道增量授权前提交幂等、动作事实和渠道请求 INIT。
+     */
+    private final IncrementalAuthorizationTransactionPreparationService incrementalAuthorizationTransactionPreparationService;
+
+    /**
+     * Incremental Authorization 渠道结果事务服务，用于在渠道调用后独立保存结果并 CAS 推进增量授权动作。
+     */
+    private final IncrementalAuthorizationChannelResultTransactionService incrementalAuthorizationChannelResultTransactionService;
+
+    /**
      * 交易汇率服务，用于渠道不支持标签币种时执行 EDC 交易汇率查询。
      */
     private final PaymentExchangeRateService paymentExchangeRateService;
@@ -215,6 +291,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 paymentRiskInvokeService,
                 paymentChannelRouteService,
                 paymentChannelInvokeService,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 paymentExchangeRateService,
                 transactionIdempotencyService,
                 transactionEventOutboxService,
@@ -231,6 +317,69 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @param paymentRiskInvokeService 路由前风控调用服务
      * @param paymentChannelRouteService 收单渠道路由服务
      * @param paymentChannelInvokeService 收单渠道调用服务
+     * @param paymentTransactionPreparationService 首次交易本地准备服务
+     * @param paymentChannelResultTransactionService 渠道同步结果事务服务
+     * @param paymentExchangeRateService 交易汇率服务
+     * @param transactionIdempotencyService 交易幂等服务
+     * @param transactionEventOutboxService 交易本地事件服务
+     * @param transactionRecordService 交易事实记录服务
+     * @param transactionStateMachineService 交易状态机服务
+     * @param channelStatusResolver 渠道状态解析服务
+     * @param redisLockServices Redis 分布式锁服务列表
+     */
+    public PaymentTransactionServiceImpl(IsoDictionaryService isoDictionaryService,
+                                         PaymentRiskInvokeService paymentRiskInvokeService,
+                                         PaymentChannelRouteService paymentChannelRouteService,
+                                         PaymentChannelInvokeService paymentChannelInvokeService,
+                                         PaymentTransactionPreparationService paymentTransactionPreparationService,
+                                         PaymentChannelResultTransactionService paymentChannelResultTransactionService,
+                                         PaymentExchangeRateService paymentExchangeRateService,
+                                         TransactionIdempotencyService transactionIdempotencyService,
+                                         TransactionEventOutboxService transactionEventOutboxService,
+                                         TransactionRecordService transactionRecordService,
+                                         TransactionStateMachineService transactionStateMachineService,
+                                         ChannelTransactionStatusResolver channelStatusResolver,
+                                         List<RedisLockService> redisLockServices) {
+        this(isoDictionaryService,
+                paymentRiskInvokeService,
+                paymentChannelRouteService,
+                paymentChannelInvokeService,
+                paymentTransactionPreparationService,
+                paymentChannelResultTransactionService,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                paymentExchangeRateService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService,
+                channelStatusResolver,
+                redisLockServices);
+    }
+
+    /**
+     * 创建收单支付交易服务。
+     *
+     * @param isoDictionaryService        ISO 币种字典服务
+     * @param paymentRiskInvokeService 路由前风控调用服务
+     * @param paymentChannelRouteService 收单渠道路由服务
+     * @param paymentChannelInvokeService 收单渠道调用服务
+     * @param paymentTransactionPreparationService 首次交易本地准备服务
+     * @param paymentChannelResultTransactionService 渠道同步结果事务服务
+     * @param captureTransactionPreparationService Capture 本地准备事务服务
+     * @param captureChannelResultTransactionService Capture 渠道结果事务服务
+     * @param refundTransactionPreparationService Refund 本地准备事务服务
+     * @param refundChannelResultTransactionService Refund 渠道结果事务服务
+     * @param voidTransactionPreparationService Void 本地准备事务服务
+     * @param voidChannelResultTransactionService Void 渠道结果事务服务
+     * @param incrementalAuthorizationTransactionPreparationService Incremental Authorization 本地准备事务服务
+     * @param incrementalAuthorizationChannelResultTransactionService Incremental Authorization 渠道结果事务服务
      * @param paymentExchangeRateService 交易汇率服务
      * @param transactionIdempotencyService 交易幂等服务
      * @param transactionEventOutboxService 交易本地事件服务
@@ -244,6 +393,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                          PaymentRiskInvokeService paymentRiskInvokeService,
                                          PaymentChannelRouteService paymentChannelRouteService,
                                          PaymentChannelInvokeService paymentChannelInvokeService,
+                                         PaymentTransactionPreparationService paymentTransactionPreparationService,
+                                         PaymentChannelResultTransactionService paymentChannelResultTransactionService,
+                                         CaptureTransactionPreparationService captureTransactionPreparationService,
+                                         CaptureChannelResultTransactionService captureChannelResultTransactionService,
+                                         RefundTransactionPreparationService refundTransactionPreparationService,
+                                         RefundChannelResultTransactionService refundChannelResultTransactionService,
+                                         VoidTransactionPreparationService voidTransactionPreparationService,
+                                         VoidChannelResultTransactionService voidChannelResultTransactionService,
+                                         IncrementalAuthorizationTransactionPreparationService incrementalAuthorizationTransactionPreparationService,
+                                         IncrementalAuthorizationChannelResultTransactionService incrementalAuthorizationChannelResultTransactionService,
                                          PaymentExchangeRateService paymentExchangeRateService,
                                          TransactionIdempotencyService transactionIdempotencyService,
                                          TransactionEventOutboxService transactionEventOutboxService,
@@ -259,6 +418,67 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
         this.transactionRecordService = transactionRecordService;
+        this.paymentTransactionPreparationService = paymentTransactionPreparationService == null
+                ? new DefaultPaymentTransactionPreparationService(
+                isoDictionaryService,
+                paymentRiskInvokeService,
+                paymentChannelRouteService,
+                paymentExchangeRateService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService)
+                : paymentTransactionPreparationService;
+        this.paymentChannelResultTransactionService = paymentChannelResultTransactionService == null
+                ? new DefaultPaymentChannelResultTransactionService(transactionRecordService)
+                : paymentChannelResultTransactionService;
+        this.captureTransactionPreparationService = captureTransactionPreparationService == null
+                ? new DefaultCaptureTransactionPreparationService(
+                isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService)
+                : captureTransactionPreparationService;
+        this.captureChannelResultTransactionService = captureChannelResultTransactionService == null
+                ? new DefaultCaptureChannelResultTransactionService(transactionRecordService)
+                : captureChannelResultTransactionService;
+        this.refundTransactionPreparationService = refundTransactionPreparationService == null
+                ? new DefaultRefundTransactionPreparationService(
+                isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService)
+                : refundTransactionPreparationService;
+        this.refundChannelResultTransactionService = refundChannelResultTransactionService == null
+                ? new DefaultRefundChannelResultTransactionService(transactionRecordService)
+                : refundChannelResultTransactionService;
+        this.voidTransactionPreparationService = voidTransactionPreparationService == null
+                ? new DefaultVoidTransactionPreparationService(
+                isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService)
+                : voidTransactionPreparationService;
+        this.voidChannelResultTransactionService = voidChannelResultTransactionService == null
+                ? new DefaultVoidChannelResultTransactionService(transactionRecordService)
+                : voidChannelResultTransactionService;
+        this.incrementalAuthorizationTransactionPreparationService = incrementalAuthorizationTransactionPreparationService == null
+                ? new DefaultIncrementalAuthorizationTransactionPreparationService(
+                isoDictionaryService,
+                paymentChannelRouteService,
+                transactionIdempotencyService,
+                transactionEventOutboxService,
+                transactionRecordService,
+                transactionStateMachineService)
+                : incrementalAuthorizationTransactionPreparationService;
+        this.incrementalAuthorizationChannelResultTransactionService = incrementalAuthorizationChannelResultTransactionService == null
+                ? new DefaultIncrementalAuthorizationChannelResultTransactionService(transactionRecordService)
+                : incrementalAuthorizationChannelResultTransactionService;
         this.transactionStateMachineService = transactionStateMachineService;
         this.channelStatusResolver = channelStatusResolver == null
                 ? new DefaultChannelTransactionStatusResolver()
@@ -273,7 +493,6 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO createPayment(PaymentCreateCommandDTO commandDTO) {
         return createTransaction(commandDTO, PaymentTransactionTypeEnum.PAYMENT);
     }
@@ -285,7 +504,6 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO createAuthorization(PaymentCreateCommandDTO commandDTO) {
         return createTransaction(commandDTO, PaymentTransactionTypeEnum.AUTHORIZATION);
     }
@@ -297,7 +515,6 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO createPreAuthorization(PaymentCreateCommandDTO commandDTO) {
         return createTransaction(commandDTO, PaymentTransactionTypeEnum.PRE_AUTHORIZATION);
     }
@@ -311,23 +528,34 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO createIncrementalAuthorization(PaymentCreateCommandDTO commandDTO) {
-        return createFollowUpTransaction(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
+        return createIncrementalAuthorizationTransaction(commandDTO);
     }
 
     /**
      * 发起请款交易。
      * <p>
-     * 请款先按 transaction_id 解析原交易时间并定位原交易，再校验可请款金额和幂等，最后通过渠道统一执行器发起渠道请求。
+     * 请款先在本地准备事务中提交动作事实、幂等和渠道请求 INIT，再在事务外调用渠道，最后用独立结果事务 CAS 推进状态。
      *
      * @param commandDTO 请款命令
      * @return 请款结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO capture(PaymentCreateCommandDTO commandDTO) {
-        return createFollowUpTransaction(commandDTO, PaymentTransactionTypeEnum.CAPTURE);
+        return createCaptureTransaction(commandDTO, PaymentTransactionTypeEnum.CAPTURE);
+    }
+
+    /**
+     * 发起预授权完成交易。
+     * <p>
+     * 预授权完成与请款共享渠道 Capture 能力，但平台动作类型、幂等记录和商户响应保留 PRE_AUTH_COMPLETION。
+     *
+     * @param commandDTO 预授权完成命令
+     * @return 预授权完成结果
+     */
+    @Override
+    public PaymentCreateResultDTO preAuthCompletion(PaymentCreateCommandDTO commandDTO) {
+        return createCaptureTransaction(commandDTO, PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION);
     }
 
     /**
@@ -339,23 +567,21 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 退款结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO refund(PaymentCreateCommandDTO commandDTO) {
-        return createFollowUpTransaction(commandDTO, PaymentTransactionTypeEnum.REFUND);
+        return createRefundTransaction(commandDTO);
     }
 
     /**
      * 发起撤销交易。
      * <p>
-     * 撤销先按 transaction_id 解析原交易时间并定位原交易，再校验未请款未退款状态，最后通过渠道统一执行器发起渠道请求。
+     * 撤销先在本地准备事务中提交动作事实、幂等和渠道请求 INIT，再在事务外调用渠道，最后用独立结果事务 CAS 推进状态。
      *
      * @param commandDTO 撤销命令
      * @return 撤销结果
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public PaymentCreateResultDTO voidPayment(PaymentCreateCommandDTO commandDTO) {
-        return createFollowUpTransaction(commandDTO, PaymentTransactionTypeEnum.VOID);
+        return createVoidTransaction(commandDTO);
     }
 
     /**
@@ -408,14 +634,31 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             commandDTO.setTransactionType(transactionTypeEnum.getCode());
         }
         validateCreateCommand(commandDTO);
+        long startNanos = System.nanoTime();
         String transactionType = resolveTransactionType(commandDTO);
-        String idempotencyKey = transactionIdempotencyService.buildTransactionOperationKey(
-                commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), transactionType);
+        String idempotencyKey = transactionIdempotencyService.buildInitialTransactionKey(
+                commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
+        log.info("event: PAYMENT_TRANSACTION_START stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                transactionType,
+                commandDTO.getPaymentMethod(),
+                commandDTO.getCurrency(),
+                commandDTO.getAmount(),
+                idempotencyKey);
+        logPaymentRequestContext(commandDTO);
         String flowLockKey = merchantOrderFlowLockKey(commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
         String lockValue = UUID.randomUUID().toString();
         boolean operationLocked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         boolean flowLocked = false;
         if (!operationLocked) {
+            log.warn("event: PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=OPERATION_LOCK traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+                    TraceContext.getTraceId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    transactionType,
+                    idempotencyKey);
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                     .map(this::toDuplicateResult)
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
@@ -423,14 +666,396 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         try {
             flowLocked = tryLock(flowLockKey, lockValue);
             if (!flowLocked) {
-                throw new ServiceException(ApiResultEnum.NETWORK_BUSY);
+                log.warn("event: PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=FLOW_LOCK traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+                        TraceContext.getTraceId(),
+                        commandDTO.getMerchantId(),
+                        commandDTO.getMerchantOrderNo(),
+                        transactionType,
+                        idempotencyKey);
+                return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                        .map(this::toDuplicateResult)
+                        .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
             }
-            validateMerchantOrderFlow(commandDTO, transactionType);
-            return createTransactionWithIdempotency(commandDTO, transactionType, idempotencyKey);
+            PaymentInitialPreparationResultDTO preparationResultDTO = paymentTransactionPreparationService.prepareInitialTransaction(
+                    commandDTO, transactionType);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_TRANSACTION_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            logRouteDecision(commandDTO, preparationResultDTO.getRouteResultDTO(), preparationResultDTO.getResultDTO());
+            log.info("event: PAYMENT_TRANSACTION_PREPARED stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} callChannel: {} riskDecision: {} channelCode: {}",
+                    TraceContext.getTraceId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    preparationResultDTO.getResultDTO() == null ? null : preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getResultDTO() == null ? null : preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.isCallChannel(),
+                    preparationResultDTO.getRiskDecisionEnum(),
+                    preparationResultDTO.getRouteResultDTO() == null ? null : preparationResultDTO.getRouteResultDTO().getChannelCode());
+            if (!preparationResultDTO.isCallChannel()) {
+                logPaymentEnd("PAYMENT_TRANSACTION_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichResult(preparationResultDTO.getCommandDTO(), preparationResultDTO.getRouteResultDTO(), channelResponse, resultDTO);
+            paymentChannelResultTransactionService.recordInitialChannelResult(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    invokeResultDTO,
+                    resultDTO,
+                    preparationResultDTO.getRiskDecisionEnum(),
+                    preparationResultDTO.getCurrencyExponent());
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            logPaymentEnd("PAYMENT_TRANSACTION_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
+            return resultDTO;
         } finally {
             unlockAfterTransaction(flowLockKey, lockValue, flowLocked);
             unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, operationLocked);
         }
+    }
+
+/**
+ * 创建请款交易，完成必要校验后写入或委托下游服务处理。
+ * <p>
+ * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+ * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+ * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+ * @return 写入、更新或删除后的处理结果
+ */
+    private PaymentCreateResultDTO createCaptureTransaction(PaymentCreateCommandDTO commandDTO,
+                                                            PaymentTransactionTypeEnum transactionType) {
+        if (commandDTO != null) {
+            commandDTO.setTransactionType(transactionType.getCode());
+        }
+        validateFollowUpCommand(commandDTO, transactionType);
+        long startNanos = System.nanoTime();
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, transactionType);
+        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT traceId: {} merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
+                transactionType.getCode(),
+                commandDTO.getCurrency(),
+                commandDTO.getAmount(),
+                idempotencyKey);
+        logPaymentRequestContext(commandDTO);
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
+        if (!locked) {
+            commandDTO.setRequestFingerprint(resolveCaptureLikeRequestFingerprint(commandDTO, transactionType));
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        }
+        try {
+            CapturePreparationResultDTO preparationResultDTO = captureTransactionPreparationService.prepareCapture(
+                    commandDTO, idempotencyKey, transactionType);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            if (!preparationResultDTO.isCallChannel()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichFollowUpResult(preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    channelResponse,
+                    resultDTO);
+            captureChannelResultTransactionService.recordCaptureChannelResult(preparationResultDTO, invokeResultDTO);
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
+            return resultDTO;
+        } finally {
+            unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, locked);
+        }
+    }
+
+    /**
+     * 创建退款交易，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
+     */
+    private PaymentCreateResultDTO createRefundTransaction(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO != null) {
+            commandDTO.setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+        }
+        validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.REFUND);
+        long startNanos = System.nanoTime();
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.REFUND);
+        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT traceId: {} merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
+                PaymentTransactionTypeEnum.REFUND.getCode(),
+                commandDTO.getCurrency(),
+                commandDTO.getAmount(),
+                idempotencyKey);
+        logPaymentRequestContext(commandDTO);
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
+        if (!locked) {
+            commandDTO.setRequestFingerprint(resolveRefundRequestFingerprint(commandDTO));
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        }
+        try {
+            RefundPreparationResultDTO preparationResultDTO = refundTransactionPreparationService.prepareRefund(commandDTO, idempotencyKey);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            if (!preparationResultDTO.isCallChannel()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichFollowUpResult(preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    channelResponse,
+                    resultDTO);
+            refundChannelResultTransactionService.recordRefundChannelResult(preparationResultDTO, invokeResultDTO);
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
+            return resultDTO;
+        } finally {
+            unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, locked);
+        }
+    }
+
+    /**
+     * 创建撤销交易，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
+     */
+    private PaymentCreateResultDTO createVoidTransaction(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO != null) {
+            commandDTO.setTransactionType(PaymentTransactionTypeEnum.VOID.getCode());
+        }
+        validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.VOID);
+        long startNanos = System.nanoTime();
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.VOID);
+        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT traceId: {} merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
+                PaymentTransactionTypeEnum.VOID.getCode(),
+                commandDTO.getCurrency(),
+                commandDTO.getAmount(),
+                idempotencyKey);
+        logPaymentRequestContext(commandDTO);
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
+        if (!locked) {
+            commandDTO.setRequestFingerprint(resolveVoidRequestFingerprint(commandDTO));
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        }
+        try {
+            VoidPreparationResultDTO preparationResultDTO = voidTransactionPreparationService.prepareVoid(commandDTO, idempotencyKey);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            if (!preparationResultDTO.isCallChannel()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichFollowUpResult(preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    channelResponse,
+                    resultDTO);
+            voidChannelResultTransactionService.recordVoidChannelResult(preparationResultDTO, invokeResultDTO);
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
+            return resultDTO;
+        } finally {
+            unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, locked);
+        }
+    }
+
+    /**
+     * 创建增量授权交易，完成必要校验后写入或委托下游服务处理。
+     * <p>
+     * 前置条件：调用方已完成 支付核心服务 的身份、权限、必填字段和业务唯一性准备。
+     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
+     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 写入、更新或删除后的处理结果
+     */
+    private PaymentCreateResultDTO createIncrementalAuthorizationTransaction(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO != null) {
+            commandDTO.setTransactionType(PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode());
+        }
+        validateFollowUpCommand(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
+        long startNanos = System.nanoTime();
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
+        log.info("event: PAYMENT_FOLLOW_UP_START stage=ACCEPT traceId: {} merchantId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
+                PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode(),
+                commandDTO.getCurrency(),
+                commandDTO.getAmount(),
+                idempotencyKey);
+        logPaymentRequestContext(commandDTO);
+        String lockValue = UUID.randomUUID().toString();
+        boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
+        if (!locked) {
+            commandDTO.setRequestFingerprint(resolveIncrementalAuthorizationRequestFingerprint(commandDTO));
+            return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
+                    .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
+        }
+        try {
+            IncrementalAuthorizationPreparationResultDTO preparationResultDTO =
+                    incrementalAuthorizationTransactionPreparationService.prepareIncrementalAuthorization(commandDTO, idempotencyKey);
+            if (preparationResultDTO.isDuplicate()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            if (!preparationResultDTO.isCallChannel()) {
+                logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), preparationResultDTO.getResultDTO(), startNanos);
+                return preparationResultDTO.getResultDTO();
+            }
+            PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
+                    preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    preparationResultDTO.getResultDTO().getOperationId(),
+                    preparationResultDTO.getResultDTO().getTransactionId(),
+                    preparationResultDTO.getPreparedChannelRequestDTO());
+            ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
+            PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
+            fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+            enrichFollowUpResult(preparationResultDTO.getCommandDTO(),
+                    preparationResultDTO.getSourceOrderDO(),
+                    preparationResultDTO.getRouteResultDTO(),
+                    channelResponse,
+                    resultDTO);
+            incrementalAuthorizationChannelResultTransactionService.recordIncrementalAuthorizationChannelResult(
+                    preparationResultDTO, invokeResultDTO);
+            completeIdempotency(preparationResultDTO.getIdempotencyKey(), preparationResultDTO.getCommandDTO(), resultDTO);
+            logPaymentEnd("PAYMENT_FOLLOW_UP_END", preparationResultDTO.getCommandDTO(), resultDTO, startNanos);
+            return resultDTO;
+        } finally {
+            unlockAfterTransaction(transactionOperationLockKey(idempotencyKey), lockValue, locked);
+        }
+    }
+
+    /**
+     * 解析resolverefund请求指纹，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
+    private String resolveRefundRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        return canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, PaymentTransactionTypeEnum.REFUND);
+    }
+
+/**
+ * 解析resolvecapturelike请求指纹，将原始输入转换为当前调用链需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+ * @return 构造、转换或解析后的业务值
+ */
+    private String resolveCaptureLikeRequestFingerprint(PaymentCreateCommandDTO commandDTO,
+                                                        PaymentTransactionTypeEnum transactionType) {
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        return canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, transactionType);
+    }
+
+    /**
+     * 解析resolve撤销请求指纹，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
+    private String resolveVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        return canonicalVoidRequestFingerprint(commandDTO, fingerprintSourceOrderDO);
+    }
+
+    /**
+     * 解析resolveincrementalauthorization请求指纹，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
+    private String resolveIncrementalAuthorizationRequestFingerprint(PaymentCreateCommandDTO commandDTO) {
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        return canonicalFollowUpRequestFingerprint(
+                commandDTO, fingerprintSourceOrderDO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION);
     }
 
     /**
@@ -446,13 +1071,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             commandDTO.setTransactionType(transactionTypeEnum.getCode());
         }
         validateFollowUpCommand(commandDTO, transactionTypeEnum);
-        String idempotencyKey = transactionIdempotencyService.buildTransactionOperationKey(
-                commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), transactionTypeEnum.getCode());
+        String idempotencyKey = buildFollowUpIdempotencyKey(commandDTO, transactionTypeEnum);
+        TransactionOrderDO fingerprintSourceOrderDO = transactionRecordService == null ? null : resolveSourceOrder(commandDTO);
+        commandDTO.setRequestFingerprint(canonicalFollowUpRequestFingerprint(commandDTO, fingerprintSourceOrderDO, transactionTypeEnum));
         String lockValue = UUID.randomUUID().toString();
         boolean locked = tryLock(transactionOperationLockKey(idempotencyKey), lockValue);
         if (!locked) {
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
-                    .map(this::toDuplicateResult)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.NETWORK_BUSY));
         }
         try {
@@ -480,6 +1106,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         TransactionOrderDO sourceOrderDO = resolveSourceOrder(commandDTO);
+        sourceOrderDO = lockSourceOrderForCapture(sourceOrderDO, transactionTypeEnum);
+        commandDTO.setRequestFingerprint(canonicalFollowUpRequestFingerprint(commandDTO, sourceOrderDO, transactionTypeEnum));
+        Optional<TransactionIdempotencyDO> existingRecord = transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey);
+        if (existingRecord.isPresent()) {
+            return resolveDuplicateFollowUp(commandDTO, existingRecord.get());
+        }
+        if (transactionStateMachineService == null) {
+            throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED.getCode(), "transaction state machine is not configured");
+        }
+        transactionStateMachineService.validateFollowUpAction(sourceOrderDO, transactionTypeEnum, commandDTO.getAmount(), commandDTO.getCurrency());
+        validateNoNonTerminalCapture(commandDTO, sourceOrderDO, transactionTypeEnum, LocalDateTime.now());
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
                 TRANSACTION_OPERATION_SCOPE,
@@ -494,25 +1131,25 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 now);
         if (!transactionIdempotencyService.tryBegin(beginRecord)) {
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
-                    .map(this::toDuplicateResult)
+                    .map(record -> resolveDuplicateFollowUp(commandDTO, record))
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
         }
-        if (transactionStateMachineService == null) {
-            throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED.getCode(), "transaction state machine is not configured");
-        }
-        transactionStateMachineService.validateFollowUpAction(sourceOrderDO, transactionTypeEnum, commandDTO.getAmount(), commandDTO.getCurrency());
         TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
                 commandDTO.getTransactionInfo().getSourceTransactionId());
         normalizeFollowUpCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         PaymentCreateResultDTO resultDTO = buildFollowUpResult(commandDTO, sourceOrderDO, transactionId, transactionTypeEnum);
+        logGeneratedIdentifiers(commandDTO, resultDTO.getOperationId(), transactionId, idempotencyKey);
+        logRouteDecision(commandDTO, routeResultDTO, resultDTO);
         PaymentChannelInvokeResultDTO invokeResultDTO = invokeChannelSafely(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, resolveChannelOrderNo(commandDTO, sourceOrderDO));
         ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
         fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+        logStatusMapping(resultDTO, invokeResultDTO, channelResponse);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         enrichFollowUpResult(commandDTO, sourceOrderDO, routeResultDTO, channelResponse, resultDTO);
+        logMerchantResponseBuilt(commandDTO, resultDTO);
         recordFollowUpTransaction(commandDTO, sourceOrderDO, routeResultDTO, invokeResultDTO, resultDTO, currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
@@ -543,12 +1180,19 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getRequestFingerprint(),
                 now);
         if (!transactionIdempotencyService.tryBegin(beginRecord)) {
+            log.warn("event: PAYMENT_IDEMPOTENCY_CONFLICT stage=IDEMPOTENCY_BEGIN traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
+                    TraceContext.getTraceId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    transactionType,
+                    idempotencyKey);
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
                     .map(this::toDuplicateResult)
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
         }
         String operationId = PaymentOrderNoGenerator.nextOrderNo(OPERATION_ID_PREFIX, commandDTO.getTransactionDateTime());
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
+        logGeneratedIdentifiers(commandDTO, operationId, transactionId, idempotencyKey);
         initializeLabelAmount(commandDTO);
         PaymentRiskDecisionDTO riskDecisionDTO = paymentRiskInvokeService.checkPreRoute(commandDTO);
         PaymentRiskDecisionEnum riskDecisionEnum = resolveRiskDecision(riskDecisionDTO);
@@ -575,6 +1219,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             return resultDTO;
         }
         PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
+        logRouteDecision(commandDTO, routeResultDTO, resultDTO);
         if (!applyCurrencyConversion(commandDTO, routeResultDTO, resultDTO)) {
             int currencyExponent = resolveCurrencyExponent(commandDTO.getTransactionCurrency());
             enrichResult(commandDTO, routeResultDTO, null, resultDTO);
@@ -590,7 +1235,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO, routeResultDTO, operationId, transactionId, transactionId);
         ChannelPaymentResponse channelResponse = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
         fillChannelResult(resultDTO, invokeResultDTO, channelResponse);
+        logStatusMapping(resultDTO, invokeResultDTO, channelResponse);
         enrichResult(commandDTO, routeResultDTO, channelResponse, resultDTO);
+        logMerchantResponseBuilt(commandDTO, resultDTO);
         recordInitialTransaction(commandDTO, routeResultDTO, invokeResultDTO, resultDTO, riskDecisionEnum, currencyExponent);
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
@@ -667,6 +1314,32 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
+/**
+ * 发送渠道安全消息或请求，补齐目标地址、链路标识和业务载荷。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
+ * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+ * @param preparedChannelRequestDTO prepared Channel Request DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+ */
+    private PaymentChannelInvokeResultDTO invokeChannelSafely(PaymentCreateCommandDTO commandDTO,
+                                                              PaymentRouteResultDTO routeResultDTO,
+                                                              String operationId,
+                                                              String transactionId,
+                                                              PaymentPreparedChannelRequestDTO preparedChannelRequestDTO) {
+        try {
+            return paymentChannelInvokeService.invoke(commandDTO, routeResultDTO, operationId, transactionId, preparedChannelRequestDTO);
+        } catch (PaymentChannelInvokeException exception) {
+            return exception.getInvokeResult();
+        }
+    }
+
     /**
      * 校验创建交易命令。
      *
@@ -716,10 +1389,248 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
+    /**
+     * 构造后续动作幂等键。
+     * <p>
+     * 后续动作必须按 sourceTransactionId 区分授权生命周期，不能把原 Payment/Auth 的 merchantOrderNo 当作 Capture 动作号。
+     *
+     * @param commandDTO 后续动作命令
+     * @param transactionTypeEnum 后续交易类型
+     * @return 后续动作幂等键
+     */
+    private String buildFollowUpIdempotencyKey(PaymentCreateCommandDTO commandDTO,
+                                               PaymentTransactionTypeEnum transactionTypeEnum) {
+        String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
+        String merchantOperationNo = sourceTransactionId + ":" + commandDTO.getMerchantOrderId();
+        return transactionIdempotencyService.buildTransactionOperationKey(
+                commandDTO.getMerchantId(), merchantOperationNo, transactionTypeEnum.getCode());
+    }
+
+    /**
+     * 阻断同一授权生命周期下已有未明确结果的 Capture。
+     * <p>
+     * PROCESSING/PENDING Capture 可能已经被渠道受理，必须先用原渠道身份恢复结果；恢复前不允许新的渠道 Capture。
+     *
+     * @param commandDTO 后续动作命令
+     * @param sourceOrderDO 原交易生命周期主单
+     * @param transactionTypeEnum 后续交易类型
+     * @param now 当前时间
+     */
+    private void validateNoNonTerminalCapture(PaymentCreateCommandDTO commandDTO,
+                                              TransactionOrderDO sourceOrderDO,
+                                              PaymentTransactionTypeEnum transactionTypeEnum,
+                                              LocalDateTime now) {
+        if (!isCaptureLike(transactionTypeEnum)) {
+            return;
+        }
+        String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
+        LocalDateTime beginTime = sourceOrderDO.getTransactionDateTime();
+        LocalDateTime endTime = laterOf(now, commandDTO.getTransactionDateTime());
+        List<TransactionOperationDO> nonTerminalCaptures = transactionRecordService.findNonTerminalCaptures(
+                commandDTO.getMerchantId(), sourceOrderDO.getOperationId(), sourceTransactionId, beginTime, endTime);
+        if (nonTerminalCaptures.isEmpty()) {
+            return;
+        }
+        throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                "source transaction has a pending capture-like action");
+    }
+
+    /**
+     * 规范化laterof，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param first first 输入值，参与 首个 的查询、校验、转换、写入或日志摘要
+     * @param second second 输入值，参与 second 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private LocalDateTime laterOf(LocalDateTime first, LocalDateTime second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first.isAfter(second) ? first : second;
+    }
+
+    /**
+     * Capture 创建前锁定原授权生命周期主单，串行化同一授权下余额校验和未终态 Capture 检查。
+     *
+     * @param sourceOrderDO 原交易生命周期主单
+     * @param transactionTypeEnum 后续交易类型
+     * @return 锁定后的生命周期主单
+     */
+    private TransactionOrderDO lockSourceOrderForCapture(TransactionOrderDO sourceOrderDO,
+                                                         PaymentTransactionTypeEnum transactionTypeEnum) {
+        if (!isCaptureLike(transactionTypeEnum)
+                || sourceOrderDO == null
+                || !StringUtils.hasText(sourceOrderDO.getOperationId())
+                || sourceOrderDO.getTransactionDateTime() == null) {
+            return sourceOrderDO;
+        }
+        return transactionRecordService.lockOrder(sourceOrderDO.getTransactionDateTime(), sourceOrderDO.getOperationId());
+    }
+
+    /**
+     * 处理后续动作重复请求。
+     *
+     * @param commandDTO 后续动作命令
+     * @param record 已存在幂等记录
+     * @return 幂等快照结果
+     */
+    private PaymentCreateResultDTO resolveDuplicateFollowUp(PaymentCreateCommandDTO commandDTO,
+                                                            TransactionIdempotencyDO record) {
+        if (StringUtils.hasText(record.getRequestFingerprint())
+                && !Objects.equals(record.getRequestFingerprint(), commandDTO.getRequestFingerprint())) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "merchant operation number already has a different request");
+        }
+        if (!StringUtils.hasText(record.getTransactionId())) {
+            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
+                    "merchant operation is being processed");
+        }
+        return toDuplicateResult(record);
+    }
+
+/**
+ * 整理规范化followup请求指纹，返回当前业务步骤需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param transactionTypeEnum transaction Type Enum 输入值，参与 交易typeenum 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+ */
+    private String canonicalFollowUpRequestFingerprint(PaymentCreateCommandDTO commandDTO,
+                                                       TransactionOrderDO sourceOrderDO,
+                                                       PaymentTransactionTypeEnum transactionTypeEnum) {
+        String sourceTransactionId = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
+        String effectiveCurrency = StringUtils.hasText(commandDTO.getCurrency())
+                ? commandDTO.getCurrency()
+                : sourceOrderDO == null ? null : sourceOrderDO.getTransactionCurrency();
+        String canonical = String.join("|",
+                "v1",
+                "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
+                "merchantOrderNo=" + normalizeFingerprintText(sourceOrderDO == null
+                        ? commandDTO.getMerchantOrderNo()
+                        : sourceOrderDO.getMerchantOrderNo()),
+                "merchantOperationNo=" + normalizeFingerprintText(commandDTO.getMerchantOrderId()),
+                "transactionType=" + normalizeFingerprintText(transactionTypeEnum.getCode()),
+                "sourceTransactionId=" + normalizeFingerprintText(sourceTransactionId),
+                "amount=" + normalizeFingerprintAmount(commandDTO.getAmount()),
+                "currency=" + normalizeFingerprintText(effectiveCurrency));
+        return sha256(canonical);
+    }
+
+/**
+ * 整理撤销交易幂等指纹，返回当前业务步骤需要的规范化结果。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+ */
+    private String canonicalVoidRequestFingerprint(PaymentCreateCommandDTO commandDTO,
+                                                   TransactionOrderDO sourceOrderDO) {
+        String sourceTransactionId = commandDTO.getTransactionInfo() == null
+                ? null : commandDTO.getTransactionInfo().getSourceTransactionId();
+        String canonical = String.join("|",
+                "v1",
+                "merchantId=" + normalizeFingerprintText(commandDTO.getMerchantId()),
+                "merchantOrderNo=" + normalizeFingerprintText(sourceOrderDO == null
+                        ? commandDTO.getMerchantOrderNo()
+                        : sourceOrderDO.getMerchantOrderNo()),
+                "merchantOperationNo=" + normalizeFingerprintText(commandDTO.getMerchantOrderId()),
+                "transactionType=" + PaymentTransactionTypeEnum.VOID.getCode(),
+                "sourceTransactionId=" + normalizeFingerprintText(sourceTransactionId));
+        return sha256(canonical);
+    }
+
+    /**
+     * 解析normalize指纹文本，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 构造、转换或解析后的业务值
+     */
+    private String normalizeFingerprintText(String value) {
+        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    /**
+     * 解析normalize指纹金额，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param amount 金额值，单位必须结合 currency 或同名币种字段解释
+     * @return 构造、转换或解析后的业务值
+     */
+    private String normalizeFingerprintAmount(BigDecimal amount) {
+        if (amount == null) {
+            return "";
+        }
+        return amount.stripTrailingZeros().toPlainString();
+    }
+
+    /**
+     * 计算sha256摘要，用不可逆指纹关联原始内容而不暴露明文。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
+    private String sha256(String source) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(source.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                    "request fingerprint can not be calculated", exception);
+        }
+    }
+
+    /**
+     * 校验requires请求币种输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param transactionTypeEnum transaction Type Enum 输入值，参与 交易typeenum 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean requiresRequestCurrency(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
     }
 
+    /**
+     * 校验requires商户订单no输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param transactionTypeEnum transaction Type Enum 输入值，参与 交易typeenum 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean requiresMerchantOrderNo(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.REFUND != transactionTypeEnum;
     }
@@ -748,16 +1659,47 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
+    /**
+     * 判断 is initial flow type 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * </p>
+     * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean isInitialFlowType(String transactionType) {
         return PaymentTransactionTypeEnum.PAYMENT.getCode().equals(transactionType)
                 || PaymentTransactionTypeEnum.AUTHORIZATION.getCode().equals(transactionType)
                 || PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode().equals(transactionType);
     }
 
+    /**
+     * 判断 is failed status 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean isFailedStatus(String transactionStatus) {
         return PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus);
     }
 
+    /**
+     * 整理商户订单flowlock密钥，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @param merchantOrderNo merchant Order No 输入值，参与 商户订单no 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String merchantOrderFlowLockKey(String merchantId, String merchantOrderNo) {
         return MERCHANT_ORDER_FLOW_LOCK_PREFIX
                 + (merchantId == null ? "" : merchantId.trim().toUpperCase(Locale.ROOT))
@@ -775,6 +1717,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return TRANSACTION_OPERATION_LOCK_PREFIX + idempotencyKey;
     }
 
+    /**
+     * 校验来源交易输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 支付核心服务 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     */
     private void validateSourceTransaction(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO == null
                 || commandDTO.getTransactionInfo() == null
@@ -821,6 +1772,21 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         return sourceOrderDO;
+    }
+
+    /**
+     * 判断 is capture like 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * </p>
+     * @param transactionTypeEnum transaction Type Enum 输入值，参与 交易typeenum 的查询、校验、转换、写入或日志摘要
+     * @return 条件满足时返回 true，否则返回 false
+     */
+    private boolean isCaptureLike(PaymentTransactionTypeEnum transactionTypeEnum) {
+        return PaymentTransactionTypeEnum.CAPTURE == transactionTypeEnum
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION == transactionTypeEnum;
     }
 
     /**
@@ -876,9 +1842,10 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setOrderAmount(orderDO.getLabelAmount());
         resultDTO.setOrderCurrency(orderDO.getLabelCurrency());
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(orderDO));
+        resultDTO.setTotalAuthorizedCancelAmount(orderDO.getAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(orderDO));
         resultDTO.setTotalRefundAmount(orderDO.getRefundedAmount());
-        resultDTO.setTotalChargebackAmount(orderDO.getChargebackAmount());
+        resultDTO.setTotalRefuseAmount(orderDO.getChargebackAmount());
         resultDTO.setLabelAmount(orderDO.getLabelAmount());
         resultDTO.setLabelCurrency(orderDO.getLabelCurrency());
         resultDTO.setTransactionAmount(orderDO.getTransactionAmount());
@@ -911,7 +1878,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         target.setCardBrand(orderDO.getPaymentBrand());
         target.setCardBin(null);
         target.setAuthCode(operationDO.getAuthCode());
-        target.setArn(firstText(operationDO.getAcquirerReferenceNo(), operationDO.getRrn()));
+        target.setArn(operationDO.getAcquirerReferenceNo());
         target.setDescription(null);
         target.setCallbackUrl(null);
         return target;
@@ -1034,6 +2001,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      */
     private boolean requiresAmount(PaymentTransactionTypeEnum transactionTypeEnum) {
         return PaymentTransactionTypeEnum.CAPTURE == transactionTypeEnum
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION == transactionTypeEnum
                 || PaymentTransactionTypeEnum.REFUND == transactionTypeEnum
                 || PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION == transactionTypeEnum;
     }
@@ -1071,7 +2039,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setCallbackUrl(resolveCallbackUrl(commandDTO));
         if (channelResponse != null) {
             resultDTO.setAuthCode(channelResponse.getAuthCode());
-            resultDTO.setAcquirerReferenceNo(firstText(channelResponse.getAcquirerReferenceNo(), channelResponse.getRrn()));
+            resultDTO.setAcquirerReferenceNo(channelResponse.getAcquirerReferenceNo());
         }
         enrichMerchantResponse(resultDTO, channelResponse);
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
@@ -1104,6 +2072,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setCscResult(summary.getCscResult());
     }
 
+    /**
+     * 解析normalize渠道cardnumber，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param cardNumberMasked 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalizeChannelCardNumber(String cardNumberMasked) {
         if (!StringUtils.hasText(cardNumberMasked)) {
             return null;
@@ -1137,15 +2115,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setOrderAmount(commandDTO.getLabelAmount());
         resultDTO.setOrderCurrency(commandDTO.getLabelCurrency());
         resultDTO.setTotalAuthorizedAmount(resolveDisplayAuthorizedAmount(sourceOrderDO));
+        resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedCancelAmount());
         resultDTO.setTotalCapturedAmount(resolveDisplayCapturedAmount(sourceOrderDO));
         resultDTO.setTotalRefundAmount(sourceOrderDO.getRefundedAmount());
-        resultDTO.setTotalChargebackAmount(sourceOrderDO.getChargebackAmount());
+        resultDTO.setTotalRefuseAmount(sourceOrderDO.getChargebackAmount());
         resultDTO.setTotalAuthorizedAmount(sumOnSuccess(resultDTO.getTotalAuthorizedAmount(), resultDTO, PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION));
-        resultDTO.setTotalCapturedAmount(sumOnSuccess(resultDTO.getTotalCapturedAmount(), resultDTO, PaymentTransactionTypeEnum.CAPTURE));
+        resultDTO.setTotalCapturedAmount(sumCapturedOnSuccess(resultDTO.getTotalCapturedAmount(), resultDTO));
         resultDTO.setTotalRefundAmount(sumOnSuccess(sourceOrderDO.getRefundedAmount(), resultDTO, PaymentTransactionTypeEnum.REFUND));
         if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())
                 && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
-            resultDTO.setTotalVoidAmount(sourceOrderDO.getAuthorizedAmount());
+            resultDTO.setTotalAuthorizedCancelAmount(sourceOrderDO.getAuthorizedAmount());
         }
     }
 
@@ -1208,6 +2187,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType())) {
+            if (PaymentTransactionTypeEnum.PAYMENT.getCode().equals(resultDTO.getTransactionType())) {
+                resultDTO.setTotalAuthorizedAmount(resultDTO.getTransactionAmount());
+            }
             resultDTO.setTotalCapturedAmount(resultDTO.getTransactionAmount());
             return;
         }
@@ -1216,7 +2198,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             return;
         }
         if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())) {
-            resultDTO.setTotalVoidAmount(resultDTO.getTransactionAmount());
+            resultDTO.setTotalAuthorizedCancelAmount(resultDTO.getTransactionAmount());
         }
     }
 
@@ -1240,11 +2222,54 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return current;
     }
 
+/**
+ * 统计sumcapturedonsuccess，返回分页、扫描或报表汇总所需的数量结果。
+ * <p>
+ * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+ * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+ * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+ * </p>
+ * @param existingAmount 金额值，单位必须结合 currency 或同名币种字段解释
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+ */
+    private BigDecimal sumCapturedOnSuccess(BigDecimal existingAmount,
+                                            PaymentCreateResultDTO resultDTO) {
+        BigDecimal current = existingAmount == null ? BigDecimal.ZERO : existingAmount;
+        if ((PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
+                || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType()))
+                && PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
+                && resultDTO.getTransactionAmount() != null) {
+            return current.add(resultDTO.getTransactionAmount());
+        }
+        return current;
+    }
+
+    /**
+     * 构造商户响应对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
+     */
     private void enrichMerchantResponse(PaymentCreateResultDTO resultDTO, ChannelPaymentResponse channelResponse) {
         resultDTO.setMerchantResponseCode(resolveMerchantResponseCode(resultDTO.getStatus()));
         resultDTO.setMerchantResponseMessage(resolveMerchantResponseMessage(resultDTO, channelResponse));
     }
 
+    /**
+     * 解析resolvepayment品牌，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolvePaymentBrand(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO.getTransactionInfo() != null && StringUtils.hasText(commandDTO.getTransactionInfo().getCardBrand())) {
             return commandDTO.getTransactionInfo().getCardBrand();
@@ -1271,6 +2296,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return null;
     }
 
+    /**
+     * 解析resolvecardBIN，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolveCardBin(PaymentCreateCommandDTO commandDTO) {
         if (commandDTO.getCardInfo() == null || !StringUtils.hasText(commandDTO.getCardInfo().getCardNo())) {
             return null;
@@ -1282,6 +2317,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return cardNo.substring(0, 6) + "****" + cardNo.substring(cardNo.length() - 4);
     }
 
+    /**
+     * 构造子商户响应信息对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param source 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 构造、转换或解析后的业务值
+     */
     private PaymentCreateResultDTO.SubMerchantInfoDTO toResultSubMerchantInfo(PaymentCreateCommandDTO.SubMerchantInfoDTO source) {
         if (source == null) {
             return null;
@@ -1304,6 +2349,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return isEmptySubMerchantInfo(target) ? null : target;
     }
 
+    /**
+     * 判断 is empty sub merchant info 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean isEmptySubMerchantInfo(PaymentCreateResultDTO.SubMerchantInfoDTO value) {
         return value == null || Stream.of(
                 value.getSubId(),
@@ -1322,6 +2377,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 value.getChargeType()).allMatch(item -> !StringUtils.hasText(item));
     }
 
+    /**
+     * 整理首个非空文本，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param values values 输入值，参与 values 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String firstText(String... values) {
         if (values == null) {
             return null;
@@ -1334,6 +2399,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return null;
     }
 
+    /**
+     * 整理商户可见失败说明，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @param failReasonCode fail Reason Code 输入值，参与 failreason编码 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String merchantVisibleFailureMessage(String transactionStatus, String failReasonCode) {
         if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
                 || !StringUtils.hasText(failReasonCode)) {
@@ -1342,6 +2418,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return "Payment failed. Please use the transaction ID to query details or contact support.";
     }
 
+    /**
+     * 解析resolve商户响应编码，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolveMerchantResponseCode(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getCode();
@@ -1355,6 +2441,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return ApiResultEnum.PROCESSING.getCode();
     }
 
+    /**
+     * 解析resolve商户响应说明，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolveMerchantResponseMessage(String transactionStatus) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
@@ -1411,6 +2507,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 ApiResultEnum.PAYMENT_REJECTED.getMessage());
     }
 
+    /**
+     * 整理拼接编码and说明，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param code 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String joinCodeAndMessage(String code, String message) {
         if (StringUtils.hasText(code) && StringUtils.hasText(message)) {
             return code + ": " + message;
@@ -1418,6 +2525,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return firstText(code, message);
     }
 
+    /**
+     * 解析resolve回调url，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 构造、转换或解析后的业务值
+     */
     private String resolveCallbackUrl(PaymentCreateCommandDTO commandDTO) {
         if (StringUtils.hasText(commandDTO.getCallbackUrl())) {
             return commandDTO.getCallbackUrl();
@@ -1494,6 +2611,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return true;
     }
 
+    /**
+     * 应用应用no换汇，把校验后的配置、金额、状态或字段值写入目标对象。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     */
     private void applyNoConversion(PaymentCreateCommandDTO commandDTO) {
         commandDTO.setTransactionCurrency(normalizeCurrency(commandDTO.getLabelCurrency()));
         commandDTO.setTransactionAmount(commandDTO.getLabelAmount());
@@ -1504,10 +2630,29 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         commandDTO.setEdcEnabled(0);
     }
 
+    /**
+     * 整理默认交易汇率，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private BigDecimal defaultTransactionRate() {
         return new BigDecimal("1.00000000");
     }
 
+    /**
+     * 解析normalize币种，将原始输入转换为当前调用链需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
+     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
+     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
+     * </p>
+     * @param currency 币种代码，格式为 ISO 4217 三位大写字母
+     * @return 构造、转换或解析后的业务值
+     */
     private String normalizeCurrency(String currency) {
         return currency == null ? null : currency.trim().toUpperCase(Locale.ROOT);
     }
@@ -1568,6 +2713,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
+    /**
+     * 判断 is terminal 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
+     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
+     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
+     * </p>
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 条件满足时返回 true，否则返回 false
+     */
     private boolean isTerminal(PaymentCreateResultDTO resultDTO) {
         return resultDTO != null
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
@@ -1617,6 +2772,20 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 currencyExponent);
     }
 
+/**
+ * 记录followup交易，写入安全、审计或链路排障所需的脱敏上下文。
+ * <p>
+ * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+ * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+ * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+ * </p>
+ * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
+ * @param routeResultDTO route Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param invokeResultDTO invoke Result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+ * @param currencyExponent 币种代码，格式为 ISO 4217 三位大写字母
+ */
     private void recordFollowUpTransaction(PaymentCreateCommandDTO commandDTO,
                                            TransactionOrderDO sourceOrderDO,
                                            PaymentRouteResultDTO routeResultDTO,
@@ -1655,6 +2824,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         message.setTransactionStatus(resultDTO.getStatus());
         message.setEventType(TransactionMqConstants.TRANSACTION_CREATED_TAG);
         message.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        message.setTraceId(TraceContext.getOrCreateTraceId());
         TransactionEventOutboxDO eventDO = new TransactionEventOutboxDO();
         eventDO.setEventNo(resultDTO.getTransactionId());
         eventDO.setAggregateType(PAYMENT_TRANSACTION_AGGREGATE);
@@ -1683,6 +2853,46 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         eventDO.setCreateTime(message.getCreatedAt());
         eventDO.setUpdateTime(message.getCreatedAt());
         transactionEventOutboxService.save(eventDO);
+        log.info("event: PAYMENT_OUTBOX_SAVED stage=MQ traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} eventType: {} topic: {} tag: {} retryCount: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                resultDTO.getTransactionId(),
+                resultDTO.getOperationId(),
+                resultDTO.getTransactionType(),
+                resultDTO.getStatus(),
+                eventDO.getEventType(),
+                eventDO.getTopic(),
+                eventDO.getTag(),
+                eventDO.getRetryCount());
+    }
+
+    /**
+     * 记录paymentend，写入安全、审计或链路排障所需的脱敏上下文。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param event event 输入值，参与 事件 的查询、校验、转换、写入或日志摘要
+     * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @param startNanos start Nanos 输入值，参与 startnanos 的查询、校验、转换、写入或日志摘要
+     */
+    private void logPaymentEnd(String event, PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO, long startNanos) {
+        long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
+        log.info("event: {} stage=FINISH traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} platformStatus: {} durationMs: {}",
+                event,
+                TraceContext.getTraceId(),
+                commandDTO == null ? null : commandDTO.getMerchantId(),
+                commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
+                resultDTO == null ? null : resultDTO.getTransactionId(),
+                resultDTO == null ? null : resultDTO.getOperationId(),
+                resultDTO == null ? null : resultDTO.getTransactionType(),
+                resultDTO == null ? null : resultDTO.getCurrency(),
+                resultDTO == null ? null : resultDTO.getAmount(),
+                resultDTO == null ? null : resultDTO.getStatus(),
+                durationMs);
     }
 
     /**
@@ -1702,6 +2912,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount(),
                 resultDTO.getCurrency(),
                 JsonUtils.toJsonString(resultDTO));
+        log.info("event: PAYMENT_IDEMPOTENCY_COMPLETE stage=IDEMPOTENCY traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                resultDTO.getTransactionId(),
+                resultDTO.getOperationId(),
+                resultDTO.getTransactionType(),
+                resultDTO.getStatus(),
+                resultDTO.getCurrency(),
+                commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount(),
+                idempotencyKey);
     }
 
     /**
@@ -1711,6 +2932,16 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return 创建交易响应
      */
     private PaymentCreateResultDTO toDuplicateResult(TransactionIdempotencyDO record) {
+        log.info("event: PAYMENT_IDEMPOTENCY_HIT stage=IDEMPOTENCY traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} currency: {} amount: {}",
+                TraceContext.getTraceId(),
+                record.getMerchantId(),
+                record.getMerchantOrderNo(),
+                record.getTransactionId(),
+                record.getOperationId(),
+                record.getTransactionType(),
+                record.getTransactionStatus(),
+                record.getTransactionCurrency(),
+                record.getTransactionAmount());
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
             if (resultDTO != null) {
@@ -1731,6 +2962,241 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         return resultDTO;
     }
 
+    /**
+     * 记录交易主单号、动作单号和幂等键生成结果。
+     * <p>
+     * 日志覆盖商户、订单、交易类型、币种和金额，用于串联请求接收、幂等判断和本地落库。
+     * 该方法只写日志，不修改交易状态、不提交事务、不调用外部系统；卡号和安全码不进入日志字段。
+     * </p>
+     * @param commandDTO 支付创建命令，提供商户号、商户订单号、交易类型、币种和金额
+     * @param operationId 本次交易动作单号，不允许为空
+     * @param transactionId 平台交易主单号，不允许为空
+     * @param idempotencyKey 支付创建幂等键，来源于商户、订单和交易类型等幂等维度
+     */
+    private void logGeneratedIdentifiers(PaymentCreateCommandDTO commandDTO,
+                                         String operationId,
+                                         String transactionId,
+                                         String idempotencyKey) {
+        log.info("event: PAYMENT_IDENTIFIERS_GENERATED stage=IDENTIFIER traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} idempotencyKey: {}",
+                TraceContext.getTraceId(),
+                commandDTO == null ? null : commandDTO.getMerchantId(),
+                commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
+                transactionId,
+                operationId,
+                commandDTO == null || commandDTO.getTransactionInfo() == null ? null : commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO == null ? null : commandDTO.getTransactionType(),
+                commandDTO == null ? null : commandDTO.getCurrency(),
+                commandDTO == null ? null : commandDTO.getAmount(),
+                idempotencyKey);
+    }
+
+    /**
+     * 记录支付路由决策结果。
+     * <p>
+     * 日志覆盖候选决策后的最终渠道、渠道 MID、渠道能力、支付方式、币种和金额，
+     * 用于核对风控后路由选择与渠道调用输入。该方法不改变路由结果，不发送渠道请求。
+     * </p>
+     * @param commandDTO 支付创建命令，提供商户、订单、交易类型、支付方式、币种和金额
+     * @param routeResultDTO 路由服务返回的最终渠道、MID 和能力信息，允许为空表示未成功路由
+     * @param resultDTO 当前支付创建结果，提供平台交易号和动作单号
+     */
+    private void logRouteDecision(PaymentCreateCommandDTO commandDTO,
+                                  PaymentRouteResultDTO routeResultDTO,
+                                  PaymentCreateResultDTO resultDTO) {
+        log.info("event: PAYMENT_ROUTE_DECISION stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} channelCapability: {} midNo: {} requestedCurrency: {} routedCurrency: {} edcRequired: {} supportedCurrencies: {} endpointHost: {} connectTimeoutSeconds: {} readTimeoutSeconds: {} routed: {} routeReason: {}",
+                TraceContext.getTraceId(),
+                commandDTO == null ? null : commandDTO.getMerchantId(),
+                commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
+                resultDTO == null ? null : resultDTO.getTransactionId(),
+                resultDTO == null ? null : resultDTO.getOperationId(),
+                commandDTO == null ? null : commandDTO.getTransactionType(),
+                commandDTO == null ? null : commandDTO.getPaymentMethod(),
+                commandDTO == null ? null : commandDTO.getTransactionCurrency(),
+                commandDTO == null ? null : commandDTO.getTransactionAmount(),
+                routeResultDTO == null ? null : routeResultDTO.getChannelCode(),
+                routeResultDTO == null ? null : routeResultDTO.getMidConfigId(),
+                routeResultDTO == null ? null : routeResultDTO.getCapabilityId(),
+                routeResultDTO == null ? null : maskShort(routeResultDTO.getMidNo()),
+                routeResultDTO == null ? null : routeResultDTO.getRequestedCurrency(),
+                routeResultDTO == null ? null : routeResultDTO.getRoutedCurrency(),
+                routeResultDTO != null && routeResultDTO.isEdcRequired(),
+                routeResultDTO == null ? null : routeResultDTO.getSupportedCurrencies(),
+                routeResultDTO == null ? null : endpointHost(routeResultDTO.getRequestUrl()),
+                routeResultDTO == null ? null : routeResultDTO.getConnectTimeoutSeconds(),
+                routeResultDTO == null ? null : routeResultDTO.getReadTimeoutSeconds(),
+                routeResultDTO != null && routeResultDTO.isRouted(),
+                routeResultDTO == null ? null : routeResultDTO.getRouteReason());
+    }
+
+    /**
+     * 记录 payment 收到的 OpenAPI 请求上下文。
+     * <p>
+     * 日志用于确认 OpenAPI 到 payment 之间的商户请求来源、密文摘要和明文脱敏参数是否完整传递；
+     * 不输出完整请求密文、PAN、CVV、JWT、内部签名或完整 callbackUrl query。
+     * </p>
+     * @param commandDTO 支付创建命令
+     */
+    private void logPaymentRequestContext(PaymentCreateCommandDTO commandDTO) {
+        if (commandDTO == null) {
+            return;
+        }
+        log.info("event: PAYMENT_OPENAPI_CONTEXT stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} merchantOrderId: {} transactionType: {} openApiRequestPath: {} requestFingerprint: {} requestCipherMasked: {} requestSource: {} plainRequestSummary: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getMerchantId(),
+                commandDTO.getMerchantOrderNo(),
+                commandDTO.getMerchantOrderId(),
+                commandDTO.getTransactionType(),
+                commandDTO.getOpenApiRequestPath(),
+                commandDTO.getRequestFingerprint(),
+                commandDTO.getMerchantRequestCipherMasked(),
+                requestSourceSummary(commandDTO),
+                commandDTO.getMerchantRequestPlainJsonMasked());
+    }
+
+    /**
+     * 生成 payment 收到的请求来源摘要。
+     *
+     * @param commandDTO 支付创建命令
+     * @return 请求来源摘要 JSON
+     */
+    private String requestSourceSummary(PaymentCreateCommandDTO commandDTO) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("payerIp", commandDTO.getPayerIp());
+        summary.put("sourceUrl", maskUrl(commandDTO.getSourceUrl()));
+        summary.put("callbackUrl", maskUrl(commandDTO.getCallbackUrl()));
+        summary.put("userAgent", truncateText(commandDTO.getUserAgent(), 160));
+        return JsonUtils.toJsonString(summary);
+    }
+
+    /**
+     * 脱敏 URL 查询参数。
+     *
+     * @param url 原始 URL
+     * @return 脱敏 URL
+     */
+    private String maskUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        int queryIndex = url.indexOf('?');
+        if (queryIndex < 0) {
+            return url;
+        }
+        return url.substring(0, queryIndex) + "?...";
+    }
+
+    /**
+     * 脱敏 MID 或类似短标识。
+     *
+     * @param value 原始值
+     * @return 掩码值
+     */
+    private String maskShort(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() <= 6) {
+            return "***";
+        }
+        return normalized.substring(0, 3) + "***" + normalized.substring(normalized.length() - 3);
+    }
+
+    /**
+     * 提取 URL 主机名。
+     *
+     * @param url 原始 URL
+     * @return 主机名
+     */
+    private String endpointHost(String url) {
+        if (!StringUtils.hasText(url)) {
+            return null;
+        }
+        try {
+            return java.net.URI.create(url).getHost();
+        } catch (RuntimeException exception) {
+            return "invalid_url";
+        }
+    }
+
+    /**
+     * 截断文本摘要。
+     *
+     * @param value 原始文本
+     * @param maxLength 最大长度
+     * @return 截断后文本
+     */
+    private String truncateText(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength) + "...";
+    }
+
+    /**
+     * 记录渠道响应到平台状态的映射结果。
+     * <p>
+     * 日志覆盖渠道请求号、渠道交易号、渠道业务码、收单参考号、失败码和平台状态，
+     * 用于排查渠道返回、状态机流转和商户响应之间的一致性。该方法不写库、不触发 MQ。
+     * </p>
+     * @param resultDTO 平台支付创建结果，包含交易标识、交易类型、平台状态和失败码
+     * @param invokeResultDTO 渠道调用包装结果，包含渠道请求号和请求状态
+     * @param channelResponse 渠道响应映射对象，包含渠道码、渠道交易号和渠道业务码
+     */
+    private void logStatusMapping(PaymentCreateResultDTO resultDTO,
+                                  PaymentChannelInvokeResultDTO invokeResultDTO,
+                                  ChannelPaymentResponse channelResponse) {
+        log.info("event: PAYMENT_STATUS_MAPPED stage=STATUS_MAPPING traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} acquirerCode: {} failureCode: {} requestStatus: {}",
+                TraceContext.getTraceId(),
+                resultDTO == null ? null : resultDTO.getMerchantId(),
+                resultDTO == null ? null : resultDTO.getMerchantOrderNo(),
+                resultDTO == null ? null : resultDTO.getTransactionId(),
+                resultDTO == null ? null : resultDTO.getOperationId(),
+                resultDTO == null ? null : resultDTO.getTransactionType(),
+                channelResponse == null ? null : channelResponse.getChannelCode(),
+                invokeResultDTO == null ? null : invokeResultDTO.getRequestId(),
+                channelResponse == null ? null : channelResponse.getChannelTransactionId(),
+                resultDTO == null ? null : resultDTO.getStatus(),
+                channelResponse == null ? null : channelResponse.getChannelResponseCode(),
+                channelResponse == null ? null : channelResponse.getAcquirerReferenceNo(),
+                resultDTO == null ? null : resultDTO.getFailReasonCode(),
+                invokeResultDTO == null ? null : invokeResultDTO.getRequestStatus());
+    }
+
+    /**
+     * 记录返回商户前的平台响应构造结果。
+     * <p>
+     * 日志覆盖商户订单、平台交易号、动作单号、平台状态、业务码、币种和金额，
+     * 用于核对开放接口响应与支付核心结果。该方法不包含卡号、CVV、JWT 或渠道完整报文。
+     * </p>
+     * @param commandDTO 支付创建命令，提供商户号和商户订单号
+     * @param resultDTO 平台支付创建结果，提供交易标识、状态、业务码、币种和金额
+     */
+    private void logMerchantResponseBuilt(PaymentCreateCommandDTO commandDTO, PaymentCreateResultDTO resultDTO) {
+        log.info("event: PAYMENT_MERCHANT_RESPONSE_BUILT stage=RESPONSE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} platformCode: {} currency: {} amount: {}",
+                TraceContext.getTraceId(),
+                commandDTO == null ? null : commandDTO.getMerchantId(),
+                commandDTO == null ? null : commandDTO.getMerchantOrderNo(),
+                resultDTO == null ? null : resultDTO.getTransactionId(),
+                resultDTO == null ? null : resultDTO.getOperationId(),
+                resultDTO == null ? null : resultDTO.getTransactionType(),
+                resultDTO == null ? null : resultDTO.getStatus(),
+                resultDTO == null ? null : resultDTO.getMerchantResponseCode(),
+                resultDTO == null ? null : resultDTO.getCurrency(),
+                resultDTO == null ? null : resultDTO.getAmount());
+    }
+
+    /**
+     * 构造utctime对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @param timeZone 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * @return 构造、转换或解析后的业务值
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? DEFAULT_TIME_ZONE : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();

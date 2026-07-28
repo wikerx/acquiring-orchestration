@@ -6,6 +6,7 @@ import com.scott.payment.openapi.client.payment.dto.PaymentQueryClientResponseDT
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientRequestDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionChannelCallbackClientResponseDTO;
 import com.scott.payment.openapi.client.payment.dto.TransactionMerchantApiResponseLogUpdateClientRequestDTO;
+import com.scott.payment.openapi.client.payment.dto.checkout.PaymentCheckoutClientDTOs;
 
 /**
  * @author : scott
@@ -59,6 +60,14 @@ public interface PaymentInternalClient {
     PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO);
 
     /**
+     * 调用 service-payment 发起预授权完成交易。
+     *
+     * @param requestDTO 预授权完成内部请求
+     * @return 预授权完成内部响应
+     */
+    PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO);
+
+    /**
      * 调用 service-payment 发起退款交易。
      *
      * @param requestDTO 退款内部请求
@@ -97,4 +106,49 @@ public interface PaymentInternalClient {
      * @return true 表示 service-payment 命中并更新日志
      */
     boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO);
+
+    /**
+     * 调用 service-payment 创建 Hosted Checkout 会话。
+     *
+     * @param requestDTO 创建收银台会话内部请求
+     * @return 收银台会话创建响应
+     */
+    PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
+            PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO);
+
+    /**
+     * 调用 service-payment 查询 Hosted Checkout 会话展示状态。
+     *
+     * @param requestDTO 查询收银台会话内部请求
+     * @return 收银台展示响应
+     */
+    PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
+            PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO);
+
+    /**
+     * 调用 service-payment 提交 Hosted Checkout 支付。
+     *
+     * @param requestDTO 支付提交内部请求
+     * @return 支付提交响应
+     */
+    PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
+            PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO);
+
+    /**
+     * 调用 service-payment 查询 Hosted Checkout 支付状态。
+     *
+     * @param requestDTO 支付状态查询内部请求
+     * @return 支付状态响应
+     */
+    PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
+            PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO);
+
+    /**
+     * 调用 service-payment 处理 Hosted Checkout 3DS 回跳。
+     *
+     * @param requestDTO 3DS 回跳内部请求
+     * @return 支付状态响应
+     */
+    PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
+            PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO);
 }

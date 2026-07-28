@@ -22,41 +22,80 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
+
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : OpenApiMerchantKeyMaterialService
- * @date : 2026-07-04 16:30
+ * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : OpenAPI 商户密钥材料统一服务，负责查询密钥状态并生成复制文本、PEM 文件和 SDK 接入包。
+ * @description : Open API Merchant Key Material Service 服务契约，位于 公共组件库，声明当前业务能力的输入、返回结果和异常边界，由实现类保持一致。
  * @status : create
  */
 public class OpenApiMerchantKeyMaterialService {
 
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * NOT DELETED，用于保存 Open API Merchant Key Material Service 中与 notdeleted 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int NOT_DELETED = 0;
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * ENABLED，表示当前配置项或业务能力的启停开关。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int ENABLED = 1;
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * COPY EXPIRE SECONDS，用于保存 Open API Merchant Key Material Service 中与 copyexpireseconds 相关的业务属性。
+     * <p>
+     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
+     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final int COPY_EXPIRE_SECONDS = 60;
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * JWT ALGORITHM，用于保存 Open API Merchant Key Material Service 中与 jwtalgorithm 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String JWT_ALGORITHM = "HS256";
     /**
-     * 商户 OpenAPI固定配置或枚举常量，集中维护魔法值，避免业务代码散落硬编码。
+     * PAYLOAD ALGORITHM，表示请求体、响应体或消息载荷，日志中只能保留脱敏摘要。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private static final String PAYLOAD_ALGORITHM = "RSA-OAEP-256+A256GCM";
+    /**
+     * KEY VERSION FORMATTER，用于保存 Open API Merchant Key Material Service 中与 密钥versionformatter 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
+     */
     private static final DateTimeFormatter KEY_VERSION_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * merchant Info Mapper 依赖，用于 Open API Merchant Key Material Service 调用对应的数据访问、远程调用或领域服务能力。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final BaseMerchantInfoMapper merchantInfoMapper;
     /**
@@ -80,11 +119,21 @@ public class OpenApiMerchantKeyMaterialService {
      */
     private final OpenApiKeyExportService keyExportService;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * export Properties，用于保存 Open API Merchant Key Material Service 中与 exportproperties 相关的业务属性。
+     * <p>
+     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
+     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final OpenApiMerchantKeyExportProperties exportProperties;
     /**
-     * 商户 OpenAPI业务字段，承载页面展示、接口传输或持久化所需的数据语义。
+     * base URL Resolver，表示回调、通知、来源站点或远程接口地址。
+     * <p>
+     * 单位：无；格式：HTTP/HTTPS URL 或服务路径；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
+     * 取值范围：长度和协议由调用方校验；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
+     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * </p>
      */
     private final OpenApiBaseUrlResolver baseUrlResolver;
 
@@ -146,11 +195,6 @@ public class OpenApiMerchantKeyMaterialService {
      * @param merchantId 商户号
      * @return 密钥材料展示视图
      */
-    /**
-     * 查询商户 OpenAPI列表或分页数据，供页面筛选和展示使用。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public OpenApiMerchantKeyMaterialVO queryMaterial(String merchantId) {
         MaterialSnapshot snapshot = loadSnapshot(merchantId);
         OpenApiMerchantKeyMaterialVO vo = new OpenApiMerchantKeyMaterialVO();
@@ -177,12 +221,6 @@ public class OpenApiMerchantKeyMaterialService {
      * @param request    导出请求
      * @return 可复制文本
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param request 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     public OpenApiKeyCopyResponse copy(String merchantId, OpenApiKeyExportRequest request) {
         OpenApiKeyType keyType = requireKeyType(request);
         OpenApiKeyExportFormat format = request.getExportFormat() == null ? OpenApiKeyExportFormat.TEXT : request.getExportFormat();
@@ -200,13 +238,6 @@ public class OpenApiMerchantKeyMaterialService {
      * @param keyType    密钥材料类型
      * @param format     下载格式
      * @return 下载文件
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param format 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     public OpenApiKeyDownloadFile download(String merchantId, OpenApiKeyType keyType, OpenApiKeyExportFormat format) {
         MaterialSnapshot snapshot = loadSnapshot(merchantId);
@@ -258,12 +289,6 @@ public class OpenApiMerchantKeyMaterialService {
      * @param keyType    轮换类型
      * @return 最新密钥材料概要
      */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @param keyType 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
-     */
     @Transactional(rollbackFor = Exception.class)
     public OpenApiMerchantKeyMaterialVO rotate(String merchantId, OpenApiKeyType keyType) {
         BaseMerchantInfoDO merchant = selectMerchant(merchantId);
@@ -293,11 +318,6 @@ public class OpenApiMerchantKeyMaterialService {
      *
      * @param merchantId 商户号
      * @return 最新密钥材料概要
-     */
-    /**
-     * 执行商户 OpenAPI相关处理，保持当前层级的职责边界和返回语义。
-     * @param merchantId 请求参数或业务处理上下文，不能为空时由上层校验约束。
-     * @return 处理后的业务结果或页面展示数据。
      */
     @Transactional(rollbackFor = Exception.class)
     public OpenApiMerchantKeyMaterialVO ensureMerchantResponsePrivateKey(String merchantId) {
@@ -356,6 +376,15 @@ public class OpenApiMerchantKeyMaterialService {
         }
     }
 
+    /**
+     * 整理rotate商户响应密钥，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     */
     private void rotateMerchantResponseKey(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         RsaKeyMaterial generated = keyMaterialFactory.generateMerchantResponseRsaKey(merchantId);
@@ -379,34 +408,99 @@ public class OpenApiMerchantKeyMaterialService {
         }
     }
 
+    /**
+     * 整理平台public密钥file，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param snapshot snapshot 输入值，参与 snapshot 的查询、校验、转换、写入或日志摘要
+     * @param format format 输入值，参与 format 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private OpenApiKeyDownloadFile platformPublicKeyFile(MaterialSnapshot snapshot, OpenApiKeyExportFormat format) {
         String merchantId = snapshot.merchant().getMerchantId();
         String publicKey = requireText(publicKey(snapshot.platformKey()), "平台请求公钥未配置");
         return keyExportService.platformPublicKeyFile(merchantId, publicKey, format);
     }
 
+    /**
+     * 整理平台私钥密钥file，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param snapshot snapshot 输入值，参与 snapshot 的查询、校验、转换、写入或日志摘要
+     * @param format format 输入值，参与 format 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private OpenApiKeyDownloadFile platformPrivateKeyFile(MaterialSnapshot snapshot, OpenApiKeyExportFormat format) {
         String merchantId = snapshot.merchant().getMerchantId();
         String privateKey = requireText(platformPrivateKey(snapshot.platformKey()), "平台请求私钥未配置");
         return keyExportService.platformPrivateKeyFile(merchantId, privateKey, format);
     }
 
+    /**
+     * 整理商户响应私钥密钥file，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param snapshot snapshot 输入值，参与 snapshot 的查询、校验、转换、写入或日志摘要
+     * @param format format 输入值，参与 format 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private OpenApiKeyDownloadFile merchantResponsePrivateKeyFile(MaterialSnapshot snapshot, OpenApiKeyExportFormat format) {
         String merchantId = snapshot.merchant().getMerchantId();
         String privateKey = requireText(privateKey(snapshot.responseKey()), "商户响应私钥未配置");
         return keyExportService.merchantResponsePrivateKeyFile(merchantId, privateKey, format);
     }
 
+    /**
+     * 整理商户响应public密钥file，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param snapshot snapshot 输入值，参与 snapshot 的查询、校验、转换、写入或日志摘要
+     * @param format format 输入值，参与 format 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private OpenApiKeyDownloadFile merchantResponsePublicKeyFile(MaterialSnapshot snapshot, OpenApiKeyExportFormat format) {
         String merchantId = snapshot.merchant().getMerchantId();
         String publicKey = requireText(responsePublicKey(snapshot.responseKey()), "商户响应公钥未配置");
         return keyExportService.merchantResponsePublicKeyFile(merchantId, publicKey, format);
     }
 
+    /**
+     * 规范化sdkkit，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param snapshot snapshot 输入值，参与 snapshot 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private OpenApiKeyDownloadFile sdkKit(MaterialSnapshot snapshot) {
         return keyExportService.sdkKit(exportContext(snapshot));
     }
 
+    /**
+     * 构造content对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param snapshot snapshot 输入值，参与 snapshot 的查询、校验、转换、写入或日志摘要
+     * @param keyType 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String copyContent(MaterialSnapshot snapshot, OpenApiKeyType keyType) {
         return switch (keyType) {
             case JWT_KEY -> requireText(secret(snapshot.jwtKey()), "商户 JWT 密钥未配置");
@@ -422,6 +516,16 @@ public class OpenApiMerchantKeyMaterialService {
         };
     }
 
+    /**
+     * 规范化exportcontext，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param snapshot snapshot 输入值，参与 snapshot 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private OpenApiKeyExportContext exportContext(MaterialSnapshot snapshot) {
         BaseMerchantJwtKeyDO jwtKey = snapshot.jwtKey();
         return new OpenApiKeyExportContext(
@@ -434,6 +538,16 @@ public class OpenApiMerchantKeyMaterialService {
         );
     }
 
+    /**
+     * 构造jwt对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param vo VO 输入值，参与 vo 的查询、校验、转换、写入或日志摘要
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     */
     private void fillJwt(OpenApiMerchantKeyMaterialVO vo, BaseMerchantJwtKeyDO row) {
         if (row == null) {
             vo.setJwtKeyStatus("NOT_CONFIGURED");
@@ -446,6 +560,16 @@ public class OpenApiMerchantKeyMaterialService {
         vo.setJwtUpdatedTime(row.getGmtModified());
     }
 
+    /**
+     * 构造platform对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param vo VO 输入值，参与 vo 的查询、校验、转换、写入或日志摘要
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     */
     private void fillPlatform(OpenApiMerchantKeyMaterialVO vo, BasePlatformPayloadKeyDO row) {
         if (row == null) {
             vo.setPlatformPayloadKeyStatus("NOT_CONFIGURED");
@@ -458,6 +582,16 @@ public class OpenApiMerchantKeyMaterialService {
         vo.setPlatformPayloadUpdatedTime(row.getGmtModified());
     }
 
+    /**
+     * 构造响应对象，完成字段复制、格式标准化和敏感数据处理。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 所需的源对象、配置或协议字段。
+     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
+     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
+     * </p>
+     * @param vo VO 输入值，参与 vo 的查询、校验、转换、写入或日志摘要
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     */
     private void fillResponse(OpenApiMerchantKeyMaterialVO vo, BaseMerchantResponseKeyDO row) {
         if (row == null) {
             vo.setMerchantResponseKeyStatus("NOT_CONFIGURED");
@@ -471,6 +605,16 @@ public class OpenApiMerchantKeyMaterialService {
         vo.setMerchantResponsePrivateKeyAvailable(StringUtils.hasText(row.getPrivateKeyPkcs8Base64()));
     }
 
+    /**
+     * 查询snapshot，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private MaterialSnapshot loadSnapshot(String merchantId) {
         BaseMerchantInfoDO merchant = selectMerchant(merchantId);
         return new MaterialSnapshot(
@@ -481,6 +625,16 @@ public class OpenApiMerchantKeyMaterialService {
         );
     }
 
+    /**
+     * 查询商户，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private BaseMerchantInfoDO selectMerchant(String merchantId) {
         String normalized = requireText(merchantId, "商户号不能为空");
         BaseMerchantInfoDO row = merchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
@@ -493,6 +647,16 @@ public class OpenApiMerchantKeyMaterialService {
         return row;
     }
 
+    /**
+     * 查询jwt密钥，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private BaseMerchantJwtKeyDO selectJwtKey(String merchantId) {
         return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
                 .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
@@ -502,6 +666,16 @@ public class OpenApiMerchantKeyMaterialService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询platform密钥，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private BasePlatformPayloadKeyDO selectPlatformKey(String merchantId) {
         return platformPayloadKeyMapper.selectOne(Wrappers.<BasePlatformPayloadKeyDO>lambdaQuery()
                 .eq(BasePlatformPayloadKeyDO::getMerchantId, merchantId)
@@ -509,6 +683,16 @@ public class OpenApiMerchantKeyMaterialService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 查询response密钥，按调用方提供的过滤条件返回对应业务视图。
+     * <p>
+     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
+     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
+     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
+     * </p>
+     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
+     * @return 查询得到的业务对象、分页结果或空结果
+     */
     private BaseMerchantResponseKeyDO selectResponseKey(String merchantId) {
         return responseKeyMapper.selectOne(Wrappers.<BaseMerchantResponseKeyDO>lambdaQuery()
                 .eq(BaseMerchantResponseKeyDO::getMerchantId, merchantId)
@@ -516,6 +700,16 @@ public class OpenApiMerchantKeyMaterialService {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 校验密钥type输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private OpenApiKeyType requireKeyType(OpenApiKeyExportRequest request) {
         if (request == null || request.getKeyType() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "keyType 不能为空");
@@ -523,6 +717,16 @@ public class OpenApiMerchantKeyMaterialService {
         return request.getKeyType();
     }
 
+    /**
+     * 整理默认downloadformat，返回后续查询、通知或响应组装可直接使用的标准值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param keyType 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private OpenApiKeyExportFormat defaultDownloadFormat(OpenApiKeyType keyType) {
         Objects.requireNonNull(keyType, "keyType can not be null");
         return switch (keyType) {
@@ -534,42 +738,143 @@ public class OpenApiMerchantKeyMaterialService {
         };
     }
 
+    /**
+     * 计算fingerprint摘要，用不可逆指纹关联原始内容而不暴露明文。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String fingerprint(String value) {
         return StringUtils.hasText(value) ? keyMaterialFactory.fingerprint(value) : null;
     }
 
+    /**
+     * 整理状态，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param enabled enabled 输入值，参与 enabled 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String status(Integer enabled) {
         return Objects.equals(enabled, ENABLED) ? "ENABLED" : "DISABLED";
     }
 
+    /**
+     * 规范化secret，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String secret(BaseMerchantJwtKeyDO row) {
         return row == null ? null : row.getMerchantKey();
     }
 
+    /**
+     * 整理public密钥，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String publicKey(BasePlatformPayloadKeyDO row) {
         return row == null ? null : row.getPublicKeyX509Base64();
     }
 
+    /**
+     * 整理平台私钥密钥，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String platformPrivateKey(BasePlatformPayloadKeyDO row) {
         return row == null ? null : row.getPrivateKeyPkcs8Base64();
     }
 
+    /**
+     * 整理私钥密钥，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String privateKey(BaseMerchantResponseKeyDO row) {
         return row == null ? null : row.getPrivateKeyPkcs8Base64();
     }
 
+    /**
+     * 整理响应public密钥，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String responsePublicKey(BaseMerchantResponseKeyDO row) {
         return row == null ? null : row.getPublicKeyX509Base64();
     }
 
+    /**
+     * 规范化jwtalgorithm，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String jwtAlgorithm(BaseMerchantJwtKeyDO row) {
         return nullToDefault(row == null ? null : row.getAlgorithm(), JWT_ALGORITHM);
     }
 
+    /**
+     * 规范化jwtexpiresseconds，返回当前业务步骤需要的业务值。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Long jwtExpiresSeconds(BaseMerchantJwtKeyDO row) {
         return nullToDefault(row == null ? null : row.getExpiresSeconds(), 180L);
     }
 
+    /**
+     * 校验文本输入，发现缺失、越权或格式错误时中断当前流程。
+     * <p>
+     * 前置条件：调用方传入需要在 公共组件库 内校验的参数、状态或安全材料。
+     * 该方法只执行校验和规则判断，不主动写入业务状态；校验通过后由后续步骤继续处理。
+     * 异常边界：缺失、越权、重复、防重放失败或格式错误时抛出当前模块约定异常。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param message 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String requireText(String value, String message) {
         if (!StringUtils.hasText(value)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
@@ -577,15 +882,46 @@ public class OpenApiMerchantKeyMaterialService {
         return value.trim();
     }
 
+    /**
+     * 整理nullto默认，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param defaultValue default Value 输入值，参与 默认值 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String nullToDefault(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value : defaultValue;
     }
 
+    /**
+     * 整理openapi基础url，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private String openApiBaseUrl() {
         String baseUrl = baseUrlResolver == null ? null : baseUrlResolver.resolve();
         return requireText(baseUrl, "OpenAPI 基础地址未配置");
     }
 
+    /**
+     * 整理nullto默认，返回当前业务步骤需要的规范化结果。
+     * <p>
+     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
+     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
+     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
+     * </p>
+     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
+     * @param defaultValue default Value 输入值，参与 默认值 的查询、校验、转换、写入或日志摘要
+     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     */
     private Long nullToDefault(Long value, Long defaultValue) {
         return value == null ? defaultValue : value;
     }
