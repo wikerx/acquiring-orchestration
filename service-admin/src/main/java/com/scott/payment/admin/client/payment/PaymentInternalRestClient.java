@@ -72,23 +72,31 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
 
+    /** 支付主单分页查询内部接口。 */
     private static final String ORDER_SEARCH_PATH = "/internal/payment/transactions/orders/search";
 
+    /** 支付动作单分页查询内部接口。 */
     private static final String OPERATION_SEARCH_PATH = "/internal/payment/transactions/operations/search";
 
     private static final String OPERATION_SEARCH_WITH_SUMMARY_PATH =
             "/internal/payment/transactions/operations/search-with-summary";
 
+    /** 请款动作内部接口。 */
     private static final String CAPTURE_PATH = "/internal/payment/capture";
 
+    /** 退款动作内部接口。 */
     private static final String REFUND_PATH = "/internal/payment/refund";
 
+    /** 撤销动作内部接口。 */
     private static final String VOID_PATH = "/internal/payment/void";
 
+    /** 单笔交易详情内部接口前缀，后续拼接平台交易号。 */
     private static final String DETAIL_BASE_PATH = "/internal/payment/transactions";
 
+    /** 渠道请求日志分页查询内部接口。 */
     private static final String CHANNEL_LOG_SEARCH_PATH = "/internal/payment/transactions/channel-logs/search";
 
+    /** 渠道回调日志分页查询内部接口。 */
     private static final String CHANNEL_CALLBACK_SEARCH_PATH = "/internal/payment/transactions/channel-callbacks/search";
 
     private static final String MERCHANT_NOTIFICATION_SEARCH_PATH =
@@ -312,6 +320,12 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         }
     }
 
+    /**
+     * 将受控 service-payment 相对路径拼接为内部调用地址。
+     *
+     * @param path 以斜杠开头的内部接口路径
+     * @return service-payment 完整内部 URL
+     */
     private String servicePaymentUrl(String path) {
         return SERVICE_PAYMENT_BASE_URL + path;
     }
@@ -330,6 +344,17 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         }
     }
 
+    /**
+     * 构造带调用方、时间戳、随机 nonce 和内部签名的 JSON 请求实体。
+     *
+     * <p>签名覆盖 HTTP 方法、路径、时间戳、nonce 和 caller；内部密钥仅参与本地计算，
+     * 不写入请求头、请求体或日志。请求体统一使用平台 JSON 工具序列化。</p>
+     *
+     * @param uri 内部请求 URI
+     * @param method HTTP 方法
+     * @param body 业务请求对象；GET 等无正文请求可为空
+     * @return 包含内部鉴权头和 JSON 正文的请求实体
+     */
     private HttpEntity<String> buildSignedEntity(URI uri, HttpMethod method, Object body) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
@@ -351,6 +376,15 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return new HttpEntity<>(body == null ? null : JsonUtils.toJsonString(body), headers);
     }
 
+    /**
+     * 根据目标主机选择直连或服务发现 RestTemplate。
+     *
+     * <p>localhost、IP 和带点的完整域名使用直连模板；无点服务名使用负载均衡模板，
+     * 避免将固定地址错误交给服务发现解析。</p>
+     *
+     * @param uri 已解析的 service-payment 请求 URI
+     * @return 与目标地址类型匹配的 RestTemplate
+     */
     private RestTemplate chooseRestTemplate(URI uri) {
         String host = uri.getHost();
         if (host == null) {

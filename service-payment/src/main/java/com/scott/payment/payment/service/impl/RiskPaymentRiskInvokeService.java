@@ -5,6 +5,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.client.risk.RiskInternalClient;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientRequestDTO;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientResponseDTO;
+import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationClientRequestDTO;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
@@ -26,6 +27,12 @@ import org.springframework.util.StringUtils;
 @ConditionalOnProperty(prefix = "payment.risk-client", name = "remote-enabled", havingValue = "true")
 @Slf4j
 public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
+
+    /** service-risk 不可用时返回的稳定风险原因码。 */
+    private static final String RISK_SERVICE_UNAVAILABLE = "RISK_SERVICE_UNAVAILABLE";
+
+    /** service-risk 不可用时使用的安全失败说明。 */
+    private static final String RISK_SERVICE_UNAVAILABLE_MESSAGE = "risk service is unavailable";
 
     /**
      * service-risk 内部客户端。
@@ -62,14 +69,35 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
                 commandDTO.getPayerIp(),
                 maskUrl(commandDTO.getSourceUrl()),
                 commandDTO.getRequestFingerprint());
-        RiskPaymentEvaluateClientResponseDTO responseDTO = riskInternalClient.evaluatePayment(buildRequest(commandDTO));
-        PaymentRiskDecisionEnum decisionEnum = PaymentRiskDecisionEnum.of(responseDTO.getDecision());
-        PaymentRiskDecisionDTO decisionDTO = new PaymentRiskDecisionDTO();
-        decisionDTO.setPassed(decisionEnum.isAllowProceed());
-        decisionDTO.setDecision(decisionEnum.getCode());
-        decisionDTO.setRiskRecordNo(responseDTO.getRiskRecordNo());
-        decisionDTO.setRiskCode(responseDTO.getReasonCode());
-        decisionDTO.setRiskMessage(responseDTO.getReasonMessage());
+        PaymentRiskDecisionDTO decisionDTO;
+        try {
+            RiskPaymentEvaluateClientResponseDTO responseDTO =
+                    riskInternalClient.evaluatePayment(buildRequest(commandDTO));
+            if (responseDTO == null) {
+                throw new IllegalStateException("service-risk returned empty response");
+            }
+            PaymentRiskDecisionEnum decisionEnum = PaymentRiskDecisionEnum.of(responseDTO.getDecision());
+            decisionDTO = new PaymentRiskDecisionDTO();
+            decisionDTO.setPassed(decisionEnum.isAllowProceed());
+            decisionDTO.setDecision(decisionEnum.getCode());
+            decisionDTO.setRiskRecordNo(responseDTO.getRiskRecordNo());
+            decisionDTO.setRiskCode(responseDTO.getReasonCode());
+            decisionDTO.setRiskMessage(responseDTO.getReasonMessage());
+            decisionDTO.setMerchantLimitReserved(responseDTO.isMerchantLimitReserved());
+        } catch (RuntimeException exception) {
+            decisionDTO = unavailableDecision();
+            log.error("event: PAYMENT_RISK_REQUEST_FAILED stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} exceptionType: {} durationMs: {}",
+                    TraceContext.getTraceId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    commandDTO.getTransactionId(),
+                    commandDTO.getTransactionType(),
+                    exception.getClass().getSimpleName(),
+                    elapsedMillis(startNanos));
+        }
+        commandDTO.setRiskRecordNo(decisionDTO.getRiskRecordNo());
+        commandDTO.setRiskCode(decisionDTO.getRiskCode());
+        commandDTO.setRiskMessage(decisionDTO.getRiskMessage());
         log.info("event: PAYMENT_RISK_REQUEST_END stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} currency: {} amount: {} decision: {} passed: {} riskRecordNo: {} reasonCode: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -86,6 +114,56 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         return decisionDTO;
     }
 
+    /**
+     * 撤销已成功创建但本地支付事务未提交的商户限额预占。
+     *
+     * <p>只有明确存在预占且交易号完整时才调用补偿接口；补偿由 service-risk 按交易号幂等。</p>
+     *
+     * @param commandDTO  支付创建命令
+     * @param decisionDTO 原风控决策及预占标识
+     * @param reason      受控补偿原因
+     */
+    @Override
+    public void cancelMerchantLimitReservation(PaymentCreateCommandDTO commandDTO,
+                                               PaymentRiskDecisionDTO decisionDTO,
+                                               String reason) {
+        if (commandDTO == null || decisionDTO == null || !decisionDTO.isMerchantLimitReserved()
+                || !StringUtils.hasText(commandDTO.getTransactionId())) {
+            return;
+        }
+        RiskMerchantLimitReservationClientRequestDTO requestDTO =
+                new RiskMerchantLimitReservationClientRequestDTO();
+        requestDTO.setTransactionId(commandDTO.getTransactionId());
+        requestDTO.setRiskRecordNo(decisionDTO.getRiskRecordNo());
+        requestDTO.setReason(reason);
+        riskInternalClient.cancelMerchantLimitReservation(requestDTO);
+        log.info("event: PAYMENT_RISK_RESERVATION_CANCELLED stage=RISK_COMPENSATION traceId: {} transactionId: {} riskRecordNo: {} reason: {}",
+                TraceContext.getTraceId(),
+                commandDTO.getTransactionId(),
+                decisionDTO.getRiskRecordNo(),
+                reason);
+    }
+
+    /**
+     * 构造 service-risk 不可用时的 Fail Closed 决策。
+     *
+     * @return 不允许继续支付的 UNKNOWN 决策
+     */
+    private PaymentRiskDecisionDTO unavailableDecision() {
+        PaymentRiskDecisionDTO decisionDTO = new PaymentRiskDecisionDTO();
+        decisionDTO.setPassed(false);
+        decisionDTO.setDecision(PaymentRiskDecisionEnum.UNKNOWN.getCode());
+        decisionDTO.setRiskCode(RISK_SERVICE_UNAVAILABLE);
+        decisionDTO.setRiskMessage(RISK_SERVICE_UNAVAILABLE_MESSAGE);
+        return decisionDTO;
+    }
+
+    /**
+     * 计算远程风控调用耗时。
+     *
+     * @param startNanos 调用开始的单调时钟纳秒值
+     * @return 已耗时毫秒数
+     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
@@ -112,7 +190,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
      * <p>
      * 前置条件：支付创建命令已经生成平台交易号并完成基础参数校验。
      * 该方法把商户号、交易号、金额币种、请求指纹、来源页面、付款人 IP、账单信息、卡摘要和 3DS 信息复制到
-     * service-risk 内部请求；卡号和安全码不得在日志中明文输出。
+     * service-risk 内部请求；完整卡号仅限内部风控内存匹配，卡号和安全码不得在日志中明文输出。
      * </p>
      * @param commandDTO 支付创建命令，提供风控评估所需的交易、商户、金额、来源和支付工具字段
      * @return service-risk 支付评估请求 DTO
@@ -134,6 +212,7 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setUserAgent(commandDTO.getUserAgent());
         fillSubMerchantInfo(commandDTO, requestDTO);
         fillBillingInfo(commandDTO, requestDTO);
+        fillRiskContext(commandDTO, requestDTO);
         fillCardInfo(commandDTO, requestDTO);
         fillThreeDsInfo(commandDTO, requestDTO);
         return requestDTO;
@@ -157,6 +236,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         requestDTO.setSubMerchantId(subMerchantInfoDTO.getSubId());
         requestDTO.setMerchantCategory(subMerchantInfoDTO.getMerchantCategory());
         requestDTO.setSubMerchantCountryCode(subMerchantInfoDTO.getSubCountryCode());
+        requestDTO.setLegalPerson(subMerchantInfoDTO.getSubName());
+        requestDTO.setEnterprise(subMerchantInfoDTO.getSubCompanyName());
+        requestDTO.setMerchantBillingAddress(subMerchantInfoDTO.getSubStreet());
     }
 
     /**
@@ -176,6 +258,45 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
         }
         requestDTO.setBillingCountry(billingInfoDTO.getCountry());
         requestDTO.setBillingEmail(billingInfoDTO.getEmail());
+        requestDTO.setBillingPhone(billingInfoDTO.getPhone());
+        requestDTO.setCardholderName(joinName(billingInfoDTO.getFirstName(), billingInfoDTO.getLastName()));
+        requestDTO.setBillingAddress(billingInfoDTO.getStreet());
+        requestDTO.setBillingZip(billingInfoDTO.getPostal());
+        requestDTO.setBillingRegion(billingInfoDTO.getState());
+        requestDTO.setBillingCity(billingInfoDTO.getCity());
+    }
+
+    /**
+     * 复制商户可选风控上下文。
+     *
+     * @param commandDTO 支付创建命令
+     * @param requestDTO 风控评估请求
+     */
+    private void fillRiskContext(PaymentCreateCommandDTO commandDTO,
+                                 RiskPaymentEvaluateClientRequestDTO requestDTO) {
+        PaymentCreateCommandDTO.RiskContextDTO riskContextDTO = commandDTO.getRiskContext();
+        if (riskContextDTO == null) {
+            return;
+        }
+        requestDTO.setCustomerId(riskContextDTO.getCustomerId());
+        requestDTO.setDeviceFingerprint(riskContextDTO.getDeviceFingerprint());
+        requestDTO.setShippingAddress(riskContextDTO.getShippingAddress());
+        requestDTO.setShippingZip(riskContextDTO.getShippingPostalCode());
+        requestDTO.setShippingCountry(riskContextDTO.getShippingCountry());
+    }
+
+    /**
+     * 拼接持卡人姓名供风控匹配；空白部分被忽略，完整姓名属于敏感信息，禁止直接写日志。
+     *
+     * @param firstName 名
+     * @param lastName  姓
+     * @return 规范化姓名，两个部分均为空时返回 null
+     */
+    private String joinName(String firstName, String lastName) {
+        String first = StringUtils.hasText(firstName) ? firstName.trim() : "";
+        String last = StringUtils.hasText(lastName) ? lastName.trim() : "";
+        String fullName = (first + " " + last).trim();
+        return StringUtils.hasText(fullName) ? fullName : null;
     }
 
     /**
@@ -198,8 +319,9 @@ public class RiskPaymentRiskInvokeService implements PaymentRiskInvokeService {
             return;
         }
         String normalizedCardNo = cardInfoDTO.getCardNo().replaceAll("\\D", "");
+        requestDTO.setCardNo(normalizedCardNo);
         if (normalizedCardNo.length() >= 6) {
-            requestDTO.setCardBin(normalizedCardNo.substring(0, 6));
+            requestDTO.setCardBin(normalizedCardNo.substring(0, Math.min(normalizedCardNo.length(), 11)));
         }
         if (normalizedCardNo.length() >= 4) {
             requestDTO.setCardLast4(normalizedCardNo.substring(normalizedCardNo.length() - 4));

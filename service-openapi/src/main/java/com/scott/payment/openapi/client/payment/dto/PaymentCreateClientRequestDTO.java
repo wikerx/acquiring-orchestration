@@ -119,6 +119,11 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     private TransactionInfoDTO transactionInfo;
 
     /**
+     * 商户上送的可选实时风控上下文。
+     */
+    private RiskContextDTO riskContext;
+
+    /**
      * 商户通知回调地址，交易状态变化后系统可按该地址推送异步通知。
      */
     private String callbackUrl;
@@ -558,5 +563,32 @@ public class PaymentCreateClientRequestDTO implements Serializable {
          * </p>
          */
         private String cardBrand;
+    }
+
+    /**
+     * service-openapi 传给支付服务的附加风控上下文。
+     *
+     * <p>字段属于可识别个人或设备信息，支付服务只可用于实时风控和脱敏审计，
+     * 不得在普通日志中输出原文。</p>
+     */
+    @Data
+    public static class RiskContextDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /** 商户体系内客户标识，用于客户维度名单和频率规则。 */
+        private String customerId;
+
+        /** 商户提供的稳定设备指纹，不得包含原始设备采集报文。 */
+        private String deviceFingerprint;
+
+        /** 收货街道地址，属于个人信息，仅用于风控匹配。 */
+        private String shippingAddress;
+
+        /** 收货邮编，用于地址风险规则。 */
+        private String shippingPostalCode;
+
+        /** ISO 3166-1 alpha-3 收货国家/地区代码。 */
+        private String shippingCountry;
     }
 }

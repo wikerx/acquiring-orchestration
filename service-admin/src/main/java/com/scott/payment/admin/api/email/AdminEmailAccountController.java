@@ -55,18 +55,36 @@ public class AdminEmailAccountController {
         this.emailApplicationService = emailApplicationService;
     }
 
+    /**
+     * 分页查询发件账户配置，响应不得返回 SMTP 密码明文。
+     *
+     * @param query 账户名称、协议和状态等可选条件
+     * @return 发件账户分页结果
+     */
     @PostMapping("/search")
     @RequiresPermission("email:account:list")
     public CommonResult<PageResult<EmailAccountResponse>> pageAccounts(@RequestBody(required = false) EmailAccountQuery query) {
         return success(emailApplicationService.pageAccounts(query));
     }
 
+    /**
+     * 查询指定发件账户详情，敏感凭证按服务层规则脱敏。
+     *
+     * @param id 发件账户主键
+     * @return 发件账户详情
+     */
     @GetMapping("/{id}")
     @RequiresPermission("email:account:detail")
     public CommonResult<EmailAccountResponse> getAccount(@PathVariable("id") Long id) {
         return success(emailApplicationService.getAccount(id));
     }
 
+    /**
+     * 创建发件账户，凭证由应用服务按敏感配置处理。
+     *
+     * @param request 发件账户保存请求，可能包含敏感 SMTP 凭证
+     * @return 创建后的脱敏账户详情
+     */
     @PostMapping
     @RequiresPermission("email:account:add")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.CREATE, operation = "新增邮件发件账户")
@@ -74,6 +92,13 @@ public class AdminEmailAccountController {
         return success(emailApplicationService.createAccount(request));
     }
 
+    /**
+     * 更新指定发件账户，不在接口层记录请求正文中的 SMTP 凭证。
+     *
+     * @param id 发件账户主键
+     * @param request 发件账户保存请求
+     * @return 更新后的脱敏账户详情
+     */
     @PutMapping("/{id}")
     @RequiresPermission("email:account:edit")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.UPDATE, operation = "修改邮件发件账户")
@@ -82,6 +107,13 @@ public class AdminEmailAccountController {
         return success(emailApplicationService.updateAccount(id, request));
     }
 
+    /**
+     * 切换发件账户启停状态。
+     *
+     * @param id 发件账户主键
+     * @param request 目标状态请求
+     * @return 更新后的账户详情
+     */
     @PutMapping("/{id}/status")
     @RequiresPermission("email:account:status")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.UPDATE, operation = "切换邮件发件账户状态")
@@ -90,6 +122,12 @@ public class AdminEmailAccountController {
         return success(emailApplicationService.updateAccountStatus(id, request.getStatus()));
     }
 
+    /**
+     * 将指定启用账户设为默认发件账户，并由应用服务清理原默认标记。
+     *
+     * @param id 发件账户主键
+     * @return 更新后的默认账户详情
+     */
     @PutMapping("/{id}/default")
     @RequiresPermission("email:account:default")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.UPDATE, operation = "设置默认邮件发件账户")
@@ -97,6 +135,13 @@ public class AdminEmailAccountController {
         return success(emailApplicationService.setDefaultAccount(id));
     }
 
+    /**
+     * 使用指定账户向受控收件地址发送测试邮件。
+     *
+     * @param id 发件账户主键
+     * @param request 测试邮件收件地址和内容
+     * @return 测试发送结果
+     */
     @PostMapping("/{id}/test")
     @RequiresPermission("email:account:test")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.UPDATE, operation = "测试发送邮件")
@@ -105,6 +150,12 @@ public class AdminEmailAccountController {
         return success(emailApplicationService.sendTestEmail(id, request));
     }
 
+    /**
+     * 删除指定发件账户；默认账户或已被引用时由应用服务拒绝。
+     *
+     * @param id 发件账户主键
+     * @return 无业务数据的成功响应
+     */
     @DeleteMapping("/{id}")
     @RequiresPermission("email:account:remove")
     @OperationLog(moduleName = "发件账户配置", businessType = OperationTypeConstants.DELETE, operation = "删除邮件发件账户")

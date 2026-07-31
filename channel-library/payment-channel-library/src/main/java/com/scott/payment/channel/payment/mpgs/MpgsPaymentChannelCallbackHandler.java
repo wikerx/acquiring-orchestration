@@ -28,10 +28,19 @@ import java.util.Map;
 @Component
 public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallbackHandler {
 
+    /**
+     * MPGS 3DS Method 和付款人认证回调路径标识。
+     */
     private static final String THREE_DS_CALLBACK_PATH_SEGMENT = "/3ds";
 
+    /**
+     * 3DS Method 完成回调的内部原始状态。
+     */
     private static final String THREE_DS_METHOD_COMPLETED = "3DS_METHOD_COMPLETED";
 
+    /**
+     * 3DS 付款人认证回调的内部原始状态。
+     */
     private static final String THREE_DS_PAYER_AUTHENTICATION = "3DS_PAYER_AUTHENTICATION";
 
     /**
@@ -73,6 +82,11 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         this.errorCodeMapper = errorCodeMapper;
     }
 
+    /**
+     * 返回本处理器绑定的 MPGS 渠道编码。
+     *
+     * @return MPGS 平台渠道编码
+     */
     @Override
     public String channelCode() {
         return PaymentChannelCode.MPGS.getCode();
@@ -121,6 +135,16 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         return result;
     }
 
+    /**
+     * 解析 MPGS 3DS JSON 或表单回调。
+     * <p>
+     * Method 完成和付款人认证均映射为 PENDING，只提供后续认证编排所需标识，不在渠道层
+     * 直接把支付交易改为成功。sessionData 只记录存在性和长度。
+     * </p>
+     *
+     * @param request 已经过回调入口安全校验的渠道请求
+     * @return 统一 3DS 回调结果
+     */
     private ChannelCallbackResult handleThreeDsCallback(ChannelCallbackRequest request) {
         MpgsResponsePayload payload = parsePayload(request.getBody());
         Map<String, String> form = isJson(request.getBody()) ? Map.of() : parseForm(request.getBody());
@@ -172,6 +196,12 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         return result;
     }
 
+    /**
+     * 根据回调路径和协议特征判断是否属于 MPGS 3DS 回调。
+     *
+     * @param request 渠道回调请求
+     * @return 命中 3DS 路径或关键字段时返回 {@code true}
+     */
     private boolean isThreeDsCallback(ChannelCallbackRequest request) {
         String requestUri = request.getRequestUri();
         if (StringUtils.hasText(requestUri) && requestUri.toLowerCase().contains(THREE_DS_CALLBACK_PATH_SEGMENT)) {
@@ -185,6 +215,12 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
                 || containsIgnoreCase(body, "orderId=");
     }
 
+    /**
+     * 仅在请求体为 JSON 对象时解析 MPGS 响应模型。
+     *
+     * @param body 回调请求体
+     * @return JSON 响应模型；表单回调返回 {@code null}
+     */
     private MpgsResponsePayload parsePayload(String body) {
         if (!isJson(body)) {
             return null;
@@ -192,10 +228,25 @@ public class MpgsPaymentChannelCallbackHandler implements PaymentChannelCallback
         return JsonUtils.parseObject(body, MpgsResponsePayload.class);
     }
 
+    /**
+     * 判断非空请求体是否以 JSON 对象开始。
+     *
+     * @param body 回调请求体
+     * @return 看起来是 JSON 对象时返回 {@code true}
+     */
     private boolean isJson(String body) {
         return StringUtils.hasText(body) && body.trim().startsWith("{");
     }
 
+    /**
+     * 解析 {@code application/x-www-form-urlencoded} 形式的 MPGS 回调。
+     * <p>
+     * 重复字段按最后一个值保留；返回 Map 只在内存中参与状态映射，不整体写入日志。
+     * </p>
+     *
+     * @param body URL 编码表单体
+     * @return 解码后的字段 Map
+     */
     private Map<String, String> parseForm(String body) {
         if (!StringUtils.hasText(body)) {
             return Map.of();

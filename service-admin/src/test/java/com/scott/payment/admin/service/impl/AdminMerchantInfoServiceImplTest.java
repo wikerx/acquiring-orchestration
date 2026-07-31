@@ -2,6 +2,7 @@ package com.scott.payment.admin.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scott.payment.admin.application.cache.MerchantSecurityCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
@@ -9,6 +10,7 @@ import com.scott.payment.admin.entity.base.MccEntities;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
@@ -123,6 +125,12 @@ class AdminMerchantInfoServiceImplTest {
     private OpenApiKeyMaterialFactory keyMaterialFactory;
 
     /**
+     * 验证商户安全材料变更后是否登记事务型缓存失效意图的协调器替身。
+     */
+    @Mock
+    private MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
+    /**
      * service 依赖，用于 Admin Merchant Info Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -144,7 +152,8 @@ class AdminMerchantInfoServiceImplTest {
                 mccCodeMapper,
                 isoCountryMapper,
                 isoCurrencyMapper,
-                keyMaterialFactory
+                keyMaterialFactory,
+                cacheInvalidationCoordinator
         );
     }
 
@@ -191,7 +200,6 @@ class AdminMerchantInfoServiceImplTest {
 
     @Test
     void shouldGenerateMerchantIdWhenCreatingMerchant() {
-        when(merchantInfoMapper.selectOne(any())).thenReturn(null);
         AdminMerchantSaveRequest request = new AdminMerchantSaveRequest();
         request.setMerchantId("MANUAL-ID");
         request.setMerchantName("Codex Test Merchant");
@@ -218,6 +226,10 @@ class AdminMerchantInfoServiceImplTest {
                         && "Codex".equals(row.getMerchantShortName())
                         && "merchant@example.com".equals(row.getContactEmail())
         ));
+        verify(cacheInvalidationCoordinator).prepare(
+                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                result.getMerchantId()
+        );
     }
 
     @Test

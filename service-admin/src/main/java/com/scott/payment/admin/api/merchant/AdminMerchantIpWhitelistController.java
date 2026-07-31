@@ -169,6 +169,11 @@ public class AdminMerchantIpWhitelistController {
         return success();
     }
 
+    /**
+     * 解析商户 IP 白名单导入、导出审计使用的当前操作人名称。
+     *
+     * @return 优先返回真实姓名，其次登录账号；无认证上下文时返回 {@code admin}
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

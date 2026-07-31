@@ -163,10 +163,26 @@ public class MerchantNotificationRetryJob implements JobHandler {
         return JobExecuteResult.success("merchant notification retry finished, successCount=" + totalSuccessCount, result);
     }
 
+    /**
+     * 计算商户通知重试任务已运行时间。
+     *
+     * @param startNanos 任务开始时的单调时钟值
+     * @return 已运行毫秒数
+     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
+    /**
+     * 解析需要扫描的交易分表时间。
+     * <p>
+     * 显式时间列表优先，其次使用单个时间；均未提供时只扫描当前时间对应分表，避免默认
+     * 跨季度扩大通知重试范围。
+     * </p>
+     *
+     * @param request 任务请求
+     * @return 交易分表路由时间列表
+     */
     private List<LocalDateTime> resolveTransactionDateTimes(MerchantNotificationRetryRequest request) {
         if (request.getTransactionDateTimes() != null && !request.getTransactionDateTimes().isEmpty()) {
             return request.getTransactionDateTimes();
@@ -177,6 +193,13 @@ public class MerchantNotificationRetryJob implements JobHandler {
         return List.of(LocalDateTime.now());
     }
 
+    /**
+     * 校验并限制每个分表的通知重试批量。
+     *
+     * @param limit 请求批量
+     * @return 默认值或不超过系统上限的批量
+     * @throws ServiceException 输入非正数时抛出
+     */
     private int normalizeLimit(Integer limit) {
         if (limit == null) {
             return DEFAULT_LIMIT;

@@ -68,39 +68,75 @@ import java.util.Objects;
 @Service
 public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
 
+    /** MPGS 渠道稳定编码。 */
     private static final String CHANNEL_MPGS = "MPGS";
+    /** 当前收银台支持的银行卡支付方式编码。 */
     private static final String PAYMENT_METHOD_BANK_CARD = "BANK_CARD";
+    /** 会话首次创建事件类型。 */
     private static final String EVENT_SESSION_CREATED = "SESSION_CREATED";
+    /** 幂等创建请求重新签发访问令牌事件类型。 */
     private static final String EVENT_SESSION_REISSUED = "SESSION_TOKEN_REISSUED";
+    /** 付款人打开会话事件类型。 */
     private static final String EVENT_SESSION_OPENED = "SESSION_OPENED";
+    /** 付款人提交支付事件类型。 */
     private static final String EVENT_PAYMENT_SUBMITTED = "PAYMENT_SUBMITTED";
+    /** 需要付款人完成 3DS 挑战事件类型。 */
     private static final String EVENT_THREE_DS_CHALLENGE_REQUIRED = "THREE_DS_CHALLENGE_REQUIRED";
+    /** 3DS 服务端认证通过事件类型。 */
     private static final String EVENT_THREE_DS_AUTHENTICATED = "THREE_DS_AUTHENTICATED";
+    /** 3DS 认证失败事件类型。 */
     private static final String EVENT_THREE_DS_FAILED = "THREE_DS_FAILED";
+    /** 浏览器查询支付状态事件类型。 */
     private static final String EVENT_PAYMENT_STATUS_QUERIED = "PAYMENT_STATUS_QUERIED";
+    /** 浏览器 3DS 回跳到达事件类型。 */
     private static final String EVENT_THREE_DS_RETURNED = "THREE_DS_RETURNED";
+    /** 访问令牌不存在、撤销或格式非法的安全事件类型。 */
     private static final String SECURITY_INVALID_TOKEN = "INVALID_TOKEN";
+    /** 访问令牌或会话已过期的安全事件类型。 */
     private static final String SECURITY_EXPIRED_TOKEN = "EXPIRED_TOKEN";
+    /** 令牌、会话或尝试绑定关系不一致的安全事件类型。 */
     private static final String SECURITY_SESSION_MISMATCH = "SESSION_MISMATCH";
+    /** 前端使用受控 HTML 桥接执行 3DS 的动作类型。 */
     private static final String THREE_DS_ACTION_HTML = "HTML";
+    /** 3DS 明确失败的稳定原因码。 */
     private static final String FAILURE_THREE_DS_AUTHENTICATION_FAILED = "THREE_DS_AUTHENTICATION_FAILED";
+    /** 渠道结果未确定的稳定原因码。 */
     private static final String FAILURE_CHANNEL_PROCESSING = "CHANNEL_PROCESSING";
+    /** 支付渠道明确拒绝的稳定原因码。 */
     private static final String FAILURE_PAYMENT_DECLINED = "PAYMENT_DECLINED";
+    /** 不暴露渠道原文或内部异常的付款人默认失败提示。 */
     private static final String DEFAULT_PAYER_FAILURE_MESSAGE = "Payment could not be completed. Please try another card or contact your bank.";
+    /** 一次性 3DS 回跳令牌的安全随机字节数。 */
     private static final int THREE_DS_RETURN_TOKEN_BYTES = 32;
+    /** 单次 3DS 挑战最长等待时间，单位秒。 */
     private static final int THREE_DS_TIMEOUT_SECONDS = 600;
 
+    /** Hosted Checkout 会话数据库访问组件。 */
     private final PaymentCheckoutSessionMapper sessionMapper;
+    /** 不透明访问令牌摘要数据库访问组件。 */
     private final PaymentCheckoutTokenMapper tokenMapper;
+    /** 支付尝试数据库访问组件。 */
     private final PaymentCheckoutAttemptMapper attemptMapper;
+    /** 会话与尝试审计事件数据库访问组件。 */
     private final PaymentCheckoutEventMapper eventMapper;
+    /** 安全事件数据库访问组件。 */
     private final PaymentCheckoutSecurityEventMapper securityEventMapper;
+    /** 会话、令牌、尝试和事件业务号生成器。 */
     private final GlobalIdGenerator globalIdGenerator;
+    /** 会话有效期、重试次数和轮询等运行参数。 */
     private final PaymentCheckoutProperties properties;
+    /** 3DS 路由与渠道认证服务。 */
     private final PaymentCheckoutThreeDsService threeDsService;
+    /** 支付交易核心服务，负责数据库幂等和交易状态机。 */
     private final PaymentTransactionService paymentTransactionService;
+    /** 划分本地提交事务与外部 3DS/渠道调用边界的事务执行器。 */
     private final TransactionOperations transactionOperations;
 
+    /**
+     * 创建 Hosted Checkout 默认服务。
+     *
+     * <p>数据库 Mapper 是会话、令牌、尝试和事件的事实来源；外部 3DS 与支付调用在本地提交事务外执行。</p>
+     */
     @Autowired
     public DefaultPaymentCheckoutService(PaymentCheckoutSessionMapper sessionMapper,
                                          PaymentCheckoutTokenMapper tokenMapper,
@@ -146,6 +182,15 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         this.transactionOperations = transactionOperations;
     }
 
+    /**
+     * 创建或按商户请求号幂等返回 Hosted Checkout 会话。
+     *
+     * <p>相同请求号必须匹配原请求指纹；幂等命中会重新签发短期不透明令牌，
+     * 数据库中只保存令牌摘要，绝不保存令牌明文。</p>
+     *
+     * @param commandDTO 会话创建命令
+     * @return 新建或幂等命中的会话结果
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PaymentCheckoutSessionCreateResultDTO createSession(PaymentCheckoutSessionCreateCommandDTO commandDTO) {
@@ -172,6 +217,14 @@ public class DefaultPaymentCheckoutService implements PaymentCheckoutService {
         return createResult(sessionDO, issuedToken, false);
     }
 
+    /**
+     * 校验令牌摘要并返回会话展示快照。
+     *
+     * <p>令牌无效、过期或绑定会话不存在时记录脱敏安全事件并阻断；校验通过后原子记录使用次数。</p>
+     *
+     * @param commandDTO 会话查询命令
+     * @return 可公开展示、过期或阻断页面结果
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PaymentCheckoutSessionQueryResultDTO querySession(PaymentCheckoutSessionQueryCommandDTO commandDTO) {

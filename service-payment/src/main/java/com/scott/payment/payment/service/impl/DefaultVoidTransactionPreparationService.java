@@ -234,6 +234,15 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         this.transactionStateMachineService = transactionStateMachineService;
     }
 
+    /**
+     * 在事务内准备撤销交易。
+     *
+     * <p>锁定原订单并校验状态机、请款、退款和其他非终态资金动作，防止并发撤销破坏累计金额。</p>
+     *
+     * @param commandDTO     撤销命令
+     * @param idempotencyKey 数据库幂等键
+     * @return 新建或幂等命中的撤销准备结果
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public VoidPreparationResultDTO prepareVoid(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
@@ -248,6 +257,11 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                 .orElseGet(() -> prepareNewVoid(commandDTO, idempotencyKey, sourceOrderDO));
     }
 
+    /**
+     * 创建新的撤销幂等记录、动作单和 Outbox。
+     *
+     * @return 新撤销准备结果；并发占用幂等键时返回既有结果
+     */
     private VoidPreparationResultDTO prepareNewVoid(PaymentCreateCommandDTO commandDTO,
                                                     String idempotencyKey,
                                                     TransactionOrderDO sourceOrderDO) {
@@ -278,12 +292,12 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                 commandDTO.getTransactionInfo().getSourceTransactionId());
         normalizeVoidCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         PaymentCreateResultDTO resultDTO = buildVoidResult(commandDTO, sourceOrderDO, transactionId);
+        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichVoidResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
-        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         PaymentPreparedChannelRequestDTO preparedChannelRequestDTO = prepareChannelRequest(commandDTO, sourceOrderDO);
         PaymentChannelInvokeResultDTO preparedInvokeResultDTO = buildPreparedInvokeResult(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);

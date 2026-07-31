@@ -216,6 +216,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         this.adminConfigService = adminConfigService;
     }
 
+    /**
+     * 强制后台用户启用 TOTP MFA，生成加密待绑定密钥并注销既有会话。
+     *
+     * <p>旧正式密钥和未完成票据会失效；新密钥仅以密文持久化，
+     * 操作同时写入 MFA 审计并发送启用、绑定通知。</p>
+     *
+     * @param request 目标账号和操作原因
+     * @return 更新后的 MFA 策略与绑定状态
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -249,6 +258,14 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return toStatusResponse(account, mfa);
     }
 
+    /**
+     * 重置其他后台用户的 TOTP MFA，清除旧密钥并生成新的加密待绑定密钥。
+     *
+     * <p>禁止操作者重置自身 MFA；未完成票据和现有登录会话会统一失效。</p>
+     *
+     * @param request 目标账号和重置原因
+     * @return 进入 RESET_REQUIRED 状态的 MFA 信息
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -283,6 +300,14 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return toStatusResponse(account, mfa);
     }
 
+    /**
+     * 为其他后台用户配置有期限的 MFA 豁免，并清除现有及待绑定密钥。
+     *
+     * <p>豁免会注销现有会话并失效未完成票据，豁免原因和截止时间写入审计。</p>
+     *
+     * @param request 目标账号、豁免原因和截止时间
+     * @return 更新后的豁免状态
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -313,6 +338,14 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return toStatusResponse(account, mfa);
     }
 
+    /**
+     * 停用其他后台用户 MFA，删除密钥引用并注销现有会话。
+     *
+     * <p>禁止操作者停用自身 MFA，避免绕过当前管理会话的二次认证约束。</p>
+     *
+     * @param request 目标账号和停用原因
+     * @return 更新后的未启用状态
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -376,6 +409,15 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return toStatusResponse(account, mfa);
     }
 
+    /**
+     * 为待绑定或需重绑用户重新发送 MFA 绑定邮件。
+     *
+     * <p>缺少待绑定密钥时生成新的加密密钥，并使旧绑定票据失效；
+     * 任何密钥明文均不得进入日志或邮件审计正文。</p>
+     *
+     * @param request 目标账号和重发原因
+     * @return 当前 MFA 绑定状态
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -402,6 +444,12 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
         return toStatusResponse(account, mfa);
     }
 
+    /**
+     * 从只读数据源分页查询 MFA 管理审计日志。
+     *
+     * @param query 账号、动作、结果、时间范围和分页条件
+     * @return 按事件时间倒序的 MFA 日志分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<UserMfaLogResponse> pageLogs(UserMfaLogQuery query) {
@@ -425,6 +473,12 @@ public class AdminUserMfaServiceImpl implements AdminUserMfaService {
                 .toList());
     }
 
+    /**
+     * 查询未删除的后台管理应用，限定 MFA 数据归属。
+     *
+     * @return 后台管理应用记录
+     * @throws ServiceException 后台应用未配置时抛出
+     */
     private SysAppDO getAdminApp() {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()

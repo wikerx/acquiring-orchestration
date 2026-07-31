@@ -2,7 +2,7 @@ package com.scott.payment.component.redis.string.impl;
 
 import com.scott.payment.component.redis.string.RedisStringService;
 import com.scott.payment.component.redis.support.RedisKeySupport;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,11 +17,16 @@ import java.util.concurrent.TimeUnit;
  * @classname : RedisStringServiceImpl
  * @date : 2026-05-31 21:48
  * @email : scott_x@163.com
- * @description : Redis String 数据结构服务实现
+ * @description : 提供现有风控规则缓存依赖的通用 String 能力；可显式关闭，但新增调用仍须先登记 Key 与 TTL
  * @status : create
  */
 @Service
-@ConditionalOnBean(RedisTemplate.class)
+@ConditionalOnProperty(
+        prefix = "payment.redis.generic",
+        name = "string-enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 public class RedisStringServiceImpl implements RedisStringService {
 
     /**

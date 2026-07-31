@@ -204,6 +204,14 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         doSend(record, account, content, CONTENT_HTML.equalsIgnoreCase(template.getContentType()));
     }
 
+    /**
+     * 按模板编码和语言查询启用的商户邮件模板。
+     *
+     * @param templateCode 模板编码
+     * @param locale       语言地区编码
+     * @return 唯一启用且未删除的模板
+     * @throws IllegalStateException 没有可用模板时抛出
+     */
     private MerchantEmailTemplateDO requireEnabledTemplate(String templateCode, String locale) {
         MerchantEmailTemplateDO row = emailTemplateMapper.selectOne(Wrappers.<MerchantEmailTemplateDO>lambdaQuery()
                 .eq(MerchantEmailTemplateDO::getTemplateCode, trimUpper(templateCode))
@@ -217,6 +225,19 @@ public class MerchantTemplateEmailServiceImpl implements MerchantTemplateEmailSe
         return row;
     }
 
+    /**
+     * 按商户、应用和场景优先级选择发件账号。
+     * <p>
+     * 优先商户专属场景账号，再回退系统 ADMIN/COMMON 账号和当前应用系统账号；账号凭据只在
+     * 发送组件内使用，不写入邮件记录或日志。
+     * </p>
+     *
+     * @param appCode    调用应用编码
+     * @param merchantId 商户号；系统邮件可为空
+     * @param sceneCode  邮件场景编码
+     * @return 首个启用且匹配的发件账号
+     * @throws IllegalStateException 没有可用发件账号时抛出
+     */
     private MerchantEmailAccountDO selectAccount(String appCode, String merchantId, String sceneCode) {
         String normalizedAppCode = defaultIfBlank(trimUpper(appCode), AuthConstants.APP_MERCHANT);
         String normalizedSceneCode = defaultIfBlank(trimUpper(sceneCode), COMMON_SCENE);

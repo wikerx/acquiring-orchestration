@@ -61,18 +61,36 @@ public class AdminChannelLimitController {
         this.channelApplicationService = channelApplicationService;
     }
 
+    /**
+     * 分页查询渠道金额或笔数限额配置。
+     *
+     * @param query 渠道、币种、限额类型和状态等可选条件
+     * @return 渠道限额分页结果
+     */
     @PostMapping("/search")
     @RequiresPermission("channel:limit:list")
     public CommonResult<PageResult<LimitResponse>> pageLimits(@RequestBody(required = false) LimitQuery query) {
         return success(channelApplicationService.pageLimits(query));
     }
 
+    /**
+     * 查询指定渠道限额详情。
+     *
+     * @param id 渠道限额主键
+     * @return 渠道限额详情
+     */
     @GetMapping("/{id}")
     @RequiresPermission("channel:limit:detail")
     public CommonResult<LimitResponse> getLimit(@PathVariable("id") Long id) {
         return success(channelApplicationService.getLimit(id));
     }
 
+    /**
+     * 创建单条渠道限额，金额精度、币种和上下限关系由应用服务校验。
+     *
+     * @param request 渠道限额保存请求，金额禁止使用浮点语义
+     * @return 创建后的限额详情
+     */
     @PostMapping
     @RequiresPermission("channel:limit:add")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道限额")
@@ -80,6 +98,12 @@ public class AdminChannelLimitController {
         return success(channelApplicationService.createLimit(request));
     }
 
+    /**
+     * 批量创建同一业务维度下的渠道限额。
+     *
+     * @param request 批量限额保存请求
+     * @return 创建后的限额列表
+     */
     @PostMapping("/batch")
     @RequiresPermission("channel:limit:add")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.CREATE, operation = "批量新增渠道限额")
@@ -87,6 +111,12 @@ public class AdminChannelLimitController {
         return success(channelApplicationService.createLimits(request));
     }
 
+    /**
+     * 整体保存一个渠道限额维度，缺失项的处理语义由应用服务统一控制。
+     *
+     * @param request 限额维度批量保存请求
+     * @return 保存后的完整限额列表
+     */
     @PutMapping("/dimension")
     @RequiresPermission("channel:limit:edit")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.UPDATE, operation = "维度编辑渠道限额")
@@ -94,6 +124,13 @@ public class AdminChannelLimitController {
         return success(channelApplicationService.saveLimitDimension(request));
     }
 
+    /**
+     * 更新指定渠道限额，接口层不对金额执行舍入。
+     *
+     * @param id 渠道限额主键
+     * @param request 渠道限额保存请求
+     * @return 更新后的限额详情
+     */
     @PutMapping("/{id}")
     @RequiresPermission("channel:limit:edit")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道限额")
@@ -102,6 +139,13 @@ public class AdminChannelLimitController {
         return success(channelApplicationService.updateLimit(id, request));
     }
 
+    /**
+     * 切换渠道限额启停状态。
+     *
+     * @param id 渠道限额主键
+     * @param request 目标状态请求
+     * @return 更新后的限额详情
+     */
     @PutMapping("/{id}/status")
     @RequiresPermission("channel:limit:status")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道限额状态")
@@ -110,6 +154,12 @@ public class AdminChannelLimitController {
         return success(channelApplicationService.updateLimitStatus(id, request.getStatus()));
     }
 
+    /**
+     * 删除指定渠道限额配置。
+     *
+     * @param id 渠道限额主键
+     * @return 无业务数据的成功响应
+     */
     @DeleteMapping("/{id}")
     @RequiresPermission("channel:limit:remove")
     @OperationLog(moduleName = "渠道限额管理", businessType = OperationTypeConstants.DELETE, operation = "删除渠道限额")

@@ -45,24 +45,96 @@ import java.util.Locale;
 @Service
 public class HostedCheckoutServiceImpl implements HostedCheckoutService {
 
+    /**
+     * 当前 Hosted Checkout 支持的银行卡支付方式编码。
+     */
     private static final String PAYMENT_METHOD_BANK_CARD = "BANK_CARD";
+
+    /**
+     * 当前 Hosted Checkout 默认接入的 MPGS 渠道编码。
+     */
     private static final String CHANNEL_MPGS = "MPGS";
+
+    /**
+     * 代理链客户端 IP 请求头。
+     */
     private static final String HEADER_X_FORWARDED_FOR = "X-Forwarded-For";
+
+    /**
+     * 反向代理真实客户端 IP 请求头。
+     */
     private static final String HEADER_X_REAL_IP = "X-Real-IP";
+
+    /**
+     * 浏览器请求来源头。
+     */
     private static final String HEADER_ORIGIN = "Origin";
+
+    /**
+     * 浏览器引用页请求头。
+     */
     private static final String HEADER_REFERER = "Referer";
+
+    /**
+     * 浏览器 User-Agent 请求头。
+     */
     private static final String HEADER_USER_AGENT = "User-Agent";
+
+    /**
+     * 平台收银台前端基础地址的系统参数键。
+     */
     private static final String CHECKOUT_FRONTEND_BASE_URL_CONFIG_KEY = "platform.checkout.frontend-base-url";
+
+    /**
+     * 脱敏日志摘要最大字符数。
+     */
     private static final int LOG_SUMMARY_LIMIT = 1200;
+
+    /**
+     * 内部无时区时间转换为对外时间时使用的平台默认时区。
+     */
     private static final ZoneId DEFAULT_RESPONSE_ZONE = ZoneId.of("Asia/Shanghai");
 
+    /**
+     * service-payment 内部客户端；支付状态和幂等事实均由支付核心持久化。
+     */
     private final PaymentInternalClient paymentInternalClient;
+
+    /**
+     * Hosted Checkout 会话有效期、重试和轮询等运行参数。
+     */
     private final HostedCheckoutProperties properties;
+
+    /**
+     * 平台系统参数读取服务，用于获取受控收银台前端地址。
+     */
     private final OpenApiSystemConfigService systemConfigService;
+
+    /**
+     * 当前 OpenAPI 商户身份上下文。
+     */
     private final OpenApiRequestContext requestContext;
+
+    /**
+     * 密钥材料工具，仅用于密文和令牌指纹计算，不输出原始敏感值。
+     */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
+
+    /**
+     * ISO 币种字典服务，用于确定金额小数位数。
+     */
     private final IsoDictionaryService isoDictionaryService;
 
+    /**
+     * 创建 Hosted Checkout 服务。
+     *
+     * @param paymentInternalClient service-payment 内部客户端
+     * @param properties            Hosted Checkout 运行参数
+     * @param systemConfigService   平台系统参数读取服务
+     * @param requestContext        OpenAPI 商户身份上下文
+     * @param keyMaterialFactory    密文与令牌指纹工具
+     * @param isoDictionaryService  ISO 币种字典服务
+     */
     public HostedCheckoutServiceImpl(PaymentInternalClient paymentInternalClient,
                                      HostedCheckoutProperties properties,
                                      OpenApiSystemConfigService systemConfigService,
@@ -77,6 +149,16 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         this.isoDictionaryService = isoDictionaryService;
     }
 
+    /**
+     * 创建 Hosted Checkout 会话快照。
+     *
+     * <p>先校验请求商户与已验签上下文的绑定关系，再将金额、币种精度、展示信息和请求指纹
+     * 交由支付核心持久化；Redis 不作为会话或幂等结果的唯一事实来源。</p>
+     *
+     * @param encryptedData 商户原始密文，仅用于计算请求指纹
+     * @param requestDTO    解密并校验后的会话创建请求
+     * @return 会话标识、过期时间及付款人访问地址
+     */
     @Override
     public HostedCheckoutSessionCreateVO createSession(String encryptedData,
                                                        HostedCheckoutSessionCreateRequestDTO requestDTO) {
@@ -107,6 +189,12 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return responseVO;
     }
 
+    /**
+     * 使用不透明令牌摘要查询收银台会话展示快照。
+     *
+     * @param requestDTO 浏览器会话查询请求
+     * @return 支付核心返回的会话展示快照
+     */
     @Override
     public HostedCheckoutSessionVO querySession(HostedCheckoutBrowserRequestDTOs.SessionQueryRequest requestDTO) {
         PaymentCheckoutClientDTOs.SessionQueryRequest clientRequest = new PaymentCheckoutClientDTOs.SessionQueryRequest();
@@ -117,6 +205,15 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return toSessionVO(response);
     }
 
+    /**
+     * 提交一次 Hosted Checkout 付款尝试。
+     *
+     * <p>仅向支付核心传递令牌摘要和请求指纹；PAN、CVV 与账单资料只在当前内存调用链中使用，
+     * 不写入 Redis、业务日志或 OpenAPI 响应。尝试幂等和交易状态流转由支付核心负责。</p>
+     *
+     * @param requestDTO 浏览器支付提交请求
+     * @return 当前支付结果、处理中状态或 3DS 动作
+     */
     @Override
     public HostedCheckoutPaymentResultVO submitPayment(HostedCheckoutBrowserRequestDTOs.PaymentSubmitRequest requestDTO) {
         PaymentCheckoutClientDTOs.PaymentSubmitRequest clientRequest = new PaymentCheckoutClientDTOs.PaymentSubmitRequest();
@@ -135,6 +232,12 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return toPaymentResultVO(response);
     }
 
+    /**
+     * 查询指定会话及支付尝试的当前状态。
+     *
+     * @param requestDTO 浏览器支付状态查询请求
+     * @return 支付核心数据库事实对应的当前状态
+     */
     @Override
     public HostedCheckoutPaymentResultVO queryPaymentStatus(
             HostedCheckoutBrowserRequestDTOs.PaymentStatusRequest requestDTO) {
@@ -149,6 +252,15 @@ public class HostedCheckoutServiceImpl implements HostedCheckoutService {
         return toPaymentResultVO(response);
     }
 
+    /**
+     * 将 3DS 回跳提交给支付核心继续处理。
+     *
+     * <p>一次性回跳令牌仅传递摘要，认证数据先脱敏后进入内部请求；本层不根据浏览器回跳
+     * 直接覆盖支付终态。</p>
+     *
+     * @param requestDTO 浏览器 3DS 回跳请求
+     * @return 支付核心处理后的当前支付状态
+     */
     @Override
     public HostedCheckoutPaymentResultVO handleThreeDsReturn(
             HostedCheckoutBrowserRequestDTOs.ThreeDsReturnRequest requestDTO) {

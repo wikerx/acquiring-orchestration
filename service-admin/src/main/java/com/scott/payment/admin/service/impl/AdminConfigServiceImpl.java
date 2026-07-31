@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.scott.payment.admin.application.cache.MerchantSecurityCacheInvalidationCoordinator;
 import com.scott.payment.admin.constant.SystemConfigKeys;
 import com.scott.payment.admin.converter.ConfigConverter;
 import com.scott.payment.admin.dto.SysConfigDTO;
@@ -12,9 +13,12 @@ import com.scott.payment.admin.entity.SysConfigDO;
 import com.scott.payment.admin.mapper.SysConfigMapper;
 import com.scott.payment.admin.service.AdminConfigService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.core.cache.PlatformConfigCachePolicy;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -58,34 +62,55 @@ public class AdminConfigServiceImpl implements AdminConfigService {
     private final ConfigConverter configConverter;
 
     /**
+     * 受管永久缓存可靠失效协调器。
+     *
+     * <p>当前复用既有商户安全缓存 Outbox 表以兼容历史事件；协调器本身按 cacheName 和
+     * businessKey 工作，可安全承载白名单内的平台公开配置。</p>
+     */
+    private final MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
+    /**
      * 创建系统参数配置服务实现。
      *
-     * @param sysConfigMapper 系统参数配置 Mapper
-     * @param configConverter 系统参数配置对象转换器
+     * @param sysConfigMapper              系统参数配置 Mapper
+     * @param configConverter              系统参数配置对象转换器
+     * @param cacheInvalidationCoordinator 受管永久缓存可靠失效协调器
      */
-    public AdminConfigServiceImpl(SysConfigMapper sysConfigMapper, ConfigConverter configConverter) {
+    public AdminConfigServiceImpl(
+            SysConfigMapper sysConfigMapper,
+            ConfigConverter configConverter,
+            MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.sysConfigMapper = sysConfigMapper;
         this.configConverter = configConverter;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
     /**
      * 保存或更新系统参数配置。
      *
+     * <p>只有 {@link PlatformConfigCachePolicy} 登记的非敏感公开配置进入永久缓存。此类配置
+     * 必须先在当前事务登记 Outbox 和 pending 门禁，再写数据库；任一步失败均回滚数据库事务，
+     * 避免永久缓存失效失败后长期返回旧值。</p>
+     *
      * @param request 系统参数配置保存请求
      * @return 保存后的配置
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public SysConfigDTO saveConfig(SysConfigSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
-        SysConfigDO entity = findActiveConfig(request.getConfigKey());
+        String configKey = normalizeConfigKey(request.getConfigKey());
+        request.setConfigKey(configKey);
+        SysConfigDO entity = findActiveConfig(configKey);
         if (entity == null) {
             entity = new SysConfigDO();
-            entity.setConfigKey(request.getConfigKey());
+            entity.setConfigKey(configKey);
             entity.setCreatedBy(request.getOperator());
             entity.setCreatedAt(now);
             entity.setDeleted(NOT_DELETED);
         }
         fillConfig(entity, request, now);
+        preparePublicConfigInvalidation(configKey);
         if (entity.getId() == null) {
             sysConfigMapper.insert(entity);
         } else {
@@ -154,6 +179,12 @@ public class AdminConfigServiceImpl implements AdminConfigService {
         );
     }
 
+    /**
+     * 按条件查询全部系统参数配置，不应用分页截断。
+     *
+     * @param request 配置键、名称、类型和状态等可选条件
+     * @return 按统一查询排序返回的配置列表
+     */
     @Override
     public List<SysConfigDTO> listConfigs(SysConfigQueryRequest request) {
         SysConfigQueryRequest query = request == null ? new SysConfigQueryRequest() : request;
@@ -182,14 +213,20 @@ public class AdminConfigServiceImpl implements AdminConfigService {
     /**
      * 软删除指定配置。
      *
+     * <p>删除白名单内的公开配置时，缓存删除与数据库软删除共用同一事务型 Outbox 意图；
+     * 未进入缓存白名单的普通或敏感配置不创建 Redis 门禁。</p>
+     *
      * @param configKey 参数键名
      */
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteConfig(String configKey) {
-        SysConfigDO entity = findActiveConfig(configKey);
+        String normalizedConfigKey = normalizeConfigKey(configKey);
+        SysConfigDO entity = findActiveConfig(normalizedConfigKey);
         if (entity == null) {
             return;
         }
+        preparePublicConfigInvalidation(normalizedConfigKey);
         entity.setDeleted(entity.getId());
         entity.setUpdatedAt(LocalDateTime.now());
         sysConfigMapper.updateById(entity);
@@ -202,15 +239,40 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * @return 配置实体
      */
     private SysConfigDO findActiveConfig(String configKey) {
-        if (!StringUtils.hasText(configKey)) {
-            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), ApiResultEnum.PARAM_MISSING.getMessage() + ":configKey");
-        }
         return sysConfigMapper.selectOne(
                 Wrappers.<SysConfigDO>lambdaQuery()
                         .eq(SysConfigDO::getConfigKey, configKey)
                         .eq(SysConfigDO::getDeleted, NOT_DELETED)
                         .last("LIMIT 1")
         );
+    }
+
+    /**
+     * 规范化配置键，保证数据库唯一键、Spring Cache 业务 Key 与失效门禁使用同一字符串。
+     *
+     * @param configKey 原始配置键
+     * @return 去除首尾空白后的配置键
+     * @throws ServiceException 配置键为空时抛出
+     */
+    private String normalizeConfigKey(String configKey) {
+        if (!StringUtils.hasText(configKey)) {
+            throw new ServiceException(
+                    ApiResultEnum.PARAM_MISSING.getCode(),
+                    ApiResultEnum.PARAM_MISSING.getMessage() + ":configKey"
+            );
+        }
+        return configKey.trim();
+    }
+
+    /**
+     * 为允许进入 Redis 的平台公开配置登记可靠失效意图。
+     *
+     * @param configKey 已规范化的平台配置键
+     */
+    private void preparePublicConfigInvalidation(String configKey) {
+        if (PlatformConfigCachePolicy.isCacheable(configKey)) {
+            cacheInvalidationCoordinator.prepare(PaymentCacheNames.PLATFORM_CONFIG, configKey);
+        }
     }
 
     /**

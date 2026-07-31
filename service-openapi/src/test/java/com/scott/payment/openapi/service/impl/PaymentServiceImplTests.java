@@ -4,8 +4,8 @@ import com.alibaba.fastjson2.TypeReference;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
-import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
+import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
+import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
@@ -82,8 +82,13 @@ class PaymentServiceImplTests {
         assertThat(captured.getTransactionInfo().getCardBrand()).isEqualTo("MASTERCARD");
         assertThat(captured.getCallbackUrl()).isEqualTo("https://merchant.example/callback");
         assertThat(captured.getSourceUrl()).isEqualTo("https://checkout.example");
-        assertThat(captured.getPayerIp()).isEqualTo("203.0.113.1");
+        assertThat(captured.getPayerIp()).isEqualTo("198.51.100.10");
         assertThat(captured.getUserAgent()).isEqualTo("JUnit");
+        assertThat(captured.getRiskContext().getCustomerId()).isEqualTo("CUSTOMER-001");
+        assertThat(captured.getRiskContext().getDeviceFingerprint()).isEqualTo("DEVICE-FP-001");
+        assertThat(captured.getRiskContext().getShippingAddress()).isEqualTo("2 Shipping St");
+        assertThat(captured.getRiskContext().getShippingPostalCode()).isEqualTo("10003");
+        assertThat(captured.getRiskContext().getShippingCountry()).isEqualTo("USA");
     }
 
     @Test
@@ -359,21 +364,22 @@ class PaymentServiceImplTests {
                 new OpenApiKeyMaterialFactory(),
                 new OpenApiRequestContext(),
                 isoDictionaryService(),
-                baseMerchantInfoMapper()
+                merchantRuntimeProfileCacheService()
         );
     }
 
-    private BaseMerchantInfoMapper baseMerchantInfoMapper() {
-        BaseMerchantInfoMapper mapper = mock(BaseMerchantInfoMapper.class);
-        BaseMerchantInfoDO merchantInfoDO = new BaseMerchantInfoDO();
-        merchantInfoDO.setMerchantId("200001");
-        merchantInfoDO.setSettlementCurrency("HKD");
-        when(mapper.selectOne(any())).thenReturn(merchantInfoDO);
-        return mapper;
+    private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService() {
+        MerchantRuntimeProfileCacheService service = mock(MerchantRuntimeProfileCacheService.class);
+        MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
+        profile.setMerchantId("200001");
+        profile.setSettlementCurrency("HKD");
+        when(service.findRuntimeProfile("200001")).thenReturn(profile);
+        return service;
     }
 
     private void bindRequestContext() {
         MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Gateway-Client-Ip", "198.51.100.10");
         request.addHeader("X-Forwarded-For", "203.0.113.1, 10.0.0.1");
         request.addHeader("Origin", "https://checkout.example");
         request.addHeader("User-Agent", "JUnit");
@@ -439,6 +445,14 @@ class PaymentServiceImplTests {
         transactionInfo.setCallbackUrl("https://merchant.example/callback");
         transactionInfo.setCardBrand("MASTERCARD");
         requestDTO.setTransactionInfo(transactionInfo);
+
+        ApiMerchantPaymentRequestDTO.RiskContextDTO riskContext = new ApiMerchantPaymentRequestDTO.RiskContextDTO();
+        riskContext.setCustomerId("CUSTOMER-001");
+        riskContext.setDeviceFingerprint("DEVICE-FP-001");
+        riskContext.setShippingAddress("2 Shipping St");
+        riskContext.setShippingPostalCode("10003");
+        riskContext.setShippingCountry("USA");
+        requestDTO.setRiskContext(riskContext);
         return requestDTO;
     }
 
@@ -578,46 +592,55 @@ class PaymentServiceImplTests {
          */
         private String nextFailReasonMessage;
 
+        /** 捕获授权内部请求，并生成与授权动作匹配的可配置测试响应。 */
         @Override
         public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.AUTHORIZATION);
         }
 
+        /** 捕获一步支付内部请求，并生成与支付动作匹配的可配置测试响应。 */
         @Override
         public PaymentCreateClientResponseDTO createPayment(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PAYMENT);
         }
 
+        /** 捕获预授权内部请求，并生成与预授权动作匹配的测试响应。 */
         @Override
         public PaymentCreateClientResponseDTO createPreAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTHORIZATION);
         }
 
+        /** 捕获增量授权内部请求，并保留原交易关联字段供断言。 */
         @Override
         public PaymentCreateClientResponseDTO createIncrementalAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION);
         }
 
+        /** 捕获请款内部请求，并生成与请款动作匹配的测试响应。 */
         @Override
         public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.CAPTURE);
         }
 
+        /** 捕获预授权完成内部请求，并生成对应测试响应。 */
         @Override
         public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
         }
 
+        /** 捕获退款内部请求，并生成与退款动作匹配的测试响应。 */
         @Override
         public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.REFUND);
         }
 
+        /** 捕获撤销内部请求，并生成与撤销动作匹配的测试响应。 */
         @Override
         public PaymentCreateClientResponseDTO voidPayment(PaymentCreateClientRequestDTO requestDTO) {
             return captureRequest(requestDTO, OpenApiPaymentOperationEnum.VOID);
         }
 
+        /** 捕获查询条件，并将统一交易响应转换成含单条动作明细的查询结果。 */
         @Override
         public PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
             PaymentCreateClientResponseDTO createResponseDTO = captureRequest(requestDTO, OpenApiPaymentOperationEnum.QUERY);
@@ -649,6 +672,7 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
+        /** 返回固定的渠道回调受理结果，供非回调测试满足客户端契约。 */
         @Override
         public TransactionChannelCallbackClientResponseDTO recordChannelCallback(TransactionChannelCallbackClientRequestDTO requestDTO) {
             TransactionChannelCallbackClientResponseDTO responseDTO = new TransactionChannelCallbackClientResponseDTO();
@@ -660,11 +684,13 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
+        /** 模拟商户响应日志成功命中并完成回写。 */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
             return true;
         }
 
+        /** 根据请求过期时间返回固定的新建会话结果。 */
         @Override
         public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
@@ -678,6 +704,7 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
+        /** 返回固定可支付会话，用于验证 OpenAPI 会话响应映射。 */
         @Override
         public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
@@ -687,6 +714,7 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
+        /** 返回固定处理中结果，用于验证付款尝试提交响应映射。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
                 PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
@@ -697,6 +725,7 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
+        /** 返回固定 PROCESSING 状态，用于验证 OpenAPI 轮询结果映射。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
                 PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
@@ -707,6 +736,7 @@ class PaymentServiceImplTests {
             return responseDTO;
         }
 
+        /** 返回固定 PROCESSING 状态，用于验证 3DS 返回后不会提前宣告支付成功。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {

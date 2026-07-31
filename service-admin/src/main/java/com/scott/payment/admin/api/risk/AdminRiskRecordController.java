@@ -70,6 +70,18 @@ public class AdminRiskRecordController {
     @GetMapping("/evaluations/{riskRecordNo}/hits")
     @RequiresPermission("risk:record:evaluation:detail")
     public CommonResult<List<Map<String, Object>>> evaluationHits(@PathVariable("riskRecordNo") String riskRecordNo) {
-        return success(riskManagementApplicationService.evaluationHits(riskRecordNo));
+        return success(riskManagementApplicationService.evaluationDetails(riskRecordNo));
+    }
+
+    /**
+     * 查询风控评估的全部实际执行明细。
+     *
+     * @param riskRecordNo 风控记录号
+     * @return 按执行优先级排列的评估明细
+     */
+    @GetMapping("/evaluations/{riskRecordNo}/details")
+    @RequiresPermission("risk:record:evaluation:detail")
+    public CommonResult<List<Map<String, Object>>> evaluationDetails(@PathVariable("riskRecordNo") String riskRecordNo) {
+        return success(riskManagementApplicationService.evaluationDetails(riskRecordNo));
     }
 }

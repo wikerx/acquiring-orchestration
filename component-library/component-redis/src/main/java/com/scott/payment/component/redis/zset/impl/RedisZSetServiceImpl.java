@@ -2,7 +2,7 @@ package com.scott.payment.component.redis.zset.impl;
 
 import com.scott.payment.component.redis.support.RedisKeySupport;
 import com.scott.payment.component.redis.zset.RedisZSetService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
@@ -18,11 +18,11 @@ import java.util.Set;
  * @classname : RedisZSetServiceImpl
  * @date : 2026-05-31 22:03
  * @email : scott_x@163.com
- * @description : Redis ZSet 有序集合服务实现
+ * @description : 提供受配置门禁控制的通用 ZSet 能力；默认不注册，滑动窗口和 MQ 去重应使用专用有界 Lua
  * @status : create
  */
 @Service
-@ConditionalOnBean(RedisTemplate.class)
+@ConditionalOnProperty(prefix = "payment.redis.generic", name = "zset-enabled", havingValue = "true")
 public class RedisZSetServiceImpl implements RedisZSetService {
 
     /**

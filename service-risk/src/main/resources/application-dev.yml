@@ -1,10 +1,15 @@
 # 环境接入配置：当前文件只负责连接 dev 环境的 Nacos 命名空间。
-# service-risk 当前为实时风控骨架服务，只拉取服务专属配置和公共配置；接入规则库、名单库或 MQ 后再显式增加对应 DataId。
+# service-risk 当前接入运行时名单/规则库、Redis 缓存和 MQ 异步审计。
 spring:
   config:
     import:
-      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # dev 可叠加 live-regression profile，因此 DataId 必须明确绑定 dev，不能使用逗号分隔的 active profiles。
+      - optional:nacos:${spring.application.name}-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:dataSource-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:sharding-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:redis-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:rocketmq-dev.${spring.cloud.nacos.config.file-extension}
   cloud:
     bootstrap:
       enabled: true

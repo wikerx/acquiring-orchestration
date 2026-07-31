@@ -522,6 +522,14 @@ public class AdminUserServiceImpl implements AdminUserService {
         logoutSessions(app.getId(), account.getId(), now);
     }
 
+    /**
+     * 批量逻辑删除后台账号及用户，清理角色/岗位关系并注销现有会话。
+     *
+     * <p>全部操作在主库事务中执行；空主键集合按幂等成功处理，
+     * 防止已删除账号继续通过旧会话访问管理端。</p>
+     *
+     * @param accountIds 待删除的后台账号主键集合
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)

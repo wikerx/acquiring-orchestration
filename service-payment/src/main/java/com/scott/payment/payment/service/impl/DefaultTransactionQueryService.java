@@ -451,6 +451,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return response;
     }
 
+    /**
+     * 跨季度物理分表执行已归一化的交易动作分页查询。
+     *
+     * <p>按时间顺序逐表扣减全局偏移量，并批量补充支付工具、订单和通知状态，避免逐行 N+1 查询。</p>
+     *
+     * @param safeQuery 已填充时间范围和规范状态条件的查询
+     * @return 跨分表合并后的分页结果
+     */
     private PageResult<TransactionOperationResponse> pageOperationsNormalized(TransactionPageQuery safeQuery) {
         long total = 0L;
         List<TransactionOperationDO> rows = new ArrayList<>();
@@ -702,6 +710,12 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
+    /**
+     * 规范交易动作查询条件。
+     *
+     * @param query 原始查询条件；允许为空
+     * @return 已填充默认时间范围并映射商户响应码的条件
+     */
     private TransactionPageQuery normalize(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
         fillDefaultTimeRange(safeQuery);
@@ -879,7 +893,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         response.setDccEnabled(row.getDccEnabled());
         response.setEdcEnabled(row.getEdcEnabled());
         response.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-        response.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus()));
+        response.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus(), row.getFailReasonCode()));
         response.setAuthorizedAmount(row.getAuthorizedAmount());
         response.setCapturedAmount(row.getCapturedAmount());
         response.setRefundedAmount(row.getRefundedAmount());
@@ -1076,7 +1090,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         response.setDccEnabled(row.getDccEnabled());
         response.setEdcEnabled(row.getEdcEnabled());
         response.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-        response.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus()));
+        response.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus(), row.getFailReasonCode()));
         response.setMerchantNotificationStatus(merchantNotificationStatus);
         response.setAuthorizedAmount(orderDO == null ? null : orderDO.getAuthorizedAmount());
         response.setCapturedAmount(orderDO == null ? null : orderDO.getCapturedAmount());
@@ -1643,11 +1657,14 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
      * @return 构造、转换或解析后的业务值
      */
-    private String resolveMerchantResponseMessage(String transactionStatus) {
+    private String resolveMerchantResponseMessage(String transactionStatus, String failReasonCode) {
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
         }
         if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
+            if (PaymentRiskDecisionSupport.isRiskRejected(failReasonCode)) {
+                return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
+            }
             return ApiResultEnum.PAYMENT_REJECTED.getMessage();
         }
         if (PaymentTransactionStatusEnum.PENDING.getCode().equals(transactionStatus)) {
@@ -1747,6 +1764,12 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return null;
     }
 
+    /**
+     * 按交易时间分表批量加载动作对应的支付工具摘要。
+     *
+     * @param rows 交易动作列表
+     * @return 以交易号为键的支付工具信息；不包含完整 PAN 或 CVV
+     */
     private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap(List<TransactionOperationDO> rows) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
@@ -1782,6 +1805,12 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         return result;
     }
 
+    /**
+     * 按操作号补查无法通过交易号直接命中的支付工具记录。
+     *
+     * @param rows 交易动作列表
+     * @return 以操作号为键的支付工具信息
+     */
     private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMapByOperationId(List<TransactionOperationDO> rows) {
         Map<String, List<TransactionOperationDO>> operationRows = rows.stream()
                 .filter(row -> StringUtils.hasText(row.getOperationId()) && row.getTransactionDateTime() != null)
@@ -2402,6 +2431,12 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     @FunctionalInterface
     private interface PhysicalTableSelector<T> {
 
+        /**
+         * 查询指定受控物理分表。
+         *
+         * @param table 已由分片组件生成并校验的物理表名
+         * @return 当前分表查询结果
+         */
         List<T> select(String table);
     }
 }

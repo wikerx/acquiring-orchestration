@@ -24,6 +24,18 @@ import java.time.LocalDateTime;
 @Service
 public class JobTaskTimingServiceImpl implements JobTaskTimingService {
 
+    /**
+     * 根据任务状态、Cron 和错过执行策略计算下一触发时间。
+     * <p>
+     * 禁用任务或未配置 Cron 时不再调度；FIRE_ONCE 且旧触发点已过期时以当前时间前一秒为
+     * 基线，使 Cron 立即给出下一次可执行时刻。
+     * </p>
+     *
+     * @param task        任务定义
+     * @param referenceAt 调度计算基准时间
+     * @return 下一触发时间；任务不可调度时返回 {@code null}
+     * @throws ServiceException Cron 表达式非法时抛出
+     */
     @Override
     public LocalDateTime calculateNextTriggerTime(SysJobTaskDO task, LocalDateTime referenceAt) {
         if (task == null || !JobStatusEnum.ENABLED.name().equals(task.getStatus())) {

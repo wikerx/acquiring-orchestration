@@ -320,13 +320,13 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     }
 
     /**
-     * 从从库查询商户 JWT HS256 签名密钥。
+     * 从主库查询商户 JWT HS256 签名密钥。
      *
      * @param merchantId 支付框架颁发的商户号
      * @return 商户 JWT 签名密钥
      */
     @Override
-    @DS(DataSourceName.SLAVE)
+    @DS(DataSourceName.MASTER)
     public String getMerchantKey(String merchantId) {
         validateMerchantId(merchantId);
         MerchantInfoDO merchantInfoDO = getActiveMerchant(merchantId);

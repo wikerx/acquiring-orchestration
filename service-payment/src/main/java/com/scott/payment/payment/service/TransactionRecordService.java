@@ -65,6 +65,28 @@ public interface TransactionRecordService {
                                       int currencyExponent);
 
     /**
+     * 记录同步渠道结果并返回状态 CAS 是否实际推进。
+     *
+     * @return true 表示交易状态发生了有效迁移
+     */
+    default boolean completeInitialChannelResultAndReport(
+            PaymentCreateCommandDTO commandDTO,
+            PaymentRouteResultDTO routeResultDTO,
+            PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+            PaymentCreateResultDTO resultDTO,
+            PaymentRiskDecisionEnum riskDecisionEnum,
+            int currencyExponent) {
+        completeInitialChannelResult(
+                commandDTO,
+                routeResultDTO,
+                channelInvokeResultDTO,
+                resultDTO,
+                riskDecisionEnum,
+                currencyExponent);
+        return false;
+    }
+
+    /**
      * 按原交易业务时间和内部 operation_id 定位交易生命周期主单。
      *
      * @param transactionDateTime 原交易业务时间，对应 transaction_date_time 分表字段

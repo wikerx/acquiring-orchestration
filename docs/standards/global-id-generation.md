@@ -60,22 +60,52 @@ public void createTransaction() {
 
 ```yaml
 payment:
+  redis:
+    key-prefix: "acquiring:prod"
   global-id:
     enabled: true
     mode: redis
     timezone: Asia/Shanghai
     sequence-length: 6
     max-sequence: 999999
-    seq-key-prefix: "biz:{global_id}:seq:"
-    last-millis-key: "biz:{global_id}:last_millis"
-    seq-key-expire-seconds: 172800
+    state-key: "acquiring:prod:global-id:state"
     max-retry-times: 3
     retry-sleep-millis: 1
+    restore-acknowledged: false
+    restore-floor-epoch-millis: 0
 ```
 
 `prod` 和 `uat` profile 禁止配置 `payment.global-id.mode=local`。
+`state-key` 是一个 Redis Hash，字段为 `last_millis` 和 `sequence`；禁止恢复为按毫秒创建独立序列 Key 的旧实现。
+该 Key 必须与 `payment.redis.key-prefix` 的环境片段完全一致。全局 ID 只操作单 Key，
+不需要 Redis Cluster Hash Tag，因此禁止使用历史格式 `global-id:{state}`。
 
-## 5. 编号生成替换点扫描清单
+## 5. 状态备份与恢复门禁
+
+全局 ID Hash 没有 TTL，是发号连续性状态，不能由 Admin 缓存管理、通用 Redis 删除接口或
+日常 Key 清理任务访问。备份必须同时记录：
+
+| 项目 | 要求 |
+|---|---|
+| 物理 Key | 精确记录 `acquiring:{environment}:global-id:state`，禁止跨环境恢复 |
+| Hash 字段 | 同时备份 `last_millis` 和 `sequence`，不得只恢复一个字段 |
+| 备份时间 | 使用 UTC epochMillis 和可读时间双重记录 |
+| 历史最大编号 | 从不可变交易/审计数据核对已签发编号的最大 15 位时间片 |
+| 审批 | 至少由应用 Owner 和数据库/Redis 运维双人确认 |
+
+禁止把旧快照直接覆盖到正在发号的 Redis。确需灾难恢复时：
+
+1. 停止所有发号实例并确认没有在途创建请求。
+2. 校验备份 Key 所属环境、Hash 两个字段和历史最大已签发编号。
+3. 将 `restore-floor-epoch-millis` 设置为严格高于历史最大编号时间片的 epochMillis。
+4. 临时设置 `restore-acknowledged=true`，完成双人审批后再启动单个实例。
+5. 验证新编号时间片不低于恢复下限且连续、并发样本无重复，再逐步恢复其他实例。
+6. 状态稳定后把 `restore-acknowledged` 恢复为 `false`，把恢复下限恢复为 `0`。
+
+确认标识与正数恢复下限必须成对出现，否则应用启动失败。该门禁不会自动推断历史最大编号；
+运维输入错误仍可能破坏唯一性，因此恢复记录必须纳入变更审计并保留验证证据。
+
+## 6. 编号生成替换点扫描清单
 
 | 模块 | 文件 | 当前生成方式 | 建议替换为 | 是否建议本次替换 |
 |---|---|---|---|---|
@@ -97,7 +127,7 @@ payment:
 | `component-security` | `component-library/component-security/src/main/java/com/scott/payment/component/security/jwt/MerchantJwtVerifier.java` | `System.currentTimeMillis() / 1000L` 校验 JWT 时间 | 保持当前时间校验，不属于编号生成 | 否，不适用 |
 | `service-openapi` | `service-openapi/src/main/java/com/scott/payment/openapi/support/OpenApiJwtReplayProtectionService.java` | `System.currentTimeMillis() / 1000L` 计算防重放窗口 | 保持当前时间窗口逻辑，不属于编号生成 | 否，不适用 |
 
-## 6. 后续替换顺序建议
+## 7. 后续替换顺序建议
 
 1. 先在正式交易主单、退款单、请款单、撤销单、冲正单、渠道请求单、商户通知单落地时使用 `GlobalIdGenerator`。
 2. 再评估旧 `PaymentOrderNoGenerator` 调用方是否依赖业务前缀、长度或排序展示。

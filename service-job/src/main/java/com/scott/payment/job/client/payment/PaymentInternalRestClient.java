@@ -78,6 +78,9 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     private static final String MERCHANT_NOTIFICATION_NOTIFY_DUE_PATH =
             "/internal/payment/transactions/merchant-notifications/notify-due";
 
+    /**
+     * 扫描待渠道补匹配交易的内部接口；任务参数负责限定时间分片和单批数量。
+     */
     private static final String CHANNEL_MATCH_DUE_PATH = "/internal/payment/transactions/channel-match/match-due";
 
     /**
@@ -171,10 +174,27 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         }
     }
 
+    /**
+     * 拼接 service-payment 内部接口地址。
+     *
+     * @param path 以斜杠开头的内部接口路径
+     * @return 服务发现基地址与路径组成的 URL
+     */
     private String servicePaymentUrl(String path) {
         return SERVICE_PAYMENT_BASE_URL + path;
     }
 
+    /**
+     * 创建带服务间签名头的 JSON 请求实体。
+     * <p>
+     * 签名绑定 HTTP 方法、URI 路径、毫秒时间戳、随机 nonce 和调用方标识；内部密钥与签名
+     * 原文不得写入日志。
+     * </p>
+     *
+     * @param uri  目标内部接口 URI
+     * @param body 请求 DTO
+     * @return 已签名的 JSON 请求实体
+     */
     private HttpEntity<String> buildSignedEntity(URI uri, Object body) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
@@ -196,6 +216,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return new HttpEntity<>(body == null ? null : JsonUtils.toJsonString(body), headers);
     }
 
+    /**
+     * 根据 URI 主机形式选择直连或服务发现 RestTemplate。
+     *
+     * @param uri 目标 URI
+     * @return IP、localhost 和域名使用直连模板；服务名使用负载均衡模板
+     * @throws ServiceException URI 缺少主机时抛出
+     */
     private RestTemplate chooseRestTemplate(URI uri) {
         String host = uri.getHost();
         if (host == null) {

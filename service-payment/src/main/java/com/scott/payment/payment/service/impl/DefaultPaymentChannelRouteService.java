@@ -333,6 +333,17 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         return resultDTO;
     }
 
+    /**
+     * 将有效商户 MID 绑定转换为当前交易可用的路由候选。
+     *
+     * <p>依次校验 MID 与渠道启用状态、有效期、收单业务类型、支付方式、交易类型、
+     * 国家、币种和金额范围；任一约束不匹配即返回 null。</p>
+     *
+     * @param binding    商户渠道 MID 绑定
+     * @param commandDTO 支付创建命令
+     * @param now        路由评估时间
+     * @return 可用候选；不满足约束时返回 null
+     */
     private RouteCandidate toCandidate(MerchantChannelMidBindingDO binding,
                                        PaymentCreateCommandDTO commandDTO,
                                        LocalDateTime now) {

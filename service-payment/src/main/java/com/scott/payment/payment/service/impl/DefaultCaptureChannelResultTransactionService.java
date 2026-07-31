@@ -44,6 +44,14 @@ public class DefaultCaptureChannelResultTransactionService implements CaptureCha
         this.transactionRecordService = transactionRecordService;
     }
 
+    /**
+     * 在独立事务中持久化请款渠道同步结果。
+     *
+     * <p>仅对已落库的请款动作执行 CAS 完成，累计已请款金额由数据库动作记录计算。</p>
+     *
+     * @param preparationResultDTO 本地准备事务结果
+     * @param invokeResultDTO      渠道调用结果
+     */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void recordCaptureChannelResult(CapturePreparationResultDTO preparationResultDTO,

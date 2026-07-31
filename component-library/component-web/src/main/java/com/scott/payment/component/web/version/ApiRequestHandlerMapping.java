@@ -64,6 +64,16 @@ public class ApiRequestHandlerMapping extends RequestMappingHandlerMapping {
         return createCondition(handlerType);
     }
 
+    /**
+     * 读取 {@link RequestMapping} 声明的首个映射路径。
+     * <p>
+     * 同时兼容 {@code value} 和 {@code path} 两种属性；未声明路径时返回空串供版本映射
+     * 逻辑按控制器根路径处理。
+     * </p>
+     *
+     * @param requestMapping 控制器请求映射注解
+     * @return 首个声明路径或空串
+     */
     private static String resolveMappingUrl(RequestMapping requestMapping) {
         if (requestMapping.value().length > 0) {
             return requestMapping.value()[0];

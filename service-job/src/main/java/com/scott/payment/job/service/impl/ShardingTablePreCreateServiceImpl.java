@@ -180,6 +180,12 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         }
     }
 
+    /**
+     * 创建分表预建任务的基础结果快照。
+     *
+     * @param request 任务请求
+     * @return 包含演练标识、数据库时区、分表策略和当前季度的结果
+     */
     private ShardingTablePreCreateResult buildBaseResult(ShardingTablePreCreateRequest request) {
         ShardingTablePreCreateResult result = new ShardingTablePreCreateResult();
         ShardingQuarter currentQuarter = quarterResolver.currentQuarter(shardingProperties);
@@ -190,6 +196,15 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
         return result;
     }
 
+    /**
+     * 筛选当前启用且被请求选中的逻辑分表规则。
+     * <p>
+     * 请求未指定逻辑表时返回全部启用规则；同时兼容配置 Map 键和规则内 logicalTable 名称。
+     * </p>
+     *
+     * @param request 任务请求
+     * @return 保持配置顺序的启用规则列表
+     */
     private List<Map.Entry<String, PaymentQuarterShardingProperties.TableRule>> enabledRules(ShardingTablePreCreateRequest request) {
         Set<String> logicalTables = new LinkedHashSet<>(request.getLogicalTables() == null ? List.of() : request.getLogicalTables());
         return shardingProperties.getTables().entrySet().stream()

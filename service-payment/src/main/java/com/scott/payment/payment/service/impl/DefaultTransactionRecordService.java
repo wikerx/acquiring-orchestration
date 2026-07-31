@@ -499,6 +499,31 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                              PaymentCreateResultDTO resultDTO,
                                              PaymentRiskDecisionEnum riskDecisionEnum,
                                              int currencyExponent) {
+        completeInitialChannelResultAndReport(
+                commandDTO,
+                routeResultDTO,
+                channelInvokeResultDTO,
+                resultDTO,
+                riskDecisionEnum,
+                currencyExponent);
+    }
+
+    /**
+     * 持久化首次交易渠道结果并返回状态是否真正发生变化。
+     *
+     * <p>先读取已准备的订单和动作事实，再通过 CAS 推进状态并写渠道请求、支付工具、
+     * 风控、商户交互和通知记录；重复或迟到结果不能覆盖既有终态。</p>
+     *
+     * @return true 表示动作状态由本次结果成功推进
+     */
+    @Override
+    public boolean completeInitialChannelResultAndReport(
+            PaymentCreateCommandDTO commandDTO,
+            PaymentRouteResultDTO routeResultDTO,
+            PaymentChannelInvokeResultDTO channelInvokeResultDTO,
+            PaymentCreateResultDTO resultDTO,
+            PaymentRiskDecisionEnum riskDecisionEnum,
+            int currencyExponent) {
         validate(commandDTO, resultDTO);
         if (channelInvokeResultDTO == null || channelInvokeResultDTO.getChannelRequest() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
@@ -513,7 +538,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(operationDO.getTransactionStatus())) {
             recordCallbackStatusHistory(operationDO, channelInvokeResultDTO.getRequestId(), resultDTO.getStatus(), TRANSITION_IGNORED,
                     "operation is already terminal or state has changed");
-            return;
+            return false;
         }
         updateInitialChannelRequest(commandDTO, routeResultDTO, channelInvokeResultDTO, resultDTO, now);
         boolean statusChanged = isTerminal(resultDTO)
@@ -522,7 +547,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (!statusChanged) {
             recordCallbackStatusHistory(operationDO, channelInvokeResultDTO.getRequestId(), resultDTO.getStatus(), TRANSITION_IGNORED,
                     "operation is already terminal or state has changed");
-            return;
+            return false;
         }
         insertCallbackStateAndFlow(
                 mergeOperationResult(operationDO, channelInvokeResultDTO, resultDTO),
@@ -537,6 +562,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             activateMerchantNotification(operationDO, resultDTO.getStatus(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage(), now);
         }
         updateMerchantApiFinalResult(commandDTO, resultDTO, now);
+        return true;
     }
 
     /**
@@ -928,11 +954,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         recordChannelAudit(commandDTO, recordDTO.getRouteResultDTO(), recordDTO.getChannelInvokeResultDTO(), resultDTO, now);
         recordPaymentMethodInfo(commandDTO, resultDTO, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(),
                 actionTransactionDateTime, now, sourceOrderDO);
-        recordFlowEvents(commandDTO, recordDTO.getRouteResultDTO(), recordDTO.getChannelInvokeResultDTO(), resultDTO, PaymentRiskDecisionEnum.PASS, now);
+        recordFlowEvents(commandDTO, recordDTO.getRouteResultDTO(), recordDTO.getChannelInvokeResultDTO(), resultDTO,
+                resolveFollowUpRiskDecision(recordDTO), now);
         recordMerchantApiInteraction(commandDTO, resultDTO, now);
         recordMerchantNotificationIfNeeded(commandDTO, resultDTO, now);
     }
 
+    /**
+     * 持久化请款渠道结果并按 CAS 更新原订单累计金额。
+     *
+     * @return true 表示请款动作状态成功推进；false 表示终态或并发冲突
+     */
     @Override
     public boolean completeCaptureChannelResult(TransactionOperationDO operationDO,
                                                 TransactionOrderDO sourceOrderDO,
@@ -957,6 +989,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return statusChanged;
     }
 
+    /**
+     * 持久化退款渠道结果并按 CAS 更新原订单累计退款金额。
+     *
+     * @return true 表示退款动作状态成功推进；false 表示终态或并发冲突
+     */
     @Override
     public boolean completeRefundChannelResult(TransactionOperationDO operationDO,
                                                TransactionOrderDO sourceOrderDO,
@@ -981,6 +1018,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return statusChanged;
     }
 
+    /**
+     * 持久化撤销渠道结果并按 CAS 更新原订单状态及累计字段。
+     *
+     * @return true 表示撤销动作状态成功推进；false 表示终态或并发冲突
+     */
     @Override
     public boolean completeVoidChannelResult(TransactionOperationDO operationDO,
                                              TransactionOrderDO sourceOrderDO,
@@ -1251,6 +1293,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return updated > 0;
     }
 
+    /**
+     * 构造首次交易订单事实记录。
+     *
+     * <p>金额按币种精度统一填充，渠道失败原文先归一化和脱敏；交易业务时间同时保存平台时区和 UTC。</p>
+     *
+     * @return 待持久化交易订单
+     */
     private TransactionOrderDO buildOrder(PaymentCreateCommandDTO commandDTO,
                                           PaymentRouteResultDTO routeResultDTO,
                                           PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1274,11 +1323,12 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         orderDO.setProcessStage(resultDTO.getProcessStage());
         orderDO.setPendingReasonCode(resultDTO.getPendingReasonCode());
         orderDO.setFailReasonCode(resultDTO.getFailReasonCode());
-        orderDO.setFailReasonMessage(channelResponse == null ? resultDTO.getFailReasonCode() : channelResponse.getChannelResponseMessage());
-        orderDO.setMerchantVisibleMessage(resultDTO.getFailReasonCode());
-        orderDO.setPayerVisibleMessage(resultDTO.getFailReasonCode());
+        orderDO.setFailReasonMessage(resolveFailureMessage(resultDTO, channelResponse));
+        orderDO.setMerchantVisibleMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
+        orderDO.setPayerVisibleMessage(merchantVisibleFailureMessage(resultDTO.getStatus(), resultDTO.getFailReasonCode()));
         fillAmountFields(orderDO, commandDTO, resultDTO, currencyExponent);
         fillOrderRouteFields(orderDO, routeResultDTO, channelResponse, riskDecisionEnum);
+        orderDO.setInternalRiskRecordNo(commandDTO.getRiskRecordNo());
         fillOrderRouteFieldsFromRequest(orderDO, invokeResultDTO);
         orderDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
         orderDO.setTransactionUtcTime(toUtcTime(commandDTO.getTransactionDateTime(), DEFAULT_TIME_ZONE));
@@ -1292,6 +1342,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         return orderDO;
     }
 
+    /**
+     * 构造首次交易动作事实记录。
+     *
+     * <p>动作记录承载本次状态、金额和渠道关联，不保存完整 PAN、CVV、密钥或渠道敏感原文。</p>
+     *
+     * @return 待持久化交易动作
+     */
     private TransactionOperationDO buildOperation(PaymentCreateCommandDTO commandDTO,
                                                   PaymentRouteResultDTO routeResultDTO,
                                                   PaymentChannelInvokeResultDTO invokeResultDTO,
@@ -1313,7 +1370,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setProcessStage(resultDTO.getProcessStage());
         operationDO.setPendingReasonCode(resultDTO.getPendingReasonCode());
         operationDO.setFailReasonCode(resultDTO.getFailReasonCode());
-        operationDO.setFailReasonMessage(channelResponse == null ? resultDTO.getFailReasonCode() : channelResponse.getChannelResponseMessage());
+        operationDO.setFailReasonMessage(resolveFailureMessage(resultDTO, channelResponse));
         fillAmountFields(operationDO, commandDTO, resultDTO, currencyExponent);
         fillOperationRouteFields(operationDO, routeResultDTO, channelResponse);
         fillOperationRouteFieldsFromRequest(operationDO, invokeResultDTO);
@@ -3098,8 +3155,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 "API受理", "交易请求已进入支付核心", null, resultDTO.getStatus(), "MERCHANT",
                 commandDTO.getMerchantId(), "TRANSACTION", resultDTO.getTransactionId(), null, null, now);
         insertFlowEvent(table, commandDTO, resultDTO, "RISK_CHECKED", "RISK",
-                riskDecisionEnum != null && riskDecisionEnum.isAllowProceed() ? "SUCCESS" : resultDTO.getStatus(),
-                "内风控检查", "内风控决策：" + (riskDecisionEnum == null ? "UNKNOWN" : riskDecisionEnum.getCode()),
+                PaymentRiskDecisionSupport.flowEventStatus(riskDecisionEnum),
+                "内风控检查", riskFlowEventContent(commandDTO, riskDecisionEnum),
                 null, resultDTO.getStatus(), "SYSTEM", null, "TRANSACTION", resultDTO.getTransactionId(),
                 resultDTO.getFailReasonCode(), null, now);
         if (routeResultDTO != null) {
@@ -3118,12 +3175,59 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                     PaymentTransactionStatusEnum.FAILED.getCode().equals(channelEventStatus) ? resolveChannelFlowErrorMessage(invokeResultDTO, resultDTO) : null,
                     now);
         }
+        String merchantResponseCode = resolveMerchantResponseCode(resultDTO);
+        String merchantResponseMessage = resolveMerchantResponseMessage(resultDTO);
+        boolean transactionFailed = PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus());
         insertFlowEvent(table, commandDTO, resultDTO, "STATUS_RECORDED", "STATUS", resolveResultFlowEventStatus(resultDTO),
-                "状态入库", "交易状态：" + resultDTO.getStatus(), null, resultDTO.getStatus(),
+                resultFlowEventName(resultDTO.getStatus()),
+                resultFlowEventContent(resultDTO.getStatus(), merchantResponseCode, merchantResponseMessage),
+                null, resultDTO.getStatus(),
                 "SYSTEM", null, "STATUS_HISTORY", resultDTO.getTransactionId(),
-                PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus()) ? resultDTO.getFailReasonCode() : null,
-                PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus()) ? resultDTO.getFailReasonMessage() : null,
+                transactionFailed ? merchantResponseCode : null,
+                transactionFailed ? merchantResponseMessage : null,
                 now);
+    }
+
+    /**
+     * 返回交易结果流程节点名称。
+     *
+     * @param transactionStatus 平台交易状态
+     * @return 面向管理端时间轴的交易结果名称
+     */
+    private String resultFlowEventName(String transactionStatus) {
+        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
+            return "交易成功";
+        }
+        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
+            return "交易失败";
+        }
+        if (PaymentTransactionStatusEnum.PENDING.getCode().equals(transactionStatus)) {
+            return "交易待确认";
+        }
+        return "交易处理中";
+    }
+
+    /**
+     * 构造交易结果流程摘要，响应码和响应说明必须与返回商户的内容一致。
+     *
+     * @param transactionStatus       平台交易状态
+     * @param merchantResponseCode    商户响应码
+     * @param merchantResponseMessage 商户响应说明
+     * @return 时间轴结果摘要
+     */
+    private String resultFlowEventContent(String transactionStatus,
+                                          String merchantResponseCode,
+                                          String merchantResponseMessage) {
+        if (StringUtils.hasText(merchantResponseCode) && StringUtils.hasText(merchantResponseMessage)) {
+            return merchantResponseCode + "：" + merchantResponseMessage;
+        }
+        if (StringUtils.hasText(merchantResponseCode)) {
+            return merchantResponseCode;
+        }
+        if (StringUtils.hasText(merchantResponseMessage)) {
+            return merchantResponseMessage;
+        }
+        return "交易状态：" + transactionStatus;
     }
 
     /**
@@ -3602,7 +3706,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
 
         Map<String, Object> transactionInfo = new LinkedHashMap<>();
         putIfPresent(transactionInfo, "code", resolveMerchantResponseCode(targetTransactionStatus));
-        putIfPresent(transactionInfo, "message", resolveMerchantResponseMessage(targetTransactionStatus));
+        putIfPresent(transactionInfo, "message", resolveMerchantResponseMessage(targetTransactionStatus, failReasonCode));
         putIfPresent(transactionInfo, "transactionId", operationDO.getTransactionId());
         putIfPresent(transactionInfo, "sourceTransactionId", operationDO.getSourceTransactionId());
         putIfPresent(transactionInfo, "transactionType", operationDO.getTransactionType());
@@ -3899,6 +4003,26 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 解析交易失败说明：风控拒绝统一脱敏，其余情况优先使用渠道说明再回退内部失败说明。
+     *
+     * @param resultDTO       支付处理结果
+     * @param channelResponse 渠道响应
+     * @return 可持久化并向商户展示的失败说明
+     */
+    private String resolveFailureMessage(PaymentCreateResultDTO resultDTO, ChannelPaymentResponse channelResponse) {
+        if (resultDTO == null) {
+            return null;
+        }
+        if (PaymentRiskDecisionSupport.isRiskRejected(resultDTO.getFailReasonCode())) {
+            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
+        }
+        if (channelResponse != null && StringUtils.hasText(channelResponse.getChannelResponseMessage())) {
+            return channelResponse.getChannelResponseMessage();
+        }
+        return resultDTO.getFailReasonMessage();
+    }
+
+    /**
      * 整理商户可见失败编码，返回当前业务步骤需要的规范化结果。
      * <p>
      * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
@@ -3927,6 +4051,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
                 || !StringUtils.hasText(failReasonCode)) {
             return null;
+        }
+        if (PaymentRiskDecisionSupport.isRiskRejected(failReasonCode)) {
+            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
         }
         return "Payment failed. Please use the transaction ID to query details or contact support.";
     }
@@ -3975,6 +4102,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return ApiResultEnum.PENDING.getMessage();
         }
         return ApiResultEnum.PROCESSING.getMessage();
+    }
+
+    /**
+     * 根据交易状态和失败原因生成商户响应说明，风控拒绝不暴露具体命中规则。
+     *
+     * @param transactionStatus 交易状态
+     * @param failReasonCode    内部失败原因码
+     * @return 商户可见响应说明
+     */
+    private String resolveMerchantResponseMessage(String transactionStatus, String failReasonCode) {
+        if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
+                && PaymentRiskDecisionSupport.isRiskRejected(failReasonCode)) {
+            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
+        }
+        return resolveMerchantResponseMessage(transactionStatus);
     }
 
     /**
@@ -4331,6 +4473,41 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 || !StringUtils.hasText(recordDTO.getResultDTO().getProcessStage())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+    }
+
+    /**
+     * 后续交易不重复占用首次交易的累计限额预占，因此固定跳过本次风险预占。
+     *
+     * @param recordDTO 后续交易记录上下文
+     * @return {@link PaymentRiskDecisionEnum#SKIP}
+     */
+    private PaymentRiskDecisionEnum resolveFollowUpRiskDecision(TransactionFollowUpRecordDTO recordDTO) {
+        return PaymentRiskDecisionEnum.SKIP;
+    }
+
+    /**
+     * 构造支付流程中的风控审计文本，仅记录决策、记录号和原因摘要，不包含卡号等敏感值。
+     *
+     * @param commandDTO       支付命令
+     * @param riskDecisionEnum 风控决策
+     * @return 可写入交易流程事件的脱敏文本
+     */
+    private String riskFlowEventContent(PaymentCreateCommandDTO commandDTO, PaymentRiskDecisionEnum riskDecisionEnum) {
+        if (PaymentRiskDecisionEnum.SKIP == riskDecisionEnum) {
+            return "内风控决策：SKIP（当前交易类型不适用）";
+        }
+        StringBuilder content = new StringBuilder("内风控决策：")
+                .append(riskDecisionEnum == null ? "UNKNOWN" : riskDecisionEnum.getCode());
+        if (commandDTO != null && StringUtils.hasText(commandDTO.getRiskRecordNo())) {
+            content.append("；风控记录号：").append(commandDTO.getRiskRecordNo());
+        }
+        if (commandDTO != null && StringUtils.hasText(commandDTO.getRiskCode())) {
+            content.append("；风控原因码：").append(commandDTO.getRiskCode());
+        }
+        if (commandDTO != null && StringUtils.hasText(commandDTO.getRiskMessage())) {
+            content.append("；风控原因：").append(commandDTO.getRiskMessage());
+        }
+        return content.toString();
     }
 
     /**

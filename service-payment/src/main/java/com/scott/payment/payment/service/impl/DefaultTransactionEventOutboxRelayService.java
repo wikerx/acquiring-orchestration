@@ -80,6 +80,16 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         return successCount;
     }
 
+    /**
+     * 至少一次投递单个交易 Outbox 事件。
+     *
+     * <p>MQ 发送成功后再 CAS 标记 SENT；若标记失败，事件可能被再次发送，因此消费者必须按消息号幂等。
+     * 发送异常会记录脱敏失败原因和下次重试时间。</p>
+     *
+     * @param eventDO 待投递事件
+     * @param now     本批次处理时间
+     * @return true 表示消息已发送且 Outbox 成功标记为 SENT
+     */
     private boolean publishSingle(TransactionEventOutboxDO eventDO, LocalDateTime now) {
         long startNanos = System.nanoTime();
         try {

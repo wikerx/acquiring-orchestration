@@ -1,28 +1,64 @@
 # Redis 配置：本地开发环境使用单机模式，业务侧通过 component-redis 统一访问。
 spring:
-  redis:
-    # Redis database 编号。
-    database: 0
-    # 本地单机 Redis 默认无密码；如后续接入鉴权，可通过环境变量覆盖。
-    password: ${REDIS_PASSWORD:}
-    # 本地 Redis 单机地址。
-    host: ${REDIS_HOST:127.0.0.1}
-    # 本地 Redis 单机端口。
-    port: ${REDIS_PORT:6379}
-    # 单次 Redis 操作超时时间。
-    timeout: 2s
-    lettuce:
-      pool:
-        # Lettuce 连接池最大活跃连接数。
-        max-active: 32
-        # 最大空闲连接数。
-        max-idle: 16
-        # 最小空闲连接数。
-        min-idle: 4
-        # 获取连接最大等待时间。
-        max-wait: 2s
+  data:
+    redis:
+      # Redis database 编号。
+      database: 0
+      # 本地单机 Redis 默认无密码；如后续接入鉴权，可通过环境变量覆盖。
+      password: ${REDIS_PASSWORD:}
+      # 本地 Redis 单机地址。
+      host: ${REDIS_HOST:127.0.0.1}
+      # 本地 Redis 单机端口。
+      port: ${REDIS_PORT:6379}
+      # 单次 Redis 操作超时时间。
+      timeout: 2s
+      lettuce:
+        pool:
+          # Lettuce 连接池最大活跃连接数。
+          max-active: 32
+          # 最大空闲连接数。
+          max-idle: 16
+          # 最小空闲连接数。
+          min-idle: 4
+          # 获取连接最大等待时间。
+          max-wait: 2s
 
 payment:
+  redis:
+    # 所有直接业务 Key 的统一系统和环境前缀；不同环境必须配置不同值。
+    key-prefix: ${PAYMENT_REDIS_KEY_PREFIX:acquiring:dev}
+    # dev/test 新部署直接使用精简 Key；UAT/生产必须按五阶段迁移流程显式覆盖，未配置时代码默认 LEGACY_ONLY。
+    key-migration-mode: ${PAYMENT_REDIS_KEY_MIGRATION_MODE:COMPACT_ONLY}
+    mq-dedup:
+      # 单个 MQ 去重时间桶最多保存的 SHA-256 消息摘要数量；超限后降级到数据库唯一约束。
+      max-members-per-bucket: ${PAYMENT_REDIS_MQ_DEDUP_MAX_MEMBERS_PER_BUCKET:100000}
+      # MQ 去重 TTL 的配置上限，单位秒；默认 30 天，防止误配置形成长期大 Key。
+      max-ttl-seconds: ${PAYMENT_REDIS_MQ_DEDUP_MAX_TTL_SECONDS:2592000}
+    generic:
+      # 风控规则缓存仍依赖 String 包装器；新增调用必须先登记 Key、TTL 和失败策略。
+      string-enabled: ${PAYMENT_REDIS_GENERIC_STRING_ENABLED:true}
+      # 无生产调用的集合包装器默认关闭，需要业务化设计和评审后才能显式启用。
+      hash-enabled: ${PAYMENT_REDIS_GENERIC_HASH_ENABLED:false}
+      list-enabled: ${PAYMENT_REDIS_GENERIC_LIST_ENABLED:false}
+      set-enabled: ${PAYMENT_REDIS_GENERIC_SET_ENABLED:false}
+      zset-enabled: ${PAYMENT_REDIS_GENERIC_ZSET_ENABLED:false}
+  cache:
+    redis:
+      # 是否启用 Spring Cache + Redis。缓存只用于高频读路径减压，交易事实仍以数据库为准。
+      enabled: ${PAYMENT_CACHE_REDIS_ENABLED:true}
+      # Spring Cache 与直接业务 Key 共用系统和环境前缀，Cache Name 继续提供领域与数据集层级。
+      key-prefix: ${PAYMENT_CACHE_REDIS_KEY_PREFIX:acquiring:dev}
+      # 未单独配置缓存名称时的默认 TTL。
+      default-ttl: ${PAYMENT_CACHE_REDIS_DEFAULT_TTL:10m}
+      # 安全缓存失效门禁属于恢复性租约；到期只清理异常标记，可靠失效仍由事务 Outbox 重试保证。
+      invalidation-gate-ttl: ${PAYMENT_CACHE_INVALIDATION_GATE_TTL:2h}
+      ttl:
+        # 商户最小运行时资料为常驻读模型；后台变更通过可靠失效链路删除后按需重建。
+        "[merchant:info]": ${PAYMENT_CACHE_MERCHANT_INFO_TTL:0s}
+        # 商户 OpenAPI IP 聚合策略为常驻安全读模型；白名单或开关变化后可靠失效。
+        "[merchant:openapi]": ${PAYMENT_CACHE_MERCHANT_OPENAPI_TTL:0s}
+        # 仅四个非敏感公开 URL 参数进入常驻缓存；敏感配置禁止写入 Redis。
+        "[config:public]": ${PAYMENT_CACHE_PUBLIC_CONFIG_TTL:0s}
   global-id:
     # 是否启用全系统统一唯一标识生成器自动装配。
     enabled: true
@@ -34,13 +70,13 @@ payment:
     sequence-length: 6
     # 毫秒内最大序列。
     max-sequence: 999999
-    # 毫秒序列 Redis Key 前缀，使用 hash tag 保证 Redis Cluster 同槽。
-    seq-key-prefix: "biz:{global_id}:seq:"
-    # 防时间回拨 Redis Key。
-    last-millis-key: "biz:{global_id}:last_millis"
-    # 毫秒序列 Key 保留 2 天。
-    seq-key-expire-seconds: 172800
+    # 单个 Hash 原子保存 last_millis 和 sequence；单 Key 不使用无必要的 Redis Cluster Hash Tag。
+    state-key: ${PAYMENT_GLOBAL_ID_STATE_KEY:acquiring:dev:global-id:state}
     # 序列溢出后最大重试次数。
     max-retry-times: 3
     # 序列溢出后短暂等待下一毫秒。
     retry-sleep-millis: 1
+    # 正常启动必须为 false；只有完成备份校验、历史最大编号核对和双人审批后才能临时开启。
+    restore-acknowledged: ${PAYMENT_GLOBAL_ID_RESTORE_ACKNOWLEDGED:false}
+    # 正常启动固定为 0；受控恢复时必须高于所有历史已签发编号的时间片 epochMillis。
+    restore-floor-epoch-millis: ${PAYMENT_GLOBAL_ID_RESTORE_FLOOR_EPOCH_MILLIS:0}

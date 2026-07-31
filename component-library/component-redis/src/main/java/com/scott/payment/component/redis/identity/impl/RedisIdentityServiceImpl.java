@@ -1,6 +1,6 @@
 package com.scott.payment.component.redis.identity.impl;
 
-import com.scott.payment.component.redis.constant.RedisKeyConstants;
+import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.identity.RedisIdentityService;
 import com.scott.payment.component.redis.identity.RedisOrderNoGenerator;
 import com.scott.payment.component.redis.support.RedisKeySupport;
@@ -66,15 +66,23 @@ public class RedisIdentityServiceImpl implements RedisIdentityService {
     private final StringRedisTemplate stringRedisTemplate;
 
     /**
+     * 统一 Redis 环境前缀和 Key 片段校验配置，确保身份序列按环境隔离。
+     */
+    private final PaymentRedisProperties redisProperties;
+
+    /**
      * 创建 Redis 分布式业务标识生成服务。
      *
      * @param redisOrderNoGenerator Redis 分布式订单号生成器
      * @param stringRedisTemplate   Spring 字符串 Redis 模板
+     * @param redisProperties       Redis Key 配置
      */
     public RedisIdentityServiceImpl(RedisOrderNoGenerator redisOrderNoGenerator,
-                                    StringRedisTemplate stringRedisTemplate) {
+                                    StringRedisTemplate stringRedisTemplate,
+                                    PaymentRedisProperties redisProperties) {
         this.redisOrderNoGenerator = redisOrderNoGenerator;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.redisProperties = redisProperties;
     }
 
     /**
@@ -119,7 +127,7 @@ public class RedisIdentityServiceImpl implements RedisIdentityService {
     @Override
     public String nextDailyStan(String cardBrand, String institutionCode) {
         String businessKey = StringUtils.hasText(cardBrand)
-                ? cardBrand.trim().toUpperCase(Locale.ROOT) + RedisKeyConstants.SEPARATOR + institutionCode
+                ? cardBrand.trim().toUpperCase(Locale.ROOT) + ":" + institutionCode
                 : institutionCode;
         return nextDailyStan(businessKey);
     }
@@ -133,7 +141,7 @@ public class RedisIdentityServiceImpl implements RedisIdentityService {
     @Override
     public String nextDailyDecrementStan(String businessKey) {
         RedisKeySupport.requireKey(businessKey);
-        String counterKey = buildStanKey("decrement" + RedisKeyConstants.SEPARATOR + businessKey);
+        String counterKey = buildStanKey("decrement:" + businessKey);
         Boolean initialized = stringRedisTemplate.opsForValue()
                 .setIfAbsent(counterKey, String.valueOf(MAX_STAN_VALUE), ttlToTomorrow());
         if (Boolean.TRUE.equals(initialized)) {
@@ -155,7 +163,7 @@ public class RedisIdentityServiceImpl implements RedisIdentityService {
      */
     private String buildStanKey(String businessKey) {
         String day = LocalDate.now(PAYMENT_ZONE_ID).format(DAY_FORMATTER);
-        return RedisKeyConstants.STAN_PREFIX + businessKey + RedisKeyConstants.SEPARATOR + day;
+        return redisProperties.key("identity", "stan", businessKey, day);
     }
 
     /**

@@ -71,6 +71,16 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
         return other.apiVersion - this.apiVersion;
     }
 
+    /**
+     * 解析当前请求的 API 主版本。
+     * <p>
+     * 优先读取 Spring 已解析的 {@code version} 路径变量；在条件匹配早于路径变量绑定时，
+     * 回退到请求 URI 解析。
+     * </p>
+     *
+     * @param request 当前 HTTP 请求
+     * @return API 主版本号；路径不含合法版本时返回 {@code null}
+     */
     private Integer resolveRequestVersion(HttpServletRequest request) {
         Object attributes = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE);
         if (attributes instanceof Map<?, ?> variables) {
@@ -82,6 +92,12 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
         return resolveVersionFromUri(request);
     }
 
+    /**
+     * 从 {@code /api/rest/{domain}/{version}} 路径结构中提取主版本。
+     *
+     * @param request 当前 HTTP 请求
+     * @return API 主版本号；路径结构或版本格式不合法时返回 {@code null}
+     */
     private Integer resolveVersionFromUri(HttpServletRequest request) {
         String uri = request.getRequestURI();
         String contextPath = request.getContextPath();
@@ -98,14 +114,10 @@ public class ApiVersionCondition implements RequestCondition<ApiVersionCondition
     }
 
     /**
-     * 解析parseversion，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 公共组件库 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param version version 输入值，参与 version 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
+     * 解析带可选 {@code v} 前缀的十进制主版本号。
+     *
+     * @param version 路径中的版本文本
+     * @return 非负整数版本；格式不合法时返回 {@code null}
      */
     private Integer parseVersion(String version) {
         String value = version.trim();

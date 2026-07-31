@@ -162,6 +162,20 @@ class DefaultTransactionChannelMatchServiceTests {
     }
 
     @Test
+    void shouldReduceQueryFrequencyForLongRunningUnknownTransactions() {
+        LocalDateTime now = LocalDateTime.of(2026, 7, 29, 12, 0);
+        TransactionOperationDO operationDO = pendingOperation();
+
+        operationDO.setChannelMatchCount(12);
+        assertThat(DefaultTransactionChannelMatchService.nextMatchTime(operationDO, now))
+                .isEqualTo(now.plusHours(6));
+
+        operationDO.setChannelMatchCount(48);
+        assertThat(DefaultTransactionChannelMatchService.nextMatchTime(operationDO, now))
+                .isEqualTo(now.plusHours(24));
+    }
+
+    @Test
     void shouldNotDuplicateTerminalProgressForRepeatedActiveQuery() {
         InMemoryRecordService recordService = new InMemoryRecordService(pendingOperation());
         QueryCaptureInvokeService invokeService = new QueryCaptureInvokeService(ChannelTradeStatus.SUCCESS);
@@ -349,6 +363,9 @@ class DefaultTransactionChannelMatchServiceTests {
             this.queryStatus = queryStatus;
         }
 
+        /**
+         * 禁止主动查询退化为普通支付调用；若该重载被调用则立即使测试失败。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
@@ -359,6 +376,9 @@ class DefaultTransactionChannelMatchServiceTests {
             throw new AssertionError("active query must use prepared channel identity");
         }
 
+        /**
+         * 捕获已持久化的渠道标识，并按预设查询状态构造确定性的渠道响应。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
@@ -397,6 +417,9 @@ class DefaultTransactionChannelMatchServiceTests {
             return resultDTO;
         }
 
+        /**
+         * 仅当原渠道订单号和渠道交易号均存在时允许主动查询。
+         */
         @Override
         public boolean supportsQueryReference(PaymentCreateCommandDTO commandDTO,
                                               PaymentRouteResultDTO routeResult,
@@ -443,6 +466,9 @@ class DefaultTransactionChannelMatchServiceTests {
             this.recordService = recordService;
         }
 
+        /**
+         * 将查询终态写入原请求并委托内存仓储执行终态 CAS，供用例观察竞态结果。
+         */
         @Override
         public boolean completeByQuery(TransactionOperationDO operationDO,
                                        TransactionChannelRequestDO originalRequestDO,
@@ -466,6 +492,9 @@ class DefaultTransactionChannelMatchServiceTests {
                     resolution.getChannelResponseMessage());
         }
 
+        /**
+         * 记录一次仍待匹配的查询，并保存下次匹配时间及失败原因。
+         */
         @Override
         public boolean markPendingByQuery(TransactionOperationDO operationDO,
                                           TransactionChannelRequestDO originalRequestDO,
@@ -633,6 +662,9 @@ class DefaultTransactionChannelMatchServiceTests {
             order.setVersion(0);
         }
 
+        /**
+         * 当前用例不创建初始交易；保留空实现以隔离渠道匹配恢复路径。
+         */
         @Override
         public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
@@ -642,6 +674,9 @@ class DefaultTransactionChannelMatchServiceTests {
                                              int currencyExponent) {
         }
 
+        /**
+         * 当前用例不补写初始渠道结果；调用该方法不会改变预置交易事实。
+         */
         @Override
         public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
                                                  PaymentRouteResultDTO routeResultDTO,
@@ -651,36 +686,57 @@ class DefaultTransactionChannelMatchServiceTests {
                                                  int currencyExponent) {
         }
 
+        /**
+         * 返回预置主单，使匹配服务在固定交易快照上执行状态判断。
+         */
         @Override
         public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
             return order;
         }
 
+        /**
+         * 返回预置源主单，忽略查询参数以保持测试夹具确定性。
+         */
         @Override
         public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId) {
             return order;
         }
 
+        /**
+         * 返回同一预置主单，模拟已在数据库事务内取得行锁。
+         */
         @Override
         public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
             return order;
         }
 
+        /**
+         * 返回预置源动作单，供渠道匹配恢复逻辑读取原交易事实。
+         */
         @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
             return operation;
         }
 
+        /**
+         * 返回唯一预置动作单，模拟商户订单维度的数据库查询结果。
+         */
         @Override
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId) {
             return List.of(operation);
         }
 
+        /**
+         * 返回唯一预置初始动作单，避免测试依赖真实分表查询。
+         */
         @Override
         public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
             return List.of(operation);
         }
 
+        /**
+         * 固定返回无在途请款，隔离与当前渠道匹配用例无关的额度校验。
+         */
         @Override
         public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
                                                                     String operationId,
@@ -690,11 +746,17 @@ class DefaultTransactionChannelMatchServiceTests {
             return List.of();
         }
 
+        /**
+         * 通过预置记录模拟渠道标识反查命中。
+         */
         @Override
         public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
             return operation;
         }
 
+        /**
+         * 返回唯一预置待匹配动作单，模拟调度任务的一批扫描结果。
+         */
         @Override
         public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
                                                                     String channelCode,
@@ -703,15 +765,24 @@ class DefaultTransactionChannelMatchServiceTests {
             return List.of(operation);
         }
 
+        /**
+         * 返回预置的原渠道请求，确保主动查询复用已落库的渠道标识。
+         */
         @Override
         public TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
             return originalRequest;
         }
 
+        /**
+         * 当前恢复用例不创建后续交易；保留空实现以限制测试观察范围。
+         */
         @Override
         public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
         }
 
+        /**
+         * 模拟终态 CAS：终态记录或预设冲突返回失败，仅首次成功推进时记录目标状态。
+         */
         @Override
         public boolean completeByChannelCallback(TransactionOperationDO operationDO,
                                                  TransactionOrderDO orderDO,
@@ -771,6 +842,9 @@ class DefaultTransactionChannelMatchServiceTests {
             return true;
         }
 
+        /**
+         * 捕获原渠道请求的查询结果，同时保持已成功的平台结果不可被非成功结果覆盖。
+         */
         @Override
         public boolean updateOriginalChannelRequestByQuery(TransactionOperationDO operationDO,
                                                            TransactionChannelRequestDO originalRequestDO,
@@ -795,6 +869,9 @@ class DefaultTransactionChannelMatchServiceTests {
             return true;
         }
 
+        /**
+         * 固定返回响应日志更新成功；当前用例不检查日志表持久化细节。
+         */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateCommandDTO commandDTO) {
             return true;

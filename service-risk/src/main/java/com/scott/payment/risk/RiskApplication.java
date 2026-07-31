@@ -2,6 +2,7 @@ package com.scott.payment.risk;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * @author : scott
@@ -13,6 +14,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @status : create
  */
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
+@EnableScheduling
 public class RiskApplication {
 
     /**

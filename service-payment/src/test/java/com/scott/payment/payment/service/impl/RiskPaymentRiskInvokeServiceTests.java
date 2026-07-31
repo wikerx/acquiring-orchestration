@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RiskPaymentRiskInvokeServiceTests {
 
     @Test
-    void shouldSendOnlyCardBinAndLast4ToRiskService() {
+    void shouldSendFullPanOnlyToInternalRiskService() {
         CapturingRiskInternalClient riskInternalClient = new CapturingRiskInternalClient(PaymentRiskDecisionEnum.PASS.getCode());
         RiskPaymentRiskInvokeService service = new RiskPaymentRiskInvokeService(riskInternalClient);
         PaymentCreateCommandDTO commandDTO = baseCommand();
@@ -32,15 +32,55 @@ class RiskPaymentRiskInvokeServiceTests {
         cardInfoDTO.setCardNo("4111-1111 1111-1234");
         cardInfoDTO.setSecurityCode("123");
         commandDTO.setCardInfo(cardInfoDTO);
+        PaymentCreateCommandDTO.BillingCardHolderInfoDTO billingInfoDTO = new PaymentCreateCommandDTO.BillingCardHolderInfoDTO();
+        billingInfoDTO.setEmail("buyer@example.test");
+        billingInfoDTO.setPhone("+1 555 0100");
+        billingInfoDTO.setFirstName("John");
+        billingInfoDTO.setLastName("Smith");
+        billingInfoDTO.setStreet("1 Billing Street");
+        billingInfoDTO.setPostal("10001");
+        billingInfoDTO.setCountry("USA");
+        billingInfoDTO.setState("NY");
+        billingInfoDTO.setCity("New York");
+        commandDTO.setBillingCardHolderInfo(billingInfoDTO);
+        PaymentCreateCommandDTO.SubMerchantInfoDTO subMerchantInfoDTO = new PaymentCreateCommandDTO.SubMerchantInfoDTO();
+        subMerchantInfoDTO.setSubId("SUB-001");
+        subMerchantInfoDTO.setSubName("Jane Owner");
+        subMerchantInfoDTO.setSubCompanyName("Example Trading Limited");
+        subMerchantInfoDTO.setSubStreet("100 Merchant Street");
+        commandDTO.setSubMerchantInfo(subMerchantInfoDTO);
+        PaymentCreateCommandDTO.RiskContextDTO riskContextDTO = new PaymentCreateCommandDTO.RiskContextDTO();
+        riskContextDTO.setCustomerId("CUSTOMER-001");
+        riskContextDTO.setDeviceFingerprint("DEVICE-FP-001");
+        riskContextDTO.setShippingAddress("2 Shipping Street");
+        riskContextDTO.setShippingPostalCode("10003");
+        riskContextDTO.setShippingCountry("USA");
+        commandDTO.setRiskContext(riskContextDTO);
 
         PaymentRiskDecisionDTO decisionDTO = service.checkPreRoute(commandDTO);
 
         assertThat(decisionDTO.isPassed()).isTrue();
-        assertThat(riskInternalClient.requestDTO.getCardBin()).isEqualTo("411111");
+        assertThat(riskInternalClient.requestDTO.getCardNo()).isEqualTo("4111111111111234");
+        assertThat(riskInternalClient.requestDTO.getCardBin()).isEqualTo("41111111111");
         assertThat(riskInternalClient.requestDTO.getCardLast4()).isEqualTo("1234");
+        assertThat(riskInternalClient.requestDTO.getBillingPhone()).isEqualTo("+1 555 0100");
+        assertThat(riskInternalClient.requestDTO.getCardholderName()).isEqualTo("John Smith");
+        assertThat(riskInternalClient.requestDTO.getLegalPerson()).isEqualTo("Jane Owner");
+        assertThat(riskInternalClient.requestDTO.getEnterprise()).isEqualTo("Example Trading Limited");
+        assertThat(riskInternalClient.requestDTO.getMerchantBillingAddress()).isEqualTo("100 Merchant Street");
+        assertThat(riskInternalClient.requestDTO.getBillingAddress()).isEqualTo("1 Billing Street");
+        assertThat(riskInternalClient.requestDTO.getBillingZip()).isEqualTo("10001");
+        assertThat(riskInternalClient.requestDTO.getBillingCountry()).isEqualTo("USA");
+        assertThat(riskInternalClient.requestDTO.getBillingRegion()).isEqualTo("NY");
+        assertThat(riskInternalClient.requestDTO.getBillingCity()).isEqualTo("New York");
+        assertThat(riskInternalClient.requestDTO.getCustomerId()).isEqualTo("CUSTOMER-001");
+        assertThat(riskInternalClient.requestDTO.getDeviceFingerprint()).isEqualTo("DEVICE-FP-001");
+        assertThat(riskInternalClient.requestDTO.getShippingAddress()).isEqualTo("2 Shipping Street");
+        assertThat(riskInternalClient.requestDTO.getShippingZip()).isEqualTo("10003");
+        assertThat(riskInternalClient.requestDTO.getShippingCountry()).isEqualTo("USA");
         assertThat(RiskPaymentEvaluateClientRequestDTO.class.getDeclaredFields())
                 .extracting("name")
-                .doesNotContain("cardNo", "securityCode", "cvv");
+                .doesNotContain("securityCode", "cvv");
     }
 
     @Test
@@ -52,6 +92,26 @@ class RiskPaymentRiskInvokeServiceTests {
 
         assertThat(decisionDTO.isPassed()).isFalse();
         assertThat(decisionDTO.getDecision()).isEqualTo(PaymentRiskDecisionEnum.UNKNOWN.getCode());
+    }
+
+    @Test
+    void shouldFailClosedWhenRiskServiceThrowsWithoutLeakingTheExceptionMessage() {
+        RiskPaymentRiskInvokeService service = new RiskPaymentRiskInvokeService(requestDTO -> {
+            throw new IllegalStateException("select match_value_hash from risk_black_region failed");
+        });
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        commandDTO.setTransactionId("TX202607290001");
+
+        PaymentRiskDecisionDTO decisionDTO = service.checkPreRoute(commandDTO);
+
+        assertThat(decisionDTO.isPassed()).isFalse();
+        assertThat(decisionDTO.getDecision()).isEqualTo(PaymentRiskDecisionEnum.UNKNOWN.getCode());
+        assertThat(decisionDTO.getRiskCode()).isEqualTo("RISK_SERVICE_UNAVAILABLE");
+        assertThat(decisionDTO.getRiskMessage())
+                .isEqualTo("risk service is unavailable")
+                .doesNotContain("match_value_hash", "risk_black_region");
+        assertThat(commandDTO.getRiskCode()).isEqualTo("RISK_SERVICE_UNAVAILABLE");
+        assertThat(commandDTO.getRiskMessage()).isEqualTo("risk service is unavailable");
     }
 
     private PaymentCreateCommandDTO baseCommand() {
@@ -90,6 +150,9 @@ class RiskPaymentRiskInvokeServiceTests {
             this.decision = decision;
         }
 
+        /**
+         * 捕获支付服务提交的风控请求，并返回由当前用例指定的确定性风控结论。
+         */
         @Override
         public RiskPaymentEvaluateClientResponseDTO evaluatePayment(RiskPaymentEvaluateClientRequestDTO requestDTO) {
             this.requestDTO = requestDTO;

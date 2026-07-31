@@ -1,5 +1,6 @@
 package com.scott.payment.admin.application.risk;
 
+import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.risk.RiskDTOs;
 import com.scott.payment.admin.mapper.RiskManagementMapper;
 import com.scott.payment.admin.support.risk.RiskFunctionDefinition;
@@ -648,6 +649,11 @@ public class AdminRiskManagementApplicationService {
      * </p>
      */
     private final AdminRiskImportLogService importLogService;
+
+    /**
+     * 风控运行时规则缓存可靠失效协调器。
+     */
+    private final RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator;
     /**
      * excel Export Service 依赖，用于 Admin Risk Management Application Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -682,6 +688,7 @@ public class AdminRiskManagementApplicationService {
      * @param riskManagementMapper     风控管理数据访问接口
      * @param riskListValueNormalizer  名单匹配值归一化组件
      * @param importLogService         导入批次日志服务
+     * @param cacheInvalidationCoordinator 风控规则缓存失效协调器
      * @param excelExportService       Excel 导出服务
      * @param excelI18nMessageResolver Excel 国际化解析器
      * @param excelLocaleResolver      Excel 语言环境解析器
@@ -689,12 +696,14 @@ public class AdminRiskManagementApplicationService {
     public AdminRiskManagementApplicationService(RiskManagementMapper riskManagementMapper,
                                                  RiskListValueNormalizer riskListValueNormalizer,
                                                  AdminRiskImportLogService importLogService,
+                                                 RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator,
                                                  ExcelExportService excelExportService,
                                                  ExcelI18nMessageResolver excelI18nMessageResolver,
                                                  ExcelLocaleResolver excelLocaleResolver) {
         this.riskManagementMapper = riskManagementMapper;
         this.riskListValueNormalizer = riskListValueNormalizer;
         this.importLogService = importLogService;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
@@ -837,6 +846,7 @@ public class AdminRiskManagementApplicationService {
     public RiskDTOs.RiskRecordResponse createList(String moduleType, String functionCode, RiskDTOs.RiskListSaveRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
         ensureFunctionPermission(definition, "add");
+        cacheInvalidationCoordinator.prepare();
         List<RiskDTOs.RiskListSaveRequest> requests = expandCountryListRequests(definition, request);
         Map<String, Object> lastData = null;
         for (RiskDTOs.RiskListSaveRequest itemRequest : requests) {
@@ -867,6 +877,7 @@ public class AdminRiskManagementApplicationService {
     public RiskDTOs.RiskRecordResponse updateList(String moduleType, String functionCode, Long id, RiskDTOs.RiskListSaveRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
         ensureFunctionPermission(definition, "edit");
+        cacheInvalidationCoordinator.prepare();
         Map<String, Object> before = requireRecord(definition.getTableName(), id);
         Map<String, Object> data = listData(definition, request, SOURCE_MANUAL);
         ensureListNotDuplicated(definition, id, data);
@@ -890,6 +901,7 @@ public class AdminRiskManagementApplicationService {
     public RiskDTOs.RiskRecordResponse createRegion(RiskDTOs.RegionSaveRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_BLACK, FUNCTION_REGION);
         ensureFunctionPermission(definition, "add");
+        cacheInvalidationCoordinator.prepare();
         List<String> countryCodes = regionCreateCountryCodes(request);
         Map<String, Object> lastData = null;
         for (String countryCode : countryCodes) {
@@ -917,6 +929,7 @@ public class AdminRiskManagementApplicationService {
     public RiskDTOs.RiskRecordResponse updateRegion(Long id, RiskDTOs.RegionSaveRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_BLACK, FUNCTION_REGION);
         ensureFunctionPermission(definition, "edit");
+        cacheInvalidationCoordinator.prepare();
         Map<String, Object> before = requireRecord(definition.getTableName(), id);
         Map<String, Object> data = regionData(request, SOURCE_MANUAL);
         ensureRegionNotDuplicated(id, data);
@@ -939,6 +952,7 @@ public class AdminRiskManagementApplicationService {
     public void remove(String moduleType, String functionCode, Long id) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(moduleType, functionCode);
         ensureFunctionPermission(definition, "remove");
+        cacheInvalidationCoordinator.prepare();
         Map<String, Object> before = requireRecord(definition.getTableName(), id);
         int rows = riskManagementMapper.softDelete(definition.getTableName(), id, currentOperatorName());
         if (rows != 1) {
@@ -964,6 +978,7 @@ public class AdminRiskManagementApplicationService {
         if (ids.isEmpty()) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请选择需要删除的记录");
         }
+        cacheInvalidationCoordinator.prepare();
         String operator = currentOperatorName();
         for (Long id : ids) {
             Map<String, Object> before = requireRecord(definition.getTableName(), id);
@@ -992,6 +1007,7 @@ public class AdminRiskManagementApplicationService {
         if (status == null || (status != 0 && status != 1)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "状态值不正确");
         }
+        cacheInvalidationCoordinator.prepare();
         Map<String, Object> before = requireRecord(definition.getTableName(), id);
         int rows = riskManagementMapper.updateStatus(definition.getTableName(), id, status, currentOperatorName());
         if (rows != 1) {
@@ -1109,6 +1125,7 @@ public class AdminRiskManagementApplicationService {
     public RiskDTOs.RiskRecordResponse createRule(String functionCode, RiskDTOs.RiskRuleSaveRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_RULE, functionCode);
         ensureFunctionPermission(definition, "add");
+        cacheInvalidationCoordinator.prepare();
         if (isSourceUrlRule(definition)) {
             List<RiskDTOs.RiskRecordResponse> records = createSourceUrlRules(toSourceUrlBatchRequest(request));
             return records.isEmpty() ? new RiskDTOs.RiskRecordResponse() : records.get(0);
@@ -1232,6 +1249,7 @@ public class AdminRiskManagementApplicationService {
     public RiskDTOs.RiskRecordResponse updateRule(String functionCode, Long id, RiskDTOs.RiskRuleSaveRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_RULE, functionCode);
         ensureFunctionPermission(definition, "edit");
+        cacheInvalidationCoordinator.prepare();
         Map<String, Object> before = requireRecord(definition.getTableName(), id);
         if (isSourceUrlRule(definition)) {
             Map<String, Object> data = sourceUrlData(request);
@@ -1271,6 +1289,7 @@ public class AdminRiskManagementApplicationService {
     public List<RiskDTOs.RiskRecordResponse> createSourceUrlRules(RiskDTOs.RiskSourceUrlBatchSaveRequest request) {
         RiskFunctionDefinition definition = RiskFunctionDefinition.require(MODULE_RULE, FUNCTION_SOURCE_URL);
         ensureFunctionPermission(definition, "add");
+        cacheInvalidationCoordinator.prepare();
         List<Map<String, Object>> dataList = sourceUrlBatchData(request);
         String operator = currentOperatorName();
         List<RiskDTOs.RiskRecordResponse> records = new ArrayList<>();
@@ -1374,7 +1393,28 @@ public class AdminRiskManagementApplicationService {
                 offset(query.safePageNo(), query.safePageSize()),
                 query.safePageSize()
         );
-        return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
+        List<Map<String, Object>> normalizedRows = rows == null ? List.of() : rows.stream()
+                .map(this::normalizeEvaluationSummary)
+                .toList();
+        return PageResult.of(total, query.safePageNo(), query.safePageSize(), normalizedRows);
+    }
+
+    /**
+     * 统一风控评估摘要：非 PASS 决策不展示命中计数，避免把阻断阶段的中间明细误解为最终命中。
+     *
+     * @param source Mapper 返回的评估摘要
+     * @return 可安全用于管理端列表的独立副本
+     */
+    private Map<String, Object> normalizeEvaluationSummary(Map<String, Object> source) {
+        Map<String, Object> row = source == null ? new LinkedHashMap<>() : new LinkedHashMap<>(source);
+        String decision = String.valueOf(firstValue(row, "decisionResult", "decision_result"));
+        if (!"PASS".equalsIgnoreCase(decision)) {
+            row.put("hit_count", 0);
+            if (row.containsKey("hitCount")) {
+                row.put("hitCount", 0);
+            }
+        }
+        return row;
     }
 
     /**
@@ -1384,6 +1424,16 @@ public class AdminRiskManagementApplicationService {
      * @return 命中明细列表
      */
     public List<Map<String, Object>> evaluationHits(String riskRecordNo) {
+        return evaluationDetails(riskRecordNo);
+    }
+
+    /**
+     * 查询单笔风控评估的全部实际执行明细。
+     *
+     * @param riskRecordNo 风控记录号
+     * @return 按执行阶段排列的规则评估记录
+     */
+    public List<Map<String, Object>> evaluationDetails(String riskRecordNo) {
         if (!StringUtils.hasText(riskRecordNo)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "风控记录号不能为空");
         }
@@ -1418,6 +1468,7 @@ public class AdminRiskManagementApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void createTradeBlack(RiskDTOs.TradeBlackSaveRequest request) {
+        cacheInvalidationCoordinator.prepare();
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("merchantId", trim(request.getMerchantId()));
         data.put("merchantName", defaultIfBlank(request.getMerchantName(), riskManagementMapper.selectMerchantName(trim(request.getMerchantId()))));
@@ -1442,6 +1493,7 @@ public class AdminRiskManagementApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void releaseTradeBlack(Long id, String reason) {
+        cacheInvalidationCoordinator.prepare();
         int rows = riskManagementMapper.releaseTradeBlack(id, reason, currentOperatorName());
         if (rows != 1) {
             throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "系统交易加黑记录不存在");
@@ -1570,6 +1622,7 @@ public class AdminRiskManagementApplicationService {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "请选择需要导入的文件");
         }
         List<ImportRow> rows = readImportRows(file);
+        cacheInvalidationCoordinator.prepare();
         String batchNo = importBatchNo(definition);
         String operator = currentOperatorName();
         importLogService.createBatch(definition.getModuleType(), definition.getFunctionCode(), batchNo, file.getOriginalFilename(), rows.size(), operator);
@@ -3746,6 +3799,13 @@ public class AdminRiskManagementApplicationService {
         });
     }
 
+    /**
+     * 汇总导入批次前五条行级错误，限制管理端错误消息长度。
+     *
+     * @param batchNo 风控规则导入批次号
+     * @param errors 全部行级校验或写入错误
+     * @return 包含批次号、行号和最多五条错误原因的摘要
+     */
     private String importErrorSummary(String batchNo, List<AdminRiskImportLogService.ImportRowError> errors) {
         List<String> messages = errors.stream()
                 .limit(5)
@@ -3755,6 +3815,12 @@ public class AdminRiskManagementApplicationService {
         return "导入失败，批次号：" + batchNo + "；" + String.join("; ", messages) + suffix;
     }
 
+    /**
+     * 判断当前定义是否为商户来源网址允许清单规则。
+     *
+     * @param definition 风控功能定义
+     * @return 来源网址规则返回 {@code true}
+     */
     private boolean isSourceUrlRule(RiskFunctionDefinition definition) {
         return definition == RiskFunctionDefinition.RULE_SOURCE_URL;
     }

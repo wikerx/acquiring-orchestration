@@ -256,6 +256,15 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
     }
 
+    /**
+     * 从只读数据源分页查询商户后台账号并聚合商户、角色、部门和岗位摘要。
+     *
+     * <p>商户或账号关联条件明确无匹配时直接返回空页；列表不包含密码、
+     * 密码盐、会话令牌或其他认证材料。</p>
+     *
+     * @param request 商户、账号、角色、部门、岗位、状态和分页条件
+     * @return 商户用户分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<AdminMerchantUserListDTO> pageMerchantUsers(AdminMerchantUserQueryRequest request) {
@@ -292,6 +301,14 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         );
     }
 
+    /**
+     * 从只读数据源查询商户用户详情及最终菜单、权限集合。
+     *
+     * <p>仅返回管理所需账号资料和授权结果，不返回密码、盐值或令牌。</p>
+     *
+     * @param accountId 商户后台账号主键
+     * @return 商户、部门、岗位、角色、菜单和权限聚合详情
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public AdminMerchantUserDetailDTO getMerchantUser(Long accountId) {
@@ -317,6 +334,13 @@ public class AdminMerchantUserServiceImpl implements AdminMerchantUserService {
         return detail;
     }
 
+    /**
+     * 批量加载账号关联资料并组装列表行，避免逐账号查询数据库。
+     *
+     * @param appId 商户后台应用主键
+     * @param accounts 当前分页的账号记录
+     * @return 保持账号输入顺序的商户用户列表行
+     */
     private List<AdminMerchantUserListDTO> buildListRows(Long appId, List<SysAccountDO> accounts) {
         if (accounts == null || accounts.isEmpty()) {
             return Collections.emptyList();

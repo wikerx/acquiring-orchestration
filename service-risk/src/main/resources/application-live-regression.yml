@@ -1,0 +1,14 @@
+# 本地真实交易回归隔离配置：必须与 dev profile 一起激活，不得用于 UAT 或生产部署。
+spring:
+  config:
+    activate:
+      on-profile: "dev & live-regression"
+
+risk:
+  evaluation:
+    # 回归交易使用完整规则快照，避免旧请求级缓存干扰同一轮用例结果。
+    rule-cache-mode: SNAPSHOT
+    # 回归结束前不消费 payment 终态事件，防止后台消费者异步改变本轮预占样本。
+    reservation-event-consumer-enabled: false
+    # 回归期间关闭超时预占补偿扫描，由回归脚本在隔离数据范围内统一核对和清理。
+    reservation-reconcile-enabled: false

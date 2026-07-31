@@ -400,6 +400,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         return resultDTO;
     }
 
+    /**
+     * 构造渠道回调原始审计日志。
+     *
+     * <p>请求头和请求体在写库前统一脱敏，保存签名与 IP 校验结论；完整密钥、令牌、PAN、
+     * CVV 和未脱敏渠道认证值不得进入日志实体。</p>
+     *
+     * @return 待写入对应交易季度分表的回调日志
+     */
     private TransactionChannelCallbackLogDO buildCallbackLog(TransactionChannelCallbackCommandDTO commandDTO,
                                                             CallbackContext context,
                                                             String callbackLogId,

@@ -70,6 +70,12 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
         this.jobNodeContext = jobNodeContext;
     }
 
+    /**
+     * 上报当前执行节点的在线状态、并发容量和心跳时间。
+     * <p>
+     * Mapper 使用节点标识执行 upsert，使重启或重复心跳更新同一节点记录。
+     * </p>
+     */
     @Override
     public void reportHeartbeat() {
         LocalDateTime now = LocalDateTime.now();
@@ -120,6 +126,11 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
         }
     }
 
+    /**
+     * 查询全部执行节点，供管理端观察在线状态与最后心跳。
+     *
+     * @return 按最近心跳倒序、节点标识升序排列的节点列表
+     */
     @Override
     public List<SysJobExecutorNodeDO> listNodes() {
         return sysJobExecutorNodeMapper.selectList(new LambdaQueryWrapper<SysJobExecutorNodeDO>()
@@ -127,6 +138,15 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
                 .orderByAsc(SysJobExecutorNodeDO::getNodeId));
     }
 
+    /**
+     * 对离线扫描的数据库锁冲突执行线性短退避。
+     * <p>
+     * 线程被中断时恢复中断标记，不吞掉调度器停止信号。
+     * </p>
+     *
+     * @param attempt   当前重试序号，从 1 开始
+     * @param exception 本次锁冲突异常
+     */
     private void sleepBeforeRetry(int attempt, PessimisticLockingFailureException exception) {
         long backoffMillis = DEADLOCK_RETRY_BACKOFF_MILLIS * attempt;
         log.warn("超时任务节点离线扫描遇到锁冲突，准备重试，attempt：{}，backoffMillis：{}，原因：{}",

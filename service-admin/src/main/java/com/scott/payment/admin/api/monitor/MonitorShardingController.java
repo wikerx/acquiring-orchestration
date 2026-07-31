@@ -201,6 +201,11 @@ public class MonitorShardingController {
         return success(adminShardingGovernanceApplicationService.idRule());
     }
 
+    /**
+     * 解析分表治理操作审计使用的稳定操作人标识。
+     *
+     * @return 优先返回账号主键或用户主键，其次登录账号；无认证上下文时返回 {@code null}
+     */
     private String currentOperatorId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {
@@ -210,6 +215,11 @@ public class MonitorShardingController {
         return operatorId == null ? account.getLoginAccount() : String.valueOf(operatorId);
     }
 
+    /**
+     * 解析分表治理操作审计使用的操作人名称。
+     *
+     * @return 优先返回真实姓名，其次登录账号；均不可用时返回 {@code admin}
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

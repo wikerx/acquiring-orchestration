@@ -8,11 +8,13 @@ import com.scott.payment.component.core.iso.IsoCountryResolver;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyResolver;
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import com.scott.payment.component.db.iso.service.IsoDictionaryCacheInvalidator;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -22,7 +24,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -35,13 +36,13 @@ import java.util.function.Supplier;
  * @classname : IsoDictionaryServiceImpl
  * @date : 2026-06-03 14:35
  * @email : scott_x@163.com
- * @description : ISO 国家地区与币种基础字典公共查询服务实现
- * @status : create
+ * @description : ISO 国家地区与币种基础字典公共查询服务实现，提供数据库权威数据的常驻 Redis 读模型
+ * @status : update
  */
 @Slf4j
 @Service
 @DS(DataSourceName.SLAVE)
-public class IsoDictionaryServiceImpl implements IsoDictionaryService {
+public class IsoDictionaryServiceImpl implements IsoDictionaryService, IsoDictionaryCacheInvalidator {
 
     /**
      * 启用状态值。
@@ -54,19 +55,19 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
     private static final int NOT_DELETED = 0;
 
     /**
-     * ISO 国家地区全量缓存 Key。
+     * ISO 字典新 Key 的业务域。
      */
-    private static final String COUNTRY_CACHE_KEY = "payment:iso:country:all";
+    private static final String ISO_CACHE_DOMAIN = "iso";
 
     /**
-     * ISO 币种全量缓存 Key。
+     * ISO 国家地区新 Key 的业务用途。
      */
-    private static final String CURRENCY_CACHE_KEY = "payment:iso:currency:all";
+    private static final String COUNTRY_CACHE_BUSINESS = "country";
 
     /**
-     * ISO 字典缓存过期时间。基础字典低频变更，保留 12 小时缓存即可兼顾性能和更新传播。
+     * ISO 币种新 Key 的业务用途。
      */
-    private static final Duration ISO_CACHE_TTL = Duration.ofHours(12);
+    private static final String CURRENCY_CACHE_BUSINESS = "currency";
 
     /**
      * 国家地区 Mapper，用于读取 base_iso_country。
@@ -84,18 +85,26 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
     private final StringRedisTemplate stringRedisTemplate;
 
     /**
+     * 统一 Redis Key 解析器。组件未引入 Redis 实现时允许为空，此时直接回源数据库。
+     */
+    private final PaymentRedisKeyResolver keyResolver;
+
+    /**
      * 创建 ISO 字典服务实现。
      *
      * @param countryMapper               国家地区 Mapper
      * @param currencyMapper              币种 Mapper
      * @param stringRedisTemplateProvider Redis 模板提供器
+     * @param keyResolverProvider         统一 Redis Key 解析器提供器
      */
     public IsoDictionaryServiceImpl(IsoCountryMapper countryMapper,
                                     IsoCurrencyMapper currencyMapper,
-                                    ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider) {
+                                    ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
+                                    ObjectProvider<PaymentRedisKeyResolver> keyResolverProvider) {
         this.countryMapper = countryMapper;
         this.currencyMapper = currencyMapper;
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        this.keyResolver = keyResolverProvider.getIfAvailable();
     }
 
     /**
@@ -106,7 +115,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
     @Override
     public List<IsoCountryInfo> listCountries() {
         return loadFromCache(
-                COUNTRY_CACHE_KEY,
+                newCacheKey(COUNTRY_CACHE_BUSINESS),
                 new TypeReference<List<IsoCountryInfo>>() {
                 },
                 this::loadCountriesFromDatabase,
@@ -194,7 +203,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
     @Override
     public List<IsoCurrencyInfo> listCurrencies() {
         return loadFromCache(
-                CURRENCY_CACHE_KEY,
+                newCacheKey(CURRENCY_CACHE_BUSINESS),
                 new TypeReference<List<IsoCurrencyInfo>>() {
                 },
                 this::loadCurrenciesFromDatabase,
@@ -267,9 +276,34 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
     }
 
     /**
-     * 从缓存读取列表，缓存缺失时从 DB 加载，DB 异常时使用内置 ISO 数据兜底。
+     * 删除国家地区常驻缓存，使下一次读取从数据库重建权威快照。
      *
-     * @param cacheKey       Redis 缓存 Key
+     * <p>管理端国家或地区关联数据提交成功后调用。Redis 删除失败会向上抛出，
+     * 防止业务变更后继续静默使用永久旧值。</p>
+     */
+    @Override
+    public void evictCountries() {
+        evictCache(newCacheKey(COUNTRY_CACHE_BUSINESS));
+    }
+
+    /**
+     * 删除币种常驻缓存，使下一次读取从数据库重建权威快照。
+     *
+     * <p>管理端币种或地区币种关联数据提交成功后调用。Redis 删除失败会向上抛出，
+     * 防止业务变更后继续静默使用永久旧值。</p>
+     */
+    @Override
+    public void evictCurrencies() {
+        evictCache(newCacheKey(CURRENCY_CACHE_BUSINESS));
+    }
+
+    /**
+     * 从常驻缓存读取列表，缓存缺失时从数据库加载权威数据。
+     *
+     * <p>只有数据库成功返回非空结果时才写入 Redis。数据库为空或不可用时返回内置
+     * ISO 数据服务当前请求，但不写缓存，避免临时兜底长期覆盖管理端维护的数据。</p>
+     *
+     * @param cacheKey       常驻缓存 Key；未配置统一解析器时允许为空
      * @param typeReference  缓存 JSON 反序列化类型
      * @param databaseLoader DB 加载器
      * @param fallbackLoader 内置数据兜底加载器
@@ -284,9 +318,21 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
         if (!cachedValues.isEmpty()) {
             return cachedValues;
         }
-        List<T> values = loadFromDatabaseSafely(databaseLoader, fallbackLoader);
-        writeCache(cacheKey, values);
-        return values;
+        try {
+            List<T> databaseValues = databaseLoader.get();
+            if (!databaseValues.isEmpty()) {
+                writeCache(cacheKey, databaseValues);
+                return databaseValues;
+            }
+            log.warn("ISO 字典数据库结果为空，临时使用内置 ISO 数据兜底且不写入常驻缓存");
+        } catch (DataAccessException exception) {
+            log.warn(
+                    "ISO 字典数据库读取失败，临时使用内置 ISO 数据兜底且不写入常驻缓存，异常类型: {}，原因: {}",
+                    exception.getClass().getSimpleName(),
+                    exception.getMessage()
+            );
+        }
+        return fallbackLoader.get();
     }
 
     /**
@@ -298,7 +344,7 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
      * @return 缓存字典列表；缓存不存在或 Redis 异常时返回空列表
      */
     private <T> List<T> readCache(String cacheKey, TypeReference<List<T>> typeReference) {
-        if (stringRedisTemplate == null) {
+        if (stringRedisTemplate == null || !StringUtils.hasText(cacheKey)) {
             return List.of();
         }
         try {
@@ -312,42 +358,57 @@ public class IsoDictionaryServiceImpl implements IsoDictionaryService {
     }
 
     /**
-     * 写入 Redis 字典缓存。
+     * 写入 Redis 常驻字典缓存。
+     *
+     * <p>写入不携带 TTL。数据生命周期由管理端业务变更触发的精确失效控制，
+     * 数据库始终是事实来源。</p>
      *
      * @param cacheKey Redis 缓存 Key
-     * @param values   字典数据列表
+     * @param values   数据库成功返回的非空字典列表
      * @param <T>      字典数据类型
      */
     private <T> void writeCache(String cacheKey, List<T> values) {
-        if (stringRedisTemplate == null || values.isEmpty()) {
+        if (stringRedisTemplate == null || !StringUtils.hasText(cacheKey) || values.isEmpty()) {
             return;
         }
         try {
-            stringRedisTemplate.opsForValue().set(cacheKey, JsonUtils.toJsonString(values), ISO_CACHE_TTL);
+            stringRedisTemplate.opsForValue().set(cacheKey, JsonUtils.toJsonString(values));
         } catch (RuntimeException exception) {
             log.warn("写入 ISO 字典 Redis 缓存失败，cacheKey: {}，原因: {}", cacheKey, exception.getMessage());
         }
     }
 
     /**
-     * 安全加载 DB 字典数据，DB 不可用时回退到内置 ISO 数据。
+     * 构造新命名规则的 ISO 字典 Key。
      *
-     * @param databaseLoader DB 加载器
-     * @param fallbackLoader 内置数据兜底加载器
-     * @param <T>            字典数据类型
-     * @return 字典数据列表
+     * @param business 国家或币种业务用途
+     * @return acquiring:{environment}:iso:{business}；解析器未配置时返回 null
      */
-    private <T> List<T> loadFromDatabaseSafely(Supplier<List<T>> databaseLoader, Supplier<List<T>> fallbackLoader) {
-        try {
-            List<T> databaseValues = databaseLoader.get();
-            if (!databaseValues.isEmpty()) {
-                return databaseValues;
-            }
-            log.warn("ISO 字典数据库结果为空，临时使用内置 ISO 数据兜底");
-        } catch (DataAccessException exception) {
-            log.warn("ISO 字典数据库读取失败，临时使用内置 ISO 数据兜底，原因: {}", exception.getMessage());
+    private String newCacheKey(String business) {
+        return keyResolver == null ? null : keyResolver.businessKey(ISO_CACHE_DOMAIN, business);
+    }
+
+    /**
+     * 删除指定 ISO 常驻缓存。该删除只由真实业务变更触发。
+     *
+     * @param cacheKey 新命名规则缓存 Key；允许为空
+     * @throws RuntimeException Redis 删除失败时抛出，由管理端变更链路决定回滚或重试
+     */
+    private void evictCache(String cacheKey) {
+        if (stringRedisTemplate == null || !StringUtils.hasText(cacheKey)) {
+            return;
         }
-        return fallbackLoader.get();
+        try {
+            stringRedisTemplate.delete(cacheKey);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "ISO 字典 Redis 缓存失效失败，cacheKey: {}，异常类型: {}，原因: {}",
+                    cacheKey,
+                    exception.getClass().getSimpleName(),
+                    exception.getMessage()
+            );
+            throw exception;
+        }
     }
 
     /**

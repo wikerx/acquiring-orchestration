@@ -198,6 +198,13 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         permissionIds.forEach(permissionId -> insertPermissionGrant(merchantApp.getId(), normalizedMerchantId, permissionId, now));
     }
 
+    /**
+     * 规范化商户号并确认商户记录有效，避免向不存在或已删除商户授予菜单。
+     *
+     * @param merchantId 待授权商户号
+     * @return 去除首尾空白后的有效商户号
+     * @throws ServiceException 商户号为空或商户不存在时抛出
+     */
     private String validateMerchant(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchantId is required");
@@ -215,6 +222,12 @@ public class AdminMerchantMenuGrantServiceImpl implements AdminMerchantMenuGrant
         return normalized;
     }
 
+    /**
+     * 查询未删除的商户后台应用，确保菜单和权限授权使用正确应用边界。
+     *
+     * @return 商户后台应用记录
+     * @throws ServiceException 商户应用未配置时抛出
+     */
     private SysAppDO getMerchantApp() {
         SysAppDO app = sysAppMapper.selectOne(
                 Wrappers.<SysAppDO>lambdaQuery()

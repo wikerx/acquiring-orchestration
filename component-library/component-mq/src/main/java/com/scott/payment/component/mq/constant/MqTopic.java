@@ -31,6 +31,11 @@ public final class MqTopic {
      */
     public static final String MERCHANT_OPERATION_LOG = "acquiring_merchant_operation_log_topic";
 
+    /**
+     * 风控评估审计 Topic。
+     */
+    public static final String RISK_EVALUATION_AUDIT = "acquiring_risk_evaluation_audit_topic";
+
     private MqTopic() {
     }
 }

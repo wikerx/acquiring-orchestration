@@ -55,6 +55,17 @@ public @interface VerificationAndProcessing {
     boolean requiredHeader() default true;
 
     /**
+     * 是否把商户 IP 白名单判定延后到交易内风控。
+     *
+     * <p>仅支付、授权、预授权三个会创建首笔交易并强制调用内风控的接口允许开启。
+     * 开启后安全层仍完成 JWT 验签和防重放，只提取可信网关 IP，不在交易落库前拦截，
+     * 以保证 IP 白名单拒绝能够生成失败交易、风控明细和流程时间轴。</p>
+     *
+     * @return true 表示由交易内风控执行 IP 白名单判定
+     */
+    boolean deferIpWhitelistToRisk() default false;
+
+    /**
      * 当前接口必须存在的请求头名称。
      * <p>
      * 默认只强制 authorization，后续如要增加租户、渠道或幂等头，可以在方法注解上覆盖。

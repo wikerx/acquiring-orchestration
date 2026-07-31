@@ -135,6 +135,12 @@ public class AdminDictServiceImpl implements AdminDictService {
         );
     }
 
+    /**
+     * 按条件查询全部字典类型，不应用分页截断。
+     *
+     * @param request 字典类型、名称和状态等可选条件
+     * @return 字典类型列表
+     */
     @Override
     public List<SysDictTypeDTO> listDictTypes(SysDictTypeQueryRequest request) {
         SysDictTypeQueryRequest query = request == null ? new SysDictTypeQueryRequest() : request;
@@ -210,6 +216,12 @@ public class AdminDictServiceImpl implements AdminDictService {
         );
     }
 
+    /**
+     * 按条件查询全部字典数据，不应用分页截断。
+     *
+     * @param request 字典类型、值、语言和状态等可选条件
+     * @return 字典数据列表
+     */
     @Override
     public List<SysDictDataDTO> listDictData(SysDictDataQueryRequest request) {
         SysDictDataQueryRequest query = request == null ? new SysDictDataQueryRequest() : request;

@@ -715,6 +715,9 @@ public class MpgsResponsePayload {
         private String validationType;
     }
 
+    /**
+     * MPGS 3DS 认证响应主体，封装认证状态、网关建议和不同协议版本的认证证据。
+     */
     @Data
     public static class Authentication {
 
@@ -764,6 +767,9 @@ public class MpgsResponsePayload {
         private ThreeDs2 threeDs2;
     }
 
+    /**
+     * MPGS 返回的 3DS 浏览器重定向内容，只允许传递给受控收银台页面。
+     */
     @Data
     public static class Redirect {
 
@@ -778,27 +784,69 @@ public class MpgsResponsePayload {
         private String url;
     }
 
+    /**
+     * MPGS 通用 3DS 认证证据。
+     */
     @Data
     public static class ThreeDs {
 
+        /**
+         * ACS 返回的电子商务指示码。
+         */
         private String acsEci;
+
+        /**
+         * 认证 token，属于敏感认证材料，禁止写入日志或外部响应。
+         */
         private String authenticationToken;
+
+        /**
+         * 通用 3DS 认证交易标识。
+         */
         private String transactionId;
     }
 
+    /**
+     * MPGS 3DS1 兼容认证证据。
+     */
     @Data
     public static class ThreeDs1 {
 
+        /**
+         * Payer Authentication Response 状态。
+         */
         private String paResStatus;
+
+        /**
+         * Visa Enrollment Response 注册状态。
+         */
         private String veResEnrolled;
     }
 
+    /**
+     * MPGS 3DS2 认证链路标识与交易状态。
+     */
     @Data
     public static class ThreeDs2 {
 
+        /**
+         * Access Control Server 交易标识。
+         */
         private String acsTransactionId;
+
+        /**
+         * Directory Server 交易标识。
+         */
         private String dsTransactionId;
+
+        /**
+         * 3DS Server 交易标识。
+         */
         private String threeDSServerTransactionId;
+
+        /**
+         * EMV 3DS 交易状态码。
+         */
         private String transactionStatus;
     }
 }

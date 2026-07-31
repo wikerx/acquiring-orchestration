@@ -3,6 +3,8 @@ package com.scott.payment.admin.api.monitor;
 import com.scott.payment.admin.application.monitor.AdminMonitorCacheApplicationService;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
+import com.scott.payment.component.web.operation.annotation.OperationLog;
+import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -92,6 +94,8 @@ public class MonitorCacheController {
      */
     @DeleteMapping("/key")
     @RequiresPermission("system:cache:clear")
+    @OperationLog(moduleName = "Redis缓存监控", businessType = OperationTypeConstants.DELETE,
+            operation = "删除平台配置缓存Key", recordRequest = false, recordResponse = false)
     public CommonResult<Boolean> delete(@RequestParam("key") String key) {
         return success(adminMonitorCacheApplicationService.delete(key));
     }

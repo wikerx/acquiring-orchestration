@@ -2,6 +2,8 @@ package com.scott.payment.openapi.support;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.redis.config.PaymentRedisProperties;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
@@ -28,11 +31,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class OpenApiJwtReplayProtectionService {
 
     /**
-     * 防重放 Redis Key 前缀，按商户号和 JWT jti 隔离，避免不同商户之间互相影响。
-     */
-    private static final String JWT_REPLAY_KEY_PREFIX = "payment:openapi:jwt:jti:";
-
-    /**
      * JWT 过期时间之外额外保留的秒数，用于覆盖轻微时钟漂移和请求在链路中的传输时间。
      */
     private static final long REPLAY_TTL_BUFFER_SECONDS = 60L;
@@ -43,7 +41,7 @@ public class OpenApiJwtReplayProtectionService {
     private static final long MIN_TTL_SECONDS = 1L;
 
     /**
-     * StringRedisTemplate 可选依赖。部分单元测试或网关服务不需要 Redis，缺失时不阻塞服务启动。
+     * StringRedisTemplate 防重放存储依赖。只有显式关闭强制保护的环境才允许缺失。
      */
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -51,6 +49,11 @@ public class OpenApiJwtReplayProtectionService {
      * 是否强制要求 Redis 防重放成功。生产环境建议配置为 true，本地测试可保持 false。
      */
     private final boolean replayRequired;
+
+    /**
+     * 支付系统 Redis Key 配置。
+     */
+    private final PaymentRedisProperties redisProperties;
 
     /**
      * Redis 降级日志标记，避免 Redis 不可用时每个请求都重复打印警告。
@@ -62,11 +65,21 @@ public class OpenApiJwtReplayProtectionService {
      *
      * @param stringRedisTemplateProvider Redis 字符串模板提供器
      * @param replayRequired              是否强制要求 Redis 防重放成功
+     * @param redisProperties             Redis Key 配置
      */
     public OpenApiJwtReplayProtectionService(ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-                                             @Value("${openapi.security.replay.required:false}") boolean replayRequired) {
+                                             @Value("${openapi.security.replay.required:false}") boolean replayRequired,
+                                             PaymentRedisProperties redisProperties) {
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         this.replayRequired = replayRequired;
+        this.redisProperties = redisProperties;
+        if (replayRequired && this.stringRedisTemplate == null) {
+            throw new IllegalStateException("OpenAPI JWT replay protection requires StringRedisTemplate");
+        }
+        if (this.stringRedisTemplate == null) {
+            log.warn("event: OPENAPI_REPLAY_PROTECTION_DEGRADED reason: STRING_REDIS_TEMPLATE_MISSING "
+                    + "replayRequired: false");
+        }
     }
 
     /**
@@ -80,27 +93,30 @@ public class OpenApiJwtReplayProtectionService {
      * @param expiresAt  JWT 过期秒级时间戳
      */
     public void checkAndMark(String merchantId, String jwtId, long expiresAt) {
-        if (stringRedisTemplate == null) {
-            return;
-        }
         if (!StringUtils.hasText(merchantId) || !StringUtils.hasText(jwtId)) {
             throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
+        }
+        if (stringRedisTemplate == null) {
+            return;
         }
         String replayKey = buildReplayKey(merchantId, jwtId);
         long ttlSeconds = calculateTtlSeconds(expiresAt);
         Boolean firstRequest;
         try {
             firstRequest = stringRedisTemplate.opsForValue()
-                    .setIfAbsent(replayKey, "1", Duration.ofSeconds(ttlSeconds));
+                    .setIfAbsent(replayKey, String.valueOf(Instant.now().toEpochMilli()), Duration.ofSeconds(ttlSeconds));
         } catch (DataAccessException exception) {
-            handleRedisFailure(merchantId, exception);
+            handleRedisUnavailable(merchantId, exception.getClass().getSimpleName());
+            return;
+        }
+        if (firstRequest == null) {
+            handleRedisUnavailable(merchantId, "UNKNOWN_WRITE_RESULT");
             return;
         }
         if (Boolean.FALSE.equals(firstRequest)) {
-            log.warn("开放接口JWT防重放命中，商户号：{}，jti摘要长度：{}，RedisKey前缀：{}",
+            log.warn("开放接口JWT防重放命中，商户号：{}，jti摘要长度：{}",
                     merchantId,
-                    jwtId.length(),
-                    JWT_REPLAY_KEY_PREFIX);
+                    jwtId.length());
             throw new ApiException(ApiResultEnum.AUTHORIZATION_JWT_INVALID);
         }
     }
@@ -109,16 +125,16 @@ public class OpenApiJwtReplayProtectionService {
      * 处理 Redis 不可用场景。
      *
      * @param merchantId 商户号
-     * @param exception  Redis 访问异常
+     * @param failureType Redis 失败类型，不包含连接地址或敏感 Key
      */
-    private void handleRedisFailure(String merchantId, DataAccessException exception) {
+    private void handleRedisUnavailable(String merchantId, String failureType) {
         if (replayRequired) {
             throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR);
         }
         if (redisFallbackWarned.compareAndSet(false, true)) {
             log.warn("开放接口JWT防重放Redis暂不可用，本地降级为仅校验JWT本身，商户号：{}，错误类型：{}",
                     merchantId,
-                    exception.getClass().getSimpleName());
+                    failureType);
         }
     }
 
@@ -130,7 +146,13 @@ public class OpenApiJwtReplayProtectionService {
      * @return Redis Key
      */
     private String buildReplayKey(String merchantId, String jwtId) {
-        return JWT_REPLAY_KEY_PREFIX + merchantId + ":" + jwtId;
+        return redisProperties.key(
+                "security",
+                "openapi",
+                "jwt-replay",
+                merchantId,
+                RedisKeyDigest.sha256(jwtId)
+        );
     }
 
     /**

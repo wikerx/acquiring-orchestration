@@ -10,21 +10,22 @@ import com.scott.payment.merchant.dto.SysOperLogRecordRequest;
 import com.scott.payment.merchant.entity.SysOperLogDO;
 import com.scott.payment.merchant.mapper.SysOperLogMapper;
 import com.scott.payment.merchant.service.MerchantOperLogService;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : MerchantOperLogServiceImpl
  * @date : 2026-06-20 10:46
  * @email : scott_x@163.com
- * @description : Merchant Oper Log Service Impl 服务实现，位于 商户后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
+ * @description : 写入和查询商户端操作审计日志，使用 idempotent_key 唯一约束吸收 MQ 重复投递
  * @status : create
  */
+@Service
 public class MerchantOperLogServiceImpl implements MerchantOperLogService {
 
     /**
@@ -90,7 +91,14 @@ public class MerchantOperLogServiceImpl implements MerchantOperLogService {
         entity.setErrorMsg(request.getErrorMsg());
         entity.setOperatedAt(now);
         entity.setCreatedAt(now);
-        operLogMapper.insert(entity);
+        try {
+            operLogMapper.insert(entity);
+        } catch (DuplicateKeyException exception) {
+            if (!StringUtils.hasText(request.getIdempotentKey())) {
+                throw exception;
+            }
+            // Redis 只做辅助去重；数据库唯一键命中即表示同一审计消息已经完成持久化。
+        }
     }
 
     /**
@@ -114,6 +122,12 @@ public class MerchantOperLogServiceImpl implements MerchantOperLogService {
         );
     }
 
+    /**
+     * 构造强制带 merchantId 的操作日志查询条件。
+     *
+     * @param query 当前商户日志查询
+     * @return 按操作时间倒序的租户隔离查询包装器
+     */
     private LambdaQueryWrapper<SysOperLogDO> buildOperLogQueryWrapper(SysOperLogQueryRequest query) {
         return Wrappers.<SysOperLogDO>lambdaQuery()
                 .eq(SysOperLogDO::getMerchantId, query.getMerchantId())
@@ -124,6 +138,15 @@ public class MerchantOperLogServiceImpl implements MerchantOperLogService {
                 .orderByDesc(SysOperLogDO::getOperatedAt);
     }
 
+    /**
+     * 将操作日志记录转换为商户可见 DTO。
+     * <p>
+     * 不映射请求参数、响应报文或其他可能含密钥、token 的原始内容。
+     * </p>
+     *
+     * @param entity 操作日志数据库记录
+     * @return 商户后台审计展示 DTO
+     */
     private SysOperLogDTO toDTO(SysOperLogDO entity) {
         SysOperLogDTO dto = new SysOperLogDTO();
         dto.setId(entity.getId());

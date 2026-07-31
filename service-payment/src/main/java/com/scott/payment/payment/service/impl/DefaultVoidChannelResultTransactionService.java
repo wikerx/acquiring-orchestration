@@ -44,6 +44,14 @@ public class DefaultVoidChannelResultTransactionService implements VoidChannelRe
         this.transactionRecordService = transactionRecordService;
     }
 
+    /**
+     * 在独立事务中持久化撤销渠道同步结果。
+     *
+     * <p>仅对已落库的撤销动作执行 CAS 完成，迟到或重复结果不得覆盖动作终态。</p>
+     *
+     * @param preparationResultDTO 本地准备事务结果
+     * @param invokeResultDTO      渠道调用结果
+     */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,

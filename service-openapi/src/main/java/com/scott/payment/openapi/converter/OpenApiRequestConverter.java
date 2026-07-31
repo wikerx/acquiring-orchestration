@@ -630,4 +630,12 @@ public interface OpenApiRequestConverter {
      */
     @Mapping(target = "sourceTransactionDateTime", ignore = true)
     PaymentCreateClientRequestDTO.TransactionInfoDTO toPaymentClientTransactionInfo(ApiMerchantPaymentRequestDTO.TransactionInfoDTO source);
+
+    /**
+     * 转换商户实时风控上下文。
+     *
+     * @param source 商户请求中的风控上下文
+     * @return payment 内部请求风控上下文
+     */
+    PaymentCreateClientRequestDTO.RiskContextDTO toPaymentClientRiskContext(ApiMerchantPaymentRequestDTO.RiskContextDTO source);
 }

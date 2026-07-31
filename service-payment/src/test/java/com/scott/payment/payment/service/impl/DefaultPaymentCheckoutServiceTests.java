@@ -57,15 +57,34 @@ import static org.mockito.Mockito.when;
  */
 class DefaultPaymentCheckoutServiceTests {
 
+    /** Hosted Checkout 会话持久化 Mapper 测试替身。 */
     private PaymentCheckoutSessionMapper sessionMapper;
+
+    /** 不透明 Token 持久化 Mapper 测试替身。 */
     private PaymentCheckoutTokenMapper tokenMapper;
+
+    /** 支付尝试持久化 Mapper 测试替身。 */
     private PaymentCheckoutAttemptMapper attemptMapper;
+
+    /** Checkout 生命周期事件 Mapper 测试替身。 */
     private PaymentCheckoutEventMapper eventMapper;
+
+    /** Checkout 安全审计事件 Mapper 测试替身。 */
     private PaymentCheckoutSecurityEventMapper securityEventMapper;
+
+    /** 3DS 状态和返回 Token 处理服务测试替身。 */
     private PaymentCheckoutThreeDsService threeDsService;
+
+    /** 支付核心交易提交服务测试替身。 */
     private PaymentTransactionService paymentTransactionService;
+
+    /** 立即执行回调的事务模板，避免单元测试依赖真实数据库事务。 */
     private TransactionOperations transactionOperations;
+
+    /** Hosted Checkout TTL、重试次数和轮询间隔测试配置。 */
     private PaymentCheckoutProperties properties;
+
+    /** 每个用例重新构建的被测服务。 */
     private DefaultPaymentCheckoutService service;
 
     @BeforeEach
@@ -482,8 +501,10 @@ class DefaultPaymentCheckoutServiceTests {
 
     private static class SequenceGlobalIdGenerator implements GlobalIdGenerator {
 
+        /** 仅用于测试的单调递增序列，不具备分布式唯一性。 */
         private final AtomicLong sequence = new AtomicLong(2607271200000000000L);
 
+        /** 返回下一个确定性测试编号。 */
         @Override
         public String nextId() {
             return Long.toString(sequence.incrementAndGet());

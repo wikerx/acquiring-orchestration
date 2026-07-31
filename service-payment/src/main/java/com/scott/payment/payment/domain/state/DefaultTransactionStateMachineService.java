@@ -97,6 +97,11 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         throw new ServiceException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED);
     }
 
+    /**
+     * 校验后续资金动作的原订单是否存在、成功且币种完整。
+     *
+     * @param sourceOrderDO 已锁定的原交易订单
+     */
     private void validateSourceOrder(TransactionOrderDO sourceOrderDO) {
         if (sourceOrderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -109,6 +114,13 @@ public class DefaultTransactionStateMachineService implements TransactionStateMa
         }
     }
 
+    /**
+     * 校验原交易类型是否允许发起目标后续动作。
+     *
+     * @param sourceOrderDO       原交易订单
+     * @param allowedSourceTypes  允许的原交易类型集合
+     * @param nextTransactionType 目标后续动作类型
+     */
     private void validateType(TransactionOrderDO sourceOrderDO,
                               Set<String> allowedSourceTypes,
                               PaymentTransactionTypeEnum nextTransactionType) {

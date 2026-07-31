@@ -4,10 +4,12 @@ import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.service.TransactionChannelMatchResultTransactionService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,12 +38,31 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
     private final TransactionRecordService transactionRecordService;
 
     /**
+     * 交易状态变更 Outbox 服务，与渠道补匹配结果在同一数据库事务内写入。
+     */
+    private final TransactionLifecycleEventService lifecycleEventService;
+
+    /**
      * 创建主动渠道查询结果事务默认实现。
      *
      * @param transactionRecordService 交易事实记录服务
      */
     public DefaultTransactionChannelMatchResultTransactionService(TransactionRecordService transactionRecordService) {
+        this(transactionRecordService, null);
+    }
+
+    /**
+     * 创建带终态 Outbox 能力的渠道补匹配结果事务服务。
+     *
+     * @param transactionRecordService 交易事实记录服务
+     * @param lifecycleEventService    交易状态变更 Outbox 服务
+     */
+    @Autowired
+    public DefaultTransactionChannelMatchResultTransactionService(
+            TransactionRecordService transactionRecordService,
+            TransactionLifecycleEventService lifecycleEventService) {
         this.transactionRecordService = transactionRecordService;
+        this.lifecycleEventService = lifecycleEventService;
     }
 
     /**
@@ -68,7 +89,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 resolution == null ? null : resolution.getTargetStatus(),
                 resolution == null ? null : resolution.getFailReasonCode());
         TransactionOrderDO orderDO = transactionRecordService.findOrder(operationDO.getTransactionDateTime(), operationDO.getOperationId());
-        return transactionRecordService.completeByChannelCallback(
+        boolean statusChanged = transactionRecordService.completeByChannelCallback(
                 operationDO,
                 orderDO,
                 originalRequestDO == null ? null : originalRequestDO.getRequestId(),
@@ -78,6 +99,17 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 resolution == null ? null : resolution.getChannelStatus(),
                 resolution == null ? null : resolution.getChannelResponseCode(),
                 resolution == null ? null : resolution.getChannelResponseMessage());
+        if (statusChanged && lifecycleEventService != null && resolution != null) {
+            lifecycleEventService.saveStatusChanged(
+                    operationDO.getTransactionId(),
+                    operationDO.getOperationId(),
+                    operationDO.getMerchantId(),
+                    operationDO.getMerchantOrderNo(),
+                    operationDO.getTransactionType(),
+                    resolution.getTargetStatus(),
+                    operationDO.getTransactionDateTime());
+        }
+        return statusChanged;
     }
 
     /**

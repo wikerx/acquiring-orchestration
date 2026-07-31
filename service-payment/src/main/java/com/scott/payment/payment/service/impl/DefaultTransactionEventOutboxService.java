@@ -145,6 +145,12 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
                         actualNow) == 1);
     }
 
+    /**
+     * 校验新 Outbox 事件的业务身份、路由和分片时间。
+     *
+     * @param eventDO 待持久化事件
+     * @throws ServiceException 必需字段缺失时抛出
+     */
     private void validateEvent(TransactionEventOutboxDO eventDO) {
         if (eventDO == null
                 || !StringUtils.hasText(eventDO.getEventNo())
@@ -160,6 +166,12 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         }
     }
 
+    /**
+     * 校验更新 Outbox 状态所需的主键、版本号和分片时间。
+     *
+     * @param eventDO 已持久化事件
+     * @throws ServiceException 无法安全定位或 CAS 更新记录时抛出
+     */
     private void validatePersistedEvent(TransactionEventOutboxDO eventDO) {
         if (eventDO == null || eventDO.getId() == null || eventDO.getVersion() == null || eventDO.getTransactionDateTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);

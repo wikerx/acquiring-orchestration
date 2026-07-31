@@ -36,17 +36,40 @@
 ## 4. 部署配置
 
 * [Nacos 配置说明](deployment/nacos/README.md)
+* [Redis 监控与告警处置手册](deployment/prometheus/redis-monitoring-runbook.md)
 
-Nacos 配置样例位于 `docs/deployment/nacos/`。
+Nacos 配置样例位于 `docs/deployment/nacos/`，Prometheus 规则位于
+`docs/deployment/prometheus/`。
 
-## 5. SQL 脚本
+## 5. Redis 专项治理
+
+`redis/` 记录 `REDIS-GOVERNANCE-001` 的技术基线、全量扫描、目标设计和后续整改门禁：
+
+* [Redis 技术版本与扫描基线](redis/01-redis-version-baseline.md)
+* [Redis 当前使用清单](redis/02-redis-current-usage-inventory.md)
+* [Redis 问题清单](redis/03-redis-problem-list.md)
+* [Redis 风险评估](redis/04-redis-risk-assessment.md)
+* [Redis 目标设计](redis/05-redis-target-design.md)
+* [Redis 数据结构映射](redis/06-redis-data-type-mapping.md)
+* [Redis Cache Catalog](redis/07-redis-cache-catalog.md)
+* [Redis 分阶段整改计划](redis/08-redis-change-plan.md)
+* [Redis 变更报告](redis/09-redis-change-report.md)
+* [Redis 测试报告](redis/10-redis-test-report.md)
+* [Redis 基础性能报告](redis/11-redis-performance-report.md)
+* [Redis 故障演练报告](redis/12-redis-failure-drill-report.md)
+* [Redis 专项治理验收报告](redis/13-redis-acceptance-report.md)
+
+阶段 0～8 的代码治理和阶段 9 本地 Redis/Cluster 验证已完成。生产准入仍受真实拓扑、
+完整 shadow 周期、监控、容量、故障演练、注释存量和完整回归门禁约束，详见验收报告。
+
+## 6. SQL 脚本
 
 * [基础 ISO 字典建表脚本](sql/base-iso-dictionary-schema.sql)
 * [Hosted Checkout V1 dev/test 表结构脚本](sql/checkout-session-ddl-dev.sql)
 
 SQL 参考脚本统一放在 `docs/sql/`。
 
-## 6. 历史归档
+## 7. 历史归档
 
 `archive/reports/` 用于保存一次性扫描报告、历史修复记录和问题分析文档：
 
@@ -59,7 +82,7 @@ SQL 参考脚本统一放在 `docs/sql/`。
 * [系统管理与基础数据菜单修复报告](archive/reports/system-base-menu-repair-report.md)
 * [系统菜单树层级修复报告](archive/reports/system-menu-tree-repair-report.md)
 
-## 7. 前端协作文档
+## 8. 前端协作文档
 
 前端仓库独立维护：
 

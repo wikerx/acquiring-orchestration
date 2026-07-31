@@ -61,24 +61,47 @@ public class AdminChannelInfoController {
         this.channelApplicationService = channelApplicationService;
     }
 
+    /**
+     * 按管理端条件分页查询渠道基础资料。
+     *
+     * @param query 渠道编号、名称、类型、状态等可选查询条件
+     * @return 渠道分页结果
+     */
     @PostMapping("/search")
     @RequiresPermission("channel:info:list")
     public CommonResult<PageResult<ChannelInfoResponse>> pageChannels(@RequestBody(required = false) ChannelInfoQuery query) {
         return success(channelApplicationService.pageChannels(query));
     }
 
+    /**
+     * 查询下拉选择使用的启用渠道简要信息。
+     *
+     * @return 渠道选项列表
+     */
     @GetMapping("/options")
     @RequiresPermission("channel:info:list")
     public CommonResult<List<ChannelOption>> channelOptions() {
         return success(channelApplicationService.listChannelOptions());
     }
 
+    /**
+     * 查询指定渠道的管理端详情。
+     *
+     * @param id 渠道主键
+     * @return 渠道详情
+     */
     @GetMapping("/{id}")
     @RequiresPermission("channel:info:detail")
     public CommonResult<ChannelInfoResponse> getChannel(@PathVariable("id") Long id) {
         return success(channelApplicationService.getChannel(id));
     }
 
+    /**
+     * 创建渠道基础资料，渠道编码唯一性和必填配置由应用服务校验。
+     *
+     * @param request 渠道保存请求
+     * @return 创建后的渠道详情
+     */
     @PostMapping
     @RequiresPermission("channel:info:add")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道")
@@ -86,6 +109,13 @@ public class AdminChannelInfoController {
         return success(channelApplicationService.createChannel(request));
     }
 
+    /**
+     * 更新指定渠道基础资料，不在接口层修改渠道能力或商户 MID。
+     *
+     * @param id 渠道主键
+     * @param request 渠道保存请求
+     * @return 更新后的渠道详情
+     */
     @PutMapping("/{id}")
     @RequiresPermission("channel:info:edit")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道")
@@ -94,6 +124,13 @@ public class AdminChannelInfoController {
         return success(channelApplicationService.updateChannel(id, request));
     }
 
+    /**
+     * 切换渠道启停状态，状态合法性及关联使用约束由应用服务处理。
+     *
+     * @param id 渠道主键
+     * @param request 目标状态请求
+     * @return 更新后的渠道详情
+     */
     @PutMapping("/{id}/status")
     @RequiresPermission("channel:info:status")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道状态")
@@ -102,6 +139,12 @@ public class AdminChannelInfoController {
         return success(channelApplicationService.updateChannelStatus(id, request.getStatus()));
     }
 
+    /**
+     * 删除指定渠道；存在关联配置时由应用服务拒绝删除。
+     *
+     * @param id 渠道主键
+     * @return 无业务数据的成功响应
+     */
     @DeleteMapping("/{id}")
     @RequiresPermission("channel:info:remove")
     @OperationLog(moduleName = "渠道信息管理", businessType = OperationTypeConstants.DELETE, operation = "删除渠道")

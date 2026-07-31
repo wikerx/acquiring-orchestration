@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scott.payment.admin.application.cache.MerchantSecurityCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantKeyBundleDTO;
@@ -17,6 +18,7 @@ import com.scott.payment.admin.entity.base.MccEntities;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -251,6 +253,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
+    /**
+     * 商户安全缓存可靠失效协调器。
+     */
+    private final MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
      * 创建管理后台商户信息服务实现。
@@ -265,6 +271,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param isoCountryMapper          国家地区 Mapper
      * @param isoCurrencyMapper         币种 Mapper
      * @param keyMaterialFactory        密钥材料工厂
+     * @param cacheInvalidationCoordinator 商户安全缓存可靠失效协调器
      */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
@@ -275,7 +282,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         BaseMccCodeMapper mccCodeMapper,
                                         IsoCountryMapper isoCountryMapper,
                                         IsoCurrencyMapper isoCurrencyMapper,
-                                        OpenApiKeyMaterialFactory keyMaterialFactory) {
+                                        OpenApiKeyMaterialFactory keyMaterialFactory,
+                                        MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -286,6 +294,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.isoCountryMapper = isoCountryMapper;
         this.isoCurrencyMapper = isoCurrencyMapper;
         this.keyMaterialFactory = keyMaterialFactory;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
     /**
@@ -381,6 +390,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setGmtCreate(now);
         row.setGmtModified(now);
         row.setDeleted(NOT_DELETED);
+        cacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                row.getMerchantId()
+        );
         merchantInfoMapper.insert(row);
         return toDTO(row);
     }
@@ -402,6 +415,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         }
         merge(row, request);
         row.setGmtModified(LocalDateTime.now());
+        cacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                row.getMerchantId()
+        );
         merchantInfoMapper.updateById(row);
         return toDTO(row);
     }
@@ -420,6 +437,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         validateStatus(merchantStatus);
         row.setMerchantStatus(merchantStatus);
         row.setGmtModified(LocalDateTime.now());
+        cacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                row.getMerchantId()
+        );
         merchantInfoMapper.updateById(row);
         return toDTO(row);
     }
@@ -573,6 +594,15 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return toDTO(merchant);
     }
 
+    /**
+     * 使商户当前启用 JWT 密钥立即过期并创建新的对称密钥记录。
+     *
+     * <p>生成的密钥属于一次性敏感材料，仅允许由受控上层响应交付，
+     * 禁止写入日志或在后续查询接口中再次返回明文。</p>
+     *
+     * @param merchantId 已确认存在的商户号
+     * @return 新生成的 JWT 密钥及有效期
+     */
     private MerchantJwtKey rotateJwtKeyInternal(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         jwtKeyMapper.update(null, Wrappers.<BaseMerchantJwtKeyDO>lambdaUpdate()
@@ -598,6 +628,15 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         return generated;
     }
 
+    /**
+     * 生成并持久化平台请求体解密 RSA 密钥对，替换该商户现有材料。
+     *
+     * <p>私钥仅保存于受控密钥记录，不进入本方法返回值之外的日志或审计正文；
+     * 上层只向商户交付平台公钥。</p>
+     *
+     * @param merchantId 已确认存在的商户号
+     * @return 新生成的平台请求体 RSA 密钥材料
+     */
     private RsaKeyMaterial rotatePlatformKeyInternal(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         RsaKeyMaterial generated = keyMaterialFactory.generatePlatformPayloadRsaKey(merchantId);

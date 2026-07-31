@@ -58,12 +58,23 @@ public class AdminBaseCountryController {
         return success(adminBaseCountryApplicationService.pageCountries(pageNo, pageSize, keyword, continentCode, status));
     }
 
+    /**
+     * 查询指定 ISO 国家/地区基础资料。
+     *
+     * @param id 国家/地区记录主键
+     * @return 国家/地区详情
+     */
     @GetMapping("/{id}")
     @RequiresPermission("base:country:query")
     public CommonResult<IsoCountryDO> detail(@PathVariable("id") Long id) {
         return success(adminBaseCountryApplicationService.getCountry(id));
     }
 
+    /**
+     * 导出当前权限范围内的国家/地区资料。
+     *
+     * @param response 写入导出文件的 HTTP 响应
+     */
     @GetMapping("/export")
     @RequiresPermission("base:country:export")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.EXPORT, operation = "导出国家地区")
@@ -71,6 +82,12 @@ public class AdminBaseCountryController {
         adminBaseCountryApplicationService.exportCountries(currentOperatorName(), response);
     }
 
+    /**
+     * 创建 ISO 国家/地区资料，代码唯一性由应用服务校验。
+     *
+     * @param row 国家/地区资料
+     * @return 创建后的记录
+     */
     @PostMapping
     @RequiresPermission("base:country:add")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.CREATE, operation = "新增国家地区")
@@ -78,6 +95,13 @@ public class AdminBaseCountryController {
         return success(adminBaseCountryApplicationService.createCountry(row));
     }
 
+    /**
+     * 更新指定国家/地区资料并触发 ISO 字典缓存失效。
+     *
+     * @param id 国家/地区记录主键
+     * @param input 更新内容
+     * @return 更新后的记录
+     */
     @PutMapping("/{id}")
     @RequiresPermission("base:country:edit")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.UPDATE, operation = "编辑国家地区")
@@ -85,6 +109,13 @@ public class AdminBaseCountryController {
         return adminBaseCountryApplicationService.updateCountry(id, input);
     }
 
+    /**
+     * 切换国家/地区启停状态并刷新 ISO 字典缓存。
+     *
+     * @param id 国家/地区记录主键
+     * @param body 包含目标 status 的请求体
+     * @return 更新后的记录
+     */
     @PutMapping("/{id}/status")
     @RequiresPermission("base:country:changeStatus")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.UPDATE, operation = "切换国家地区状态")
@@ -92,6 +123,12 @@ public class AdminBaseCountryController {
         return adminBaseCountryApplicationService.updateStatus(id, body);
     }
 
+    /**
+     * 删除指定国家/地区资料并触发 ISO 字典缓存失效。
+     *
+     * @param id 国家/地区记录主键
+     * @return 无业务数据的成功响应
+     */
     @DeleteMapping("/{id}")
     @RequiresPermission("base:country:remove")
     @OperationLog(moduleName = "国家地区", businessType = OperationTypeConstants.DELETE, operation = "删除国家地区")

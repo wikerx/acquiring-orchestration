@@ -24,17 +24,32 @@ import java.util.Locale;
 @Service
 public class MpgsPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDsService {
 
+    /** MPGS 渠道稳定编码。 */
     private static final String CHANNEL_MPGS = "MPGS";
 
+    /** MPGS 3DS 渠道客户端。 */
     private final MpgsApiClient mpgsApiClient;
+    /** 支付渠道路由服务，用于选择并固化本次 3DS 使用的 MID。 */
     private final PaymentChannelRouteService paymentChannelRouteService;
 
+    /**
+     * 创建 MPGS Hosted Checkout 3DS 编排服务。
+     *
+     * @param mpgsApiClient             MPGS 3DS 客户端
+     * @param paymentChannelRouteService 支付渠道路由服务
+     */
     public MpgsPaymentCheckoutThreeDsService(MpgsApiClient mpgsApiClient,
                                              PaymentChannelRouteService paymentChannelRouteService) {
         this.mpgsApiClient = mpgsApiClient;
         this.paymentChannelRouteService = paymentChannelRouteService;
     }
 
+    /**
+     * 路由 MID 并执行 MPGS 3DS 初始化与付款人认证。
+     *
+     * <p>PAN、CVV 和账单资料只在本次内存调用链中发送给渠道，不得写入日志、缓存或业务表。
+     * 渠道异常返回 PROCESSING，等待可靠查询或回调确认，不能直接宣告支付失败或成功。</p>
+     */
     @Override
     public PaymentCheckoutThreeDsResultDTO authenticate(PaymentCheckoutSessionDO sessionDO,
                                                        PaymentCheckoutAttemptDO attemptDO,
@@ -67,6 +82,11 @@ public class MpgsPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDs
         }
     }
 
+    /**
+     * 构造仅供渠道路由使用的支付命令。
+     *
+     * @return 包含商户、金额、支付方式和账单维度的路由命令
+     */
     private PaymentCreateCommandDTO routeCommand(PaymentCheckoutSessionDO sessionDO,
                                                  PaymentCheckoutAttemptDO attemptDO,
                                                  PaymentCheckoutPaymentSubmitCommandDTO commandDTO) {
@@ -84,6 +104,13 @@ public class MpgsPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDs
         return routeCommand;
     }
 
+    /**
+     * 构造 MPGS 3DS 请求。
+     *
+     * <p>完整卡号和 CVV 仅写入瞬时渠道请求对象；该对象禁止序列化到日志、Redis 或数据库。</p>
+     *
+     * @return 可发送至 MPGS 的 3DS 认证请求
+     */
     private MpgsThreeDsAuthenticationRequest buildRequest(PaymentCheckoutSessionDO sessionDO,
                                                          PaymentCheckoutAttemptDO attemptDO,
                                                          PaymentCheckoutPaymentSubmitCommandDTO commandDTO,
@@ -121,6 +148,12 @@ public class MpgsPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDs
         return request;
     }
 
+    /**
+     * 将收银台账单资料转换为渠道路由识别模型。
+     *
+     * @param source 收银台账单资料
+     * @return 支付命令账单资料；输入为空时返回 null
+     */
     private PaymentCreateCommandDTO.BillingCardHolderInfoDTO toPaymentBillingInfo(
             PaymentCheckoutPaymentSubmitCommandDTO.BillingCardHolderInfoDTO source) {
         if (source == null) {
@@ -139,6 +172,12 @@ public class MpgsPaymentCheckoutThreeDsService implements PaymentCheckoutThreeDs
         return target;
     }
 
+    /**
+     * 复用既有 3DS 交易号，首次认证时按支付交易号生成稳定标识。
+     *
+     * @param attemptDO 支付尝试
+     * @return 3DS 认证交易号
+     */
     private String authenticationTransactionId(PaymentCheckoutAttemptDO attemptDO) {
         if (StringUtils.hasText(attemptDO.getThreeDsTransactionId())) {
             return attemptDO.getThreeDsTransactionId();

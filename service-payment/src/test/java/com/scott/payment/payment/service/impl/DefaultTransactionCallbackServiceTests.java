@@ -316,21 +316,33 @@ class DefaultTransactionCallbackServiceTests {
          */
         private TransactionEventOutboxDO eventDO;
 
+        /**
+         * 捕获回调处理完成后创建的 Outbox 事件，供用例核对通知事实。
+         */
         @Override
         public void save(TransactionEventOutboxDO eventDO) {
             this.eventDO = eventDO;
         }
 
+        /**
+         * 返回空集合以隔离回调事件创建测试，不在该替身中触发异步中继。
+         */
         @Override
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
             return List.of();
         }
 
+        /**
+         * 固定模拟发送状态更新成功；当前用例不验证 Outbox 中继的 CAS 行为。
+         */
         @Override
         public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
             return true;
         }
 
+        /**
+         * 固定模拟失败状态更新成功；当前用例不验证 Outbox 重试持久化。
+         */
         @Override
         public boolean markFailed(TransactionEventOutboxDO eventDO,
                                   LocalDateTime nextRetryTime,
@@ -342,11 +354,17 @@ class DefaultTransactionCallbackServiceTests {
 
     private static class FixedWorldPayCallbackHandler implements PaymentChannelCallbackHandler {
 
+        /**
+         * 提供固定渠道编码，使回调服务能够选择本测试专用的 Worldpay 处理器。
+         */
         @Override
         public String channelCode() {
             return "WPGXML";
         }
 
+        /**
+         * 将请求体映射为确定性的成功回调结果，便于断言状态推进和 Outbox 事件。
+         */
         @Override
         public ChannelCallbackResult handle(ChannelCallbackRequest request) {
             ChannelCallbackResult result = new ChannelCallbackResult();

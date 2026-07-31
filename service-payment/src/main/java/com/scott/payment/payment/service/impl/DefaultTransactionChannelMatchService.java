@@ -57,6 +57,11 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     private static final int MAX_LIMIT = 500;
 
     /**
+     * 缺少渠道查询身份时按天重试，等待迟到回调或人工补齐渠道身份，避免无效高频查询。
+     */
+    private static final long MISSING_IDENTITY_RETRY_HOURS = 24L;
+
+    /**
      * transaction Record Service 依赖，用于 Default Transaction Channel Match Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -187,7 +192,7 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
         PaymentCreateCommandDTO queryCommand = toQueryCommand(operationDO);
         PaymentRouteResultDTO routeResult = restoreRouteResult(operationDO);
         if (!hasSupportedQueryIdentity(queryCommand, routeResult, operationDO, preparedQueryRequest)) {
-            markPending(operationDO, originalRequestDO, now, null,
+            markPending(operationDO, originalRequestDO, now, now.plusHours(MISSING_IDENTITY_RETRY_HOURS), null,
                     "QUERY_IDENTITY_MISSING",
                     missingIdentityReason(operationDO, originalRequestDO));
             resultDTO.setFailedCount(resultDTO.getFailedCount() + 1);
@@ -359,12 +364,39 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                              PaymentChannelInvokeResultDTO invokeResultDTO,
                              String reason,
                              String failReason) {
+        markPending(operationDO,
+                originalRequestDO,
+                now,
+                nextMatchTime(operationDO, now),
+                invokeResultDTO,
+                reason,
+                failReason);
+    }
+
+    /**
+     * 保存渠道查询仍未终结的结果，并使用指定时间安排后续补偿扫描。
+     *
+     * @param operationDO       当前 QUERY 动作单
+     * @param originalRequestDO 原渠道请求
+     * @param now               本次查询时间
+     * @param nextMatchTime     下次允许补匹配的时间
+     * @param invokeResultDTO   渠道查询结果
+     * @param reason            待处理原因编码
+     * @param failReason        脱敏失败说明
+     */
+    private void markPending(TransactionOperationDO operationDO,
+                             TransactionChannelRequestDO originalRequestDO,
+                             LocalDateTime now,
+                             LocalDateTime nextMatchTime,
+                             PaymentChannelInvokeResultDTO invokeResultDTO,
+                             String reason,
+                             String failReason) {
         matchResultTransactionService.markPendingByQuery(operationDO,
                 originalRequestDO,
                 invokeResultDTO,
                 reason,
                 now,
-                nextMatchTime(operationDO, now),
+                nextMatchTime,
                 failReason);
     }
 
@@ -426,14 +458,21 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     /**
      * 计算下一次查询时间。
      * <p>
-     * 使用简易递增退避，最大间隔 60 分钟，避免渠道长时间处理中时频繁查询。
+     * 前 12 次按 5 分钟递增，之后降为每 6 小时；超过 48 次后每天查询一次。
+     * 未确认资金结果不能按重试次数自动判失败，因此长期交易仍保留自动恢复入口。
      *
      * @param operationDO 待查询动作单
      * @param now 当前处理时间
      * @return 下一次查询时间
      */
-    private LocalDateTime nextMatchTime(TransactionOperationDO operationDO, LocalDateTime now) {
+    static LocalDateTime nextMatchTime(TransactionOperationDO operationDO, LocalDateTime now) {
         int matchCount = operationDO.getChannelMatchCount() == null ? 0 : operationDO.getChannelMatchCount();
+        if (matchCount >= 48) {
+            return now.plusHours(24);
+        }
+        if (matchCount >= 12) {
+            return now.plusHours(6);
+        }
         long minutes = Math.min(60L, Math.max(1L, matchCount + 1L) * 5L);
         return now.plusMinutes(minutes);
     }

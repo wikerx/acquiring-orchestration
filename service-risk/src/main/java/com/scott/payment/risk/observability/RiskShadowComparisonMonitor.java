@@ -1,0 +1,270 @@
+package com.scott.payment.risk.observability;
+
+import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+import java.util.concurrent.atomic.LongAdder;
+
+/**
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : RiskShadowComparisonMonitor
+ * @date : 2026-07-30 22:35
+ * @email : scott_x@163.com
+ * @description : 汇总风控迁移双轨比较结果，只记录计数和差异数量，不记录交易、商户或规则明细，供切换门禁核对完整观察期
+ * @status : create
+ */
+@Slf4j
+@Component
+@ConditionalOnProperty(
+        prefix = "risk.evaluation",
+        name = "shadow-observation-enabled",
+        havingValue = "true",
+        matchIfMissing = true)
+public class RiskShadowComparisonMonitor {
+
+    /**
+     * Redis 业务指标记录器，只记录 shadow 类型和比较结果。
+     */
+    private final RedisBusinessMetrics metrics;
+
+    /**
+     * 累计限额旧 Key 与同槽 Key 已完成比较的次数。
+     */
+    private final LongAdder cumulativeCompared = new LongAdder();
+
+    /**
+     * 累计限额两条 Redis 路径结果不一致的次数。
+     */
+    private final LongAdder cumulativeMismatched = new LongAdder();
+
+    /**
+     * 累计限额 shadow 路径不可用、无法形成比较的次数。
+     */
+    private final LongAdder cumulativeUnavailable = new LongAdder();
+
+    /**
+     * 历史交易事实与生命周期预占事实已完成基线比较的次数。
+     */
+    private final LongAdder baselineCompared = new LongAdder();
+
+    /**
+     * 两种数据库基线金额不一致的次数。
+     */
+    private final LongAdder baselineMismatched = new LongAdder();
+
+    /**
+     * 固定窗口与滑动窗口已完成比较的次数。
+     */
+    private final LongAdder frequencyCompared = new LongAdder();
+
+    /**
+     * 固定窗口与滑动窗口计数不一致的次数。
+     */
+    private final LongAdder frequencyMismatched = new LongAdder();
+
+    /**
+     * 滑动窗口不可用或达到保护容量、无法形成比较的次数。
+     */
+    private final LongAdder frequencyUnavailable = new LongAdder();
+
+    /**
+     * 创建带 Prometheus 观测的风控 shadow 比较器。
+     *
+     * @param metrics Redis 业务指标记录器
+     */
+    @Autowired
+    public RiskShadowComparisonMonitor(RedisBusinessMetrics metrics) {
+        this.metrics = metrics;
+    }
+
+    /**
+     * 创建不产生指标副作用的 shadow 比较器，供纯单元测试直接构造。
+     */
+    public RiskShadowComparisonMonitor() {
+        this(RedisBusinessMetrics.noop());
+    }
+
+    /**
+     * 记录一次累计限额 Redis 双轨比较。
+     *
+     * @param legacyUnits 历史 Key 返回的累计最小金额单位；负值保留脚本的拒绝语义
+     * @param shadowUnits 同槽 shadow Key 返回值；null 表示 shadow 路径不可用
+     */
+    public void recordCumulative(long legacyUnits, Long shadowUnits) {
+        if (shadowUnits == null) {
+            cumulativeUnavailable.increment();
+            recordMetric(
+                    RedisBusinessMetrics.Feature.RISK_CUMULATIVE_SHADOW,
+                    RedisBusinessMetrics.Outcome.UNAVAILABLE
+            );
+            return;
+        }
+        cumulativeCompared.increment();
+        if (legacyUnits != shadowUnits) {
+            cumulativeMismatched.increment();
+            recordMetric(
+                    RedisBusinessMetrics.Feature.RISK_CUMULATIVE_SHADOW,
+                    RedisBusinessMetrics.Outcome.MISMATCHED
+            );
+            return;
+        }
+        recordMetric(
+                RedisBusinessMetrics.Feature.RISK_CUMULATIVE_SHADOW,
+                RedisBusinessMetrics.Outcome.MATCHED
+        );
+    }
+
+    /**
+     * 记录一次数据库基线双轨比较。
+     *
+     * @param legacyUnits    已成功交易事实汇总的最小金额单位
+     * @param lifecycleUnits 生命周期预占事实汇总的最小金额单位
+     */
+    public void recordBaseline(long legacyUnits, long lifecycleUnits) {
+        baselineCompared.increment();
+        if (legacyUnits != lifecycleUnits) {
+            baselineMismatched.increment();
+            recordMetric(
+                    RedisBusinessMetrics.Feature.RISK_BASELINE_SHADOW,
+                    RedisBusinessMetrics.Outcome.MISMATCHED
+            );
+            return;
+        }
+        recordMetric(
+                RedisBusinessMetrics.Feature.RISK_BASELINE_SHADOW,
+                RedisBusinessMetrics.Outcome.MATCHED
+        );
+    }
+
+    /**
+     * 记录一次频率限制固定窗口与滑动窗口比较。
+     *
+     * @param legacyCount 历史固定窗口计数
+     * @param shadowCount 滑动窗口计数；null 表示脚本不可用或触发容量保护
+     */
+    public void recordFrequency(long legacyCount, Long shadowCount) {
+        if (shadowCount == null) {
+            frequencyUnavailable.increment();
+            recordMetric(
+                    RedisBusinessMetrics.Feature.RISK_FREQUENCY_SHADOW,
+                    RedisBusinessMetrics.Outcome.UNAVAILABLE
+            );
+            return;
+        }
+        frequencyCompared.increment();
+        if (legacyCount != shadowCount) {
+            frequencyMismatched.increment();
+            recordMetric(
+                    RedisBusinessMetrics.Feature.RISK_FREQUENCY_SHADOW,
+                    RedisBusinessMetrics.Outcome.MISMATCHED
+            );
+            return;
+        }
+        recordMetric(
+                RedisBusinessMetrics.Feature.RISK_FREQUENCY_SHADOW,
+                RedisBusinessMetrics.Outcome.MATCHED
+        );
+    }
+
+    /**
+     * 记录单次 shadow 比较结果，不写入规则、交易、商户或 Redis Key 维度。
+     *
+     * @param feature shadow 比较类型
+     * @param outcome 一致、差异或不可用
+     */
+    private void recordMetric(RedisBusinessMetrics.Feature feature,
+                              RedisBusinessMetrics.Outcome outcome) {
+        metrics.recordOperation(
+                feature,
+                RedisBusinessMetrics.Operation.COMPARE,
+                outcome,
+                0L
+        );
+    }
+
+    /**
+     * 周期输出不包含业务标识的迁移观察摘要，并原子清零当前实例的区间计数。
+     *
+     * <p>汇总日志提供比较分母、差异和不可用次数；具体差异仍由业务仓储输出经过脱敏的
+     * ruleId、limitType 或 counterKeyDigest，二者结合用于判断是否允许扩大灰度。</p>
+     */
+    @Scheduled(
+            initialDelayString = "${risk.evaluation.shadow-observation-initial-delay-ms:60000}",
+            fixedDelayString = "${risk.evaluation.shadow-observation-fixed-delay-ms:60000}")
+    public void publishSummary() {
+        RiskShadowComparisonSnapshot snapshot = snapshotAndReset();
+        if (snapshot.totalObserved() == 0L) {
+            return;
+        }
+        log.info(
+                "event: RISK_SHADOW_COMPARISON_SUMMARY "
+                        + "cumulativeCompared: {} cumulativeMismatched: {} cumulativeUnavailable: {} "
+                        + "baselineCompared: {} baselineMismatched: {} "
+                        + "frequencyCompared: {} frequencyMismatched: {} frequencyUnavailable: {}",
+                snapshot.cumulativeCompared(),
+                snapshot.cumulativeMismatched(),
+                snapshot.cumulativeUnavailable(),
+                snapshot.baselineCompared(),
+                snapshot.baselineMismatched(),
+                snapshot.frequencyCompared(),
+                snapshot.frequencyMismatched(),
+                snapshot.frequencyUnavailable()
+        );
+    }
+
+    /**
+     * 获取并清零当前观察区间，供调度输出和并发单元测试复用。
+     *
+     * @return 当前实例自上次快照后的各类比较计数
+     */
+    RiskShadowComparisonSnapshot snapshotAndReset() {
+        return new RiskShadowComparisonSnapshot(
+                cumulativeCompared.sumThenReset(),
+                cumulativeMismatched.sumThenReset(),
+                cumulativeUnavailable.sumThenReset(),
+                baselineCompared.sumThenReset(),
+                baselineMismatched.sumThenReset(),
+                frequencyCompared.sumThenReset(),
+                frequencyMismatched.sumThenReset(),
+                frequencyUnavailable.sumThenReset()
+        );
+    }
+
+    /**
+     * 单个服务实例在一个观察周期内的 shadow 比较摘要。
+     *
+     * @param cumulativeCompared    累计限额完成比较数
+     * @param cumulativeMismatched  累计限额差异数
+     * @param cumulativeUnavailable 累计限额 shadow 不可用数
+     * @param baselineCompared      数据库基线完成比较数
+     * @param baselineMismatched    数据库基线差异数
+     * @param frequencyCompared     频率窗口完成比较数
+     * @param frequencyMismatched   频率窗口差异数
+     * @param frequencyUnavailable  频率窗口 shadow 不可用数
+     */
+    record RiskShadowComparisonSnapshot(long cumulativeCompared,
+                                        long cumulativeMismatched,
+                                        long cumulativeUnavailable,
+                                        long baselineCompared,
+                                        long baselineMismatched,
+                                        long frequencyCompared,
+                                        long frequencyMismatched,
+                                        long frequencyUnavailable) {
+
+        /**
+         * 计算当前周期内收到的全部比较或不可用事件数。
+         *
+         * @return 三类迁移路径的事件总数
+         */
+        long totalObserved() {
+            return cumulativeCompared + cumulativeUnavailable
+                    + baselineCompared
+                    + frequencyCompared + frequencyUnavailable;
+        }
+    }
+}

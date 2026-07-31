@@ -211,6 +211,12 @@ public class AdminOpenApiMerchantKeyController {
         return success(adminOperLogApplicationService.pageOperLogs(query));
     }
 
+    /**
+     * 对私钥类 OpenAPI 材料执行额外权限校验，普通查看或导出权限不能替代该授权。
+     *
+     * @param keyType 待导出的密钥材料类型
+     * @throws ServiceException 当前账号缺少私钥材料导出权限时抛出
+     */
     private void requirePrivateMaterialPermission(OpenApiKeyType keyType) {
         if (!keyAuditService.isPrivateMaterial(keyType)) {
             return;
@@ -222,6 +228,12 @@ public class AdminOpenApiMerchantKeyController {
         }
     }
 
+    /**
+     * 构造禁止浏览器和中间代理缓存的敏感材料下载响应。
+     *
+     * @param file 已完成权限校验并生成的下载文件
+     * @return 包含 UTF-8 文件名、内容类型和 no-store 头的二进制响应
+     */
     private ResponseEntity<byte[]> toDownloadResponse(OpenApiKeyDownloadFile file) {
         String encodedFileName = URLEncoder.encode(file.getFileName(), StandardCharsets.UTF_8);
         return ResponseEntity.ok()

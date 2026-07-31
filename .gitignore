@@ -54,6 +54,8 @@ docs/sql/*
 !docs/sql/bug-001-06b-sharding-registry-evidence.sql
 !docs/sql/bug-001-06b-sharding-registry-migration.sql
 !docs/sql/bug-001-06b-sharding-registry-rollback.sql
+!docs/sql/checkout-session-ddl-draft.sql
+!docs/sql/checkout-session-ddl-dev.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md

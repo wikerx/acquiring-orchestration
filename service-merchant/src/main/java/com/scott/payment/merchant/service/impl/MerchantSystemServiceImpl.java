@@ -455,6 +455,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         this.merchantConfigService = merchantConfigService;
     }
 
+    /**
+     * 查询当前商户全部未删除部门。
+     *
+     * @return 按排序号和主键升序的部门列表
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<DeptDTO> listDepts() {
@@ -466,6 +471,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(this::toDeptDTO).toList();
     }
 
+    /**
+     * 分页查询当前商户部门，支持状态及名称/编码关键字筛选。
+     *
+     * @param request 部门查询条件
+     * @return 租户隔离的部门分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<DeptDTO> pageDepts(DeptQueryRequest request) {
@@ -484,12 +495,26 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toDeptDTO).toList());
     }
 
+    /**
+     * 组装当前商户的部门层级树。
+     *
+     * @return 部门树
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<DeptDTO> deptTree() {
         return buildDeptTree(listDepts());
     }
 
+    /**
+     * 创建当前商户部门。
+     * <p>
+     * 写入前校验父部门归属和部门编码唯一性，审计人取当前账号。
+     * </p>
+     *
+     * @param request 部门保存请求
+     * @return 新建部门
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -510,6 +535,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toDeptDTO(dept);
     }
 
+    /**
+     * 更新当前商户部门，禁止选择自身或其他商户部门作为父节点。
+     *
+     * @param id      部门主键
+     * @param request 部门保存请求
+     * @return 更新后的部门
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -559,6 +591,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantDeptMapper.updateById(dept);
     }
 
+    /**
+     * 查询当前商户全部未删除岗位。
+     *
+     * @return 按排序号和主键升序的岗位列表
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<PostDTO> listPosts() {
@@ -570,6 +607,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(this::toPostDTO).toList();
     }
 
+    /**
+     * 分页查询当前商户岗位，支持状态及名称/编码关键字筛选。
+     *
+     * @param request 岗位查询条件
+     * @return 租户隔离的岗位分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<PostDTO> pagePosts(PostQueryRequest request) {
@@ -588,6 +631,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toPostDTO).toList());
     }
 
+    /**
+     * 创建当前商户岗位并校验岗位编码唯一性。
+     *
+     * @param request 岗位保存请求
+     * @return 新建岗位
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -607,6 +656,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toPostDTO(post);
     }
 
+    /**
+     * 更新当前商户岗位并保持岗位编码唯一。
+     *
+     * @param id      岗位主键
+     * @param request 岗位保存请求
+     * @return 更新后的岗位
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -621,6 +677,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toPostDTO(post);
     }
 
+    /**
+     * 逻辑删除当前商户岗位。
+     *
+     * @param id 岗位主键
+     * @throws ServiceException 岗位仍分配给员工账号时抛出
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -639,6 +701,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantPostMapper.updateById(post);
     }
 
+    /**
+     * 查询当前商户全部有效员工账号。
+     *
+     * @return 不包含密码哈希、盐和 MFA 密钥的账号列表
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<AccountDTO> listAccounts() {
@@ -651,6 +718,15 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return users.stream().map(user -> toAccountDTO(app.getId(), user)).toList();
     }
 
+    /**
+     * 分页查询当前商户员工账号。
+     * <p>
+     * 角色筛选先验证角色属于当前商户；关键字可匹配登录账号、姓名和基础账号信息。
+     * </p>
+     *
+     * @param request 账号查询条件
+     * @return 租户隔离的账号分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<AccountDTO> pageAccounts(AccountQueryRequest request) {
@@ -682,14 +758,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 创建账号，完成必要校验后写入或委托下游服务处理。
+     * 创建商户员工的用户、登录账号、默认 MFA 和组织授权关系。
      * <p>
-     * 前置条件：调用方已完成 商户后台服务 的身份、权限、必填字段和业务唯一性准备。
-     * 该方法可能写入数据库、生成业务编号或投递后续事件；幂等键、唯一索引和事务注解共同约束重复提交。
-     * 异常边界：校验失败、持久化失败或下游调用失败会中断当前写入流程，敏感字段只允许进入脱敏摘要。
+     * 密码只以随机盐哈希落库；创建通知在事务提交后发送，避免回滚记录对应无效账号。
      * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 写入、更新或删除后的处理结果
+     *
+     * @param request 账号及初始授权保存请求
+     * @return 新建账号的非敏感信息
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -743,6 +818,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toAccountDTO(app.getId(), account);
     }
 
+    /**
+     * 更新员工基础资料及角色、部门和岗位关系。
+     *
+     * @param id      账号主键
+     * @param request 完整账号保存请求
+     * @return 更新后的非敏感账号信息
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -758,6 +840,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toAccountDTO(app.getId(), account);
     }
 
+    /**
+     * 更新员工基础资料，不改变角色、部门、岗位、密码或 MFA 材料。
+     *
+     * @param id      账号主键
+     * @param request 基础资料保存请求
+     * @return 更新后的非敏感账号信息
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -776,6 +865,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toAccountDTO(app.getId(), account);
     }
 
+    /**
+     * 逻辑删除并停用员工基础账号和商户成员关系。
+     *
+     * @param id 账号主键
+     * @throws ServiceException 尝试删除当前登录账号时抛出
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -799,10 +894,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 重置商户员工密码，并注销该员工当前有效会话，避免旧会话继续使用旧凭据授权。
+     * 重置商户员工密码，并注销该员工当前有效会话。
+     * <p>
+     * 新密码使用新盐重新哈希；不允许通过管理入口重置当前登录账号，以免误锁定当前会话。
+     * </p>
      *
-     * @param id      员工账号ID
-     * @param request 重置密码请求
+     * @param id      员工账号主键
+     * @param request 新密码请求
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -831,6 +929,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         logoutSessions(app.getId(), account.getId(), now);
     }
 
+    /**
+     * 同步切换基础账号、商户成员和 MFA 的启停状态。
+     *
+     * @param id     账号主键
+     * @param status 目标启停状态
+     * @throws ServiceException 尝试停用当前登录账号时抛出
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -852,6 +957,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysMerchantUserMapper.updateById(merchantUser);
     }
 
+    /**
+     * 全量替换员工角色，并校验角色均属于当前商户。
+     *
+     * @param id      账号主键
+     * @param request 角色主键集合
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -863,6 +974,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         replaceAccountRoles(app.getId(), merchantId, merchantUser, request.getIds());
     }
 
+    /**
+     * 全量替换员工部门数据范围，并校验部门归属当前商户。
+     *
+     * @param id      账号主键
+     * @param request 部门主键集合
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -873,6 +990,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         replaceAccountDepts(merchantId, id, request.getIds());
     }
 
+    /**
+     * 全量替换员工岗位关系，并校验岗位归属当前商户。
+     *
+     * @param id      账号主键
+     * @param request 岗位主键集合
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -1116,6 +1239,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toMfaStatusResponse(account, mfa);
     }
 
+    /**
+     * 查询当前商户全部未删除角色。
+     *
+     * @return 按排序号和主键升序的角色列表
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<RoleDTO> listRoles() {
@@ -1129,6 +1257,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(this::toRoleDTO).toList();
     }
 
+    /**
+     * 分页查询当前商户角色，支持名称、编码、状态和创建时间筛选。
+     *
+     * @param request 角色查询条件
+     * @return 租户隔离的角色分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<RoleDTO> pageRoles(RoleQueryRequest request) {
@@ -1151,6 +1285,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toRoleDTO).toList());
     }
 
+    /**
+     * 查询当前商户的角色详情。
+     *
+     * @param id 角色主键
+     * @return 角色详情
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RoleDTO getRole(Long id) {
@@ -1159,6 +1299,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toRoleDTO(getRole(app.getId(), merchantId, id));
     }
 
+    /**
+     * 创建当前商户自定义角色及初始菜单、权限授权。
+     *
+     * @param request 角色及授权保存请求
+     * @return 新建角色
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -1187,6 +1333,13 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return toRoleDTO(role);
     }
 
+    /**
+     * 更新角色和授权关系；系统角色编码不可修改。
+     *
+     * @param id      角色主键
+     * @param request 角色及授权保存请求
+     * @return 更新后的角色
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -1215,13 +1368,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
     }
 
     /**
-     * 删除或停用角色，调用方需保证权限和状态允许该操作。
-     * <p>
-     * 前置条件：调用方已确认 商户后台服务 中目标记录存在、权限满足且状态允许删除或停用。
-     * 该方法通常执行软删除、停用或批量标记；幂等结果以记录状态或受影响行数为准。
-     * 异常边界：记录不存在、状态禁止删除或数据库更新失败会阻断后续流程。
-     * </p>
-     * @param id 业务记录主键或主键集合，用于定位本次操作的目标记录
+     * 逻辑删除当前商户自定义角色。
+     *
+     * @param id 角色主键
+     * @throws ServiceException 系统角色或仍分配给员工的角色不可删除
      */
     @Override
     @DS(DataSourceName.MASTER)
@@ -1246,6 +1396,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysRoleMapper.updateById(role);
     }
 
+    /**
+     * 切换当前商户角色状态。
+     *
+     * @param id     角色主键
+     * @param status 目标启停状态
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -1259,6 +1415,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         sysRoleMapper.updateById(role);
     }
 
+    /**
+     * 构造当前商户可分配的菜单、按钮和权限授权树模板。
+     *
+     * @return 不含角色勾选状态的授权树
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RoleGrantTreeDTO roleGrantTreeTemplate() {
@@ -1269,6 +1430,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 查询角色授权树及已勾选菜单、权限。
+     *
+     * @param id 角色主键
+     * @return 受当前商户平台授权范围限制的角色授权树
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RoleGrantTreeDTO roleGrantTree(Long id) {
@@ -1292,6 +1459,15 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 全量替换角色的菜单和权限授权。
+     * <p>
+     * 保存前校验所选标识均在平台授予当前商户的集合内，防止商户自助提权。
+     * </p>
+     *
+     * @param id      角色主键
+     * @param request 菜单和权限选择结果
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -1304,6 +1480,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 request == null ? null : request.getPermissionIds());
     }
 
+    /**
+     * 查询角色菜单授权和当前商户可选菜单树。
+     *
+     * @param id 角色主键
+     * @return 菜单授权信息
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public RoleMenuAuthDTO roleMenus(Long id) {
@@ -1321,6 +1503,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 全量替换角色菜单授权，并拒绝超出商户平台菜单授权的标识。
+     *
+     * @param id      角色主键
+     * @param request 菜单主键集合
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -1373,6 +1561,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         return dto;
     }
 
+    /**
+     * 全量替换角色权限授权，并拒绝超出商户平台权限授权的标识。
+     *
+     * @param id      角色主键
+     * @param request 权限主键集合
+     */
     @Override
     @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
@@ -1398,6 +1592,11 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         });
     }
 
+    /**
+     * 查询平台已授予当前商户且仍启用的权限。
+     *
+     * @return 可继续分配给商户角色的权限列表
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public List<PermissionDTO> grantedPermissions() {
@@ -1416,6 +1615,16 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                 .stream().map(this::toPermissionDTO).toList();
     }
 
+    /**
+     * 查询当前商户指定角色关联的商户成员主键。
+     * <p>
+     * 先验证角色属于当前商户，避免使用其他商户 roleId 侧信道筛选账号。
+     * </p>
+     *
+     * @param appId  商户后台应用主键
+     * @param roleId 角色主键
+     * @return 关联商户成员主键集合；角色无效或未关联时返回空集
+     */
     private Set<Long> merchantUserIdsByRole(Long appId, Long roleId) {
         if (roleId == null || roleId <= 0) {
             return Collections.emptySet();

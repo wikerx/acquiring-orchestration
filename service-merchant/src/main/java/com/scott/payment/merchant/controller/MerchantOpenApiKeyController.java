@@ -174,6 +174,15 @@ public class MerchantOpenApiKeyController {
         return success(queryLogs(request));
     }
 
+    /**
+     * 查询当前商户的 OpenAPI 密钥操作日志。
+     * <p>
+     * 服务端强制覆盖 merchantId 和模块名称，不接受请求参数扩大数据范围。
+     * </p>
+     *
+     * @param request 分页和状态等非租户查询条件
+     * @return 当前认证商户的密钥操作日志
+     */
     private PageResult<SysOperLogDTO> queryLogs(SysOperLogQueryRequest request) {
         SysOperLogQueryRequest query = request == null ? new SysOperLogQueryRequest() : request;
         query.setMerchantId(currentMerchantId());
@@ -181,6 +190,12 @@ public class MerchantOpenApiKeyController {
         return merchantOperLogService.pageOperLogs(query);
     }
 
+    /**
+     * 从内部认证上下文读取当前商户号。
+     *
+     * @return 已认证商户号
+     * @throws ServiceException 上下文不存在或未绑定商户时抛出
+     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {

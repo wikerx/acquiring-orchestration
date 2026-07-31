@@ -17,6 +17,15 @@ import java.util.Map;
  */
 public class TraceContextTaskDecorator implements TaskDecorator {
 
+    /**
+     * 捕获任务提交线程的 MDC/traceId，并在执行线程中临时恢复。
+     * <p>
+     * 任务结束后先清理本次上下文，再恢复执行线程原有上下文，避免线程池复用造成跨任务串号。
+     * </p>
+     *
+     * @param runnable 原始异步任务
+     * @return 带上下文传播和清理逻辑的任务
+     */
     @Override
     public Runnable decorate(Runnable runnable) {
         Map<String, String> capturedMdc = MDC.getCopyOfContextMap();

@@ -153,6 +153,11 @@ public class AdminTransactionOperationController {
         return success(transactionApplicationService.detail(transactionId));
     }
 
+    /**
+     * 解析写入交易操作审计记录的当前操作人名称。
+     *
+     * @return 优先返回真实姓名，其次登录账号；无认证上下文时返回 {@code admin}
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

@@ -41,6 +41,8 @@ import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
+import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
+import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -148,6 +150,10 @@ class SystemAuthServiceImplTest {
      */
     private BaseMerchantInfoMapper baseMerchantInfoMapper;
     /**
+     * 商户基础资料缓存服务，用于商户端登录商户有效性校验。
+     */
+    private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
+    /**
      * system Auth Service 依赖，用于 System Auth Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -182,6 +188,7 @@ class SystemAuthServiceImplTest {
         SysAccountMfaTokenMapper sysAccountMfaTokenMapper = mock(SysAccountMfaTokenMapper.class);
         SysAccountMfaLogMapper sysAccountMfaLogMapper = mock(SysAccountMfaLogMapper.class);
         baseMerchantInfoMapper = mock(BaseMerchantInfoMapper.class);
+        merchantRuntimeProfileCacheService = mock(MerchantRuntimeProfileCacheService.class);
 
         systemAuthService = new SystemAuthServiceImpl(
                 sysAppMapper,
@@ -203,7 +210,8 @@ class SystemAuthServiceImplTest {
                 sysAccountMfaMapper,
                 sysAccountMfaTokenMapper,
                 sysAccountMfaLogMapper,
-                baseMerchantInfoMapper
+                baseMerchantInfoMapper,
+                merchantRuntimeProfileCacheService
         );
     }
 
@@ -361,7 +369,7 @@ class SystemAuthServiceImplTest {
         SysAccountDO account = merchantAccountWithPassword(password);
         SysVerifyCodeDO verifyCode = validLoginCaptcha();
         when(sysAppMapper.selectOne(any())).thenReturn(app);
-        when(baseMerchantInfoMapper.selectOne(any())).thenReturn(activeMerchantInfo());
+        when(merchantRuntimeProfileCacheService.findRuntimeProfile("200045")).thenReturn(activeMerchantInfo());
         when(sysMerchantUserMapper.selectOne(any())).thenReturn(merchantAccountUser());
         when(sysAccountMapper.selectById(eq(60L))).thenReturn(account);
         when(sysVerifyCodeMapper.selectById(eq(900L))).thenReturn(verifyCode);
@@ -401,13 +409,11 @@ class SystemAuthServiceImplTest {
         return app;
     }
 
-    private BaseMerchantInfoDO activeMerchantInfo() {
-        BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();
+    private MerchantRuntimeProfile activeMerchantInfo() {
+        MerchantRuntimeProfile merchant = new MerchantRuntimeProfile();
         merchant.setId(50L);
         merchant.setMerchantId("200045");
-        merchant.setMerchantName("Test Merchant");
         merchant.setMerchantStatus(AuthConstants.ENABLED);
-        merchant.setDeleted(0);
         return merchant;
     }
 

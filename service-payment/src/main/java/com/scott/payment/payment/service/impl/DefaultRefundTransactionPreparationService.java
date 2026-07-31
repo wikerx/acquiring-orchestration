@@ -234,6 +234,16 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         this.transactionStateMachineService = transactionStateMachineService;
     }
 
+    /**
+     * 在事务内准备退款交易。
+     *
+     * <p>锁定原订单后按数据库已完成及进行中退款计算可退额度，并校验与撤销动作的冲突；
+     * Redis 不参与退款额度事实计算。</p>
+     *
+     * @param commandDTO     退款命令
+     * @param idempotencyKey 数据库幂等键
+     * @return 新建或幂等命中的退款准备结果
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RefundPreparationResultDTO prepareRefund(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
@@ -248,6 +258,11 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                 .orElseGet(() -> prepareNewRefund(commandDTO, idempotencyKey, sourceOrderDO));
     }
 
+    /**
+     * 创建新的退款幂等记录、动作单和 Outbox。
+     *
+     * @return 新退款准备结果；并发占用幂等键时返回既有结果
+     */
     private RefundPreparationResultDTO prepareNewRefund(PaymentCreateCommandDTO commandDTO,
                                                         String idempotencyKey,
                                                         TransactionOrderDO sourceOrderDO) {
@@ -279,12 +294,12 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
                 commandDTO.getTransactionInfo().getSourceTransactionId());
         normalizeRefundCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         PaymentCreateResultDTO resultDTO = buildRefundResult(commandDTO, sourceOrderDO, transactionId);
+        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichRefundResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
-        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         PaymentPreparedChannelRequestDTO preparedChannelRequestDTO = prepareChannelRequest(commandDTO, sourceOrderDO);
         PaymentChannelInvokeResultDTO preparedInvokeResultDTO = buildPreparedInvokeResult(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);

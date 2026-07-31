@@ -2,7 +2,7 @@ package com.scott.payment.component.redis.list.impl;
 
 import com.scott.payment.component.redis.list.RedisListService;
 import com.scott.payment.component.redis.support.RedisKeySupport;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,11 +17,11 @@ import java.util.List;
  * @classname : RedisListServiceImpl
  * @date : 2026-05-31 21:56
  * @email : scott_x@163.com
- * @description : Redis List 数据结构服务实现
+ * @description : 提供受配置门禁控制的通用 List 能力；默认不注册，且不得替代项目既有 RocketMQ 可靠消息
  * @status : create
  */
 @Service
-@ConditionalOnBean(RedisTemplate.class)
+@ConditionalOnProperty(prefix = "payment.redis.generic", name = "list-enabled", havingValue = "true")
 public class RedisListServiceImpl implements RedisListService {
 
     /**

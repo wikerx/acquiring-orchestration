@@ -222,26 +222,41 @@ class MpgsApiClientMaskingTests {
             return new String(java.util.Base64.getDecoder().decode(authorizationHeader.substring("Basic ".length())));
         }
 
+        /**
+         * 不提供 Cookie 管理器，确保敏感信息脱敏测试不携带外部会话状态。
+         */
         @Override
         public Optional<CookieHandler> cookieHandler() {
             return Optional.empty();
         }
 
+        /**
+         * 返回固定连接超时，仅满足 JDK HTTP 客户端契约。
+         */
         @Override
         public Optional<Duration> connectTimeout() {
             return Optional.of(Duration.ofSeconds(10));
         }
 
+        /**
+         * 禁止自动重定向，避免认证请求头被转发到其他地址。
+         */
         @Override
         public Redirect followRedirects() {
             return Redirect.NEVER;
         }
 
+        /**
+         * 不使用代理，保证测试不读取本机代理配置。
+         */
         @Override
         public Optional<ProxySelector> proxy() {
             return Optional.empty();
         }
 
+        /**
+         * 创建独立 TLS 上下文以满足抽象客户端契约，不建立真实网络连接。
+         */
         @Override
         public SSLContext sslContext() {
             try {
@@ -253,21 +268,33 @@ class MpgsApiClientMaskingTests {
             }
         }
 
+        /**
+         * 返回默认 TLS 参数；当前测试不协商真实协议或密码套件。
+         */
         @Override
         public SSLParameters sslParameters() {
             return new SSLParameters();
         }
 
+        /**
+         * 不注册 JDK Authenticator，待测客户端必须自行构造 Basic 认证请求头。
+         */
         @Override
         public Optional<Authenticator> authenticator() {
             return Optional.empty();
         }
 
+        /**
+         * 固定声明 HTTP/1.1，使请求与响应协议版本保持确定。
+         */
         @Override
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;
         }
 
+        /**
+         * 不提供异步执行器，因为脱敏测试只使用同步请求。
+         */
         @Override
         public Optional<Executor> executor() {
             return Optional.empty();
@@ -302,26 +329,41 @@ class MpgsApiClientMaskingTests {
 
     private record SimpleHttpResponse<T>(HttpRequest request, T body) implements HttpResponse<T> {
 
+        /**
+         * 固定返回 HTTP 200，使测试聚焦 MPGS 业务响应解析和日志脱敏。
+         */
         @Override
         public int statusCode() {
             return 200;
         }
 
+        /**
+         * 返回空响应头，当前用例不依赖任何渠道响应头。
+         */
         @Override
         public HttpHeaders headers() {
             return HttpHeaders.of(java.util.Map.of(), (name, value) -> true);
         }
 
+        /**
+         * 固定表示不存在重定向前响应。
+         */
         @Override
         public Optional<HttpResponse<T>> previousResponse() {
             return Optional.empty();
         }
 
+        /**
+         * 返回原测试请求 URI，使响应与被捕获请求保持关联。
+         */
         @Override
         public URI uri() {
             return request.uri();
         }
 
+        /**
+         * 固定返回 HTTP/1.1，与测试客户端声明保持一致。
+         */
         @Override
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;

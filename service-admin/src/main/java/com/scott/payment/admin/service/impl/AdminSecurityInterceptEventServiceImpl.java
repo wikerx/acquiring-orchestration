@@ -171,6 +171,14 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
         return getEvent(id);
     }
 
+    /**
+     * 根据安全事件编号、来源、风险等级、商户和处理状态构建查询条件。
+     *
+     * <p>客户端 IP 与请求路径使用模糊匹配，时间条件会先从查询时区转换到事件存储时区。</p>
+     *
+     * @param query 已补齐默认值的安全拦截事件查询
+     * @return 按事件时间和主键倒序的查询条件
+     */
     private LambdaQueryWrapper<SecurityInterceptEventDO> buildWrapper(SecurityInterceptEventQuery query) {
         String eventNo = trimToNull(query.getEventNo());
         String sourceLayer = trimToNull(query.getSourceLayer());
@@ -203,6 +211,14 @@ public class AdminSecurityInterceptEventServiceImpl implements AdminSecurityInte
                 .orderByDesc(SecurityInterceptEventDO::getId);
     }
 
+    /**
+     * 将调用方本地时间范围转换为事件存储时区，并拒绝倒置范围。
+     *
+     * @param beginTime 查询时区下的起始时间
+     * @param endTime 查询时区下的结束时间
+     * @param queryTimeZone IANA 查询时区；为空时使用默认查询时区
+     * @return 事件存储时区下的查询范围
+     */
     private QueryTimeRange normalizeQueryTimeRange(LocalDateTime beginTime,
                                                    LocalDateTime endTime,
                                                    String queryTimeZone) {

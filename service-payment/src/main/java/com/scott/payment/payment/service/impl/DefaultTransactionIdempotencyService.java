@@ -236,10 +236,23 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
         return record;
     }
 
+    /**
+     * 规范化参与幂等指纹的枚举型文本。
+     *
+     * @param value 原始文本
+     * @return 去除首尾空白并转为大写的文本；null 返回空串
+     */
     private String normalize(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
+    /**
+     * 按业务时区把交易时间换算为 UTC，供幂等记录跨时区定位。
+     *
+     * @param transactionDateTime 无时区交易业务时间
+     * @param timeZone            IANA 时区；为空时使用 Asia/Shanghai
+     * @return 同一时刻对应的 UTC 本地时间
+     */
     private LocalDateTime toUtcTime(LocalDateTime transactionDateTime, String timeZone) {
         ZoneId zoneId = ZoneId.of(timeZone == null || timeZone.isBlank() ? "Asia/Shanghai" : timeZone);
         return transactionDateTime.atZone(zoneId).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime();

@@ -165,6 +165,19 @@ public class OpenApiRequestBodyAdvice extends RequestBodyAdviceAdapter {
         return body;
     }
 
+    /**
+     * 记录请求解密或参数校验阶段的安全拦截事件。
+     *
+     * <p>仅传递商户号、规则码和经统一归一化的异常原因，不记录解密后请求体、JWT、
+     * 密钥、卡号、CVV 或其他认证材料。</p>
+     *
+     * @param request     当前 HTTP 请求
+     * @param headerDTO   已校验的 OpenAPI 请求头；头解析失败时可为空
+     * @param eventType   安全事件类型
+     * @param riskLevel   风险等级
+     * @param hitRuleCode 命中的安全规则编码
+     * @param exception   触发拦截的业务异常
+     */
     private void recordBlocked(HttpServletRequest request,
                                OpenApiRequestHeaderDTO headerDTO,
                                String eventType,

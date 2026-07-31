@@ -15,6 +15,7 @@ import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import com.scott.payment.component.db.iso.service.IsoDictionaryCacheInvalidator;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -62,6 +63,12 @@ public class AdminBaseRegionCurrencyApplicationService {
      * 币种 Mapper。
      */
     private final IsoCurrencyMapper isoCurrencyMapper;
+
+    /**
+     * ISO 字典缓存失效器；国家默认币种或状态变化后删除新旧国家缓存。
+     */
+    private final IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator;
+
     /**
      * excel Export Service 依赖，用于 Admin Base Region Currency Application Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -95,15 +102,18 @@ public class AdminBaseRegionCurrencyApplicationService {
      *
      * @param isoCountryMapper  国家地区 Mapper
      * @param isoCurrencyMapper 币种 Mapper
+     * @param isoDictionaryCacheInvalidator ISO 字典缓存失效器
      * @param excelExportService Excel 导出服务
      */
     public AdminBaseRegionCurrencyApplicationService(IsoCountryMapper isoCountryMapper,
                                                      IsoCurrencyMapper isoCurrencyMapper,
+                                                     IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator,
                                                      ExcelExportService excelExportService,
                                                      ExcelI18nMessageResolver excelI18nMessageResolver,
                                                      ExcelLocaleResolver excelLocaleResolver) {
         this.isoCountryMapper = isoCountryMapper;
         this.isoCurrencyMapper = isoCurrencyMapper;
+        this.isoDictionaryCacheInvalidator = isoDictionaryCacheInvalidator;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
@@ -231,6 +241,7 @@ public class AdminBaseRegionCurrencyApplicationService {
         country.setStatus(body.get("status"));
         country.setUpdatedAt(LocalDateTime.now());
         isoCountryMapper.updateById(country);
+        isoDictionaryCacheInvalidator.evictCountries();
         return success();
     }
 
@@ -249,6 +260,7 @@ public class AdminBaseRegionCurrencyApplicationService {
         country.setCurrencyAlpha3Code(StringUtils.hasText(currencyCode) ? currencyCode.trim() : "");
         country.setUpdatedAt(LocalDateTime.now());
         isoCountryMapper.updateById(country);
+        isoDictionaryCacheInvalidator.evictCountries();
         return success();
     }
 

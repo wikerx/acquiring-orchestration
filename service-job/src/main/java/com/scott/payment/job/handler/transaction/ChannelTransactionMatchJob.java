@@ -63,6 +63,16 @@ public class ChannelTransactionMatchJob implements JobHandler {
     private static final int MAX_LIMIT = 500;
 
     /**
+     * 默认扫描当前季度和上一季度，覆盖跨季度仍待渠道确认的交易。
+     */
+    private static final int DEFAULT_LOOKBACK_QUARTERS = 2;
+
+    /**
+     * 限制自动跨季度扫描范围，避免错误任务参数放大数据库和渠道查询压力。
+     */
+    private static final int MAX_LOOKBACK_QUARTERS = 8;
+
+    /**
      * payment Internal Client 依赖，用于 Channel Transaction Match Job 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -112,7 +122,7 @@ public class ChannelTransactionMatchJob implements JobHandler {
             request = new ChannelTransactionMatchRequest();
         }
         int limit = normalizeLimit(request.getLimit());
-        List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
+        List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request, context);
         long startNanos = System.nanoTime();
         log.info("event: JOB_HANDLER_SCAN_START traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} channelCode: {} limit: {}",
                 context == null ? TraceContext.getTraceId() : context.getTraceId(),
@@ -176,20 +186,81 @@ public class ChannelTransactionMatchJob implements JobHandler {
         return JobExecuteResult.success("channel transaction match finished, matchedCount=" + matchedCount, result);
     }
 
+    /**
+     * 计算本次勾兑任务已运行时间。
+     *
+     * @param startNanos 任务开始时的单调时钟值
+     * @return 已运行毫秒数
+     */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
     }
 
-    private List<LocalDateTime> resolveTransactionDateTimes(ChannelTransactionMatchRequest request) {
+    /**
+     * 解析本次需要扫描的交易季度锚点。
+     * <p>
+     * 显式时间列表优先，其次使用单个交易时间；均未提供时以实际触发时间为基准向前生成
+     * 受上限保护的季度范围，避免无界扫描历史分表。
+     * </p>
+     *
+     * @param request 任务请求
+     * @param context 调度执行上下文
+     * @return 去执行勾兑的交易时间列表
+     */
+    private List<LocalDateTime> resolveTransactionDateTimes(ChannelTransactionMatchRequest request,
+                                                            JobExecuteContext context) {
         if (request.getTransactionDateTimes() != null && !request.getTransactionDateTimes().isEmpty()) {
             return request.getTransactionDateTimes();
         }
         if (request.getTransactionDateTime() != null) {
             return List.of(request.getTransactionDateTime());
         }
-        return List.of(LocalDateTime.now());
+        LocalDateTime referenceTime = context != null && context.getActualTriggerTime() != null
+                ? context.getActualTriggerTime()
+                : LocalDateTime.now();
+        int lookbackQuarters = normalizeLookbackQuarters(request.getLookbackQuarters());
+        LocalDateTime currentQuarter = quarterAnchor(referenceTime);
+        return java.util.stream.IntStream.range(0, lookbackQuarters)
+                .mapToObj(index -> currentQuarter.minusMonths(index * 3L))
+                .toList();
     }
 
+    /**
+     * 将任意时间归一为所在自然季度第一天零点。
+     *
+     * @param value 原始交易或触发时间
+     * @return 同年同季度的分表路由锚点
+     */
+    private LocalDateTime quarterAnchor(LocalDateTime value) {
+        int firstMonth = ((value.getMonthValue() - 1) / 3) * 3 + 1;
+        return LocalDateTime.of(value.getYear(), firstMonth, 1, 0, 0);
+    }
+
+    /**
+     * 校验并限制向前扫描季度数。
+     *
+     * @param lookbackQuarters 请求指定季度数
+     * @return 默认值或不超过系统上限的季度数
+     * @throws ServiceException 输入非正数时抛出
+     */
+    private int normalizeLookbackQuarters(Integer lookbackQuarters) {
+        if (lookbackQuarters == null) {
+            return DEFAULT_LOOKBACK_QUARTERS;
+        }
+        if (lookbackQuarters <= 0) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "lookbackQuarters must be greater than zero");
+        }
+        return Math.min(lookbackQuarters, MAX_LOOKBACK_QUARTERS);
+    }
+
+    /**
+     * 校验并限制单个季度勾兑批量。
+     *
+     * @param limit 请求批量
+     * @return 默认值或不超过系统上限的批量
+     * @throws ServiceException 输入非正数时抛出
+     */
     private int normalizeLimit(Integer limit) {
         if (limit == null) {
             return DEFAULT_LIMIT;

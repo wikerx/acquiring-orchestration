@@ -108,6 +108,11 @@ public class AdminSecurityInterceptEventController {
         return success(eventApplicationService.markEvent(id, request));
     }
 
+    /**
+     * 解析安全拦截事件处理记录使用的当前操作人名称。
+     *
+     * @return 优先返回真实姓名，其次登录账号；无认证上下文时返回 {@code admin}
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

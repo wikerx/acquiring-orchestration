@@ -1,6 +1,6 @@
 package com.scott.payment.component.redis.identity.impl;
 
-import com.scott.payment.component.redis.constant.RedisKeyConstants;
+import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.identity.RedisOrderNoGenerator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -48,12 +48,20 @@ public class RedisOrderNoGeneratorImpl implements RedisOrderNoGenerator {
     private final StringRedisTemplate stringRedisTemplate;
 
     /**
+     * 统一 Redis 环境前缀和 Key 片段校验配置，防止订单号序列跨环境共享。
+     */
+    private final PaymentRedisProperties redisProperties;
+
+    /**
      * 创建 Redis 分布式订单号生成服务。
      *
      * @param stringRedisTemplate Spring 字符串 Redis 模板
+     * @param redisProperties     Redis Key 配置
      */
-    public RedisOrderNoGeneratorImpl(StringRedisTemplate stringRedisTemplate) {
+    public RedisOrderNoGeneratorImpl(StringRedisTemplate stringRedisTemplate,
+                                     PaymentRedisProperties redisProperties) {
         this.stringRedisTemplate = stringRedisTemplate;
+        this.redisProperties = redisProperties;
     }
 
     /**
@@ -66,9 +74,12 @@ public class RedisOrderNoGeneratorImpl implements RedisOrderNoGenerator {
     public String nextOrderNo(String businessPrefix) {
         String prefix = normalizePrefix(businessPrefix);
         LocalDateTime now = LocalDateTime.now(PAYMENT_ZONE_ID);
-        String sequenceKey = RedisKeyConstants.ORDER_NO_PREFIX
-                + prefix + RedisKeyConstants.SEPARATOR
-                + LocalDate.now(PAYMENT_ZONE_ID);
+        String sequenceKey = redisProperties.key(
+                "identity",
+                "order-no",
+                prefix,
+                LocalDate.now(PAYMENT_ZONE_ID).toString()
+        );
         Long sequence = stringRedisTemplate.opsForValue().increment(sequenceKey);
         if (sequence != null && sequence == 1L) {
             stringRedisTemplate.expire(sequenceKey, SEQUENCE_KEY_TTL_DAYS, TimeUnit.DAYS);

@@ -53,6 +53,16 @@ public class AdminPostServiceImpl implements AdminPostService {
         this.sysAppMapper = sysAppMapper;
     }
 
+    /**
+     * 分页查询未删除岗位。
+     *
+     * @param pageNo 页码
+     * @param pageSize 每页数量
+     * @param postCode 岗位编码模糊条件
+     * @param postName 岗位名称模糊条件
+     * @param status 启停状态
+     * @return 按排序号升序的岗位分页结果
+     */
     @Override
     public PageResult<SysPostDO> pagePosts(int pageNo, int pageSize, String postCode, String postName, Integer status) {
         LambdaQueryWrapper<SysPostDO> queryWrapper = Wrappers.<SysPostDO>lambdaQuery()
@@ -65,6 +75,11 @@ public class AdminPostServiceImpl implements AdminPostService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
+    /**
+     * 查询全部启用且未删除的岗位供用户分配。
+     *
+     * @return 按排序号升序的岗位列表
+     */
     @Override
     public List<SysPostDO> listEnabledPosts() {
         return sysPostMapper.selectList(
@@ -75,11 +90,22 @@ public class AdminPostServiceImpl implements AdminPostService {
         );
     }
 
+    /**
+     * 按主键查询岗位资料。
+     *
+     * @param id 岗位主键
+     * @return 岗位记录；不存在时返回 {@code null}
+     */
     @Override
     public SysPostDO getPost(Long id) {
         return sysPostMapper.selectById(id);
     }
 
+    /**
+     * 查询全部未删除岗位供导出。
+     *
+     * @return 按排序号升序的岗位导出记录
+     */
     @Override
     public List<SysPostDO> exportPosts() {
         return sysPostMapper.selectList(
@@ -89,6 +115,12 @@ public class AdminPostServiceImpl implements AdminPostService {
         );
     }
 
+    /**
+     * 在后台管理应用下创建岗位并补齐默认状态和排序号。
+     *
+     * @param post 待创建岗位
+     * @return 已写入主键和审计时间的岗位记录
+     */
     @Override
     public SysPostDO createPost(SysPostDO post) {
         if (!StringUtils.hasText(post.getPostCode())) {
@@ -113,6 +145,13 @@ public class AdminPostServiceImpl implements AdminPostService {
         return post;
     }
 
+    /**
+     * 局部更新指定岗位的编码、名称、状态和备注。
+     *
+     * @param id 岗位主键
+     * @param input 非空字段覆盖请求
+     * @return 更新后的岗位记录
+     */
     @Override
     public SysPostDO updatePost(Long id, SysPostDO input) {
         SysPostDO post = sysPostMapper.selectById(id);
@@ -139,6 +178,11 @@ public class AdminPostServiceImpl implements AdminPostService {
         return post;
     }
 
+    /**
+     * 逻辑删除指定岗位；记录不存在时按幂等成功处理。
+     *
+     * @param id 岗位主键
+     */
     @Override
     public void removePost(Long id) {
         SysPostDO post = sysPostMapper.selectById(id);

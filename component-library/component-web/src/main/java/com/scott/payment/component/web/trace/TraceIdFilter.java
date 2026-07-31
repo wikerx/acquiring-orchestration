@@ -28,6 +28,19 @@ import java.util.List;
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class TraceIdFilter extends OncePerRequestFilter {
 
+    /**
+     * 为一次 Servlet 请求绑定 traceId，并记录不含业务报文的入口、异常和结束日志。
+     * <p>
+     * 请求头中的 traceId 先经过统一校验；finally 中无条件清理 MDC/线程上下文，防止容器
+     * 线程复用导致跨请求串号。查询参数只记录名称，User-Agent 受长度限制。
+     * </p>
+     *
+     * @param request     当前 HTTP 请求
+     * @param response    当前 HTTP 响应
+     * @param filterChain 后续 Servlet 过滤器链
+     * @throws ServletException 下游 Servlet 处理失败
+     * @throws IOException      请求或响应读写失败
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,

@@ -22,6 +22,11 @@ public final class TransactionMqConstants {
     public static final String TRANSACTION_CALLBACK_PROCESSED_TAG = "TRANSACTION_CALLBACK_PROCESSED";
 
     /**
+     * 同步渠道结果或主动查询推进终态后的状态变更事件标签。
+     */
+    public static final String TRANSACTION_STATUS_CHANGED_TAG = "TRANSACTION_STATUS_CHANGED";
+
+    /**
      * 商户通知消费者分组。
      */
     public static final String MERCHANT_NOTIFICATION_CONSUMER_GROUP = "acquiring-payment-merchant-notification-consumer-dev";

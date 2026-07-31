@@ -62,10 +62,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
 
+    /** 商户发起请款时调用的支付核心内部接口。 */
     private static final String CAPTURE_PATH = "/internal/payment/capture";
 
+    /** 商户发起退款时调用的支付核心内部接口。 */
     private static final String REFUND_PATH = "/internal/payment/refund";
 
+    /** 商户发起撤销时调用的支付核心内部接口。 */
     private static final String VOID_PATH = "/internal/payment/void";
 
     /**
@@ -175,10 +178,28 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         }
     }
 
+    /**
+     * 拼接 service-payment 内部接口地址。
+     *
+     * @param path 内部交易接口路径
+     * @return 服务发现基地址与路径组成的 URL
+     */
     private String servicePaymentUrl(String path) {
         return SERVICE_PAYMENT_BASE_URL + path;
     }
 
+    /**
+     * 创建带服务间签名头的 JSON 请求实体。
+     * <p>
+     * 签名绑定方法、URI 路径、毫秒时间戳、随机 nonce 和调用方标识；内部密钥、签名和交易
+     * 请求体均不得写入日志。
+     * </p>
+     *
+     * @param uri    目标内部接口 URI
+     * @param method HTTP 方法
+     * @param body   交易请求 DTO
+     * @return 已签名请求实体
+     */
     private HttpEntity<String> buildSignedEntity(URI uri, HttpMethod method, Object body) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
@@ -200,6 +221,13 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         return new HttpEntity<>(body == null ? null : JsonUtils.toJsonString(body), headers);
     }
 
+    /**
+     * 根据 URI 主机形式选择直连或服务发现 RestTemplate。
+     *
+     * @param uri 目标 URI
+     * @return IP、localhost 和域名使用直连模板；服务名使用负载均衡模板
+     * @throws ApiException URI 缺少主机时抛出
+     */
     private RestTemplate chooseRestTemplate(URI uri) {
         String host = uri.getHost();
         if (host == null) {

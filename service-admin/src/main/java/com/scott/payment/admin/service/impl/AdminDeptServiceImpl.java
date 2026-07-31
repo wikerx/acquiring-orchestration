@@ -61,6 +61,11 @@ public class AdminDeptServiceImpl implements AdminDeptService {
         this.deptConverter = deptConverter;
     }
 
+    /**
+     * 查询未删除部门并按排序号构建层级树。
+     *
+     * @return 后台管理应用的部门树
+     */
     @Override
     public List<SysDeptDTO> tree() {
         List<SysDeptDO> departments = sysDeptMapper.selectList(
@@ -71,11 +76,22 @@ public class AdminDeptServiceImpl implements AdminDeptService {
         return deptConverter.buildTree(departments);
     }
 
+    /**
+     * 按主键查询部门资料。
+     *
+     * @param id 部门主键
+     * @return 部门记录；不存在时返回 {@code null}
+     */
     @Override
     public SysDeptDO getDept(Long id) {
         return sysDeptMapper.selectById(id);
     }
 
+    /**
+     * 查询全部未删除部门供导出，结果按排序号升序。
+     *
+     * @return 部门导出记录
+     */
     @Override
     public List<SysDeptDO> exportDepts() {
         return sysDeptMapper.selectList(
@@ -85,6 +101,12 @@ public class AdminDeptServiceImpl implements AdminDeptService {
         );
     }
 
+    /**
+     * 在后台管理应用下创建部门并补齐状态、排序号和根节点默认值。
+     *
+     * @param dept 待创建部门
+     * @return 已写入主键和审计时间的部门记录
+     */
     @Override
     public SysDeptDO createDept(SysDeptDO dept) {
         if (!StringUtils.hasText(dept.getDeptName())) {
@@ -109,6 +131,13 @@ public class AdminDeptServiceImpl implements AdminDeptService {
         return dept;
     }
 
+    /**
+     * 局部更新指定部门的组织、负责人和状态字段。
+     *
+     * @param id 部门主键
+     * @param input 非空字段覆盖请求
+     * @return 更新后的部门记录
+     */
     @Override
     public SysDeptDO updateDept(Long id, SysDeptDO input) {
         SysDeptDO dept = sysDeptMapper.selectById(id);
@@ -141,6 +170,11 @@ public class AdminDeptServiceImpl implements AdminDeptService {
         return dept;
     }
 
+    /**
+     * 逻辑删除指定部门；记录不存在时按幂等成功处理。
+     *
+     * @param id 部门主键
+     */
     @Override
     public void removeDept(Long id) {
         SysDeptDO dept = sysDeptMapper.selectById(id);

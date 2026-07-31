@@ -258,6 +258,16 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         return notified;
     }
 
+    /**
+     * 竞争单个通知任务、执行 HTTP 调用并持久化本次尝试结果。
+     *
+     * <p>先通过数据库版本号将任务标记为处理中；竞争失败直接跳过。成功或失败均写尝试日志，
+     * 失败按退避策略更新下次重试时间，达到上限后关闭任务。</p>
+     *
+     * @param notificationTable 通知任务物理分表
+     * @param task              待通知数据库任务
+     * @return true 表示本次 HTTP 通知成功并完成状态更新
+     */
     private boolean notifySingle(String notificationTable, TransactionMerchantNotificationDO task) {
         LocalDateTime beginTime = LocalDateTime.now();
         if (notificationMapper.markProcessing(notificationTable, task.getId(), task.getVersion(), beginTime) != 1) {
@@ -347,6 +357,15 @@ public class DefaultTransactionMerchantNotificationService implements Transactio
         return false;
     }
 
+    /**
+     * 向商户回调地址执行单次 HTTP 通知。
+     *
+     * <p>请求和响应日志只使用已脱敏摘要；网络异常转换为可重试失败结果，不在此方法直接修改任务状态。</p>
+     *
+     * @param task      通知任务
+     * @param beginTime 本次尝试开始时间
+     * @return 单次通知结果及脱敏响应摘要
+     */
     private NotifyAttemptResult executeHttpNotify(TransactionMerchantNotificationDO task, LocalDateTime beginTime) {
         String targetUrl = resolveTargetUrl(task);
         if (!StringUtils.hasText(targetUrl)) {

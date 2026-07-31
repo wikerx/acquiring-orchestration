@@ -148,6 +148,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             this.fail = fail;
         }
 
+        /**
+         * 按用例配置模拟 MQ 发送成功或抛出异常；成功时捕获消息并累计发送次数。
+         */
         @Override
         public void send(String topic, String tag, BaseMqMessage message) {
             if (fail) {
@@ -175,10 +178,16 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             this.eventDO = eventDO;
         }
 
+        /**
+         * 不执行新增写入，因为该内存替身的待发送事件由构造器预置。
+         */
         @Override
         public void save(TransactionEventOutboxDO eventDO) {
         }
 
+        /**
+         * 仅在预置事件尚未发送或关闭时返回该事件，模拟到期事件扫描。
+         */
         @Override
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
             return "SENT".equals(eventDO.getEventStatus()) || "CLOSED".equals(eventDO.getEventStatus())
@@ -186,6 +195,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
                     : List.of(eventDO);
         }
 
+        /**
+         * 在内存中推进为已发送状态并递增版本，模拟成功的乐观锁更新。
+         */
         @Override
         public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
             eventDO.setEventStatus("SENT");
@@ -194,6 +206,9 @@ class DefaultTransactionEventOutboxRelayServiceTests {
             return true;
         }
 
+        /**
+         * 在内存中记录失败原因和下次重试时间，并递增版本模拟 CAS 成功。
+         */
         @Override
         public boolean markFailed(TransactionEventOutboxDO eventDO,
                                   LocalDateTime nextRetryTime,

@@ -149,6 +149,9 @@ class DefaultTransactionStateMachineServiceTests {
     @FunctionalInterface
     private interface ThrowingAction {
 
+        /**
+         * 执行当前状态机边界用例提供的动作，允许异常直接传播给断言。
+         */
         void execute();
     }
 }

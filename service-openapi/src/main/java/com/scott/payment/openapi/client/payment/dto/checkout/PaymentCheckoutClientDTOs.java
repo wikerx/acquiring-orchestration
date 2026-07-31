@@ -17,117 +17,266 @@ public final class PaymentCheckoutClientDTOs {
     private PaymentCheckoutClientDTOs() {
     }
 
+    /**
+     * service-openapi 创建 Hosted Checkout 会话的内部请求。
+     */
     @Data
     public static class SessionCreateRequest implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 已认证的平台商户号。 */
         private String merchantId;
+
+        /** 商户订单号。 */
         private String merchantOrderNo;
+
+        /** 商户本次创建请求号，用于内部幂等关联。 */
         private String merchantRequestId;
+
+        /** 创建请求规范化后的摘要，用于拒绝幂等键复用不同载荷。 */
         private String requestFingerprint;
+
+        /** 订单金额，单位为 {@link #currency} 主币种单位。 */
         private BigDecimal amount;
+
+        /** ISO 4217 三位币种代码。 */
         private String currency;
+
+        /** 币种小数位数，由 ISO 字典解析，不用于金额舍入。 */
         private Integer currencyExponent;
+
+        /** 支付动作，例如直接支付或预授权。 */
         private String paymentAction;
+
+        /** 付款页展示的订单主题。 */
         private String orderSubject;
+
+        /** 付款页展示的订单说明。 */
         private String orderDescription;
+
+        /** 商品明细 JSON 快照，不包含卡号、CVV 或密钥。 */
         private String orderItemsJson;
+
+        /** 商户允许的支付方式和 3DS 模式。 */
         private List<AllowedPaymentMethod> allowedPaymentMethods;
+
+        /** 收银台前端域名；已在 OpenAPI 层完成协议和长度校验。 */
         private String checkoutDomain;
+
+        /** 收银台语言区域标识。 */
         private String locale;
+
+        /** 付款页展示的商户名称。 */
         private String merchantDisplayName;
+
+        /** 付款页展示的商户 Logo 地址。 */
         private String merchantLogoUrl;
+
+        /** 支付完成后的商户返回地址。 */
         private String merchantReturnUrl;
+
+        /** 付款取消后的商户返回地址。 */
         private String merchantCancelUrl;
+
+        /** 商户通知 URL 摘要；内部请求不传递原始通知地址。 */
         private String merchantNotifyUrlHash;
+
+        /** ISO 3166-1 alpha-3 付款人国家/地区代码。 */
         private String payerCountry;
+
+        /** 付款人邮箱脱敏展示值。 */
         private String payerEmailMasked;
+
+        /** 付款人邮箱不可逆摘要，用于风控匹配。 */
         private String payerEmailHash;
+
+        /** 是否允许失败后重试，1 表示允许、0 表示禁止。 */
         private Integer retryAllowed;
+
+        /** 会话允许的最大支付尝试次数。 */
         private Integer maxAttemptCount;
+
+        /** 会话过期时间，按内部服务约定时区解释。 */
         private LocalDateTime expireTime;
+
+        /** 创建请求来源，例如商户 OpenAPI。 */
         private String requestSource;
+
+        /** 跨 OpenAPI、payment 和渠道链路的追踪号。 */
         private String traceId;
     }
 
+    /**
+     * 内部会话请求中的单个允许支付方式。
+     */
     @Data
     public static class AllowedPaymentMethod implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 平台支付方式编码。 */
         private String paymentMethod;
+
+        /** 可选指定渠道编码；为空时由支付服务路由。 */
         private String channelCode;
+
+        /** 允许的卡品牌或支付品牌。 */
         private List<String> brands;
+
+        /** 3DS 执行模式。 */
         private String threeDsMode;
     }
 
+    /**
+     * service-payment 创建 Hosted Checkout 会话的内部响应。
+     */
     @Data
     public static class SessionCreateResponse implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** Hosted Checkout 会话号。 */
         private String checkoutSessionId;
+
+        /** 会话访问令牌的内部标识，不是浏览器可直接使用的原始 token。 */
         private String checkoutTokenId;
+
+        /** 付款人访问收银台的 URL，可能携带一次性 token，禁止写日志。 */
         private String checkoutUrl;
+
+        /** 会话当前状态。 */
         private String checkoutStatus;
+
+        /** 会话过期时间。 */
         private LocalDateTime expireTime;
+
+        /** service-payment 是否命中既有幂等会话。 */
         private Boolean idempotentHit;
     }
 
+    /**
+     * service-openapi 查询付款页会话的内部请求。
+     */
     @Getter
     @Setter
     public static class SessionQueryRequest implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 浏览器 opaque token 的 HMAC 摘要，内部服务不接收原始 token。 */
         private String tokenHash;
+
+        /** 可选页面封面或主题标识，不作为安全凭据。 */
         private String cover;
+
+        /** 客户端 IP 摘要，不传递原始地址。 */
         private String clientIpHash;
+
+        /** User-Agent 摘要，不传递完整设备字符串。 */
         private String userAgentHash;
+
+        /** Origin 摘要，用于来源一致性审计。 */
         private String originHash;
+
+        /** Referer 摘要，用于来源一致性审计。 */
         private String refererHash;
+
+        /** 前端设备标识摘要，不能作为唯一认证凭据。 */
         private String deviceIdHash;
+
+        /** 浏览器语言。 */
         private String language;
+
+        /** 浏览器时区偏移。 */
         private String timezoneOffset;
+
+        /** 跨服务追踪号。 */
         private String traceId;
     }
 
+    /**
+     * service-payment 返回的付款页会话展示数据。
+     */
     @Data
     public static class SessionQueryResponse implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** Hosted Checkout 会话号。 */
         private String checkoutSessionId;
+
+        /** 付款页状态。 */
         private String pageState;
+
+        /** 可公开展示的商户资料。 */
         private Merchant merchant;
+
+        /** 订单金额与商品快照。 */
         private Order order;
+
+        /** 当前会话允许的支付方式。 */
         private List<PaymentMethod> paymentMethods;
+
+        /** 有效期、重试次数和轮询配置。 */
         private Checkout checkout;
     }
 
+    /**
+     * service-openapi 提交付款尝试的内部请求。
+     */
     @Getter
     @Setter
     public static class PaymentSubmitRequest implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 浏览器 opaque token 的 HMAC 摘要，内部服务不接收原始 token。 */
         private String tokenHash;
+
+        /** Hosted Checkout 会话号。 */
         private String checkoutSessionId;
+
+        /** 单次支付尝试请求号，用于提交幂等。 */
         private String attemptRequestId;
+
+        /** 付款人选择的支付方式编码。 */
         private String paymentMethod;
+
+        /** 提交请求摘要，用于检测同一幂等号对应不同载荷。 */
         private String requestFingerprint;
+
+        /** 跨服务追踪号。 */
         private String traceId;
+
+        /** 客户端 IP 摘要。 */
         private String clientIpHash;
+
+        /** User-Agent 摘要。 */
         private String userAgentHash;
+
+        /** Origin 摘要。 */
         private String originHash;
+
+        /** Referer 摘要。 */
         private String refererHash;
+
+        /** 3DS 所需浏览器信息 JSON；不得包含完整 PAN 或 CVV。 */
         private String browserInfoJson;
+
+        /** 设备信息脱敏 JSON；原始设备采集报文不得持久化。 */
         private String deviceInfoJson;
+
+        /** 敏感卡数据，仅允许短暂传入支付处理，禁止日志或普通业务持久化。 */
         private CardInfo cardInfo;
+
+        /** 账单持卡人资料，用于渠道和 3DS 校验，日志必须脱敏。 */
         private BillingCardHolderInfo billingCardHolderInfo;
     }
 
+    /**
+     * service-openapi 查询付款尝试状态的内部请求。
+     */
     @Getter
     @Setter
     public static class PaymentStatusRequest implements Serializable {

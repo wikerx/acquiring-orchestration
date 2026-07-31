@@ -141,6 +141,21 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String requestFingerprint;
 
     /**
+     * 内部风控评估流水号，仅用于交易主单、时间轴和风控审计关联；不作为商户响应字段。
+     */
+    private String riskRecordNo;
+
+    /**
+     * 内部风控原因码，仅用于交易时间轴和后台排障；不向商户暴露规则细节。
+     */
+    private String riskCode;
+
+    /**
+     * 内部风控原因摘要，仅用于后台排障，禁止包含完整 PAN、CVV 或名单明文。
+     */
+    private String riskMessage;
+
+    /**
      * OpenAPI 请求路径，用于后台商户请求日志排查。
      */
     private String openApiRequestPath;
@@ -189,6 +204,11 @@ public class PaymentCreateCommandDTO implements Serializable {
      * 交易扩展信息，包含原平台交易 ID、描述和回调地址。
      */
     private TransactionInfoDTO transactionInfo;
+
+    /**
+     * 商户上送的可选实时风控上下文，只在交易受理和风控调用内存链路中使用。
+     */
+    private RiskContextDTO riskContext;
 
     /**
      * 商户通知回调地址，交易状态变化后系统可按该地址推送异步通知。
@@ -570,16 +590,20 @@ public class PaymentCreateCommandDTO implements Serializable {
         private String threeDsVersion;
     }
 
+    /**
+     * 渠道侧订单和交易标识。
+     */
     @Data
     public static class ChannelIdentityDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 渠道订单号。 */
         private String channelOrderNo;
+        /** 渠道交易号。 */
         private String channelTransactionId;
     }
 
-    @Data
     /**
      * @author : scott
      * @version : v1.0.0
@@ -589,6 +613,7 @@ public class PaymentCreateCommandDTO implements Serializable {
      * @description : Transaction Info DTO 传输模型，位于 支付核心服务，定义接口或跨服务调用字段，承载标识、状态、金额、配置或响应摘要，不直接执行业务逻辑。
      * @status : create
      */
+    @Data
     public static class TransactionInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
@@ -647,5 +672,42 @@ public class PaymentCreateCommandDTO implements Serializable {
          * </p>
          */
         private String cardBrand;
+    }
+
+    /**
+     * 商户上送的支付风控上下文。
+     *
+     * <p>设备标识和收货地址仅按风控最小必要原则传递，日志必须脱敏；任何单一字段都不能
+     * 作为放行交易或确认客户身份的唯一依据。</p>
+     */
+    @Data
+    public static class RiskContextDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 商户体系内客户标识。
+         */
+        private String customerId;
+
+        /**
+         * 商户生成的稳定设备指纹。
+         */
+        private String deviceFingerprint;
+
+        /**
+         * 收货街道地址。
+         */
+        private String shippingAddress;
+
+        /**
+         * 收货邮编。
+         */
+        private String shippingPostalCode;
+
+        /**
+         * 收货国家或地区三字码。
+         */
+        private String shippingCountry;
     }
 }

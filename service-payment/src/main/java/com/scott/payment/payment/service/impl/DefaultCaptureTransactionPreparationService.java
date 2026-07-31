@@ -9,7 +9,6 @@ import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
-import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
@@ -235,12 +234,24 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
         this.transactionStateMachineService = transactionStateMachineService;
     }
 
+    /**
+     * 按标准请款类型准备后续交易。
+     *
+     * @param commandDTO    请款命令
+     * @param idempotencyKey 数据库幂等键
+     * @return 新建或幂等命中的请款准备结果
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CapturePreparationResultDTO prepareCapture(PaymentCreateCommandDTO commandDTO, String idempotencyKey) {
         return prepareCapture(commandDTO, idempotencyKey, PaymentTransactionTypeEnum.CAPTURE);
     }
 
+    /**
+     * 按指定请款类动作准备交易。
+     *
+     * <p>事务内锁定原订单，重新计算规范请求指纹，并在创建动作前校验可请款金额和冲突中的资金动作。</p>
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CapturePreparationResultDTO prepareCapture(PaymentCreateCommandDTO commandDTO,
@@ -258,6 +269,12 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                 .orElseGet(() -> prepareNewCapture(commandDTO, idempotencyKey, sourceOrderDO, captureLikeType));
     }
 
+    /**
+     * 创建新的请款类幂等记录、动作单和 Outbox。
+     *
+     * <p>状态机和累计金额校验全部通过后才占用幂等键；并发失败时重读数据库幂等结果，
+     * 不重复创建或调用渠道。</p>
+     */
     private CapturePreparationResultDTO prepareNewCapture(PaymentCreateCommandDTO commandDTO,
                                                           String idempotencyKey,
                                                           TransactionOrderDO sourceOrderDO,
@@ -291,12 +308,12 @@ public class DefaultCaptureTransactionPreparationService implements CaptureTrans
                 commandDTO.getTransactionInfo().getSourceTransactionId());
         normalizeCaptureCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         PaymentCreateResultDTO resultDTO = buildCaptureResult(commandDTO, sourceOrderDO, transactionId, transactionType);
+        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichCaptureResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
-        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         PaymentPreparedChannelRequestDTO preparedChannelRequestDTO = prepareChannelRequest(commandDTO, sourceOrderDO);
         PaymentChannelInvokeResultDTO preparedInvokeResultDTO = buildPreparedInvokeResult(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);

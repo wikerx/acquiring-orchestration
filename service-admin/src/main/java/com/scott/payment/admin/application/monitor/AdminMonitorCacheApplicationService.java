@@ -1,19 +1,30 @@
 package com.scott.payment.admin.application.monitor;
 
+import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.core.cache.PlatformConfigCachePolicy;
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.redis.cache.PaymentCacheProperties;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.connection.DataType;
+import org.springframework.data.redis.connection.RedisKeyCommands;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
 
 /**
  * @author : scott
@@ -21,39 +32,39 @@ import java.util.Set;
  * @classname : AdminMonitorCacheApplicationService
  * @date : 2026-06-19 20:30
  * @email : scott_x@163.com
- * @description : 管理后台 Redis 缓存监控应用服务
+ * @description : 管理后台 Redis 缓存监控应用服务，仅允许查看和清理非敏感平台配置缓存的 Key 元数据。
  * @status : create
  */
 @Service
 public class AdminMonitorCacheApplicationService {
 
-    /**
-     * MAX SCAN KEYS，用于保存 Admin Monitor Cache Application Service 中与 maxscan密钥 相关的业务属性。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+    private static final Logger log = LoggerFactory.getLogger(AdminMonitorCacheApplicationService.class);
+
+    /** 单次 Redis SCAN 请求建议返回的 Key 数量，不代表结果硬上限。 */
+    private static final int SCAN_COUNT = 100;
+
+    /** 单次管理端查询最多检查的 Key 数，防止误用通配符拖垮 Redis。 */
     private static final int MAX_SCAN_KEYS = 1000;
 
-    /**
-     * string Redis Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+    /** 管理端 Key 元数据查询允许的最大分页大小。 */
+    private static final int MAX_PAGE_SIZE = 100;
+
+    /** 仅用于读取 Redis 运行信息、Key 元数据和删除受控缓存 Key 的模板。 */
     private final StringRedisTemplate stringRedisTemplate;
+
+    /** 提供平台缓存 Key 前缀和允许管理的缓存名称。 */
+    private final PaymentCacheProperties cacheProperties;
 
     /**
      * 创建 Redis 缓存监控应用服务。
      *
      * @param stringRedisTemplateProvider RedisTemplate 提供者
+     * @param cacheProperties             Spring Cache 配置
      */
-    public AdminMonitorCacheApplicationService(ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider) {
+    public AdminMonitorCacheApplicationService(ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
+                                               PaymentCacheProperties cacheProperties) {
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
+        this.cacheProperties = cacheProperties;
     }
 
     /**
@@ -82,19 +93,20 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 分页查询 Redis Key 信息。
+     * 分页查询允许监控的 Redis Key 元数据。
      *
-     * @param keyPattern Key 模式
+     * @param keyPattern Key 模式；相对模式会自动限定在平台配置缓存命名空间
      * @param pageNo     页码
-     * @param pageSize   每页大小
+     * @param pageSize   每页大小，最大 100
      * @return Key 列表与分页摘要
      */
     public Map<String, Object> keys(String keyPattern, int pageNo, int pageSize) {
-        String pattern = StringUtils.hasText(keyPattern) ? keyPattern.trim() : "*";
-        List<String> keys = scanKeys(pattern);
+        ScanResult scanResult = scanKeys(toManagedScanPattern(keyPattern));
+        List<String> keys = scanResult.keys();
         int safePageNo = Math.max(pageNo, 1);
-        int safePageSize = Math.max(pageSize, 1);
-        int fromIndex = Math.min((safePageNo - 1) * safePageSize, keys.size());
+        int safePageSize = Math.min(Math.max(pageSize, 1), MAX_PAGE_SIZE);
+        long requestedOffset = (long) (safePageNo - 1) * safePageSize;
+        int fromIndex = (int) Math.min(requestedOffset, keys.size());
         int toIndex = Math.min(fromIndex + safePageSize, keys.size());
         List<Map<String, Object>> records = keys.subList(fromIndex, toIndex).stream()
                 .map(this::toKeyRow)
@@ -103,65 +115,169 @@ public class AdminMonitorCacheApplicationService {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("records", records);
         result.put("total", keys.size());
-        result.put("truncated", keys.size() >= MAX_SCAN_KEYS);
+        result.put("truncated", scanResult.truncated());
         return result;
     }
 
     /**
-     * 查询指定 Key 的元数据和值。
+     * 查询指定平台配置缓存 Key 的元数据。
+     *
+     * <p>管理端不得读取 Redis Value；返回值固定声明 {@code valueReadable=false}。</p>
      *
      * @param key Redis Key
-     * @return Key 详情
+     * @return Key 类型、TTL、大小及 Value 可读性
      */
     public Map<String, Object> value(String key) {
+        requireManagedKey(key);
         Map<String, Object> result = toKeyRow(key);
-        result.put("value", readValue(key));
+        result.put("valueReadable", false);
+        result.put("value", null);
         return result;
     }
 
     /**
-     * 删除指定 Redis Key。
+     * 删除指定平台配置缓存 Key。
      *
      * @param key Redis Key
      * @return 是否删除成功
      */
     public boolean delete(String key) {
-        if (stringRedisTemplate == null || !StringUtils.hasText(key)) {
+        requireManagedKey(key);
+        if (stringRedisTemplate == null) {
             return false;
         }
-        return Boolean.TRUE.equals(stringRedisTemplate.delete(key));
+        boolean deleted = Boolean.TRUE.equals(stringRedisTemplate.delete(key));
+        log.info("event: ADMIN_REDIS_CACHE_KEY_DELETE keyDigest: {} deleted: {}",
+                RedisKeyDigest.sha256(key), deleted);
+        return deleted;
     }
 
     /**
-     * 整理scan密钥，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param pattern pattern 输入值，参与 pattern 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 使用有界 SCAN 读取受管缓存 Key，最多返回 {@link #MAX_SCAN_KEYS} 条，禁止退化为阻塞式 KEYS。
+     *
+     * @param pattern 已限定到平台配置命名空间的匹配模式
+     * @return 按字典序排列的已登记公开配置 Key 和扫描截断状态
      */
-    private List<String> scanKeys(String pattern) {
+    private ScanResult scanKeys(String pattern) {
         if (stringRedisTemplate == null) {
-            return List.of();
+            return new ScanResult(List.of(), false);
         }
-        Set<String> keys = stringRedisTemplate.keys(pattern);
-        if (keys == null || keys.isEmpty()) {
-            return List.of();
+        ScanResult result = stringRedisTemplate.execute((RedisCallback<ScanResult>) connection -> {
+            RedisKeyCommands keyCommands = connection.keyCommands();
+            ScanOptions options = ScanOptions.scanOptions()
+                    .match(pattern)
+                    .count(SCAN_COUNT)
+                    .build();
+            List<String> scannedKeys = new ArrayList<>(Math.min(SCAN_COUNT, MAX_SCAN_KEYS));
+            int inspectedCount = 0;
+            boolean truncated = false;
+            try (Cursor<byte[]> cursor = keyCommands.scan(options)) {
+                while (cursor.hasNext()) {
+                    if (inspectedCount >= MAX_SCAN_KEYS) {
+                        truncated = true;
+                        break;
+                    }
+                    inspectedCount++;
+                    String key = new String(cursor.next(), StandardCharsets.UTF_8);
+                    if (isManagedDataKey(key)) {
+                        scannedKeys.add(key);
+                    }
+                }
+            }
+            return new ScanResult(scannedKeys, truncated);
+        });
+        if (result == null || result.keys().isEmpty()) {
+            return new ScanResult(List.of(), result != null && result.truncated());
         }
-        return keys.stream().sorted(Comparator.naturalOrder()).limit(MAX_SCAN_KEYS).toList();
+        return new ScanResult(
+                result.keys().stream().distinct().sorted(Comparator.naturalOrder()).toList(),
+                result.truncated()
+        );
     }
 
     /**
-     * 构造密钥row对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 构造、转换或解析后的业务值
+     * 把用户输入收敛到平台配置缓存命名空间，拒绝跨命名空间的完整 acquiring Key。
+     *
+     * @param keyPattern 用户输入的局部模式或受管完整模式
+     * @return 仅能命中平台配置缓存的 SCAN 模式
+     */
+    private String toManagedScanPattern(String keyPattern) {
+        String managedPrefix = managedKeyPrefix();
+        if (!StringUtils.hasText(keyPattern) || "*".equals(keyPattern.trim())) {
+            return managedPrefix + "*";
+        }
+        String pattern = keyPattern.trim();
+        if (pattern.startsWith(managedPrefix)) {
+            return pattern;
+        }
+        if (pattern.startsWith("acquiring:")) {
+            throw invalidManagedKey();
+        }
+        return managedPrefix + pattern;
+    }
+
+    /**
+     * 校验单 Key 是已登记的平台公开配置数据，而不是 pending 门禁或同前缀未知 Key。
+     *
+     * <p>仅检查命名空间不足以保护 {@code config:public:pending:*} 控制 Key，因此必须同时
+     * 使用 {@link PlatformConfigCachePolicy} 校验物理 Key 的业务后缀。</p>
+     *
+     * @param key 待查询或删除的完整 Redis Key
+     */
+    private void requireManagedKey(String key) {
+        if (!isManagedDataKey(key)) {
+            throw invalidManagedKey();
+        }
+    }
+
+    /**
+     * 判断物理 Key 是否对应四个已登记的非敏感平台公开配置。
+     *
+     * @param key 待检查的完整 Redis Key
+     * @return 业务后缀属于公开配置白名单时返回 true
+     */
+    private boolean isManagedDataKey(String key) {
+        String managedPrefix = managedKeyPrefix();
+        if (!StringUtils.hasText(key)
+                || key.length() <= managedPrefix.length()
+                || !key.startsWith(managedPrefix)) {
+            return false;
+        }
+        return PlatformConfigCachePolicy.isCacheable(key.substring(managedPrefix.length()));
+    }
+
+    /**
+     * 构造受管命名空间校验异常，避免向调用方返回实际 Redis 数据或连接细节。
+     *
+     * @return 参数非法异常
+     */
+    private ServiceException invalidManagedKey() {
+        return new ServiceException(
+                ApiResultEnum.PARAM_INVALID.getCode(),
+                "Redis Key is outside the managed platform configuration cache namespace"
+        );
+    }
+
+    /**
+     * 根据环境 Cache 前缀和登记的 Cache Name 构造平台配置物理 Key 前缀。
+     *
+     * @return 以冒号结尾的受管前缀
+     */
+    private String managedKeyPrefix() {
+        String configuredPrefix = StringUtils.hasText(cacheProperties.getKeyPrefix())
+                ? cacheProperties.getKeyPrefix().trim()
+                : "acquiring:local";
+        while (configuredPrefix.endsWith(":")) {
+            configuredPrefix = configuredPrefix.substring(0, configuredPrefix.length() - 1);
+        }
+        return configuredPrefix + ":" + PaymentCacheNames.PLATFORM_CONFIG + ":";
+    }
+
+    /**
+     * 读取 Key 的类型、剩余 TTL 和集合基数，不读取或返回缓存 Value。
+     *
+     * @param key 已通过命名空间校验的 Redis Key
+     * @return 管理端可展示的脱敏元数据
      */
     private Map<String, Object> toKeyRow(String key) {
         Map<String, Object> row = new LinkedHashMap<>();
@@ -180,25 +296,18 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 规范化sizeof，返回当前业务步骤需要的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @param type type 输入值，参与 type 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 按 Redis 数据结构读取元素数；String 返回字节长度，集合返回成员数。
+     *
+     * @param key  已通过命名空间校验的 Redis Key
+     * @param type Redis 数据结构类型
+     * @return 非负大小；未知类型返回 0
      */
     private long sizeOf(String key, DataType type) {
         if (type == null) {
             return 0;
         }
         return switch (type) {
-            case STRING -> {
-                String value = stringRedisTemplate.opsForValue().get(key);
-                yield value == null ? 0 : value.getBytes(StandardCharsets.UTF_8).length;
-            }
+            case STRING -> defaultLong(stringRedisTemplate.opsForValue().size(key));
             case LIST -> defaultLong(stringRedisTemplate.opsForList().size(key));
             case SET -> defaultLong(stringRedisTemplate.opsForSet().size(key));
             case ZSET -> defaultLong(stringRedisTemplate.opsForZSet().size(key));
@@ -208,42 +317,10 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 整理值，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private Object readValue(String key) {
-        if (stringRedisTemplate == null || !StringUtils.hasText(key)) {
-            return null;
-        }
-        DataType type = stringRedisTemplate.type(key);
-        if (type == null) {
-            return null;
-        }
-        return switch (type) {
-            case STRING -> stringRedisTemplate.opsForValue().get(key);
-            case LIST -> stringRedisTemplate.opsForList().range(key, 0, 100);
-            case SET -> stringRedisTemplate.opsForSet().members(key);
-            case ZSET -> stringRedisTemplate.opsForZSet().rangeWithScores(key, 0, 100);
-            case HASH -> stringRedisTemplate.opsForHash().entries(key);
-            default -> null;
-        };
-    }
-
-    /**
-     * 构造map对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param properties properties 输入值，参与 properties 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
+     * 将 Redis INFO 属性按名称排序，保证管理端输出稳定且便于审计差异。
+     *
+     * @param properties Redis INFO 属性
+     * @return 有序属性映射
      */
     private Map<String, String> toMap(Properties properties) {
         Map<String, String> result = new LinkedHashMap<>();
@@ -257,16 +334,21 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 整理默认long，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 将 Redis 客户端可能返回的 null 大小转换为 0。
+     *
+     * @param value Redis 大小结果
+     * @return 原值或 0
      */
     private long defaultLong(Long value) {
         return value == null ? 0 : value;
+    }
+
+    /**
+     * 有界 SCAN 结果。
+     *
+     * @param keys      已过滤控制 Key 和未登记配置后的公开缓存 Key
+     * @param truncated 是否达到单次最多检查 1000 个物理 Key 的边界
+     */
+    private record ScanResult(List<String> keys, boolean truncated) {
     }
 }

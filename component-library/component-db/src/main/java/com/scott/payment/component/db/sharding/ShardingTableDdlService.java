@@ -109,6 +109,16 @@ public class ShardingTableDdlService {
         return schemaInspector.inspectPhysicalTable(rule, physicalTable);
     }
 
+    /**
+     * 校验分表 DDL 的显式安全开关。
+     * <p>
+     * 自动建表只允许在 MASTER 数据源上从模板表创建新物理表，并禁止自动修改既有表；
+     * 任一配置缺失或越界时立即拒绝执行，避免在只读库或错误环境运行 DDL。
+     * </p>
+     *
+     * @param properties 当前环境的分表配置
+     * @throws ServiceException 配置缺失、维护未启用或 DDL 边界不满足时抛出
+     */
     private void validateDdlEnabled(PaymentQuarterShardingProperties properties) {
         if (properties == null || properties.getTableMaintenance() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding table maintenance config is required");

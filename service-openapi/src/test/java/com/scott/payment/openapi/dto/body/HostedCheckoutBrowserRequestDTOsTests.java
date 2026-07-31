@@ -17,7 +17,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class HostedCheckoutBrowserRequestDTOsTests {
 
+    /** 测试类共享的 Bean Validation 工厂，在全部用例结束后统一关闭。 */
     private static ValidatorFactory validatorFactory;
+
+    /** 用于验证浏览器请求 DTO 字段约束的 Validator。 */
     private static Validator validator;
 
     @BeforeAll

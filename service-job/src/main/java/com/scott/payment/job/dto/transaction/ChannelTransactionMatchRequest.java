@@ -32,6 +32,11 @@ public class ChannelTransactionMatchRequest implements Serializable {
     private List<LocalDateTime> transactionDateTimes = Collections.emptyList();
 
     /**
+     * 未显式指定交易时间时自动回看的季度数量，包含当前季度。
+     */
+    private Integer lookbackQuarters;
+
+    /**
      * 渠道编码，可为空；例如 MPGS、WPGXML、WPGJSON，其中 WPGXML/WPGJSON 按两个独立渠道分别扫描。
      */
     private String channelCode;
