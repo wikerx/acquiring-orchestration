@@ -1,5 +1,5 @@
 # 环境接入配置：当前文件只负责连接对应环境的 Nacos 命名空间。
-# spring.config.import 会按顺序拉取服务专属、公共、数据库、分表、Redis、MQ、Seata、XXL-JOB 等 yaml 配置。
+# spring.config.import 会按顺序拉取服务专属、公共、数据库、分表、MQ、Seata、XXL-JOB 等 yaml 配置。
 spring:
   config:
     import:
@@ -7,7 +7,6 @@ spring:
       - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       - optional:nacos:dataSource-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       - optional:nacos:sharding-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       - optional:nacos:rocketmq-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       - optional:nacos:seata-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       - optional:nacos:xxl-job-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
