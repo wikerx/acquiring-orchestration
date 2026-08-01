@@ -202,12 +202,8 @@ public class RedisBusinessMetrics {
         RISK_FREQUENCY,
         /** 风控累计限额预占与回滚路径。 */
         RISK_CUMULATIVE_LIMIT,
-        /** 累计限额新旧实现的 shadow 比较路径。 */
-        RISK_CUMULATIVE_SHADOW,
         /** 累计限额数据库基线的 shadow 比较路径。 */
-        RISK_BASELINE_SHADOW,
-        /** 频率窗口新旧实现的 shadow 比较路径。 */
-        RISK_FREQUENCY_SHADOW
+        RISK_BASELINE_SHADOW
     }
 
     /**
@@ -284,8 +280,8 @@ public class RedisBusinessMetrics {
      * 已登记 Lua 脚本维度。
      */
     public enum Script {
-        /** 仅允许 token 持有者释放锁的脚本。 */
-        LOCK_RELEASE,
+        /** 仅允许 token 持有者释放缓存门禁租约的脚本。 */
+        TOKEN_LEASE_RELEASE,
         /** MQ 双时间桶去重资格获取脚本。 */
         MQ_DEDUP_ACQUIRE,
         /** 基于 Redis TIME 生成全局编号序列的脚本。 */
@@ -298,8 +294,6 @@ public class RedisBusinessMetrics {
         CACHE_GENERATION_COMMIT,
         /** 风控兼容固定窗口频率计数脚本。 */
         RISK_FREQUENCY_FIXED,
-        /** 风控单 ZSet 滑动窗口频率脚本。 */
-        RISK_FREQUENCY_SLIDING,
         /** 风控累计限额预占脚本。 */
         RISK_CUMULATIVE_RESERVE,
         /** 风控累计限额预占回滚脚本。 */

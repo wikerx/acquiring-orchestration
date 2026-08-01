@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : RiskEvaluationProperties
  * @date : 2026-07-30 23:05
  * @email : scott_x@163.com
- * @description : 风控运行时、规则快照、累计限额生命周期和交易频率窗口的配置边界
+ * @description : 风控运行时、规则快照、累计限额生命周期和固定频率窗口的配置边界
  * @status : update
  */
 @Data
@@ -47,26 +47,6 @@ public class RiskEvaluationProperties {
     private int ruleSnapshotMaxCharacters = 5 * 1024 * 1024;
 
     /**
-     * 累计限额和频率计数的 Redis Key 迁移模式。
-     */
-    private RiskCounterMode counterMode = RiskCounterMode.LEGACY;
-
-    /**
-     * 是否已完成完整观察期并确认切换 Cluster-safe 计数。
-     */
-    private boolean counterCutoverConfirmed;
-
-    /**
-     * 交易频率窗口迁移模式；与累计金额计数独立，默认不改变历史固定窗口决策。
-     */
-    private RiskFrequencyMode frequencyMode = RiskFrequencyMode.LEGACY;
-
-    /**
-     * 是否已完成滑动窗口观察并批准其参与真实频控决策。
-     */
-    private boolean frequencyCutoverConfirmed;
-
-    /**
      * 单条频率规则允许的最大窗口秒数，超过后进入 REVIEW 而不执行 Redis 脚本。
      */
     private int frequencyMaxWindowSeconds = 86_400;
@@ -75,11 +55,6 @@ public class RiskEvaluationProperties {
      * 单条频率规则允许的最大阈值，防止错误配置形成不可控高基数窗口。
      */
     private int frequencyMaxThresholdCount = 1_000;
-
-    /**
-     * 单个频率 ZSet 允许保留的最大交易摘要成员数，达到上限时保守进入 REVIEW。
-     */
-    private int frequencyMaxMembers = 2_000;
 
     /**
      * Redis 周期累计值首次初始化时使用的数据库基线口径。

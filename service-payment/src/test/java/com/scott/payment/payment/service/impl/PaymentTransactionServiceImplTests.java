@@ -5,7 +5,9 @@ import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
-import com.scott.payment.component.redis.lock.RedisLockService;
+import com.scott.payment.component.redis.lock.DistributedLockBusyException;
+import com.scott.payment.component.redis.lock.DistributedLockExecution;
+import com.scott.payment.component.redis.lock.DistributedLockService;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelTradeStatus;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -42,11 +44,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -887,8 +891,8 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(lockService.lockTtlByKey).hasSize(2);
         assertThat(lockService.lockTtlByKey.keySet())
-                .anyMatch(key -> key.matches("acquiring:local:payment:lock:operation:[0-9a-f]{64}"))
-                .anyMatch(key -> key.matches("acquiring:local:payment:lock:merchant-order-flow:[0-9a-f]{64}"))
+                .anyMatch(key -> key.matches("acquiring:local:lock:payment:\\{[0-9a-f]{64}}:operation"))
+                .anyMatch(key -> key.matches("acquiring:local:lock:payment:\\{[0-9a-f]{64}}:merchant-order-flow"))
                 .allSatisfy(key -> assertThat(key)
                         .doesNotContain("200001", "M202607120001", "transaction:", "service-payment", ":v1:"));
         assertThat(lockService.lockTtlByKey.values()).containsOnly(30L);
@@ -917,7 +921,7 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(lockService.lockTtlByKey).hasSize(1);
         assertThat(lockService.lockTtlByKey.keySet())
-                .allMatch(key -> key.matches("acquiring:local:payment:lock:operation:[0-9a-f]{64}"))
+                .allMatch(key -> key.matches("acquiring:local:lock:payment:\\{[0-9a-f]{64}}:operation"))
                 .allSatisfy(key -> assertThat(key)
                         .doesNotContain("200001", SOURCE_TRANSACTION_ID, "CAPTURE202607120001",
                                 "transaction:", "service-payment", ":v1:"));
@@ -1101,7 +1105,7 @@ class PaymentTransactionServiceImplTests {
     private PaymentTransactionServiceImpl newService(PaymentRiskInvokeService riskInvokeService,
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
-                                                     List<RedisLockService> redisLockServices) {
+                                                     List<DistributedLockService> redisLockServices) {
         return newService(riskInvokeService, idempotencyService, eventOutboxService, new CapturingTransactionRecordService(), redisLockServices,
                 new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING)));
     }
@@ -1109,7 +1113,7 @@ class PaymentTransactionServiceImplTests {
     private PaymentTransactionServiceImpl newService(PaymentRiskInvokeService riskInvokeService,
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
-                                                     List<RedisLockService> redisLockServices,
+                                                     List<DistributedLockService> redisLockServices,
                                                      PaymentChannelInvokeService channelInvokeService) {
         return newService(riskInvokeService, idempotencyService, eventOutboxService, new CapturingTransactionRecordService(), redisLockServices, channelInvokeService);
     }
@@ -1118,7 +1122,7 @@ class PaymentTransactionServiceImplTests {
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
                                                      CapturingTransactionRecordService transactionRecordService,
-                                                     List<RedisLockService> redisLockServices,
+                                                     List<DistributedLockService> redisLockServices,
                                                      PaymentChannelInvokeService channelInvokeService) {
         return newService(riskInvokeService, idempotencyService, eventOutboxService, transactionRecordService,
                 redisLockServices, channelInvokeService, routeService(), exchangeRateService());
@@ -1128,7 +1132,7 @@ class PaymentTransactionServiceImplTests {
                                                      InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionEventOutboxService eventOutboxService,
                                                      CapturingTransactionRecordService transactionRecordService,
-                                                     List<RedisLockService> redisLockServices,
+                                                     List<DistributedLockService> redisLockServices,
                                                      PaymentChannelInvokeService channelInvokeService,
                                                      PaymentChannelRouteService routeService,
                                                      PaymentExchangeRateService exchangeRateService) {
@@ -1142,7 +1146,9 @@ class PaymentTransactionServiceImplTests {
                 eventOutboxService,
                 transactionRecordService,
                 new DefaultTransactionStateMachineService(),
-                redisLockServices);
+                redisLockServices.isEmpty()
+                        ? new AlwaysAvailableDistributedLockService()
+                        : redisLockServices.get(0));
     }
 
     private PaymentChannelRouteService routeService() {
@@ -2100,13 +2106,13 @@ class PaymentTransactionServiceImplTests {
         }
     }
 
-    private static class RejectingRedisLockService implements RedisLockService {
+    private static class RejectingRedisLockService extends TestDistributedLockService {
 
         /**
          * 固定拒绝获取锁，用于验证并发请求不能进入本地交易准备阶段。
          */
         @Override
-        public boolean tryLock(String key, String value, long ttlSeconds) {
+        public boolean tryLock(String key, Duration waitTime, Duration leaseTime) {
             return false;
         }
 
@@ -2114,11 +2120,11 @@ class PaymentTransactionServiceImplTests {
          * 空实现；拒绝获取锁后不应存在需要释放的锁状态。
          */
         @Override
-        public void unlock(String key, String value) {
+        public void unlock(String key) {
         }
     }
 
-    private static class TrackingRedisLockService implements RedisLockService {
+    private static class TrackingRedisLockService extends TestDistributedLockService {
 
         /**
          * 记录每个测试锁 Key 使用的租约秒数，供用例核对锁时长边界。
@@ -2128,15 +2134,15 @@ class PaymentTransactionServiceImplTests {
         /**
          * 保存当前仍持有的锁及其 token，用于断言渠道调用前准备锁已释放。
          */
-        private final Map<String, String> activeLocks = new LinkedHashMap<>();
+        private final Map<String, Boolean> activeLocks = new LinkedHashMap<>();
 
         /**
          * 记录租约和锁 token，并固定模拟成功获取锁。
          */
         @Override
-        public boolean tryLock(String key, String value, long ttlSeconds) {
-            lockTtlByKey.put(key, ttlSeconds);
-            activeLocks.put(key, value);
+        public boolean tryLock(String key, Duration waitTime, Duration leaseTime) {
+            lockTtlByKey.put(key, leaseTime.toSeconds());
+            activeLocks.put(key, Boolean.TRUE);
             return true;
         }
 
@@ -2144,8 +2150,8 @@ class PaymentTransactionServiceImplTests {
          * 仅当锁 Key 与 token 同时匹配时移除活动锁，模拟所有权校验释放。
          */
         @Override
-        public void unlock(String key, String value) {
-            activeLocks.remove(key, value);
+        public void unlock(String key) {
+            activeLocks.remove(key);
         }
 
         private boolean hasActiveLocks() {
@@ -2153,7 +2159,7 @@ class PaymentTransactionServiceImplTests {
         }
     }
 
-    private static class FailingUnlockRedisLockService implements RedisLockService {
+    private static class FailingUnlockRedisLockService extends TestDistributedLockService {
 
         /**
          * 解锁调用次数，用于确认首次交易的两把准备锁都执行了释放尝试。
@@ -2164,12 +2170,12 @@ class PaymentTransactionServiceImplTests {
          * 模拟成功获取 Redis 锁。
          *
          * @param key 锁 Key
-         * @param value 锁 token
-         * @param ttlSeconds 锁租约秒数
+         * @param waitTime 最大等待时间
+         * @param leaseTime 锁租约
          * @return 固定返回 true
          */
         @Override
-        public boolean tryLock(String key, String value, long ttlSeconds) {
+        public boolean tryLock(String key, Duration waitTime, Duration leaseTime) {
             return true;
         }
 
@@ -2177,12 +2183,46 @@ class PaymentTransactionServiceImplTests {
          * 模拟 Redis 在 compare-delete 阶段不可用。
          *
          * @param key 锁 Key
-         * @param value 锁 token
          */
         @Override
-        public void unlock(String key, String value) {
+        public void unlock(String key) {
             unlockAttempts++;
             throw new IllegalStateException("redis unavailable");
+        }
+    }
+
+    private abstract static class TestDistributedLockService implements DistributedLockService {
+
+        @Override
+        public boolean tryLockWithWatchdog(String key, Duration waitTime) {
+            return tryLock(key, waitTime, Duration.ofSeconds(30));
+        }
+
+        @Override
+        public void lock(String key, Duration waitTime, Duration leaseTime) {
+            if (!tryLock(key, waitTime, leaseTime)) {
+                throw new DistributedLockBusyException("test lock is busy");
+            }
+        }
+
+        @Override
+        public boolean isHeldByCurrentThread(String key) {
+            return true;
+        }
+
+        @Override
+        public <T> DistributedLockExecution<T> execute(String key,
+                                                       Duration waitTime,
+                                                       Duration leaseTime,
+                                                       Supplier<T> action) {
+            if (!tryLock(key, waitTime, leaseTime)) {
+                return DistributedLockExecution.contended();
+            }
+            try {
+                return DistributedLockExecution.acquired(action.get());
+            } finally {
+                unlock(key);
+            }
         }
     }
 

@@ -19,11 +19,6 @@ import java.util.stream.Collectors;
 public class PaymentRedisProperties implements PaymentRedisKeyResolver {
 
     /**
-     * 兼容代际 Key 允许的最大版本号，防止无界版本片段扩大 Key 空间。
-     */
-    private static final int MAX_KEY_VERSION = 999;
-
-    /**
      * Redis Cluster Hash Tag 原始身份最大长度，单位为字符；超长身份必须先摘要化。
      */
     private static final int MAX_SLOT_IDENTITY_LENGTH = 512;
@@ -40,11 +35,6 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
      * Redis Key 顶级前缀，建议格式为 acquiring:{environment}。
      */
     private String keyPrefix = "acquiring:local";
-
-    /**
-     * 历史长 Key 到精简 Key 的迁移模式；默认只读写历史 Key，避免未配置环境自动切换。
-     */
-    private KeyMigrationMode keyMigrationMode = KeyMigrationMode.LEGACY_ONLY;
 
     /**
      * MQ 辅助去重的容量与有效期边界；不包含消息业务键或其他敏感数据。
@@ -67,24 +57,6 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
      */
     public void setKeyPrefix(String keyPrefix) {
         this.keyPrefix = keyPrefix;
-    }
-
-    /**
-     * 获取历史长 Key 到精简 Key 的迁移模式。
-     *
-     * @return 当前迁移模式；配置为空时返回兼容优先的 {@link KeyMigrationMode#LEGACY_ONLY}
-     */
-    public KeyMigrationMode getKeyMigrationMode() {
-        return keyMigrationMode == null ? KeyMigrationMode.LEGACY_ONLY : keyMigrationMode;
-    }
-
-    /**
-     * 设置历史长 Key 到精简 Key 的迁移模式。
-     *
-     * @param keyMigrationMode 受控迁移模式；空值按 {@code LEGACY_ONLY} 处理
-     */
-    public void setKeyMigrationMode(KeyMigrationMode keyMigrationMode) {
-        this.keyMigrationMode = keyMigrationMode;
     }
 
     /**
@@ -115,7 +87,7 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
      * 按系统、环境、业务域和业务用途构造精简 Redis Key。
      *
      * <p>标准格式为 {@code acquiring:{environment}:{domain}:{business}[:{businessKey}]}。
-     * 服务名不进入物理 Key；版本仅在发生不兼容迁移时作为显式业务片段传入。</p>
+     * 服务名和兼容版本不进入物理 Key。</p>
      *
      * @param domain          业务域
      * @param business        业务用途
@@ -169,83 +141,6 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
     }
 
     /**
-     * 构造包含服务、领域、业务和版本维度的 Redis v2 Key。
-     *
-     * @param service          服务名称，例如 service-risk
-     * @param domain           业务领域，例如 risk
-     * @param business         Redis 用途，例如 frequency
-     * @param version          Key 结构版本，必须为正整数
-     * @param businessSegments 业务唯一性片段
-     * @return 带完整隔离维度的物理 Redis Key
-     */
-    public String versionedKey(String service,
-                               String domain,
-                               String business,
-                               int version,
-                               String... businessSegments) {
-        return buildVersionedKey(service, domain, business, version, null, businessSegments);
-    }
-
-    /**
-     * 构造 Redis Cluster 同槽 v2 Key，Hash Tag 仅由组件根据业务槽身份生成。
-     *
-     * @param service          服务名称
-     * @param domain           业务领域
-     * @param business         Redis 用途
-     * @param version          Key 结构版本
-     * @param slotIdentity     原子操作范围的稳定身份，不直接写入物理 Key
-     * @param businessSegments Hash Tag 之后的业务片段
-     * @return 带摘要 Hash Tag 的同槽物理 Redis Key
-     */
-    public String versionedCoLocatedKey(String service,
-                                        String domain,
-                                        String business,
-                                        int version,
-                                        String slotIdentity,
-                                        String... businessSegments) {
-        if (!StringUtils.hasText(slotIdentity) || slotIdentity.length() > MAX_SLOT_IDENTITY_LENGTH) {
-            throw new IllegalArgumentException("Redis Cluster slot identity is invalid");
-        }
-        return buildVersionedKey(
-                service,
-                domain,
-                business,
-                version,
-                RedisKeyDigest.sha256(slotIdentity),
-                businessSegments
-        );
-    }
-
-    private String buildVersionedKey(String service,
-                                     String domain,
-                                     String business,
-                                     int version,
-                                     String hashTag,
-                                     String... businessSegments) {
-        if (version <= 0 || version > MAX_KEY_VERSION) {
-            throw new IllegalArgumentException("Redis Key version must be between 1 and " + MAX_KEY_VERSION);
-        }
-        if (businessSegments == null || businessSegments.length == 0) {
-            throw new IllegalArgumentException("Redis versioned Key requires at least one business segment");
-        }
-        String prefix = strictPrefix();
-        StringBuilder keyBuilder = new StringBuilder(prefix)
-                .append(':').append(requireSafeSegment(service, "service"))
-                .append(':').append(requireSafeSegment(domain, "domain"))
-                .append(':').append(requireSafeSegment(business, "business"))
-                .append(":v").append(version);
-        if (hashTag != null) {
-            keyBuilder.append(":{").append(hashTag).append('}');
-        }
-        if (businessSegments != null) {
-            for (String segment : businessSegments) {
-                keyBuilder.append(':').append(requireSafeSegment(segment, "business segment"));
-            }
-        }
-        return validatedPhysicalKey(keyBuilder);
-    }
-
-    /**
      * 把 Key 构造器转换为最终物理 Key，并执行统一长度上限校验。
      *
      * @param keyBuilder 已完成系统、环境和业务层级拼接的 Key 构造器
@@ -291,106 +186,6 @@ public class PaymentRedisProperties implements PaymentRedisKeyResolver {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return StringUtils.hasText(normalized) ? normalized : fallback;
-    }
-
-    /**
-     * Redis Key 迁移模式。
-     *
-     * <p>迁移必须依次经过历史单写、双写历史优先、双写精简优先、精简单写历史回读和精简独占。
-     * 任何环境不得跨过双写观察阶段直接切换，以免滚动发布实例读取不同物理 Key。</p>
-     */
-    public enum KeyMigrationMode {
-
-        /** 仅使用历史长 Key，作为未配置环境的兼容默认值。 */
-        LEGACY_ONLY(true, false, true, false),
-
-        /** 双读双写，读取历史 Key 优先，用于首次建立精简 Key 数据。 */
-        DUAL_LEGACY_FIRST(true, true, true, true),
-
-        /** 双读双写，读取精简 Key 优先，用于切换前差异观察。 */
-        DUAL_COMPACT_FIRST(true, true, true, true),
-
-        /** 仅写精简 Key，精简未命中时允许回读历史 Key 并回填。 */
-        COMPACT_WRITE_LEGACY_READ(true, true, false, true),
-
-        /** 仅使用精简 Key，完成迁移后不再访问历史 Key。 */
-        COMPACT_ONLY(false, true, false, true);
-
-        /** 是否允许读取历史长 Key。 */
-        private final boolean legacyReadEnabled;
-
-        /** 是否允许读取精简 Key。 */
-        private final boolean compactReadEnabled;
-
-        /** 是否写入历史长 Key。 */
-        private final boolean legacyWriteEnabled;
-
-        /** 是否写入精简 Key。 */
-        private final boolean compactWriteEnabled;
-
-        KeyMigrationMode(boolean legacyReadEnabled,
-                         boolean compactReadEnabled,
-                         boolean legacyWriteEnabled,
-                         boolean compactWriteEnabled) {
-            this.legacyReadEnabled = legacyReadEnabled;
-            this.compactReadEnabled = compactReadEnabled;
-            this.legacyWriteEnabled = legacyWriteEnabled;
-            this.compactWriteEnabled = compactWriteEnabled;
-        }
-
-        /**
-         * 判断是否允许读取历史长 Key。
-         *
-         * @return 允许读取时为 true
-         */
-        public boolean legacyReadEnabled() {
-            return legacyReadEnabled;
-        }
-
-        /**
-         * 判断是否允许读取精简 Key。
-         *
-         * @return 允许读取时为 true
-         */
-        public boolean compactReadEnabled() {
-            return compactReadEnabled;
-        }
-
-        /**
-         * 判断是否写入历史长 Key。
-         *
-         * @return 需要写入时为 true
-         */
-        public boolean legacyWriteEnabled() {
-            return legacyWriteEnabled;
-        }
-
-        /**
-         * 判断是否写入精简 Key。
-         *
-         * @return 需要写入时为 true
-         */
-        public boolean compactWriteEnabled() {
-            return compactWriteEnabled;
-        }
-
-        /**
-         * 判断是否处于需要新旧代际严格一致的双写阶段。
-         *
-         * @return 双读双写阶段为 true
-         */
-        public boolean mirroredGenerationRequired() {
-            return this == DUAL_LEGACY_FIRST || this == DUAL_COMPACT_FIRST;
-        }
-
-        /**
-         * 判断双读场景是否以历史 Key 为首选。
-         *
-         * @return 历史 Key 优先时为 true
-         */
-        public boolean legacyReadPreferred() {
-            return this == LEGACY_ONLY || this == DUAL_LEGACY_FIRST;
-        }
     }
 
     /**

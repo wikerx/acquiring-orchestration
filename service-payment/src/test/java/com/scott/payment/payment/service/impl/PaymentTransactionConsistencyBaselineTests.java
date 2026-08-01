@@ -1750,7 +1750,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 outboxService,
                 recordService,
                 new DefaultTransactionStateMachineService(),
-                List.of());
+                new AlwaysAvailableDistributedLockService());
     }
 
     private PaymentTransactionServiceImpl newService(InMemoryTransactionIdempotencyService idempotencyService,
@@ -1882,7 +1882,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 recordService,
                 new DefaultTransactionStateMachineService(),
                 new DefaultChannelTransactionStatusResolver(),
-                List.of(),
+                new AlwaysAvailableDistributedLockService(),
                 new PaymentRedisProperties());
     }
 

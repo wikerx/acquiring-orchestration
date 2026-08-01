@@ -56,18 +56,18 @@ class PaymentRedisScriptsTests {
     }
 
     /**
-     * 锁释放 v1 脚本只能删除 token 与持有者一致的锁。
+     * token 租约释放 v1 脚本只能删除 token 与持有者一致的门禁。
      */
     @Test
-    void shouldLoadVersionedLockReleaseScript() {
-        log.info("测试锁释放 Lua 资源，关键输入: 锁 token 与当前持有者一致性校验");
-        var script = PaymentRedisScripts.lockReleaseV1();
+    void shouldLoadVersionedTokenLeaseReleaseScript() {
+        log.info("测试 token 租约释放 Lua 资源，关键输入: 门禁 token 与当前持有者一致性校验");
+        var script = PaymentRedisScripts.tokenLeaseReleaseV1();
 
         assertThat(script.getResultType()).isEqualTo(Long.class);
         assertThat(script.getScriptAsString())
                 .contains("redis.call('get', KEYS[1]) == ARGV[1]")
                 .contains("redis.call('del', KEYS[1])");
         assertThat(script.getSha1()).matches("[0-9a-f]{40}");
-        log.info("锁释放 Lua 资源测试完成，结果: 比较后删除契约存在");
+        log.info("token 租约释放 Lua 资源测试完成，结果: 比较后删除契约存在");
     }
 }

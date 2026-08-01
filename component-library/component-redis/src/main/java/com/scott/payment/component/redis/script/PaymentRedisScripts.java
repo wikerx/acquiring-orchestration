@@ -28,8 +28,8 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<Long> MQ_DEDUP_ACQUIRE_V1 =
             load("v1/mq-dedup-acquire.lua", Long.class);
 
-    private static final DefaultRedisScript<Long> LOCK_RELEASE_V1 =
-            load("v1/lock-release.lua", Long.class);
+    private static final DefaultRedisScript<Long> TOKEN_LEASE_RELEASE_V1 =
+            load("v1/token-lease-release.lua", Long.class);
 
     private static final DefaultRedisScript<String> CACHE_GENERATION_READ_V1 =
             load("v1/cache-generation-read.lua", String.class);
@@ -62,12 +62,12 @@ public final class PaymentRedisScripts {
     }
 
     /**
-     * 获取锁持有者安全释放 v1 脚本。
+     * 获取 token 租约持有者安全释放 v1 脚本。
      *
      * @return 返回删除数量的脚本
      */
-    public static RedisScript<Long> lockReleaseV1() {
-        return LOCK_RELEASE_V1;
+    public static RedisScript<Long> tokenLeaseReleaseV1() {
+        return TOKEN_LEASE_RELEASE_V1;
     }
 
     /**

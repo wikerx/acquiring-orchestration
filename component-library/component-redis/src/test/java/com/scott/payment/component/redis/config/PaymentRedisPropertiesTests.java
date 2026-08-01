@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
  * @classname : PaymentRedisPropertiesTests
  * @date : 2026-07-29 16:00
  * @email : scott_x@163.com
- * @description : 验证 Redis 精简 Key 的环境隔离、输入约束、同槽摘要和版本化兼容能力
+ * @description : 验证 Redis Key 的环境隔离、输入约束和 Cluster 同槽摘要能力
  * @status : update
  */
 @Slf4j
@@ -48,54 +48,6 @@ class PaymentRedisPropertiesTests {
     }
 
     /**
-     * v2 Key 必须显式包含服务、领域、业务和版本，旧 Key API 的输出必须保持不变。
-     */
-    @Test
-    void shouldBuildVersionedKeyWithoutChangingLegacyKey() {
-        PaymentRedisProperties properties = new PaymentRedisProperties();
-        properties.setKeyPrefix("acquiring:test");
-
-        assertThat(properties.versionedKey(
-                "service-risk",
-                "risk",
-                "frequency",
-                2,
-                "merchant-200045",
-                "rule-1001"
-        )).isEqualTo(
-                "acquiring:test:service-risk:risk:frequency:v2:merchant-200045:rule-1001"
-        );
-        assertThat(properties.key("mq", "dedup", "risk-audit"))
-                .isEqualTo("acquiring:test:mq:dedup:risk-audit");
-    }
-
-    /**
-     * 同一原子操作范围内的多个 Key 必须使用由组件生成的相同摘要 Hash Tag。
-     */
-    @Test
-    void shouldBuildCoLocatedKeysWithComponentOwnedHashTag() {
-        PaymentRedisProperties properties = new PaymentRedisProperties();
-        properties.setKeyPrefix("acquiring:test");
-        String slotIdentity = "rule-1001:merchant-200045:CNY:20260729";
-
-        String aggregateKey = properties.versionedCoLocatedKey(
-                "service-risk", "risk", "merchant-limit", 2, slotIdentity, "total");
-        String reservationKey = properties.versionedCoLocatedKey(
-                "service-risk", "risk", "merchant-limit", 2, slotIdentity, "reservation", "tx-digest");
-        String anotherScopeKey = properties.versionedCoLocatedKey(
-                "service-risk", "risk", "merchant-limit", 2, slotIdentity + "-next", "total");
-
-        assertThat(aggregateKey)
-                .startsWith("acquiring:test:service-risk:risk:merchant-limit:v2:{")
-                .endsWith("}:total")
-                .doesNotContain(slotIdentity);
-        assertThat(hashTag(aggregateKey))
-                .matches("[0-9a-f]{64}")
-                .isEqualTo(hashTag(reservationKey))
-                .isNotEqualTo(hashTag(anotherScopeKey));
-    }
-
-    /**
      * 新业务同槽 Key 必须沿用精简命名，服务名和版本不得进入物理 Key。
      */
     @Test
@@ -108,6 +60,8 @@ class PaymentRedisPropertiesTests {
                 "risk", "merchant-limit", slotIdentity, "total");
         String reservationKey = properties.coLocatedBusinessKey(
                 "risk", "merchant-limit", slotIdentity, "reservation", "tx-digest");
+        String anotherScopeKey = properties.coLocatedBusinessKey(
+                "risk", "merchant-limit", slotIdentity + "-next", "total");
 
         assertThat(aggregateKey)
                 .startsWith("acquiring:test:risk:merchant-limit:{")
@@ -115,33 +69,24 @@ class PaymentRedisPropertiesTests {
                 .doesNotContain("service-risk", ":v2:", slotIdentity);
         assertThat(hashTag(aggregateKey))
                 .matches("[0-9a-f]{64}")
-                .isEqualTo(hashTag(reservationKey));
+                .isEqualTo(hashTag(reservationKey))
+                .isNotEqualTo(hashTag(anotherScopeKey));
     }
 
     /**
-     * v2 Key API 必须拒绝可能破坏命名空间、Cluster Slot 或 Key 长度预算的输入。
+     * Key API 必须拒绝可能破坏命名空间、Cluster Slot 或 Key 长度预算的输入。
      */
     @Test
-    void shouldRejectUnsafeVersionedKeyInputs() {
+    void shouldRejectUnsafeKeyInputs() {
         PaymentRedisProperties properties = new PaymentRedisProperties();
         properties.setKeyPrefix("acquiring:test");
 
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service:risk", "risk", "frequency", 2, "merchant-200045"));
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service-risk", "risk", "frequency", 0, "merchant-200045"));
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service-risk", "risk", "frequency", 2, "merchant 200045"));
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service-risk", "risk", "frequency", 2, "{caller-owned-tag}"));
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service-risk", "risk", "frequency", 2, "x".repeat(129)));
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service-risk", "risk", "frequency", 2));
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedCoLocatedKey(
-                "service-risk", "risk", "merchant-limit", 2, " ", "total"));
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedCoLocatedKey(
-                "service-risk", "risk", "merchant-limit", 2, "rule-1001:merchant-200045"));
+        assertThatIllegalArgumentException().isThrownBy(() -> properties.businessKey(
+                "risk", "frequency", "merchant 200045"));
+        assertThatIllegalArgumentException().isThrownBy(() -> properties.businessKey(
+                "risk", "frequency", "{caller-owned-tag}"));
+        assertThatIllegalArgumentException().isThrownBy(() -> properties.businessKey(
+                "risk", "frequency", "x".repeat(129)));
         assertThatIllegalArgumentException().isThrownBy(() -> properties.coLocatedBusinessKey(
                 "risk", "merchant-limit", " ", "total"));
         assertThatIllegalArgumentException().isThrownBy(() -> properties.coLocatedBusinessKey(
@@ -150,32 +95,14 @@ class PaymentRedisPropertiesTests {
                 "risk:unsafe", "merchant-limit", "rule-1001:merchant-200045", "total"));
 
         properties.setKeyPrefix("acquiring");
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service-risk", "risk", "frequency", 2, "merchant-200045"));
+        assertThatIllegalArgumentException().isThrownBy(() -> properties.businessKey(
+                "risk", "frequency", "merchant-200045"));
         properties.setKeyPrefix("other:test");
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service-risk", "risk", "frequency", 2, "merchant-200045"));
+        assertThatIllegalArgumentException().isThrownBy(() -> properties.businessKey(
+                "risk", "frequency", "merchant-200045"));
         properties.setKeyPrefix("acquiring:test:extra");
-        assertThatIllegalArgumentException().isThrownBy(() -> properties.versionedKey(
-                "service-risk", "risk", "frequency", 2, "merchant-200045"));
-    }
-
-    /**
-     * 未配置迁移模式时必须保持历史 Key 单读单写，空绑定值也不得意外切换生产 Key。
-     */
-    @Test
-    void shouldUseLegacyOnlyAsSafeMigrationDefault() {
-        log.info("测试 Redis Key 迁移默认值，关键输入: 未配置模式和空模式");
-        PaymentRedisProperties properties = new PaymentRedisProperties();
-
-        assertThat(properties.getKeyMigrationMode())
-                .isEqualTo(PaymentRedisProperties.KeyMigrationMode.LEGACY_ONLY);
-        properties.setKeyMigrationMode(null);
-        assertThat(properties.getKeyMigrationMode())
-                .isEqualTo(PaymentRedisProperties.KeyMigrationMode.LEGACY_ONLY);
-        assertThat(properties.getKeyMigrationMode().legacyReadEnabled()).isTrue();
-        assertThat(properties.getKeyMigrationMode().compactWriteEnabled()).isFalse();
-        log.info("Redis Key 迁移默认值测试完成，结果: 未配置环境继续仅使用历史 Key");
+        assertThatIllegalArgumentException().isThrownBy(() -> properties.businessKey(
+                "risk", "frequency", "merchant-200045"));
     }
 
     private String hashTag(String key) {

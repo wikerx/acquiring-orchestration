@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.LongAdder;
  * @classname : RiskShadowComparisonMonitor
  * @date : 2026-07-30 22:35
  * @email : scott_x@163.com
- * @description : 汇总风控迁移双轨比较结果，只记录计数和差异数量，不记录交易、商户或规则明细，供切换门禁核对完整观察期
+ * @description : 汇总风控数据库基线双轨比较结果，只记录计数和差异数量，不记录交易、商户或规则明细
  * @status : create
  */
 @Slf4j
@@ -33,21 +33,6 @@ public class RiskShadowComparisonMonitor {
     private final RedisBusinessMetrics metrics;
 
     /**
-     * 累计限额旧 Key 与同槽 Key 已完成比较的次数。
-     */
-    private final LongAdder cumulativeCompared = new LongAdder();
-
-    /**
-     * 累计限额两条 Redis 路径结果不一致的次数。
-     */
-    private final LongAdder cumulativeMismatched = new LongAdder();
-
-    /**
-     * 累计限额 shadow 路径不可用、无法形成比较的次数。
-     */
-    private final LongAdder cumulativeUnavailable = new LongAdder();
-
-    /**
      * 历史交易事实与生命周期预占事实已完成基线比较的次数。
      */
     private final LongAdder baselineCompared = new LongAdder();
@@ -56,21 +41,6 @@ public class RiskShadowComparisonMonitor {
      * 两种数据库基线金额不一致的次数。
      */
     private final LongAdder baselineMismatched = new LongAdder();
-
-    /**
-     * 固定窗口与滑动窗口已完成比较的次数。
-     */
-    private final LongAdder frequencyCompared = new LongAdder();
-
-    /**
-     * 固定窗口与滑动窗口计数不一致的次数。
-     */
-    private final LongAdder frequencyMismatched = new LongAdder();
-
-    /**
-     * 滑动窗口不可用或达到保护容量、无法形成比较的次数。
-     */
-    private final LongAdder frequencyUnavailable = new LongAdder();
 
     /**
      * 创建带 Prometheus 观测的风控 shadow 比较器。
@@ -87,36 +57,6 @@ public class RiskShadowComparisonMonitor {
      */
     public RiskShadowComparisonMonitor() {
         this(RedisBusinessMetrics.noop());
-    }
-
-    /**
-     * 记录一次累计限额 Redis 双轨比较。
-     *
-     * @param legacyUnits 历史 Key 返回的累计最小金额单位；负值保留脚本的拒绝语义
-     * @param shadowUnits 同槽 shadow Key 返回值；null 表示 shadow 路径不可用
-     */
-    public void recordCumulative(long legacyUnits, Long shadowUnits) {
-        if (shadowUnits == null) {
-            cumulativeUnavailable.increment();
-            recordMetric(
-                    RedisBusinessMetrics.Feature.RISK_CUMULATIVE_SHADOW,
-                    RedisBusinessMetrics.Outcome.UNAVAILABLE
-            );
-            return;
-        }
-        cumulativeCompared.increment();
-        if (legacyUnits != shadowUnits) {
-            cumulativeMismatched.increment();
-            recordMetric(
-                    RedisBusinessMetrics.Feature.RISK_CUMULATIVE_SHADOW,
-                    RedisBusinessMetrics.Outcome.MISMATCHED
-            );
-            return;
-        }
-        recordMetric(
-                RedisBusinessMetrics.Feature.RISK_CUMULATIVE_SHADOW,
-                RedisBusinessMetrics.Outcome.MATCHED
-        );
     }
 
     /**
@@ -137,36 +77,6 @@ public class RiskShadowComparisonMonitor {
         }
         recordMetric(
                 RedisBusinessMetrics.Feature.RISK_BASELINE_SHADOW,
-                RedisBusinessMetrics.Outcome.MATCHED
-        );
-    }
-
-    /**
-     * 记录一次频率限制固定窗口与滑动窗口比较。
-     *
-     * @param legacyCount 历史固定窗口计数
-     * @param shadowCount 滑动窗口计数；null 表示脚本不可用或触发容量保护
-     */
-    public void recordFrequency(long legacyCount, Long shadowCount) {
-        if (shadowCount == null) {
-            frequencyUnavailable.increment();
-            recordMetric(
-                    RedisBusinessMetrics.Feature.RISK_FREQUENCY_SHADOW,
-                    RedisBusinessMetrics.Outcome.UNAVAILABLE
-            );
-            return;
-        }
-        frequencyCompared.increment();
-        if (legacyCount != shadowCount) {
-            frequencyMismatched.increment();
-            recordMetric(
-                    RedisBusinessMetrics.Feature.RISK_FREQUENCY_SHADOW,
-                    RedisBusinessMetrics.Outcome.MISMATCHED
-            );
-            return;
-        }
-        recordMetric(
-                RedisBusinessMetrics.Feature.RISK_FREQUENCY_SHADOW,
                 RedisBusinessMetrics.Outcome.MATCHED
         );
     }
@@ -202,18 +112,9 @@ public class RiskShadowComparisonMonitor {
             return;
         }
         log.info(
-                "event: RISK_SHADOW_COMPARISON_SUMMARY "
-                        + "cumulativeCompared: {} cumulativeMismatched: {} cumulativeUnavailable: {} "
-                        + "baselineCompared: {} baselineMismatched: {} "
-                        + "frequencyCompared: {} frequencyMismatched: {} frequencyUnavailable: {}",
-                snapshot.cumulativeCompared(),
-                snapshot.cumulativeMismatched(),
-                snapshot.cumulativeUnavailable(),
+                "event: RISK_BASELINE_SHADOW_COMPARISON_SUMMARY baselineCompared: {} baselineMismatched: {}",
                 snapshot.baselineCompared(),
-                snapshot.baselineMismatched(),
-                snapshot.frequencyCompared(),
-                snapshot.frequencyMismatched(),
-                snapshot.frequencyUnavailable()
+                snapshot.baselineMismatched()
         );
     }
 
@@ -224,37 +125,19 @@ public class RiskShadowComparisonMonitor {
      */
     RiskShadowComparisonSnapshot snapshotAndReset() {
         return new RiskShadowComparisonSnapshot(
-                cumulativeCompared.sumThenReset(),
-                cumulativeMismatched.sumThenReset(),
-                cumulativeUnavailable.sumThenReset(),
                 baselineCompared.sumThenReset(),
-                baselineMismatched.sumThenReset(),
-                frequencyCompared.sumThenReset(),
-                frequencyMismatched.sumThenReset(),
-                frequencyUnavailable.sumThenReset()
+                baselineMismatched.sumThenReset()
         );
     }
 
     /**
      * 单个服务实例在一个观察周期内的 shadow 比较摘要。
      *
-     * @param cumulativeCompared    累计限额完成比较数
-     * @param cumulativeMismatched  累计限额差异数
-     * @param cumulativeUnavailable 累计限额 shadow 不可用数
      * @param baselineCompared      数据库基线完成比较数
      * @param baselineMismatched    数据库基线差异数
-     * @param frequencyCompared     频率窗口完成比较数
-     * @param frequencyMismatched   频率窗口差异数
-     * @param frequencyUnavailable  频率窗口 shadow 不可用数
      */
-    record RiskShadowComparisonSnapshot(long cumulativeCompared,
-                                        long cumulativeMismatched,
-                                        long cumulativeUnavailable,
-                                        long baselineCompared,
-                                        long baselineMismatched,
-                                        long frequencyCompared,
-                                        long frequencyMismatched,
-                                        long frequencyUnavailable) {
+    record RiskShadowComparisonSnapshot(long baselineCompared,
+                                        long baselineMismatched) {
 
         /**
          * 计算当前周期内收到的全部比较或不可用事件数。
@@ -262,9 +145,7 @@ public class RiskShadowComparisonMonitor {
          * @return 三类迁移路径的事件总数
          */
         long totalObserved() {
-            return cumulativeCompared + cumulativeUnavailable
-                    + baselineCompared
-                    + frequencyCompared + frequencyUnavailable;
+            return baselineCompared;
         }
     }
 }

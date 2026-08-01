@@ -9,8 +9,7 @@ import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
-import com.scott.payment.component.redis.lock.RedisLockService;
-import com.scott.payment.component.redis.support.RedisKeyDigest;
+import com.scott.payment.component.redis.lock.DistributedLockService;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse.PaymentMethodSummary;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -70,6 +69,7 @@ import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -80,7 +80,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Stream;
 
 /**
@@ -129,12 +128,12 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     /**
      * 支付 Redis 业务域。
      */
-    private static final String PAYMENT_REDIS_DOMAIN = "payment";
+    private static final String PAYMENT_REDIS_DOMAIN = "lock";
 
     /**
      * 支付 Redis 锁业务用途。
      */
-    private static final String PAYMENT_LOCK_BUSINESS = "lock";
+    private static final String PAYMENT_LOCK_BUSINESS = "payment";
 
     /**
      * 交易动作准备锁用途。
@@ -144,7 +143,12 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     /**
      * 交易动作锁过期秒数。
      */
-    private static final long TRANSACTION_OPERATION_LOCK_TTL_SECONDS = 30L;
+    private static final Duration TRANSACTION_OPERATION_LOCK_WAIT_TIME = Duration.ZERO;
+
+    /**
+     * 支付准备临界区固定租约，不覆盖后续渠道调用。
+     */
+    private static final Duration TRANSACTION_OPERATION_LOCK_LEASE_TIME = Duration.ofSeconds(30);
 
     /**
      * 商户订单首次流程准备锁用途。
@@ -267,9 +271,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     private final ChannelTransactionStatusResolver channelStatusResolver;
 
     /**
-     * Redis 分布式锁服务列表，未装配 Redis 时允许为空，最终幂等仍由数据库唯一键保护。
+     * 支付准备阶段统一分布式锁服务。
      */
-    private final List<RedisLockService> redisLockServices;
+    private final DistributedLockService distributedLockService;
 
     /**
      * Redis 物理 Key 构造配置，统一注入系统和环境隔离前缀。
@@ -288,7 +292,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @param transactionEventOutboxService 交易本地事件服务
      * @param transactionRecordService 交易事实记录服务
      * @param transactionStateMachineService 交易状态机服务
-     * @param redisLockServices Redis 分布式锁服务列表
+     * @param distributedLockService 分布式锁服务
      */
     public PaymentTransactionServiceImpl(IsoDictionaryService isoDictionaryService,
                                          PaymentRiskInvokeService paymentRiskInvokeService,
@@ -299,7 +303,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                          TransactionEventOutboxService transactionEventOutboxService,
                                          TransactionRecordService transactionRecordService,
                                          TransactionStateMachineService transactionStateMachineService,
-                                         List<RedisLockService> redisLockServices) {
+                                         DistributedLockService distributedLockService) {
         this(isoDictionaryService,
                 paymentRiskInvokeService,
                 paymentChannelRouteService,
@@ -320,7 +324,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 transactionRecordService,
                 transactionStateMachineService,
                 new DefaultChannelTransactionStatusResolver(),
-                redisLockServices,
+                distributedLockService,
                 new PaymentRedisProperties());
     }
 
@@ -339,7 +343,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @param transactionRecordService 交易事实记录服务
      * @param transactionStateMachineService 交易状态机服务
      * @param channelStatusResolver 渠道状态解析服务
-     * @param redisLockServices Redis 分布式锁服务列表
+     * @param distributedLockService 分布式锁服务
      */
     public PaymentTransactionServiceImpl(IsoDictionaryService isoDictionaryService,
                                          PaymentRiskInvokeService paymentRiskInvokeService,
@@ -353,7 +357,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                          TransactionRecordService transactionRecordService,
                                          TransactionStateMachineService transactionStateMachineService,
                                          ChannelTransactionStatusResolver channelStatusResolver,
-                                         List<RedisLockService> redisLockServices) {
+                                         DistributedLockService distributedLockService) {
         this(isoDictionaryService,
                 paymentRiskInvokeService,
                 paymentChannelRouteService,
@@ -374,7 +378,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 transactionRecordService,
                 transactionStateMachineService,
                 channelStatusResolver,
-                redisLockServices,
+                distributedLockService,
                 new PaymentRedisProperties());
     }
 
@@ -401,7 +405,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @param transactionRecordService 交易事实记录服务
      * @param transactionStateMachineService 交易状态机服务
      * @param channelStatusResolver 渠道状态解析服务
-     * @param redisLockServices Redis 分布式锁服务列表
+     * @param distributedLockService 分布式锁服务
      * @param redisProperties Redis 物理 Key 配置
      */
     @Autowired
@@ -425,7 +429,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                          TransactionRecordService transactionRecordService,
                                          TransactionStateMachineService transactionStateMachineService,
                                          ChannelTransactionStatusResolver channelStatusResolver,
-                                         List<RedisLockService> redisLockServices,
+                                         DistributedLockService distributedLockService,
                                          PaymentRedisProperties redisProperties) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentRiskInvokeService = paymentRiskInvokeService;
@@ -500,7 +504,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         this.channelStatusResolver = channelStatusResolver == null
                 ? new DefaultChannelTransactionStatusResolver()
                 : channelStatusResolver;
-        this.redisLockServices = redisLockServices == null ? List.of() : redisLockServices;
+        this.distributedLockService = Objects.requireNonNull(
+                distributedLockService, "distributedLockService");
         this.redisProperties = redisProperties == null ? new PaymentRedisProperties() : redisProperties;
     }
 
@@ -668,8 +673,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         logPaymentRequestContext(commandDTO);
         String flowLockKey = merchantOrderFlowLockKey(commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
         String operationLockKey = transactionOperationLockKey(idempotencyKey);
-        String lockValue = UUID.randomUUID().toString();
-        boolean operationLocked = tryLock(operationLockKey, lockValue);
+        boolean operationLocked = tryLock(operationLockKey);
         boolean flowLocked = false;
         if (!operationLocked) {
             log.warn("event: PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=OPERATION_LOCK traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
@@ -684,7 +688,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
         PaymentInitialPreparationResultDTO preparationResultDTO;
         try {
-            flowLocked = tryLock(flowLockKey, lockValue);
+            flowLocked = tryLock(flowLockKey);
             if (!flowLocked) {
                 log.warn("event: PAYMENT_IDEMPOTENCY_LOCK_BUSY stage=FLOW_LOCK traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} idempotencyKey: {}",
                         TraceContext.getTraceId(),
@@ -699,8 +703,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             preparationResultDTO = paymentTransactionPreparationService.prepareInitialTransaction(
                     commandDTO, transactionType);
         } finally {
-            unlockPreparationLock(flowLockKey, lockValue, flowLocked);
-            unlockPreparationLock(operationLockKey, lockValue, operationLocked);
+            unlockPreparationLock(flowLockKey, flowLocked);
+            unlockPreparationLock(operationLockKey, operationLocked);
         }
         if (preparationResultDTO.isDuplicate()) {
             logPaymentEnd("PAYMENT_TRANSACTION_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
@@ -771,8 +775,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 idempotencyKey);
         logPaymentRequestContext(commandDTO);
         String operationLockKey = transactionOperationLockKey(idempotencyKey);
-        String lockValue = UUID.randomUUID().toString();
-        boolean locked = tryLock(operationLockKey, lockValue);
+        boolean locked = tryLock(operationLockKey);
         if (!locked) {
             commandDTO.setRequestFingerprint(resolveCaptureLikeRequestFingerprint(commandDTO, transactionType));
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
@@ -784,7 +787,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             preparationResultDTO = captureTransactionPreparationService.prepareCapture(
                     commandDTO, idempotencyKey, transactionType);
         } finally {
-            unlockPreparationLock(operationLockKey, lockValue, locked);
+            unlockPreparationLock(operationLockKey, locked);
         }
         if (preparationResultDTO.isDuplicate()) {
             logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
@@ -841,8 +844,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 idempotencyKey);
         logPaymentRequestContext(commandDTO);
         String operationLockKey = transactionOperationLockKey(idempotencyKey);
-        String lockValue = UUID.randomUUID().toString();
-        boolean locked = tryLock(operationLockKey, lockValue);
+        boolean locked = tryLock(operationLockKey);
         if (!locked) {
             commandDTO.setRequestFingerprint(resolveRefundRequestFingerprint(commandDTO));
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
@@ -853,7 +855,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         try {
             preparationResultDTO = refundTransactionPreparationService.prepareRefund(commandDTO, idempotencyKey);
         } finally {
-            unlockPreparationLock(operationLockKey, lockValue, locked);
+            unlockPreparationLock(operationLockKey, locked);
         }
         if (preparationResultDTO.isDuplicate()) {
             logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
@@ -910,8 +912,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 idempotencyKey);
         logPaymentRequestContext(commandDTO);
         String operationLockKey = transactionOperationLockKey(idempotencyKey);
-        String lockValue = UUID.randomUUID().toString();
-        boolean locked = tryLock(operationLockKey, lockValue);
+        boolean locked = tryLock(operationLockKey);
         if (!locked) {
             commandDTO.setRequestFingerprint(resolveVoidRequestFingerprint(commandDTO));
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
@@ -922,7 +923,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         try {
             preparationResultDTO = voidTransactionPreparationService.prepareVoid(commandDTO, idempotencyKey);
         } finally {
-            unlockPreparationLock(operationLockKey, lockValue, locked);
+            unlockPreparationLock(operationLockKey, locked);
         }
         if (preparationResultDTO.isDuplicate()) {
             logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
@@ -979,8 +980,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 idempotencyKey);
         logPaymentRequestContext(commandDTO);
         String operationLockKey = transactionOperationLockKey(idempotencyKey);
-        String lockValue = UUID.randomUUID().toString();
-        boolean locked = tryLock(operationLockKey, lockValue);
+        boolean locked = tryLock(operationLockKey);
         if (!locked) {
             commandDTO.setRequestFingerprint(resolveIncrementalAuthorizationRequestFingerprint(commandDTO));
             return transactionIdempotencyService.find(TRANSACTION_OPERATION_SCOPE, idempotencyKey)
@@ -992,7 +992,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
             preparationResultDTO =
                     incrementalAuthorizationTransactionPreparationService.prepareIncrementalAuthorization(commandDTO, idempotencyKey);
         } finally {
-            unlockPreparationLock(operationLockKey, lockValue, locked);
+            unlockPreparationLock(operationLockKey, locked);
         }
         if (preparationResultDTO.isDuplicate()) {
             logPaymentEnd("PAYMENT_FOLLOW_UP_END", commandDTO, preparationResultDTO.getResultDTO(), startNanos);
@@ -1729,11 +1729,11 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         String lockIdentity = (merchantId == null ? "" : merchantId.trim().toUpperCase(Locale.ROOT))
                 + ':'
                 + (merchantOrderNo == null ? "" : merchantOrderNo.trim().toUpperCase(Locale.ROOT));
-        return redisProperties.businessKey(
+        return redisProperties.coLocatedBusinessKey(
                 PAYMENT_REDIS_DOMAIN,
                 PAYMENT_LOCK_BUSINESS,
-                MERCHANT_ORDER_FLOW_LOCK_PURPOSE,
-                RedisKeyDigest.sha256(lockIdentity));
+                lockIdentity,
+                MERCHANT_ORDER_FLOW_LOCK_PURPOSE);
     }
 
     /**
@@ -1743,11 +1743,11 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * @return Redis 锁 Key
      */
     private String transactionOperationLockKey(String idempotencyKey) {
-        return redisProperties.businessKey(
+        return redisProperties.coLocatedBusinessKey(
                 PAYMENT_REDIS_DOMAIN,
                 PAYMENT_LOCK_BUSINESS,
-                TRANSACTION_OPERATION_LOCK_PURPOSE,
-                RedisKeyDigest.sha256(idempotencyKey));
+                idempotencyKey,
+                TRANSACTION_OPERATION_LOCK_PURPOSE);
     }
 
     /**
@@ -3205,17 +3205,17 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 尝试获取交易锁；未装配 Redis 锁时跳过锁保护，由数据库唯一键兜底。
+     * 尝试快速获取仅覆盖本地准备事务的交易锁。
      *
      * @param lockKey   Redis 锁 Key
-     * @param lockValue 锁值
      * @return true 表示可继续处理
      */
-    private boolean tryLock(String lockKey, String lockValue) {
-        if (redisLockServices.isEmpty()) {
-            return true;
-        }
-        return redisLockServices.get(0).tryLock(lockKey, lockValue, TRANSACTION_OPERATION_LOCK_TTL_SECONDS);
+    private boolean tryLock(String lockKey) {
+        return distributedLockService.tryLock(
+                lockKey,
+                TRANSACTION_OPERATION_LOCK_WAIT_TIME,
+                TRANSACTION_OPERATION_LOCK_LEASE_TIME
+        );
     }
 
     /**
@@ -3224,15 +3224,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * <p>准备服务是独立事务 Bean，方法返回即代表本地事务已完成；锁必须在后续渠道 I/O 前释放。</p>
      *
      * @param lockKey   Redis 锁 Key
-     * @param lockValue 锁值
      * @param locked    是否已获取锁
      */
-    private void unlockPreparationLock(String lockKey, String lockValue, boolean locked) {
-        if (!locked || redisLockServices.isEmpty()) {
+    private void unlockPreparationLock(String lockKey, boolean locked) {
+        if (!locked) {
             return;
         }
         try {
-            unlock(lockKey, lockValue);
+            distributedLockService.unlock(lockKey);
         } catch (RuntimeException exception) {
             log.warn("event: PAYMENT_PREPARATION_LOCK_RELEASE_FAILED stage=LOCAL_PREPARE traceId: {} lockKey: {}",
                     TraceContext.getTraceId(),
@@ -3241,13 +3240,4 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
     }
 
-    /**
-     * 释放交易锁。
-     *
-     * @param lockKey   Redis 锁 Key
-     * @param lockValue 锁值
-     */
-    private void unlock(String lockKey, String lockValue) {
-        redisLockServices.get(0).unlock(lockKey, lockValue);
-    }
 }

@@ -1,7 +1,6 @@
 package com.scott.payment.risk.service.impl;
 
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
-import com.scott.payment.risk.config.RiskCounterMode;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -11,20 +10,18 @@ import org.springframework.data.redis.core.script.RedisScript;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 累计限额 Redis 投影测试，验证同槽 Key、SHADOW 双投影回滚和异常三态。
+ * 累计限额 Redis 投影测试，验证同槽 Key、单投影回滚和异常三态。
  */
 class DefaultMerchantLimitReservationCounterServiceTests {
 
     @Test
-    void shouldRollbackBothReservationTimeProjectionsInShadowModeWithConciseKeys() {
+    void shouldRollbackClusterSafeProjectionWithCoLocatedKeys() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         when(redisTemplate.execute(
                 org.mockito.ArgumentMatchers.<RedisScript<Long>>any(),
@@ -34,11 +31,11 @@ class DefaultMerchantLimitReservationCounterServiceTests {
         DefaultMerchantLimitReservationCounterService service =
                 new DefaultMerchantLimitReservationCounterService(redisTemplate, properties);
 
-        assertThat(service.rollback(reservation(RiskCounterMode.SHADOW))).isTrue();
+        assertThat(service.rollback(reservation("CLUSTER_SAFE"))).isTrue();
 
         @SuppressWarnings("rawtypes")
         ArgumentCaptor<List> keysCaptor = ArgumentCaptor.forClass(List.class);
-        verify(redisTemplate, times(2)).execute(
+        verify(redisTemplate).execute(
                 org.mockito.ArgumentMatchers.<RedisScript<Long>>any(),
                 keysCaptor.capture());
         assertThat(keysCaptor.getAllValues()).allSatisfy(keys -> {
@@ -49,10 +46,8 @@ class DefaultMerchantLimitReservationCounterServiceTests {
             assertThat(String.valueOf(keys.get(1)))
                     .doesNotContain("TX202607301000000000001");
         });
-        List<String> clusterKeys = keysCaptor.getAllValues().stream()
-                .flatMap(keys -> ((List<?>) keys).stream())
+        List<String> clusterKeys = keysCaptor.getValue().stream()
                 .map(String::valueOf)
-                .filter(key -> key.contains(":{"))
                 .toList();
         assertThat(clusterKeys).hasSize(2);
         assertThat(hashTag(clusterKeys.get(0))).isEqualTo(hashTag(clusterKeys.get(1)));
@@ -69,10 +64,20 @@ class DefaultMerchantLimitReservationCounterServiceTests {
         DefaultMerchantLimitReservationCounterService service =
                 new DefaultMerchantLimitReservationCounterService(redisTemplate, properties);
 
-        assertThat(service.rollback(reservation(RiskCounterMode.LEGACY))).isFalse();
+        assertThat(service.rollback(reservation("CLUSTER_SAFE"))).isFalse();
     }
 
-    private MerchantLimitReservationDO reservation(RiskCounterMode mode) {
+    @Test
+    void shouldRejectUnknownCounterProjection() {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        PaymentRedisProperties properties = new PaymentRedisProperties();
+        DefaultMerchantLimitReservationCounterService service =
+                new DefaultMerchantLimitReservationCounterService(redisTemplate, properties);
+
+        assertThat(service.rollback(reservation("LEGACY"))).isFalse();
+    }
+
+    private MerchantLimitReservationDO reservation(String mode) {
         MerchantLimitReservationDO reservation = new MerchantLimitReservationDO();
         reservation.setTransactionId("TX202607301000000000001");
         reservation.setMerchantId("M200001");
@@ -80,7 +85,7 @@ class DefaultMerchantLimitReservationCounterServiceTests {
         reservation.setLimitType("DAILY");
         reservation.setCurrency("USD");
         reservation.setPeriodBucket("20260730");
-        reservation.setCounterMode(mode.name());
+        reservation.setCounterMode(mode);
         return reservation;
     }
 

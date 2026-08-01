@@ -173,7 +173,7 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
         long startNanos = System.nanoTime();
         try {
             Long released = redisTemplate.execute(
-                    PaymentRedisScripts.lockReleaseV1(),
+                    PaymentRedisScripts.tokenLeaseReleaseV1(),
                     List.of(pendingKey(lease.cacheName(), requireBusinessKey(lease.businessKey()))),
                     lease.token()
             );
@@ -193,7 +193,7 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
                     startNanos
             );
             metrics.recordLuaFailure(
-                    RedisBusinessMetrics.Script.LOCK_RELEASE,
+                    RedisBusinessMetrics.Script.TOKEN_LEASE_RELEASE,
                     metrics.classifyFailure(exception)
             );
             throw exception;
