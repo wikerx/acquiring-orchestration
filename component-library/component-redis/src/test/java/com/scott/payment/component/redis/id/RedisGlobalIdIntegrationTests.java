@@ -146,7 +146,7 @@ class RedisGlobalIdIntegrationTests {
         assertThat(ids).hasSize(measuredCount);
         log.info(
                 "真实 Redis 连续发号测试完成，结果: {} 个编号全部唯一 throughputOpsPerSecond: {} "
-                        + "p95Micros: {} p99Micros: {}；仅代表本机临时容器顺序调用",
+                        + "p95Micros: {} p99Micros: {}；仅代表本机开发 Cluster 顺序调用",
                 measuredCount,
                 throughputPerSecond(measuredCount, elapsedNanos),
                 percentileMicros(latencyNanos, 0.95D),

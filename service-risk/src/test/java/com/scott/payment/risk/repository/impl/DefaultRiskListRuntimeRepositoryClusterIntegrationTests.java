@@ -5,6 +5,7 @@ import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
 import com.scott.payment.component.redis.string.RedisStringService;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
@@ -13,6 +14,7 @@ import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 import com.scott.payment.risk.mapper.RiskRuntimeMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -25,7 +27,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,6 +56,9 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
 
     /** 执行真实 Cluster Lua 脚本并清理测试 Key 的字符串模板。 */
     private static StringRedisTemplate redisTemplate;
+
+    /** 当前测试产生的 Redis Key，仅按已登记的确定值精确清理。 */
+    private final Set<String> cleanupKeys = new HashSet<>();
 
     @BeforeAll
     static void setUpClusterConnection() {
@@ -80,6 +87,12 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         redisTemplate.afterPropertiesSet();
     }
 
+    @AfterEach
+    void cleanUpIntegrationKeys() {
+        cleanupKeys.forEach(redisTemplate::delete);
+        cleanupKeys.clear();
+    }
+
     @AfterAll
     static void closeClusterConnection() {
         if (connectionFactory != null) {
@@ -103,7 +116,9 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         );
 
         MerchantLimitEvaluation first = repository.reserveCumulativeMerchantLimits(request);
+        rememberReservationKeys(first);
         MerchantLimitEvaluation duplicate = repository.reserveCumulativeMerchantLimits(request);
+        rememberReservationKeys(duplicate);
 
         assertThat(first.details()).singleElement()
                 .satisfies(detail ->
@@ -119,6 +134,7 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         repository.rollbackMerchantLimitReservations(first);
         MerchantLimitEvaluation afterRollback =
                 repository.reserveCumulativeMerchantLimits(request);
+        rememberReservationKeys(afterRollback);
         assertThat(afterRollback.details()).singleElement()
                 .satisfies(detail ->
                         assertThat(detail.getCurrentAmount()).isEqualByComparingTo("110.000000"));
@@ -139,6 +155,12 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
                 "TXN-CLUSTER-FREQUENCY-" + UUID.randomUUID(),
                 "10.000000"
         );
+        RiskPaymentEvaluateRequestDTO secondRequest = request(
+                merchantId,
+                "TXN-CLUSTER-FREQUENCY-" + UUID.randomUUID(),
+                "10.000000"
+        );
+        rememberFrequencyKeys(frequencyRule, merchantId, firstRequest, secondRequest);
 
         RiskListMatch first = repository.evaluateFrequencyRules(
                 merchantId, firstRequest, null, null, ipLookup, null, null, null, null
@@ -148,7 +170,7 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         ).get(0);
         RiskListMatch second = repository.evaluateFrequencyRules(
                 merchantId,
-                request(merchantId, "TXN-CLUSTER-FREQUENCY-" + UUID.randomUUID(), "10.000000"),
+                secondRequest,
                 null,
                 null,
                 ipLookup,
@@ -191,8 +213,7 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
                 .thenReturn(RedisCacheGenerationState.active("cluster-it"));
 
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
-        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
-        redisProperties.setKeyPrefix(REDIS_KEY_PREFIX);
+        PaymentRedisProperties redisProperties = redisProperties();
 
         return new DefaultRiskListRuntimeRepository(
                 provider(mapper),
@@ -263,6 +284,35 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
 
     private String uniqueMerchantId() {
         return "M" + UUID.randomUUID().toString().replace("-", "");
+    }
+
+    private void rememberReservationKeys(MerchantLimitEvaluation evaluation) {
+        evaluation.reservations().forEach(reservation -> {
+            cleanupKeys.add(reservation.aggregateKey());
+            cleanupKeys.add(reservation.reservationKey());
+        });
+    }
+
+    private void rememberFrequencyKeys(RiskListMatch rule,
+                                       String merchantId,
+                                       RiskPaymentEvaluateRequestDTO... requests) {
+        String elementDigest = RedisKeyDigest.sha256("ip=" + IP_LOOKUP_HASH);
+        String slotIdentity = rule.getRuleId() + ":" + merchantId + ":" + elementDigest;
+        String counterKey = redisProperties().coLocatedBusinessKey(
+                "risk", "frequency", slotIdentity, "counter");
+        cleanupKeys.add(counterKey);
+        Arrays.stream(requests)
+                .map(RiskPaymentEvaluateRequestDTO::getTransactionId)
+                .map(String::trim)
+                .map(RedisKeyDigest::sha256)
+                .map(transactionDigest -> counterKey + ":transaction:" + transactionDigest)
+                .forEach(cleanupKeys::add);
+    }
+
+    private PaymentRedisProperties redisProperties() {
+        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
+        redisProperties.setKeyPrefix(REDIS_KEY_PREFIX);
+        return redisProperties;
     }
 
     @SuppressWarnings("unchecked")

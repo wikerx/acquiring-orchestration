@@ -14,13 +14,19 @@ seata:
     # Seata 注册中心使用 Nacos，并复用当前服务的 Nacos 命名空间。
     type: nacos
     nacos:
+      # 参数说明：配置 Nacos 服务地址；每个环境必须连接本环境 Nacos，禁止跨环境注册或拉取配置。
       server-addr: ${spring.cloud.nacos.discovery.server-addr}
+      # 参数说明：配置 Nacos 命名空间；dev、test、uat、prod 必须使用不同 namespace ID 隔离。
       namespace: ${spring.cloud.nacos.discovery.namespace}
+      # 参数说明：指定注册或配置所属分组；同一环境的服务端与客户端必须一致。
       group: DEFAULT_GROUP
   config:
     # Seata 配置中心使用 Nacos，并复用当前服务的 Nacos 命名空间。
     type: nacos
     nacos:
+      # 参数说明：配置 Nacos 服务地址；每个环境必须连接本环境 Nacos，禁止跨环境注册或拉取配置。
       server-addr: ${spring.cloud.nacos.config.server-addr}
+      # 参数说明：配置 Nacos 命名空间；dev、test、uat、prod 必须使用不同 namespace ID 隔离。
       namespace: ${spring.cloud.nacos.config.namespace}
+      # 参数说明：指定注册或配置所属分组；同一环境的服务端与客户端必须一致。
       group: DEFAULT_GROUP

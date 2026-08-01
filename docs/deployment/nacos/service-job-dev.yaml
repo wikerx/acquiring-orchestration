@@ -1,8 +1,16 @@
 # service-job 专属配置：任务服务调用其他业务服务的内部补偿客户端参数。
 job:
   data-client:
+    # 参数说明：指定内部服务调用方标识，必须与被调用方签名白名单一致。
+    # 环境说明：环境变量：DATA_INTERNAL_CALLER，dev 配置默认值为 "service-job"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     internal-caller: ${DATA_INTERNAL_CALLER:service-job}
+    # 参数说明：配置内部服务 HMAC-SHA256 共享密钥，调用方与被调用方必须使用同一环境的密钥。
+    # 环境说明：环境变量：DATA_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
     internal-secret: ${DATA_INTERNAL_SECRET:dev-internal-service-secret}
   payment-client:
+    # 参数说明：指定内部服务调用方标识，必须与被调用方签名白名单一致。
+    # 环境说明：环境变量：PAYMENT_INTERNAL_CALLER，dev 配置默认值为 "service-job"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     internal-caller: ${PAYMENT_INTERNAL_CALLER:service-job}
+    # 参数说明：配置内部服务 HMAC-SHA256 共享密钥，调用方与被调用方必须使用同一环境的密钥。
+    # 环境说明：环境变量：PAYMENT_INTERNAL_SECRET；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
     internal-secret: ${PAYMENT_INTERNAL_SECRET:dev-internal-service-secret}

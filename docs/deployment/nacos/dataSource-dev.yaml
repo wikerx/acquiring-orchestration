@@ -10,44 +10,83 @@ spring:
         master:
           # 主库：负责新增、更新、删除和未显式声明的访问。
           type: com.zaxxer.hikari.HikariDataSource
+          # 参数说明：指定 JDBC 驱动类，必须与数据库类型和项目依赖版本匹配。
           driver-class-name: com.mysql.cj.jdbc.Driver
+          # 参数说明：配置 JDBC 连接 URL；每个环境必须连接本环境数据库并显式设置时区和 TLS 策略。
+          # 环境说明：环境变量：MYSQL_MASTER_URL（dev 配置默认 "jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
           url: ${MYSQL_MASTER_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+          # 参数说明：配置外部组件账号；UAT/生产必须使用最小权限的环境专属账号。
+          # 环境说明：环境变量：MYSQL_MASTER_USERNAME（文件中的账号默认值仅供 dev 配置本地联调）；test/uat/prod 必须注入本环境最小权限账号，禁止使用 nacos、root 等开发默认账号。
           username: ${MYSQL_MASTER_USERNAME:root}
+          # 参数说明：配置访问外部组件的密码，必须按环境通过 Secret 注入并定期轮换。
+          # 环境说明：环境变量：MYSQL_MASTER_PASSWORD；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
           password: ${MYSQL_MASTER_PASSWORD:scott123456}
           hikari:
+            # 参数说明：配置数据库连接池名称，用于日志和监控区分数据源。
             pool-name: payment-acquiring-master
+            # 参数说明：配置 HikariCP 最小空闲连接数，不能大于 maximum-pool-size。
             minimum-idle: 5
+            # 参数说明：配置 HikariCP 最大连接数；多服务实例总连接数不能超过数据库容量。
             maximum-pool-size: 20
+            # 参数说明：配置 HikariCP 获取数据库连接的超时，单位毫秒。
             connection-timeout: 30000
+            # 参数说明：配置 HikariCP 空闲连接回收时间，单位毫秒。
             idle-timeout: 600000
+            # 参数说明：配置 HikariCP 连接最大生命周期，单位毫秒，应小于数据库或网络层连接回收时间。
             max-lifetime: 1800000
         slave_1:
           # 一号从库：负责查询、统计等读请求；dev 阶段先复用主库地址。
           type: com.zaxxer.hikari.HikariDataSource
+          # 参数说明：指定 JDBC 驱动类，必须与数据库类型和项目依赖版本匹配。
           driver-class-name: com.mysql.cj.jdbc.Driver
+          # 参数说明：配置 JDBC 连接 URL；每个环境必须连接本环境数据库并显式设置时区和 TLS 策略。
+          # 环境说明：环境变量：MYSQL_SLAVE_1_URL（dev 配置默认 "jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
           url: ${MYSQL_SLAVE_1_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+          # 参数说明：配置外部组件账号；UAT/生产必须使用最小权限的环境专属账号。
+          # 环境说明：环境变量：MYSQL_SLAVE_1_USERNAME（文件中的账号默认值仅供 dev 配置本地联调）；test/uat/prod 必须注入本环境最小权限账号，禁止使用 nacos、root 等开发默认账号。
           username: ${MYSQL_SLAVE_1_USERNAME:root}
+          # 参数说明：配置访问外部组件的密码，必须按环境通过 Secret 注入并定期轮换。
+          # 环境说明：环境变量：MYSQL_SLAVE_1_PASSWORD；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
           password: ${MYSQL_SLAVE_1_PASSWORD:scott123456}
           hikari:
+            # 参数说明：配置数据库连接池名称，用于日志和监控区分数据源。
             pool-name: payment-acquiring-slave-1
+            # 参数说明：配置 HikariCP 最小空闲连接数，不能大于 maximum-pool-size。
             minimum-idle: 5
+            # 参数说明：配置 HikariCP 最大连接数；多服务实例总连接数不能超过数据库容量。
             maximum-pool-size: 20
+            # 参数说明：配置 HikariCP 获取数据库连接的超时，单位毫秒。
             connection-timeout: 30000
+            # 参数说明：配置 HikariCP 空闲连接回收时间，单位毫秒。
             idle-timeout: 600000
+            # 参数说明：配置 HikariCP 连接最大生命周期，单位毫秒，应小于数据库或网络层连接回收时间。
             max-lifetime: 1800000
         slave_2:
           # 二号从库：读库扩展位，生产可配置为另一台只读实例。
           type: com.zaxxer.hikari.HikariDataSource
+          # 参数说明：指定 JDBC 驱动类，必须与数据库类型和项目依赖版本匹配。
           driver-class-name: com.mysql.cj.jdbc.Driver
+          # 参数说明：配置 JDBC 连接 URL；每个环境必须连接本环境数据库并显式设置时区和 TLS 策略。
+          # 环境说明：环境变量：MYSQL_SLAVE_2_URL（dev 配置默认 "jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
           url: ${MYSQL_SLAVE_2_URL:jdbc:mysql://127.0.0.1:3306/payment_acquiring?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+          # 参数说明：配置外部组件账号；UAT/生产必须使用最小权限的环境专属账号。
+          # 环境说明：环境变量：MYSQL_SLAVE_2_USERNAME（文件中的账号默认值仅供 dev 配置本地联调）；test/uat/prod 必须注入本环境最小权限账号，禁止使用 nacos、root 等开发默认账号。
           username: ${MYSQL_SLAVE_2_USERNAME:root}
+          # 参数说明：配置访问外部组件的密码，必须按环境通过 Secret 注入并定期轮换。
+          # 环境说明：环境变量：MYSQL_SLAVE_2_PASSWORD；文件中的弱默认值仅供 dev 配置本地联调，test/uat/prod 必须使用独立高强度 Secret 注入并定期轮换。
           password: ${MYSQL_SLAVE_2_PASSWORD:scott123456}
           hikari:
+            # 参数说明：配置数据库连接池名称，用于日志和监控区分数据源。
             pool-name: payment-acquiring-slave-2
+            # 参数说明：配置 HikariCP 最小空闲连接数，不能大于 maximum-pool-size。
             minimum-idle: 5
+            # 参数说明：配置 HikariCP 最大连接数；多服务实例总连接数不能超过数据库容量。
             maximum-pool-size: 20
+            # 参数说明：配置 HikariCP 获取数据库连接的超时，单位毫秒。
             connection-timeout: 30000
+            # 参数说明：配置 HikariCP 空闲连接回收时间，单位毫秒。
             idle-timeout: 600000
+            # 参数说明：配置 HikariCP 连接最大生命周期，单位毫秒，应小于数据库或网络层连接回收时间。
             max-lifetime: 1800000
       # slave 分组内的负载策略，多个从库之间轮询。
       # dynamic-datasource 4.x 这里需要填写策略类名；不能写 round_robin 这种别名，否则启动时会按类名加载并报 ClassNotFoundException。

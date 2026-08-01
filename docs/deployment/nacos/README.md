@@ -1,6 +1,6 @@
 # Nacos 配置拆分规范
 
-各服务本地只保留服务名、端口、激活环境和 Nacos 连接信息。Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等基础设施配置统一放在 Nacos Config。
+各服务本地只保留服务身份、环境无关的启动默认值和 Nacos 连接信息。Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等环境基础设施配置统一放在 Nacos Config。
 
 Nacos DataId 统一使用标准 YAML 后缀 `.yaml`。dev 环境使用命名空间 `dev`，命名空间 ID 为 `324ad8dc-58d0-4d0d-b264-24a9f951a2b0`；test、uat、prod 环境分别使用各自环境命名空间，不再使用 `public`。
 
@@ -25,8 +25,8 @@ Nacos DataId 统一使用标准 YAML 后缀 `.yaml`。dev 环境使用命名空�
 
 本地 `application.yml` 与 `application-{env}.yml` 的职责边界：
 
-- `application.yml`：只保留 `server.port`、`spring.application.name`、`spring.profiles.active`、`spring.main` 等启动入口配置。
-- `application-dev.yml`、`application-test.yml`、`application-uat.yml`、`application-prod.yml`：只保留当前环境的 Nacos 地址、命名空间、账号密码、`file-extension: yaml` 和 `spring.config.import`。
+- `application.yml`：保留 `server.port`、`spring.application.name`、`spring.profiles.active`、`spring.main` 等启动入口，以及不依赖部署环境的服务安全默认值。
+- `application-dev.yml`、`application-test.yml`、`application-uat.yml`、`application-prod.yml`：连接当前环境的 Nacos，并可承载必须在 profile 层强制生效的安全门禁；Nacos 地址、命名空间、账号和密码必须按环境隔离。
 - 禁止在本地 yml 中写死 Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等业务环境配置；这些配置必须进入对应的 Nacos yaml DataId。
 - `service-gateway` 是接入层例外：只拉取 `service-gateway-{env}.yaml` 和 `common-{env}.yaml`，不引入 `dataSource`、`sharding`、`redis`、`rocketmq`、`seata`、`xxl-job`，避免网关耦合业务基础设施。
 
@@ -35,7 +35,7 @@ Nacos yaml 的职责边界：
 - `{service-name}-{env}.yaml`：单服务个性配置，例如 `service-admin-dev.yaml`、`service-merchant-dev.yaml`、`service-openapi-dev.yaml`、`service-payment-dev.yaml`、`service-risk-dev.yaml`、`service-data-dev.yaml`、`service-gateway-dev.yaml`。
 - `common-{env}.yaml`：所有服务共享配置，例如时间格式、管理端点、链路头名称。
 - `service-gateway-{env}.yaml`：只放网关接入层说明、白名单路径和观测规则，不放数据库、Redis、MQ、Seata、分表配置。
-- `service-risk-{env}.yaml`：只放风控服务内部鉴权、健康检查白名单和服务专属规则骨架配置；接入规则库、名单库、Redis 或 MQ 后再拆入对应公共 DataId。
+- `service-risk-{env}.yaml`：只放风控服务内部鉴权、健康检查白名单和服务专属规则参数；Redis 与 MQ 连接参数分别复用公共 DataId。
 - `service-data-{env}.yaml`：只放异步数据消费和商户通知执行参数；操作日志、风控审计和商户通知消费者均由该服务独占。
 - `dataSource-{env}.yaml`：主从数据源、连接池、MyBatis-Plus。
 - `sharding-{env}.yaml`：参与分表的逻辑表、分表字段、起始表、结束表和物理表命名格式。
@@ -45,6 +45,10 @@ Nacos yaml 的职责边界：
 
 Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis 地址。
 
+只有实际使用 Redis 的服务导入 `redis-{env}.yaml`。`service-checkout` 使用 `StringRedisTemplate`，
+`service-job` 和 `service-payout` 使用共享 Redis 防并发/缓存失效能力，因此这三个服务都必须引入
+`component-redis` 并导入 `redis-{env}.yaml`；`service-gateway` 不使用业务 Redis，也不导入该 DataId。
+
 ## Dev 基础设施默认值
 
 本地 dev 环境默认连接以下基础设施，生产和预发环境必须通过环境变量或独立 Nacos DataId 覆盖：
@@ -52,7 +56,7 @@ Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis �
 | 组件 | 默认地址 | 默认账号 | 说明 |
 | --- | --- | --- | --- |
 | MySQL | `127.0.0.1:3306/payment_acquiring` | `root` | `master`、`slave_1`、`slave_2` 先指向同一个库，驱动使用 MySQL Connector/J 8.4.0，后续从库就绪后替换从库 URL。 |
-| Redis | `127.0.0.1:6379` | 无用户名 | dev 默认按单机无密码接入；如本地 Redis 开启鉴权，可通过 `REDIS_PASSWORD` 环境变量覆盖。 |
+| Redis | `127.0.0.1:7001-7006` | 无用户名 | dev 使用 Redis 6.2.23 Cluster（3 Master + 3 Replica）、DB 0；密码通过 `REDIS_PASSWORD` 覆盖。 |
 | Nacos | `127.0.0.1:8848` | `nacos` | dev 默认 namespace ID 为 `324ad8dc-58d0-4d0d-b264-24a9f951a2b0`，对应命名空间 `dev`。 |
 
 读请求如需走从库，可在 service 或 mapper 方法上使用 `@DS(DataSourceName.SLAVE)`；未声明时默认走 `master`。

@@ -35,6 +35,11 @@
         </dependency>
         <dependency>
             <groupId>com.scott.payment</groupId>
+            <artifactId>component-redis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.scott.payment</groupId>
             <artifactId>component-mq</artifactId>
             <version>${project.version}</version>
         </dependency>
