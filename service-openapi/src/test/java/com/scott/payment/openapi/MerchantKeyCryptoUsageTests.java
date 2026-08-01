@@ -1,6 +1,8 @@
 package com.scott.payment.openapi;
 
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
+import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
+import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.dto.security.MerchantSecurityMaterialDTO;
@@ -41,6 +43,11 @@ class MerchantKeyCryptoUsageTests {
     private static final String MERCHANT_ID = "220001";
 
     /**
+     * 重初始化缓存一致性测试专用商户号，避免与本类其他加解密场景共享 JVM 敏感材料。
+     */
+    private static final String REPROVISION_MERCHANT_ID = "220002";
+
+    /**
      * 商户密钥服务，用于模拟商户查询自己可用的对接材料。
      */
     private final MerchantSecurityService merchantSecurityService;
@@ -60,14 +67,28 @@ class MerchantKeyCryptoUsageTests {
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
+    /**
+     * 非敏感密钥版本永久缓存，只用于清理当前测试商户的历史测试数据。
+     */
+    private final MerchantKeyMetadataCacheService keyMetadataCacheService;
+
+    /**
+     * 完整商户资料永久缓存，只用于清理当前测试商户的历史测试数据。
+     */
+    private final MerchantRuntimeProfileCacheService runtimeProfileCacheService;
+
     MerchantKeyCryptoUsageTests(MerchantSecurityService merchantSecurityService,
                                 OpenApiPayloadCrypto payloadCrypto,
                                 JdbcTemplate jdbcTemplate,
-                                OpenApiKeyMaterialFactory keyMaterialFactory) {
+                                OpenApiKeyMaterialFactory keyMaterialFactory,
+                                MerchantKeyMetadataCacheService keyMetadataCacheService,
+                                MerchantRuntimeProfileCacheService runtimeProfileCacheService) {
         this.merchantSecurityService = merchantSecurityService;
         this.payloadCrypto = payloadCrypto;
         this.jdbcTemplate = jdbcTemplate;
         this.keyMaterialFactory = keyMaterialFactory;
+        this.keyMetadataCacheService = keyMetadataCacheService;
+        this.runtimeProfileCacheService = runtimeProfileCacheService;
     }
 
     /**
@@ -77,8 +98,12 @@ class MerchantKeyCryptoUsageTests {
     void cleanMerchantData() {
         MerchantOpenApiTestSupport.cleanMerchantSecurityData(
                 jdbcTemplate,
-                List.of(MERCHANT_ID)
+                List.of(MERCHANT_ID, REPROVISION_MERCHANT_ID)
         );
+        keyMetadataCacheService.evictKeyMetadata(MERCHANT_ID);
+        keyMetadataCacheService.evictKeyMetadata(REPROVISION_MERCHANT_ID);
+        runtimeProfileCacheService.evictRuntimeProfile(MERCHANT_ID);
+        runtimeProfileCacheService.evictRuntimeProfile(REPROVISION_MERCHANT_ID);
     }
 
     /**
@@ -148,5 +173,43 @@ class MerchantKeyCryptoUsageTests {
         log.info("商户响应解密成功-使用商户响应私钥指纹：{}，响应明文：{}",
                 keyMaterialFactory.fingerprint(onboardingMaterial.getMerchantResponsePrivateKeyPkcs8Base64()),
                 decryptedResponseData);
+    }
+
+    /**
+     * 验证同一商户重新初始化安全材料后，OpenAPI 立即读取新 JWT Secret 和新平台私钥。
+     *
+     * <p>该场景先主动读取第一次材料，使非敏感 Redis revision 与 JVM 敏感材料都命中，
+     * 再执行第二次初始化，防止永久缓存继续引用旧数据库记录或本地缓存继续返回旧密钥。</p>
+     */
+    @Test
+    void shouldUseLatestKeysAfterReprovisioningSameMerchant() {
+        log.info("测试商户安全材料重初始化，关键输入：同一商户连续初始化两次并在首次初始化后命中缓存");
+        MerchantSecurityMaterialDTO firstMaterial = merchantSecurityService.provisionMerchantSecurityMaterial(
+                MerchantOpenApiTestSupport.buildMerchantSeed(REPROVISION_MERCHANT_ID)
+        );
+        String firstCachedMerchantKey = merchantSecurityService.getMerchantKey(REPROVISION_MERCHANT_ID);
+        merchantSecurityService.getPlatformPrivateKey(REPROVISION_MERCHANT_ID);
+
+        MerchantSecurityMaterialDTO secondMaterial = merchantSecurityService.provisionMerchantSecurityMaterial(
+                MerchantOpenApiTestSupport.buildMerchantSeed(REPROVISION_MERCHANT_ID)
+        );
+        String latestMerchantKey = merchantSecurityService.getMerchantKey(REPROVISION_MERCHANT_ID);
+        String plainText = MerchantOpenApiTestSupport.authorizationPlainText(
+                REPROVISION_MERCHANT_ID,
+                "202608010001"
+        );
+        String encryptedData = payloadCrypto.encrypt(
+                plainText,
+                payloadCrypto.readPublicKey(secondMaterial.getPlatformPublicKeyX509Base64())
+        );
+
+        assertThat(firstCachedMerchantKey).isEqualTo(firstMaterial.getMerchantKey());
+        assertThat(secondMaterial.getMerchantKey()).isNotEqualTo(firstMaterial.getMerchantKey());
+        assertThat(latestMerchantKey).isEqualTo(secondMaterial.getMerchantKey());
+        assertThat(payloadCrypto.decrypt(
+                encryptedData,
+                merchantSecurityService.getPlatformPrivateKey(REPROVISION_MERCHANT_ID)
+        )).isEqualTo(plainText);
+        log.info("商户安全材料重初始化完成，结果：JWT Secret 与平台私钥均已切换到第二次初始化版本");
     }
 }

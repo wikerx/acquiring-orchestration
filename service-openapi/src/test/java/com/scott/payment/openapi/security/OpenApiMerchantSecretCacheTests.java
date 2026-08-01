@@ -92,6 +92,25 @@ class OpenApiMerchantSecretCacheTests {
         log.info("OpenAPI 本地密钥容量验证完成，结果: 最久未访问条目已淘汰且容量保持为 1");
     }
 
+    /** 商户密钥变更后必须清除该商户全部本地 revision，其他商户材料不受影响。 */
+    @Test
+    void shouldEvictOnlySpecifiedMerchantRevisions() {
+        log.info("测试 OpenAPI 商户级密钥清理，关键输入: 两个商户分别命中一个本地 revision");
+        MerchantKeyMetadataCacheService metadataService = mock(MerchantKeyMetadataCacheService.class);
+        MerchantJwtKeyMapper jwtMapper = mock(MerchantJwtKeyMapper.class);
+        when(metadataService.findKeyMetadata("200045")).thenReturn(metadata("200045", 11L, "r1"));
+        when(metadataService.findKeyMetadata("200046")).thenReturn(metadata("200046", 12L, "r1"));
+        when(jwtMapper.selectOne(any())).thenReturn(jwt("secret-a"), jwt("secret-b"));
+        OpenApiMerchantSecretCache cache = cache(metadataService, jwtMapper, new AtomicLong(), 8);
+        cache.getMerchantKey("200045");
+        cache.getMerchantKey("200046");
+
+        cache.evictMerchant("200045");
+
+        assertThat(cache.entryCount()).isEqualTo(1);
+        log.info("OpenAPI 商户级密钥清理完成，结果: 目标商户全部 revision 已清理且其他商户保持不变");
+    }
+
     /** 创建可控制单调时钟和容量的缓存实例。 */
     private OpenApiMerchantSecretCache cache(MerchantKeyMetadataCacheService metadataService,
                                               MerchantJwtKeyMapper jwtMapper,

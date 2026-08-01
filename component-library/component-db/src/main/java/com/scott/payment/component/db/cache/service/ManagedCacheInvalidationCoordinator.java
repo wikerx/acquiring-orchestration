@@ -23,7 +23,7 @@ import java.util.UUID;
  * @classname : ManagedCacheInvalidationCoordinator
  * @date : 2026-08-01 12:00
  * @email : scott_x@163.com
- * @description : Admin 与 Merchant 共用的事务缓存失效协调器，将 pending 门禁和 Outbox 意图绑定到同一数据库事务
+ * @description : 平台写服务共用的事务缓存失效协调器，将 pending 门禁和 Outbox 意图绑定到同一数据库事务
  * @status : create
  */
 @Slf4j

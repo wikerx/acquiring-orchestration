@@ -2,11 +2,14 @@ package com.scott.payment.openapi.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
-import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
+import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.MerchantOpenApiCredential;
@@ -147,6 +150,12 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     /** Admin、Merchant Portal、OpenAPI 与支付服务共用的完整商户资料缓存；密钥材料不在该缓存中。 */
     private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
 
+    /** 只保存密钥 ID、算法、时间和 revision 的永久缓存；不保存任何密钥正文。 */
+    private final MerchantKeyMetadataCacheService merchantKeyMetadataCacheService;
+
+    /** 在写事务提交前建立 pending 门禁和 Outbox，可靠删除跨服务永久旧缓存。 */
+    private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
     /** OpenAPI 单实例短时敏感密钥缓存；实际密钥材料不会写入 Redis。 */
     private final OpenApiMerchantSecretCache merchantSecretCache;
 
@@ -160,6 +169,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param payloadCrypto             OpenAPI 报文加解密工具
      * @param keyMaterialFactory        OpenAPI 密钥材料生成入口
      * @param merchantRuntimeProfileCacheService 共享商户运行资料缓存
+     * @param merchantKeyMetadataCacheService 非敏感密钥版本永久缓存
+     * @param cacheInvalidationCoordinator 永久缓存可靠失效协调器
      * @param merchantSecretCache OpenAPI 单实例短时敏感密钥缓存
      */
     public MerchantSecurityServiceImpl(MerchantInfoMapper merchantInfoMapper,
@@ -169,6 +180,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                                        OpenApiPayloadCrypto payloadCrypto,
                                        OpenApiKeyMaterialFactory keyMaterialFactory,
                                        MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
+                                       MerchantKeyMetadataCacheService merchantKeyMetadataCacheService,
+                                       ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
                                        OpenApiMerchantSecretCache merchantSecretCache) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.merchantJwtKeyMapper = merchantJwtKeyMapper;
@@ -177,6 +190,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         this.payloadCrypto = payloadCrypto;
         this.keyMaterialFactory = keyMaterialFactory;
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
+        this.merchantKeyMetadataCacheService = merchantKeyMetadataCacheService;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
         this.merchantSecretCache = merchantSecretCache;
     }
 
@@ -201,10 +216,12 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                 merchantResponseKey
         );
 
+        prepareSecurityMaterialCacheInvalidation(seedDTO.getMerchantId(), true);
         upsertMerchantInfo(seedDTO, now);
         upsertMerchantJwtKey(seedDTO.getMerchantId(), merchantCredential.merchantKey(), now);
         upsertPlatformPayloadKey(seedDTO.getMerchantId(), platformPayloadKey, now);
         upsertMerchantResponseKey(seedDTO.getMerchantId(), merchantResponseKey.publicKeyX509Base64(), now);
+        refreshSecurityMaterialCaches(seedDTO.getMerchantId(), true);
 
         MerchantSecurityMaterialDTO materialDTO = new MerchantSecurityMaterialDTO();
         materialDTO.setMerchantId(seedDTO.getMerchantId());
@@ -330,7 +347,9 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setEnabled(ENABLED);
         entity.setEffectiveTime(now);
         entity.setDeleted(NOT_DELETED);
+        prepareSecurityMaterialCacheInvalidation(merchantId, false);
         upsertMerchantJwtKey(entity, now);
+        refreshSecurityMaterialCaches(merchantId, false);
         return toJwtKeyRevisionDTO(entity);
     }
 
@@ -444,6 +463,41 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         entity.setGmtModified(profile.getGmtModified());
         entity.setDeleted(NOT_DELETED);
         return entity;
+    }
+
+    /**
+     * 在商户或密钥写入前登记永久缓存失效门禁和同事务 Outbox 意图。
+     *
+     * <p>pending 门禁阻止并发请求在数据库提交与 Redis 更新之间继续使用旧值；事务提交后中继先删除
+     * 旧永久缓存，随后 transaction-aware CachePut 写入本事务准备的新快照。回滚时协调器释放门禁。</p>
+     *
+     * @param merchantId 已校验的商户号
+     * @param includeRuntimeProfile 是否同时变更完整商户资料
+     */
+    private void prepareSecurityMaterialCacheInvalidation(String merchantId,
+                                                          boolean includeRuntimeProfile) {
+        if (includeRuntimeProfile) {
+            cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, merchantId);
+        }
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_KEY_METADATA, merchantId);
+    }
+
+    /**
+     * 在写事务内准备提交后的最新永久快照，并清除当前实例的旧敏感材料。
+     *
+     * <p>两个共享缓存的 CachePut 由 transaction-aware Redis Cache 延迟到数据库提交后执行；
+     * JVM 清理可立即执行，因为事务回滚时多一次主库读取不会暴露旧密钥，也不会改变数据库事实。</p>
+     *
+     * @param merchantId 已完成主库写入的商户号
+     * @param includeRuntimeProfile 是否同时刷新完整商户资料
+     */
+    private void refreshSecurityMaterialCaches(String merchantId,
+                                               boolean includeRuntimeProfile) {
+        merchantSecretCache.evictMerchant(merchantId);
+        if (includeRuntimeProfile) {
+            merchantRuntimeProfileCacheService.refreshRuntimeProfile(merchantId);
+        }
+        merchantKeyMetadataCacheService.refreshKeyMetadata(merchantId);
     }
 
     /**

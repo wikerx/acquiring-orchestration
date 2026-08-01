@@ -2,7 +2,9 @@ package com.scott.payment.openapi.service.impl;
 
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
+import com.scott.payment.component.db.auth.service.MerchantKeyMetadataCacheService;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.entity.MerchantInfoDO;
@@ -97,6 +99,8 @@ class MerchantSecurityServiceSharedCacheTests {
                 mock(OpenApiPayloadCrypto.class),
                 mock(OpenApiKeyMaterialFactory.class),
                 runtimeProfileCacheService,
+                mock(MerchantKeyMetadataCacheService.class),
+                mock(ManagedCacheInvalidationCoordinator.class),
                 merchantSecretCache
         );
         return new TestFixture(service, merchantInfoMapper, runtimeProfileCacheService, merchantSecretCache);

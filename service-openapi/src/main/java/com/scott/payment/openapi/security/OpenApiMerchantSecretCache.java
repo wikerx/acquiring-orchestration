@@ -177,6 +177,22 @@ public class OpenApiMerchantSecretCache {
     }
 
     /**
+     * 清除指定商户在当前 OpenAPI 实例内的全部敏感材料版本。
+     *
+     * <p>商户安全材料写事务调用该入口后，下一次请求必须依据最新非敏感 revision 回源主库。
+     * 该操作只影响当前 JVM，不向 Redis 写入 Secret、私钥或公钥正文。</p>
+     *
+     * @param merchantId 商户号；为空时不执行操作
+     */
+    public void evictMerchant(String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return;
+        }
+        String normalizedMerchantId = merchantId.trim();
+        entries.keySet().removeIf(key -> key.merchantId().equals(normalizedMerchantId));
+    }
+
+    /**
      * 依据共享 revision 获取或加载本地敏感材料。
      *
      * @param merchantId 原始商户号
