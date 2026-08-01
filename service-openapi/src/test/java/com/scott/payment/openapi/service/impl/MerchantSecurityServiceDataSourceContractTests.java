@@ -4,6 +4,9 @@ import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -12,12 +15,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MerchantSecurityServiceDataSourceContractTests {
 
     @Test
-    void shouldReadMerchantJwtKeyFromMaster() throws NoSuchMethodException {
-        DS dataSource = MerchantSecurityServiceImpl.class
-                .getMethod("getMerchantKey", String.class)
-                .getAnnotation(DS.class);
+    void shouldReadAllSecurityCriticalMaterialFromMaster() throws NoSuchMethodException {
+        List<String> methodNames = List.of(
+                "getMerchantKey",
+                "getPlatformPrivateKey",
+                "getPlatformPublicKey",
+                "getActiveMerchant",
+                "getMerchantResponsePublicKey",
+                "getMerchantClientSecurityMaterial",
+                "getServerSecurityMaterial"
+        );
 
-        assertThat(dataSource).isNotNull();
-        assertThat(dataSource.value()).isEqualTo(DataSourceName.MASTER);
+        for (String methodName : methodNames) {
+            Method method = MerchantSecurityServiceImpl.class.getMethod(methodName, String.class);
+            DS dataSource = method.getAnnotation(DS.class);
+            assertThat(dataSource)
+                    .as("method %s must declare its security-critical data source", methodName)
+                    .isNotNull();
+            assertThat(dataSource.value())
+                    .as("method %s must bypass replica lag", methodName)
+                    .isEqualTo(DataSourceName.MASTER);
+        }
     }
 }

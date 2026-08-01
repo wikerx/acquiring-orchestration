@@ -1,6 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
-import com.scott.payment.admin.application.cache.MerchantSecurityCacheInvalidationCoordinator;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -114,7 +114,7 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
     /**
      * 商户 OpenAPI 访问策略缓存可靠失效协调器。
      */
-    private final MerchantSecurityCacheInvalidationCoordinator securityCacheInvalidationCoordinator;
+    private final ManagedCacheInvalidationCoordinator securityCacheInvalidationCoordinator;
 
     /**
      * 创建商户 IP 白名单服务实现。
@@ -129,7 +129,7 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                                                MerchantOpenApiAccessConfigMapper accessConfigMapper,
                                                BaseMerchantInfoMapper merchantInfoMapper,
                                                RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator,
-                                               MerchantSecurityCacheInvalidationCoordinator
+                                               ManagedCacheInvalidationCoordinator
                                                        securityCacheInvalidationCoordinator) {
         this.whitelistMapper = whitelistMapper;
         this.accessConfigMapper = accessConfigMapper;

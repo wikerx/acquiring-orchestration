@@ -1,5 +1,6 @@
 package com.scott.payment.payment.schedule;
 
+import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
 import com.scott.payment.payment.service.TransactionEventOutboxRelayService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,8 +23,14 @@ import java.time.LocalDateTime;
         havingValue = "true")
 public class TransactionEventOutboxRelayScheduler {
 
+    /** 交易 Outbox 逻辑表名，用于校验自动回看范围。 */
+    private static final String TRANSACTION_EVENT_OUTBOX_TABLE = "transaction_event_outbox";
+
     /** 交易 Outbox 到期事件投递服务。 */
     private final TransactionEventOutboxRelayService relayService;
+
+    /** 分表配置范围解析器，用于阻止调度任务访问未创建季度。 */
+    private final ShardingTableRangeResolver tableRangeResolver;
 
     /** 每个季度分表单次扫描的最大事件数。 */
     private final int batchSize;
@@ -38,22 +45,26 @@ public class TransactionEventOutboxRelayScheduler {
      * 创建生产环境使用的 Outbox 调度器，批量大小和历史季度范围由部署配置注入。
      *
      * @param relayService 交易 Outbox 到期事件投递服务
+     * @param tableRangeResolver 分表配置范围解析器
      * @param batchSize 每个季度分表单次扫描的最大事件数
      * @param lookbackQuarters 包含当前季度在内向前扫描的季度数量
      */
     @Autowired
     public TransactionEventOutboxRelayScheduler(
             TransactionEventOutboxRelayService relayService,
+            ShardingTableRangeResolver tableRangeResolver,
             @Value("${payment.transaction.outbox.batch-size:100}") int batchSize,
             @Value("${payment.transaction.outbox.lookback-quarters:8}") int lookbackQuarters) {
-        this(relayService, batchSize, lookbackQuarters, Clock.systemDefaultZone());
+        this(relayService, tableRangeResolver, batchSize, lookbackQuarters, Clock.systemDefaultZone());
     }
 
     TransactionEventOutboxRelayScheduler(TransactionEventOutboxRelayService relayService,
-                                         int batchSize,
-                                         int lookbackQuarters,
-                                         Clock clock) {
+                                          ShardingTableRangeResolver tableRangeResolver,
+                                          int batchSize,
+                                          int lookbackQuarters,
+                                          Clock clock) {
         this.relayService = relayService;
+        this.tableRangeResolver = tableRangeResolver;
         this.batchSize = Math.max(1, batchSize);
         this.lookbackQuarters = Math.max(1, lookbackQuarters);
         this.clock = clock;
@@ -71,9 +82,10 @@ public class TransactionEventOutboxRelayScheduler {
         LocalDateTime now = LocalDateTime.now(clock);
         int published = 0;
         for (int quarter = 0; quarter < lookbackQuarters; quarter++) {
-            published += relayService.publishDueEvents(
-                    now.minusMonths(quarter * 3L),
-                    batchSize);
+            LocalDateTime eventTime = now.minusMonths(quarter * 3L);
+            if (tableRangeResolver.isWithinConfiguredRange(TRANSACTION_EVENT_OUTBOX_TABLE, eventTime)) {
+                published += relayService.publishDueEvents(eventTime, batchSize);
+            }
         }
         if (published > 0) {
             log.info("event: TRANSACTION_OUTBOX_RELAY_BATCH published: {} lookbackQuarters: {} batchSize: {}",

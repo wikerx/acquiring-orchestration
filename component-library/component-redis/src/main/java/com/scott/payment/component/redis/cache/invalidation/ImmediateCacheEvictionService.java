@@ -1,14 +1,13 @@
 package com.scott.payment.component.redis.cache.invalidation;
 
 import com.scott.payment.component.core.cache.CacheMissMarkerStore;
+import com.scott.payment.component.core.cache.CacheEvictionExecutor;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.redis.cache.PaymentCacheRegistry;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.transaction.TransactionAwareCacheDecorator;
-import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
@@ -17,12 +16,10 @@ import org.springframework.util.StringUtils;
  * @classname : ImmediateCacheEvictionService
  * @date : 2026-07-30 21:35
  * @email : scott_x@163.com
- * @description : 安全缓存立即精确失效服务，仅在 CacheManager 可用时注册；绕过事务感知缓存装饰器，并在商户资料场景协同删除正缓存和独立 miss marker
+ * @description : 安全缓存立即精确失效服务，由 Redis Cache 自动配置统一注册；绕过事务感知缓存装饰器，并在商户资料场景协同删除正缓存和独立 miss marker
  * @status : create
  */
-@Service
-@ConditionalOnBean(CacheManager.class)
-public class ImmediateCacheEvictionService {
+public class ImmediateCacheEvictionService implements CacheEvictionExecutor {
 
     /**
      * 商户运行时资料 miss marker 所属业务域。
@@ -63,6 +60,7 @@ public class ImmediateCacheEvictionService {
      * @param cacheName Spring Cache 名称
      * @param key       业务缓存 Key
      */
+    @Override
     public void evict(String cacheName, String key) {
         if (!PaymentCacheRegistry.defaultTtls().containsKey(cacheName)) {
             throw new IllegalArgumentException("Unregistered Redis cache name: " + cacheName);

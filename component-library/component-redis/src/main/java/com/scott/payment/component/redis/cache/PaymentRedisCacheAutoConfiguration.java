@@ -3,6 +3,7 @@ package com.scott.payment.component.redis.cache;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.cache.CacheMissMarkerStore;
 import com.scott.payment.component.core.cache.PaymentRedisKeyResolver;
+import com.scott.payment.component.redis.cache.invalidation.ImmediateCacheEvictionService;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.config.PaymentRedisSerializerFactory;
 import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
@@ -99,6 +100,24 @@ public class PaymentRedisCacheAutoConfiguration {
                 .enableStatistics()
                 .transactionAware()
                 .build();
+    }
+
+    /**
+     * 注册安全读模型的立即失效服务。
+     * <p>
+     * 该服务与 CacheManager 属于同一自动配置边界，必须显式注册，避免业务应用扫描组件时
+     * CacheManager 尚未完成装配，导致管理端 Outbox 缺失精确删除能力。
+     *
+     * @param cacheManager            Spring Cache 管理器
+     * @param missMarkerStoreProvider 商户不存在 marker 存储提供器
+     * @return 可立即删除正缓存和 miss marker 的失效服务
+     */
+    @Bean
+    @ConditionalOnMissingBean(ImmediateCacheEvictionService.class)
+    public ImmediateCacheEvictionService immediateCacheEvictionService(
+            CacheManager cacheManager,
+            ObjectProvider<CacheMissMarkerStore> missMarkerStoreProvider) {
+        return new ImmediateCacheEvictionService(cacheManager, missMarkerStoreProvider);
     }
 
     /**

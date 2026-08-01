@@ -2,7 +2,7 @@ package com.scott.payment.admin.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scott.payment.admin.application.cache.MerchantSecurityCacheInvalidationCoordinator;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
@@ -128,7 +128,7 @@ class AdminMerchantInfoServiceImplTest {
      * 验证商户安全材料变更后是否登记事务型缓存失效意图的协调器替身。
      */
     @Mock
-    private MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator;
+    private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
      * service 依赖，用于 Admin Merchant Info Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。

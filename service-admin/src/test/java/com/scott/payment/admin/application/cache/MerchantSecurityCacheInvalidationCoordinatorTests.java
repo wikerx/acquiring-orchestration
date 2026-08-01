@@ -1,11 +1,12 @@
 package com.scott.payment.admin.application.cache;
 
-import com.scott.payment.admin.entity.MerchantSecurityCacheInvalidationOutboxDO;
-import com.scott.payment.admin.mapper.MerchantSecurityCacheInvalidationOutboxMapper;
 import com.scott.payment.component.core.cache.CacheInvalidationGuard;
 import com.scott.payment.component.core.cache.CacheInvalidationLease;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
-import com.scott.payment.component.redis.cache.PaymentCacheProperties;
+import com.scott.payment.component.db.cache.entity.ManagedCacheInvalidationOutboxDO;
+import com.scott.payment.component.db.cache.mapper.ManagedCacheInvalidationOutboxMapper;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationRelayService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -47,10 +48,10 @@ class MerchantSecurityCacheInvalidationCoordinatorTests {
     void shouldPersistAndPublishOneTargetOnlyOncePerTransaction() {
         log.info("测试永久缓存事务内去重，关键输入: merchant:info/200045 重复准备两次");
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
-        MerchantSecurityCacheInvalidationOutboxMapper mapper =
-                mock(MerchantSecurityCacheInvalidationOutboxMapper.class);
-        MerchantSecurityCacheInvalidationRelayService relay =
-                mock(MerchantSecurityCacheInvalidationRelayService.class);
+        ManagedCacheInvalidationOutboxMapper mapper =
+                mock(ManagedCacheInvalidationOutboxMapper.class);
+        ManagedCacheInvalidationRelayService relay =
+                mock(ManagedCacheInvalidationRelayService.class);
         CacheInvalidationLease lease = new CacheInvalidationLease(
                 PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
                 "200045",
@@ -62,22 +63,22 @@ class MerchantSecurityCacheInvalidationCoordinatorTests {
                 Duration.ofHours(2)
         )).thenReturn(lease);
         when(mapper.insertEvent(any())).thenReturn(1);
-        MerchantSecurityCacheInvalidationCoordinator coordinator =
+        ManagedCacheInvalidationCoordinator coordinator =
                 coordinator(guard, mapper, relay);
         beginTransactionSynchronization();
 
         coordinator.prepare(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, "200045");
         coordinator.prepare(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, "200045");
 
-        ArgumentCaptor<MerchantSecurityCacheInvalidationOutboxDO> eventCaptor =
-                ArgumentCaptor.forClass(MerchantSecurityCacheInvalidationOutboxDO.class);
+        ArgumentCaptor<ManagedCacheInvalidationOutboxDO> eventCaptor =
+                ArgumentCaptor.forClass(ManagedCacheInvalidationOutboxDO.class);
         verify(mapper).insertEvent(eventCaptor.capture());
         verify(guard).acquire(
                 PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
                 "200045",
                 Duration.ofHours(2)
         );
-        MerchantSecurityCacheInvalidationOutboxDO event = eventCaptor.getValue();
+        ManagedCacheInvalidationOutboxDO event = eventCaptor.getValue();
         assertThat(event.getEventId()).startsWith("managed-cache-");
         assertThat(event.getCacheName()).isEqualTo(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE);
         assertThat(event.getBusinessKey()).isEqualTo("200045");
@@ -101,10 +102,10 @@ class MerchantSecurityCacheInvalidationCoordinatorTests {
     void shouldReleaseOwnedGateWithoutPublishingAfterRollback() {
         log.info("测试永久缓存事务回滚，关键输入: merchant:openapi/200045");
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
-        MerchantSecurityCacheInvalidationOutboxMapper mapper =
-                mock(MerchantSecurityCacheInvalidationOutboxMapper.class);
-        MerchantSecurityCacheInvalidationRelayService relay =
-                mock(MerchantSecurityCacheInvalidationRelayService.class);
+        ManagedCacheInvalidationOutboxMapper mapper =
+                mock(ManagedCacheInvalidationOutboxMapper.class);
+        ManagedCacheInvalidationRelayService relay =
+                mock(ManagedCacheInvalidationRelayService.class);
         CacheInvalidationLease lease = new CacheInvalidationLease(
                 PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
                 "200045",
@@ -116,7 +117,7 @@ class MerchantSecurityCacheInvalidationCoordinatorTests {
                 Duration.ofHours(2)
         )).thenReturn(lease);
         when(mapper.insertEvent(any())).thenReturn(1);
-        MerchantSecurityCacheInvalidationCoordinator coordinator =
+        ManagedCacheInvalidationCoordinator coordinator =
                 coordinator(guard, mapper, relay);
         beginTransactionSynchronization();
 
@@ -136,10 +137,10 @@ class MerchantSecurityCacheInvalidationCoordinatorTests {
     @Test
     void shouldRejectPreparationOutsideDatabaseTransaction() {
         log.info("测试永久缓存事务门禁，关键输入: 无活动数据库事务");
-        MerchantSecurityCacheInvalidationCoordinator coordinator = coordinator(
+        ManagedCacheInvalidationCoordinator coordinator = coordinator(
                 mock(CacheInvalidationGuard.class),
-                mock(MerchantSecurityCacheInvalidationOutboxMapper.class),
-                mock(MerchantSecurityCacheInvalidationRelayService.class)
+                mock(ManagedCacheInvalidationOutboxMapper.class),
+                mock(ManagedCacheInvalidationRelayService.class)
         );
 
         assertThatIllegalStateException().isThrownBy(() -> coordinator.prepare(
@@ -157,15 +158,15 @@ class MerchantSecurityCacheInvalidationCoordinatorTests {
      * @param relay Outbox 中继服务
      * @return 协调器测试实例
      */
-    private MerchantSecurityCacheInvalidationCoordinator coordinator(
+    private ManagedCacheInvalidationCoordinator coordinator(
             CacheInvalidationGuard guard,
-            MerchantSecurityCacheInvalidationOutboxMapper mapper,
-            MerchantSecurityCacheInvalidationRelayService relay) {
-        return new MerchantSecurityCacheInvalidationCoordinator(
+            ManagedCacheInvalidationOutboxMapper mapper,
+            ManagedCacheInvalidationRelayService relay) {
+        return new ManagedCacheInvalidationCoordinator(
                 guard,
-                new PaymentCacheProperties(),
                 mapper,
-                relay
+                relay,
+                Duration.ofHours(2)
         );
     }
 

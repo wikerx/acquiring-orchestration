@@ -1,6 +1,6 @@
 package com.scott.payment.admin.service.impl;
 
-import com.scott.payment.admin.application.cache.MerchantSecurityCacheInvalidationCoordinator;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.admin.converter.ConfigConverter;
 import com.scott.payment.admin.dto.SysConfigDTO;
 import com.scott.payment.admin.dto.SysConfigSaveRequest;
@@ -125,8 +125,8 @@ class AdminConfigServiceImplTests {
     private Fixture fixture() {
         SysConfigMapper mapper = mock(SysConfigMapper.class);
         ConfigConverter converter = mock(ConfigConverter.class);
-        MerchantSecurityCacheInvalidationCoordinator coordinator =
-                mock(MerchantSecurityCacheInvalidationCoordinator.class);
+        ManagedCacheInvalidationCoordinator coordinator =
+                mock(ManagedCacheInvalidationCoordinator.class);
         return new Fixture(
                 new AdminConfigServiceImpl(mapper, converter, coordinator),
                 mapper,
@@ -175,6 +175,6 @@ class AdminConfigServiceImplTests {
             AdminConfigServiceImpl service,
             SysConfigMapper mapper,
             ConfigConverter converter,
-            MerchantSecurityCacheInvalidationCoordinator coordinator) {
+            ManagedCacheInvalidationCoordinator coordinator) {
     }
 }

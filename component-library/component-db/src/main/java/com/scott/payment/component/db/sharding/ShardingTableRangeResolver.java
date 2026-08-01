@@ -68,6 +68,22 @@ public class ShardingTableRangeResolver {
     }
 
     /**
+     * 判断分表时间是否属于逻辑表已启用的季度范围。
+     * <p>
+     * 后台扫描和补偿任务应在访问物理表前调用该方法，避免对尚未创建或已退出治理范围的
+     * 季度执行 SQL；单笔业务路由仍使用 {@link #physicalTable(String, LocalDateTime)} 的强校验。
+     *
+     * @param logicalTable 逻辑表名
+     * @param shardingTime 分表时间
+     * @return true 表示该季度允许访问，false 表示超出配置范围
+     */
+    public boolean isWithinConfiguredRange(String logicalTable, LocalDateTime shardingTime) {
+        PaymentQuarterShardingProperties.TableRule rule = resolveRule(logicalTable);
+        ShardingQuarter quarter = quarterResolver.fromDateTime(shardingTime);
+        return quarterResolver.inRange(rule, quarter);
+    }
+
+    /**
      * 按逻辑表和时间范围解析需要访问的物理表。
      * <p>
      * 返回顺序为季度倒序，便于交易查询按时间倒序跨表分页；开始时间早于配置起始季度时会裁剪到起始季度。

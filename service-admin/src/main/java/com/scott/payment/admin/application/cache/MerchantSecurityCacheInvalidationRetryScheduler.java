@@ -1,5 +1,8 @@
 package com.scott.payment.admin.application.cache;
 
+import com.scott.payment.admin.observability.CacheInvalidationOutboxMetrics;
+import com.scott.payment.component.db.cache.model.CacheInvalidationBatchResult;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationRelayService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -23,7 +26,10 @@ public class MerchantSecurityCacheInvalidationRetryScheduler {
     private static final int BATCH_SIZE = 100;
 
     /** 在独立事务中发布并更新 Outbox 状态的中继服务。 */
-    private final MerchantSecurityCacheInvalidationRelayService relayService;
+    private final ManagedCacheInvalidationRelayService relayService;
+
+    /** Admin 侧统一记录补偿批次、饱和和发布结果。 */
+    private final CacheInvalidationOutboxMetrics metrics;
 
     /**
      * 创建商户安全缓存失效补偿调度器。
@@ -31,8 +37,10 @@ public class MerchantSecurityCacheInvalidationRetryScheduler {
      * @param relayService Outbox 事件中继服务
      */
     public MerchantSecurityCacheInvalidationRetryScheduler(
-            MerchantSecurityCacheInvalidationRelayService relayService) {
+            ManagedCacheInvalidationRelayService relayService,
+            CacheInvalidationOutboxMetrics metrics) {
         this.relayService = relayService;
+        this.metrics = metrics;
     }
 
     /**
@@ -43,12 +51,28 @@ public class MerchantSecurityCacheInvalidationRetryScheduler {
             fixedDelayString = "${payment.merchant.cache-invalidation.relay-fixed-delay-ms:5000}"
     )
     public void retryDueEvents() {
-        int published = relayService.publishDueEvents(BATCH_SIZE);
-        if (published > 0) {
-            log.info(
-                    "event: MERCHANT_SECURITY_CACHE_INVALIDATION_RETRY_COMPLETED publishedCount: {}",
-                    published
+        long startNanos = System.nanoTime();
+        try {
+            CacheInvalidationBatchResult result = relayService.publishDueEvents(BATCH_SIZE);
+            metrics.recordBatch(
+                    CacheInvalidationOutboxMetrics.Outbox.MERCHANT_SECURITY,
+                    result.dueCount(),
+                    BATCH_SIZE,
+                    result.successCount(),
+                    System.nanoTime() - startNanos
             );
+            if (result.successCount() > 0) {
+                log.info(
+                        "event: MERCHANT_SECURITY_CACHE_INVALIDATION_RETRY_COMPLETED publishedCount: {}",
+                        result.successCount()
+                );
+            }
+        } catch (RuntimeException exception) {
+            metrics.recordBatchError(
+                    CacheInvalidationOutboxMetrics.Outbox.MERCHANT_SECURITY,
+                    System.nanoTime() - startNanos
+            );
+            throw exception;
         }
     }
 }

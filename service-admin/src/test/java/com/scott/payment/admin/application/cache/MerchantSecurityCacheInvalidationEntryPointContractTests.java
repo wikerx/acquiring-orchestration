@@ -23,11 +23,20 @@ class MerchantSecurityCacheInvalidationEntryPointContractTests {
         List.of(
                 "public AdminMerchantInfoDTO createMerchant(",
                 "public AdminMerchantInfoDTO updateMerchant(",
-                "public AdminMerchantInfoDTO updateStatus("
+                "public AdminMerchantInfoDTO updateStatus(",
+                "public AdminMerchantSecurityMaterialDTO provisionSecurityMaterial(",
+                "public AdminMerchantSecurityMaterialDTO rotateJwtKey(",
+                "public AdminMerchantSecurityMaterialDTO rotatePlatformPayloadKey(",
+                "public AdminMerchantSecurityMaterialDTO rotateMerchantResponseKey(",
+                "public AdminMerchantInfoDTO updateMerchantResponseKey("
         ).forEach(signature -> assertPreparesInvalidation(
                 source,
                 signature,
-                "cacheInvalidationCoordinator.prepare("
+                signature.contains("createMerchant(")
+                        || signature.contains("updateMerchant(")
+                        || signature.contains("updateStatus(")
+                        ? "cacheInvalidationCoordinator.prepare("
+                        : "prepareMerchantRuntimeProfileInvalidation("
         ));
     }
 

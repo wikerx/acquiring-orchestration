@@ -1,9 +1,9 @@
 package com.scott.payment.admin.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.scott.payment.admin.application.cache.MerchantSecurityCacheInvalidationCoordinator;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantKeyBundleDTO;
@@ -31,6 +31,8 @@ import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
@@ -256,7 +258,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     /**
      * 商户安全缓存可靠失效协调器。
      */
-    private final MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator;
+    private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
      * 创建管理后台商户信息服务实现。
@@ -283,7 +285,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         IsoCountryMapper isoCountryMapper,
                                         IsoCurrencyMapper isoCurrencyMapper,
                                         OpenApiKeyMaterialFactory keyMaterialFactory,
-                                        MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+                                        ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -306,6 +308,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 商户新增和编辑表单选项
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public AdminMerchantFormOptionsDTO getFormOptions() {
         AdminMerchantFormOptionsDTO result = new AdminMerchantFormOptionsDTO();
         result.setMccOptions(buildMccOptions());
@@ -343,6 +346,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 商户分页结果
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public PageResult<AdminMerchantInfoDTO> pageMerchants(AdminMerchantQueryRequest request) {
         AdminMerchantQueryRequest query = request == null ? new AdminMerchantQueryRequest() : request;
         LambdaQueryWrapper<BaseMerchantInfoDO> wrapper = Wrappers.<BaseMerchantInfoDO>lambdaQuery()
@@ -369,6 +373,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 商户详情
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public AdminMerchantInfoDTO getMerchant(Long id) {
         return toDTO(requireMerchantById(id));
     }
@@ -380,6 +385,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 商户详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO createMerchant(AdminMerchantSaveRequest request) {
         String merchantId = generateUniqueMerchantId();
@@ -406,6 +412,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 商户详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchant(Long id, AdminMerchantSaveRequest request) {
         BaseMerchantInfoDO row = requireMerchantById(id);
@@ -431,6 +438,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 商户详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateStatus(Long id, Integer merchantStatus) {
         BaseMerchantInfoDO row = requireMerchantById(id);
@@ -452,9 +460,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 一次性安全材料
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO provisionSecurityMaterial(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
+        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
         MerchantJwtKey jwtKey = rotateJwtKeyInternal(merchant.getMerchantId());
         RsaKeyMaterial platformKey = rotatePlatformKeyInternal(merchant.getMerchantId());
         RsaKeyMaterial responseKey = rotateResponseKeyInternal(merchant.getMerchantId());
@@ -479,6 +489,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 密钥集合
      */
     @Override
+    @DS(DataSourceName.SLAVE)
     public AdminMerchantKeyBundleDTO getMerchantKeys(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
         AdminMerchantKeyBundleDTO bundle = new AdminMerchantKeyBundleDTO();
@@ -510,9 +521,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 最新安全材料
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateJwtKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
+        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
         MerchantJwtKey jwtKey = rotateJwtKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setMerchantKey(jwtKey.merchantKey());
@@ -530,9 +543,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 最新安全材料
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotatePlatformPayloadKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
+        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
         RsaKeyMaterial platformKey = rotatePlatformKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setPlatformPublicKeyX509Base64(platformKey.publicKeyX509Base64());
@@ -547,9 +562,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 最新安全材料
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateMerchantResponseKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
+        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
         RsaKeyMaterial responseKey = rotateResponseKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setMerchantResponsePublicKeyX509Base64(responseKey.publicKeyX509Base64());
@@ -566,9 +583,11 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @return 商户详情
      */
     @Override
+    @DS(DataSourceName.MASTER)
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchantResponseKey(String merchantId, AdminMerchantResponseKeyRequest request) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
+        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
         String publicKey = normalizeBase64(request.getPublicKeyX509Base64(), "响应公钥格式不正确");
         BaseMerchantResponseKeyDO row = selectResponseKey(merchant.getMerchantId());
         LocalDateTime now = LocalDateTime.now();
@@ -592,6 +611,22 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
             responseKeyMapper.updateById(row);
         }
         return toDTO(merchant);
+    }
+
+    /**
+     * 在当前商户写事务内登记共享运行资料缓存的精确失效意图。
+     *
+     * <p>Redis Value 不保存 JWT Secret、RSA 私钥或其他密钥明文；密钥变更仍统一登记该商户的
+     * 安全缓存失效，以保证 Admin、Merchant Portal 与 OpenAPI 在同一提交边界后重新读取事实源。
+     * 事务回滚时 pending 门禁会释放，提交后的删除失败由 Outbox 中继重试。</p>
+     *
+     * @param merchantId 已确认存在的商户号
+     */
+    private void prepareMerchantRuntimeProfileInvalidation(String merchantId) {
+        cacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                merchantId
+        );
     }
 
     /**

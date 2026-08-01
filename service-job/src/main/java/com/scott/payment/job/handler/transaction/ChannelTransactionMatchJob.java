@@ -3,6 +3,7 @@ package com.scott.payment.job.handler.transaction;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.component.job.executor.JobHandler;
 import com.scott.payment.component.job.executor.JobHandlerDescriptor;
@@ -31,6 +32,11 @@ import java.util.Map;
 @Component
 @Slf4j
 public class ChannelTransactionMatchJob implements JobHandler {
+
+    /**
+     * 渠道勾兑扫描的交易动作逻辑表，自动回看必须遵守该表的季度配置范围。
+     */
+    private static final String TRANSACTION_OPERATION_TABLE = "transaction_operation";
 
     /**
      * 任务编码，和 sys_job_task.job_code 保持一致。
@@ -83,12 +89,20 @@ public class ChannelTransactionMatchJob implements JobHandler {
     private final PaymentInternalClient paymentInternalClient;
 
     /**
+     * 分表配置范围解析器，仅用于裁剪任务自动生成的季度列表。
+     */
+    private final ShardingTableRangeResolver tableRangeResolver;
+
+    /**
      * 创建渠道交易查询勾兑任务处理器。
      *
      * @param paymentInternalClient service-payment 内部客户端
+     * @param tableRangeResolver 分表配置范围解析器
      */
-    public ChannelTransactionMatchJob(PaymentInternalClient paymentInternalClient) {
+    public ChannelTransactionMatchJob(PaymentInternalClient paymentInternalClient,
+                                      ShardingTableRangeResolver tableRangeResolver) {
         this.paymentInternalClient = paymentInternalClient;
+        this.tableRangeResolver = tableRangeResolver;
     }
 
     /**
@@ -222,6 +236,9 @@ public class ChannelTransactionMatchJob implements JobHandler {
         LocalDateTime currentQuarter = quarterAnchor(referenceTime);
         return java.util.stream.IntStream.range(0, lookbackQuarters)
                 .mapToObj(index -> currentQuarter.minusMonths(index * 3L))
+                .filter(transactionDateTime -> tableRangeResolver.isWithinConfiguredRange(
+                        TRANSACTION_OPERATION_TABLE,
+                        transactionDateTime))
                 .toList();
     }
 

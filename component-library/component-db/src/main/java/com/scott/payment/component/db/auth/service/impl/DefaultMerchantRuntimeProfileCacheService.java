@@ -103,6 +103,20 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
         if (mustBypassCache(normalizedMerchantId)) {
             return cacheReader.findFresh(normalizedMerchantId);
         }
+        if (cached != null && !cached.hasCurrentCacheSchema()) {
+            /*
+             * 旧 Value 属于永久缓存，不能等待 TTL 自然淘汰。这里只删除当前商户 Key 并重新
+             * 经过 @Cacheable 主库加载，避免批量扫描或在 Key 中引入无必要的版本片段。
+             */
+            cacheReader.evictLegacyValue(normalizedMerchantId);
+            if (mustBypassCache(normalizedMerchantId)) {
+                return cacheReader.findFresh(normalizedMerchantId);
+            }
+            cached = cacheReader.findCached(normalizedMerchantId);
+            if (mustBypassCache(normalizedMerchantId)) {
+                return cacheReader.findFresh(normalizedMerchantId);
+            }
+        }
         if (cached == null && missStatus == CacheMissMarkerStore.LookupStatus.ABSENT) {
             markConfirmedMissing(normalizedMerchantId);
         }

@@ -1,11 +1,12 @@
 package com.scott.payment.admin.application.cache;
 
-import com.scott.payment.admin.entity.MerchantSecurityCacheInvalidationOutboxDO;
-import com.scott.payment.admin.mapper.MerchantSecurityCacheInvalidationOutboxMapper;
+import com.scott.payment.component.core.cache.CacheEvictionExecutor;
 import com.scott.payment.component.core.cache.CacheInvalidationGuard;
 import com.scott.payment.component.core.cache.CacheInvalidationLease;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
-import com.scott.payment.component.redis.cache.invalidation.ImmediateCacheEvictionService;
+import com.scott.payment.component.db.cache.entity.ManagedCacheInvalidationOutboxDO;
+import com.scott.payment.component.db.cache.mapper.ManagedCacheInvalidationOutboxMapper;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationRelayService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -39,15 +40,15 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
     @Test
     void shouldEvictBeforeReleasingGateAndMarkingSent() {
         log.info("测试永久缓存失效发布顺序，关键输入: INIT 事件 merchant:openapi/200045");
-        MerchantSecurityCacheInvalidationOutboxMapper mapper =
-                mock(MerchantSecurityCacheInvalidationOutboxMapper.class);
-        ImmediateCacheEvictionService evictionService = mock(ImmediateCacheEvictionService.class);
+        ManagedCacheInvalidationOutboxMapper mapper =
+                mock(ManagedCacheInvalidationOutboxMapper.class);
+        CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
-        MerchantSecurityCacheInvalidationOutboxDO event = event("INIT");
+        ManagedCacheInvalidationOutboxDO event = event("INIT");
         when(mapper.selectByEventId("event-1")).thenReturn(event);
         when(mapper.markSent(eq(1L), eq(0), any())).thenReturn(1);
-        MerchantSecurityCacheInvalidationRelayService relay =
-                new MerchantSecurityCacheInvalidationRelayService(mapper, evictionService, guard);
+        ManagedCacheInvalidationRelayService relay =
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard);
 
         assertThat(relay.publish("event-1")).isTrue();
 
@@ -65,18 +66,18 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
     @Test
     void shouldPersistRetryWhenExactEvictionFails() {
         log.info("测试永久缓存精确删除失败重试，关键输入: Redis unavailable");
-        MerchantSecurityCacheInvalidationOutboxMapper mapper =
-                mock(MerchantSecurityCacheInvalidationOutboxMapper.class);
-        ImmediateCacheEvictionService evictionService = mock(ImmediateCacheEvictionService.class);
+        ManagedCacheInvalidationOutboxMapper mapper =
+                mock(ManagedCacheInvalidationOutboxMapper.class);
+        CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
-        MerchantSecurityCacheInvalidationOutboxDO event = event("INIT");
+        ManagedCacheInvalidationOutboxDO event = event("INIT");
         when(mapper.selectByEventId("event-1")).thenReturn(event);
         doThrow(new IllegalStateException("redis unavailable"))
                 .when(evictionService)
                 .evict(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, "200045");
         when(mapper.markFailed(eq(1L), eq(0), any(), anyString(), any())).thenReturn(1);
-        MerchantSecurityCacheInvalidationRelayService relay =
-                new MerchantSecurityCacheInvalidationRelayService(mapper, evictionService, guard);
+        ManagedCacheInvalidationRelayService relay =
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard);
 
         assertThat(relay.publish("event-1")).isFalse();
 
@@ -98,16 +99,16 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
     @Test
     void shouldRetryWhenGateReleaseCannotBeConfirmed() {
         log.info("测试永久缓存门禁释放失败重试，关键输入: Redis timeout");
-        MerchantSecurityCacheInvalidationOutboxMapper mapper =
-                mock(MerchantSecurityCacheInvalidationOutboxMapper.class);
-        ImmediateCacheEvictionService evictionService = mock(ImmediateCacheEvictionService.class);
+        ManagedCacheInvalidationOutboxMapper mapper =
+                mock(ManagedCacheInvalidationOutboxMapper.class);
+        CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
-        MerchantSecurityCacheInvalidationOutboxDO event = event("FAILED");
+        ManagedCacheInvalidationOutboxDO event = event("FAILED");
         when(mapper.selectByEventId("event-1")).thenReturn(event);
         when(guard.release(lease())).thenThrow(new IllegalStateException("redis timeout"));
         when(mapper.markFailed(eq(1L), eq(0), any(), anyString(), any())).thenReturn(1);
-        MerchantSecurityCacheInvalidationRelayService relay =
-                new MerchantSecurityCacheInvalidationRelayService(mapper, evictionService, guard);
+        ManagedCacheInvalidationRelayService relay =
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard);
 
         assertThat(relay.publish("event-1")).isFalse();
 
@@ -122,13 +123,13 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
     @Test
     void shouldTreatAlreadySentEventAsIdempotentSuccess() {
         log.info("测试永久缓存已发布事件幂等，关键输入: SENT 事件 event-1");
-        MerchantSecurityCacheInvalidationOutboxMapper mapper =
-                mock(MerchantSecurityCacheInvalidationOutboxMapper.class);
-        ImmediateCacheEvictionService evictionService = mock(ImmediateCacheEvictionService.class);
+        ManagedCacheInvalidationOutboxMapper mapper =
+                mock(ManagedCacheInvalidationOutboxMapper.class);
+        CacheEvictionExecutor evictionService = mock(CacheEvictionExecutor.class);
         CacheInvalidationGuard guard = mock(CacheInvalidationGuard.class);
         when(mapper.selectByEventId("event-1")).thenReturn(event("SENT"));
-        MerchantSecurityCacheInvalidationRelayService relay =
-                new MerchantSecurityCacheInvalidationRelayService(mapper, evictionService, guard);
+        ManagedCacheInvalidationRelayService relay =
+                new ManagedCacheInvalidationRelayService(mapper, evictionService, guard);
 
         assertThat(relay.publish("event-1")).isTrue();
 
@@ -137,9 +138,9 @@ class MerchantSecurityCacheInvalidationRelayServiceTests {
         log.info("永久缓存已发布事件幂等测试完成，结果: 未重复删除缓存或释放门禁");
     }
 
-    private MerchantSecurityCacheInvalidationOutboxDO event(String status) {
-        MerchantSecurityCacheInvalidationOutboxDO event =
-                new MerchantSecurityCacheInvalidationOutboxDO();
+    private ManagedCacheInvalidationOutboxDO event(String status) {
+        ManagedCacheInvalidationOutboxDO event =
+                new ManagedCacheInvalidationOutboxDO();
         event.setId(1L);
         event.setEventId("event-1");
         event.setCacheName(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS);

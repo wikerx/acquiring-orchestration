@@ -3,7 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import com.scott.payment.admin.application.cache.MerchantSecurityCacheInvalidationCoordinator;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.admin.constant.SystemConfigKeys;
 import com.scott.payment.admin.converter.ConfigConverter;
 import com.scott.payment.admin.dto.SysConfigDTO;
@@ -67,7 +67,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
      * <p>当前复用既有商户安全缓存 Outbox 表以兼容历史事件；协调器本身按 cacheName 和
      * businessKey 工作，可安全承载白名单内的平台公开配置。</p>
      */
-    private final MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator;
+    private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
      * 创建系统参数配置服务实现。
@@ -79,7 +79,7 @@ public class AdminConfigServiceImpl implements AdminConfigService {
     public AdminConfigServiceImpl(
             SysConfigMapper sysConfigMapper,
             ConfigConverter configConverter,
-            MerchantSecurityCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+            ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.sysConfigMapper = sysConfigMapper;
         this.configConverter = configConverter;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;

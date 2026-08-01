@@ -2,13 +2,15 @@ package com.scott.payment.component.redis.cache.invalidation;
 
 import com.scott.payment.component.core.cache.CacheMissMarkerStore;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.redis.cache.PaymentRedisCacheAutoConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.transaction.TransactionAwareCacheDecorator;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -33,13 +35,14 @@ class ImmediateCacheEvictionServiceTests {
      */
     @Test
     void shouldNotRegisterWhenCacheManagerIsUnavailable() {
-        log.info("测试 Spring Cache 关闭降级，关键输入: 容器中不存在 CacheManager");
-        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
-            context.register(ImmediateCacheEvictionService.class);
-            context.refresh();
+        log.info("测试 Spring Cache 关闭降级，关键输入: payment.cache.redis.enabled=false");
 
-            assertThat(context.getBeansOfType(ImmediateCacheEvictionService.class)).isEmpty();
-        }
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(PaymentRedisCacheAutoConfiguration.class))
+                .withPropertyValues("payment.cache.redis.enabled=false")
+                .run(context -> assertThat(context)
+                        .doesNotHaveBean(ImmediateCacheEvictionService.class));
+
         log.info("Spring Cache 关闭降级验证完成，结果: 立即失效服务未注册且容器正常启动");
     }
 

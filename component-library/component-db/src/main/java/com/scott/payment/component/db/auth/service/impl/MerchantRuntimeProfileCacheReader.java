@@ -11,6 +11,7 @@ import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.Semaphore;
@@ -100,6 +101,18 @@ public class MerchantRuntimeProfileCacheReader {
     }
 
     /**
+     * 精确删除结构过期的商户永久缓存 Value。
+     *
+     * <p>该入口只用于兼容刷新，不能替代数据库写事务使用的 pending + Outbox 可靠失效协议。</p>
+     *
+     * @param merchantId 已规范化的商户号
+     */
+    @CacheEvict(cacheNames = PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, key = "#p0")
+    public void evictLegacyValue(String merchantId) {
+        // Spring Cache 代理负责精确删除；方法体不执行数据库或其他副作用。
+    }
+
+    /**
      * 在有界许可内查询商户主库。
      *
      * <p>许可不足表示回源已达到单实例保护上限。此时抛出可重试的 F503，而不是返回 null，
@@ -122,12 +135,19 @@ public class MerchantRuntimeProfileCacheReader {
                             .select(
                                     BaseMerchantInfoDO::getId,
                                     BaseMerchantInfoDO::getMerchantId,
+                                    BaseMerchantInfoDO::getMerchantName,
+                                    BaseMerchantInfoDO::getBillingDescriptor,
+                                    BaseMerchantInfoDO::getMerchantShortName,
                                     BaseMerchantInfoDO::getMerchantStatus,
                                     BaseMerchantInfoDO::getMerchantCategoryCode,
                                     BaseMerchantInfoDO::getCountryCode,
+                                    BaseMerchantInfoDO::getRegionCode,
+                                    BaseMerchantInfoDO::getCity,
+                                    BaseMerchantInfoDO::getPostalCode,
                                     BaseMerchantInfoDO::getSettlementCurrency,
                                     BaseMerchantInfoDO::getTimezone,
-                                    BaseMerchantInfoDO::getRiskLevel
+                                    BaseMerchantInfoDO::getRiskLevel,
+                                    BaseMerchantInfoDO::getGmtModified
                             )
                             .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
                             .eq(BaseMerchantInfoDO::getDeleted, NOT_DELETED)
@@ -150,14 +170,22 @@ public class MerchantRuntimeProfileCacheReader {
             return null;
         }
         MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
+        profile.setCacheSchemaRevision(MerchantRuntimeProfile.CURRENT_CACHE_SCHEMA_REVISION);
         profile.setId(row.getId());
         profile.setMerchantId(row.getMerchantId());
+        profile.setMerchantName(row.getMerchantName());
+        profile.setBillingDescriptor(row.getBillingDescriptor());
+        profile.setMerchantShortName(row.getMerchantShortName());
         profile.setMerchantStatus(row.getMerchantStatus());
         profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
         profile.setCountryCode(row.getCountryCode());
+        profile.setRegionCode(row.getRegionCode());
+        profile.setCity(row.getCity());
+        profile.setPostalCode(row.getPostalCode());
         profile.setSettlementCurrency(row.getSettlementCurrency());
         profile.setTimezone(row.getTimezone());
         profile.setRiskLevel(row.getRiskLevel());
+        profile.setGmtModified(row.getGmtModified());
         return profile;
     }
 }

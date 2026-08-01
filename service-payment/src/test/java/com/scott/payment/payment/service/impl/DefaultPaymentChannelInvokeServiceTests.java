@@ -196,10 +196,10 @@ class DefaultPaymentChannelInvokeServiceTests {
      */
     @Test
     void shouldKeepPreDispatchRequestFailureOutcomeCertain() {
-        log.info("测试发送前失败分类：模拟渠道开关关闭，预期 requestStatus=FAILED 且结果确定");
+        log.info("测试发送前失败分类：模拟渠道必填配置缺失，预期 requestStatus=FAILED 且结果确定");
         PaymentChannelExecutor executor = mock(PaymentChannelExecutor.class);
         when(executor.execute(any(ChannelPaymentRequest.class)))
-                .thenThrow(new ChannelRequestException("MPGS live channel is disabled"));
+                .thenThrow(new ChannelRequestException("MPGS baseUrl is required"));
         DefaultPaymentChannelInvokeService invokeService = new DefaultPaymentChannelInvokeService(executor);
 
         PaymentChannelInvokeException exception = catchThrowableOfType(

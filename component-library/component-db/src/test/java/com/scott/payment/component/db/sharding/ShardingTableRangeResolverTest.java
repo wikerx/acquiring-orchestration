@@ -99,6 +99,21 @@ class ShardingTableRangeResolverTest {
                 .hasMessageContaining("outside table range");
     }
 
+    /**
+     * 验证后台扫描任务可以在访问物理表前判断季度是否属于当前逻辑表的配置范围。
+     */
+    @Test
+    void shouldReportWhetherShardingTimeIsWithinConfiguredRange() {
+        ShardingTableRangeResolver resolver = resolver(propertiesWithRule("transaction_event_outbox", 3));
+
+        assertThat(resolver.isWithinConfiguredRange(
+                "transaction_event_outbox",
+                LocalDateTime.of(2026, 7, 1, 0, 0))).isTrue();
+        assertThat(resolver.isWithinConfiguredRange(
+                "transaction_event_outbox",
+                LocalDateTime.of(2026, 4, 1, 0, 0))).isFalse();
+    }
+
     private ShardingTableRangeResolver resolver(PaymentQuarterShardingProperties properties) {
         return new ShardingTableRangeResolver(
                 properties,

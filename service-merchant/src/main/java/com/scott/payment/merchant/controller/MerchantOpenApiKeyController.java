@@ -11,7 +11,6 @@ import com.scott.payment.component.security.openapi.OpenApiKeyExportFormat;
 import com.scott.payment.component.security.openapi.OpenApiKeyExportRequest;
 import com.scott.payment.component.security.openapi.OpenApiKeyType;
 import com.scott.payment.component.security.openapi.OpenApiKeyAuditService;
-import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialVO;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
@@ -19,6 +18,7 @@ import com.scott.payment.component.web.operation.constant.OperationTypeConstants
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.merchant.dto.SysOperLogDTO;
 import com.scott.payment.merchant.dto.SysOperLogQueryRequest;
+import com.scott.payment.merchant.application.openapi.MerchantOpenApiKeyApplicationService;
 import com.scott.payment.merchant.service.MerchantOperLogService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -64,7 +64,7 @@ public class MerchantOpenApiKeyController {
     /**
      * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
-    private final OpenApiMerchantKeyMaterialService keyMaterialService;
+    private final MerchantOpenApiKeyApplicationService keyApplicationService;
     /**
      * 商户管理敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
@@ -82,14 +82,14 @@ public class MerchantOpenApiKeyController {
     /**
      * 创建商户端 OpenAPI 密钥管理接口。
      *
-     * @param keyMaterialService    密钥材料统一服务
+     * @param keyApplicationService 密钥材料应用服务
      * @param keyAuditService       密钥审计辅助服务
      * @param merchantOperLogService 商户操作日志服务
      */
-    public MerchantOpenApiKeyController(OpenApiMerchantKeyMaterialService keyMaterialService,
+    public MerchantOpenApiKeyController(MerchantOpenApiKeyApplicationService keyApplicationService,
                                         OpenApiKeyAuditService keyAuditService,
                                         MerchantOperLogService merchantOperLogService) {
-        this.keyMaterialService = keyMaterialService;
+        this.keyApplicationService = keyApplicationService;
         this.keyAuditService = keyAuditService;
         this.merchantOperLogService = merchantOperLogService;
     }
@@ -102,7 +102,7 @@ public class MerchantOpenApiKeyController {
     @GetMapping
     @RequiresPermission("merchant:openapi:key:view")
     public CommonResult<OpenApiMerchantKeyMaterialVO> getMaterial() {
-        return success(keyMaterialService.queryMaterial(currentMerchantId()));
+        return success(keyApplicationService.queryMaterial(currentMerchantId()));
     }
 
     /**
@@ -116,7 +116,7 @@ public class MerchantOpenApiKeyController {
     @OperationLog(moduleName = "商户OpenAPI密钥", businessType = OperationTypeConstants.EXPORT, operation = "复制OpenAPI接入材料")
     public CommonResult<OpenApiKeyCopyResponse> copy(@RequestBody OpenApiKeyExportRequest request) {
         requireCopyPermission(request == null ? null : request.getKeyType());
-        return success(keyMaterialService.copy(currentMerchantId(), request));
+        return success(keyApplicationService.copy(currentMerchantId(), request));
     }
 
     /**
@@ -132,7 +132,7 @@ public class MerchantOpenApiKeyController {
     public ResponseEntity<byte[]> download(@RequestParam("keyType") OpenApiKeyType keyType,
                                            @RequestParam(value = "format", required = false) OpenApiKeyExportFormat format) {
         requireDownloadPermission(keyType);
-        return toDownloadResponse(keyMaterialService.download(currentMerchantId(), keyType, format));
+        return toDownloadResponse(keyApplicationService.download(currentMerchantId(), keyType, format));
     }
 
     /**
@@ -147,7 +147,7 @@ public class MerchantOpenApiKeyController {
     public CommonResult<OpenApiMerchantKeyMaterialVO> rotate(@RequestBody OpenApiKeyExportRequest request) {
         OpenApiKeyType keyType = request == null ? null : request.getKeyType();
         requireRotatePermission(keyType);
-        return success(keyMaterialService.rotate(currentMerchantId(), keyType));
+        return success(keyApplicationService.rotate(currentMerchantId(), keyType));
     }
 
     /**

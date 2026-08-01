@@ -92,23 +92,23 @@ class MpgsApiClientMaskingTests {
     }
 
     /**
-     * 验证 MPGS MID 元数据标准字段 password 能用于 Basic Auth。
+     * 验证数据库渠道配置完整时可直接调用 MPGS，不依赖额外的环境启用开关或渠道兜底配置。
      * <p>
-     * 后台保存的 metadata_value_json 字段为 password，支付核心组装渠道请求时会转成 mid.password；
-     * 该字段必须优先于历史 apiPassword 读取，否则真实交易会在请求前失败。
+     * 支付核心会把 MID 中的请求地址、API 版本、渠道商户号和密码转换为 requestUrl 与 mid.* 扩展字段。
+     * 渠道客户端应以这些路由结果为本次交易事实，避免数据库已启用渠道后仍被环境开关阻断。
+     * </p>
      */
     @Test
-    void shouldUseMidPasswordMetadataForBasicAuth() {
+    void shouldExecuteWithCompleteDatabaseRouteConfiguration() {
         CapturingHttpClient httpClient = new CapturingHttpClient();
         MpgsChannelProperties properties = new MpgsChannelProperties();
-        properties.setEnabled(true);
-        properties.setBaseUrl("https://test-gateway.mastercard.com/api/rest");
-        properties.setVersion("100");
-        properties.setMerchantId("TESTDEVMER031");
         properties.setReadTimeoutMillis(30000);
         properties.setConnectTimeoutMillis(10000);
         MpgsApiClient client = new MpgsApiClient(properties, new MpgsRequestMapper(), new MpgsResponseMapper(), httpClient);
         ChannelPaymentRequest request = paymentRequest();
+        request.getExtension().put("requestUrl", "https://test-gateway.mastercard.com/api/rest");
+        request.getExtension().put("mid.version", "100");
+        request.getExtension().put("mid.merchantId", "TESTDEVMER031");
         request.getExtension().put("mid.password", "metadata-password");
 
         ChannelPaymentResponse response = client.execute(request);
@@ -125,7 +125,6 @@ class MpgsApiClientMaskingTests {
     void shouldBuildQueryUrlFromChannelOrderNoAndChannelTransactionId() {
         CapturingHttpClient httpClient = new CapturingHttpClient();
         MpgsChannelProperties properties = new MpgsChannelProperties();
-        properties.setEnabled(true);
         properties.setBaseUrl("https://test-gateway.mastercard.com/api/rest");
         properties.setVersion("100");
         properties.setMerchantId("TESTDEVMER031");

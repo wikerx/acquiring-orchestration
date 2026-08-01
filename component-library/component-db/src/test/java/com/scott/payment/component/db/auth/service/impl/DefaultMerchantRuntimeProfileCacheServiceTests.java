@@ -72,10 +72,43 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
             MerchantRuntimeProfile reloaded = service.findRuntimeProfile("200045");
 
             assertThat(first.getMerchantId()).isEqualTo("200045");
+            assertThat(first.getCacheSchemaRevision())
+                    .isEqualTo(MerchantRuntimeProfile.CURRENT_CACHE_SCHEMA_REVISION);
+            assertThat(first.getMerchantName()).isEqualTo("Codex Store");
             assertThat(cached.getSettlementCurrency()).isEqualTo("USD");
             assertThat(reloaded.getMerchantStatus()).isEqualTo(1);
             verify(merchantInfoMapper, times(2)).selectOne(any());
         }
+    }
+
+    /**
+     * 历史永久缓存没有结构修订号时，只精确删除当前商户旧值并从主库回填新结构。
+     */
+    @Test
+    void shouldRefreshLegacyPermanentCacheEntry() {
+        log.info("测试商户永久缓存兼容刷新，关键输入: 无结构修订号的历史 Value");
+        initializeTableMetadata(BaseMerchantInfoDO.class);
+        BaseMerchantInfoMapper merchantInfoMapper = mock(BaseMerchantInfoMapper.class);
+        CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
+        when(merchantInfoMapper.selectOne(any())).thenReturn(activeMerchant());
+
+        try (AnnotationConfigApplicationContext context =
+                     context(merchantInfoMapper, invalidationGuard)) {
+            Cache cache = runtimeProfileCache(context);
+            cache.put("200045", legacyRuntimeProfile());
+
+            MerchantRuntimeProfile refreshed = context
+                    .getBean(MerchantRuntimeProfileCacheService.class)
+                    .findRuntimeProfile("200045");
+
+            assertThat(refreshed.getCacheSchemaRevision())
+                    .isEqualTo(MerchantRuntimeProfile.CURRENT_CACHE_SCHEMA_REVISION);
+            assertThat(refreshed.getMerchantName()).isEqualTo("Codex Store");
+            assertThat(cache.get("200045", MerchantRuntimeProfile.class).getMerchantName())
+                    .isEqualTo("Codex Store");
+            verify(merchantInfoMapper).selectOne(any());
+        }
+        log.info("商户永久缓存兼容刷新完成，结果: 旧 Value 已按商户号精确刷新");
     }
 
     /**
@@ -369,9 +402,15 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
         BaseMerchantInfoDO merchant = new BaseMerchantInfoDO();
         merchant.setId(2081299574373662721L);
         merchant.setMerchantId("200045");
+        merchant.setMerchantName("Codex Store");
+        merchant.setBillingDescriptor("CODEX STORE");
+        merchant.setMerchantShortName("Codex");
         merchant.setMerchantStatus(1);
         merchant.setMerchantCategoryCode("5311");
         merchant.setCountryCode("USA");
+        merchant.setRegionCode("CA");
+        merchant.setCity("San Francisco");
+        merchant.setPostalCode("94105");
         merchant.setSettlementCurrency("USD");
         merchant.setTimezone("Asia/Shanghai");
         merchant.setRiskLevel(2);
@@ -386,8 +425,22 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
 
     private MerchantRuntimeProfile runtimeProfile(int status) {
         MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
+        profile.setCacheSchemaRevision(MerchantRuntimeProfile.CURRENT_CACHE_SCHEMA_REVISION);
         profile.setMerchantId("200045");
         profile.setMerchantStatus(status);
+        profile.setSettlementCurrency("USD");
+        return profile;
+    }
+
+    /**
+     * 构造升级前没有结构修订号的永久缓存 Value。
+     *
+     * @return 兼容刷新测试使用的历史商户资料
+     */
+    private MerchantRuntimeProfile legacyRuntimeProfile() {
+        MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
+        profile.setMerchantId("200045");
+        profile.setMerchantStatus(1);
         profile.setSettlementCurrency("USD");
         return profile;
     }

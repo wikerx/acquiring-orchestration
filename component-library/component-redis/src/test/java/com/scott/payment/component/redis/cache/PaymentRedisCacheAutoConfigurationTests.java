@@ -4,12 +4,17 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.scott.payment.component.core.cache.CacheMissMarkerStore;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.redis.cache.invalidation.ImmediateCacheEvictionService;
 import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.cache.transaction.TransactionAwareCacheDecorator;
 import org.springframework.core.env.EnumerablePropertySource;
@@ -52,6 +57,24 @@ class PaymentRedisCacheAutoConfigurationTests {
 
     private final PaymentRedisCacheAutoConfiguration autoConfiguration =
             new PaymentRedisCacheAutoConfiguration();
+
+    /**
+     * Redis Cache 开启时必须同时提供立即失效服务，使管理端 Outbox 能够删除安全读模型。
+     * 该 Bean 必须由 Redis Cache 自动配置注册，不能依赖业务应用的组件扫描顺序。
+     */
+    @Test
+    void shouldRegisterImmediateEvictionServiceWhenRedisCacheIsEnabled() {
+        log.info("测试 Redis Cache 自动装配，关键输入: 容器已提供 CacheManager 和 miss marker 存储");
+
+        new ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(PaymentRedisCacheAutoConfiguration.class))
+                .withBean(CacheManager.class, () -> mock(CacheManager.class))
+                .withBean(CacheMissMarkerStore.class, () -> mock(CacheMissMarkerStore.class))
+                .run(context -> assertThat(context)
+                        .hasSingleBean(ImmediateCacheEvictionService.class));
+
+        log.info("Redis Cache 自动装配验证完成，结果: 立即失效服务已注册");
+    }
 
     /**
      * Nacos YAML 中包含冒号的 Cache Name 必须使用方括号 Map Key，

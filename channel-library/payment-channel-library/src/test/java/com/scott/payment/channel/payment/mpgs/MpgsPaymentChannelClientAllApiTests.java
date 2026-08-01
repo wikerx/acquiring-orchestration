@@ -181,7 +181,6 @@ class MpgsPaymentChannelClientAllApiTests {
         server.start();
 
         MpgsChannelProperties properties = new MpgsChannelProperties();
-        properties.setEnabled(true);
         properties.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/api/rest");
         properties.setVersion("100");
         properties.setMerchantId(TEST_MERCHANT_ID);
