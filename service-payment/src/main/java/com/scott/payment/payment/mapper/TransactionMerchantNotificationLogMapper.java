@@ -2,7 +2,6 @@ package com.scott.payment.payment.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.scott.payment.payment.entity.TransactionMerchantNotificationLogDO;
-import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
@@ -18,36 +17,6 @@ import java.util.List;
  * @status : create
  */
 public interface TransactionMerchantNotificationLogMapper extends BaseMapper<TransactionMerchantNotificationLogDO> {
-
-    /**
-     * 写入商户通知请求日志物理分表。
-     *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param logDO 商户通知请求日志
-     * @return 影响行数
-     */
-    @Insert("""
-            INSERT INTO ${physicalTableName}
-            (
-              notify_log_id, notify_id, transaction_id, operation_id, merchant_id,
-              attempt_no, target_url_hash, http_status, request_header_json_masked,
-              request_body_json_masked, response_body_json_masked, success,
-              error_message, notify_time, duration_millis, transaction_date_time,
-              transaction_utc_time, transaction_time_zone, create_time
-            )
-            VALUES
-            (
-              #{logDO.notifyLogId}, #{logDO.notifyId}, #{logDO.transactionId},
-              #{logDO.operationId}, #{logDO.merchantId}, #{logDO.attemptNo},
-              #{logDO.targetUrlHash}, #{logDO.httpStatus}, #{logDO.requestHeaderJsonMasked},
-              #{logDO.requestBodyJsonMasked}, #{logDO.responseBodyJsonMasked},
-              #{logDO.success}, #{logDO.errorMessage}, #{logDO.notifyTime},
-              #{logDO.durationMillis}, #{logDO.transactionDateTime}, #{logDO.transactionUtcTime},
-              #{logDO.transactionTimeZone}, #{logDO.createTime}
-            )
-            """)
-    int insertPhysical(@Param("physicalTableName") String physicalTableName,
-                       @Param("logDO") TransactionMerchantNotificationLogDO logDO);
 
     /**
      * 按平台交易 ID 查询商户通知日志。

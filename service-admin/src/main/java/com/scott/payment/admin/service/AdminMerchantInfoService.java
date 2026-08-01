@@ -72,6 +72,13 @@ public interface AdminMerchantInfoService {
     AdminMerchantInfoDTO updateStatus(Long id, Integer merchantStatus);
 
     /**
+     * 软删除商户及其 OpenAPI 密钥记录。
+     *
+     * @param id 商户主键
+     */
+    void deleteMerchant(Long id);
+
+    /**
      * 初始化商户安全材料。
      *
      * @param merchantId 商户号

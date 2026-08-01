@@ -3,6 +3,8 @@ package com.scott.payment.risk.service.impl;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.scott.payment.component.mq.message.RiskAuditHitMessage;
+import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
@@ -13,7 +15,6 @@ import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 import com.scott.payment.risk.domain.state.RiskDecisionEnum;
 import com.scott.payment.risk.domain.state.RiskReasonCodeEnum;
-import com.scott.payment.risk.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
 import com.scott.payment.risk.repository.RiskListRuntimeRepository;
 import org.junit.jupiter.api.Test;
@@ -100,7 +101,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getDecisionResult()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getModuleType, RiskListMatch::getFunctionCode)
+                .extracting(RiskAuditHitMessage::getModuleType, RiskAuditHitMessage::getFunctionCode)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("WHITE", "merchant"));
         assertThat(publisher.messages.get(0).getHitCount()).isEqualTo(1);
     }
@@ -139,7 +140,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getStageCode, RiskListMatch::getMatchResult, RiskListMatch::getDecisionEffect)
+                .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(
                         "MERCHANT_IP_WHITELIST", "MISS", "BLOCK"));
         assertThat(publisher.messages.get(0).getHits().get(0).getDecisionReason())
@@ -182,7 +183,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.AML_HIT.getCode());
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getModuleType, RiskListMatch::getFunctionCode)
+                .extracting(RiskAuditHitMessage::getModuleType, RiskAuditHitMessage::getFunctionCode)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("AML", "cardBin"));
         assertThat(publisher.messages.get(0).getHits().get(0).getStageCode()).isEqualTo("AML");
         assertThat(publisher.messages.get(0).getHits().get(0).getMatchResult()).isEqualTo("HIT");
@@ -222,7 +223,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getStageCode, RiskListMatch::getMatchResult, RiskListMatch::getDecisionEffect)
+                .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("MERCHANT_IP_WHITELIST", "HIT", "ALLOW"),
                         org.assertj.core.groups.Tuple.tuple("SOURCE_URL_RESTRICTION", "HIT", "ALLOW"),
@@ -246,7 +247,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.NONE.getCode());
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getModuleType, RiskListMatch::getFunctionCode, RiskListMatch::getDecisionEffect)
+                .extracting(RiskAuditHitMessage::getModuleType, RiskAuditHitMessage::getFunctionCode, RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("WHITE", "cardNo", "ALLOW"),
                         org.assertj.core.groups.Tuple.tuple("BLACK", "email", "BLOCK")
@@ -413,7 +414,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getStageCode, RiskListMatch::getMatchResult, RiskListMatch::getDecisionAction)
+                .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("MERCHANT_LIMIT", "PASS", "PASS"));
     }
 
@@ -448,10 +449,10 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getRuleId,
-                        RiskListMatch::getStageOrder,
-                        RiskListMatch::getMatchResult,
-                        RiskListMatch::getDecisionEffect)
+                .extracting(RiskAuditHitMessage::getRuleId,
+                        RiskAuditHitMessage::getStageOrder,
+                        RiskAuditHitMessage::getMatchResult,
+                        RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(1001L, 60, "PASS", "ALLOW"),
                         org.assertj.core.groups.Tuple.tuple(1002L, 60, "HIT", "BLOCK")
@@ -483,9 +484,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(publisher.messages.get(0).getHits())
                 .filteredOn(detail -> "BLACK_WHITE_ARBITRATION".equals(detail.getStageCode()))
-                .extracting(RiskListMatch::getModuleType,
-                        RiskListMatch::getRiskLevel,
-                        RiskListMatch::getStageOrder)
+                .extracting(RiskAuditHitMessage::getModuleType,
+                        RiskAuditHitMessage::getRiskLevel,
+                        RiskAuditHitMessage::getStageOrder)
                 .containsExactlyInAnyOrder(
                         org.assertj.core.groups.Tuple.tuple("BLACK", "CRITICAL", 42),
                         org.assertj.core.groups.Tuple.tuple("WHITE", "HIGH", 43),
@@ -513,7 +514,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(repository.merchantLimitRollbackCount).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getStageCode, RiskListMatch::getHitElement, RiskListMatch::getMatchResult)
+                .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getHitElement, RiskAuditHitMessage::getMatchResult)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("MERCHANT_LIMIT", "DAILY", "PASS"),
                         org.assertj.core.groups.Tuple.tuple("MERCHANT_LIMIT", "WEEKLY", "PASS"),
@@ -554,9 +555,9 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getStageCode,
-                        RiskListMatch::getMatchResult,
-                        RiskListMatch::getDecisionEffect)
+                .extracting(RiskAuditHitMessage::getStageCode,
+                        RiskAuditHitMessage::getMatchResult,
+                        RiskAuditHitMessage::getDecisionEffect)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple(
                         "MERCHANT_LIMIT", "ERROR", "REVIEW"));
     }
@@ -590,7 +591,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getStageCode, RiskListMatch::getMatchResult, RiskListMatch::getDecisionAction)
+                .extracting(RiskAuditHitMessage::getStageCode, RiskAuditHitMessage::getMatchResult, RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("FREQUENCY_LIMIT", "PASS", "PASS"));
     }
 
@@ -611,10 +612,10 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(publisher.messages).hasSize(1);
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getModuleType,
-                        RiskListMatch::getFunctionCode,
-                        RiskListMatch::getMatchResult,
-                        RiskListMatch::getDecisionAction)
+                .extracting(RiskAuditHitMessage::getModuleType,
+                        RiskAuditHitMessage::getFunctionCode,
+                        RiskAuditHitMessage::getMatchResult,
+                        RiskAuditHitMessage::getDecisionAction)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("AML", "card", "MISS", "PASS"),
                         org.assertj.core.groups.Tuple.tuple("WHITE", "cardNo", "MISS", "PASS"),
@@ -691,7 +692,7 @@ class DefaultRiskEvaluationServiceTests {
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(publisher.messages.get(0).getHitCount()).isZero();
         assertThat(publisher.messages.get(0).getHits())
-                .extracting(RiskListMatch::getHitElement, RiskListMatch::getHitValueMasked)
+                .extracting(RiskAuditHitMessage::getHitElement, RiskAuditHitMessage::getHitValueMasked)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("issuerCountry", "CAN"),
                         org.assertj.core.groups.Tuple.tuple("tradeCountry", "USA")

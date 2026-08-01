@@ -7,8 +7,8 @@ import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.component.job.executor.JobHandler;
 import com.scott.payment.component.job.executor.JobHandlerDescriptor;
 import com.scott.payment.component.job.model.JobExecuteResult;
-import com.scott.payment.job.client.payment.PaymentInternalClient;
-import com.scott.payment.job.client.payment.dto.PaymentMerchantNotificationNotifyDueClientRequestDTO;
+import com.scott.payment.job.client.data.DataInternalClient;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.dto.transaction.MerchantNotificationRetryRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -24,7 +24,7 @@ import java.util.Map;
  * @classname : MerchantNotificationRetryJob
  * @date : 2026-07-15 00:00
  * @email : scott_x@163.com
- * @description : 商户通知补偿任务，位于 service-job 任务处理层，按 transaction_date_time 定位分表并触发 service-payment 重试到期商户通知。
+ * @description : 商户通知补偿任务，位于 service-job 任务处理层，按 transaction_date_time 定位分表并触发 service-data 重试到期商户通知。
  * @status : create
  */
 @Component
@@ -62,22 +62,17 @@ public class MerchantNotificationRetryJob implements JobHandler {
     private static final int MAX_LIMIT = 500;
 
     /**
-     * payment Internal Client 依赖，用于 Merchant Notification Retry Job 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
+     * service-data 内部客户端，仅用于触发到期商户通知的扫描与补偿投递。
      */
-    private final PaymentInternalClient paymentInternalClient;
+    private final DataInternalClient dataInternalClient;
 
     /**
      * 创建商户通知补偿任务处理器。
      *
-     * @param paymentInternalClient service-payment 内部补偿客户端
+     * @param dataInternalClient service-data 内部补偿客户端
      */
-    public MerchantNotificationRetryJob(PaymentInternalClient paymentInternalClient) {
-        this.paymentInternalClient = paymentInternalClient;
+    public MerchantNotificationRetryJob(DataInternalClient dataInternalClient) {
+        this.dataInternalClient = dataInternalClient;
     }
 
     /**
@@ -91,7 +86,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 HANDLER_CODE,
                 "商户通知补偿重试",
                 "transaction",
-                "扫描到期商户通知任务并调用支付核心执行补偿重试"
+                "扫描到期商户通知任务并调用异步数据服务执行补偿重试"
         );
     }
 
@@ -124,13 +119,13 @@ public class MerchantNotificationRetryJob implements JobHandler {
         int totalSuccessCount = 0;
         int failCount = 0;
         for (LocalDateTime transactionDateTime : transactionDateTimes) {
-            PaymentMerchantNotificationNotifyDueClientRequestDTO clientRequestDTO =
-                    new PaymentMerchantNotificationNotifyDueClientRequestDTO();
+            DataMerchantNotificationNotifyDueClientRequestDTO clientRequestDTO =
+                    new DataMerchantNotificationNotifyDueClientRequestDTO();
             clientRequestDTO.setTransactionDateTime(transactionDateTime);
             clientRequestDTO.setLimit(limit);
             Integer successCount;
             try {
-                successCount = paymentInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
+                successCount = dataInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
             } catch (RuntimeException exception) {
                 failCount++;
                 log.warn("event: JOB_HANDLER_SCAN_ITEM_FAILED traceId: {} jobId: {} handler: {} runId: {} scanRange: {} failureReason: {}",
@@ -158,7 +153,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 totalSuccessCount,
                 failCount,
                 0,
-                failCount == 0 ? Map.of() : Map.of("PAYMENT_INTERNAL_CALL_FAILED", failCount),
+                failCount == 0 ? Map.of() : Map.of("DATA_INTERNAL_CALL_FAILED", failCount),
                 elapsedMillis(startNanos));
         return JobExecuteResult.success("merchant notification retry finished, successCount=" + totalSuccessCount, result);
     }

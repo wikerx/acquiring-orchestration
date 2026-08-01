@@ -282,7 +282,9 @@ public class PaymentRedisCacheAutoConfiguration {
     private void rethrowForSecurityCache(Cache cache, RuntimeException exception) {
         String cacheName = cache == null ? null : cache.getName();
         if (PaymentCacheNames.MERCHANT_RUNTIME_PROFILE.equals(cacheName)
-                || PaymentCacheNames.MERCHANT_OPENAPI_ACCESS.equals(cacheName)) {
+                || PaymentCacheNames.MERCHANT_OPENAPI_ACCESS.equals(cacheName)
+                || PaymentCacheNames.MERCHANT_KEY_METADATA.equals(cacheName)
+                || PaymentCacheNames.MERCHANT_ROUTE.equals(cacheName)) {
             throw exception;
         }
     }

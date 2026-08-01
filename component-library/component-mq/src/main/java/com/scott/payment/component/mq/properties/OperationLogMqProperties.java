@@ -37,16 +37,6 @@ public class OperationLogMqProperties {
     private String producerGroup = "acquiring-operation-log-producer";
 
     /**
-     * 后台管理系统消费者分组。
-     */
-    private String adminConsumerGroup = "acquiring-admin-operation-log-consumer-dev";
-
-    /**
-     * 商户管理系统消费者分组。
-     */
-    private String merchantConsumerGroup = "acquiring-merchant-operation-log-consumer-dev";
-
-    /**
      * 发送超时，单位毫秒。
      */
     private int sendTimeoutMs = 3000;

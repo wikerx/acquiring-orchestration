@@ -20,7 +20,6 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResu
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
-import com.scott.payment.payment.api.internal.dto.TransactionMerchantNotificationNotifyDueCommandDTO;
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelCallbackQuery;
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelLogQuery;
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.MerchantNotificationQuery;
@@ -332,20 +331,6 @@ public class PaymentInternalController {
     @PostMapping("/transactions/merchant-notifications/search")
     public CommonResult<PageResult<?>> pageMerchantNotifications(@RequestBody(required = false) MerchantNotificationQuery query) {
         return success(paymentTransactionApplicationService.pageMerchantNotifications(query));
-    }
-
-    /**
-     * 触发指定交易时间片的到期商户通知重试。
-     * <p>
-     * 该接口面向 service-job 或内部补偿任务，不对公网开放，并由 /internal/** HMAC 拦截器校验服务间签名。
-     *
-     * @param commandDTO 通知扫描命令
-     * @return 成功通知数量
-     */
-    @PostMapping("/transactions/merchant-notifications/notify-due")
-    public CommonResult<Integer> notifyDueMerchantNotifications(
-            @RequestBody TransactionMerchantNotificationNotifyDueCommandDTO commandDTO) {
-        return success(paymentTransactionApplicationService.notifyDueMerchantNotifications(commandDTO));
     }
 
     /**

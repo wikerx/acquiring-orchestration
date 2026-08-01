@@ -8,7 +8,6 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientRequestDTO;
 import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientResultDTO;
-import com.scott.payment.job.client.payment.dto.PaymentMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.config.PaymentInternalClientProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -75,9 +74,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      */
     private static final String SERVICE_PAYMENT_BASE_URL = "http://service-payment";
 
-    private static final String MERCHANT_NOTIFICATION_NOTIFY_DUE_PATH =
-            "/internal/payment/transactions/merchant-notifications/notify-due";
-
     /**
      * 扫描待渠道补匹配交易的内部接口；任务参数负责限定时间分片和单批数量。
      */
@@ -126,22 +122,6 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         this.directRestTemplate = directRestTemplate;
         this.loadBalancedRestTemplate = loadBalancedRestTemplate;
         this.properties = properties;
-    }
-
-    /**
-     * 触发指定交易时间分表中的到期商户通知补偿。
-     *
-     * @param requestDTO 补偿请求
-     * @return 成功通知数量
-     */
-    @Override
-    public Integer notifyDueMerchantNotifications(PaymentMerchantNotificationNotifyDueClientRequestDTO requestDTO) {
-        CommonResult<Integer> result = post(
-                servicePaymentUrl(MERCHANT_NOTIFICATION_NOTIFY_DUE_PATH),
-                requestDTO,
-                new TypeReference<CommonResult<Integer>>() {
-                });
-        return unwrapData(result);
     }
 
     /**

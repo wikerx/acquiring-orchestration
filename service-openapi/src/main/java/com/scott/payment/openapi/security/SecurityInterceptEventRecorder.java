@@ -4,8 +4,11 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
-import com.scott.payment.component.db.security.entity.SecurityInterceptEventDO;
-import com.scott.payment.component.db.security.mapper.SecurityInterceptEventMapper;
+import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.mq.message.SecurityInterceptAuditMessage;
+import com.scott.payment.component.mq.producer.MqProducer;
+import com.scott.payment.component.mq.properties.SecurityAuditMqProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,137 +26,86 @@ import java.util.UUID;
  * @classname : SecurityInterceptEventRecorder
  * @date : 2026-07-18 00:00
  * @email : scott_x@163.com
- * @description : 安全拦截事件记录器，位于 service-openapi 安全层，只记录脱敏排查元数据，禁止保存请求体、JWT、Cookie、密钥或完整密文。
+ * @description : OpenAPI 安全拦截审计生产端，只发布脱敏排查元数据给 service-data，禁止传输请求体、JWT、Cookie、密钥或完整密文
  * @status : create
  */
 @Slf4j
 @Service
 public class SecurityInterceptEventRecorder {
 
-    /**
-     * OpenAPI 来源层。
-     */
+    /** OpenAPI 来源层。 */
     public static final String SOURCE_OPENAPI = "OPENAPI";
 
-    /**
-     * 渠道回调来源层。
-     */
+    /** 渠道回调来源层。 */
     public static final String SOURCE_CHANNEL = "CHANNEL";
 
-    /**
-     * 阻断动作。
-     */
+    /** 阻断处置动作。 */
     public static final String ACTION_BLOCK = "BLOCK";
 
-    /**
-     * 中风险。
-     */
+    /** 中风险。 */
     public static final String RISK_MEDIUM = "MEDIUM";
 
-    /**
-     * 高风险。
-     */
+    /** 高风险。 */
     public static final String RISK_HIGH = "HIGH";
 
-    /**
-     * 严重风险。
-     */
+    /** 严重风险。 */
     public static final String RISK_CRITICAL = "CRITICAL";
 
-    /**
-     * SERVICE NAME，用于展示或识别当前商户、渠道、用户、角色、模板或配置对象。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；可识别字段，日志输出必须脱敏或截断。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+    /** 安全事件生产服务名。 */
     private static final String SERVICE_NAME = "service-openapi";
-    /**
-     * HEADER USER AGENT，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+
+    /** User-Agent 请求头名。 */
     private static final String HEADER_USER_AGENT = "User-Agent";
-    /**
-     * HEADER REQUEST ID，用于定位 Security Intercept Event Recorder 关联的上游配置、渠道、账号、角色或业务记录。
-     * <p>
-     * 单位：无；格式：业务编号字符串；不允许为空；非敏感字段。
-     * 取值范围：长度、唯一性和可空性由接口校验或数据库唯一约束限制；数据来源：请求链路、回调链路或跨服务调用上下文。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+
+    /** 请求级业务标识头名。 */
     private static final String HEADER_REQUEST_ID = "X-Request-Id";
-    /**
-     * MAX PATH LENGTH，表示接口路径、资源路径或路由匹配路径。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+
+    /** 请求路径最大字符数。 */
     private static final int MAX_PATH_LENGTH = 512;
-    /**
-     * MAX TEXT LENGTH，用于保存 Security Intercept Event Recorder 中与 maxtextlength 相关的业务属性。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+
+    /** 普通审计文本最大字符数。 */
     private static final int MAX_TEXT_LENGTH = 512;
-    /**
-     * MAX HEADER SUMMARY LENGTH，表示 HTTP 请求或响应头集合，敏感头只能记录摘要。
-     * <p>
-     * 单位：个或次；格式：整数；不允许为空；非敏感字段。
-     * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
+
+    /** 脱敏请求头摘要最大字符数。 */
     private static final int MAX_HEADER_SUMMARY_LENGTH = 1024;
-    /**
-     * EVENT TIME FORMATTER，用于保存 Security Intercept Event Recorder 中与 eventtimeformatter 相关的业务属性。
-     * <p>
-     * 单位：系统业务时区时间；格式：ISO 日期或日期时间；不允许为空；非敏感字段。
-     * 取值范围：时间范围由业务流程或查询条件限定；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private static final DateTimeFormatter EVENT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+
+    /** 安全事件号中的毫秒时间格式。 */
+    private static final DateTimeFormatter EVENT_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+
+    /** MQ 消息发布器。 */
+    private final MqProducer mqProducer;
+
+    /** 安全审计 MQ 开关与消费参数。 */
+    private final SecurityAuditMqProperties properties;
 
     /**
-     * event Mapper 依赖，用于 Security Intercept Event Recorder 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final SecurityInterceptEventMapper eventMapper;
-
-    /**
-     * 创建安全拦截事件记录器。
+     * 创建安全拦截审计生产端。
      *
-     * @param eventMapper 安全拦截事件 Mapper
+     * @param mqProducer MQ 消息发布器
+     * @param properties 安全审计 MQ 配置
      */
-    public SecurityInterceptEventRecorder(SecurityInterceptEventMapper eventMapper) {
-        this.eventMapper = eventMapper;
+    public SecurityInterceptEventRecorder(MqProducer mqProducer,
+                                          SecurityAuditMqProperties properties) {
+        this.mqProducer = mqProducer;
+        this.properties = properties;
     }
 
     /**
-     * 记录已被安全链路阻断的请求。
+     * 将已被安全链路阻断的请求转换为脱敏审计消息。
+     * <p>
+     * 审计发布失败不得改变原始安全拦截结果；请求体、认证头原文和密钥材料
+     * 不得进入 MQ 消息、Redis 或应用日志。
+     * </p>
      *
-     * @param request       HTTP 请求
-     * @param sourceLayer   来源层级
-     * @param eventType     事件类型
-     * @param riskLevel     风险等级
-     * @param merchantId    商户号，无法解析时为空
-     * @param hitRuleCode   命中规则编码
-     * @param reasonCode    原因码
-     * @param reasonMessage 原因说明
+     * @param request HTTP 请求
+     * @param sourceLayer 来源层级
+     * @param eventType 事件类型
+     * @param riskLevel 风险等级
+     * @param merchantId 商户号，无法解析时为空
+     * @param hitRuleCode 命中规则编码
+     * @param reasonCode 原因码
+     * @param reasonMessage 原因说明，发布前必须脱敏和截断
      */
     public void recordBlocked(HttpServletRequest request,
                               String sourceLayer,
@@ -163,43 +115,28 @@ public class SecurityInterceptEventRecorder {
                               String hitRuleCode,
                               String reasonCode,
                               String reasonMessage) {
+        if (!properties.isEnabled()) {
+            return;
+        }
         try {
-            LocalDateTime now = LocalDateTime.now();
-            SecurityInterceptEventDO row = new SecurityInterceptEventDO();
-            row.setEventNo(generateEventNo(now));
-            row.setEventTime(now);
-            row.setSourceLayer(defaultIfBlank(sourceLayer, SOURCE_OPENAPI));
-            row.setEventType(limit(defaultIfBlank(eventType, "SECURITY_INTERCEPT"), 64));
-            row.setRiskLevel(defaultIfBlank(riskLevel, RISK_HIGH));
-            row.setAction(ACTION_BLOCK);
-            row.setMerchantId(limit(trimToNull(merchantId), 32));
-            row.setClientIp(limit(resolveClientIp(request), 45));
-            row.setRequestMethod(limit(request == null ? null : request.getMethod(), 16));
-            row.setRequestPath(limit(resolveRequestPath(request), MAX_PATH_LENGTH));
-            row.setTraceId(limit(resolveTraceId(request), 64));
-            row.setRequestId(limit(resolveRequestId(request), 64));
-            row.setUserAgent(limit(request == null ? null : request.getHeader(HEADER_USER_AGENT), MAX_TEXT_LENGTH));
-            row.setReasonCode(limit(trimToNull(reasonCode), 64));
-            row.setReasonMessage(limit(sanitizeText(reasonMessage), MAX_TEXT_LENGTH));
-            row.setServiceName(SERVICE_NAME);
-            row.setHitRuleCode(limit(trimToNull(hitRuleCode), 64));
-            row.setHeaderSummary(limit(buildHeaderSummary(request), MAX_HEADER_SUMMARY_LENGTH));
-            row.setProcessStatus(0);
-            row.setGmtCreate(now);
-            row.setGmtModified(now);
-            eventMapper.insert(row);
+            mqProducer.send(
+                    MqTopic.SECURITY_INTERCEPT_AUDIT,
+                    MqTag.SECURITY_INTERCEPT_AUDIT,
+                    buildMessage(request, sourceLayer, eventType, riskLevel,
+                            merchantId, hitRuleCode, reasonCode, reasonMessage)
+            );
         } catch (RuntimeException exception) {
-            log.warn("安全拦截事件记录失败，不影响原始安全拦截结果，事件类型：{}，错误类型：{}",
+            log.warn("event: SECURITY_AUDIT_PUBLISH_FAILED eventType: {} exceptionType: {}",
                     eventType,
                     exception.getClass().getSimpleName());
         }
     }
 
     /**
-     * 从业务异常中提取响应码作为原因码。
+     * 从业务异常中提取稳定原因码。
      *
      * @param exception 业务异常
-     * @return 原因码
+     * @return 业务错误码或异常类型名
      */
     public String reasonCode(Throwable exception) {
         if (exception instanceof ServiceException serviceException) {
@@ -209,120 +146,97 @@ public class SecurityInterceptEventRecorder {
     }
 
     /**
-     * 从异常中提取脱敏后的原因说明。
+     * 从异常中提取待脱敏的原因说明。
      *
      * @param exception 异常
-     * @return 脱敏原因说明
+     * @return 原始原因说明；仅允许交给 recordBlocked 脱敏后记录
      */
     public String reasonMessage(Throwable exception) {
         return exception == null ? null : exception.getMessage();
     }
 
     /**
-     * 创建eventno，完成必要校验后写入或委托下游服务处理。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 构造不含认证凭据和请求体的审计消息。
+     *
+     * @return 可安全发布的安全拦截审计消息
      */
-    private String generateEventNo(LocalDateTime now) {
-        return "SIE" + EVENT_TIME_FORMATTER.format(now) + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+    private SecurityInterceptAuditMessage buildMessage(HttpServletRequest request,
+                                                       String sourceLayer,
+                                                       String eventType,
+                                                       String riskLevel,
+                                                       String merchantId,
+                                                       String hitRuleCode,
+                                                       String reasonCode,
+                                                       String reasonMessage) {
+        LocalDateTime now = LocalDateTime.now();
+        SecurityInterceptAuditMessage message = new SecurityInterceptAuditMessage();
+        message.setEventNo(generateEventNo(now));
+        message.setEventTime(now);
+        message.setSourceLayer(defaultIfBlank(sourceLayer, SOURCE_OPENAPI));
+        message.setEventType(limit(defaultIfBlank(eventType, "SECURITY_INTERCEPT"), 64));
+        message.setRiskLevel(defaultIfBlank(riskLevel, RISK_HIGH));
+        message.setAction(ACTION_BLOCK);
+        message.setMerchantId(limit(trimToNull(merchantId), 32));
+        message.setClientIp(limit(resolveClientIp(request), 45));
+        message.setRequestMethod(limit(request == null ? null : request.getMethod(), 16));
+        message.setRequestPath(limit(resolveRequestPath(request), MAX_PATH_LENGTH));
+        message.setTraceId(limit(resolveTraceId(request), 64));
+        message.setRequestId(limit(resolveRequestId(request), 64));
+        message.setUserAgent(limit(request == null ? null : request.getHeader(HEADER_USER_AGENT), MAX_TEXT_LENGTH));
+        message.setReasonCode(limit(trimToNull(reasonCode), 64));
+        message.setReasonMessage(limit(sanitizeText(reasonMessage), MAX_TEXT_LENGTH));
+        message.setServiceName(SERVICE_NAME);
+        message.setHitRuleCode(limit(trimToNull(hitRuleCode), 64));
+        message.setHeaderSummary(limit(buildHeaderSummary(request), MAX_HEADER_SUMMARY_LENGTH));
+        return message;
     }
 
-    /**
-     * 解析resolveclientip，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
+    /** 生成包含毫秒时间与随机后缀的安全事件号。 */
+    private String generateEventNo(LocalDateTime now) {
+        return "SIE" + EVENT_TIME_FORMATTER.format(now)
+                + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+    }
+
+    /** 优先读取网关写入的可信客户端 IP，未提供时回退到连接地址。 */
     private String resolveClientIp(HttpServletRequest request) {
         if (request == null) {
             return null;
         }
         String gatewayClientIp = request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP);
-        if (StringUtils.hasText(gatewayClientIp)) {
-            return gatewayClientIp.trim();
-        }
-        return request.getRemoteAddr();
+        return StringUtils.hasText(gatewayClientIp) ? gatewayClientIp.trim() : request.getRemoteAddr();
     }
 
-    /**
-     * 解析resolve请求path，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
+    /** 返回不含查询参数的请求路径。 */
     private String resolveRequestPath(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        return request.getRequestURI();
+        return request == null ? null : request.getRequestURI();
     }
 
-    /**
-     * 解析resolvetraceID，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
+    /** 优先读取请求头 traceId，未提供时使用当前链路上下文。 */
     private String resolveTraceId(HttpServletRequest request) {
         String traceId = request == null ? null : request.getHeader(TraceContext.TRACE_ID_HEADER);
-        if (StringUtils.hasText(traceId)) {
-            return traceId.trim();
-        }
-        return TraceContext.getTraceId();
+        return StringUtils.hasText(traceId) ? traceId.trim() : TraceContext.getTraceId();
     }
 
-    /**
-     * 解析resolve请求ID，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 商户开放接口服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
+    /** 解析可选的请求级业务标识。 */
     private String resolveRequestId(HttpServletRequest request) {
-        if (request == null) {
-            return null;
-        }
-        return trimToNull(request.getHeader(HEADER_REQUEST_ID));
+        return request == null ? null : trimToNull(request.getHeader(HEADER_REQUEST_ID));
     }
 
     /**
-     * 构造header汇总对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
+     * 生成请求头存在性与非敏感值摘要。
+     * <p>Authorization 只记录是否存在，不读取或序列化原文。</p>
      */
     private String buildHeaderSummary(HttpServletRequest request) {
         if (request == null) {
             return null;
         }
         Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("authorizationPresent", StringUtils.hasText(request.getHeader("Authorization")) || StringUtils.hasText(request.getHeader("authorization")));
+        summary.put("authorizationPresent",
+                StringUtils.hasText(request.getHeader("Authorization"))
+                        || StringUtils.hasText(request.getHeader("authorization")));
         putIfPresent(summary, "contentType", request.getContentType());
-        putIfPresent(summary, "gatewayClientIp", request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP));
+        putIfPresent(summary, "gatewayClientIp",
+                request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP));
         putIfPresent(summary, "traceId", request.getHeader(TraceContext.TRACE_ID_HEADER));
         putIfPresent(summary, "requestId", request.getHeader(HEADER_REQUEST_ID));
         putIfPresent(summary, "userAgent", request.getHeader(HEADER_USER_AGENT));
@@ -332,32 +246,12 @@ public class SecurityInterceptEventRecorder {
         return sanitizeText(JsonUtils.toJsonString(summary));
     }
 
-    /**
-     * 整理present文本，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
+    /** 有文本时返回 true，缺失时不在摘要中写入字段。 */
     private Boolean presentText(String value) {
         return StringUtils.hasText(value) ? Boolean.TRUE : null;
     }
 
-    /**
-     * 整理非空摘要字段，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param Map Map 输入值，参与 map 的查询、校验、转换、写入或日志摘要
-     * @param summary summary 输入值，参与 汇总数据 的查询、校验、转换、写入或日志摘要
-     * @param key 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     */
+    /** 只将非空摘要值写入有序结构。 */
     private void putIfPresent(Map<String, Object> summary, String key, Object value) {
         if (value instanceof String text && !StringUtils.hasText(text)) {
             return;
@@ -367,67 +261,23 @@ public class SecurityInterceptEventRecorder {
         }
     }
 
-    /**
-     * 脱敏文本，返回可安全写入日志或展示的摘要文本。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
+    /** 使用公共脱敏规则处理可能含敏感字段的文本。 */
     private String sanitizeText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        return SensitiveDataMaskUtils.maskJsonSafely(value.trim());
+        return StringUtils.hasText(value) ? SensitiveDataMaskUtils.maskJsonSafely(value.trim()) : null;
     }
 
-    /**
-     * 整理默认ifblank，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param defaultValue default Value 输入值，参与 默认value 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
+    /** 将空白文本替换为默认值。 */
     private String defaultIfBlank(String value, String defaultValue) {
         return StringUtils.hasText(value) ? value.trim() : defaultValue;
     }
 
-    /**
-     * 规范化trimtonull，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
+    /** 去除文本首尾空白，空白值转换为 null。 */
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    /**
-     * 整理限额，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 商户开放接口服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param value 待标准化的文本、编码或说明值，允许为空时由当前方法按默认规则处理
-     * @param maxLength max Length 输入值，参与 maxlength 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
+    /** 按数据库字段上限截断文本，避免审计写入影响安全链路。 */
     private String limit(String value, int maxLength) {
-        if (value == null || value.length() <= maxLength) {
-            return value;
-        }
-        return value.substring(0, maxLength);
+        return value == null || value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 }

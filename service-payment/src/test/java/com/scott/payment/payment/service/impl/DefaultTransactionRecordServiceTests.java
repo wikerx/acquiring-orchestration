@@ -1048,6 +1048,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(merchantApiCapture.value.getResponseCipherDigest()).isNull();
         assertThat(notificationCapture.physicalTable).isEqualTo("transaction_merchant_notification_202603");
         assertThat(notificationCapture.value.getTargetUrlMasked()).isEqualTo("https://merchant.example/callback?***");
+        assertThat(notificationCapture.value.getNotifyConfigSnapshotJson())
+                .contains("https://merchant.example/callback?token=secret");
         assertNestedMerchantPayload(notificationCapture.value.getPayloadJsonMasked());
     }
 

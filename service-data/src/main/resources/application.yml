@@ -1,0 +1,12 @@
+# 本地基础配置只声明服务身份、端口和激活环境；数据库、Redis 与 RocketMQ 连接统一由 Nacos 提供。
+server:
+  port: 8009
+  shutdown: graceful
+
+spring:
+  application:
+    name: service-data
+  profiles:
+    active: @profiles.active@
+  main:
+    allow-bean-definition-overriding: true

@@ -1,6 +1,8 @@
 package com.scott.payment.risk.service.impl;
 
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.mq.message.RiskAuditHitMessage;
+import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
@@ -12,7 +14,6 @@ import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 import com.scott.payment.risk.domain.state.RiskDecisionEnum;
 import com.scott.payment.risk.domain.state.RiskReasonCodeEnum;
-import com.scott.payment.risk.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
 import com.scott.payment.risk.repository.RiskListRuntimeRepository;
 import com.scott.payment.risk.service.RiskEvaluationService;
@@ -1149,8 +1150,39 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         message.setDecisionReason(outcome.getResult().getReasonMessage());
         message.setHitCount(hitCount(outcome.getHits(), outcome.getResult().getDecision()));
         message.setEvaluationTime(outcome.getResult().getDecisionTime());
-        message.setHits(outcome.getHits());
+        message.setHits(outcome.getHits().stream().map(this::toAuditHitMessage).toList());
         auditRecordPublisher.publish(message);
+    }
+
+    /**
+     * 将 Risk 内部命中模型转换为跨服务 MQ DTO，阻止消费者依赖 Risk 领域包。
+     *
+     * @param match 已完成脱敏的风控执行明细
+     * @return 仅包含审计字段的 MQ 命中明细
+     */
+    private RiskAuditHitMessage toAuditHitMessage(RiskListMatch match) {
+        RiskAuditHitMessage message = new RiskAuditHitMessage();
+        message.setRuleId(match.getRuleId());
+        message.setModuleType(match.getModuleType());
+        message.setFunctionCode(match.getFunctionCode());
+        message.setFunctionName(match.getFunctionName());
+        message.setHitElement(match.getHitElement());
+        message.setHitValueMasked(match.getHitValueMasked());
+        message.setRiskLevel(match.getRiskLevel());
+        message.setDecisionAction(match.getDecisionAction());
+        message.setDecisionReason(match.getDecisionReason());
+        message.setTimeWindowSeconds(match.getTimeWindowSeconds());
+        message.setThresholdCount(match.getThresholdCount());
+        message.setElementsJson(match.getElementsJson());
+        message.setCurrentCount(match.getCurrentCount());
+        message.setAmountLimit(match.getAmountLimit());
+        message.setCurrentAmount(match.getCurrentAmount());
+        message.setStageCode(match.getStageCode());
+        message.setStageName(match.getStageName());
+        message.setStageOrder(match.getStageOrder());
+        message.setMatchResult(match.getMatchResult());
+        message.setDecisionEffect(match.getDecisionEffect());
+        return message;
     }
 
     /**

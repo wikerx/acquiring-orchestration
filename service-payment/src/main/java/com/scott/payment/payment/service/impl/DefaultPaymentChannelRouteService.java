@@ -1,23 +1,20 @@
 package com.scott.payment.payment.service.impl;
 
 import com.alibaba.fastjson2.TypeReference;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.db.route.model.MerchantRouteProfile;
+import com.scott.payment.component.db.route.model.MerchantRouteProfile.RouteOption;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
-import com.scott.payment.payment.entity.ChannelCapabilityCurrencyDO;
 import com.scott.payment.payment.entity.ChannelInfoDO;
 import com.scott.payment.payment.entity.ChannelMidConfigDO;
 import com.scott.payment.payment.entity.ChannelPaymentCapabilityDO;
-import com.scott.payment.payment.entity.MerchantChannelMidBindingDO;
-import com.scott.payment.payment.mapper.PaymentChannelCapabilityCurrencyMapper;
 import com.scott.payment.payment.mapper.PaymentChannelInfoMapper;
 import com.scott.payment.payment.mapper.PaymentChannelMidConfigMapper;
-import com.scott.payment.payment.mapper.PaymentChannelPaymentCapabilityMapper;
-import com.scott.payment.payment.mapper.PaymentMerchantChannelMidBindingMapper;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
+import com.scott.payment.payment.service.MerchantRouteProfileCacheService;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,12 +22,10 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * @author : scott
@@ -98,16 +93,6 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
     private static final String DEFAULT_PAYMENT_METHOD = "BANK_CARD";
 
     /**
-     * MID Binding Mapper，用于定位渠道商户号配置或渠道侧 MID。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final PaymentMerchantChannelMidBindingMapper midBindingMapper;
-
-    /**
      * MID Config Mapper，用于定位渠道商户号配置或渠道侧 MID。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -127,45 +112,28 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
      */
     private final PaymentChannelInfoMapper channelInfoMapper;
 
-    /**
-     * capability Mapper 依赖，用于 Default Payment Channel Route Service 调用对应的数据访问、远程调用或领域服务能力。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final PaymentChannelPaymentCapabilityMapper capabilityMapper;
+    /** 商户非敏感路由永久快照查询服务。 */
+    private final MerchantRouteProfileCacheService routeProfileCacheService;
 
-    /**
-     * capability Currency Mapper，表示金额字段使用的币种。
-     * <p>
-     * 单位：无；格式：ISO 4217 三位大写币种代码；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值必须来自平台支持币种；数据来源：Spring 容器构造器注入。
-     * 字段关系：决定 amount、fee、settlementAmount 等金额字段的小数位和币种语义。
-     * </p>
-     */
-    private final PaymentChannelCapabilityCurrencyMapper capabilityCurrencyMapper;
+    /** 仅驻留当前 JVM 的短时渠道敏感元数据缓存。 */
+    private final PaymentChannelMidMetadataCache midMetadataCache;
 
     /**
      * 创建渠道路由服务。
      *
-     * @param midBindingMapper 商户 MID 绑定 Mapper
      * @param midConfigMapper  MID 配置 Mapper
      * @param channelInfoMapper 渠道基础信息 Mapper
-     * @param capabilityMapper 渠道支付能力 Mapper
-     * @param capabilityCurrencyMapper 渠道能力币种 Mapper
+     * @param routeProfileCacheService 商户路由永久快照查询服务
+     * @param midMetadataCache 渠道敏感元数据本地缓存
      */
-    public DefaultPaymentChannelRouteService(PaymentMerchantChannelMidBindingMapper midBindingMapper,
-                                             PaymentChannelMidConfigMapper midConfigMapper,
+    public DefaultPaymentChannelRouteService(PaymentChannelMidConfigMapper midConfigMapper,
                                              PaymentChannelInfoMapper channelInfoMapper,
-                                             PaymentChannelPaymentCapabilityMapper capabilityMapper,
-                                             PaymentChannelCapabilityCurrencyMapper capabilityCurrencyMapper) {
-        this.midBindingMapper = midBindingMapper;
+                                             MerchantRouteProfileCacheService routeProfileCacheService,
+                                             PaymentChannelMidMetadataCache midMetadataCache) {
         this.midConfigMapper = midConfigMapper;
         this.channelInfoMapper = channelInfoMapper;
-        this.capabilityMapper = capabilityMapper;
-        this.capabilityCurrencyMapper = capabilityCurrencyMapper;
+        this.routeProfileCacheService = routeProfileCacheService;
+        this.midMetadataCache = midMetadataCache;
     }
 
     /**
@@ -187,14 +155,16 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
                 commandDTO.getBillingCardHolderInfo() == null ? null : commandDTO.getBillingCardHolderInfo().getCountry());
-        List<MerchantChannelMidBindingDO> bindings = midBindingMapper.selectList(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
-                .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED)
-                .eq(MerchantChannelMidBindingDO::getBindingStatus, ENABLED)
-                .eq(MerchantChannelMidBindingDO::getMerchantId, commandDTO.getMerchantId()));
+        MerchantRouteProfile routeProfile = routeProfileCacheService.findRouteProfile(commandDTO.getMerchantId());
+        List<RouteOption> routeOptions = routeProfile == null
+                ? List.of()
+                : routeProfile.getRouteOptions();
+        int bindingCount = routeProfile == null || routeProfile.getBindingCount() == null
+                ? 0
+                : routeProfile.getBindingCount();
         LocalDateTime now = LocalDateTime.now();
-        List<RouteCandidate> candidates = bindings.stream()
-                .filter(binding -> isActive(now, binding.getEffectiveTime(), binding.getExpireTime()))
-                .map(binding -> toCandidate(binding, commandDTO, now))
+        List<RouteCandidate> candidates = routeOptions.stream()
+                .map(option -> toCandidate(option, commandDTO, now))
                 .filter(candidate -> candidate != null)
                 .toList();
         log.info("event: PAYMENT_ROUTE_CANDIDATES stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} bindingCount: {} candidateCount: {} candidates: {}",
@@ -206,7 +176,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                 resolvePaymentMethod(commandDTO),
                 commandDTO.getCurrency(),
                 commandDTO.getAmount(),
-                bindings.size(),
+                bindingCount,
                 candidates.size(),
                 candidateSummary(candidates));
         if (candidates.isEmpty()) {
@@ -219,7 +189,7 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
                     resolvePaymentMethod(commandDTO),
                     commandDTO.getCurrency(),
                     commandDTO.getAmount(),
-                    bindings.size(),
+                    bindingCount,
                     candidates.size(),
                     elapsedMillis(startNanos));
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "商户未配置可用渠道MID");
@@ -247,7 +217,10 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
         resultDTO.setRequestUrl(candidate.channelInfo().getDefaultRequestUrl());
         resultDTO.setConnectTimeoutSeconds(candidate.channelInfo().getConnectTimeoutSeconds());
         resultDTO.setReadTimeoutSeconds(candidate.channelInfo().getReadTimeoutSeconds());
-        resultDTO.setMetadataValues(parseMetadata(candidate.midConfig().getMetadataValueJson()));
+        resultDTO.setMetadataValues(parseMetadata(midMetadataCache.getMetadataJson(
+                candidate.midConfig().getId(),
+                candidate.midConfig().getUpdateTime()
+        )));
         resultDTO.setRequestedCurrency(normalize(commandDTO.getCurrency()));
         resultDTO.setRoutedCurrency(candidate.routedCurrency());
         resultDTO.setEdcRequired(candidate.edcRequired());
@@ -339,65 +312,106 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
      * <p>依次校验 MID 与渠道启用状态、有效期、收单业务类型、支付方式、交易类型、
      * 国家、币种和金额范围；任一约束不匹配即返回 null。</p>
      *
-     * @param binding    商户渠道 MID 绑定
+     * @param option     永久缓存中的非敏感路由候选
      * @param commandDTO 支付创建命令
      * @param now        路由评估时间
      * @return 可用候选；不满足约束时返回 null
      */
-    private RouteCandidate toCandidate(MerchantChannelMidBindingDO binding,
+    private RouteCandidate toCandidate(RouteOption option,
                                        PaymentCreateCommandDTO commandDTO,
                                        LocalDateTime now) {
-        ChannelMidConfigDO midConfig = midConfigMapper.selectOne(Wrappers.<ChannelMidConfigDO>lambdaQuery()
-                .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED)
-                .eq(ChannelMidConfigDO::getId, binding.getMidConfigId())
-                .eq(ChannelMidConfigDO::getMidStatus, ENABLED));
-        if (midConfig == null || !isActive(now, midConfig.getEffectiveTime(), midConfig.getExpireTime())) {
+        if (!Integer.valueOf(ENABLED).equals(option.getBindingStatus())
+                || !isActive(now, option.getBindingEffectiveTime(), option.getBindingExpireTime())
+                || !Integer.valueOf(ENABLED).equals(option.getMidStatus())
+                || !isActive(now, option.getMidEffectiveTime(), option.getMidExpireTime())
+                || !Integer.valueOf(ENABLED).equals(option.getChannelStatus())
+                || !Integer.valueOf(ENABLED).equals(option.getSupportAcquiring())
+                || !Integer.valueOf(ENABLED).equals(option.getCapabilityStatus())) {
             return null;
         }
-        ChannelInfoDO channelInfo = channelInfoMapper.selectOne(Wrappers.<ChannelInfoDO>lambdaQuery()
-                .eq(ChannelInfoDO::getDeleted, NOT_DELETED)
-                .eq(ChannelInfoDO::getId, midConfig.getChannelId())
-                .eq(ChannelInfoDO::getChannelStatus, ENABLED)
-                .eq(ChannelInfoDO::getSupportAcquiring, ENABLED));
-        if (channelInfo == null) {
-            return null;
-        }
-        if (!BUSINESS_ACQUIRING.equals(normalize(midConfig.getBusinessType()))) {
+        if (!BUSINESS_ACQUIRING.equals(normalize(option.getBusinessType()))
+                || !BUSINESS_ACQUIRING.equals(normalize(option.getCapabilityBusinessType()))) {
             return null;
         }
         String paymentMethod = resolvePaymentMethod(commandDTO);
-        if (!matchesScope(midConfig.getPaymentMethodScope(), paymentMethod)) {
+        if (!matchesScope(option.getPaymentMethodScope(), paymentMethod)
+                || !normalize(paymentMethod).equals(normalize(option.getCapabilityPaymentMethod()))) {
             return null;
         }
-        if (!matchesScope(midConfig.getTransactionTypeScope(), commandDTO.getTransactionType())) {
+        if (!matchesScope(option.getTransactionTypeScope(), commandDTO.getTransactionType())) {
             return null;
         }
         String payerCountry = commandDTO.getBillingCardHolderInfo() == null ? null : commandDTO.getBillingCardHolderInfo().getCountry();
-        if (!matchesScope(midConfig.getAllowedCountryScope(), payerCountry)) {
+        if (!matchesScope(option.getAllowedCountryScope(), payerCountry)
+                || !matchesTransactionType(option.getCapabilityTransactionType(), commandDTO.getTransactionType())) {
             return null;
         }
-        List<ChannelPaymentCapabilityDO> capabilities = capabilityMapper.selectList(Wrappers.<ChannelPaymentCapabilityDO>lambdaQuery()
-                .eq(ChannelPaymentCapabilityDO::getDeleted, NOT_DELETED)
-                .eq(ChannelPaymentCapabilityDO::getChannelId, channelInfo.getId())
-                .eq(ChannelPaymentCapabilityDO::getBusinessType, BUSINESS_ACQUIRING)
-                .eq(ChannelPaymentCapabilityDO::getPaymentMethod, paymentMethod)
-                .eq(ChannelPaymentCapabilityDO::getCapabilityStatus, ENABLED)
-                .orderByAsc(ChannelPaymentCapabilityDO::getSortOrder)
-                .orderByAsc(ChannelPaymentCapabilityDO::getId));
-        for (ChannelPaymentCapabilityDO capability : capabilities) {
-            if (!matchesTransactionType(capability.getTransactionType(), commandDTO.getTransactionType())) {
-                continue;
-            }
-            List<String> currencies = resolveSupportedCurrencies(capability, midConfig);
-            if (currencies.isEmpty()) {
-                continue;
-            }
-            String requestedCurrency = normalize(commandDTO.getCurrency());
-            boolean directCurrencySupported = currencies.stream().anyMatch(item -> item.equals(requestedCurrency));
-            String routedCurrency = directCurrencySupported ? requestedCurrency : currencies.get(0);
-            return new RouteCandidate(channelInfo, midConfig, capability, currencies, routedCurrency, !directCurrencySupported);
+        List<String> currencies = option.getSupportedCurrencies() == null
+                ? List.of()
+                : option.getSupportedCurrencies();
+        if (currencies.isEmpty()) {
+            return null;
         }
-        return null;
+        String requestedCurrency = normalize(commandDTO.getCurrency());
+        boolean directCurrencySupported = currencies.stream().anyMatch(item -> normalize(item).equals(requestedCurrency));
+        String routedCurrency = directCurrencySupported ? requestedCurrency : normalize(currencies.get(0));
+        return new RouteCandidate(
+                toChannelInfo(option),
+                toMidConfig(option),
+                toCapability(option),
+                new ArrayList<>(currencies),
+                routedCurrency,
+                !directCurrencySupported
+        );
+    }
+
+    /** 将缓存候选适配为既有路由内部渠道对象。 */
+    private ChannelInfoDO toChannelInfo(RouteOption option) {
+        ChannelInfoDO channel = new ChannelInfoDO();
+        channel.setId(option.getChannelId());
+        channel.setChannelCode(option.getChannelCode());
+        channel.setChannelStatus(option.getChannelStatus());
+        channel.setSupportAcquiring(option.getSupportAcquiring());
+        channel.setDefaultRequestUrl(option.getRequestUrl());
+        channel.setConnectTimeoutSeconds(option.getConnectTimeoutSeconds());
+        channel.setReadTimeoutSeconds(option.getReadTimeoutSeconds());
+        channel.setDeleted(NOT_DELETED);
+        return channel;
+    }
+
+    /** 将缓存候选适配为既有路由内部 MID 对象，不填充敏感元数据正文。 */
+    private ChannelMidConfigDO toMidConfig(RouteOption option) {
+        ChannelMidConfigDO mid = new ChannelMidConfigDO();
+        mid.setId(option.getMidConfigId());
+        mid.setChannelId(option.getChannelId());
+        mid.setChannelCode(option.getChannelCode());
+        mid.setChannelMid(option.getChannelMid());
+        mid.setBusinessType(option.getBusinessType());
+        mid.setPaymentMethodScope(option.getPaymentMethodScope());
+        mid.setTransactionTypeScope(option.getTransactionTypeScope());
+        mid.setCurrencyScope(option.getCurrencyScope());
+        mid.setAllowedCountryScope(option.getAllowedCountryScope());
+        mid.setMidStatus(option.getMidStatus());
+        mid.setEffectiveTime(option.getMidEffectiveTime());
+        mid.setExpireTime(option.getMidExpireTime());
+        mid.setUpdateTime(option.getMidModifiedTime());
+        mid.setDeleted(NOT_DELETED);
+        return mid;
+    }
+
+    /** 将缓存候选适配为既有路由内部能力对象。 */
+    private ChannelPaymentCapabilityDO toCapability(RouteOption option) {
+        ChannelPaymentCapabilityDO capability = new ChannelPaymentCapabilityDO();
+        capability.setId(option.getCapabilityId());
+        capability.setChannelId(option.getChannelId());
+        capability.setChannelCode(option.getChannelCode());
+        capability.setBusinessType(option.getCapabilityBusinessType());
+        capability.setPaymentMethod(option.getCapabilityPaymentMethod());
+        capability.setTransactionType(option.getCapabilityTransactionType());
+        capability.setCapabilityStatus(option.getCapabilityStatus());
+        capability.setSortOrder(option.getCapabilitySortOrder());
+        capability.setDeleted(NOT_DELETED);
+        return capability;
     }
 
     /**
@@ -520,66 +534,6 @@ public class DefaultPaymentChannelRouteService implements PaymentChannelRouteSer
      */
     private boolean matchesTransactionType(String capabilityTransactionType, String requestedTransactionType) {
         return matchesScope(capabilityTransactionType, requestedTransactionType);
-    }
-
-    /**
-     * 解析resolvesupportedcurrencies，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param capability capability 输入值，参与 渠道能力 的查询、校验、转换、写入或日志摘要
-     * @param midConfig MID Config 输入值，参与 mid配置 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
-    private List<String> resolveSupportedCurrencies(ChannelPaymentCapabilityDO capability, ChannelMidConfigDO midConfig) {
-        List<String> capabilityCurrencies = capabilityCurrencyMapper.selectList(Wrappers.<ChannelCapabilityCurrencyDO>lambdaQuery()
-                        .eq(ChannelCapabilityCurrencyDO::getDeleted, NOT_DELETED)
-                        .eq(ChannelCapabilityCurrencyDO::getCapabilityId, capability.getId())
-                        .eq(ChannelCapabilityCurrencyDO::getCurrencyStatus, ENABLED)
-                        .orderByAsc(ChannelCapabilityCurrencyDO::getCurrencyCode))
-                .stream()
-                .map(ChannelCapabilityCurrencyDO::getCurrencyCode)
-                .filter(StringUtils::hasText)
-                .map(this::normalize)
-                .distinct()
-                .toList();
-        Set<String> midCurrencies = parseScopeValues(midConfig.getCurrencyScope());
-        if (midCurrencies.isEmpty()) {
-            return capabilityCurrencies;
-        }
-        List<String> result = new ArrayList<>();
-        for (String currency : capabilityCurrencies) {
-            if (midCurrencies.contains(currency)) {
-                result.add(currency);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 解析parsescope值，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param scope scope 输入值，参与 scope 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
-    private Set<String> parseScopeValues(String scope) {
-        if (!StringUtils.hasText(scope) || ALL.equalsIgnoreCase(scope.trim())) {
-            return Set.of();
-        }
-        Set<String> result = new LinkedHashSet<>();
-        for (String item : scope.split(SCOPE_SEPARATOR)) {
-            String normalized = normalize(item);
-            if (StringUtils.hasText(normalized)) {
-                result.add(normalized);
-            }
-        }
-        return result;
     }
 
     /**

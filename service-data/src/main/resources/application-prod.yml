@@ -1,0 +1,33 @@
+# 生产环境不提供默认认证信息，Nacos 凭据必须通过 K8s Secret、CI/CD Secret 或主机环境变量注入。
+spring:
+  config:
+    import:
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:dataSource-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:sharding-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:rocketmq-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+  cloud:
+    bootstrap:
+      enabled: true
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:nacos-prod:8848}
+        namespace: ${NACOS_NAMESPACE:prod}
+        username: ${NACOS_USERNAME}
+        password: ${NACOS_PASSWORD}
+        register-enabled: true
+      config:
+        server-addr: ${spring.cloud.nacos.discovery.server-addr}
+        namespace: ${spring.cloud.nacos.discovery.namespace}
+        username: ${spring.cloud.nacos.discovery.username}
+        password: ${spring.cloud.nacos.discovery.password}
+        group: DEFAULT_GROUP
+        file-extension: yaml
+        encode: UTF-8
+        refresh-enabled: true
+        config-retry-time: 3
+
+logging:
+  config: classpath:log-config/logback-spring.xml

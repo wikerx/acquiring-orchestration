@@ -8,12 +8,10 @@ import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResu
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
-import com.scott.payment.payment.api.internal.dto.TransactionMerchantNotificationNotifyDueCommandDTO;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.payment.service.TransactionCallbackService;
 import com.scott.payment.payment.service.TransactionChannelMatchService;
 import com.scott.payment.payment.service.TransactionRecordService;
-import com.scott.payment.payment.service.TransactionMerchantNotificationService;
 import com.scott.payment.payment.service.TransactionQueryService;
 import com.scott.payment.payment.service.PaymentTransactionService;
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.ChannelCallbackQuery;
@@ -39,26 +37,6 @@ import org.springframework.stereotype.Service;
 public class PaymentTransactionApplicationService {
 
     /**
-     * DEFAULT MERCHANT NOTIFICATION NOTIFY LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
-    private static final int DEFAULT_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 100;
-
-    /**
-     * MAX MERCHANT NOTIFICATION NOTIFY LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
-    private static final int MAX_MERCHANT_NOTIFICATION_NOTIFY_LIMIT = 500;
-
-    /**
      * 收单支付交易服务。
      */
     private final PaymentTransactionService paymentTransactionService;
@@ -79,11 +57,6 @@ public class PaymentTransactionApplicationService {
     private final TransactionQueryService transactionQueryService;
 
     /**
-     * 商户交易结果通知服务。
-     */
-    private final TransactionMerchantNotificationService merchantNotificationService;
-
-    /**
      * 交易事实记录服务，用于回写 OpenAPI 响应加密摘要等审计信息。
      */
     private final TransactionRecordService transactionRecordService;
@@ -95,20 +68,17 @@ public class PaymentTransactionApplicationService {
      * @param transactionCallbackService 交易渠道回调服务
      * @param transactionChannelMatchService 渠道交易查询勾兑服务
      * @param transactionQueryService 交易聚合查询服务
-     * @param merchantNotificationService 商户交易结果通知服务
      * @param transactionRecordService 交易事实记录服务
      */
     public PaymentTransactionApplicationService(PaymentTransactionService paymentTransactionService,
                                                 TransactionCallbackService transactionCallbackService,
                                                 TransactionChannelMatchService transactionChannelMatchService,
                                                 TransactionQueryService transactionQueryService,
-                                                TransactionMerchantNotificationService merchantNotificationService,
                                                 TransactionRecordService transactionRecordService) {
         this.paymentTransactionService = paymentTransactionService;
         this.transactionCallbackService = transactionCallbackService;
         this.transactionChannelMatchService = transactionChannelMatchService;
         this.transactionQueryService = transactionQueryService;
-        this.merchantNotificationService = merchantNotificationService;
         this.transactionRecordService = transactionRecordService;
     }
 
@@ -290,20 +260,6 @@ public class PaymentTransactionApplicationService {
      */
     public PageResult<?> pageMerchantNotifications(MerchantNotificationQuery query) {
         return transactionQueryService.pageMerchantNotifications(query);
-    }
-
-    /**
-     * 执行指定交易时间所在分表的到期商户通知。
-     *
-     * @param commandDTO 查询命令，仅使用 transactionDateTime 字段定位分表
-     * @param limit 最大处理数量
-     * @return 成功通知数量
-     */
-    public int notifyDueMerchantNotifications(TransactionMerchantNotificationNotifyDueCommandDTO commandDTO) {
-        int limit = commandDTO == null || commandDTO.getLimit() == null
-                ? DEFAULT_MERCHANT_NOTIFICATION_NOTIFY_LIMIT
-                : Math.min(commandDTO.getLimit(), MAX_MERCHANT_NOTIFICATION_NOTIFY_LIMIT);
-        return merchantNotificationService.notifyDue(commandDTO == null ? null : commandDTO.getTransactionDateTime(), limit);
     }
 
     /**

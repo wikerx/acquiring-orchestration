@@ -14,6 +14,10 @@ spring:
 
 openapi:
   security:
+    secret-cache:
+      # 密钥正文只允许在 OpenAPI 单实例内短时驻留，Redis 仅保存非敏感 revision。
+      ttl: PT2M
+      max-entries: 2048
     replay:
       # 本地默认不强制 Redis 防重放成功，避免未启动 Redis 时影响本地启动；生产环境必须在 application-prod.yml 开启。
       required: false

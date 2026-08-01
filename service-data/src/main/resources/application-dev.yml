@@ -1,0 +1,33 @@
+# dev 环境允许使用本机 Nacos 默认值，便于开发联调；业务连接配置仍由独立 DataId 维护。
+spring:
+  config:
+    import:
+      - optional:nacos:${spring.application.name}-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:dataSource-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:sharding-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:redis-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:rocketmq-dev.${spring.cloud.nacos.config.file-extension}
+  cloud:
+    bootstrap:
+      enabled: true
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:324ad8dc-58d0-4d0d-b264-24a9f951a2b0}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        register-enabled: true
+      config:
+        server-addr: ${spring.cloud.nacos.discovery.server-addr}
+        namespace: ${spring.cloud.nacos.discovery.namespace}
+        username: ${spring.cloud.nacos.discovery.username}
+        password: ${spring.cloud.nacos.discovery.password}
+        group: DEFAULT_GROUP
+        file-extension: yaml
+        encode: UTF-8
+        refresh-enabled: true
+        config-retry-time: 3
+
+logging:
+  config: classpath:log-config/logback-spring.xml

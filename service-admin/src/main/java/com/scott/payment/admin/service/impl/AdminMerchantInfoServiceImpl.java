@@ -18,10 +18,10 @@ import com.scott.payment.admin.entity.base.MccEntities;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
-import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
@@ -31,6 +31,8 @@ import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
+import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
+import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
@@ -255,9 +257,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * 收单支付敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
-    /**
-     * 商户安全缓存可靠失效协调器。
-     */
+    /** Admin、Merchant Portal、OpenAPI 和支付服务共用的完整商户资料缓存。 */
+    private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
+
+    /** 密钥元数据永久缓存的事务型可靠失效协调器。 */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
@@ -273,7 +276,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param isoCountryMapper          国家地区 Mapper
      * @param isoCurrencyMapper         币种 Mapper
      * @param keyMaterialFactory        密钥材料工厂
-     * @param cacheInvalidationCoordinator 商户安全缓存可靠失效协调器
+     * @param merchantRuntimeProfileCacheService 完整商户资料共享缓存
+     * @param cacheInvalidationCoordinator 密钥元数据永久缓存可靠失效协调器
      */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
@@ -285,6 +289,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         IsoCountryMapper isoCountryMapper,
                                         IsoCurrencyMapper isoCurrencyMapper,
                                         OpenApiKeyMaterialFactory keyMaterialFactory,
+                                        MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
                                         ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
@@ -296,6 +301,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.isoCountryMapper = isoCountryMapper;
         this.isoCurrencyMapper = isoCurrencyMapper;
         this.keyMaterialFactory = keyMaterialFactory;
+        this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
@@ -375,7 +381,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Override
     @DS(DataSourceName.SLAVE)
     public AdminMerchantInfoDTO getMerchant(Long id) {
-        return toDTO(requireMerchantById(id));
+        BaseMerchantInfoDO row = requireMerchantById(id);
+        MerchantRuntimeProfile profile = merchantRuntimeProfileCacheService.findRuntimeProfile(row.getMerchantId());
+        return profile == null ? toDTO(row) : toDTO(toMerchantInfoDO(profile));
     }
 
     /**
@@ -396,11 +404,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         row.setGmtCreate(now);
         row.setGmtModified(now);
         row.setDeleted(NOT_DELETED);
-        cacheInvalidationCoordinator.prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                row.getMerchantId()
-        );
+        prepareRuntimeProfileInvalidation(merchantId);
         merchantInfoMapper.insert(row);
+        merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
         return toDTO(row);
     }
 
@@ -422,11 +428,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         }
         merge(row, request);
         row.setGmtModified(LocalDateTime.now());
-        cacheInvalidationCoordinator.prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                row.getMerchantId()
-        );
+        prepareRuntimeProfileInvalidation(row.getMerchantId());
         merchantInfoMapper.updateById(row);
+        merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
         return toDTO(row);
     }
 
@@ -445,12 +449,47 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         validateStatus(merchantStatus);
         row.setMerchantStatus(merchantStatus);
         row.setGmtModified(LocalDateTime.now());
-        cacheInvalidationCoordinator.prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                row.getMerchantId()
-        );
+        prepareRuntimeProfileInvalidation(row.getMerchantId());
         merchantInfoMapper.updateById(row);
+        merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
         return toDTO(row);
+    }
+
+    /**
+     * 软删除商户和全部 OpenAPI 密钥记录，并在事务提交后清除共享商户缓存。
+     *
+     * @param id 商户主键
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteMerchant(Long id) {
+        BaseMerchantInfoDO merchant = requireMerchantById(id);
+        prepareRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_ROUTE, merchant.getMerchantId());
+        LocalDateTime now = LocalDateTime.now();
+        merchantInfoMapper.update(null, Wrappers.<BaseMerchantInfoDO>lambdaUpdate()
+                .set(BaseMerchantInfoDO::getDeleted, 1)
+                .set(BaseMerchantInfoDO::getGmtModified, now)
+                .eq(BaseMerchantInfoDO::getId, merchant.getId())
+                .eq(BaseMerchantInfoDO::getDeleted, NOT_DELETED));
+        jwtKeyMapper.update(null, Wrappers.<BaseMerchantJwtKeyDO>lambdaUpdate()
+                .set(BaseMerchantJwtKeyDO::getDeleted, 1)
+                .set(BaseMerchantJwtKeyDO::getGmtModified, now)
+                .eq(BaseMerchantJwtKeyDO::getMerchantId, merchant.getMerchantId())
+                .eq(BaseMerchantJwtKeyDO::getDeleted, NOT_DELETED));
+        platformPayloadKeyMapper.update(null, Wrappers.<BasePlatformPayloadKeyDO>lambdaUpdate()
+                .set(BasePlatformPayloadKeyDO::getDeleted, 1)
+                .set(BasePlatformPayloadKeyDO::getGmtModified, now)
+                .eq(BasePlatformPayloadKeyDO::getMerchantId, merchant.getMerchantId())
+                .eq(BasePlatformPayloadKeyDO::getDeleted, NOT_DELETED));
+        responseKeyMapper.update(null, Wrappers.<BaseMerchantResponseKeyDO>lambdaUpdate()
+                .set(BaseMerchantResponseKeyDO::getDeleted, 1)
+                .set(BaseMerchantResponseKeyDO::getGmtModified, now)
+                .eq(BaseMerchantResponseKeyDO::getMerchantId, merchant.getMerchantId())
+                .eq(BaseMerchantResponseKeyDO::getDeleted, NOT_DELETED));
+        merchantRuntimeProfileCacheService.evictRuntimeProfile(merchant.getMerchantId());
     }
 
     /**
@@ -464,7 +503,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO provisionSecurityMaterial(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         MerchantJwtKey jwtKey = rotateJwtKeyInternal(merchant.getMerchantId());
         RsaKeyMaterial platformKey = rotatePlatformKeyInternal(merchant.getMerchantId());
         RsaKeyMaterial responseKey = rotateResponseKeyInternal(merchant.getMerchantId());
@@ -525,7 +564,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateJwtKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         MerchantJwtKey jwtKey = rotateJwtKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setMerchantKey(jwtKey.merchantKey());
@@ -547,7 +586,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotatePlatformPayloadKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         RsaKeyMaterial platformKey = rotatePlatformKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setPlatformPublicKeyX509Base64(platformKey.publicKeyX509Base64());
@@ -566,7 +605,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantSecurityMaterialDTO rotateMerchantResponseKey(String merchantId) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         RsaKeyMaterial responseKey = rotateResponseKeyInternal(merchant.getMerchantId());
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setMerchantResponsePublicKeyX509Base64(responseKey.publicKeyX509Base64());
@@ -587,8 +626,8 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     @Transactional(rollbackFor = Exception.class)
     public AdminMerchantInfoDTO updateMerchantResponseKey(String merchantId, AdminMerchantResponseKeyRequest request) {
         BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
-        prepareMerchantRuntimeProfileInvalidation(merchant.getMerchantId());
         String publicKey = normalizeBase64(request.getPublicKeyX509Base64(), "响应公钥格式不正确");
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
         BaseMerchantResponseKeyDO row = selectResponseKey(merchant.getMerchantId());
         LocalDateTime now = LocalDateTime.now();
         if (row == null) {
@@ -614,19 +653,25 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     }
 
     /**
-     * 在当前商户写事务内登记共享运行资料缓存的精确失效意图。
-     *
-     * <p>Redis Value 不保存 JWT Secret、RSA 私钥或其他密钥明文；密钥变更仍统一登记该商户的
-     * 安全缓存失效，以保证 Admin、Merchant Portal 与 OpenAPI 在同一提交边界后重新读取事实源。
-     * 事务回滚时 pending 门禁会释放，提交后的删除失败由 Outbox 中继重试。</p>
+     * 在密钥表变更前登记永久元数据缓存失效门禁和 Outbox 意图。
      *
      * @param merchantId 已确认存在的商户号
      */
-    private void prepareMerchantRuntimeProfileInvalidation(String merchantId) {
-        cacheInvalidationCoordinator.prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                merchantId
-        );
+    private void prepareKeyMetadataInvalidation(String merchantId) {
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_KEY_METADATA, merchantId);
+    }
+
+    /**
+     * 在商户主表变更前登记完整资料缓存的门禁和 Outbox 失效意图。
+     * <p>
+     * 事务提交后，Outbox 先可靠删除旧缓存，transaction-aware CachePut 再写入新资料；
+     * 即使新值写入 Redis 失败，也不会继续暴露旧的永久缓存。
+     * </p>
+     *
+     * @param merchantId 已确认的商户号
+     */
+    private void prepareRuntimeProfileInvalidation(String merchantId) {
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, merchantId);
     }
 
     /**
@@ -936,6 +981,72 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setPlatformPayloadKey(toPlatformSummary(selectPlatformKey(row.getMerchantId())));
         dto.setResponseKey(toResponseSummary(selectResponseKey(row.getMerchantId())));
         return dto;
+    }
+
+    /**
+     * 将完整商户缓存资料转换为管理端现有 DTO 转换链可复用的数据对象。
+     *
+     * <p>这里只转换 {@code base_merchant_info} 对应字段；密钥概要仍按管理端权限从密钥表查询，
+     * 不会把 JWT Secret 或 RSA 私钥写入 {@code merchant:info}。</p>
+     *
+     * @param profile 完整商户缓存资料
+     * @return 仅用于当前转换过程的商户数据对象
+     */
+    private BaseMerchantInfoDO toMerchantInfoDO(MerchantRuntimeProfile profile) {
+        BaseMerchantInfoDO row = new BaseMerchantInfoDO();
+        row.setId(profile.getId());
+        row.setMerchantId(profile.getMerchantId());
+        row.setMerchantName(profile.getMerchantName());
+        row.setBillingDescriptor(profile.getBillingDescriptor());
+        row.setMerchantShortName(profile.getMerchantShortName());
+        row.setMerchantStatus(profile.getMerchantStatus());
+        row.setMerchantCategoryCode(profile.getMerchantCategoryCode());
+        row.setCountryCode(profile.getCountryCode());
+        row.setRegionCode(profile.getRegionCode());
+        row.setCity(profile.getCity());
+        row.setAddressLine(profile.getAddressLine());
+        row.setPostalCode(profile.getPostalCode());
+        row.setContactName(profile.getContactName());
+        row.setContactEmail(profile.getContactEmail());
+        row.setContactPhone(profile.getContactPhone());
+        row.setSettlementCurrency(profile.getSettlementCurrency());
+        row.setTimezone(profile.getTimezone());
+        row.setRiskLevel(profile.getRiskLevel());
+        row.setGmtCreate(profile.getGmtCreate());
+        row.setGmtModified(profile.getGmtModified());
+        row.setDeleted(NOT_DELETED);
+        return row;
+    }
+
+    /**
+     * 将主库商户记录转换为跨服务共享缓存资料。
+     *
+     * @param row 已写入主库的完整商户记录
+     * @return 不包含密钥材料的完整商户缓存资料
+     */
+    private MerchantRuntimeProfile toRuntimeProfile(BaseMerchantInfoDO row) {
+        MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
+        profile.setId(row.getId());
+        profile.setMerchantId(row.getMerchantId());
+        profile.setMerchantName(row.getMerchantName());
+        profile.setBillingDescriptor(row.getBillingDescriptor());
+        profile.setMerchantShortName(row.getMerchantShortName());
+        profile.setMerchantStatus(row.getMerchantStatus());
+        profile.setMerchantCategoryCode(row.getMerchantCategoryCode());
+        profile.setCountryCode(row.getCountryCode());
+        profile.setRegionCode(row.getRegionCode());
+        profile.setCity(row.getCity());
+        profile.setAddressLine(row.getAddressLine());
+        profile.setPostalCode(row.getPostalCode());
+        profile.setContactName(row.getContactName());
+        profile.setContactEmail(row.getContactEmail());
+        profile.setContactPhone(row.getContactPhone());
+        profile.setSettlementCurrency(row.getSettlementCurrency());
+        profile.setTimezone(row.getTimezone());
+        profile.setRiskLevel(row.getRiskLevel());
+        profile.setGmtCreate(row.getGmtCreate());
+        profile.setGmtModified(row.getGmtModified());
+        return profile;
     }
 
     /**

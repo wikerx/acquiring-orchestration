@@ -1,5 +1,8 @@
 # service-job 专属配置：任务服务调用其他业务服务的内部补偿客户端参数。
 job:
+  data-client:
+    internal-caller: ${DATA_INTERNAL_CALLER:service-job}
+    internal-secret: ${DATA_INTERNAL_SECRET:dev-internal-service-secret}
   payment-client:
     internal-caller: ${PAYMENT_INTERNAL_CALLER:service-job}
     internal-secret: ${PAYMENT_INTERNAL_SECRET:dev-internal-service-secret}

@@ -11,7 +11,7 @@ import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.constant.DataSourceName;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.Semaphore;
@@ -22,7 +22,7 @@ import java.util.concurrent.Semaphore;
  * @classname : MerchantRuntimeProfileCacheReader
  * @date : 2026-07-30 21:25
  * @email : scott_x@163.com
- * @description : 商户运行时资料正缓存与主库读取器，通过禁止正缓存写入 null 和进程内全局并发许可限制 Redis 故障期间的数据库回源压力
+ * @description : 完整商户资料缓存读写器，负责只读库加载、主库刷新和事务提交后的精确缓存更新
  * @status : create
  */
 @Service
@@ -39,7 +39,7 @@ public class MerchantRuntimeProfileCacheReader {
     private static final int MAX_CONCURRENT_DATABASE_LOADS = 64;
 
     /**
-     * 商户基础资料 Mapper；查询固定路由到主库，避免安全校验读取复制延迟数据。
+     * 商户基础资料 Mapper。
      */
     private final BaseMerchantInfoMapper merchantInfoMapper;
 
@@ -74,12 +74,12 @@ public class MerchantRuntimeProfileCacheReader {
     }
 
     /**
-     * 正常状态下读取缓存，未命中时从主库加载。
+     * 正常状态下读取缓存，未命中时从只读库加载。
      *
      * @param merchantId 已规范化的商户号
      * @return 商户运行时资料；不存在时返回 null
      */
-    @DS(DataSourceName.MASTER)
+    @DS(DataSourceName.SLAVE)
     @Cacheable(
             cacheNames = PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
             key = "#p0",
@@ -101,15 +101,36 @@ public class MerchantRuntimeProfileCacheReader {
     }
 
     /**
-     * 精确删除结构过期的商户永久缓存 Value。
+     * 从主库读取最新商户资料并覆盖共享缓存。
      *
-     * <p>该入口只用于兼容刷新，不能替代数据库写事务使用的 pending + Outbox 可靠失效协议。</p>
+     * <p>该入口用于管理端写后刷新和可靠补偿，避免把只读库复制延迟重新写入永久缓存。</p>
      *
-     * @param merchantId 已规范化的商户号
+     * @param merchantId 商户号
+     * @return 主库最新商户资料；不存在时返回 null
      */
-    @CacheEvict(cacheNames = PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, key = "#p0")
-    public void evictLegacyValue(String merchantId) {
-        // Spring Cache 代理负责精确删除；方法体不执行数据库或其他副作用。
+    @DS(DataSourceName.MASTER)
+    @CachePut(
+            cacheNames = PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+            key = "#p0",
+            unless = "#result == null"
+    )
+    public MerchantRuntimeProfile refresh(String merchantId) {
+        return load(merchantId);
+    }
+
+    /**
+     * 写入已经由主库事务确认的完整商户资料。
+     *
+     * @param profile 完整商户资料
+     * @return 原商户资料
+     */
+    @CachePut(
+            cacheNames = PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+            key = "#p0.merchantId.trim()",
+            condition = "#p0 != null and T(org.springframework.util.StringUtils).hasText(#p0.merchantId)"
+    )
+    public MerchantRuntimeProfile put(MerchantRuntimeProfile profile) {
+        return profile;
     }
 
     /**
@@ -143,10 +164,15 @@ public class MerchantRuntimeProfileCacheReader {
                                     BaseMerchantInfoDO::getCountryCode,
                                     BaseMerchantInfoDO::getRegionCode,
                                     BaseMerchantInfoDO::getCity,
+                                    BaseMerchantInfoDO::getAddressLine,
                                     BaseMerchantInfoDO::getPostalCode,
+                                    BaseMerchantInfoDO::getContactName,
+                                    BaseMerchantInfoDO::getContactEmail,
+                                    BaseMerchantInfoDO::getContactPhone,
                                     BaseMerchantInfoDO::getSettlementCurrency,
                                     BaseMerchantInfoDO::getTimezone,
                                     BaseMerchantInfoDO::getRiskLevel,
+                                    BaseMerchantInfoDO::getGmtCreate,
                                     BaseMerchantInfoDO::getGmtModified
                             )
                             .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
@@ -160,7 +186,7 @@ public class MerchantRuntimeProfileCacheReader {
     }
 
     /**
-     * 将最小字段集数据库实体转换为运行时资料，禁止把密钥、密码或其他敏感字段带入缓存。
+     * 将商户主表实体转换为缓存资料，禁止把密钥、密码或其他安全材料带入缓存。
      *
      * @param row 商户基础资料最小字段集；允许为空
      * @return 运行时资料；数据库未找到记录时返回 null
@@ -170,7 +196,6 @@ public class MerchantRuntimeProfileCacheReader {
             return null;
         }
         MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
-        profile.setCacheSchemaRevision(MerchantRuntimeProfile.CURRENT_CACHE_SCHEMA_REVISION);
         profile.setId(row.getId());
         profile.setMerchantId(row.getMerchantId());
         profile.setMerchantName(row.getMerchantName());
@@ -181,10 +206,15 @@ public class MerchantRuntimeProfileCacheReader {
         profile.setCountryCode(row.getCountryCode());
         profile.setRegionCode(row.getRegionCode());
         profile.setCity(row.getCity());
+        profile.setAddressLine(row.getAddressLine());
         profile.setPostalCode(row.getPostalCode());
+        profile.setContactName(row.getContactName());
+        profile.setContactEmail(row.getContactEmail());
+        profile.setContactPhone(row.getContactPhone());
         profile.setSettlementCurrency(row.getSettlementCurrency());
         profile.setTimezone(row.getTimezone());
         profile.setRiskLevel(row.getRiskLevel());
+        profile.setGmtCreate(row.getGmtCreate());
         profile.setGmtModified(row.getGmtModified());
         return profile;
     }

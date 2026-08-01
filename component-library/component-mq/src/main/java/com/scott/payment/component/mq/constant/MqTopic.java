@@ -36,6 +36,11 @@ public final class MqTopic {
      */
     public static final String RISK_EVALUATION_AUDIT = "acquiring_risk_evaluation_audit_topic";
 
+    /**
+     * OpenAPI 安全拦截审计 Topic。
+     */
+    public static final String SECURITY_INTERCEPT_AUDIT = "acquiring_security_intercept_audit_topic";
+
     private MqTopic() {
     }
 }

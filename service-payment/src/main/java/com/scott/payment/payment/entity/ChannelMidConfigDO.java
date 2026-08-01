@@ -233,6 +233,11 @@ public class ChannelMidConfigDO {
     private LocalDateTime expireTime;
 
     /**
+     * MID 配置最后修改时间，用于隔离进程内短时敏感元数据缓存版本。
+     */
+    private LocalDateTime updateTime;
+
+    /**
      * deleted，用于保存 Channel MID Config DO 中与 deleted 相关的业务属性。
      * <p>
      * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
