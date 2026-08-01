@@ -7,6 +7,7 @@
 * [支付收单平台系统架构说明](architecture/system-architecture.md)：后端与前端双仓库边界、整体服务关系、OpenAPI 授权链路、退款/授权/回调目标链路、状态机目标和当前风险。
 * [支付收单系统工程约束](architecture/payment-engineering.md)：资金安全、模块边界、状态机、幂等、金额币种、OpenAPI、渠道回调、内部接口和前端限制。
 * [Hosted Checkout V1 数据库与状态机设计草案](architecture/hosted-checkout-v1-database-design.md)：自建收银台的会话表、token、支付尝试、事件、安全事件和 MPGS 3DS 状态机设计。
+* [ShardingSphere 交易季度分表全量升级方案](architecture/shardingsphere-full-migration-plan.md)：全系统接入范围、分片规则、CRUD、事务、查询治理、灰度、回滚和测试门禁。
 * [企业级重构路线图](architecture/refactor-roadmap.md)：后续分阶段重构顺序和重点。
 * [操作日志后续规划](architecture/operation-log-roadmap.md)：操作日志链路的后续演进方向。
 
@@ -81,6 +82,7 @@ SQL 参考脚本统一放在 `docs/sql/`。
 * [系统基础菜单审计报告](archive/reports/system-base-menu-audit.md)
 * [系统管理与基础数据菜单修复报告](archive/reports/system-base-menu-repair-report.md)
 * [系统菜单树层级修复报告](archive/reports/system-menu-tree-repair-report.md)
+* [交易季度分表专项扫描与整改方案](archive/reports/transaction-sharding-scan-and-remediation-report.md)
 
 ## 8. 前端协作文档
 
