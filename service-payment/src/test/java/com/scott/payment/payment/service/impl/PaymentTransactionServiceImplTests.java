@@ -37,6 +37,7 @@ import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.util.StringUtils;
 
@@ -59,6 +60,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @description : 收单交易服务单元测试，验证创建授权交易时的幂等、风控短路、渠道路由和渠道响应状态映射。
  * @status : create
  */
+@Slf4j
 class PaymentTransactionServiceImplTests {
 
     /**
@@ -259,14 +261,15 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
-     * 渠道请求阶段发生网络、解析或系统异常时，平台无法确认渠道是否受理，必须落为处理中等待查询勾兑。
+     * 渠道请求发送前因本地配置缺失而失败时，渠道不可能受理交易，必须直接进入失败终态。
      */
     @Test
-    void shouldMarkTransactionProcessingWhenChannelRequestThrowsException() {
+    void shouldMarkTransactionFailedWhenChannelRequestFailsBeforeDispatch() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
         CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        FailingPaymentChannelInvokeService channelInvokeService = new FailingPaymentChannelInvokeService();
+        log.info("测试发送前渠道失败状态：模拟 MPGS 配置缺失，预期交易进入 FAILED 终态");
+        FailingPaymentChannelInvokeService channelInvokeService = new FailingPaymentChannelInvokeService(false);
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 idempotencyService,
@@ -277,12 +280,38 @@ class PaymentTransactionServiceImplTests {
 
         PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
 
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
+        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
+        log.info("发送前渠道失败状态验证完成：status=FAILED，processStage=FINISHED，failReasonCode=CHANNEL_REQUEST_FAILED");
+    }
+
+    /**
+     * 渠道请求可能已被受理但响应结果未知时，资金动作必须保持处理中等待查询或回调勾兑。
+     */
+    @Test
+    void shouldKeepTransactionProcessingWhenChannelOutcomeIsUncertain() {
+        log.info("测试渠道结果不确定状态：模拟网络异常，预期交易保持 PROCESSING 等待勾兑");
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                new FailingPaymentChannelInvokeService(true));
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
+
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
         assertThat(resultDTO.getFailReasonCode()).isNull();
+        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PROCESSING.getCode());
         assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
-        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
-        assertThat(eventOutboxService.eventDO.getPayloadJson()).contains("\"transactionStatus\":\"PROCESSING\"");
+        log.info("渠道结果不确定状态验证完成：status=PROCESSING，processStage=CHANNEL_PROCESSING");
     }
 
     /**
@@ -1899,6 +1928,15 @@ class PaymentTransactionServiceImplTests {
     private static class FailingPaymentChannelInvokeService implements PaymentChannelInvokeService {
 
         /**
+         * 模拟失败是否发生在可能已送达渠道的阶段。
+         */
+        private final boolean outcomeUncertain;
+
+        private FailingPaymentChannelInvokeService(boolean outcomeUncertain) {
+            this.outcomeUncertain = outcomeUncertain;
+        }
+
+        /**
          * 为旧重载生成确定性请求标识后进入统一的渠道失败模拟路径。
          */
         @Override
@@ -1933,8 +1971,12 @@ class PaymentTransactionServiceImplTests {
             resultDTO.getChannelRequest().setChannelTransactionId(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
             resultDTO.setRequestStatus("FAILED");
             resultDTO.setExceptionType("ChannelRequestException");
-            resultDTO.setExceptionMessage("MPGS password is required");
-            throw new PaymentChannelInvokeException(resultDTO, new RuntimeException("MPGS password is required"));
+            String exceptionMessage = outcomeUncertain
+                    ? "MPGS network request failed"
+                    : "MPGS password is required";
+            resultDTO.setExceptionMessage(exceptionMessage);
+            resultDTO.setOutcomeUncertain(outcomeUncertain);
+            throw new PaymentChannelInvokeException(resultDTO, new RuntimeException(exceptionMessage));
         }
     }
 

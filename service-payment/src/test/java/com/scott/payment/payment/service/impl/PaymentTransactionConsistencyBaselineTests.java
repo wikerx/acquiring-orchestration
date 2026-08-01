@@ -3472,6 +3472,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 resultDTO.setRequestStatus("TIMEOUT");
                 resultDTO.setExceptionType(ChannelTimeoutException.class.getSimpleName());
                 resultDTO.setExceptionMessage("simulated timeout");
+                resultDTO.setOutcomeUncertain(true);
                 throw new PaymentChannelInvokeException(resultDTO, new ChannelTimeoutException("simulated timeout"));
             }
             resultDTO.setChannelResponse(response);
@@ -3514,6 +3515,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 resultDTO.setRequestStatus("TIMEOUT");
                 resultDTO.setExceptionType(ChannelTimeoutException.class.getSimpleName());
                 resultDTO.setExceptionMessage("simulated timeout");
+                resultDTO.setOutcomeUncertain(true);
                 throw new PaymentChannelInvokeException(resultDTO, new ChannelTimeoutException("simulated timeout"));
             }
             if (response != null) {

@@ -204,7 +204,8 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
             resultDTO.setDurationMillis(durationMillis(resultDTO.getRequestStartTime(), responseTime));
             resultDTO.setExceptionType(exception.getClass().getSimpleName());
             resultDTO.setExceptionMessage(exception.getMessage());
-            log.warn("event: PAYMENT_CHANNEL_REQUEST_FAILED stage=CHANNEL_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} requestStatus: {} exceptionType: {} durationMs: {}",
+            resultDTO.setOutcomeUncertain(exception.isOutcomeUncertain());
+            log.warn("event: PAYMENT_CHANNEL_REQUEST_FAILED stage=CHANNEL_CALL traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} requestId: {} channelOrderNo: {} channelTransactionId: {} endpointHost: {} endpointPath: {} requestStatus: {} exceptionType: {} outcomeUncertain: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     commandDTO.getMerchantId(),
                     commandDTO.getMerchantOrderNo(),
@@ -222,6 +223,7 @@ public class DefaultPaymentChannelInvokeService implements PaymentChannelInvokeS
                     endpointPath(resultDTO.getRequestUrlMasked()),
                     resultDTO.getRequestStatus(),
                     resultDTO.getExceptionType(),
+                    resultDTO.isOutcomeUncertain(),
                     resultDTO.getDurationMillis());
             throw new PaymentChannelInvokeException(resultDTO, exception);
         }

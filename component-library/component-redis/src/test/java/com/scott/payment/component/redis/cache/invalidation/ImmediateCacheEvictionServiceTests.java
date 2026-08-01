@@ -8,7 +8,9 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.transaction.TransactionAwareCacheDecorator;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -25,6 +27,21 @@ import static org.mockito.Mockito.when;
  */
 @Slf4j
 class ImmediateCacheEvictionServiceTests {
+
+    /**
+     * Spring Cache 关闭时不得注册立即失效服务，避免降级启动因缺少 CacheManager 失败。
+     */
+    @Test
+    void shouldNotRegisterWhenCacheManagerIsUnavailable() {
+        log.info("测试 Spring Cache 关闭降级，关键输入: 容器中不存在 CacheManager");
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.register(ImmediateCacheEvictionService.class);
+            context.refresh();
+
+            assertThat(context.getBeansOfType(ImmediateCacheEvictionService.class)).isEmpty();
+        }
+        log.info("Spring Cache 关闭降级验证完成，结果: 立即失效服务未注册且容器正常启动");
+    }
 
     /**
      * 事务感知装饰器必须被绕过，商户资料正缓存和 miss marker 必须在同一次调用中删除。

@@ -309,11 +309,11 @@ public class MpgsApiClient {
             throw new ChannelTimeoutException("MPGS request timed out", e);
         } catch (IOException e) {
             logRequestException(request, httpMethod, operation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS network request failed", e);
+            throw new ChannelRequestException("MPGS network request failed", e, true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logRequestException(request, httpMethod, operation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS request was interrupted", e);
+            throw new ChannelRequestException("MPGS request was interrupted", e, true);
         }
     }
 
@@ -356,11 +356,11 @@ public class MpgsApiClient {
             throw new ChannelTimeoutException("MPGS 3DS request timed out", e);
         } catch (IOException e) {
             logThreeDsException(request, apiOperation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS 3DS network request failed", e);
+            throw new ChannelRequestException("MPGS 3DS network request failed", e, true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logThreeDsException(request, apiOperation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS 3DS request was interrupted", e);
+            throw new ChannelRequestException("MPGS 3DS request was interrupted", e, true);
         }
     }
 

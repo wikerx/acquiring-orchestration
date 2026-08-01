@@ -82,6 +82,12 @@ public class PaymentChannelInvokeResultDTO implements Serializable {
     private String exceptionMessage;
 
     /**
+     * 渠道结果是否不确定。仅当请求可能已经到达渠道但平台无法取得可信结果时为 true，
+     * 此时资金动作必须保留为处理中并等待查询或回调勾兑；发送前校验、配置等确定性失败保持 false。
+     */
+    private boolean outcomeUncertain;
+
+    /**
      * 创建成功的渠道调用结果。
      *
      * @param channelRequest  渠道统一请求

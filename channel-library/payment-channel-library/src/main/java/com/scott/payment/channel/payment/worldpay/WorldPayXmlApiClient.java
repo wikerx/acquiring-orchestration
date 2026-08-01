@@ -259,11 +259,11 @@ public class WorldPayXmlApiClient {
             throw new ChannelTimeoutException("WorldPay XML request timed out", exception);
         } catch (IOException exception) {
             logRequestException(request, url, midConfig, startNanos, exception);
-            throw new ChannelRequestException("WorldPay XML network request failed", exception);
+            throw new ChannelRequestException("WorldPay XML network request failed", exception, true);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             logRequestException(request, url, midConfig, startNanos, exception);
-            throw new ChannelRequestException("WorldPay XML request was interrupted", exception);
+            throw new ChannelRequestException("WorldPay XML request was interrupted", exception, true);
         }
     }
 

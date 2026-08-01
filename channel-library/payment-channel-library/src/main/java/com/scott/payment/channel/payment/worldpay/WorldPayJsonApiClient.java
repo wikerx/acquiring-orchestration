@@ -228,11 +228,11 @@ public class WorldPayJsonApiClient {
             throw new ChannelTimeoutException("WorldPay JSON request timed out", exception);
         } catch (IOException exception) {
             logRequestException(request, httpMethod, operation, url, midConfig, startNanos, exception);
-            throw new ChannelRequestException("WorldPay JSON network request failed", exception);
+            throw new ChannelRequestException("WorldPay JSON network request failed", exception, true);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             logRequestException(request, httpMethod, operation, url, midConfig, startNanos, exception);
-            throw new ChannelRequestException("WorldPay JSON request was interrupted", exception);
+            throw new ChannelRequestException("WorldPay JSON request was interrupted", exception, true);
         }
     }
 

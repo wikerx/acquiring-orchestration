@@ -1108,8 +1108,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     /**
      * 在幂等保护下创建请款、退款、撤销、增量授权等后续交易。
      * <p>
-     * 后续交易必须先定位原生命周期主单并通过状态机校验，再沿用原渠道订单号发起渠道动作；
-     * 渠道异常不会直接落失败，而是进入 PROCESSING 等待回调或查询勾兑。
+     * 后续交易必须先定位原生命周期主单并通过状态机校验，再沿用原渠道订单号发起渠道动作。
+     * 渠道请求发送前的确定性失败直接落失败终态；请求可能已送达但结果不确定时，
+     * 交易保持 PROCESSING，等待渠道回调或主动查询勾兑，避免误判失败后重复发起资金动作。
      *
      * @param commandDTO 后续交易命令
      * @param transactionTypeEnum 后续交易类型
@@ -1265,7 +1266,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * 填充渠道同步响应对应的平台状态。
      * <p>
      * 该方法只解释同步响应，不直接推进数据库终态；WPGXML/WPGJSON 的 AUTHORISED/CAPTURED 语义由
-     * ChannelTransactionStatusResolver 统一处理，渠道请求异常统一保持 PROCESSING。
+     * ChannelTransactionStatusResolver 统一处理。渠道调用异常必须区分确定性失败和结果不确定：前者进入失败终态，
+     * 后者保持 PROCESSING 并等待查询或回调勾兑，避免重复发起可能已经被渠道受理的资金动作。
      *
      * @param resultDTO 待填充交易结果
      * @param invokeResultDTO 渠道调用上下文
@@ -1275,8 +1277,14 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                    PaymentChannelInvokeResultDTO invokeResultDTO,
                                    ChannelPaymentResponse channelResponse) {
         if (isChannelInvokeFailed(invokeResultDTO)) {
-            resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
-            resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+            if (invokeResultDTO.isOutcomeUncertain()) {
+                resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
+                resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
+            } else {
+                resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+                resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+                resultDTO.setFailReasonCode(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
+            }
             return;
         }
         ChannelTransactionStatusResolution resolution = channelStatusResolver.resolveSync(
@@ -1293,8 +1301,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     /**
      * 判断渠道调用是否在请求阶段失败。
      * <p>
-     * 无渠道业务响应但存在网络、超时、响应解析或系统异常时，平台无法确认渠道是否已受理交易。
-     * 资金类动作必须落为 PROCESSING 并等待自动查询勾兑，避免把渠道可能已成功的交易误判失败。
+     * 该判断只识别是否发生渠道调用异常，不负责推断渠道是否已经受理。是否保持处理中由
+     * PaymentChannelInvokeResultDTO.outcomeUncertain 显式表达，避免根据异常类名或请求状态猜测资金结果。
      *
      * @param invokeResultDTO 渠道调用上下文
      * @return true 表示渠道请求阶段已失败
@@ -1309,8 +1317,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     /**
      * 安全调用渠道并保留异常上下文。
      * <p>
-     * 渠道超时、网络失败、解析异常或 WorldPay 未接通异常都可能发生在请求阶段，不能在这里直接抛出导致交易事实缺失；
-     * 上层会根据返回的异常上下文将动作落为 PROCESSING，交由回调或查询勾兑确认最终状态。
+     * 渠道异常不能在这里继续抛出导致交易事实缺失；上层根据异常上下文中的 outcomeUncertain 区分确定性失败与
+     * 结果不确定，只有请求可能已经到达渠道的资金动作才进入 PROCESSING 并等待回调或查询勾兑。
      *
      * @param commandDTO 交易命令
      * @param routeResultDTO 渠道路由结果
@@ -3133,13 +3141,13 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * 用于排查渠道返回、状态机流转和商户响应之间的一致性。该方法不写库、不触发 MQ。
      * </p>
      * @param resultDTO 平台支付创建结果，包含交易标识、交易类型、平台状态和失败码
-     * @param invokeResultDTO 渠道调用包装结果，包含渠道请求号和请求状态
+     * @param invokeResultDTO 渠道调用包装结果，包含渠道请求号、请求状态和结果确定性
      * @param channelResponse 渠道响应映射对象，包含渠道码、渠道交易号和渠道业务码
      */
     private void logStatusMapping(PaymentCreateResultDTO resultDTO,
                                   PaymentChannelInvokeResultDTO invokeResultDTO,
                                   ChannelPaymentResponse channelResponse) {
-        log.info("event: PAYMENT_STATUS_MAPPED stage=STATUS_MAPPING traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} acquirerCode: {} failureCode: {} requestStatus: {}",
+        log.info("event: PAYMENT_STATUS_MAPPED stage=STATUS_MAPPING traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelCode: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} acquirerCode: {} failureCode: {} requestStatus: {} outcomeUncertain: {}",
                 TraceContext.getTraceId(),
                 resultDTO == null ? null : resultDTO.getMerchantId(),
                 resultDTO == null ? null : resultDTO.getMerchantOrderNo(),
@@ -3153,7 +3161,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 channelResponse == null ? null : channelResponse.getChannelResponseCode(),
                 channelResponse == null ? null : channelResponse.getAcquirerReferenceNo(),
                 resultDTO == null ? null : resultDTO.getFailReasonCode(),
-                invokeResultDTO == null ? null : invokeResultDTO.getRequestStatus());
+                invokeResultDTO == null ? null : invokeResultDTO.getRequestStatus(),
+                invokeResultDTO != null && invokeResultDTO.isOutcomeUncertain());
     }
 
     /**
