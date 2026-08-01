@@ -75,6 +75,7 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         clusterConfiguration.setPassword(RedisPassword.of(password));
         connectionFactory = new LettuceConnectionFactory(clusterConfiguration);
         connectionFactory.afterPropertiesSet();
+        connectionFactory.start();
         redisTemplate = new StringRedisTemplate(connectionFactory);
         redisTemplate.afterPropertiesSet();
     }

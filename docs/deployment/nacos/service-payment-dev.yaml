@@ -1,5 +1,25 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
 payment:
+  redis:
+    redisson:
+      # 支付准备阶段显式启用全局唯一 Redisson Cluster 客户端和统一分布式锁服务。
+      enabled: ${PAYMENT_REDIS_REDISSON_ENABLED:true}
+      scan-interval: ${PAYMENT_REDIS_REDISSON_SCAN_INTERVAL:5s}
+      retry-attempts: ${PAYMENT_REDIS_REDISSON_RETRY_ATTEMPTS:3}
+      retry-interval: ${PAYMENT_REDIS_REDISSON_RETRY_INTERVAL:1s}
+      master-connection-minimum-idle-size: ${PAYMENT_REDIS_REDISSON_MASTER_MIN_IDLE:2}
+      master-connection-pool-size: ${PAYMENT_REDIS_REDISSON_MASTER_POOL_SIZE:16}
+      # 强一致场景固定从 Master 读取，Slave 池仅保留低容量边界，不承担读流量。
+      slave-connection-minimum-idle-size: ${PAYMENT_REDIS_REDISSON_SLAVE_MIN_IDLE:0}
+      slave-connection-pool-size: ${PAYMENT_REDIS_REDISSON_SLAVE_POOL_SIZE:8}
+      subscription-connection-minimum-idle-size: ${PAYMENT_REDIS_REDISSON_SUBSCRIPTION_MIN_IDLE:1}
+      subscription-connection-pool-size: ${PAYMENT_REDIS_REDISSON_SUBSCRIPTION_POOL_SIZE:4}
+      threads: ${PAYMENT_REDIS_REDISSON_THREADS:4}
+      netty-threads: ${PAYMENT_REDIS_REDISSON_NETTY_THREADS:4}
+      lock-watchdog-timeout: ${PAYMENT_REDIS_REDISSON_WATCHDOG_TIMEOUT:30s}
+      check-slots-coverage: true
+      keep-alive: true
+      tcp-no-delay: true
   transaction:
     outbox:
       # 持续投递 transaction_event_outbox；风险预占终态依赖该事件链路。

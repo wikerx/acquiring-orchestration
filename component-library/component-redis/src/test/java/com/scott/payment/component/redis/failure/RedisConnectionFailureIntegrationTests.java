@@ -14,12 +14,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.support.StaticListableBeanFactory;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.RedisClusterConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
+import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class RedisConnectionFailureIntegrationTests {
 
     /**
-     * 指向故障端口的 Lettuce 连接工厂，命令超时限制为 500 毫秒。
+     * 指向不可达 Cluster 种子节点的 Lettuce 连接工厂，命令超时限制为 500 毫秒。
      */
     private LettuceConnectionFactory connectionFactory;
 
@@ -49,16 +50,23 @@ class RedisConnectionFailureIntegrationTests {
 
     @BeforeEach
     void setUp() {
-        RedisStandaloneConfiguration standaloneConfiguration = new RedisStandaloneConfiguration(
-                System.getProperty("redis.failure.host", "127.0.0.1"),
-                Integer.parseInt(System.getProperty("redis.failure.port", "16379"))
+        String configuredNodes = System.getProperty(
+                "redis.failure.cluster.nodes",
+                "127.0.0.1:16379,127.0.0.1:16380"
         );
+        RedisClusterConfiguration clusterConfiguration = new RedisClusterConfiguration(
+                Arrays.stream(configuredNodes.split(","))
+                        .map(String::trim)
+                        .filter(node -> !node.isEmpty())
+                        .toList()
+        );
+        clusterConfiguration.setMaxRedirects(1);
         LettuceClientConfiguration clientConfiguration = LettuceClientConfiguration.builder()
                 .commandTimeout(Duration.ofMillis(500L))
                 .shutdownTimeout(Duration.ZERO)
                 .build();
         connectionFactory = new LettuceConnectionFactory(
-                standaloneConfiguration,
+                clusterConfiguration,
                 clientConfiguration
         );
         connectionFactory.afterPropertiesSet();

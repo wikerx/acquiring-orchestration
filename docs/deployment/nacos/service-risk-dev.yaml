@@ -24,18 +24,9 @@ risk:
     # 单快照容量边界；超过上限时不写 Redis 大 Key并回源主库。
     rule-snapshot-max-rows: ${RISK_RULE_SNAPSHOT_MAX_ROWS:5000}
     rule-snapshot-max-characters: ${RISK_RULE_SNAPSHOT_MAX_CHARACTERS:5242880}
-    # 累计金额计数迁移模式：LEGACY 仅旧 Key；SHADOW 旧 Key 决策并双写同槽 Key；CLUSTER_SAFE 仅同槽 Key。
-    counter-mode: ${RISK_COUNTER_MODE:LEGACY}
-    # 只有 SHADOW 覆盖完整最大业务周期且差异核对完成后才能设为 true；CLUSTER_SAFE 未确认时会阻断启动。
-    counter-cutover-confirmed: ${RISK_COUNTER_CUTOVER_CONFIRMED:false}
-    # 交易频率窗口独立迁移：LEGACY 固定窗口决策；SHADOW 对比单 ZSet 滑动窗口；SLIDING_WINDOW 使用滑动窗口决策。
-    frequency-mode: ${RISK_FREQUENCY_MODE:LEGACY}
-    # 只有 SHADOW 覆盖完整最大窗口且差异语义获业务确认后才允许开启。
-    frequency-cutover-confirmed: ${RISK_FREQUENCY_CUTOVER_CONFIRMED:false}
-    # 规则和单 ZSet 容量上限；越界时进入 REVIEW，不静默放行。
+    # 固定窗口规则容量上限；越界时进入 REVIEW，不静默放行。
     frequency-max-window-seconds: ${RISK_FREQUENCY_MAX_WINDOW_SECONDS:86400}
     frequency-max-threshold-count: ${RISK_FREQUENCY_MAX_THRESHOLD_COUNT:1000}
-    frequency-max-members: ${RISK_FREQUENCY_MAX_MEMBERS:2000}
     # 数据库基线迁移：LEGACY 使用 payment 交易事实；SHADOW 对比生命周期表；LIFECYCLE 使用预占生命周期事实。
     baseline-mode: ${RISK_BASELINE_MODE:LEGACY}
     # 只有 SHADOW 覆盖完整最大周期、跨周期边界且差异为零后才允许开启。
