@@ -12,17 +12,29 @@
     <description>Global acquiring orchestration system based on Spring Cloud.</description>
 
     <modules>
+        <!--基础组件工具-->
         <module>component-library</module>
+        <!--渠道集成包-->
         <module>channel-library</module>
+        <!--所有内部、外部请求的统一网关-->
         <module>service-gateway</module>
+        <!--管理系统后端服务-->
         <module>service-admin</module>
+        <!--商户系统后端服务-->
         <module>service-merchant</module>
+        <!--收银台备用服务：暂未使用-->
         <module>service-checkout</module>
+        <!--对外 OpenAPI 服务，所有对外API的统一入口-->
         <module>service-openapi</module>
+        <!--支付（收单）核心服务-->
         <module>service-payment</module>
+        <!--风控服务-->
         <module>service-risk</module>
+        <!--数据服务：主要用于消费MQ及回调相关业务-->
         <module>service-data</module>
+        <!--payout服务-->
         <module>service-payout</module>
+        <!--定时任务调度服务-->
         <module>service-job</module>
     </modules>
 
