@@ -1,5 +1,7 @@
 package com.scott.payment.payment.mq;
 
+import com.scott.payment.component.mq.constant.MqTag;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -14,22 +16,17 @@ public final class TransactionMqConstants {
     /**
      * 交易创建或终态事件标签。
      */
-    public static final String TRANSACTION_CREATED_TAG = "TRANSACTION_CREATED";
+    public static final String TRANSACTION_CREATED_TAG = MqTag.TRANSACTION_CREATED;
 
     /**
      * 渠道回调推进交易终态事件标签。
      */
-    public static final String TRANSACTION_CALLBACK_PROCESSED_TAG = "TRANSACTION_CALLBACK_PROCESSED";
+    public static final String TRANSACTION_CALLBACK_PROCESSED_TAG = MqTag.TRANSACTION_CALLBACK_PROCESSED;
 
     /**
      * 同步渠道结果或主动查询推进终态后的状态变更事件标签。
      */
-    public static final String TRANSACTION_STATUS_CHANGED_TAG = "TRANSACTION_STATUS_CHANGED";
-
-    /**
-     * 商户通知消费者分组。
-     */
-    public static final String MERCHANT_NOTIFICATION_CONSUMER_GROUP = "acquiring-payment-merchant-notification-consumer-dev";
+    public static final String TRANSACTION_STATUS_CHANGED_TAG = MqTag.TRANSACTION_STATUS_CHANGED;
 
     private TransactionMqConstants() {
     }

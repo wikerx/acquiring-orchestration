@@ -102,6 +102,15 @@ public class AdminMerchantInfoApplicationService {
     }
 
     /**
+     * 删除商户资料及其 OpenAPI 密钥记录。
+     *
+     * @param id 商户主键
+     */
+    public void deleteMerchant(Long id) {
+        adminMerchantInfoService.deleteMerchant(id);
+    }
+
+    /**
      * 初始化商户安全材料。
      *
      * @param merchantId 商户号

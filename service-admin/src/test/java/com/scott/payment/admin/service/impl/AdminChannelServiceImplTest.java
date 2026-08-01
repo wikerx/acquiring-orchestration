@@ -29,6 +29,7 @@ import com.scott.payment.admin.mapper.ChannelPaymentCapabilityMapper;
 import com.scott.payment.admin.mapper.MerchantChannelMidBindingMapper;
 import com.scott.payment.admin.mapper.SysDictDataMapper;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -45,6 +46,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 /**
@@ -150,7 +152,8 @@ class AdminChannelServiceImplTest {
                 limitRuleMapper,
                 midConfigMapper,
                 midBindingMapper,
-                dictDataMapper
+                dictDataMapper,
+                mock(ManagedCacheInvalidationCoordinator.class)
         );
     }
 

@@ -224,7 +224,9 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
      * 门禁紧邻对应永久缓存命名空间，便于按业务域识别，同时不会与 Spring Cache 的实际
      * 业务 Key 冲突。物理格式分别为：
      * {@code acquiring:{environment}:merchant:info:pending:{merchantId}}、
-     * {@code acquiring:{environment}:merchant:openapi:pending:{merchantId}} 和
+     * {@code acquiring:{environment}:merchant:openapi:pending:{merchantId}}、
+     * {@code acquiring:{environment}:merchant:keyMeta:pending:{merchantId}}、
+     * {@code acquiring:{environment}:merchant:route:pending:{merchantId}} 和
      * {@code acquiring:{environment}:config:public:pending:{configKey}}。
      * </p>
      *
@@ -238,6 +240,10 @@ public class RedisCacheInvalidationGuard implements CacheInvalidationGuard {
                     redisProperties.businessKey("merchant", "info", "pending", businessKey);
             case PaymentCacheNames.MERCHANT_OPENAPI_ACCESS ->
                     redisProperties.businessKey("merchant", "openapi", "pending", businessKey);
+            case PaymentCacheNames.MERCHANT_KEY_METADATA ->
+                    redisProperties.businessKey("merchant", "keyMeta", "pending", businessKey);
+            case PaymentCacheNames.MERCHANT_ROUTE ->
+                    redisProperties.businessKey("merchant", "route", "pending", businessKey);
             case PaymentCacheNames.PLATFORM_CONFIG ->
                     redisProperties.businessKey("config", "public", "pending", businessKey);
             default -> throw new IllegalArgumentException(

@@ -46,6 +46,8 @@ import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -203,6 +205,9 @@ public class AdminChannelServiceImpl implements AdminChannelService {
      */
     private final SysDictDataMapper dictDataMapper;
 
+    /** 商户路由永久快照的事务型可靠失效协调器。 */
+    private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
 /**
  * 整理admin渠道serviceimpl，返回当前业务步骤需要的规范化结果。
  * <p>
@@ -219,6 +224,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
  * @param midConfigMapper MID Config Mapper 输入值，参与 mid配置映射器 的查询、校验、转换、写入或日志摘要
  * @param midBindingMapper MID Binding Mapper 输入值，参与 midbinding映射器 的查询、校验、转换、写入或日志摘要
  * @param dictDataMapper dict Data Mapper 输入值，参与 dictdata映射器 的查询、校验、转换、写入或日志摘要
+ * @param cacheInvalidationCoordinator 商户路由永久快照可靠失效协调器
  */
     public AdminChannelServiceImpl(ChannelInfoMapper channelInfoMapper,
                                    ChannelMetadataSchemaMapper metadataSchemaMapper,
@@ -228,7 +234,8 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                                    ChannelLimitRuleMapper limitRuleMapper,
                                    ChannelMidConfigMapper midConfigMapper,
                                    MerchantChannelMidBindingMapper midBindingMapper,
-                                   SysDictDataMapper dictDataMapper) {
+                                   SysDictDataMapper dictDataMapper,
+                                   ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
         this.channelInfoMapper = channelInfoMapper;
         this.metadataSchemaMapper = metadataSchemaMapper;
         this.capabilityMapper = capabilityMapper;
@@ -238,6 +245,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         this.midConfigMapper = midConfigMapper;
         this.midBindingMapper = midBindingMapper;
         this.dictDataMapper = dictDataMapper;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
     }
 
     /**
@@ -336,6 +344,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     public ChannelInfoResponse updateChannel(Long id, ChannelInfoSaveRequest request) {
         ChannelInfoDO entity = findChannel(id);
         validateChannelRequest(request, id);
+        prepareRouteInvalidationByChannel(entity.getId());
         fillChannel(entity, request, LocalDateTime.now());
         channelInfoMapper.updateById(entity);
         replaceMetadataSchemas(entity, request.getMetadataSchemas());
@@ -354,6 +363,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     public ChannelInfoResponse updateChannelStatus(Long id, Integer status) {
         ChannelInfoDO entity = findChannel(id);
         validateStatus(status);
+        prepareRouteInvalidationByChannel(entity.getId());
         entity.setChannelStatus(status);
         entity.setUpdateTime(LocalDateTime.now());
         channelInfoMapper.updateById(entity);
@@ -374,6 +384,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         if (hasActiveCapability(id) || hasActiveLimit(id)) {
             throw badRequest("渠道存在启用中的能力或限额，不能删除");
         }
+        prepareRouteInvalidationByChannel(entity.getId());
         entity.setDeleted(entity.getId());
         entity.setUpdateTime(LocalDateTime.now());
         channelInfoMapper.updateById(entity);
@@ -419,6 +430,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public CapabilityResponse createCapability(CapabilitySaveRequest request) {
         ChannelInfoDO channel = validateCapabilityRequest(request, null);
+        prepareRouteInvalidationByChannel(channel.getId());
         ChannelPaymentCapabilityDO entity = new ChannelPaymentCapabilityDO();
         fillCapability(entity, request, channel, LocalDateTime.now());
         entity.setCreateTime(entity.getUpdateTime());
@@ -441,6 +453,10 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     public CapabilityResponse updateCapability(Long id, CapabilitySaveRequest request) {
         ChannelPaymentCapabilityDO entity = findCapability(id);
         ChannelInfoDO channel = validateCapabilityRequest(request, id);
+        prepareRouteInvalidationByChannel(entity.getChannelId());
+        if (!Objects.equals(entity.getChannelId(), channel.getId())) {
+            prepareRouteInvalidationByChannel(channel.getId());
+        }
         fillCapability(entity, request, channel, LocalDateTime.now());
         capabilityMapper.updateById(entity);
         replaceCapabilityCurrencies(entity, request.getCurrencyCodes());
@@ -464,6 +480,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
             ChannelInfoDO channel = findChannel(entity.getChannelId());
             validateChannelSupportsBusiness(channel, entity.getBusinessType());
         }
+        prepareRouteInvalidationByChannel(entity.getChannelId());
         entity.setCapabilityStatus(status);
         entity.setUpdateTime(LocalDateTime.now());
         capabilityMapper.updateById(entity);
@@ -498,6 +515,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
             }
             entity.setSupportIncrementalAuthorization(supportIncrementalAuthorization);
         }
+        prepareRouteInvalidationByChannel(entity.getChannelId());
         entity.setUpdateTime(LocalDateTime.now());
         capabilityMapper.updateById(entity);
         return toCapabilityResponse(entity, findChannel(entity.getChannelId()));
@@ -512,6 +530,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteCapability(Long id) {
         ChannelPaymentCapabilityDO entity = findCapability(id);
+        prepareRouteInvalidationByChannel(entity.getChannelId());
         entity.setDeleted(entity.getId());
         entity.setUpdateTime(LocalDateTime.now());
         capabilityMapper.updateById(entity);
@@ -720,6 +739,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         ChannelMidConfigDO entity = findMid(id);
         mergeMetadataValuesForUpdate(entity, request);
         ChannelInfoDO channel = validateMidRequest(request, id);
+        prepareRouteInvalidationByMid(entity.getId());
         fillMid(entity, request, channel, LocalDateTime.now());
         midConfigMapper.updateById(entity);
         refreshBindingChannelMid(entity);
@@ -741,6 +761,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         if (status == ENABLED) {
             validateChannelSupportsBusiness(findChannel(entity.getChannelId()), entity.getBusinessType());
         }
+        prepareRouteInvalidationByMid(entity.getId());
         entity.setMidStatus(status);
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
@@ -760,6 +781,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         if (hasActiveMidBinding(id)) {
             throw badRequest("MID存在启用中的商户绑定，不能删除");
         }
+        prepareRouteInvalidationByMid(entity.getId());
         entity.setDeleted(entity.getId());
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
@@ -807,6 +829,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public MerchantChannelMidBindingResponse createMidBinding(MerchantChannelMidBindingSaveRequest request) {
         ChannelMidConfigDO mid = validateMidBindingRequest(request, null);
+        prepareRouteInvalidation(request.getMerchantId());
         MerchantChannelMidBindingDO entity = new MerchantChannelMidBindingDO();
         fillMidBinding(entity, request, mid, LocalDateTime.now());
         entity.setCreateTime(entity.getUpdateTime());
@@ -827,6 +850,8 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     public MerchantChannelMidBindingResponse updateMidBinding(Long id, MerchantChannelMidBindingSaveRequest request) {
         MerchantChannelMidBindingDO entity = findMidBinding(id);
         ChannelMidConfigDO mid = validateMidBindingRequest(request, id);
+        prepareRouteInvalidation(entity.getMerchantId());
+        prepareRouteInvalidation(request.getMerchantId());
         fillMidBinding(entity, request, mid, LocalDateTime.now());
         midBindingMapper.updateById(entity);
         return toMidBindingResponse(entity, findChannel(entity.getChannelId()), mid);
@@ -850,6 +875,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
                 throw badRequest("MID停用时不能启用绑定");
             }
         }
+        prepareRouteInvalidation(entity.getMerchantId());
         entity.setBindingStatus(status);
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
@@ -866,6 +892,7 @@ public class AdminChannelServiceImpl implements AdminChannelService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteMidBinding(Long id) {
         MerchantChannelMidBindingDO entity = findMidBinding(id);
+        prepareRouteInvalidation(entity.getMerchantId());
         entity.setDeleted(entity.getId());
         entity.setUpdateBy(currentOperatorName());
         entity.setUpdateTime(LocalDateTime.now());
@@ -3104,6 +3131,68 @@ public class AdminChannelServiceImpl implements AdminChannelService {
             return "";
         }
         return StringUtils.hasText(channel.getChannelCnName()) ? channel.getChannelCnName() : channel.getChannelEnName();
+    }
+
+    /**
+     * 在渠道配置写入前登记指定商户的路由永久快照失效意图。
+     *
+     * @param merchantId 受渠道配置变更影响的商户号
+     */
+    private void prepareRouteInvalidation(String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return;
+        }
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_ROUTE, merchantId.trim());
+    }
+
+    /**
+     * 查找绑定到指定 MID 的商户并逐一登记路由快照失效。
+     *
+     * @param midConfigId 发生变更的 MID 配置主键
+     */
+    private void prepareRouteInvalidationByMid(Long midConfigId) {
+        if (midConfigId == null) {
+            return;
+        }
+        midBindingMapper.selectList(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
+                        .eq(MerchantChannelMidBindingDO::getMidConfigId, midConfigId)
+                        .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED))
+                .stream()
+                .map(MerchantChannelMidBindingDO::getMerchantId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .forEach(this::prepareRouteInvalidation);
+    }
+
+    /**
+     * 查找指定渠道下全部 MID 绑定商户并逐一登记路由快照失效。
+     *
+     * <p>渠道启停、请求地址、能力和币种范围都会改变交易选路结果，必须在相应数据库写入前执行。</p>
+     *
+     * @param channelId 发生变更的渠道主键
+     */
+    private void prepareRouteInvalidationByChannel(Long channelId) {
+        if (channelId == null) {
+            return;
+        }
+        Set<Long> midIds = midConfigMapper.selectList(Wrappers.<ChannelMidConfigDO>lambdaQuery()
+                        .eq(ChannelMidConfigDO::getChannelId, channelId)
+                        .eq(ChannelMidConfigDO::getDeleted, NOT_DELETED))
+                .stream()
+                .map(ChannelMidConfigDO::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (midIds.isEmpty()) {
+            return;
+        }
+        midBindingMapper.selectList(Wrappers.<MerchantChannelMidBindingDO>lambdaQuery()
+                        .in(MerchantChannelMidBindingDO::getMidConfigId, midIds)
+                        .eq(MerchantChannelMidBindingDO::getDeleted, NOT_DELETED))
+                .stream()
+                .map(MerchantChannelMidBindingDO::getMerchantId)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .forEach(this::prepareRouteInvalidation);
     }
 
     /**

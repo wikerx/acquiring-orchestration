@@ -27,6 +27,7 @@ import com.scott.payment.openapi.mapper.MerchantInfoMapper;
 import com.scott.payment.openapi.mapper.MerchantJwtKeyMapper;
 import com.scott.payment.openapi.mapper.MerchantResponseKeyMapper;
 import com.scott.payment.openapi.mapper.PlatformPayloadKeyMapper;
+import com.scott.payment.openapi.security.OpenApiMerchantSecretCache;
 import com.scott.payment.openapi.service.MerchantSecurityService;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
@@ -143,8 +144,11 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      */
     private final OpenApiKeyMaterialFactory keyMaterialFactory;
 
-    /** Admin、Merchant Portal 与 OpenAPI 共用的非敏感商户运行资料缓存。 */
+    /** Admin、Merchant Portal、OpenAPI 与支付服务共用的完整商户资料缓存；密钥材料不在该缓存中。 */
     private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
+
+    /** OpenAPI 单实例短时敏感密钥缓存；实际密钥材料不会写入 Redis。 */
+    private final OpenApiMerchantSecretCache merchantSecretCache;
 
     /**
      * 创建商户安全材料服务实现。
@@ -156,6 +160,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
      * @param payloadCrypto             OpenAPI 报文加解密工具
      * @param keyMaterialFactory        OpenAPI 密钥材料生成入口
      * @param merchantRuntimeProfileCacheService 共享商户运行资料缓存
+     * @param merchantSecretCache OpenAPI 单实例短时敏感密钥缓存
      */
     public MerchantSecurityServiceImpl(MerchantInfoMapper merchantInfoMapper,
                                        MerchantJwtKeyMapper merchantJwtKeyMapper,
@@ -163,7 +168,8 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
                                        MerchantResponseKeyMapper merchantResponseKeyMapper,
                                        OpenApiPayloadCrypto payloadCrypto,
                                        OpenApiKeyMaterialFactory keyMaterialFactory,
-                                       MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService) {
+                                       MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
+                                       OpenApiMerchantSecretCache merchantSecretCache) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.merchantJwtKeyMapper = merchantJwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -171,6 +177,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
         this.payloadCrypto = payloadCrypto;
         this.keyMaterialFactory = keyMaterialFactory;
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
+        this.merchantSecretCache = merchantSecretCache;
     }
 
     /**
@@ -328,7 +335,10 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     }
 
     /**
-     * 从主库查询商户 JWT HS256 签名密钥。
+     * 查询商户 JWT HS256 签名密钥。
+     *
+     * <p>先校验共享商户状态，再按 Redis 非敏感 revision 读取进程内短时密钥材料；
+     * 本地未命中时固定回源主库，JWT Secret 不进入 Redis。</p>
      *
      * @param merchantId 支付框架颁发的商户号
      * @return 商户 JWT 签名密钥
@@ -338,12 +348,14 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     public String getMerchantKey(String merchantId) {
         validateMerchantId(merchantId);
         MerchantInfoDO merchantInfoDO = getActiveMerchant(merchantId);
-        MerchantJwtKeyDO keyDO = selectActiveMerchantJwtKey(merchantInfoDO.getMerchantId());
-        return keyDO.getMerchantKey();
+        return merchantSecretCache.getMerchantKey(merchantInfoDO.getMerchantId());
     }
 
     /**
-     * 从主库查询商户独立的平台 RSA 私钥，避免密钥轮换后的复制延迟导致请求解密失败。
+     * 查询商户独立的平台 RSA 私钥。
+     *
+     * <p>按 Redis 非敏感 revision 读取进程内短时密钥材料，本地未命中时固定回源主库，
+     * RSA 私钥不进入 Redis。</p>
      *
      * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 私钥
@@ -351,12 +363,12 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     @Override
     @DS(DataSourceName.MASTER)
     public PrivateKey getPlatformPrivateKey(String merchantId) {
-        PlatformPayloadKeyDO keyDO = selectActivePlatformPayloadKey(merchantId);
-        return payloadCrypto.readPrivateKey(keyDO.getPrivateKeyPkcs8Base64());
+        validateMerchantId(merchantId);
+        return merchantSecretCache.getPlatformPrivateKey(merchantId.trim());
     }
 
     /**
-     * 从主库查询商户独立的平台 RSA 公钥，确保加密测试与服务端解密使用同一版本。
+     * 查询商户独立的平台 RSA 公钥，确保加密测试与服务端解密使用同一版本。
      *
      * @param merchantId 支付框架颁发的商户号
      * @return 平台 RSA 公钥
@@ -364,14 +376,15 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     @Override
     @DS(DataSourceName.MASTER)
     public PublicKey getPlatformPublicKey(String merchantId) {
-        PlatformPayloadKeyDO keyDO = selectActivePlatformPayloadKey(merchantId);
-        return payloadCrypto.readPublicKey(keyDO.getPublicKeyX509Base64());
+        validateMerchantId(merchantId);
+        return merchantSecretCache.getPlatformPublicKey(merchantId.trim());
     }
 
     /**
      * 从共享永久缓存查询可交易商户基础信息，缓存未命中、失效 pending 或 Redis 异常时回源主库。
      *
-     * <p>缓存 Value 只包含交易所需的非敏感字段；联系人、详细地址和所有密钥材料均不在此对象中。
+     * <p>共享 Value 是 {@code base_merchant_info} 的完整资料读模型，包含受保护的联系人和地址字段，
+     * 但 OpenAPI 适配结果只提取交易鉴权所需字段。JWT Secret、RSA 私钥等密钥材料始终不进入 Redis。
      * 返回旧 OpenAPI 实体类型只用于兼容既有服务契约，不代表重新查询 OpenAPI 私有商户表。</p>
      *
      * @param merchantId 支付框架颁发的商户号
@@ -392,7 +405,7 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     }
 
     /**
-     * 从主库查询商户响应 RSA 公钥，避免密钥轮换后的复制延迟导致响应加密版本回退。
+     * 查询商户响应 RSA 公钥，避免密钥轮换后的复制延迟导致响应加密版本回退。
      *
      * @param merchantId 支付框架颁发的商户号
      * @return 商户响应 RSA 公钥
@@ -400,17 +413,17 @@ public class MerchantSecurityServiceImpl implements MerchantSecurityService {
     @Override
     @DS(DataSourceName.MASTER)
     public PublicKey getMerchantResponsePublicKey(String merchantId) {
-        MerchantResponseKeyDO keyDO = selectActiveMerchantResponseKey(merchantId);
-        return payloadCrypto.readPublicKey(keyDO.getPublicKeyX509Base64());
+        validateMerchantId(merchantId);
+        return merchantSecretCache.getMerchantResponsePublicKey(merchantId.trim());
     }
 
     /**
-     * 将共享非敏感运行资料适配为既有 OpenAPI 商户实体契约。
+     * 将共享完整商户资料适配为既有 OpenAPI 商户实体契约。
      *
-     * <p>适配结果故意不填充联系人和详细地址，防止共享缓存边界被旧实体类型意外扩大。</p>
+     * <p>适配结果故意不填充联系人和详细地址，避免 OpenAPI 交易鉴权链路传播不需要的受保护资料。</p>
      *
      * @param profile 已通过状态校验的共享商户运行资料
-     * @return 仅包含非敏感运行字段的兼容实体
+     * @return 仅包含 OpenAPI 交易鉴权所需字段的兼容实体
      */
     private MerchantInfoDO toMerchantInfoDO(MerchantRuntimeProfile profile) {
         MerchantInfoDO entity = new MerchantInfoDO();

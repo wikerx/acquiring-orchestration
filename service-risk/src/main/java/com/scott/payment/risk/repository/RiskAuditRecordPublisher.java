@@ -1,6 +1,6 @@
 package com.scott.payment.risk.repository;
 
-import com.scott.payment.risk.mq.message.RiskEvaluationAuditMessage;
+import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
 
 /**
  * 风控审计记录发布器。

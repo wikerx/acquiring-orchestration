@@ -16,6 +16,7 @@ import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -131,6 +132,20 @@ public class AdminMerchantInfoController {
     public CommonResult<AdminMerchantInfoDTO> updateStatus(@PathVariable("id") Long id,
                                                            @Valid @RequestBody AdminMerchantStatusRequest request) {
         return success(adminMerchantInfoApplicationService.updateStatus(id, request.getMerchantStatus()));
+    }
+
+    /**
+     * 软删除商户及其 OpenAPI 密钥记录。
+     *
+     * @param id 商户主键
+     * @return 无数据成功响应
+     */
+    @DeleteMapping("/{id}")
+    @RequiresPermission("merchant:info:remove")
+    @OperationLog(moduleName = "商户信息管理", businessType = OperationTypeConstants.DELETE, operation = "删除商户")
+    public CommonResult<Void> deleteMerchant(@PathVariable("id") Long id) {
+        adminMerchantInfoApplicationService.deleteMerchant(id);
+        return success();
     }
 
     /**

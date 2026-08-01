@@ -8,10 +8,6 @@ payment:
       initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_INITIAL_DELAY_MS:10000}
       batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
       lookback-quarters: ${PAYMENT_TRANSACTION_OUTBOX_LOOKBACK_QUARTERS:8}
-    merchant-notification:
-      mq:
-        # 商户通知消费者默认关闭，避免未配置 RocketMQ 的环境启动时误注册消费者；需要真实消费时显式设置为 true。
-        enabled: ${PAYMENT_MERCHANT_NOTIFICATION_MQ_ENABLED:false}
   risk-client:
     remote-enabled: ${PAYMENT_RISK_CLIENT_REMOTE_ENABLED:true}
     noop-enabled: ${PAYMENT_RISK_CLIENT_NOOP_ENABLED:false}

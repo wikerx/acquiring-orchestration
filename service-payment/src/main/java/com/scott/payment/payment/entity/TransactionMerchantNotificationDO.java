@@ -125,11 +125,11 @@ public class TransactionMerchantNotificationDO implements Serializable {
     private String notifyConfigVersion;
 
     /**
-     * notify Config Snapshot Json，用于保存 Transaction Merchant Notification DO 中与 通知配置snapshotjson 相关的业务属性。
+     * 通知配置快照 JSON，包含实际商户回调 URL，仅供 service-data 执行 HTTP 投递。
      * <p>
-     * 单位：无；格式：JSON 字符串或结构化对象；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：内容必须先脱敏再进入日志；数据来源：数据库表记录或持久化写入对象。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 单位：无；格式：JSON 字符串；有回调任务时不允许为空；敏感配置字段。
+     * 取值范围：只允许保存投递所需最小配置；数据来源：交易请求中经校验的 callbackUrl。
+     * 字段关系：不得进入 Redis、业务日志或管理端响应，展示使用 targetUrlMasked，关联审计使用 targetUrlHash。
      * </p>
      */
     private String notifyConfigSnapshotJson;

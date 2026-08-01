@@ -3629,7 +3629,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         notificationDO.setNotifyType(resultDTO.getTransactionType() + "_RESULT");
         notificationDO.setEventType("TRANSACTION_CREATED");
         notificationDO.setNotifyStatus(NOTIFY_STATUS_INIT);
-        notificationDO.setNotifyConfigSnapshotJson(maskedJson(Map.of("callbackUrl", callbackUrl)));
+        // 实际回调地址只保存在数据库任务快照中供 service-data 投递；日志和查询继续使用脱敏字段，禁止写入 Redis。
+        notificationDO.setNotifyConfigSnapshotJson(JsonUtils.toJsonString(Map.of("callbackUrl", callbackUrl)));
         notificationDO.setTargetUrlHash(sha256Hex(callbackUrl));
         notificationDO.setTargetUrlMasked(maskUrl(callbackUrl));
         notificationDO.setPayloadJsonMasked(maskedJson(merchantVisiblePayload(commandDTO, resultDTO)));

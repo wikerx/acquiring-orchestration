@@ -2,7 +2,8 @@ package com.scott.payment.admin.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.scott.payment.admin.dto.merchant.AdminMerchantFormOptionsDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantInfoDTO;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
@@ -10,9 +11,10 @@ import com.scott.payment.admin.entity.base.MccEntities;
 import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
-import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
+import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantJwtKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantResponseKeyMapper;
 import com.scott.payment.component.db.auth.mapper.BasePlatformPayloadKeyMapper;
@@ -21,10 +23,13 @@ import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -33,6 +38,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -46,6 +53,7 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 @ExtendWith(MockitoExtension.class)
+@Slf4j
 class AdminMerchantInfoServiceImplTest {
 
     @Mock
@@ -128,6 +136,10 @@ class AdminMerchantInfoServiceImplTest {
      * 验证商户安全材料变更后是否登记事务型缓存失效意图的协调器替身。
      */
     @Mock
+    private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
+
+    /** 密钥元数据永久缓存可靠失效协调器。 */
+    @Mock
     private ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
     /**
@@ -142,6 +154,9 @@ class AdminMerchantInfoServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
+        assistant.setCurrentNamespace(getClass().getName());
+        TableInfoHelper.initTableInfo(assistant, BaseMerchantInfoDO.class);
         service = new AdminMerchantInfoServiceImpl(
                 merchantInfoMapper,
                 jwtKeyMapper,
@@ -153,6 +168,7 @@ class AdminMerchantInfoServiceImplTest {
                 isoCountryMapper,
                 isoCurrencyMapper,
                 keyMaterialFactory,
+                merchantRuntimeProfileCacheService,
                 cacheInvalidationCoordinator
         );
     }
@@ -200,18 +216,8 @@ class AdminMerchantInfoServiceImplTest {
 
     @Test
     void shouldGenerateMerchantIdWhenCreatingMerchant() {
-        AdminMerchantSaveRequest request = new AdminMerchantSaveRequest();
-        request.setMerchantId("MANUAL-ID");
-        request.setMerchantName("Codex Test Merchant");
-        request.setBillingDescriptor("CODEX TEST");
-        request.setMerchantShortName("Codex");
-        request.setMerchantCategoryCode("5411");
-        request.setCountryCode("usa");
-        request.setSettlementCurrency("usd");
-        request.setTimezone("Asia/Shanghai");
-        request.setMerchantStatus(1);
-        request.setRiskLevel(2);
-        request.setContactEmail("merchant@example.com");
+        log.info("测试管理端新增商户缓存一致性，关键输入: 系统生成商户号");
+        AdminMerchantSaveRequest request = validRequest("MANUAL-ID");
 
         AdminMerchantInfoDTO result = service.createMerchant(request);
 
@@ -226,10 +232,84 @@ class AdminMerchantInfoServiceImplTest {
                         && "Codex".equals(row.getMerchantShortName())
                         && "merchant@example.com".equals(row.getContactEmail())
         ));
-        verify(cacheInvalidationCoordinator).prepare(
-                PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-                result.getMerchantId()
-        );
+        verify(merchantRuntimeProfileCacheService).putRuntimeProfile(argThat(profile ->
+                profile != null
+                        && result.getMerchantId().equals(profile.getMerchantId())
+                        && "Codex Test Merchant".equals(profile.getMerchantName())
+                        && "merchant@example.com".equals(profile.getContactEmail())
+        ));
+        InOrder order = inOrder(cacheInvalidationCoordinator, merchantInfoMapper,
+                merchantRuntimeProfileCacheService);
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                result.getMerchantId());
+        order.verify(merchantInfoMapper).insert(any(BaseMerchantInfoDO.class));
+        order.verify(merchantRuntimeProfileCacheService).putRuntimeProfile(any());
+        log.info("管理端新增商户缓存一致性完成，结果: 先登记可靠失效再写库与提交新缓存");
+    }
+
+    /** 管理端编辑商户应在主库写入前登记永久资料缓存失效。 */
+    @Test
+    void shouldPrepareInvalidationBeforeUpdatingMerchantProfile() {
+        log.info("测试管理端编辑商户缓存一致性，关键输入: merchantId=200045");
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+
+        service.updateMerchant(1L, validRequest("200045"));
+
+        InOrder order = inOrder(cacheInvalidationCoordinator, merchantInfoMapper,
+                merchantRuntimeProfileCacheService);
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                "200045");
+        order.verify(merchantInfoMapper).updateById(any(BaseMerchantInfoDO.class));
+        order.verify(merchantRuntimeProfileCacheService).putRuntimeProfile(argThat(profile ->
+                profile != null && "200045".equals(profile.getMerchantId())));
+        log.info("管理端编辑商户缓存一致性完成，结果: 失效意图早于主表更新");
+    }
+
+    /** 管理端停用商户应先阻止交易服务继续命中旧状态。 */
+    @Test
+    void shouldPrepareInvalidationBeforeUpdatingMerchantStatus() {
+        log.info("测试管理端商户状态缓存一致性，关键输入: status=2(冻结)");
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+
+        service.updateStatus(1L, 2);
+
+        InOrder order = inOrder(cacheInvalidationCoordinator, merchantInfoMapper,
+                merchantRuntimeProfileCacheService);
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                "200045");
+        order.verify(merchantInfoMapper).updateById(
+                org.mockito.ArgumentMatchers.<BaseMerchantInfoDO>argThat(row ->
+                row != null && Integer.valueOf(2).equals(row.getMerchantStatus())));
+        order.verify(merchantRuntimeProfileCacheService).putRuntimeProfile(argThat(profile ->
+                profile != null && Integer.valueOf(2).equals(profile.getMerchantStatus())));
+        log.info("管理端商户状态缓存一致性完成，结果: 旧启用状态受门禁保护");
+    }
+
+    /** 删除商户应同时登记资料、密钥和路由三类永久缓存失效。 */
+    @Test
+    void shouldPrepareAllPersistentCacheInvalidationsBeforeDeletingMerchant() {
+        log.info("测试管理端删除商户缓存一致性，关键输入: merchantId=200045");
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+
+        service.deleteMerchant(1L);
+
+        InOrder order = inOrder(cacheInvalidationCoordinator, merchantInfoMapper,
+                merchantRuntimeProfileCacheService);
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
+                "200045");
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_KEY_METADATA,
+                "200045");
+        order.verify(cacheInvalidationCoordinator).prepare(
+                com.scott.payment.component.core.cache.PaymentCacheNames.MERCHANT_ROUTE,
+                "200045");
+        order.verify(merchantInfoMapper).update(eq(null), any());
+        order.verify(merchantRuntimeProfileCacheService).evictRuntimeProfile("200045");
+        log.info("管理端删除商户缓存一致性完成，结果: 三类永久缓存均已登记可靠失效");
     }
 
     @Test
@@ -299,6 +379,42 @@ class AdminMerchantInfoServiceImplTest {
         row.setFractionDigits(2);
         row.setMinimumAmount(new BigDecimal("0.01"));
         row.setStatus(1);
+        row.setDeleted(0);
+        return row;
+    }
+
+    /** 构造管理端新增或编辑商户的合法请求。 */
+    private AdminMerchantSaveRequest validRequest(String merchantId) {
+        AdminMerchantSaveRequest request = new AdminMerchantSaveRequest();
+        request.setMerchantId(merchantId);
+        request.setMerchantName("Codex Test Merchant");
+        request.setBillingDescriptor("CODEX TEST");
+        request.setMerchantShortName("Codex");
+        request.setMerchantCategoryCode("5411");
+        request.setCountryCode("usa");
+        request.setSettlementCurrency("usd");
+        request.setTimezone("Asia/Shanghai");
+        request.setMerchantStatus(1);
+        request.setRiskLevel(2);
+        request.setContactEmail("merchant@example.com");
+        return request;
+    }
+
+    /** 构造管理端写操作定位的未删除商户记录。 */
+    private BaseMerchantInfoDO existingMerchant() {
+        BaseMerchantInfoDO row = new BaseMerchantInfoDO();
+        row.setId(1L);
+        row.setMerchantId("200045");
+        row.setMerchantName("Existing Merchant");
+        row.setBillingDescriptor("EXISTING");
+        row.setMerchantShortName("Existing");
+        row.setMerchantStatus(1);
+        row.setMerchantCategoryCode("5411");
+        row.setCountryCode("USA");
+        row.setSettlementCurrency("USD");
+        row.setTimezone("Asia/Shanghai");
+        row.setRiskLevel(2);
+        row.setContactEmail("merchant@example.com");
         row.setDeleted(0);
         return row;
     }

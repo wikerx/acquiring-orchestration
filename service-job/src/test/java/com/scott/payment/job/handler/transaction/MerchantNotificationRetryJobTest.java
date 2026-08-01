@@ -4,8 +4,8 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.component.job.model.JobExecuteResult;
-import com.scott.payment.job.client.payment.PaymentInternalClient;
-import com.scott.payment.job.client.payment.dto.PaymentMerchantNotificationNotifyDueClientRequestDTO;
+import com.scott.payment.job.client.data.DataInternalClient;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.dto.transaction.MerchantNotificationRetryRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.when;
  * @classname : MerchantNotificationRetryJobTest
  * @date : 2026-07-15 00:00
  * @email : scott_x@163.com
- * @description : 商户通知补偿任务单元测试，验证任务参数能按 transaction_date_time 转换为 service-payment 内部补偿请求。
+ * @description : 商户通知补偿任务单元测试，验证任务参数能按 transaction_date_time 转换为 service-data 内部补偿请求。
  * @status : create
  */
 class MerchantNotificationRetryJobTest {
@@ -36,11 +36,11 @@ class MerchantNotificationRetryJobTest {
      */
     @Test
     void executeShouldNotifyDueForEachTransactionDateTime() {
-        PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        when(paymentInternalClient.notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any()))
+        DataInternalClient dataInternalClient = mock(DataInternalClient.class);
+        when(dataInternalClient.notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(2)
                 .thenReturn(3);
-        MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(paymentInternalClient);
+        MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(dataInternalClient);
         LocalDateTime firstTime = LocalDateTime.of(2026, 7, 15, 0, 0, 0);
         LocalDateTime secondTime = LocalDateTime.of(2026, 4, 1, 0, 0, 0);
         MerchantNotificationRetryRequest request = new MerchantNotificationRetryRequest();
@@ -51,12 +51,12 @@ class MerchantNotificationRetryJobTest {
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).contains("successCount=5");
-        ArgumentCaptor<PaymentMerchantNotificationNotifyDueClientRequestDTO> captor =
-                ArgumentCaptor.forClass(PaymentMerchantNotificationNotifyDueClientRequestDTO.class);
-        verify(paymentInternalClient, times(2)).notifyDueMerchantNotifications(captor.capture());
-        assertThat(captor.getAllValues()).extracting(PaymentMerchantNotificationNotifyDueClientRequestDTO::getTransactionDateTime)
+        ArgumentCaptor<DataMerchantNotificationNotifyDueClientRequestDTO> captor =
+                ArgumentCaptor.forClass(DataMerchantNotificationNotifyDueClientRequestDTO.class);
+        verify(dataInternalClient, times(2)).notifyDueMerchantNotifications(captor.capture());
+        assertThat(captor.getAllValues()).extracting(DataMerchantNotificationNotifyDueClientRequestDTO::getTransactionDateTime)
                 .containsExactly(firstTime, secondTime);
-        assertThat(captor.getAllValues()).extracting(PaymentMerchantNotificationNotifyDueClientRequestDTO::getLimit)
+        assertThat(captor.getAllValues()).extracting(DataMerchantNotificationNotifyDueClientRequestDTO::getLimit)
                 .containsExactly(20, 20);
     }
 
@@ -65,7 +65,7 @@ class MerchantNotificationRetryJobTest {
      */
     @Test
     void executeShouldRejectInvalidLimit() {
-        MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(mock(PaymentInternalClient.class));
+        MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(mock(DataInternalClient.class));
         MerchantNotificationRetryRequest request = new MerchantNotificationRetryRequest();
         request.setLimit(0);
 

@@ -1,0 +1,33 @@
+# test 环境连接参数允许由环境变量覆盖，数据源、Redis 和 MQ 使用 test 命名空间配置。
+spring:
+  config:
+    import:
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:dataSource-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:sharding-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:rocketmq-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+  cloud:
+    bootstrap:
+      enabled: true
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER:nacos-test:8848}
+        namespace: ${NACOS_NAMESPACE:test}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        register-enabled: true
+      config:
+        server-addr: ${spring.cloud.nacos.discovery.server-addr}
+        namespace: ${spring.cloud.nacos.discovery.namespace}
+        username: ${spring.cloud.nacos.discovery.username}
+        password: ${spring.cloud.nacos.discovery.password}
+        group: DEFAULT_GROUP
+        file-extension: yaml
+        encode: UTF-8
+        refresh-enabled: true
+        config-retry-time: 3
+
+logging:
+  config: classpath:log-config/logback-spring.xml

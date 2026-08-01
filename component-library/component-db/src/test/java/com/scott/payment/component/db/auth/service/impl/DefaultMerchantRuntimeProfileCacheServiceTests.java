@@ -72,43 +72,14 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
             MerchantRuntimeProfile reloaded = service.findRuntimeProfile("200045");
 
             assertThat(first.getMerchantId()).isEqualTo("200045");
-            assertThat(first.getCacheSchemaRevision())
-                    .isEqualTo(MerchantRuntimeProfile.CURRENT_CACHE_SCHEMA_REVISION);
             assertThat(first.getMerchantName()).isEqualTo("Codex Store");
+            assertThat(first.getAddressLine()).isEqualTo("1 Market Street");
+            assertThat(first.getContactEmail()).isEqualTo("ops@example.com");
+            assertThat(first.getGmtCreate()).isEqualTo("2026-07-01T09:00");
             assertThat(cached.getSettlementCurrency()).isEqualTo("USD");
             assertThat(reloaded.getMerchantStatus()).isEqualTo(1);
             verify(merchantInfoMapper, times(2)).selectOne(any());
         }
-    }
-
-    /**
-     * 历史永久缓存没有结构修订号时，只精确删除当前商户旧值并从主库回填新结构。
-     */
-    @Test
-    void shouldRefreshLegacyPermanentCacheEntry() {
-        log.info("测试商户永久缓存兼容刷新，关键输入: 无结构修订号的历史 Value");
-        initializeTableMetadata(BaseMerchantInfoDO.class);
-        BaseMerchantInfoMapper merchantInfoMapper = mock(BaseMerchantInfoMapper.class);
-        CacheInvalidationGuard invalidationGuard = mock(CacheInvalidationGuard.class);
-        when(merchantInfoMapper.selectOne(any())).thenReturn(activeMerchant());
-
-        try (AnnotationConfigApplicationContext context =
-                     context(merchantInfoMapper, invalidationGuard)) {
-            Cache cache = runtimeProfileCache(context);
-            cache.put("200045", legacyRuntimeProfile());
-
-            MerchantRuntimeProfile refreshed = context
-                    .getBean(MerchantRuntimeProfileCacheService.class)
-                    .findRuntimeProfile("200045");
-
-            assertThat(refreshed.getCacheSchemaRevision())
-                    .isEqualTo(MerchantRuntimeProfile.CURRENT_CACHE_SCHEMA_REVISION);
-            assertThat(refreshed.getMerchantName()).isEqualTo("Codex Store");
-            assertThat(cache.get("200045", MerchantRuntimeProfile.class).getMerchantName())
-                    .isEqualTo("Codex Store");
-            verify(merchantInfoMapper).selectOne(any());
-        }
-        log.info("商户永久缓存兼容刷新完成，结果: 旧 Value 已按商户号精确刷新");
     }
 
     /**
@@ -199,9 +170,10 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
      * 缓存未命中和安全绕过入口都必须显式路由到主库。
      */
     @Test
-    void shouldRouteCachedAndFreshLoadsToMaster() throws NoSuchMethodException {
-        assertMasterRoute("findCached");
-        assertMasterRoute("findFresh");
+    void shouldRouteNormalLoadsToSlaveAndForcedRefreshToMaster() throws NoSuchMethodException {
+        assertDataSourceRoute("findCached", DataSourceName.SLAVE);
+        assertDataSourceRoute("findFresh", DataSourceName.MASTER);
+        assertDataSourceRoute("refresh", DataSourceName.MASTER);
     }
 
     /**
@@ -410,10 +382,16 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
         merchant.setCountryCode("USA");
         merchant.setRegionCode("CA");
         merchant.setCity("San Francisco");
+        merchant.setAddressLine("1 Market Street");
         merchant.setPostalCode("94105");
+        merchant.setContactName("Operations");
+        merchant.setContactEmail("ops@example.com");
+        merchant.setContactPhone("+1-555-0100");
         merchant.setSettlementCurrency("USD");
         merchant.setTimezone("Asia/Shanghai");
         merchant.setRiskLevel(2);
+        merchant.setGmtCreate(java.time.LocalDateTime.of(2026, 7, 1, 9, 0));
+        merchant.setGmtModified(java.time.LocalDateTime.of(2026, 8, 1, 12, 0));
         return merchant;
     }
 
@@ -425,22 +403,8 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
 
     private MerchantRuntimeProfile runtimeProfile(int status) {
         MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
-        profile.setCacheSchemaRevision(MerchantRuntimeProfile.CURRENT_CACHE_SCHEMA_REVISION);
         profile.setMerchantId("200045");
         profile.setMerchantStatus(status);
-        profile.setSettlementCurrency("USD");
-        return profile;
-    }
-
-    /**
-     * 构造升级前没有结构修订号的永久缓存 Value。
-     *
-     * @return 兼容刷新测试使用的历史商户资料
-     */
-    private MerchantRuntimeProfile legacyRuntimeProfile() {
-        MerchantRuntimeProfile profile = new MerchantRuntimeProfile();
-        profile.setMerchantId("200045");
-        profile.setMerchantStatus(1);
         profile.setSettlementCurrency("USD");
         return profile;
     }
@@ -452,12 +416,12 @@ class DefaultMerchantRuntimeProfileCacheServiceTests {
         return cache;
     }
 
-    private void assertMasterRoute(String methodName) throws NoSuchMethodException {
+    private void assertDataSourceRoute(String methodName, String expectedDataSource) throws NoSuchMethodException {
         DS dataSource = MerchantRuntimeProfileCacheReader.class
                 .getMethod(methodName, String.class)
                 .getAnnotation(DS.class);
         assertThat(dataSource).isNotNull();
-        assertThat(dataSource.value()).isEqualTo(DataSourceName.MASTER);
+        assertThat(dataSource.value()).isEqualTo(expectedDataSource);
     }
 
     @Configuration(proxyBeanMethods = false)

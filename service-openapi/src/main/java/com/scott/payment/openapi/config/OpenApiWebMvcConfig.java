@@ -12,7 +12,7 @@ import java.util.List;
 
 
 @Configuration
-@EnableConfigurationProperties(OpenApiCallbackProperties.class)
+@EnableConfigurationProperties({OpenApiCallbackProperties.class, OpenApiMerchantSecretCacheProperties.class})
 /**
  * @author : scott
  * @version : v1.0.0

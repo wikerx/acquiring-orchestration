@@ -78,7 +78,7 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
     }
 
     /**
-     * 查询商户最小运行时资料，数据库仍是最终事实源。
+     * 查询完整商户运行时资料，数据库仍是最终事实源。
      *
      * @param merchantId 商户号
      * @return 商户运行时资料；不存在时返回 null
@@ -103,24 +103,40 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
         if (mustBypassCache(normalizedMerchantId)) {
             return cacheReader.findFresh(normalizedMerchantId);
         }
-        if (cached != null && !cached.hasCurrentCacheSchema()) {
-            /*
-             * 旧 Value 属于永久缓存，不能等待 TTL 自然淘汰。这里只删除当前商户 Key 并重新
-             * 经过 @Cacheable 主库加载，避免批量扫描或在 Key 中引入无必要的版本片段。
-             */
-            cacheReader.evictLegacyValue(normalizedMerchantId);
-            if (mustBypassCache(normalizedMerchantId)) {
-                return cacheReader.findFresh(normalizedMerchantId);
-            }
-            cached = cacheReader.findCached(normalizedMerchantId);
-            if (mustBypassCache(normalizedMerchantId)) {
-                return cacheReader.findFresh(normalizedMerchantId);
-            }
-        }
         if (cached == null && missStatus == CacheMissMarkerStore.LookupStatus.ABSENT) {
             markConfirmedMissing(normalizedMerchantId);
         }
         return cached;
+    }
+
+    /**
+     * 从主库刷新完整商户资料并清理可能存在的 miss marker。
+     *
+     * @param merchantId 商户号
+     * @return 主库最新商户资料；不存在时返回 null
+     */
+    @Override
+    public MerchantRuntimeProfile refreshRuntimeProfile(String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return null;
+        }
+        evictMissMarker(merchantId.trim());
+        return cacheReader.refresh(merchantId.trim());
+    }
+
+    /**
+     * 写入由主库事务确认的完整商户资料并清理 miss marker。
+     *
+     * @param profile 完整商户资料
+     * @return 写入缓存的商户资料
+     */
+    @Override
+    public MerchantRuntimeProfile putRuntimeProfile(MerchantRuntimeProfile profile) {
+        if (profile == null || !StringUtils.hasText(profile.getMerchantId())) {
+            return profile;
+        }
+        evictMissMarker(profile.getMerchantId().trim());
+        return cacheReader.put(profile);
     }
 
     /**
@@ -133,15 +149,11 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
      */
     @Override
     @CacheEvict(cacheNames = PaymentCacheNames.MERCHANT_RUNTIME_PROFILE,
-            key = "#p0",
+            key = "#p0.trim()",
             condition = "T(org.springframework.util.StringUtils).hasText(#p0)")
     public void evictRuntimeProfile(String merchantId) {
-        if (missMarkerStore != null) {
-            missMarkerStore.evict(
-                    MERCHANT_DOMAIN,
-                    RUNTIME_PROFILE_MISS_BUSINESS,
-                    merchantId.trim()
-            );
+        if (StringUtils.hasText(merchantId)) {
+            evictMissMarker(merchantId.trim());
         }
     }
 
@@ -152,7 +164,7 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
      */
     @Override
     @CacheEvict(cacheNames = PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
-            key = "#p0",
+            key = "#p0.trim()",
             condition = "T(org.springframework.util.StringUtils).hasText(#p0)")
     public void evictOpenApiAccessPolicy(String merchantId) {
         // Spring Cache 负责删除物理缓存，本方法只表达跨模块失效语义。
@@ -212,6 +224,17 @@ public class DefaultMerchantRuntimeProfileCacheService implements MerchantRuntim
                     exception.getClass().getSimpleName(),
                     exception.getMessage()
             );
+        }
+    }
+
+    /**
+     * 删除指定商户的短期不存在标记。
+     *
+     * @param merchantId 商户号
+     */
+    private void evictMissMarker(String merchantId) {
+        if (missMarkerStore != null) {
+            missMarkerStore.evict(MERCHANT_DOMAIN, RUNTIME_PROFILE_MISS_BUSINESS, merchantId);
         }
     }
 

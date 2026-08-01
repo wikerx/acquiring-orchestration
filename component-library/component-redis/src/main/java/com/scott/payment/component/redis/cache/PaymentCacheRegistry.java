@@ -26,6 +26,8 @@ public final class PaymentCacheRegistry {
     private static final Map<String, Duration> DEFAULT_TTLS = Map.of(
             PaymentCacheNames.MERCHANT_RUNTIME_PROFILE, Duration.ZERO,
             PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, Duration.ZERO,
+            PaymentCacheNames.MERCHANT_KEY_METADATA, Duration.ZERO,
+            PaymentCacheNames.MERCHANT_ROUTE, Duration.ZERO,
             PaymentCacheNames.PLATFORM_CONFIG, Duration.ZERO
     );
 

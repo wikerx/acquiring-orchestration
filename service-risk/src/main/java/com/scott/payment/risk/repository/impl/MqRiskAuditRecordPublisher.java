@@ -1,10 +1,10 @@
 package com.scott.payment.risk.repository.impl;
 
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
-import com.scott.payment.risk.mq.RiskMqConstants;
-import com.scott.payment.risk.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.risk.repository.RiskAuditRecordPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -57,7 +57,7 @@ public class MqRiskAuditRecordPublisher implements RiskAuditRecordPublisher {
         }
         try {
             mqProducer.send(MqTopic.RISK_EVALUATION_AUDIT,
-                    RiskMqConstants.RISK_EVALUATION_AUDIT_TAG,
+                    MqTag.RISK_EVALUATION_AUDIT,
                     message);
         } catch (RuntimeException exception) {
             log.warn("event: RISK_AUDIT_PUBLISH_FAILED riskRecordNo: {} reason: {}",

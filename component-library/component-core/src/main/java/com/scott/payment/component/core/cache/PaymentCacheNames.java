@@ -16,7 +16,7 @@ package com.scott.payment.component.core.cache;
 public final class PaymentCacheNames {
 
     /**
-     * 商户最小运行时资料缓存，物理 Key 示例：
+     * 跨 Admin、Merchant Portal、OpenAPI 与支付服务共享的完整商户资料缓存，物理 Key 示例：
      * {@code acquiring:dev:merchant:info:200045}。
      */
     public static final String MERCHANT_RUNTIME_PROFILE = "merchant:info";
@@ -26,6 +26,21 @@ public final class PaymentCacheNames {
      * {@code acquiring:dev:merchant:openapi:200045}。
      */
     public static final String MERCHANT_OPENAPI_ACCESS = "merchant:openapi";
+
+    /**
+     * 商户 OpenAPI 密钥版本元数据缓存，物理 Key 示例：
+     * {@code acquiring:dev:merchant:keyMeta:200045}。
+     *
+     * <p>Value 只允许保存密钥 ID、版本、算法、更新时间和组合 revision，禁止保存 JWT Secret、
+     * RSA 私钥、公钥正文或其他可直接参与加解密的材料。</p>
+     */
+    public static final String MERCHANT_KEY_METADATA = "merchant:keyMeta";
+
+    /**
+     * 商户收单路由非敏感聚合快照，物理 Key 示例：
+     * {@code acquiring:dev:merchant:route:200045}。
+     */
+    public static final String MERCHANT_ROUTE = "merchant:route";
 
     /**
      * 商户端读取的非敏感平台公开参数缓存，物理 Key 示例：

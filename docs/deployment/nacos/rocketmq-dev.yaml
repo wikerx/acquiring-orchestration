@@ -48,22 +48,31 @@ acquiring:
           type: TOPIC
           read-queue-nums: 4
           write-queue-nums: 4
-        - name: acquiring-admin-operation-log-consumer-dev
+        - name: acquiring_security_intercept_audit_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
+        - name: acquiring-data-admin-operation-log-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
-        - name: acquiring-merchant-operation-log-consumer-dev
+        - name: acquiring-data-merchant-operation-log-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
-        - name: acquiring-payment-merchant-notification-consumer-dev
+        - name: acquiring-data-merchant-notification-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
           consume-timeout-minute: 15
-        - name: acquiring-risk-evaluation-audit-consumer-dev
+        - name: acquiring-data-risk-evaluation-audit-consumer
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        - name: acquiring-data-security-intercept-audit-consumer
           type: CONSUMER_GROUP
           retry-queue-nums: 1
           retry-max-times: 16
@@ -79,12 +88,19 @@ acquiring:
       # 操作日志生产者分组。
       producer-group: acquiring-operation-log-producer
       # 管理后台操作日志消费者分组。
-      admin-consumer-group: acquiring-admin-operation-log-consumer-dev
+      admin-consumer-group: acquiring-data-admin-operation-log-consumer
       # 商户管理系统操作日志消费者分组。
-      merchant-consumer-group: acquiring-merchant-operation-log-consumer-dev
+      merchant-consumer-group: acquiring-data-merchant-operation-log-consumer
       # 单条消息发送超时时间，单位毫秒。
       send-timeout-ms: 3000
       # 操作日志消息最大文本长度，超出后会在发送前截断。
       max-message-length: 8192
       # 是否启用敏感字段脱敏标记。
       mask-sensitive-data: true
+
+  security-audit:
+    mq:
+      # OpenAPI 安全拦截审计由 service-data 集中消费并持久化。
+      enabled: true
+      # Redis 只保留短期消费幂等标记，数据库 event_no 唯一键是最终依据。
+      consume-idempotent-ttl-seconds: 604800

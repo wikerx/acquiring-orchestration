@@ -38,11 +38,29 @@ public final class PaymentRedisSerializerFactory {
     private static final String MERCHANT_RUNTIME_PROFILE_CLASS_NAME =
             "com.scott.payment.component.db.auth.model.MerchantRuntimeProfile";
 
+    private static final String MERCHANT_KEY_METADATA_CLASS_NAME =
+            "com.scott.payment.component.db.auth.model.MerchantKeyMetadata";
+
+    private static final String MERCHANT_ROUTE_PROFILE_CLASS_NAME =
+            "com.scott.payment.component.db.route.model.MerchantRouteProfile";
+
+    private static final String MERCHANT_ROUTE_OPTION_CLASS_NAME =
+            "com.scott.payment.component.db.route.model.MerchantRouteProfile$RouteOption";
+
     private static final String MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME =
             "com.scott.payment.openapi.security.MerchantOpenApiAccessPolicy";
 
     private static final Pattern MERCHANT_RUNTIME_PROFILE = Pattern.compile(
             "^" + Pattern.quote(MERCHANT_RUNTIME_PROFILE_CLASS_NAME) + "$");
+
+    private static final Pattern MERCHANT_KEY_METADATA = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_KEY_METADATA_CLASS_NAME) + "$");
+
+    private static final Pattern MERCHANT_ROUTE_PROFILE = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_ROUTE_PROFILE_CLASS_NAME) + "$");
+
+    private static final Pattern MERCHANT_ROUTE_OPTION = Pattern.compile(
+            "^" + Pattern.quote(MERCHANT_ROUTE_OPTION_CLASS_NAME) + "$");
 
     private static final Pattern MERCHANT_OPENAPI_ACCESS_POLICY = Pattern.compile(
             "^" + Pattern.quote(MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME) + "$");
@@ -58,6 +76,9 @@ public final class PaymentRedisSerializerFactory {
             LinkedHashMap.class.getName(),
             LinkedHashSet.class.getName(),
             MERCHANT_RUNTIME_PROFILE_CLASS_NAME,
+            MERCHANT_KEY_METADATA_CLASS_NAME,
+            MERCHANT_ROUTE_PROFILE_CLASS_NAME,
+            MERCHANT_ROUTE_OPTION_CLASS_NAME,
             MERCHANT_OPENAPI_ACCESS_POLICY_CLASS_NAME
     );
 
@@ -99,6 +120,9 @@ public final class PaymentRedisSerializerFactory {
     private static PolymorphicTypeValidator typeValidator() {
         return BasicPolymorphicTypeValidator.builder()
                 .allowIfSubType(MERCHANT_RUNTIME_PROFILE)
+                .allowIfSubType(MERCHANT_KEY_METADATA)
+                .allowIfSubType(MERCHANT_ROUTE_PROFILE)
+                .allowIfSubType(MERCHANT_ROUTE_OPTION)
                 .allowIfSubType(MERCHANT_OPENAPI_ACCESS_POLICY)
                 .allowIfSubType(ArrayList.class)
                 .allowIfSubType(LinkedHashMap.class)
