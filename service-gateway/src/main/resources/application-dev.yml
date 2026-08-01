@@ -4,9 +4,9 @@ spring:
   config:
     import:
       # dev 可叠加 live-regression profile，因此 DataId 必须明确绑定 dev，不能使用逗号分隔的 active profiles。
-      - optional:nacos:${spring.application.name}-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
       # 参数说明：导入公共 Nacos DataId，统一时间、监控和链路追踪配置。
-      - optional:nacos:common-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
   cloud:
     bootstrap:
       # 参数说明：控制 Spring Cloud Bootstrap 提前加载 Nacos 配置；关闭会导致远程配置无法在自动装配前生效。

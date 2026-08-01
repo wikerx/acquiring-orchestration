@@ -101,10 +101,24 @@ public class OperationLogPersistenceService {
         entity.setCostTime(message.getCostTimeMs());
         entity.setStatus(message.getOperationStatus() == null ? SUCCESS_STATUS : message.getOperationStatus());
         entity.setErrorCode(message.getErrorCode());
-        entity.setErrorMsg(message.getErrorMessage());
+        entity.setErrorMsg(truncate(message.getErrorMessage(), OperationLogMessage.ERROR_MESSAGE_MAX_LENGTH));
         entity.setOperatedAt(message.getOperationTime() == null ? now : message.getOperationTime());
         entity.setCreatedAt(now);
         return entity;
+    }
+
+    /**
+     * 在数据库持久化边界收敛受限文本，兼容历史消息和非标准生产者。
+     *
+     * @param value     原始文本
+     * @param maxLength 数据库列允许的最大字符数
+     * @return 不超过数据库列上限的文本
+     */
+    private String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 
     /**
