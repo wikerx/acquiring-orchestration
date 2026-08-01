@@ -124,7 +124,8 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
         message.setUserAgent(record.getUserAgent());
         message.setRequestParams(truncate(record.getRequestParam()));
         message.setResponseResult(truncate(record.getResponseResult()));
-        message.setErrorMessage(truncate(record.getErrorMsg()));
+        message.setErrorMessage(messageSanitizer.sanitize(
+                record.getErrorMsg(), OperationLogMessage.ERROR_MESSAGE_MAX_LENGTH));
         message.setOperationStatus(record.getStatus());
         message.setCostTimeMs(record.getCostTime());
         message.setOperationTime(operationTime);

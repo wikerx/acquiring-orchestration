@@ -35,9 +35,20 @@ public class OperationLogMessageSanitizer {
      * @return 截断后的正文
      */
     public String sanitize(String value) {
-        if (!StringUtils.hasText(value) || value.length() <= properties.getMaxMessageLength()) {
+        return sanitize(value, properties.getMaxMessageLength());
+    }
+
+    /**
+     * 按指定字段契约截断日志文本。
+     *
+     * @param value     原始正文
+     * @param maxLength 字段允许的最大字符数
+     * @return 截断后的正文
+     */
+    public String sanitize(String value, int maxLength) {
+        if (!StringUtils.hasText(value) || value.length() <= maxLength) {
             return value;
         }
-        return value.substring(0, properties.getMaxMessageLength());
+        return value.substring(0, maxLength);
     }
 }
