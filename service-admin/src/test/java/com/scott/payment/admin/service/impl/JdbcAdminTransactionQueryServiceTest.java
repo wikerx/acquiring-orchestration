@@ -3,6 +3,7 @@ package com.scott.payment.admin.service.impl;
 import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -100,7 +101,8 @@ class JdbcAdminTransactionQueryServiceTest {
         return new JdbcAdminTransactionQueryService(
                 jdbcTemplate,
                 shardingDataTemplate,
-                mock(TransactionShardingKeyParser.class));
+                mock(TransactionShardingKeyParser.class),
+                mock(AdminRiskTimelineQueryService.class));
     }
 
     @SuppressWarnings("unchecked")

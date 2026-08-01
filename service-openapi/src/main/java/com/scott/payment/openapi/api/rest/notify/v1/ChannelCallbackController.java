@@ -41,10 +41,19 @@ import static com.scott.payment.component.core.model.ApiResult.success;
 @Slf4j
 public class ChannelCallbackController {
 
+    /**
+     * 普通渠道异步通知的内部回调分类。
+     */
     private static final String CHANNEL_CALLBACK_TYPE = "CHANNEL_CALLBACK";
 
+    /**
+     * MPGS 3DS 专用通知的内部回调分类。
+     */
     private static final String MPGS_3DS_CALLBACK_TYPE = "MPGS_3DS_CALLBACK";
 
+    /**
+     * MPGS 3DS 回调写入支付核心时使用的渠道事件类型。
+     */
     private static final String THREE_DS_EVENT_TYPE = "THREE_DS_CALLBACK";
 
     /**
@@ -141,6 +150,20 @@ public class ChannelCallbackController {
         return success(channelCode + " 3ds accepted");
     }
 
+    /**
+     * 组装发送至支付核心的渠道回调记录请求。
+     *
+     * <p>请求携带渠道安全校验结论和原始报文，由支付核心负责持久化、幂等处理及后续状态流转；
+     * 本方法不依据 Redis 或回调内容直接确认交易终态。原始报文仅用于受控审计链路，不应写入普通日志。</p>
+     *
+     * @param channelCode     渠道编码
+     * @param callbackType    内部回调分类
+     * @param channelEventType 渠道事件类型；普通回调可为空
+     * @param request         当前 HTTP 请求
+     * @param rawBody         渠道回调原始报文
+     * @param securityResult  渠道签名与来源 IP 校验结果
+     * @return 支付核心回调记录请求
+     */
     private TransactionChannelCallbackClientRequestDTO buildCallbackRequest(
             String channelCode,
             String callbackType,
@@ -163,6 +186,15 @@ public class ChannelCallbackController {
         return requestDTO;
     }
 
+    /**
+     * 提取数量和长度受控的回调请求头摘要。
+     *
+     * <p>认证、会话和签名类请求头只保留存在性、长度及不可逆摘要，不回传明文凭据；
+     * 最多采集 32 个请求头，防止异常请求制造无界持久化数据。</p>
+     *
+     * @param request 当前 HTTP 请求
+     * @return 可写入受控回调审计记录的请求头摘要
+     */
     private Map<String, String> headers(HttpServletRequest request) {
         Enumeration<String> headerNames = request.getHeaderNames();
         if (headerNames == null) {

@@ -184,6 +184,9 @@ class ExcelExportServiceImplTest {
          */
         private final ByteArrayOutputStream body = new ByteArrayOutputStream();
 
+        /**
+         * 返回写入内存缓存的 Servlet 输出流，供用例解析并断言导出的 Excel 字节。
+         */
         @Override
         public ServletOutputStream getOutputStream() {
             return new ServletOutputStream() {

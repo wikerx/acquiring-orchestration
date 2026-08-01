@@ -15,31 +15,34 @@ import com.scott.payment.channel.payment.model.PaymentChannelResult;
 @Deprecated
 public interface PaymentChannelAdapter {
 
+    /**
+     * 返回该旧版适配器唯一支持的渠道编码。
+     *
+     * @return 平台统一渠道编码
+     */
     String supportChannelCode();
 
+    /**
+     * 向渠道提交支付请求并映射为平台统一结果。
+     *
+     * @param request 已完成商户、金额、币种和支付方式校验的渠道请求
+     * @return 不直接暴露渠道原始报文的统一支付结果
+     */
     PaymentChannelResult submitPayment(PaymentChannelRequest request);
 
     /**
-     * 查询支付交易，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 渠道适配库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 查询渠道侧支付状态并映射为平台统一结果。
+     *
+     * @param request 包含平台和渠道交易标识的查询请求
+     * @return 统一支付结果；不得直接以渠道状态覆盖平台终态
      */
     PaymentChannelResult queryPayment(PaymentChannelRequest request);
 
     /**
-     * 发送refund消息或请求，补齐目标地址、链路标识和业务载荷。
-     * <p>
-     * 前置条件：调用方已准备 渠道适配库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 向渠道提交退款请求并映射为平台统一结果。
+     *
+     * @param request 包含原交易、退款金额和币种的渠道请求
+     * @return 统一退款结果；最终退款状态仍由支付核心状态机确认
      */
     PaymentChannelResult submitRefund(PaymentChannelRequest request);
 }

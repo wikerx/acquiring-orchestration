@@ -17,118 +17,165 @@ public final class HostedCheckoutBrowserRequestDTOs {
     private HostedCheckoutBrowserRequestDTOs() {
     }
 
+    /**
+     * 付款人浏览器打开收银台会话的请求。
+     */
     @Getter
     @Setter
     public static class SessionQueryRequest implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 不透明会话访问令牌，服务端只能校验或取摘要，禁止记录明文。 */
         @NotBlank(message = "opaqueToken is required")
         private String opaqueToken;
 
+        /** 可选页面封面或主题标识，不作为安全凭据。 */
         private String cover;
+
+        /** 浏览器环境摘要，用于安全审计和 3DS 信息补充。 */
         private ClientContextDTO clientContext;
     }
 
+    /**
+     * 付款人提交 Hosted Checkout 支付的请求。
+     */
     @Getter
     @Setter
     public static class PaymentSubmitRequest implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 不透明会话访问令牌，禁止日志、持久化或前端错误页回显。 */
         @NotBlank(message = "opaqueToken is required")
         private String opaqueToken;
 
+        /** Hosted Checkout 会话号，必须与令牌绑定关系一致。 */
         @NotBlank(message = "checkoutSessionId is required")
         private String checkoutSessionId;
 
+        /** 单次支付尝试请求号，用于提交幂等，重试时应保持稳定。 */
         @NotBlank(message = "attemptRequestId is required")
         private String attemptRequestId;
 
+        /** 付款人选择的支付方式编码。 */
         @NotBlank(message = "paymentMethod is required")
         private String paymentMethod;
 
+        /** 敏感卡数据，仅允许短暂传入支付链路，禁止写日志或业务库。 */
         @Valid
         @NotNull(message = "cardInfo is required")
         private CardInfoDTO cardInfo;
 
+        /** 账单持卡人资料，用于渠道和 3DS 校验，不得完整写入日志。 */
         @Valid
         @NotNull(message = "billingCardHolderInfo is required")
         private BillingCardHolderInfoDTO billingCardHolderInfo;
 
+        /** 浏览器环境摘要，用于 3DS 和异常访问审计。 */
         private ClientContextDTO clientContext;
     }
 
+    /**
+     * 付款人轮询 Hosted Checkout 支付状态的请求。
+     */
     @Getter
     @Setter
     public static class PaymentStatusRequest implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 不透明会话访问令牌，禁止记录明文。 */
         @NotBlank(message = "opaqueToken is required")
         private String opaqueToken;
 
+        /** Hosted Checkout 会话号，必须与令牌绑定关系一致。 */
         @NotBlank(message = "checkoutSessionId is required")
         private String checkoutSessionId;
 
+        /** 可选支付尝试号，用于限定本次状态查询。 */
         private String checkoutAttemptId;
+
+        /** 浏览器环境摘要，用于会话访问风险比对。 */
         private ClientContextDTO clientContext;
     }
 
+    /**
+     * 付款人从 3DS 页面返回收银台的请求。
+     */
     @Getter
     @Setter
     public static class ThreeDsReturnRequest implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 一次性 3DS 回跳令牌，只能校验摘要，禁止日志和重复使用。 */
         @NotBlank(message = "threeDsReturnToken is required")
         private String threeDsReturnToken;
 
+        /** Hosted Checkout 会话号，必须与回跳令牌绑定。 */
         @NotBlank(message = "checkoutSessionId is required")
         private String checkoutSessionId;
 
+        /** 发起 3DS 的支付尝试号，必须与回跳令牌绑定。 */
         @NotBlank(message = "checkoutAttemptId is required")
         private String checkoutAttemptId;
 
+        /** 渠道返回的 3DS 认证数据，属于敏感协议载荷，禁止完整记录。 */
         private String authenticationData;
+
+        /** 3DS 返回时的浏览器环境摘要。 */
         private ClientContextDTO clientContext;
     }
 
+    /**
+     * 浏览器提交的敏感银行卡资料。
+     */
     @Getter
     @Setter
     public static class CardInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 12 至 19 位完整 PAN，仅允许短暂传入支付处理，禁止日志和持久化。 */
         @NotBlank(message = "cardInfo.cardNo is required")
         @Pattern(regexp = "^\\d{12,19}$", message = "cardInfo.cardNo format does not match")
         private String cardNo;
 
+        /** 两位卡片到期月份，格式 {@code MM}。 */
         @NotBlank(message = "cardInfo.expirationMonth is required")
         @Pattern(regexp = "^(0[1-9]|1[0-2])$", message = "cardInfo.expirationMonth format does not match")
         private String expirationMonth;
 
+        /** 四位卡片到期年份，格式 {@code yyyy}。 */
         @NotBlank(message = "cardInfo.expirationYear is required")
         @Pattern(regexp = "^20\\d{2}$", message = "cardInfo.expirationYear format does not match")
         private String expirationYear;
 
+        /** 三或四位 CVV/CVC，严禁日志、缓存、数据库或响应回显。 */
         @NotBlank(message = "cardInfo.securityCode is required")
         @Pattern(regexp = "^\\d{3,4}$", message = "cardInfo.securityCode format does not match")
         private String securityCode;
 
+        /** 卡面持卡人姓名，属于个人信息，日志中必须脱敏。 */
         @NotBlank(message = "cardInfo.cardholderName is required")
         private String cardholderName;
     }
 
+    /**
+     * 账单持卡人资料，用于渠道支付与 3DS 风控。
+     */
     @Getter
     @Setter
     public static class BillingCardHolderInfoDTO implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        /** 持卡人名字，属于个人信息。 */
         @NotBlank(message = "billingCardHolderInfo.firstName is required")
         private String firstName;
 
+        /** 持卡人姓氏，属于个人信息。 */
         @NotBlank(message = "billingCardHolderInfo.lastName is required")
         private String lastName;
 

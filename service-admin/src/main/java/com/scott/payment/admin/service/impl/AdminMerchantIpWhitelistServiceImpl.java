@@ -1,5 +1,7 @@
 package com.scott.payment.admin.service.impl;
 
+import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
+import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationCoordinator;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
@@ -11,6 +13,7 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.Merchan
 import com.scott.payment.admin.service.AdminMerchantIpWhitelistService;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
+import com.scott.payment.component.core.cache.PaymentCacheNames;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
@@ -104,18 +107,35 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
     private final BaseMerchantInfoMapper merchantInfoMapper;
 
     /**
+     * 风控运行时规则缓存可靠失效协调器。
+     */
+    private final RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator;
+
+    /**
+     * 商户 OpenAPI 访问策略缓存可靠失效协调器。
+     */
+    private final ManagedCacheInvalidationCoordinator securityCacheInvalidationCoordinator;
+
+    /**
      * 创建商户 IP 白名单服务实现。
      *
      * @param whitelistMapper    白名单 Mapper
      * @param accessConfigMapper OpenAPI 访问配置 Mapper
      * @param merchantInfoMapper 商户基础资料 Mapper
+     * @param cacheInvalidationCoordinator 风控规则缓存失效协调器
+     * @param securityCacheInvalidationCoordinator 商户安全缓存可靠失效协调器
      */
     public AdminMerchantIpWhitelistServiceImpl(MerchantIpWhitelistMapper whitelistMapper,
                                                MerchantOpenApiAccessConfigMapper accessConfigMapper,
-                                               BaseMerchantInfoMapper merchantInfoMapper) {
+                                               BaseMerchantInfoMapper merchantInfoMapper,
+                                               RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator,
+                                               ManagedCacheInvalidationCoordinator
+                                                       securityCacheInvalidationCoordinator) {
         this.whitelistMapper = whitelistMapper;
         this.accessConfigMapper = accessConfigMapper;
         this.merchantInfoMapper = merchantInfoMapper;
+        this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
+        this.securityCacheInvalidationCoordinator = securityCacheInvalidationCoordinator;
     }
 
     /**
@@ -165,6 +185,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
+    /**
+     * 查询满足商户、开关、IP 类型、状态和 IP 内容条件的原始白名单记录。
+     *
+     * <p>商户关键词或开关条件明确筛选为空时返回空集合；未提供对应筛选条件时
+     * 使用 {@code null} 表示不限制商户范围。</p>
+     *
+     * @param condition 已补齐默认值的白名单查询
+     * @return 按更新时间和主键倒序的原始白名单记录
+     */
     private List<MerchantIpWhitelistDO> listMatchedWhitelists(MerchantIpWhitelistQuery condition) {
         List<String> merchantIds = findMerchantIds(condition);
         List<String> configMerchantIds = findConfigMerchantIds(condition);
@@ -214,6 +243,11 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         }
         BaseMerchantInfoDO merchant = requireMerchant(request.getMerchantId());
         List<NormalizedIp> normalizedIps = normalizeIpList(request.getIpValues());
+        cacheInvalidationCoordinator.prepare();
+        securityCacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
+                merchant.getMerchantId()
+        );
         String operator = currentOperatorName();
         int status = request.getStatus() == null ? ENABLED : normalizeStatus(request.getStatus());
         LocalDateTime now = LocalDateTime.now();
@@ -246,6 +280,11 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         }
         MerchantIpWhitelistDO existing = requireWhitelist(id);
         NormalizedIp ip = normalizeIp(request.getIpValue());
+        cacheInvalidationCoordinator.prepare();
+        securityCacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
+                existing.getMerchantId()
+        );
         existing.setIpType(ip.ipType());
         existing.setIpValue(ip.ipValue());
         existing.setStatus(normalizeStatus(request.getStatus()));
@@ -271,6 +310,11 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
     @Transactional(rollbackFor = Exception.class)
     public MerchantIpWhitelistResponse updateWhitelistStatus(Long id, Integer status) {
         MerchantIpWhitelistDO row = requireWhitelist(id);
+        cacheInvalidationCoordinator.prepare();
+        securityCacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
+                row.getMerchantId()
+        );
         row.setStatus(normalizeStatus(status));
         row.setUpdateBy(currentOperatorName());
         row.setGmtModified(LocalDateTime.now());
@@ -287,6 +331,11 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
     @Transactional(rollbackFor = Exception.class)
     public void deleteWhitelist(Long id) {
         MerchantIpWhitelistDO row = requireWhitelist(id);
+        cacheInvalidationCoordinator.prepare();
+        securityCacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
+                row.getMerchantId()
+        );
         row.setDeleted(row.getId());
         row.setUpdateBy(currentOperatorName());
         row.setGmtModified(LocalDateTime.now());
@@ -306,6 +355,11 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
             throw badRequest("白名单配置请求不能为空");
         }
         BaseMerchantInfoDO merchant = requireMerchant(request.getMerchantId());
+        cacheInvalidationCoordinator.prepare();
+        securityCacheInvalidationCoordinator.prepare(
+                PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
+                merchant.getMerchantId()
+        );
         MerchantOpenApiAccessConfigDO config = findConfig(merchant.getMerchantId());
         String operator = currentOperatorName();
         LocalDateTime now = LocalDateTime.now();
@@ -335,6 +389,12 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         return toResponse(first, merchant, config);
     }
 
+    /**
+     * 按商户号、名称或简称关键词查询未删除商户号。
+     *
+     * @param query 白名单查询条件
+     * @return 匹配的商户号；未提供关键词时返回 {@code null} 表示不限制
+     */
     private List<String> findMerchantIds(MerchantIpWhitelistQuery query) {
         if (!StringUtils.hasText(query.getMerchantKeyword())) {
             return null;
@@ -350,6 +410,15 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .toList();
     }
 
+    /**
+     * 按商户 IP 白名单总开关筛选商户范围。
+     *
+     * <p>启用条件只返回显式开启的商户；停用条件同时包含显式关闭和未配置的商户，
+     * 并结合已有白名单记录形成可查询范围。</p>
+     *
+     * @param query 白名单查询条件
+     * @return 开关条件对应的商户号；未指定开关时返回 {@code null}
+     */
     private List<String> findConfigMerchantIds(MerchantIpWhitelistQuery query) {
         if (query.getIpWhitelistEnabled() == null) {
             return null;

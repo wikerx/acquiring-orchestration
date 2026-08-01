@@ -2,8 +2,10 @@ package com.scott.payment.admin;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(scanBasePackages = "com.scott.payment")
+@EnableScheduling
 /**
  * @author : scott
  * @version : v1.0.0

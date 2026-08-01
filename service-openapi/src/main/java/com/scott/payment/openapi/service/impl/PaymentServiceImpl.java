@@ -6,8 +6,8 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
-import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
-import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
+import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
+import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.openapi.client.payment.PaymentInternalClient;
@@ -19,6 +19,7 @@ import com.scott.payment.openapi.converter.OpenApiRequestConverter;
 import com.scott.payment.openapi.dto.body.ApiMerchantPaymentRequestDTO;
 import com.scott.payment.openapi.enums.OpenApiPaymentOperationEnum;
 import com.scott.payment.openapi.enums.OpenApiPaymentStatusEnum;
+import com.scott.payment.openapi.security.MerchantIpWhitelistAccessService;
 import com.scott.payment.openapi.service.PaymentService;
 import com.scott.payment.openapi.support.OpenApiRequestContext;
 import com.scott.payment.openapi.support.OpenApiRequestAttributes;
@@ -164,9 +165,9 @@ public class PaymentServiceImpl implements PaymentService {
     private final IsoDictionaryService isoDictionaryService;
 
     /**
-     * 商户基础信息 Mapper，用于支付接口响应读取商户信息表中的结算币种。
+     * 商户基础资料缓存服务，用于 OpenAPI 本地降级响应读取商户结算币种。
      */
-    private final BaseMerchantInfoMapper baseMerchantInfoMapper;
+    private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
 
     /**
      * 创建开放接口收单支付服务实现。
@@ -177,7 +178,7 @@ public class PaymentServiceImpl implements PaymentService {
      * @param keyMaterialFactory      OpenAPI 密钥材料工具
      * @param requestContext          OpenAPI 请求上下文访问器
      * @param isoDictionaryService    ISO 币种字典服务
-     * @param baseMerchantInfoMapper  商户基础信息 Mapper
+     * @param merchantRuntimeProfileCacheService 商户运行时资料缓存服务
      */
     public PaymentServiceImpl(OpenApiRequestConverter converter,
                               PaymentInternalClient paymentInternalClient,
@@ -185,51 +186,107 @@ public class PaymentServiceImpl implements PaymentService {
                               OpenApiKeyMaterialFactory keyMaterialFactory,
                               OpenApiRequestContext requestContext,
                               IsoDictionaryService isoDictionaryService,
-                              BaseMerchantInfoMapper baseMerchantInfoMapper) {
+                              MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService) {
         this.converter = converter;
         this.paymentInternalClient = paymentInternalClient;
         this.paymentClientProperties = paymentClientProperties;
         this.keyMaterialFactory = keyMaterialFactory;
         this.requestContext = requestContext;
         this.isoDictionaryService = isoDictionaryService;
-        this.baseMerchantInfoMapper = baseMerchantInfoMapper;
+        this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
     }
 
+    /**
+     * 创建一步支付交易。
+     *
+     * @param encryptedData 商户原始密文，仅用于请求指纹和安全审计摘要
+     * @param requestDTO    解密并校验后的统一支付请求
+     * @return 支付核心受理结果
+     */
     @Override
     public PaymentCreateVO createPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitPayment(encryptedData, requestDTO);
     }
 
+    /**
+     * 创建独立授权交易，不执行后续请款。
+     *
+     * @param encryptedData 商户原始密文，仅用于请求指纹和安全审计摘要
+     * @param requestDTO    解密并校验后的授权请求
+     * @return 支付核心受理结果
+     */
     @Override
     public PaymentCreateVO createAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.AUTHORIZATION);
     }
 
+    /**
+     * 创建预授权交易。
+     *
+     * @param encryptedData 商户原始密文，仅用于请求指纹和安全审计摘要
+     * @param requestDTO    解密并校验后的预授权请求
+     * @return 支付核心受理结果
+     */
     @Override
     public PaymentCreateVO createPreAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.PRE_AUTHORIZATION);
     }
 
+    /**
+     * 对既有预授权发起增量授权。
+     *
+     * @param encryptedData 商户原始密文，仅用于请求指纹和安全审计摘要
+     * @param requestDTO    解密并校验后的增量授权请求，必须携带原交易关联信息
+     * @return 支付核心受理结果
+     */
     @Override
     public PaymentCreateVO createIncrementalAuthorization(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.INCREMENTAL_AUTHORIZATION);
     }
 
+    /**
+     * 对既有授权发起请款。
+     *
+     * @param encryptedData 商户原始密文，仅用于请求指纹和安全审计摘要
+     * @param requestDTO    解密并校验后的请款请求，金额校验由支付核心完成
+     * @return 支付核心受理结果
+     */
     @Override
     public PaymentCreateVO capture(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.CAPTURE);
     }
 
+    /**
+     * 完成预授权并进入后续扣款处理。
+     *
+     * @param encryptedData 商户原始密文，仅用于请求指纹和安全审计摘要
+     * @param requestDTO    解密并校验后的预授权完成请求
+     * @return 支付核心受理结果
+     */
     @Override
     public PaymentCreateVO preAuthCompletion(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.PRE_AUTH_COMPLETION);
     }
 
+    /**
+     * 对原支付交易发起退款。
+     *
+     * @param encryptedData 商户原始密文，仅用于请求指纹和安全审计摘要
+     * @param requestDTO    解密并校验后的退款请求，累计可退金额以数据库状态为准
+     * @return 支付核心受理结果
+     */
     @Override
     public PaymentCreateVO refund(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.REFUND);
     }
 
+    /**
+     * 对符合状态约束的原交易发起撤销。
+     *
+     * @param encryptedData 商户原始密文，仅用于请求指纹和安全审计摘要
+     * @param requestDTO    解密并校验后的撤销请求
+     * @return 支付核心受理结果
+     */
     @Override
     public PaymentCreateVO voidPayment(String encryptedData, ApiMerchantPaymentRequestDTO requestDTO) {
         return submitTransaction(encryptedData, requestDTO, OpenApiPaymentOperationEnum.VOID);
@@ -432,12 +489,8 @@ public class PaymentServiceImpl implements PaymentService {
      */
     private String resolveMerchantSettlementCurrency() {
         String merchantId = requestContext.getRequiredMerchantId();
-        BaseMerchantInfoDO merchantInfoDO = baseMerchantInfoMapper.selectOne(
-                com.baomidou.mybatisplus.core.toolkit.Wrappers.<BaseMerchantInfoDO>lambdaQuery()
-                        .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
-                        .eq(BaseMerchantInfoDO::getDeleted, 0)
-                        .last("LIMIT 1"));
-        return merchantInfoDO == null ? null : merchantInfoDO.getSettlementCurrency();
+        MerchantRuntimeProfile profile = merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId);
+        return profile == null ? null : profile.getSettlementCurrency();
     }
 
     /**
@@ -536,6 +589,7 @@ public class PaymentServiceImpl implements PaymentService {
         clientRequestDTO.setCardInfo(converter.toPaymentClientCardInfo(requestDTO.getCardInfo()));
         clientRequestDTO.setThreeDsInfo(converter.toPaymentClientThreeDsInfo(requestDTO.getThreeDsInfo()));
         clientRequestDTO.setTransactionInfo(converter.toPaymentClientTransactionInfo(requestDTO.getTransactionInfo()));
+        clientRequestDTO.setRiskContext(converter.toPaymentClientRiskContext(requestDTO.getRiskContext()));
         populateRequestSource(clientRequestDTO);
         return clientRequestDTO;
     }
@@ -812,6 +866,10 @@ public class PaymentServiceImpl implements PaymentService {
      * @return 客户端 IP
      */
     private String resolveClientIp(HttpServletRequest request) {
+        String gatewayClientIp = request.getHeader(MerchantIpWhitelistAccessService.HEADER_GATEWAY_CLIENT_IP);
+        if (StringUtils.hasText(gatewayClientIp)) {
+            return gatewayClientIp.trim();
+        }
         String forwarded = request.getHeader(X_FORWARDED_FOR);
         if (StringUtils.hasText(forwarded)) {
             return forwarded.split(",")[0].trim();

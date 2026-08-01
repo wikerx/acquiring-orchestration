@@ -51,6 +51,12 @@ public class AdminUserMfaController {
         this.adminUserMfaApplicationService = adminUserMfaApplicationService;
     }
 
+    /**
+     * 强制指定后台用户进入 MFA 绑定流程；请求和响应不写操作日志正文。
+     *
+     * @param request 目标用户及操作原因
+     * @return 更新后的 MFA 状态
+     */
     @PostMapping("/require")
     @RequiresPermission("sys:user:mfa:require")
     @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
@@ -59,6 +65,12 @@ public class AdminUserMfaController {
         return success(adminUserMfaApplicationService.requireMfa(request));
     }
 
+    /**
+     * 重置指定后台用户的 MFA 绑定，旧密钥立即失效。
+     *
+     * @param request 目标用户及操作原因
+     * @return 重置后的 MFA 状态
+     */
     @PostMapping("/reset")
     @RequiresPermission("sys:user:mfa:reset")
     @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
@@ -67,6 +79,12 @@ public class AdminUserMfaController {
         return success(adminUserMfaApplicationService.resetMfa(request));
     }
 
+    /**
+     * 配置后台用户 MFA 豁免及有效期。
+     *
+     * @param request 目标用户、豁免期限和原因
+     * @return 更新后的 MFA 状态
+     */
     @PostMapping("/exempt")
     @RequiresPermission("sys:user:mfa:exempt")
     @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
@@ -75,6 +93,12 @@ public class AdminUserMfaController {
         return success(adminUserMfaApplicationService.exemptMfa(request));
     }
 
+    /**
+     * 停用指定后台用户 MFA，权限和状态约束由应用服务校验。
+     *
+     * @param request 目标用户及停用原因
+     * @return 更新后的 MFA 状态
+     */
     @PostMapping("/disable")
     @RequiresPermission("sys:user:mfa:disable")
     @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
@@ -83,6 +107,12 @@ public class AdminUserMfaController {
         return success(adminUserMfaApplicationService.disableMfa(request));
     }
 
+    /**
+     * 解除指定后台用户因连续失败产生的 MFA 锁定。
+     *
+     * @param request 目标用户及操作原因
+     * @return 解锁后的 MFA 状态
+     */
     @PostMapping("/unlock")
     @RequiresPermission("sys:user:mfa:unlock")
     @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
@@ -91,6 +121,12 @@ public class AdminUserMfaController {
         return success(adminUserMfaApplicationService.unlockMfa(request));
     }
 
+    /**
+     * 重新发送 MFA 绑定邮件，不返回或记录绑定密钥。
+     *
+     * @param request 目标用户及操作原因
+     * @return 当前 MFA 绑定状态
+     */
     @PostMapping("/resend-bind-mail")
     @RequiresPermission("sys:user:mfa:resend")
     @OperationLog(moduleName = "用户 MFA 管理", businessType = OperationTypeConstants.UPDATE,
@@ -99,6 +135,12 @@ public class AdminUserMfaController {
         return success(adminUserMfaApplicationService.resendBindMail(request));
     }
 
+    /**
+     * 分页查询后台用户 MFA 管理审计日志。
+     *
+     * @param query 用户、动作和时间范围等可选条件
+     * @return MFA 审计日志分页结果
+     */
     @PostMapping("/logs/search")
     @RequiresPermission("sys:user:mfa:log")
     public CommonResult<PageResult<UserMfaLogResponse>> pageLogs(@RequestBody(required = false) UserMfaLogQuery query) {

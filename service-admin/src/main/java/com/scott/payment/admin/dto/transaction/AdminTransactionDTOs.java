@@ -1358,6 +1358,11 @@ public final class AdminTransactionDTOs {
         private List<Map<String, Object>> flowEvents = Collections.emptyList();
 
         /**
+         * 风控服务异步审计的实际执行节点，按规则优先级排序。
+         */
+        private List<Map<String, Object>> riskEvents = Collections.emptyList();
+
+        /**
          * amount Changes，表示当前交易、费用、限额或统计口径下的金额值。
          * <p>
          * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。

@@ -56,11 +56,17 @@ class PaymentChannelCallbackRegistryTests {
             this.channelCode = channelCode;
         }
 
+        /**
+         * 返回构造器指定的渠道编码，用于验证回调处理器注册和查找。
+         */
         @Override
         public String channelCode() {
             return channelCode;
         }
 
+        /**
+         * 返回空回调结果；当前用例只验证注册表路由，不验证渠道报文解析。
+         */
         @Override
         public ChannelCallbackResult handle(ChannelCallbackRequest request) {
             return new ChannelCallbackResult();

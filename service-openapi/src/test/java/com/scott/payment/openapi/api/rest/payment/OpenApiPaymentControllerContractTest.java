@@ -108,6 +108,7 @@ class OpenApiPaymentControllerContractTest {
 
         assertThat(annotation).isNotNull();
         assertThat(annotation.dataReceiver()).isEqualTo(ApiMerchantPaymentRequestDTO.class);
+        assertThat(annotation.deferIpWhitelistToRisk()).isEqualTo(controllerCase.deferIpWhitelistToRisk());
         assertThat(annotation.validationGroups()).containsExactly(controllerCase.validationGroups());
     }
 
@@ -144,23 +145,23 @@ class OpenApiPaymentControllerContractTest {
     private List<ControllerCase> controllerCases() {
         return List.of(
                 new ControllerCase(OpenApiPaymentController.class, OpenApiPaymentApplicationService.class, 1, "createPayment", "/payment",
-                        ApiMerchantPaymentRequestDTO.Payment.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        true, ApiMerchantPaymentRequestDTO.Payment.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiAuthorizationController.class, OpenApiAuthorizationApplicationService.class, 1, "createAuthorization", "/authorization",
-                        ApiMerchantPaymentRequestDTO.Authorization.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        true, ApiMerchantPaymentRequestDTO.Authorization.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiPreAuthorizationController.class, OpenApiPreAuthorizationApplicationService.class, 1, "createPreAuthorization", "/pre-authorization",
-                        ApiMerchantPaymentRequestDTO.PreAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        true, ApiMerchantPaymentRequestDTO.PreAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiIncrementalAuthorizationController.class, OpenApiIncrementalAuthorizationApplicationService.class, 1, "createIncrementalAuthorization", "/incremental-authorization",
-                        ApiMerchantPaymentRequestDTO.IncrementalAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        false, ApiMerchantPaymentRequestDTO.IncrementalAuthorization.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiCaptureController.class, OpenApiCaptureApplicationService.class, 1, "capture", "/capture",
-                        ApiMerchantPaymentRequestDTO.Capture.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        false, ApiMerchantPaymentRequestDTO.Capture.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiPreAuthCompletionController.class, OpenApiPreAuthCompletionApplicationService.class, 1, "preAuthCompletion", "/pre-auth-completion",
-                        ApiMerchantPaymentRequestDTO.PreAuthCompletion.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        false, ApiMerchantPaymentRequestDTO.PreAuthCompletion.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiRefundController.class, OpenApiRefundApplicationService.class, 1, "refund", "/refund",
-                        ApiMerchantPaymentRequestDTO.Refund.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        false, ApiMerchantPaymentRequestDTO.Refund.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiVoidController.class, OpenApiVoidApplicationService.class, 1, "voidPayment", "/void",
-                        ApiMerchantPaymentRequestDTO.AuthorizationCancel.class, ApiMerchantPaymentRequestDTO.Format.class),
+                        false, ApiMerchantPaymentRequestDTO.AuthorizationCancel.class, ApiMerchantPaymentRequestDTO.Format.class),
                 new ControllerCase(OpenApiPaymentQueryController.class, OpenApiPaymentQueryApplicationService.class, 1, "query", "/query",
-                        ApiMerchantPaymentRequestDTO.Query.class, ApiMerchantPaymentRequestDTO.Format.class)
+                        false, ApiMerchantPaymentRequestDTO.Query.class, ApiMerchantPaymentRequestDTO.Format.class)
         );
     }
 
@@ -172,6 +173,7 @@ class OpenApiPaymentControllerContractTest {
      * @param apiVersion API 版本号
      * @param methodName 控制器方法名
      * @param path POST 子路径
+     * @param deferIpWhitelistToRisk 是否把 IP 白名单判定延后到交易内风控
      * @param validationGroups Bean Validation 分组
      */
     private record ControllerCase(Class<?> controllerType,
@@ -179,6 +181,7 @@ class OpenApiPaymentControllerContractTest {
                                   int apiVersion,
                                   String methodName,
                                   String path,
+                                  boolean deferIpWhitelistToRisk,
                                   Class<?>... validationGroups) {
     }
 }

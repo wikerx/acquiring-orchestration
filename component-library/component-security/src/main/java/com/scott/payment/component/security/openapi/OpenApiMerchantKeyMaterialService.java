@@ -329,6 +329,15 @@ public class OpenApiMerchantKeyMaterialService {
         return queryMaterial(merchant.getMerchantId());
     }
 
+    /**
+     * 停用商户当前 JWT 对称密钥并生成新版本。
+     * <p>
+     * 旧密钥立即标记过期，新密钥版本与材料在同一数据库事务内写入；密钥明文不得写入
+     * 日志、异常或缓存。
+     * </p>
+     *
+     * @param merchantId 需要轮换 JWT 密钥的商户号
+     */
     private void rotateJwtKey(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         jwtKeyMapper.update(null, Wrappers.<BaseMerchantJwtKeyDO>lambdaUpdate()
@@ -353,6 +362,15 @@ public class OpenApiMerchantKeyMaterialService {
         jwtKeyMapper.insert(row);
     }
 
+    /**
+     * 生成并保存平台用于解密商户请求载荷的 RSA 密钥对。
+     * <p>
+     * 既有记录原位更新以维持商户唯一性。轮换会使使用旧公钥加密的新请求无法解密，
+     * 调用方必须在发布新公钥时同步处理切换窗口。
+     * </p>
+     *
+     * @param merchantId 需要轮换平台载荷密钥的商户号
+     */
     private void rotatePlatformPayloadKey(String merchantId) {
         LocalDateTime now = LocalDateTime.now();
         RsaKeyMaterial generated = keyMaterialFactory.generatePlatformPayloadRsaKey(merchantId);

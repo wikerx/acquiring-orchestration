@@ -115,6 +115,9 @@ class TransactionMerchantNotificationConsumerTests {
             this.transactionNotifyResult = transactionNotifyResult;
         }
 
+        /**
+         * 记录到期通知扫描是否被消费端触发及其批量上限，并固定返回一条已处理记录。
+         */
         @Override
         public int notifyDue(LocalDateTime transactionDateTime, int limit) {
             this.notifyDueCalled = true;
@@ -122,6 +125,9 @@ class TransactionMerchantNotificationConsumerTests {
             return 1;
         }
 
+        /**
+         * 捕获消费消息携带的平台交易号，并按用例预设值模拟单笔通知结果。
+         */
         @Override
         public boolean notifyTransaction(LocalDateTime transactionDateTime, String transactionId) {
             this.notifyTransactionCalled = true;

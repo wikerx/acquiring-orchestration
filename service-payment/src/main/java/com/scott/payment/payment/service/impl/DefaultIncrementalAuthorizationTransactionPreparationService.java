@@ -235,6 +235,15 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         this.transactionStateMachineService = transactionStateMachineService;
     }
 
+    /**
+     * 在事务内准备增量授权交易。
+     *
+     * <p>锁定原订单并按数据库授权累计值校验增量额度及冲突动作，Redis 不作为授权金额事实来源。</p>
+     *
+     * @param commandDTO     增量授权命令
+     * @param idempotencyKey 数据库幂等键
+     * @return 新建或幂等命中的增量授权准备结果
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public IncrementalAuthorizationPreparationResultDTO prepareIncrementalAuthorization(
@@ -252,6 +261,11 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 .orElseGet(() -> prepareNewIncrementalAuthorization(commandDTO, idempotencyKey, sourceOrderDO));
     }
 
+    /**
+     * 创建新的增量授权幂等记录、动作单和 Outbox。
+     *
+     * @return 新增量授权准备结果；并发占用幂等键时返回既有结果
+     */
     private IncrementalAuthorizationPreparationResultDTO prepareNewIncrementalAuthorization(
             PaymentCreateCommandDTO commandDTO,
             String idempotencyKey,
@@ -284,12 +298,12 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                 commandDTO.getTransactionInfo().getSourceTransactionId());
         normalizeIncrementalAuthorizationCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
-        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         PaymentCreateResultDTO resultDTO = buildIncrementalAuthorizationResult(commandDTO, sourceOrderDO, transactionId);
+        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
+        PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
         resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichIncrementalAuthorizationResult(commandDTO, sourceOrderDO, null, resultDTO);
-        int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         PaymentPreparedChannelRequestDTO preparedChannelRequestDTO = prepareChannelRequest(commandDTO, sourceOrderDO);
         PaymentChannelInvokeResultDTO preparedInvokeResultDTO = buildPreparedInvokeResult(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);

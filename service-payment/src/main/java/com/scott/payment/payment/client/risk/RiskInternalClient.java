@@ -1,5 +1,7 @@
 package com.scott.payment.payment.client.risk;
 
+import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationClientRequestDTO;
+import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationClientResponseDTO;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientRequestDTO;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientResponseDTO;
 
@@ -21,4 +23,15 @@ public interface RiskInternalClient {
      * @return 风控评估响应
      */
     RiskPaymentEvaluateClientResponseDTO evaluatePayment(RiskPaymentEvaluateClientRequestDTO requestDTO);
+
+    /**
+     * 撤销支付本地事务失败后遗留的商户累计限额预占。
+     *
+     * @param requestDTO 只包含稳定业务标识和原因
+     * @return 幂等迁移统计
+     */
+    default RiskMerchantLimitReservationClientResponseDTO cancelMerchantLimitReservation(
+            RiskMerchantLimitReservationClientRequestDTO requestDTO) {
+        throw new UnsupportedOperationException("merchant limit reservation cancellation is not supported");
+    }
 }

@@ -538,26 +538,41 @@ class WorldPayPaymentChannelClientTests {
             return new String(java.util.Base64.getDecoder().decode(authorization.substring("Basic ".length())));
         }
 
+        /**
+         * 不提供 Cookie 管理器，确保测试请求不携带进程外会话状态。
+         */
         @Override
         public Optional<CookieHandler> cookieHandler() {
             return Optional.empty();
         }
 
+        /**
+         * 返回固定连接超时，仅满足 JDK HTTP 客户端契约。
+         */
         @Override
         public Optional<Duration> connectTimeout() {
             return Optional.of(Duration.ofSeconds(10));
         }
 
+        /**
+         * 禁止自动重定向，避免请求地址断言被隐藏跳转改变。
+         */
         @Override
         public Redirect followRedirects() {
             return Redirect.NEVER;
         }
 
+        /**
+         * 不使用代理，保证测试桩不依赖本机网络配置。
+         */
         @Override
         public Optional<ProxySelector> proxy() {
             return Optional.empty();
         }
 
+        /**
+         * 创建独立 TLS 上下文以满足抽象客户端契约，不建立真实网络连接。
+         */
         @Override
         public SSLContext sslContext() {
             try {
@@ -569,21 +584,33 @@ class WorldPayPaymentChannelClientTests {
             }
         }
 
+        /**
+         * 返回默认 TLS 参数；测试不协商真实协议或密码套件。
+         */
         @Override
         public SSLParameters sslParameters() {
             return new SSLParameters();
         }
 
+        /**
+         * 不注册 JDK Authenticator，Basic 凭据由待测客户端显式生成请求头。
+         */
         @Override
         public Optional<Authenticator> authenticator() {
             return Optional.empty();
         }
 
+        /**
+         * 固定声明 HTTP/1.1，使测试响应协议版本保持确定。
+         */
         @Override
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;
         }
 
+        /**
+         * 不提供异步执行器，因为当前测试仅走同步发送路径。
+         */
         @Override
         public Optional<Executor> executor() {
             return Optional.empty();
@@ -686,21 +713,33 @@ class WorldPayPaymentChannelClientTests {
          */
         private final StringBuilder body = new StringBuilder();
 
+        /**
+         * 请求有限请求体发布器的全部数据，供测试完整还原 HTTP 请求体。
+         */
         @Override
         public void onSubscribe(java.util.concurrent.Flow.Subscription subscription) {
             subscription.request(Long.MAX_VALUE);
         }
 
+        /**
+         * 将每个 UTF-8 数据块追加到测试缓冲区。
+         */
         @Override
         public void onNext(java.nio.ByteBuffer item) {
             body.append(StandardCharsets.UTF_8.decode(item));
         }
 
+        /**
+         * 将请求体发布异常转换为测试失败，禁止静默产生不完整报文。
+         */
         @Override
         public void onError(Throwable throwable) {
             throw new IllegalStateException(throwable);
         }
 
+        /**
+         * 有限请求体读取完成后无需额外动作，缓冲区已包含全部数据。
+         */
         @Override
         public void onComplete() {
         }
@@ -712,11 +751,17 @@ class WorldPayPaymentChannelClientTests {
 
     private record SimpleHttpResponse<T>(HttpRequest request, T body, String contentType) implements HttpResponse<T> {
 
+        /**
+         * 固定返回 HTTP 200，渠道成功或失败由响应体中的业务状态表达。
+         */
         @Override
         public int statusCode() {
             return 200;
         }
 
+        /**
+         * 返回固定关联号和按响应体选择的内容类型，供渠道响应解析断言。
+         */
         @Override
         public HttpHeaders headers() {
             return HttpHeaders.of(java.util.Map.of(
@@ -725,21 +770,33 @@ class WorldPayPaymentChannelClientTests {
             ), (name, value) -> true);
         }
 
+        /**
+         * 固定表示不存在重定向前响应。
+         */
         @Override
         public Optional<HttpResponse<T>> previousResponse() {
             return Optional.empty();
         }
 
+        /**
+         * 返回原测试请求 URI，使响应与被捕获请求保持关联。
+         */
         @Override
         public URI uri() {
             return request.uri();
         }
 
+        /**
+         * 固定返回 HTTP/1.1，与测试客户端声明保持一致。
+         */
         @Override
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;
         }
 
+        /**
+         * 不返回 TLS 会话，因为响应由内存测试桩生成。
+         */
         @Override
         public Optional<javax.net.ssl.SSLSession> sslSession() {
             return Optional.empty();

@@ -2,7 +2,7 @@ package com.scott.payment.component.redis.set.impl;
 
 import com.scott.payment.component.redis.set.RedisSetService;
 import com.scott.payment.component.redis.support.RedisKeySupport;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,11 +16,11 @@ import java.util.Set;
  * @classname : RedisSetServiceImpl
  * @date : 2026-05-31 22:00
  * @email : scott_x@163.com
- * @description : Redis Set 数据结构服务实现
+ * @description : 提供受配置门禁控制的通用 Set 能力；默认不注册，业务启用前必须登记成员容量和重建策略
  * @status : create
  */
 @Service
-@ConditionalOnBean(RedisTemplate.class)
+@ConditionalOnProperty(prefix = "payment.redis.generic", name = "set-enabled", havingValue = "true")
 public class RedisSetServiceImpl implements RedisSetService {
 
     /**

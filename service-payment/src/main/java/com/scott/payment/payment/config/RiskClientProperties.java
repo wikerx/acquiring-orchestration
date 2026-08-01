@@ -17,9 +17,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class RiskClientProperties {
 
     /**
-     * 是否启用远程 service-risk 调用；本地骨架默认关闭，生产接入前必须通过配置中心开启并关闭 Noop 风控。
+     * 是否启用远程 service-risk 调用；交易链路默认启用，只有显式开启 noopEnabled 的本地测试环境才允许关闭。
      */
-    private boolean remoteEnabled = false;
+    private boolean remoteEnabled = true;
+
+    /**
+     * 是否允许使用本地 Noop 风控；仅限单元测试或本地隔离调试显式开启。
+     */
+    private boolean noopEnabled = false;
 
     /**
      * 内部服务调用方标识。

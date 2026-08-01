@@ -43,4 +43,9 @@ public class RiskPaymentEvaluateClientResponseDTO implements Serializable {
      * 风控评估完成时间。
      */
     private LocalDateTime decisionTime;
+
+    /**
+     * 风控是否为本次交易创建了商户累计限额预占。
+     */
+    private boolean merchantLimitReserved;
 }

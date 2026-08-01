@@ -1,9 +1,11 @@
 package com.scott.payment.component.redis.lock.impl;
 
 import com.scott.payment.component.redis.lock.RedisLockService;
+import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
+import com.scott.payment.component.redis.script.PaymentRedisScripts;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,25 +26,35 @@ import java.util.List;
 public class RedisLockServiceImpl implements RedisLockService {
 
     /**
-     * 原子释放锁脚本，只有 value 匹配时才删除锁。
-     */
-    private static final DefaultRedisScript<Long> UNLOCK_SCRIPT = new DefaultRedisScript<>(
-            "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
-            Long.class
-    );
-
-    /**
      * Spring 字符串 Redis 模板。
      */
     private final StringRedisTemplate stringRedisTemplate;
 
     /**
-     * 创建 Redis 分布式锁服务。
+     * Redis 业务指标记录器，只使用固定的锁操作和结果维度。
+     */
+    private final RedisBusinessMetrics metrics;
+
+    /**
+     * 创建具备低基数观测能力的 Redis 分布式锁服务。
+     *
+     * @param stringRedisTemplate Spring 字符串 Redis 模板
+     * @param metrics             Redis 业务指标记录器
+     */
+    @Autowired
+    public RedisLockServiceImpl(StringRedisTemplate stringRedisTemplate,
+                                RedisBusinessMetrics metrics) {
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.metrics = metrics;
+    }
+
+    /**
+     * 创建不产生指标副作用的 Redis 分布式锁服务，供纯单元测试和隔离测试直接构造。
      *
      * @param stringRedisTemplate Spring 字符串 Redis 模板
      */
     public RedisLockServiceImpl(StringRedisTemplate stringRedisTemplate) {
-        this.stringRedisTemplate = stringRedisTemplate;
+        this(stringRedisTemplate, RedisBusinessMetrics.noop());
     }
 
     /**
@@ -58,7 +70,28 @@ public class RedisLockServiceImpl implements RedisLockService {
         if (!StringUtils.hasText(key) || !StringUtils.hasText(value) || ttlSeconds <= 0) {
             return false;
         }
-        return Boolean.TRUE.equals(stringRedisTemplate.opsForValue().setIfAbsent(key, value, Duration.ofSeconds(ttlSeconds)));
+        long startNanos = System.nanoTime();
+        try {
+            boolean acquired = Boolean.TRUE.equals(stringRedisTemplate.opsForValue()
+                    .setIfAbsent(key, value, Duration.ofSeconds(ttlSeconds)));
+            metrics.recordOperation(
+                    RedisBusinessMetrics.Feature.LOCK,
+                    RedisBusinessMetrics.Operation.ACQUIRE,
+                    acquired
+                            ? RedisBusinessMetrics.Outcome.SUCCESS
+                            : RedisBusinessMetrics.Outcome.CONTENDED,
+                    System.nanoTime() - startNanos
+            );
+            return acquired;
+        } catch (RuntimeException exception) {
+            metrics.recordOperation(
+                    RedisBusinessMetrics.Feature.LOCK,
+                    RedisBusinessMetrics.Operation.ACQUIRE,
+                    RedisBusinessMetrics.Outcome.ERROR,
+                    System.nanoTime() - startNanos
+            );
+            throw exception;
+        }
     }
 
     /**
@@ -72,6 +105,33 @@ public class RedisLockServiceImpl implements RedisLockService {
         if (!StringUtils.hasText(key) || !StringUtils.hasText(value)) {
             return;
         }
-        stringRedisTemplate.execute(UNLOCK_SCRIPT, List.of(key), value);
+        long startNanos = System.nanoTime();
+        try {
+            Long released = stringRedisTemplate.execute(
+                    PaymentRedisScripts.lockReleaseV1(),
+                    List.of(key),
+                    value
+            );
+            metrics.recordOperation(
+                    RedisBusinessMetrics.Feature.LOCK,
+                    RedisBusinessMetrics.Operation.RELEASE,
+                    Long.valueOf(1L).equals(released)
+                            ? RedisBusinessMetrics.Outcome.SUCCESS
+                            : RedisBusinessMetrics.Outcome.CONTENDED,
+                    System.nanoTime() - startNanos
+            );
+        } catch (RuntimeException exception) {
+            metrics.recordOperation(
+                    RedisBusinessMetrics.Feature.LOCK,
+                    RedisBusinessMetrics.Operation.RELEASE,
+                    RedisBusinessMetrics.Outcome.ERROR,
+                    System.nanoTime() - startNanos
+            );
+            metrics.recordLuaFailure(
+                    RedisBusinessMetrics.Script.LOCK_RELEASE,
+                    metrics.classifyFailure(exception)
+            );
+            throw exception;
+        }
     }
 }

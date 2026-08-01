@@ -85,6 +85,19 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             Pattern.CASE_INSENSITIVE
     );
 
+    /**
+     * 截取一次 Servlet 请求和响应的有限摘要并在链路结束后记录统一日志。
+     * <p>
+     * 小文本请求可预读后回放；未知长度、大请求和二进制请求不预读。响应始终直接写回客户端，
+     * 只在内存中保留有限预览并累计全量长度与 SHA-256 指纹。
+     * </p>
+     *
+     * @param request     当前 HTTP 请求
+     * @param response    当前 HTTP 响应
+     * @param filterChain 后续 Servlet 过滤器链
+     * @throws ServletException 下游 Servlet 处理失败
+     * @throws IOException      请求或响应流读写失败
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -374,27 +387,53 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             this.body = body == null ? new byte[0] : body.clone();
         }
 
+        /**
+         * 为下游参数解析器创建一个从预读副本读取的输入流。
+         *
+         * @return 可重复读取当前请求体副本的 Servlet 输入流
+         */
         @Override
         public ServletInputStream getInputStream() {
             return new ReplayServletInputStream(new ByteArrayInputStream(body));
         }
 
+        /**
+         * 按请求声明字符集创建请求体文本读取器。
+         *
+         * @return 基于回放输入流的字符读取器
+         */
         @Override
         public BufferedReader getReader() {
             Charset charset = resolveReaderCharset(getCharacterEncoding());
             return new BufferedReader(new InputStreamReader(getInputStream(), charset));
         }
 
+        /**
+         * 返回回放请求体的字节长度，替代原请求的长度声明。
+         *
+         * @return 请求体字节数
+         */
         @Override
         public int getContentLength() {
             return body.length;
         }
 
+        /**
+         * 返回回放请求体的长整型字节长度。
+         *
+         * @return 请求体字节数
+         */
         @Override
         public long getContentLengthLong() {
             return body.length;
         }
 
+        /**
+         * 解析请求读取字符集，非法或缺失编码回退 UTF-8，且不影响业务请求处理。
+         *
+         * @param encoding Servlet 请求声明的字符编码
+         * @return 可用字符集
+         */
         private Charset resolveReaderCharset(String encoding) {
             if (encoding == null || encoding.isBlank()) {
                 return StandardCharsets.UTF_8;
@@ -429,16 +468,31 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             this.delegate = delegate;
         }
 
+        /**
+         * 判断内存请求体是否已被全部读取。
+         *
+         * @return 无剩余字节时返回 {@code true}
+         */
         @Override
         public boolean isFinished() {
             return delegate.available() == 0;
         }
 
+        /**
+         * 内存回放流不依赖网络 I/O，始终可立即读取。
+         *
+         * @return 固定为 {@code true}
+         */
         @Override
         public boolean isReady() {
             return true;
         }
 
+        /**
+         * 向非阻塞读取监听器同步通知内存流可读和读完状态。
+         *
+         * @param listener Servlet 非阻塞读取监听器；为 {@code null} 时忽略
+         */
         @Override
         public void setReadListener(ReadListener listener) {
             if (listener == null) {
@@ -454,6 +508,11 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             }
         }
 
+        /**
+         * 从预读请求体副本读取下一个字节。
+         *
+         * @return 无符号字节值；到达末尾时返回 {@code -1}
+         */
         @Override
         public int read() {
             return delegate.read();
@@ -493,6 +552,13 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             super(response);
         }
 
+        /**
+         * 获取直接写向客户端、同时累计响应摘要的字节输出流。
+         *
+         * @return 响应捕获输出流
+         * @throws IOException 底层响应输出流创建失败
+         * @throws IllegalStateException 已经选择字符 Writer 写响应时抛出
+         */
         @Override
         public ServletOutputStream getOutputStream() throws IOException {
             if (writer != null) {
@@ -504,6 +570,12 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             return outputStream;
         }
 
+        /**
+         * 获取按响应字符集编码并经过摘要捕获的字符 Writer。
+         *
+         * @return 响应字符 Writer
+         * @throws IOException 底层响应输出流创建失败
+         */
         @Override
         public PrintWriter getWriter() throws IOException {
             if (writer == null) {
@@ -513,12 +585,22 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             return writer;
         }
 
+        /**
+         * 先刷新捕获包装器，再刷新原始 Servlet 响应缓冲区。
+         *
+         * @throws IOException 响应流刷新失败
+         */
         @Override
         public void flushBuffer() throws IOException {
             flushCapture();
             super.flushBuffer();
         }
 
+        /**
+         * 刷新当前已创建的 Writer 或输出流，确保结束日志统计到全部已写字节。
+         *
+         * @throws IOException 底层输出流刷新失败
+         */
         private void flushCapture() throws IOException {
             if (writer != null) {
                 writer.flush();
@@ -528,18 +610,39 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             }
         }
 
+        /**
+         * 返回已写入客户端响应的累计字节数。
+         *
+         * @return 响应体全量字节数
+         */
         private long bodyLength() {
             return capture.length();
         }
 
+        /**
+         * 返回基于完整响应体计算的 SHA-256 短指纹。
+         *
+         * @return 16 位十六进制摘要；响应体为空时返回 {@code null}
+         */
         private String bodyDigest() {
             return capture.digest16();
         }
 
+        /**
+         * 返回用于脱敏日志的有限响应体预览。
+         *
+         * @return 最多 16KB 的响应前缀副本
+         */
         private byte[] previewBytes() {
             return capture.previewBytes();
         }
 
+        /**
+         * 解析响应 Writer 字符集，缺失或非法编码回退 UTF-8。
+         *
+         * @param encoding Servlet 响应声明的字符编码
+         * @return 可用字符集
+         */
         private Charset resolveWriterCharset(String encoding) {
             if (encoding == null || encoding.isBlank()) {
                 return StandardCharsets.UTF_8;
@@ -581,28 +684,57 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
             this.capture = capture;
         }
 
+        /**
+         * 复用底层 Servlet 输出流的非阻塞就绪状态。
+         *
+         * @return 底层输出流当前是否可写
+         */
         @Override
         public boolean isReady() {
             return delegate.isReady();
         }
 
+        /**
+         * 将非阻塞写监听器注册到真实响应输出流。
+         *
+         * @param listener Servlet 非阻塞写监听器
+         */
         @Override
         public void setWriteListener(WriteListener listener) {
             delegate.setWriteListener(listener);
         }
 
+        /**
+         * 捕获单字节摘要信息后将原值写给客户端。
+         *
+         * @param value 待写入的低八位字节值
+         * @throws IOException 底层响应写入失败
+         */
         @Override
         public void write(int value) throws IOException {
             capture.capture(new byte[]{(byte) value}, 0, 1);
             delegate.write(value);
         }
 
+        /**
+         * 捕获指定字节区间的摘要信息后将同一区间写给客户端。
+         *
+         * @param bytes 待写入字节数组
+         * @param off   起始偏移
+         * @param len   写入字节数
+         * @throws IOException 底层响应写入失败
+         */
         @Override
         public void write(byte[] bytes, int off, int len) throws IOException {
             capture.capture(bytes, off, len);
             delegate.write(bytes, off, len);
         }
 
+        /**
+         * 刷新真实响应输出流；摘要捕获器不额外缓存待写字节。
+         *
+         * @throws IOException 底层响应刷新失败
+         */
         @Override
         public void flush() throws IOException {
             delegate.flush();
@@ -688,13 +820,10 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
         }
 
         /**
-         * 整理SHA-256 摘要器，返回当前业务步骤需要的规范化结果。
-         * <p>
-         * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-         * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-         * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-         * </p>
-         * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+         * 创建响应体 SHA-256 摘要器。
+         *
+         * @return 新的摘要器实例
+         * @throws IllegalStateException 当前 Java 运行时不支持标准 SHA-256 算法时抛出
          */
         private static MessageDigest newDigest() {
             try {

@@ -222,6 +222,16 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return detail;
     }
 
+    /**
+     * 跨季度物理表分页查询当前商户的交易操作单。
+     * <p>
+     * 先逐表统计并消耗全局 offset，只在命中当前页的分表读取明细，避免把各分表分页结果
+     * 直接拼接造成页码偏移错误。
+     * </p>
+     *
+     * @param safeQuery 已校验并绑定 merchantId 和时间范围的查询
+     * @return 跨分表统一分页结果
+     */
     private PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery safeQuery) {
         long total = 0L;
         long offset = offset(safeQuery);
@@ -242,6 +252,16 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
+    /**
+     * 跨季度物理表汇总当前商户交易操作金额和支付方式。
+     * <p>
+     * 汇总只使用已校验查询范围，金额保持数据库 {@code BigDecimal} 精度，不在分表循环中
+     * 提前舍入。
+     * </p>
+     *
+     * @param safeQuery 已校验并绑定商户和时间范围的查询
+     * @return 合并各分表后的操作统计
+     */
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery safeQuery) {
         SummaryAccumulator accumulator = new SummaryAccumulator();
         for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
@@ -663,6 +683,9 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
                 row.setRefundedAmount(order.getRefundedAmount());
                 row.setAvailableCaptureAmount(order.getAvailableCaptureAmount());
                 row.setAvailableRefundAmount(order.getAvailableRefundAmount());
+                row.setMerchantResponseMessage(resolveMerchantResponseMessage(
+                        row.getTransactionStatus(),
+                        order.getMerchantResponseMessage()));
             }
             row.setAccessType("DIRECT_API");
         }
@@ -1200,13 +1223,18 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
             row.setTransactionCurrency(rs.getString("transaction_currency"));
             row.setTransactionAmount(rs.getBigDecimal("transaction_amount"));
             row.setCurrentCurrency(row.getTransactionCurrency());
-            row.setCurrentAmount(resolveCurrentAmount(row, rs));
+            row.setCurrentAmount(resolveCurrentAmount(
+                    row.getTransactionType(),
+                    row.getTransactionAmount(),
+                    rs.getBigDecimal("authorized_amount")));
             row.setCurrencyExponent(nullableInt(rs, "currency_exponent"));
             row.setTransactionRate(defaultRate(rs.getBigDecimal("transaction_rate")));
             row.setDccEnabled(nullableInt(rs, "dcc_enabled"));
             row.setEdcEnabled(nullableInt(rs, "edc_enabled"));
             row.setMerchantResponseCode(resolveMerchantResponseCode(row.getTransactionStatus()));
-            row.setMerchantResponseMessage(resolveMerchantResponseMessage(row.getTransactionStatus()));
+            row.setMerchantResponseMessage(resolveMerchantResponseMessage(
+                    row.getTransactionStatus(),
+                    rs.getString("merchant_visible_message")));
             row.setAuthorizedAmount(rs.getBigDecimal("authorized_amount"));
             row.setCapturedAmount(rs.getBigDecimal("captured_amount"));
             row.setRefundedAmount(rs.getBigDecimal("refunded_amount"));
@@ -1397,11 +1425,15 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * @param rs rs 输入值，参与 rs 的查询、校验、转换、写入或日志摘要
      * @return 构造、转换或解析后的业务值
      */
-    private BigDecimal resolveCurrentAmount(TransactionOrderResponse row, ResultSet rs) throws SQLException {
-        if (isAuthorizationLike(row.getTransactionType())) {
-            return rs.getBigDecimal("authorized_amount");
+    static BigDecimal resolveCurrentAmount(String transactionType,
+                                           BigDecimal transactionAmount,
+                                           BigDecimal authorizedAmount) {
+        if (isAuthorizationLike(transactionType)
+                && authorizedAmount != null
+                && authorizedAmount.signum() > 0) {
+            return authorizedAmount;
         }
-        return row.getTransactionAmount();
+        return transactionAmount;
     }
 
     /**
@@ -1453,7 +1485,7 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
      * @return 条件满足时返回 true，否则返回 false
      */
-    private boolean isAuthorizationLike(String transactionType) {
+    private static boolean isAuthorizationLike(String transactionType) {
         return "AUTHORIZATION".equals(transactionType) || "PRE_AUTHORIZATION".equals(transactionType) || "PRE_AUTH_COMPLETION".equals(transactionType);
     }
 
@@ -1519,6 +1551,13 @@ public class JdbcMerchantTransactionQueryService implements MerchantTransactionQ
      * @return 构造、转换或解析后的业务值
      */
     private String resolveMerchantResponseMessage(String transactionStatus) {
+        return resolveMerchantResponseMessage(transactionStatus, null);
+    }
+
+    static String resolveMerchantResponseMessage(String transactionStatus, String persistedMessage) {
+        if ("FAILED".equals(transactionStatus) && StringUtils.hasText(persistedMessage)) {
+            return persistedMessage.trim();
+        }
         if ("SUCCESS".equals(transactionStatus)) {
             return ApiResultEnum.PAYMENT_SUCCESS.getMessage();
         }

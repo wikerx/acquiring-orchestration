@@ -37,6 +37,7 @@ import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import com.scott.payment.payment.service.impl.DefaultPaymentChannelInvokeService.PaymentChannelInvokeException;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.util.StringUtils;
 
@@ -59,6 +60,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * @description : 收单交易服务单元测试，验证创建授权交易时的幂等、风控短路、渠道路由和渠道响应状态映射。
  * @status : create
  */
+@Slf4j
 class PaymentTransactionServiceImplTests {
 
     /**
@@ -259,14 +261,15 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
-     * 渠道请求阶段发生网络、解析或系统异常时，平台无法确认渠道是否受理，必须落为处理中等待查询勾兑。
+     * 渠道请求发送前因本地配置缺失而失败时，渠道不可能受理交易，必须直接进入失败终态。
      */
     @Test
-    void shouldMarkTransactionProcessingWhenChannelRequestThrowsException() {
+    void shouldMarkTransactionFailedWhenChannelRequestFailsBeforeDispatch() {
         InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
         CapturingTransactionEventOutboxService eventOutboxService = new CapturingTransactionEventOutboxService();
         CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        FailingPaymentChannelInvokeService channelInvokeService = new FailingPaymentChannelInvokeService();
+        log.info("测试发送前渠道失败状态：模拟 MPGS 配置缺失，预期交易进入 FAILED 终态");
+        FailingPaymentChannelInvokeService channelInvokeService = new FailingPaymentChannelInvokeService(false);
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 idempotencyService,
@@ -277,12 +280,38 @@ class PaymentTransactionServiceImplTests {
 
         PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
 
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.FINISHED.getCode());
+        assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.CHANNEL_REQUEST_FAILED.getCode());
+        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
+        log.info("发送前渠道失败状态验证完成：status=FAILED，processStage=FINISHED，failReasonCode=CHANNEL_REQUEST_FAILED");
+    }
+
+    /**
+     * 渠道请求可能已被受理但响应结果未知时，资金动作必须保持处理中等待查询或回调勾兑。
+     */
+    @Test
+    void shouldKeepTransactionProcessingWhenChannelOutcomeIsUncertain() {
+        log.info("测试渠道结果不确定状态：模拟网络异常，预期交易保持 PROCESSING 等待勾兑");
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                transactionRecordService,
+                List.of(),
+                new FailingPaymentChannelInvokeService(true));
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
+
         assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
         assertThat(resultDTO.getProcessStage()).isEqualTo(PaymentProcessStageEnum.CHANNEL_PROCESSING.getCode());
         assertThat(resultDTO.getFailReasonCode()).isNull();
+        assertThat(resultDTO.getMerchantResponseCode()).isEqualTo(ApiResultEnum.PROCESSING.getCode());
         assertThat(transactionRecordService.resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.PROCESSING.getCode());
-        assertThat(transactionRecordService.channelInvokeResultDTO.getRequestStatus()).isEqualTo("INIT");
-        assertThat(eventOutboxService.eventDO.getPayloadJson()).contains("\"transactionStatus\":\"PROCESSING\"");
+        log.info("渠道结果不确定状态验证完成：status=PROCESSING，processStage=CHANNEL_PROCESSING");
     }
 
     /**
@@ -838,6 +867,88 @@ class PaymentTransactionServiceImplTests {
     }
 
     /**
+     * 首次交易锁应使用环境隔离的脱敏 Key，并在本地准备事务提交后、渠道调用前释放。
+     */
+    @Test
+    void shouldUseGovernedInitialLockKeysAndReleaseLocksBeforeChannelInvocation() {
+        TrackingRedisLockService lockService = new TrackingRedisLockService();
+        boolean[] locksHeldAtChannelInvocation = {false};
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS),
+                () -> locksHeldAtChannelInvocation[0] = lockService.hasActiveLocks());
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(lockService),
+                channelInvokeService);
+
+        service.createAuthorization(baseCommand());
+
+        assertThat(lockService.lockTtlByKey).hasSize(2);
+        assertThat(lockService.lockTtlByKey.keySet())
+                .anyMatch(key -> key.matches("acquiring:local:payment:lock:operation:[0-9a-f]{64}"))
+                .anyMatch(key -> key.matches("acquiring:local:payment:lock:merchant-order-flow:[0-9a-f]{64}"))
+                .allSatisfy(key -> assertThat(key)
+                        .doesNotContain("200001", "M202607120001", "transaction:", "service-payment", ":v1:"));
+        assertThat(lockService.lockTtlByKey.values()).containsOnly(30L);
+        assertThat(locksHeldAtChannelInvocation[0]).isFalse();
+        assertThat(lockService.hasActiveLocks()).isFalse();
+    }
+
+    /**
+     * Capture 锁应复用同一精简命名规则，并只覆盖本地准备阶段。
+     */
+    @Test
+    void shouldUseGovernedCaptureLockKeyAndReleaseLockBeforeChannelInvocation() {
+        TrackingRedisLockService lockService = new TrackingRedisLockService();
+        boolean[] locksHeldAtChannelInvocation = {false};
+        CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS),
+                () -> locksHeldAtChannelInvocation[0] = lockService.hasActiveLocks());
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(lockService),
+                channelInvokeService);
+
+        service.capture(followUpCommand(PaymentTransactionTypeEnum.CAPTURE, new BigDecimal("5.00")));
+
+        assertThat(lockService.lockTtlByKey).hasSize(1);
+        assertThat(lockService.lockTtlByKey.keySet())
+                .allMatch(key -> key.matches("acquiring:local:payment:lock:operation:[0-9a-f]{64}"))
+                .allSatisfy(key -> assertThat(key)
+                        .doesNotContain("200001", SOURCE_TRANSACTION_ID, "CAPTURE202607120001",
+                                "transaction:", "service-payment", ":v1:"));
+        assertThat(lockService.lockTtlByKey.values()).containsOnly(30L);
+        assertThat(locksHeldAtChannelInvocation[0]).isFalse();
+        assertThat(lockService.hasActiveLocks()).isFalse();
+    }
+
+    /**
+     * 准备事务已提交后，即使 Redis 解锁异常，也应依赖租约自然过期并继续调用渠道。
+     */
+    @Test
+    void shouldContinueChannelInvocationWhenPreparationLockReleaseFails() {
+        FailingUnlockRedisLockService lockService = new FailingUnlockRedisLockService();
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(lockService),
+                channelInvokeService);
+
+        PaymentCreateResultDTO resultDTO = service.createAuthorization(baseCommand());
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(channelInvokeService.commandDTO).isNotNull();
+        assertThat(lockService.unlockAttempts).isEqualTo(2);
+    }
+
+    /**
      * 渠道同步返回成功时，平台创建结果应映射为成功终态。
      */
     @Test
@@ -1342,6 +1453,9 @@ class PaymentTransactionServiceImplTests {
          */
         private List<TransactionOperationDO> initialOperations = List.of();
 
+        /**
+         * 捕获渠道调用前落库的初始交易参数，供用例核对准备阶段的交易事实。
+         */
         @Override
         public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
@@ -1358,6 +1472,9 @@ class PaymentTransactionServiceImplTests {
             this.currencyExponent = currencyExponent;
         }
 
+        /**
+         * 捕获渠道返回后的最终结果参数，与准备阶段快照分开供断言比较。
+         */
         @Override
         public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
                                                  PaymentRouteResultDTO routeResultDTO,
@@ -1374,6 +1491,9 @@ class PaymentTransactionServiceImplTests {
             this.currencyExponent = currencyExponent;
         }
 
+        /**
+         * 根据测试中已捕获的初始交易或固定源交易标识构造主单，其他条件返回未命中。
+         */
         @Override
         public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
             if (isRecordedInitialOperation(transactionDateTime, operationId)) {
@@ -1430,6 +1550,9 @@ class PaymentTransactionServiceImplTests {
             return orderDO;
         }
 
+        /**
+         * 仅为固定源交易及其请款交易返回主单，模拟按平台交易号反查。
+         */
         @Override
         public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId) {
             if (!SOURCE_TRANSACTION_ID.equals(sourceTransactionId) && !CAPTURE_TRANSACTION_ID.equals(sourceTransactionId)) {
@@ -1438,11 +1561,17 @@ class PaymentTransactionServiceImplTests {
             return findOrder(LocalDateTime.of(2026, 7, 12, 10, 30), SOURCE_OPERATION_ID);
         }
 
+        /**
+         * 复用主单查询结果模拟数据库行锁读取，不额外实现并发控制。
+         */
         @Override
         public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
             return findOrder(transactionDateTime, operationId);
         }
 
+        /**
+         * 为已记录初始交易或固定源交易构造动作单，供后续交易校验读取渠道事实。
+         */
         @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
             if (resultDTO != null && sourceTransactionId.equals(resultDTO.getTransactionId())) {
@@ -1527,6 +1656,9 @@ class PaymentTransactionServiceImplTests {
                     : List.of(operationDO);
         }
 
+        /**
+         * 返回用例预置的初始动作集合，仅匹配固定商户订单。
+         */
         @Override
         public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
             if (!"200001".equals(merchantId) || !"M202607120001".equals(merchantOrderNo)) {
@@ -1535,6 +1667,9 @@ class PaymentTransactionServiceImplTests {
             return initialOperations;
         }
 
+        /**
+         * 固定返回无在途请款，使测试聚焦当前交易编排而不引入累计额度冲突。
+         */
         @Override
         public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
                                                                     String operationId,
@@ -1544,6 +1679,9 @@ class PaymentTransactionServiceImplTests {
             return List.of();
         }
 
+        /**
+         * 仅在固定渠道订单号和渠道交易号同时匹配时返回源动作单。
+         */
         @Override
         public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
             if (!SOURCE_TRANSACTION_ID.equals(channelOrderNo) || !SOURCE_CHANNEL_TRANSACTION_ID.equals(channelTransactionId)) {
@@ -1552,6 +1690,9 @@ class PaymentTransactionServiceImplTests {
             return findSourceOperationByTransactionId(SOURCE_TRANSACTION_ID);
         }
 
+        /**
+         * 固定返回无待匹配交易，避免后台恢复流程干扰服务主路径测试。
+         */
         @Override
         public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
                                                                     String channelCode,
@@ -1560,11 +1701,17 @@ class PaymentTransactionServiceImplTests {
             return List.of();
         }
 
+        /**
+         * 捕获请款、退款或撤销准备阶段生成的后续交易记录。
+         */
         @Override
         public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
             this.followUpRecordDTO = recordDTO;
         }
 
+        /**
+         * 固定模拟回调终态 CAS 成功；当前用例不验证回调竞态。
+         */
         @Override
         public boolean completeByChannelCallback(TransactionOperationDO operationDO,
                                                  TransactionOrderDO orderDO,
@@ -1578,6 +1725,9 @@ class PaymentTransactionServiceImplTests {
             return true;
         }
 
+        /**
+         * 固定模拟渠道匹配状态更新成功，隔离非当前测试范围的持久化逻辑。
+         */
         @Override
         public boolean updateChannelMatch(TransactionOperationDO operationDO,
                                           String matchStatus,
@@ -1589,6 +1739,9 @@ class PaymentTransactionServiceImplTests {
             return true;
         }
 
+        /**
+         * 固定模拟商户响应日志更新成功，当前替身不保存日志内容。
+         */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateCommandDTO commandDTO) {
             return true;
@@ -1607,16 +1760,25 @@ class PaymentTransactionServiceImplTests {
          */
         private TransactionEventOutboxDO eventDO;
 
+        /**
+         * 捕获交易生命周期事件，供用例核对已提交事实对应的 Outbox 内容。
+         */
         @Override
         public void save(TransactionEventOutboxDO eventDO) {
             this.eventDO = eventDO;
         }
 
+        /**
+         * 返回已捕获事件作为唯一到期记录，未保存事件时返回空集合。
+         */
         @Override
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
             return eventDO == null ? List.of() : List.of(eventDO);
         }
 
+        /**
+         * 在内存对象上标记发送成功，模拟 Outbox 状态更新。
+         */
         @Override
         public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
             eventDO.setEventStatus("SENT");
@@ -1624,6 +1786,9 @@ class PaymentTransactionServiceImplTests {
             return true;
         }
 
+        /**
+         * 在内存对象上记录发送失败及重试信息，模拟失败状态更新。
+         */
         @Override
         public boolean markFailed(TransactionEventOutboxDO eventDO,
                                   LocalDateTime nextRetryTime,
@@ -1698,10 +1863,24 @@ class PaymentTransactionServiceImplTests {
          */
         private String channelOrderNo;
 
+        /**
+         * 渠道调用前观察钩子，用于断言本地准备阶段锁已经释放。
+         */
+        private final Runnable beforeInvoke;
+
         private CapturingPaymentChannelInvokeService(ChannelPaymentResponse response) {
-            this.response = response;
+            this(response, () -> {
+            });
         }
 
+        private CapturingPaymentChannelInvokeService(ChannelPaymentResponse response, Runnable beforeInvoke) {
+            this.response = response;
+            this.beforeInvoke = beforeInvoke;
+        }
+
+        /**
+         * 为旧重载补齐确定性渠道请求标识，再统一委托到可捕获参数的重载。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
@@ -1715,12 +1894,16 @@ class PaymentTransactionServiceImplTests {
             return invoke(commandDTO, routeResult, operationId, transactionId, prepared);
         }
 
+        /**
+         * 执行调用前观察钩子，捕获编排参数并返回用例预置的渠道响应。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
                                                     String operationId,
                                                     String transactionId,
                                                     PaymentPreparedChannelRequestDTO preparedChannelRequest) {
+            beforeInvoke.run();
             this.commandDTO = commandDTO;
             this.routeResultDTO = routeResult;
             this.operationId = operationId;
@@ -1744,6 +1927,18 @@ class PaymentTransactionServiceImplTests {
 
     private static class FailingPaymentChannelInvokeService implements PaymentChannelInvokeService {
 
+        /**
+         * 模拟失败是否发生在可能已送达渠道的阶段。
+         */
+        private final boolean outcomeUncertain;
+
+        private FailingPaymentChannelInvokeService(boolean outcomeUncertain) {
+            this.outcomeUncertain = outcomeUncertain;
+        }
+
+        /**
+         * 为旧重载生成确定性请求标识后进入统一的渠道失败模拟路径。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
@@ -1757,6 +1952,9 @@ class PaymentTransactionServiceImplTests {
             return invoke(commandDTO, routeResult, operationId, transactionId, prepared);
         }
 
+        /**
+         * 构造失败调用快照并抛出渠道异常，用于验证本地失败结果和幂等快照。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
@@ -1773,8 +1971,12 @@ class PaymentTransactionServiceImplTests {
             resultDTO.getChannelRequest().setChannelTransactionId(preparedChannelRequest == null ? null : preparedChannelRequest.getChannelTransactionId());
             resultDTO.setRequestStatus("FAILED");
             resultDTO.setExceptionType("ChannelRequestException");
-            resultDTO.setExceptionMessage("MPGS password is required");
-            throw new PaymentChannelInvokeException(resultDTO, new RuntimeException("MPGS password is required"));
+            String exceptionMessage = outcomeUncertain
+                    ? "MPGS network request failed"
+                    : "MPGS password is required";
+            resultDTO.setExceptionMessage(exceptionMessage);
+            resultDTO.setOutcomeUncertain(outcomeUncertain);
+            throw new PaymentChannelInvokeException(resultDTO, new RuntimeException(exceptionMessage));
         }
     }
 
@@ -1790,16 +1992,25 @@ class PaymentTransactionServiceImplTests {
          */
         private final Map<String, TransactionIdempotencyDO> records = new LinkedHashMap<>();
 
+        /**
+         * 按商户、商户订单标识和交易类型生成稳定键，模拟数据库唯一约束使用的业务键。
+         */
         @Override
         public String buildTransactionOperationKey(String merchantId, String merchantOrderId, String transactionType) {
             return String.join(":", merchantId, merchantOrderId, transactionType);
         }
 
+        /**
+         * 从内存记录表读取幂等记录，模拟数据库按作用域和键查询。
+         */
         @Override
         public Optional<TransactionIdempotencyDO> find(String scope, String key) {
             return Optional.ofNullable(records.get(scope + ":" + key));
         }
 
+        /**
+         * 仅为固定源交易返回已成功的初始幂等记录，其他交易视为不存在。
+         */
         @Override
         public Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId) {
             if (!SOURCE_TRANSACTION_ID.equals(transactionId)) {
@@ -1814,6 +2025,9 @@ class PaymentTransactionServiceImplTests {
             return Optional.of(record);
         }
 
+        /**
+         * 以 put-if-absent 语义模拟数据库唯一键竞争，重复开始时返回失败。
+         */
         @Override
         public boolean tryBegin(TransactionIdempotencyDO record) {
             String storageKey = record.getIdempotencyScope() + ":" + record.getIdempotencyKey();
@@ -1824,6 +2038,9 @@ class PaymentTransactionServiceImplTests {
             return true;
         }
 
+        /**
+         * 将交易结果写回已占位的内存幂等记录，模拟同一数据库事务内完成快照。
+         */
         @Override
         public void complete(String scope,
                              String key,
@@ -1842,6 +2059,9 @@ class PaymentTransactionServiceImplTests {
             record.setResultSnapshot(resultSnapshot);
         }
 
+        /**
+         * 按输入构造 PROCESSING 占位记录，不提前写入交易成功或失败结论。
+         */
         @Override
         public TransactionIdempotencyDO newProcessingRecord(String scope,
                                                             String key,
@@ -1871,6 +2091,9 @@ class PaymentTransactionServiceImplTests {
 
     private static class EmptyInitialTransactionIdempotencyService extends InMemoryTransactionIdempotencyService {
 
+        /**
+         * 固定返回无初始交易，用于验证无法从数据库恢复源交易时的拒绝路径。
+         */
         @Override
         public Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId) {
             return Optional.empty();
@@ -1879,13 +2102,87 @@ class PaymentTransactionServiceImplTests {
 
     private static class RejectingRedisLockService implements RedisLockService {
 
+        /**
+         * 固定拒绝获取锁，用于验证并发请求不能进入本地交易准备阶段。
+         */
         @Override
         public boolean tryLock(String key, String value, long ttlSeconds) {
             return false;
         }
 
+        /**
+         * 空实现；拒绝获取锁后不应存在需要释放的锁状态。
+         */
         @Override
         public void unlock(String key, String value) {
+        }
+    }
+
+    private static class TrackingRedisLockService implements RedisLockService {
+
+        /**
+         * 记录每个测试锁 Key 使用的租约秒数，供用例核对锁时长边界。
+         */
+        private final Map<String, Long> lockTtlByKey = new LinkedHashMap<>();
+
+        /**
+         * 保存当前仍持有的锁及其 token，用于断言渠道调用前准备锁已释放。
+         */
+        private final Map<String, String> activeLocks = new LinkedHashMap<>();
+
+        /**
+         * 记录租约和锁 token，并固定模拟成功获取锁。
+         */
+        @Override
+        public boolean tryLock(String key, String value, long ttlSeconds) {
+            lockTtlByKey.put(key, ttlSeconds);
+            activeLocks.put(key, value);
+            return true;
+        }
+
+        /**
+         * 仅当锁 Key 与 token 同时匹配时移除活动锁，模拟所有权校验释放。
+         */
+        @Override
+        public void unlock(String key, String value) {
+            activeLocks.remove(key, value);
+        }
+
+        private boolean hasActiveLocks() {
+            return !activeLocks.isEmpty();
+        }
+    }
+
+    private static class FailingUnlockRedisLockService implements RedisLockService {
+
+        /**
+         * 解锁调用次数，用于确认首次交易的两把准备锁都执行了释放尝试。
+         */
+        private int unlockAttempts;
+
+        /**
+         * 模拟成功获取 Redis 锁。
+         *
+         * @param key 锁 Key
+         * @param value 锁 token
+         * @param ttlSeconds 锁租约秒数
+         * @return 固定返回 true
+         */
+        @Override
+        public boolean tryLock(String key, String value, long ttlSeconds) {
+            return true;
+        }
+
+        /**
+         * 模拟 Redis 在 compare-delete 阶段不可用。
+         *
+         * @param key 锁 Key
+         * @param value 锁 token
+         */
+        @Override
+        public void unlock(String key, String value) {
+            unlockAttempts++;
+            throw new IllegalStateException("redis unavailable");
         }
     }
 

@@ -35,6 +35,36 @@ public enum RiskReasonCodeEnum {
     BLOCKED_IP("BLOCKED_IP", "payer ip is blocked"),
 
     /**
+     * 商户启用 IP 白名单但当前请求 IP 未命中。
+     */
+    IP_WHITELIST_MISSED("IP_WHITELIST_MISSED", "merchant ip whitelist is missed"),
+
+    /**
+     * 商户启用来源网址限定但当前来源未命中。
+     */
+    SOURCE_URL_NOT_ALLOWED("SOURCE_URL_NOT_ALLOWED", "merchant source url is not allowed"),
+
+    /**
+     * 命中黑名单。
+     */
+    BLACKLIST_HIT("BLACKLIST_HIT", "blacklist rule is hit"),
+
+    /**
+     * 命中 AML 名单。
+     */
+    AML_HIT("AML_HIT", "aml rule is hit"),
+
+    /**
+     * 命中内风控规则。
+     */
+    RULE_HIT("RULE_HIT", "risk rule is hit"),
+
+    /**
+     * 命中交易频率限定。
+     */
+    FREQUENCY_LIMIT_HIT("FREQUENCY_LIMIT_HIT", "transaction frequency limit is hit"),
+
+    /**
      * 交易金额达到 3DS 认证要求。
      */
     THREE_DS_REQUIRED("THREE_DS_REQUIRED", "3ds authentication is required"),

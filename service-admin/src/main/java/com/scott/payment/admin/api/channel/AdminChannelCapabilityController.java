@@ -59,18 +59,36 @@ public class AdminChannelCapabilityController {
         this.channelApplicationService = channelApplicationService;
     }
 
+    /**
+     * 分页查询渠道在交易类型、支付方式和币种维度的处理能力。
+     *
+     * @param query 渠道能力可选查询条件
+     * @return 渠道能力分页结果
+     */
     @PostMapping("/search")
     @RequiresPermission("channel:capability:list")
     public CommonResult<PageResult<CapabilityResponse>> pageCapabilities(@RequestBody(required = false) CapabilityQuery query) {
         return success(channelApplicationService.pageCapabilities(query));
     }
 
+    /**
+     * 查询指定渠道能力配置详情。
+     *
+     * @param id 渠道能力主键
+     * @return 渠道能力详情
+     */
     @GetMapping("/{id}")
     @RequiresPermission("channel:capability:detail")
     public CommonResult<CapabilityResponse> getCapability(@PathVariable("id") Long id) {
         return success(channelApplicationService.getCapability(id));
     }
 
+    /**
+     * 创建渠道能力配置，维度唯一性由应用服务校验。
+     *
+     * @param request 渠道能力保存请求
+     * @return 创建后的能力详情
+     */
     @PostMapping
     @RequiresPermission("channel:capability:add")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.CREATE, operation = "新增渠道支付能力")
@@ -78,6 +96,13 @@ public class AdminChannelCapabilityController {
         return success(channelApplicationService.createCapability(request));
     }
 
+    /**
+     * 更新指定渠道能力配置。
+     *
+     * @param id 渠道能力主键
+     * @param request 渠道能力保存请求
+     * @return 更新后的能力详情
+     */
     @PutMapping("/{id}")
     @RequiresPermission("channel:capability:edit")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.UPDATE, operation = "修改渠道支付能力")
@@ -86,6 +111,13 @@ public class AdminChannelCapabilityController {
         return success(channelApplicationService.updateCapability(id, request));
     }
 
+    /**
+     * 切换渠道能力启停状态。
+     *
+     * @param id 渠道能力主键
+     * @param request 目标状态请求
+     * @return 更新后的能力详情
+     */
     @PutMapping("/{id}/status")
     @RequiresPermission("channel:capability:status")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道支付能力状态")
@@ -94,6 +126,13 @@ public class AdminChannelCapabilityController {
         return success(channelApplicationService.updateCapabilityStatus(id, request.getStatus()));
     }
 
+    /**
+     * 更新 3DS 与增量授权支持标记，不改变能力的其他交易维度。
+     *
+     * @param id 渠道能力主键
+     * @param request 能力支持项请求
+     * @return 更新后的能力详情
+     */
     @PutMapping("/{id}/support")
     @RequiresPermission("channel:capability:edit")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.UPDATE, operation = "切换渠道支付能力支持项")
@@ -106,6 +145,12 @@ public class AdminChannelCapabilityController {
         ));
     }
 
+    /**
+     * 删除指定渠道能力配置。
+     *
+     * @param id 渠道能力主键
+     * @return 无业务数据的成功响应
+     */
     @DeleteMapping("/{id}")
     @RequiresPermission("channel:capability:remove")
     @OperationLog(moduleName = "渠道支付能力管理", businessType = OperationTypeConstants.DELETE, operation = "删除渠道支付能力")

@@ -3,11 +3,14 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
+import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.service.PaymentChannelResultTransactionService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,12 +37,31 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
     private final TransactionRecordService transactionRecordService;
 
     /**
+     * 交易状态变更 Outbox 服务，与渠道同步结果在同一数据库事务内写入。
+     */
+    private final TransactionLifecycleEventService lifecycleEventService;
+
+    /**
      * 创建渠道同步结果事务默认实现。
      *
      * @param transactionRecordService 交易事实记录服务
      */
     public DefaultPaymentChannelResultTransactionService(TransactionRecordService transactionRecordService) {
+        this(transactionRecordService, null);
+    }
+
+    /**
+     * 创建带终态 Outbox 能力的渠道同步结果事务服务。
+     *
+     * @param transactionRecordService 交易事实记录服务
+     * @param lifecycleEventService    交易状态变更 Outbox 服务
+     */
+    @Autowired
+    public DefaultPaymentChannelResultTransactionService(
+            TransactionRecordService transactionRecordService,
+            TransactionLifecycleEventService lifecycleEventService) {
         this.transactionRecordService = transactionRecordService;
+        this.lifecycleEventService = lifecycleEventService;
     }
 
     /**
@@ -60,12 +82,24 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
                                            PaymentCreateResultDTO resultDTO,
                                            PaymentRiskDecisionEnum riskDecisionEnum,
                                            int currencyExponent) {
-        transactionRecordService.completeInitialChannelResult(
+        boolean statusChanged = transactionRecordService.completeInitialChannelResultAndReport(
                 commandDTO,
                 routeResultDTO,
                 invokeResultDTO,
                 resultDTO,
                 riskDecisionEnum,
                 currencyExponent);
+        if (statusChanged && lifecycleEventService != null
+                && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
+                || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus()))) {
+            lifecycleEventService.saveStatusChanged(
+                    resultDTO.getTransactionId(),
+                    resultDTO.getOperationId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    resultDTO.getTransactionType(),
+                    resultDTO.getStatus(),
+                    commandDTO.getTransactionDateTime());
+        }
     }
 }

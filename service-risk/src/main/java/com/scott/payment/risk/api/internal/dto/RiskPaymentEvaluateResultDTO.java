@@ -43,4 +43,9 @@ public class RiskPaymentEvaluateResultDTO implements Serializable {
      * 风控评估完成时间，使用本地业务时区时间点。
      */
     private LocalDateTime decisionTime;
+
+    /**
+     * 本次 PASS 是否创建了商户累计限额预占。只暴露生命周期事实，不暴露 Redis 物理 Key。
+     */
+    private boolean merchantLimitReserved;
 }

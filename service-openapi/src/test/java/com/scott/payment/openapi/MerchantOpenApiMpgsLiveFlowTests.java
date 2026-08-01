@@ -53,6 +53,11 @@ class MerchantOpenApiMpgsLiveFlowTests {
     private static final String ENABLED_PROPERTY = "openapi.live.enabled";
 
     /**
+     * 启用预期由内风控拒绝的真实 OpenAPI 验收测试。
+     */
+    private static final String RISK_BLOCK_ENABLED_PROPERTY = "openapi.live.risk-block.enabled";
+
+    /**
      * 本地 OpenAPI 基础地址，默认指向 service-openapi 的开发端口。
      */
     private static final String OPENAPI_BASE_URL = System.getProperty("openapi.live.base-url", "http://127.0.0.1:8004");
@@ -71,14 +76,30 @@ class MerchantOpenApiMpgsLiveFlowTests {
     private static final String JDBC_USER = System.getProperty("openapi.live.jdbc-user", "root");
 
     /**
-     * 本地 MySQL 密码。
+     * 本地 MySQL 密码；外部执行脚本通过环境变量传入，避免凭据出现在 Maven 命令行。
      */
-    private static final String JDBC_PASSWORD = System.getProperty("openapi.live.jdbc-password", "scott123456");
+    private static final String JDBC_PASSWORD = propertyOrEnvironment(
+            "openapi.live.jdbc-password",
+            "OPENAPI_LIVE_JDBC_PASSWORD",
+            "scott123456"
+    );
 
     /**
      * 真实验收使用的测试商户号。
      */
     private static final String MERCHANT_ID = System.getProperty("openapi.live.merchant-id", "200045");
+
+    /**
+     * 专项风控验收使用的可信网关客户端 IP；未配置时不发送该请求头。
+     */
+    private static final String GATEWAY_CLIENT_IP = System.getProperty(
+            "openapi.live.gateway-client-ip", "");
+
+    /**
+     * 专项来源网址验收使用的 Origin；未配置时不发送该请求头。
+     */
+    private static final String SOURCE_ORIGIN = System.getProperty(
+            "openapi.live.source-origin", "");
 
     /**
      * MPGS 沙箱测试卡号，只进入加密请求体；日志只允许输出脱敏值。
@@ -114,6 +135,30 @@ class MerchantOpenApiMpgsLiveFlowTests {
      * 查询交易结果的最大等待次数。
      */
     private static final int QUERY_RETRY_TIMES = 12;
+
+    /**
+     * 按系统属性、环境变量、默认值的顺序读取 Live 测试配置。
+     *
+     * <p>密码优先通过环境变量传递，避免进入 Maven 参数和进程列表；该方法不得记录解析结果。</p>
+     *
+     * @param propertyName JVM 系统属性名
+     * @param environmentName 环境变量名
+     * @param fallback 本地开发默认值
+     * @return 首个非空配置值
+     */
+    private static String propertyOrEnvironment(String propertyName,
+                                                String environmentName,
+                                                String fallback) {
+        String propertyValue = System.getProperty(propertyName);
+        if (propertyValue != null && !propertyValue.isBlank()) {
+            return propertyValue.trim();
+        }
+        String environmentValue = System.getenv(environmentName);
+        if (environmentValue != null && !environmentValue.isBlank()) {
+            return environmentValue.trim();
+        }
+        return fallback;
+    }
 
     /**
      * 查询交易结果的间隔，单位毫秒。
@@ -251,6 +296,58 @@ class MerchantOpenApiMpgsLiveFlowTests {
                 "completion", completion,
                 "queryResponse", queryResponse.safeSummary(),
                 "queryPlainResponseMasked", SensitiveDataMaskUtils.maskJson(queryPlainResponse)
+        )));
+    }
+
+    /**
+     * 真实风控验收：支付、授权和预授权必须返回商户可识别的风控失败，并保留失败交易。
+     *
+     * @throws Exception HTTP 调用、响应解密、数据库查询或线程等待异常
+     */
+    @Test
+    @EnabledIfSystemProperty(named = RISK_BLOCK_ENABLED_PROPERTY, matches = "true")
+    void shouldPersistFailedTransactionsWhenRiskBlocksControlledApis() throws Exception {
+        MerchantLiveSecurityMaterial material = loadMerchantMaterial();
+        PublicKey platformPublicKey = payloadCrypto.readPublicKey(material.platformPublicKeyX509Base64());
+        PrivateKey responsePrivateKey = payloadCrypto.readPrivateKey(
+                material.merchantResponsePrivateKeyPkcs8Base64());
+        String batchPrefix = "C20RISK" + DateTimeFormatter.ofPattern("yyMMddHHmmss").format(LocalDateTime.now());
+        List<RiskBlockedApiCase> apiCases = List.of(
+                new RiskBlockedApiCase("/api/rest/payment/v1/payment", "PAY", "PAYMENT"),
+                new RiskBlockedApiCase("/api/rest/payment/v1/authorization", "AUT", "AUTHORIZATION"),
+                new RiskBlockedApiCase("/api/rest/payment/v1/pre-authorization", "PRE", "PRE_AUTHORIZATION")
+        );
+
+        List<LiveOperationResult> operations = new java.util.ArrayList<>();
+        for (RiskBlockedApiCase apiCase : apiCases) {
+            String orderNo = batchPrefix + apiCase.orderSuffix();
+            OpenApiLiveResponse response = submitOnly(
+                    apiCase.path(),
+                    cardPlainText(orderNo, orderNo + "REQ", "10", "risk blocked " + apiCase.transactionType(), false),
+                    material,
+                    platformPublicKey
+            );
+            String plainResponse = payloadCrypto.decrypt(response.encryptedData(), responsePrivateKey);
+            Map<String, Object> responsePayload = JsonUtils.parseObject(plainResponse, new TypeReference<>() {
+            });
+            @SuppressWarnings("unchecked")
+            Map<String, Object> transactionInfo = (Map<String, Object>) responsePayload.get("transactionInfo");
+
+            assertThat(transactionInfo).as(apiCase.transactionType() + " transactionInfo").isNotNull();
+            assertThat(transactionInfo.get("code")).isEqualTo("F210");
+            assertThat(transactionInfo.get("message")).isEqualTo("Risk blocked");
+            assertThat(transactionInfo.get("transactionType")).isEqualTo(apiCase.transactionType());
+
+            LiveOperationResult operation = waitOperation(response.identity());
+            assertThat(operation.status()).isEqualTo("FAILED");
+            assertThat(operation.channelCode()).isNull();
+            assertThat(operation.channelTransactionId()).isNull();
+            operations.add(operation);
+        }
+
+        log.info("OpenAPI内风控拒绝验收完成，result: {}", JsonUtils.toJsonString(Map.of(
+                "batchPrefix", batchPrefix,
+                "operations", operations
         )));
     }
 
@@ -407,11 +504,18 @@ class MerchantOpenApiMpgsLiveFlowTests {
                 "data", MerchantOpenApiTestSupport.safeSecretSummary(encryptedData, keyMaterialFactory)
         )));
 
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(URI.create(OPENAPI_BASE_URL + path))
+                .timeout(HTTP_TIMEOUT)
+                .header("Content-Type", "application/json")
+                .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization);
+        if (!GATEWAY_CLIENT_IP.isBlank()) {
+            requestBuilder.header("X-Gateway-Client-Ip", GATEWAY_CLIENT_IP.trim());
+        }
+        if (!SOURCE_ORIGIN.isBlank()) {
+            requestBuilder.header("Origin", SOURCE_ORIGIN.trim());
+        }
         HttpResponse<String> httpResponse = httpClient.send(
-                HttpRequest.newBuilder(URI.create(OPENAPI_BASE_URL + path))
-                        .timeout(HTTP_TIMEOUT)
-                        .header("Content-Type", "application/json")
-                        .header(MerchantOpenApiTestSupport.AUTHORIZATION_HEADER, authorization)
+                requestBuilder
                         .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                         .build(),
                 HttpResponse.BodyHandlers.ofString()
@@ -834,6 +938,16 @@ class MerchantOpenApiMpgsLiveFlowTests {
      * @param authorizationAmount 授权金额
      */
     private record CurrencyCase(String currency, String paymentAmount, String authorizationAmount) {
+    }
+
+    /**
+     * 预期由内风控拒绝的 OpenAPI 场景。
+     *
+     * @param path OpenAPI 请求路径
+     * @param orderSuffix 商户订单号场景后缀
+     * @param transactionType 预期交易类型
+     */
+    private record RiskBlockedApiCase(String path, String orderSuffix, String transactionType) {
     }
 
     /**

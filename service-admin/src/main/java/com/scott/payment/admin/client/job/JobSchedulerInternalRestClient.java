@@ -81,24 +81,34 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
      */
     private static final String SERVICE_JOB_BASE_URL = "http://service-job";
 
+    /** 调度任务分页查询内部接口。 */
     private static final String TASK_SEARCH_PATH = "/internal/job/tasks/search";
 
+    /** 已注册任务处理器列表内部接口。 */
     private static final String HANDLER_LIST_PATH = "/internal/job/tasks/handlers";
 
+    /** 调度任务增删改查内部接口前缀。 */
     private static final String TASK_BASE_PATH = "/internal/job/tasks";
 
+    /** 任务运行日志分页查询内部接口。 */
     private static final String RUN_LOG_SEARCH_PATH = "/internal/job/logs/search";
 
+    /** 任务运行日志列表内部接口。 */
     private static final String RUN_LOG_LIST_PATH = "/internal/job/logs/list";
 
+    /** 单条任务运行日志内部接口前缀。 */
     private static final String RUN_LOG_BASE_PATH = "/internal/job/logs";
 
+    /** 历史任务运行日志清理内部接口。 */
     private static final String RUN_LOG_CLEAN_PATH = "/internal/job/logs/clean";
 
+    /** 调度执行节点列表内部接口。 */
     private static final String NODE_LIST_PATH = "/internal/job/nodes";
 
+    /** 分表创建预演内部接口，仅返回计划，不执行 DDL。 */
     private static final String SHARDING_TABLE_CREATE_DRY_RUN_PATH = "/internal/job/sharding/table-create/dry-run";
 
+    /** 分表创建执行内部接口，调用前必须经过预演和权限确认。 */
     private static final String SHARDING_TABLE_CREATE_EXECUTE_PATH = "/internal/job/sharding/table-create/execute";
 
     /**
@@ -144,6 +154,11 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         this.discoveryClient = discoveryClient;
     }
 
+    /**
+     * 查询调度中心已注册的任务处理器选项。
+     *
+     * @return 可用于创建任务的处理器列表
+     */
     @Override
     public List<JobHandlerOptionResponse> listHandlers() {
         String responseBody = doGet(serviceJobUrl(HANDLER_LIST_PATH));
@@ -155,6 +170,12 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 分页查询调度任务。
+     *
+     * @param request 任务状态、处理器和分页条件
+     * @return 调度任务分页结果
+     */
     @Override
     public PageResult<JobTaskResponse> pageTasks(JobTaskQueryRequest request) {
         String responseBody = doPost(serviceJobUrl(TASK_SEARCH_PATH), request);
@@ -166,6 +187,12 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 在调度中心创建任务。
+     *
+     * @param request 处理器、调度表达式、超时和重试等任务配置
+     * @return 创建后的任务详情
+     */
     @Override
     public JobTaskResponse createTask(JobTaskRemoteSaveRequest request) {
         String responseBody = doPost(serviceJobUrl(TASK_BASE_PATH), request);
@@ -177,6 +204,13 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 更新指定调度任务。
+     *
+     * @param taskId 调度任务主键
+     * @param request 任务配置更新请求
+     * @return 更新后的任务详情
+     */
     @Override
     public JobTaskResponse updateTask(Long taskId, JobTaskRemoteSaveRequest request) {
         String responseBody = doPut(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId, request);
@@ -188,6 +222,14 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 切换调度任务状态并透传操作人用于审计。
+     *
+     * @param taskId 调度任务主键
+     * @param status 目标状态
+     * @param operator 当前操作人
+     * @return 更新后的任务详情
+     */
     @Override
     public JobTaskResponse changeStatus(Long taskId, String status, String operator) {
         String url = serviceJobUrl(TASK_BASE_PATH)
@@ -203,6 +245,13 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 手工触发指定调度任务。
+     *
+     * @param taskId 调度任务主键
+     * @param request 分片参数和操作人等触发上下文
+     * @return 调度中心生成的运行标识
+     */
     @Override
     public String trigger(Long taskId, JobManualTriggerRequest request) {
         String responseBody = doPost(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId + "/trigger", request);
@@ -214,6 +263,12 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 删除指定调度任务并透传操作人用于审计。
+     *
+     * @param taskId 调度任务主键
+     * @param operator 当前操作人
+     */
     @Override
     public void deleteTask(Long taskId, String operator) {
         String responseBody = doDelete(serviceJobUrl(TASK_BASE_PATH) + "/" + taskId + "?operator=" + encode(operator));
@@ -225,6 +280,12 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         unwrap(result);
     }
 
+    /**
+     * 分页查询任务运行日志。
+     *
+     * @param request 任务、运行状态、时间范围和分页条件
+     * @return 运行日志分页结果
+     */
     @Override
     public PageResult<JobRunLogResponse> pageRunLogs(JobRunLogQueryRequest request) {
         String responseBody = doPost(serviceJobUrl(RUN_LOG_SEARCH_PATH), request);
@@ -236,6 +297,12 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 查询符合条件的任务运行日志列表，不应用分页响应包装。
+     *
+     * @param request 任务、运行状态和时间范围条件
+     * @return 运行日志列表
+     */
     @Override
     public List<JobRunLogResponse> listRunLogs(JobRunLogQueryRequest request) {
         String responseBody = doPost(serviceJobUrl(RUN_LOG_LIST_PATH), request);
@@ -247,6 +314,11 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 删除指定任务运行日志。
+     *
+     * @param id 运行日志主键
+     */
     @Override
     public void removeRunLog(Long id) {
         String responseBody = doDelete(serviceJobUrl(RUN_LOG_BASE_PATH) + "/" + id);
@@ -279,6 +351,11 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 查询调度中心当前注册的执行节点。
+     *
+     * @return 执行节点列表
+     */
     @Override
     public List<JobExecutorNodeResponse> listNodes() {
         String responseBody = doGet(serviceJobUrl(NODE_LIST_PATH));
@@ -290,6 +367,12 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 预演分表物理表创建计划，不执行 DDL。
+     *
+     * @param request 逻辑表、时间范围和分片规则
+     * @return 待创建、已存在和异常表的预演结果
+     */
     @Override
     public ShardingTablePreCreateResultResponse dryRunShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
         String responseBody = doPost(serviceJobUrl(SHARDING_TABLE_CREATE_DRY_RUN_PATH), request);
@@ -301,6 +384,12 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         return unwrapData(result);
     }
 
+    /**
+     * 请求调度中心立即创建缺失的分表物理表。
+     *
+     * @param request 逻辑表、时间范围、分片规则和操作人
+     * @return 实际创建、已存在和失败表的执行结果
+     */
     @Override
     public ShardingTablePreCreateResultResponse executeShardingTableCreate(ShardingTablePreCreateRemoteRequest request) {
         String responseBody = doPost(serviceJobUrl(SHARDING_TABLE_CREATE_EXECUTE_PATH), request);
@@ -330,6 +419,12 @@ public class JobSchedulerInternalRestClient implements JobSchedulerInternalClien
         }
     }
 
+    /**
+     * 拼接固定 service-job 服务名与受控内部路径。
+     *
+     * @param path 本类声明的内部接口路径
+     * @return service-job 完整调用地址
+     */
     private String serviceJobUrl(String path) {
         return SERVICE_JOB_BASE_URL + path;
     }

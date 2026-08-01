@@ -457,6 +457,12 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         }
     }
 
+    /**
+     * 调用支付核心创建 Hosted Checkout 会话。
+     *
+     * @param requestDTO 已完成商户绑定和金额精度转换的会话请求
+     * @return 支付核心持久化后的会话结果
+     */
     @Override
     public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
             PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
@@ -469,6 +475,12 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         );
     }
 
+    /**
+     * 调用支付核心查询 Hosted Checkout 会话展示快照。
+     *
+     * @param requestDTO 包含不透明令牌摘要的查询请求
+     * @return 会话当前展示状态
+     */
     @Override
     public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
             PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
@@ -481,6 +493,14 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         );
     }
 
+    /**
+     * 调用支付核心提交 Hosted Checkout 付款尝试。
+     *
+     * <p>内部签名保护服务边界；PAN 和 CVV 仅随本次请求发送，日志摘要必须经过统一脱敏。</p>
+     *
+     * @param requestDTO 付款尝试内部请求
+     * @return 支付核心受理结果或 3DS 动作
+     */
     @Override
     public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
             PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
@@ -493,6 +513,12 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         );
     }
 
+    /**
+     * 调用支付核心查询 Hosted Checkout 付款尝试状态。
+     *
+     * @param requestDTO 会话、尝试号及令牌摘要
+     * @return 支付核心当前状态
+     */
     @Override
     public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
             PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
@@ -505,6 +531,12 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         );
     }
 
+    /**
+     * 调用支付核心处理 Hosted Checkout 3DS 回跳。
+     *
+     * @param requestDTO 包含一次性令牌摘要和脱敏认证数据的内部请求
+     * @return 支付核心状态机处理后的当前状态
+     */
     @Override
     public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
             PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {

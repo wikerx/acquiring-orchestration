@@ -238,11 +238,17 @@ class ExchangeRateFetchServiceImplTest {
      */
     private static class SingleUsdProvider implements ExchangeRateProvider {
 
+        /**
+         * 返回固定数据源编码，使抓取服务选择本测试专用的中行报价提供器。
+         */
         @Override
         public String sourceCode() {
             return "BOC";
         }
 
+        /**
+         * 返回一条固定美元兑人民币报价，隔离外部汇率接口并稳定精度断言。
+         */
         @Override
         public List<RawRateItem> fetch(ExchangeRateSourceDO source) {
             RawRateItem item = new RawRateItem();

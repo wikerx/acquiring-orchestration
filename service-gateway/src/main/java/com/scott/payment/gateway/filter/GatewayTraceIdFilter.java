@@ -28,15 +28,21 @@ import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.G
 public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
 
     /**
-     * UNKNOWN ROUTE，用于保存 Gateway Trace ID Filter 中与 unknownroute 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
+     * 请求未匹配到 Gateway 路由时使用的审计占位值。
      */
     private static final String UNKNOWN_ROUTE = "unknown";
 
+    /**
+     * 为进入网关的请求建立 trace 上下文，并记录路由开始、完成和异常事件。
+     * <p>
+     * 外部 traceId 先经过统一格式校验；响应头和下游请求使用同一标识。Reactor 链结束时清理
+     * 线程上下文，避免复用线程把一次请求的 traceId 泄漏到后续请求。
+     * </p>
+     *
+     * @param exchange 当前 WebFlux 请求交换对象
+     * @param chain    后续网关过滤器链
+     * @return 路由处理完成信号
+     */
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         long startNanos = System.nanoTime();
@@ -69,11 +75,26 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
                 .doFinally(signalType -> TraceContext.clear());
     }
 
+    /**
+     * 将 trace 过滤器放在客户端 IP 等业务过滤器之前，确保后续日志均具备 traceId。
+     *
+     * @return Gateway 全局过滤器顺序
+     */
     @Override
     public int getOrder() {
         return Ordered.HIGHEST_PRECEDENCE + 5;
     }
 
+    /**
+     * 记录一次请求最终成功或失败的审计事件。
+     * <p>
+     * 日志只包含路由、状态、耗时和异常类型，不记录请求体、鉴权凭据或其他敏感报文。
+     * </p>
+     *
+     * @param exchange   当前 WebFlux 请求交换对象
+     * @param startNanos 请求进入网关时的单调时钟值
+     * @param error      路由异常；正常完成时为 {@code null}
+     */
     private void logFinish(ServerWebExchange exchange, long startNanos, Throwable error) {
         long durationMs = (System.nanoTime() - startNanos) / 1_000_000L;
         String routeId = routeId(exchange);
@@ -143,14 +164,10 @@ public class GatewayTraceIdFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 整理User-Agent 摘要，返回后续查询、通知或响应组装可直接使用的标准值。
-     * <p>
-     * 前置条件：调用方已准备 网关服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param userAgent user Agent 输入值，参与 User-Agent 摘要 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 截断 User-Agent 后再写入入口日志，控制单条日志大小。
+     *
+     * @param userAgent 请求头中的 User-Agent
+     * @return 最长 120 个字符的日志值；原值为空时返回 {@code null}
      */
     private String safeUserAgent(String userAgent) {
         if (!StringUtils.hasText(userAgent)) {

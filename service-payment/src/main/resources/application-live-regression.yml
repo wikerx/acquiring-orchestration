@@ -1,0 +1,11 @@
+# 本地真实交易回归隔离配置：必须与 dev profile 一起激活，不得用于 UAT 或生产部署。
+spring:
+  config:
+    activate:
+      on-profile: "dev & live-regression"
+
+payment:
+  transaction:
+    outbox:
+      # 回归期间不异步投递交易终态事件，避免 service-risk 后台链路改变隔离样本。
+      relay-enabled: false

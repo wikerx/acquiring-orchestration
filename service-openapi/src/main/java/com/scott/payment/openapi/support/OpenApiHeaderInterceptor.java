@@ -90,7 +90,11 @@ public class OpenApiHeaderInterceptor implements HandlerInterceptor {
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_DIGEST_ATTRIBUTE),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_LENGTH_ATTRIBUTE),
                 request.getAttribute(HttpTrafficLoggingFilter.REQUEST_BODY_SUMMARY_ATTRIBUTE));
-        OpenApiRequestHeaderDTO headerDTO = headerExtractor.extract(request, annotation.requiredHeaders());
+        OpenApiRequestHeaderDTO headerDTO = headerExtractor.extract(
+                request,
+                annotation.requiredHeaders(),
+                annotation.deferIpWhitelistToRisk()
+        );
         request.setAttribute(OpenApiRequestAttributes.REQUEST_HEADER, headerDTO);
         return true;
     }

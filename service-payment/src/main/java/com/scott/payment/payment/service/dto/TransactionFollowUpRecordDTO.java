@@ -3,6 +3,7 @@ package com.scott.payment.payment.service.dto;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import lombok.Data;
 
@@ -54,6 +55,11 @@ public class TransactionFollowUpRecordDTO implements Serializable {
      * 后续动作返回结果。
      */
     private PaymentCreateResultDTO resultDTO;
+
+    /**
+     * 后续动作风控策略结果；当前后续交易不适用内风控，默认由记录服务按 SKIP 写入审计事件。
+     */
+    private PaymentRiskDecisionEnum riskDecisionEnum;
 
     /**
      * 交易币种默认小数位，来自 ISO 字典。

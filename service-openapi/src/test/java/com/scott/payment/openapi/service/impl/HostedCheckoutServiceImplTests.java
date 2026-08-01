@@ -43,9 +43,15 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * Hosted Checkout OpenAPI 服务测试，覆盖商户绑定、Token 不透明性、金额币种和页面状态映射。
+ */
 class HostedCheckoutServiceImplTests {
 
+    /** 单元测试 Token 摘要盐值，不得复用于运行环境。 */
     private static final String TOKEN_PEPPER = "unit-test-hosted-checkout-token-pepper";
+
+    /** 模拟浏览器持有的不透明原始 Token，用于验证日志与下游请求不泄露明文。 */
     private static final String RAW_OPAQUE_TOKEN = "raw-browser-token-123";
 
     @AfterEach
@@ -330,12 +336,14 @@ class HostedCheckoutServiceImplTests {
 
     private static class StubSystemConfigService implements OpenApiSystemConfigService {
 
+        /** 测试用收银台前端根地址。 */
         private final String checkoutFrontendBaseUrl;
 
         private StubSystemConfigService(String checkoutFrontendBaseUrl) {
             this.checkoutFrontendBaseUrl = checkoutFrontendBaseUrl;
         }
 
+        /** 对所有受测配置键返回固定前端地址，使测试不依赖数据库或配置中心。 */
         @Override
         public String requiredEnabledValue(String configKey) {
             return checkoutFrontendBaseUrl;
@@ -344,66 +352,83 @@ class HostedCheckoutServiceImplTests {
 
     private static class CapturingCheckoutClient implements PaymentInternalClient {
 
+        /** 捕获的会话创建请求，用于断言商户、订单、金额和回调配置。 */
         private PaymentCheckoutClientDTOs.SessionCreateRequest sessionCreateRequest;
+
+        /** 捕获的会话查询请求，用于断言不透明 Token 的下游传递方式。 */
         private PaymentCheckoutClientDTOs.SessionQueryRequest sessionQueryRequest;
+
+        /** 捕获的支付提交请求，用于断言卡数据和 3DS 参数的最小传递范围。 */
         private PaymentCheckoutClientDTOs.PaymentSubmitRequest paymentSubmitRequest;
 
+        /** 本测试桩不覆盖授权交易，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖普通支付交易，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentCreateClientResponseDTO createPayment(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖预授权交易，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentCreateClientResponseDTO createPreAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖增量授权，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentCreateClientResponseDTO createIncrementalAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖请款，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖预授权完成，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖退款，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖撤销，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentCreateClientResponseDTO voidPayment(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖交易查询，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖渠道回调落库，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public TransactionChannelCallbackClientResponseDTO recordChannelCallback(
                 TransactionChannelCallbackClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖商户响应日志更新，调用即表示 Hosted Checkout 测试路径越界。 */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 捕获会话创建请求并返回确定性 CREATED 响应。 */
         @Override
         public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
@@ -418,6 +443,7 @@ class HostedCheckoutServiceImplTests {
             return responseDTO;
         }
 
+        /** 捕获会话查询请求并返回可支付页面所需的最小商户和订单视图。 */
         @Override
         public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
@@ -442,6 +468,7 @@ class HostedCheckoutServiceImplTests {
             return responseDTO;
         }
 
+        /** 捕获支付提交请求并返回 PROCESSING，防止测试把受理误判为成功。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
                 PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
@@ -453,12 +480,14 @@ class HostedCheckoutServiceImplTests {
             return responseDTO;
         }
 
+        /** 当前测试不覆盖轮询分支，调用即表示用例准备不完整。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
                 PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 当前测试不覆盖 3DS 返回分支，调用即表示用例准备不完整。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {

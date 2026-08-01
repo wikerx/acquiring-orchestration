@@ -105,6 +105,20 @@ public class OpenApiRequestHeaderExtractor {
      * @return 标准化请求头信息
      */
     public OpenApiRequestHeaderDTO extract(HttpServletRequest request, String[] requiredHeaders) {
+        return extract(request, requiredHeaders, false);
+    }
+
+    /**
+     * 提取请求头并完成商户 JWT 验签。
+     *
+     * @param request HTTP 请求
+     * @param requiredHeaders 接口要求存在的请求头
+     * @param deferIpWhitelistToRisk 是否把 IP 白名单判定延后到交易内风控
+     * @return 标准化请求头信息
+     */
+    public OpenApiRequestHeaderDTO extract(HttpServletRequest request,
+                                           String[] requiredHeaders,
+                                           boolean deferIpWhitelistToRisk) {
         try {
             validateRequiredHeaders(request, requiredHeaders);
         } catch (RuntimeException exception) {
@@ -133,12 +147,16 @@ public class OpenApiRequestHeaderExtractor {
             throw exception;
         }
         String clientIp;
-        try {
-            clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
-        } catch (RuntimeException exception) {
-            recordBlocked(request, "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
-                    claims.getMerchantId(), "OPENAPI_IP_WHITELIST", exception);
-            throw exception;
+        if (deferIpWhitelistToRisk) {
+            clientIp = ipWhitelistAccessService.resolveClientIp(request);
+        } else {
+            try {
+                clientIp = ipWhitelistAccessService.checkAccess(claims.getMerchantId(), request);
+            } catch (RuntimeException exception) {
+                recordBlocked(request, "OPENAPI_IP_DENIED", SecurityInterceptEventRecorder.RISK_HIGH,
+                        claims.getMerchantId(), "OPENAPI_IP_WHITELIST", exception);
+                throw exception;
+            }
         }
         try {
             replayProtectionService.checkAndMark(claims.getMerchantId(), claims.getJwtId(), claims.getExpiresAt());
@@ -154,12 +172,13 @@ public class OpenApiRequestHeaderExtractor {
         headerDTO.setIssuedAt(claims.getIssuedAt());
         headerDTO.setExpiresAt(claims.getExpiresAt());
         headerDTO.setClientIp(clientIp);
-        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipAllowed=true clientIp: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
+        log.info("event: OPENAPI_SECURITY_CHECK_END stage=AUTH traceId: {} merchantId: {} path: {} apiVersion: {} jwtValid=true jtiDigest: {} ipWhitelistDeferred: {} clientIp: {} jwtSummary: {} headerSummary: {} httpRequestDigest: {} httpRequestLength: {}",
                 TraceContext.getTraceId(),
                 claims.getMerchantId(),
                 request.getRequestURI(),
                 request.getAttribute(OpenApiRequestAttributes.API_VERSION),
                 digest8(claims.getJwtId()),
+                deferIpWhitelistToRisk,
                 clientIp,
                 diagnosticLogSupport.jwtSummary(headerDTO),
                 diagnosticLogSupport.headerSummary(request),

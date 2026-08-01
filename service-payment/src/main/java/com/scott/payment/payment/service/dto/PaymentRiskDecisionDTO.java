@@ -44,6 +44,11 @@ public class PaymentRiskDecisionDTO implements Serializable {
     private String riskMessage;
 
     /**
+     * 是否需要由支付终态驱动商户累计限额预占确认或取消。
+     */
+    private boolean merchantLimitReserved;
+
+    /**
      * 默认通过决策。
      *
      * @return 风控通过结果

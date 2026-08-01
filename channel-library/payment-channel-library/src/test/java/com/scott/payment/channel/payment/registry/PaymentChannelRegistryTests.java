@@ -82,11 +82,17 @@ class PaymentChannelRegistryTests {
             this.channelCode = channelCode;
         }
 
+        /**
+         * 返回构造器指定的渠道编码，用于验证渠道客户端注册和查找。
+         */
         @Override
         public String channelCode() {
             return channelCode;
         }
 
+        /**
+         * 固定声明查询能力，使注册表能力筛选具有确定结果。
+         */
         @Override
         public Set<ChannelCapability> capabilities() {
             return Set.of(ChannelCapability.QUERY);

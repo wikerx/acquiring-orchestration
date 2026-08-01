@@ -13,6 +13,7 @@ import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.iso.entity.IsoCurrencyDO;
 import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
+import com.scott.payment.component.db.iso.service.IsoDictionaryCacheInvalidator;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -63,6 +64,12 @@ public class AdminBaseCurrencyApplicationService {
      * 币种数据访问组件。
      */
     private final IsoCurrencyMapper isoCurrencyMapper;
+
+    /**
+     * ISO 字典缓存失效器；币种资料持久化成功后同步删除新旧币种缓存。
+     */
+    private final IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator;
+
     /**
      * excel Export Service 依赖，用于 Admin Base Currency Application Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -95,13 +102,16 @@ public class AdminBaseCurrencyApplicationService {
      * 创建币种基础资料应用服务。
      *
      * @param isoCurrencyMapper 币种 Mapper
+     * @param isoDictionaryCacheInvalidator ISO 字典缓存失效器
      * @param excelExportService Excel 导出服务
      */
     public AdminBaseCurrencyApplicationService(IsoCurrencyMapper isoCurrencyMapper,
+                                               IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator,
                                                ExcelExportService excelExportService,
                                                ExcelI18nMessageResolver excelI18nMessageResolver,
                                                ExcelLocaleResolver excelLocaleResolver) {
         this.isoCurrencyMapper = isoCurrencyMapper;
+        this.isoDictionaryCacheInvalidator = isoDictionaryCacheInvalidator;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
@@ -187,6 +197,7 @@ public class AdminBaseCurrencyApplicationService {
             currency.setStatus(DEFAULT_ENABLED_STATUS);
         }
         isoCurrencyMapper.insert(currency);
+        isoDictionaryCacheInvalidator.evictCurrencies();
         return currency;
     }
 
@@ -205,6 +216,7 @@ public class AdminBaseCurrencyApplicationService {
         mergeCurrency(currency, input);
         currency.setUpdatedAt(LocalDateTime.now());
         isoCurrencyMapper.updateById(currency);
+        isoDictionaryCacheInvalidator.evictCurrencies();
         return success(currency);
     }
 
@@ -223,6 +235,7 @@ public class AdminBaseCurrencyApplicationService {
         currency.setStatus(body.get("status"));
         currency.setUpdatedAt(LocalDateTime.now());
         isoCurrencyMapper.updateById(currency);
+        isoDictionaryCacheInvalidator.evictCurrencies();
         return success(currency);
     }
 
@@ -237,6 +250,7 @@ public class AdminBaseCurrencyApplicationService {
             currency.setDeleted(DELETED);
             currency.setUpdatedAt(LocalDateTime.now());
             isoCurrencyMapper.updateById(currency);
+            isoDictionaryCacheInvalidator.evictCurrencies();
         }
     }
 

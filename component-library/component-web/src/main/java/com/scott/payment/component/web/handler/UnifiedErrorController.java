@@ -43,6 +43,12 @@ public class UnifiedErrorController implements ErrorController {
         };
     }
 
+    /**
+     * 读取 Servlet 容器保存的原始 HTTP 状态码。
+     *
+     * @param request 当前错误分派请求
+     * @return 容器状态码；属性缺失或类型异常时返回 500
+     */
     private int resolveStatus(HttpServletRequest request) {
         Object status = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         if (status instanceof Integer statusCode) {

@@ -26,17 +26,31 @@ import java.util.List;
 public class FastJsonWebMvcConfig implements WebMvcConfigurer {
 
     /**
-     * 替换 Spring MVC 默认 JSON 转换器，统一使用 fastjson2 处理请求和响应报文。
+     * 将 fastjson2 注册为业务 JSON 首选转换器，同时保留 Jackson 处理 Actuator 等框架响应。
      *
      * @param converters Spring MVC 当前注册的消息转换器列表
      */
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
-        converters.removeIf(converter -> converter instanceof MappingJackson2HttpMessageConverter);
         converters.add(resolveFastJsonConverterIndex(converters), fastJsonHttpMessageConverter());
     }
 
+    /**
+     * 确定 fastjson2 转换器在 Spring MVC 转换链中的位置。
+     * <p>
+     * 转换器优先放在首个 Jackson 转换器之前，确保普通业务 JSON 仍由 fastjson2 处理；
+     * 不存在 Jackson 时再放到字符串转换器之后，保留纯文本响应行为。
+     * </p>
+     *
+     * @param converters 当前消息转换器列表
+     * @return fastjson2 转换器的插入下标
+     */
     private int resolveFastJsonConverterIndex(List<HttpMessageConverter<?>> converters) {
+        for (int index = 0; index < converters.size(); index++) {
+            if (converters.get(index) instanceof MappingJackson2HttpMessageConverter) {
+                return index;
+            }
+        }
         for (int index = 0; index < converters.size(); index++) {
             if (converters.get(index) instanceof StringHttpMessageConverter) {
                 return index + 1;
@@ -45,6 +59,11 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
         return 0;
     }
 
+    /**
+     * 创建仅处理 {@code application/json} 的 fastjson2 HTTP 转换器。
+     *
+     * @return 已应用项目统一读写特性的消息转换器
+     */
     private FastJsonHttpMessageConverter fastJsonHttpMessageConverter() {
         FastJsonHttpMessageConverter converter = new FastJsonHttpMessageConverter();
         converter.setSupportedMediaTypes(List.of(MediaType.APPLICATION_JSON));
@@ -53,13 +72,9 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
     }
 
     /**
-     * 整理fastjson配置，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 创建 Web 层统一 fastjson2 配置。
+     *
+     * @return 启用字段读写并保留 null 字段的转换配置
      */
     private FastJsonConfig fastJsonConfig() {
         FastJsonConfig config = new FastJsonConfig();

@@ -5,6 +5,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.OperationLogMessage;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
+import com.scott.payment.component.redis.idempotent.IdempotentAcquireResult;
 import com.scott.payment.component.redis.idempotent.IdempotentService;
 import com.scott.payment.merchant.converter.OperLogMessageConverter;
 import com.scott.payment.merchant.dto.SysOperLogRecordRequest;
@@ -22,10 +23,10 @@ import org.springframework.stereotype.Component;
  * @classname : MerchantOperationLogConsumer
  * @date : 2026-06-20 10:32
  * @email : scott_x@163.com
- * @description : service-merchant 操作日志 MQ 消费者
+ * @description : 消费商户端操作日志消息；Redis 负责快速去重，sys_oper_log 唯一键承担最终幂等
  * @status : create
  *
- * <p>负责消费商户管理系统操作日志消息，并在本地做幂等控制后落库到 sys_oper_log。</p>
+ * <p>Redis 降级时仍继续落库，禁止因缓存故障丢失审计日志；只有真实取得 Redis 占用且落库失败时才释放。</p>
  */
 @Slf4j
 @Component
@@ -35,16 +36,12 @@ import org.springframework.stereotype.Component;
         consumerGroup = MerchantOperationLogMqConstants.MERCHANT_OPERATION_LOG_CONSUMER_GROUP,
         messageModel = MessageModel.CLUSTERING
 )
-/**
- * @author : scott
- * @version : v1.0.0
- * @classname : MerchantOperationLogConsumer
- * @date : 2026-06-20 10:32
- * @email : scott_x@163.com
- * @description : Merchant Operation Log Consumer 消息消费组件，位于 商户后台服务，解析 MQ 消息、绑定 traceId 和重试次数，并触发后续业务处理。
- * @status : create
- */
 public class MerchantOperationLogConsumer implements RocketMQListener<String> {
+
+    /**
+     * 商户操作日志 MQ 辅助去重命名空间；最终幂等由操作日志数据库唯一键兜底。
+     */
+    private static final String IDEMPOTENT_NAMESPACE = "merchant-operation-log";
 
     /**
      * 商户管理系统操作日志领域服务。
@@ -110,20 +107,35 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
                     message.getOperatorId(),
                     message.getMerchantId(),
                     message.getRequestUri());
-            String idempotentKey = "operation-log:consume:merchant:" + message.getIdempotentKey();
-            if (!idempotentService.acquire(idempotentKey, properties.getConsumeIdempotentTtlSeconds())) {
-                log.info("event: MERCHANT_OPERATION_LOG_DUPLICATE stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationType: {} idempotentKey: {} durationMs: {}",
+            String idempotentKey = message.getIdempotentKey();
+            IdempotentAcquireResult acquireResult = idempotentService.acquireMq(
+                    IDEMPOTENT_NAMESPACE,
+                    idempotentKey,
+                    properties.getConsumeIdempotentTtlSeconds()
+            );
+            if (acquireResult == IdempotentAcquireResult.DUPLICATE) {
+                log.info("event: MERCHANT_OPERATION_LOG_DUPLICATE stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationType: {} durationMs: {}",
                         TraceContext.getTraceId(),
                         message.getMessageId(),
                         message.getRetryCount(),
                         message.getOperationModule(),
                         message.getOperationType(),
-                        message.getIdempotentKey(),
                         elapsedMillis(startNanos));
                 return;
             }
-            SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
-            merchantOperLogService.recordOperLog(request);
+            if (acquireResult == IdempotentAcquireResult.FALLBACK) {
+                log.warn("event: MERCHANT_OPERATION_LOG_IDEMPOTENT_FALLBACK stage=MQ_CONSUME traceId: {} "
+                                + "messageId: {} action: continueToDatabaseUniqueConstraint",
+                        TraceContext.getTraceId(),
+                        message.getMessageId());
+            }
+            try {
+                SysOperLogRecordRequest request = operLogMessageConverter.toRecordRequest(message);
+                merchantOperLogService.recordOperLog(request);
+            } catch (RuntimeException exception) {
+                releaseForRetry(idempotentKey, acquireResult, message, exception);
+                throw exception;
+            }
             log.info("event: MERCHANT_OPERATION_LOG_CONSUMED stage=MQ_CONSUME traceId: {} messageId: {} retryCount: {} operationModule: {} operationName: {} operationType: {} operatorId: {} merchantId: {} requestUri: {} operationStatus: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     message.getMessageId(),
@@ -149,5 +161,37 @@ public class MerchantOperationLogConsumer implements RocketMQListener<String> {
      */
     private long elapsedMillis(long startNanos) {
         return (System.nanoTime() - startNanos) / 1_000_000L;
+    }
+
+    /**
+     * 业务写入失败后释放本次实际取得的 Redis 占用。
+     *
+     * <p>FALLBACK 没有 Redis 所有权，禁止执行释放；否则可能删除其他实例刚写入的摘要。</p>
+     *
+     * @param idempotentKey     消息业务幂等键
+     * @param acquireResult     本次 Redis 获取结果
+     * @param message           操作日志消息，仅用于非敏感追踪字段
+     * @param originalException 原始业务异常，释放异常会作为 suppressed 附加
+     */
+    private void releaseForRetry(String idempotentKey,
+                                 IdempotentAcquireResult acquireResult,
+                                 OperationLogMessage message,
+                                 RuntimeException originalException) {
+        if (acquireResult != IdempotentAcquireResult.ACQUIRED) {
+            return;
+        }
+        try {
+            idempotentService.releaseMq(
+                    IDEMPOTENT_NAMESPACE,
+                    idempotentKey,
+                    properties.getConsumeIdempotentTtlSeconds()
+            );
+        } catch (RuntimeException releaseException) {
+            originalException.addSuppressed(releaseException);
+            log.error("event: MERCHANT_OPERATION_LOG_IDEMPOTENT_RELEASE_FAILED stage=MQ_CONSUME traceId: {} messageId: {}",
+                    TraceContext.getTraceId(),
+                    message.getMessageId(),
+                    releaseException);
+        }
     }
 }

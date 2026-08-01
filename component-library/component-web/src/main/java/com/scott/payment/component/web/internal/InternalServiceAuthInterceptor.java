@@ -97,10 +97,25 @@ public class InternalServiceAuthInterceptor implements HandlerInterceptor {
         return true;
     }
 
+    /**
+     * 判断服务间调用路径是否允许跳过签名验证。
+     * <p>
+     * 白名单属于认证绕过边界，只应包含健康检查等不读取或修改业务数据的端点。
+     * </p>
+     *
+     * @param requestPath 当前请求路径
+     * @return 命中任一配置规则时返回 {@code true}
+     */
     private boolean isWhitelisted(String requestPath) {
         return properties.getWhitelist().stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, requestPath));
     }
 
+    /**
+     * 按允许时钟偏差判断服务签名时间戳是否过期。
+     *
+     * @param timestamp 调用方发送的 Unix 毫秒时间戳
+     * @return 与当前时间差超过配置窗口时返回 {@code true}
+     */
     private boolean isExpired(long timestamp) {
         Duration allowedClockSkew = properties.getAllowedClockSkew();
         long skewMillis = allowedClockSkew == null ? Duration.ofMinutes(5).toMillis() : allowedClockSkew.toMillis();

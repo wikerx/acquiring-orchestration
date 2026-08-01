@@ -6,6 +6,7 @@ import com.scott.payment.channel.payment.exception.ChannelTimeoutException;
 import com.scott.payment.component.core.iso.IsoCountryInfo;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -894,6 +895,39 @@ class PaymentTransactionConsistencyBaselineTests {
     }
 
     /**
+     * Refund 属于后续交易，不适用路由前内风控；即使顶层风控服务会拒绝，也必须继续路由和渠道准备。
+     */
+    @Test
+    void shouldContinueRefundWhenRiskRejectsBecauseFollowUpSkipsRisk() {
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        CapturingTransactionRecordService recordService = new CapturingTransactionRecordService();
+        recordService.sourceTransactionType = PaymentTransactionTypeEnum.PAYMENT.getCode();
+        recordService.sourceStatus = PaymentTransactionStatusEnum.SUCCESS.getCode();
+        recordService.sourceAvailableRefundAmount = new BigDecimal("12.34");
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
+        InspectingPaymentChannelInvokeService channelService = new InspectingPaymentChannelInvokeService(
+                channelResponse(ChannelTradeStatus.SUCCESS));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.REJECT),
+                idempotencyService,
+                recordService,
+                outboxService,
+                channelService);
+
+        PaymentCreateResultDTO resultDTO = service.refund(followUpCommand("REFUND-RISK-0001", new BigDecimal("5.00")));
+
+        assertThat(resultDTO.getStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(resultDTO.getFailReasonCode()).isNull();
+        assertThat(channelService.paymentInvokeCount()).isEqualTo(1);
+        assertThat(recordService.followUpRecordCount).isEqualTo(1);
+        assertThat(recordService.channelRequestCount).isEqualTo(1);
+        assertThat(recordService.lastFollowUpRiskDecision).isNull();
+        assertThat(recordService.lastFollowUpOperation.getChannelTransactionId()).isNotNull();
+        assertThat(idempotencyService.completedCount).isEqualTo(2);
+        assertThat(outboxService.savedCount).isEqualTo(1);
+    }
+
+    /**
      * 05D-REF-05：Unknown/Processing Refund 必须占用可退额度，新的动作号也不能超过真实剩余额度。
      */
     @Test
@@ -1701,6 +1735,24 @@ class PaymentTransactionConsistencyBaselineTests {
                 }));
     }
 
+    private PaymentTransactionServiceImpl newService(PaymentRiskInvokeService riskInvokeService,
+                                                     InMemoryTransactionIdempotencyService idempotencyService,
+                                                     CapturingTransactionRecordService recordService,
+                                                     CapturingTransactionEventOutboxService outboxService,
+                                                     PaymentChannelInvokeService channelService) {
+        return new PaymentTransactionServiceImpl(
+                isoDictionaryService(),
+                riskInvokeService,
+                routeService(),
+                channelService,
+                exchangeRateService(),
+                idempotencyService,
+                outboxService,
+                recordService,
+                new DefaultTransactionStateMachineService(),
+                List.of());
+    }
+
     private PaymentTransactionServiceImpl newService(InMemoryTransactionIdempotencyService idempotencyService,
                                                      CapturingTransactionRecordService recordService,
                                                      CapturingTransactionEventOutboxService outboxService,
@@ -1830,7 +1882,8 @@ class PaymentTransactionConsistencyBaselineTests {
                 recordService,
                 new DefaultTransactionStateMachineService(),
                 new DefaultChannelTransactionStatusResolver(),
-                List.of());
+                List.of(),
+                new PaymentRedisProperties());
     }
 
     private DefaultPaymentTransactionPreparationService preparationService(InMemoryTransactionIdempotencyService idempotencyService,
@@ -2077,21 +2130,33 @@ class PaymentTransactionConsistencyBaselineTests {
          */
         private int completedCount;
 
+        /**
+         * 组合商户、商户订单标识和交易类型，生成并发基线测试使用的稳定业务键。
+         */
         @Override
         public String buildTransactionOperationKey(String merchantId, String merchantOrderId, String transactionType) {
             return String.join(":", merchantId, merchantOrderId, transactionType);
         }
 
+        /**
+         * 组合商户与商户订单号生成初始交易键，用于验证首次交易去重。
+         */
         @Override
         public String buildInitialTransactionKey(String merchantId, String merchantOrderNo) {
             return String.join(":", merchantId, merchantOrderNo, "INITIAL");
         }
 
+        /**
+         * 从内存记录表读取幂等事实，模拟数据库按作用域和业务键查询。
+         */
         @Override
         public Optional<TransactionIdempotencyDO> find(String scope, String key) {
             return Optional.ofNullable(records.get(scope + ":" + key));
         }
 
+        /**
+         * 按平台交易号扫描已完成的初始幂等记录，支持后续交易恢复源交易。
+         */
         @Override
         public Optional<TransactionIdempotencyDO> findInitialTransaction(String transactionId) {
             return records.values().stream()
@@ -2099,6 +2164,9 @@ class PaymentTransactionConsistencyBaselineTests {
                     .findFirst();
         }
 
+        /**
+         * 以同步临界区模拟数据库唯一键竞争；等待未完成占位提交后，重复请求返回失败。
+         */
         @Override
         public synchronized boolean tryBegin(TransactionIdempotencyDO record) {
             String storageKey = record.getIdempotencyScope() + ":" + record.getIdempotencyKey();
@@ -2119,6 +2187,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return true;
         }
 
+        /**
+         * 完成占位记录并唤醒等待线程，模拟交易事实与幂等快照一并提交。
+         */
         @Override
         public synchronized void complete(String scope,
                                           String key,
@@ -2139,6 +2210,9 @@ class PaymentTransactionConsistencyBaselineTests {
             notifyAll();
         }
 
+        /**
+         * 构造尚无业务结果的 PROCESSING 占位记录，供并发请求竞争唯一键。
+         */
         @Override
         public TransactionIdempotencyDO newProcessingRecord(String scope,
                                                             String key,
@@ -2258,8 +2332,13 @@ class PaymentTransactionConsistencyBaselineTests {
          * 取值范围：取值范围由数据库字段、校验注解或任务参数限制；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
-         */
+        */
         private int channelRequestCount;
+
+        /**
+         * 最近一次后续交易记录携带的风控决策，用于验证准备事务保存结果。
+         */
+        private PaymentRiskDecisionEnum lastFollowUpRiskDecision;
 
         /**
          * fail Initial Record，用于保存 Capturing Transaction Record Service 中与 failinitialrecord 相关的业务属性。
@@ -2421,6 +2500,9 @@ class PaymentTransactionConsistencyBaselineTests {
          */
         private TransactionOperationDO lastFollowUpOperation;
 
+        /**
+         * 将初始交易转换为内存动作单并累计落库次数，可按用例配置在写入后注入失败。
+         */
         @Override
         public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
@@ -2452,6 +2534,9 @@ class PaymentTransactionConsistencyBaselineTests {
             }
         }
 
+        /**
+         * 把渠道返回的状态和渠道标识补写到已记录动作单，模拟独立结果事务成功。
+         */
         @Override
         public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
                                                  PaymentRouteResultDTO routeResultDTO,
@@ -2472,11 +2557,17 @@ class PaymentTransactionConsistencyBaselineTests {
             }
         }
 
+        /**
+         * 固定返回未命中；该基线替身只允许通过源交易号读取主单。
+         */
         @Override
         public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
             return null;
         }
 
+        /**
+         * 仅为固定源交易构造金额与状态快照，供请款、退款和撤销额度校验。
+         */
         @Override
         public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId) {
             if (!"TX202607230001".equals(sourceTransactionId)) {
@@ -2506,6 +2597,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return orderDO;
         }
 
+        /**
+         * 按用例需要获取本地互斥锁后返回源主单，模拟数据库行锁保护累计额度计算。
+         */
         @Override
         public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
             if (markFollowUpProcessingForNewCaptures) {
@@ -2514,6 +2608,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return findSourceOrderByTransactionId("TX202607230001");
         }
 
+        /**
+         * 仅为固定源交易构造渠道动作事实，供后续交易复用原渠道身份。
+         */
         @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
             if (!"TX202607230001".equals(sourceTransactionId)) {
@@ -2536,6 +2633,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return operationDO;
         }
 
+        /**
+         * 仅返回本替身已经记录且商户订单匹配的初始动作，用于重放结果查询。
+         */
         @Override
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
                                                                           String merchantOrderNo,
@@ -2569,6 +2669,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return List.of(lastInitialOperation);
         }
 
+        /**
+         * 返回预置或刚持久化的在途请款，并在读取完成后释放模拟的源主单行锁。
+         */
         @Override
         public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
                                                                     String operationId,
@@ -2597,6 +2700,9 @@ class PaymentTransactionConsistencyBaselineTests {
             }
         }
 
+        /**
+         * 按预设在途退款金额构造 PROCESSING 动作，供可退款金额计算纳入未决占用。
+         */
         @Override
         public List<TransactionOperationDO> findNonTerminalRefunds(String merchantId,
                                                                    String operationId,
@@ -2630,6 +2736,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return List.of(operationDO);
         }
 
+        /**
+         * 按开关返回一笔在途撤销，验证重复撤销在渠道结果未知时被拒绝。
+         */
         @Override
         public List<TransactionOperationDO> findNonTerminalVoids(String merchantId,
                                                                  String operationId,
@@ -2662,6 +2771,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return List.of(operationDO);
         }
 
+        /**
+         * 按开关返回一笔在途增量授权，验证并发增额不能重复占用授权额度。
+         */
         @Override
         public List<TransactionOperationDO> findNonTerminalIncrementalAuthorizations(String merchantId,
                                                                                      String operationId,
@@ -2710,6 +2822,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return null;
         }
 
+        /**
+         * 按开关返回一笔渠道结果未知的请款，模拟恢复任务的待匹配扫描。
+         */
         @Override
         public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
                                                                     String channelCode,
@@ -2769,10 +2884,14 @@ class PaymentTransactionConsistencyBaselineTests {
             return operationDO;
         }
 
+        /**
+         * 捕获后续交易及风控结论，并在并发用例中把新请款登记为在途后释放源主单锁。
+         */
         @Override
         public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
             try {
                 followUpRecordCount++;
+                lastFollowUpRiskDecision = recordDTO.getRiskDecisionEnum();
                 lastFollowUpOperation = pendingCaptureFromRecord(recordDTO);
                 if (recordDTO.getChannelInvokeResultDTO() != null && recordDTO.getChannelInvokeResultDTO().getChannelRequest() != null) {
                     channelRequestCount++;
@@ -2793,6 +2912,9 @@ class PaymentTransactionConsistencyBaselineTests {
             }
         }
 
+        /**
+         * 固定拒绝回调终态更新，因为该替身只验证同步渠道结果的一致性边界。
+         */
         @Override
         public boolean completeByChannelCallback(TransactionOperationDO operationDO,
                                                  TransactionOrderDO orderDO,
@@ -2806,6 +2928,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return false;
         }
 
+        /**
+         * 将同步渠道结果写回最近的后续动作单，模拟结果事务成功并返回已更新。
+         */
         @Override
         public boolean completeCaptureChannelResult(TransactionOperationDO operationDO,
                                                     TransactionOrderDO sourceOrderDO,
@@ -2855,6 +2980,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return completeCaptureChannelResult(operationDO, sourceOrderDO, commandDTO, routeResultDTO, invokeResultDTO, resultDTO, currencyExponent);
         }
 
+        /**
+         * 复用后续交易结果写回逻辑，模拟撤销渠道结果事务。
+         */
         @Override
         public boolean completeVoidChannelResult(TransactionOperationDO operationDO,
                                                  TransactionOrderDO sourceOrderDO,
@@ -2866,6 +2994,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return completeCaptureChannelResult(operationDO, sourceOrderDO, commandDTO, routeResultDTO, invokeResultDTO, resultDTO, currencyExponent);
         }
 
+        /**
+         * 拒绝覆盖既有终态；首次成功时写回动作状态并累计一次授权金额增额。
+         */
         @Override
         public boolean completeIncrementalAuthorizationChannelResult(TransactionOperationDO operationDO,
                                                                      TransactionOrderDO sourceOrderDO,
@@ -2891,6 +3022,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return changed;
         }
 
+        /**
+         * 固定返回未更新，当前基线不通过该替身验证匹配元数据持久化。
+         */
         @Override
         public boolean updateChannelMatch(TransactionOperationDO operationDO,
                                           String matchStatus,
@@ -2902,6 +3036,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return false;
         }
 
+        /**
+         * 固定返回未更新，避免商户响应日志影响交易一致性断言。
+         */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateCommandDTO commandDTO) {
             return false;
@@ -2944,6 +3081,9 @@ class PaymentTransactionConsistencyBaselineTests {
             this.recordService = recordService;
         }
 
+        /**
+         * 统计初始渠道结果事务，并可注入事务失败；成功时委托记录替身补写渠道结果。
+         */
         @Override
         public void recordInitialChannelResult(PaymentCreateCommandDTO commandDTO,
                                                PaymentRouteResultDTO routeResultDTO,
@@ -3001,6 +3141,9 @@ class PaymentTransactionConsistencyBaselineTests {
             this.recordService = recordService;
         }
 
+        /**
+         * 统计请款结果事务并可注入失败；成功时把准备快照交给记录替身完成状态更新。
+         */
         @Override
         public void recordCaptureChannelResult(CapturePreparationResultDTO preparationResultDTO,
                                                PaymentChannelInvokeResultDTO invokeResultDTO) {
@@ -3057,6 +3200,9 @@ class PaymentTransactionConsistencyBaselineTests {
             this.recordService = recordService;
         }
 
+        /**
+         * 统计退款结果事务并可注入失败；成功时委托记录替身写回退款渠道结果。
+         */
         @Override
         public void recordRefundChannelResult(RefundPreparationResultDTO preparationResultDTO,
                                               PaymentChannelInvokeResultDTO invokeResultDTO) {
@@ -3113,6 +3259,9 @@ class PaymentTransactionConsistencyBaselineTests {
             this.recordService = recordService;
         }
 
+        /**
+         * 统计撤销结果事务并可注入失败；成功时委托记录替身写回撤销渠道结果。
+         */
         @Override
         public void recordVoidChannelResult(VoidPreparationResultDTO preparationResultDTO,
                                             PaymentChannelInvokeResultDTO invokeResultDTO) {
@@ -3179,21 +3328,33 @@ class PaymentTransactionConsistencyBaselineTests {
          */
         private int savedCount;
 
+        /**
+         * 仅累计保存次数，用于断言交易事实提交时同步创建了一条 Outbox 事件。
+         */
         @Override
         public void save(TransactionEventOutboxDO eventDO) {
             savedCount++;
         }
 
+        /**
+         * 固定返回无待投递事件，隔离一致性基线与异步中继行为。
+         */
         @Override
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
             return List.of();
         }
 
+        /**
+         * 固定模拟发送状态更新成功；当前用例不检查 Outbox 乐观锁。
+         */
         @Override
         public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
             return true;
         }
 
+        /**
+         * 固定模拟失败状态更新成功；当前用例不检查重试调度持久化。
+         */
         @Override
         public boolean markFailed(TransactionEventOutboxDO eventDO,
                                   LocalDateTime nextRetryTime,
@@ -3275,6 +3436,9 @@ class PaymentTransactionConsistencyBaselineTests {
             this.beforeInvokeAssertion = beforeInvokeAssertion;
         }
 
+        /**
+         * 执行渠道调用前断言，捕获源渠道交易号，并可对第一次调用注入阻塞或超时。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
@@ -3308,12 +3472,16 @@ class PaymentTransactionConsistencyBaselineTests {
                 resultDTO.setRequestStatus("TIMEOUT");
                 resultDTO.setExceptionType(ChannelTimeoutException.class.getSimpleName());
                 resultDTO.setExceptionMessage("simulated timeout");
+                resultDTO.setOutcomeUncertain(true);
                 throw new PaymentChannelInvokeException(resultDTO, new ChannelTimeoutException("simulated timeout"));
             }
             resultDTO.setChannelResponse(response);
             return resultDTO;
         }
 
+        /**
+         * 复用已准备的渠道请求标识执行并发观察，并可对第一次调用注入阻塞或超时。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
@@ -3347,6 +3515,7 @@ class PaymentTransactionConsistencyBaselineTests {
                 resultDTO.setRequestStatus("TIMEOUT");
                 resultDTO.setExceptionType(ChannelTimeoutException.class.getSimpleName());
                 resultDTO.setExceptionMessage("simulated timeout");
+                resultDTO.setOutcomeUncertain(true);
                 throw new PaymentChannelInvokeException(resultDTO, new ChannelTimeoutException("simulated timeout"));
             }
             if (response != null) {
@@ -3420,6 +3589,9 @@ class PaymentTransactionConsistencyBaselineTests {
             this.order = pendingOrder();
         }
 
+        /**
+         * 恢复任务不创建初始交易，空实现用于保持预置的待匹配事实不变。
+         */
         @Override
         public void recordInitialTransaction(PaymentCreateCommandDTO commandDTO,
                                              PaymentRouteResultDTO routeResultDTO,
@@ -3429,6 +3601,9 @@ class PaymentTransactionConsistencyBaselineTests {
                                              int currencyExponent) {
         }
 
+        /**
+         * 恢复任务不补写同步初始结果，空实现用于隔离恢复路径。
+         */
         @Override
         public void completeInitialChannelResult(PaymentCreateCommandDTO commandDTO,
                                                  PaymentRouteResultDTO routeResultDTO,
@@ -3438,36 +3613,57 @@ class PaymentTransactionConsistencyBaselineTests {
                                                  int currencyExponent) {
         }
 
+        /**
+         * 返回预置待匹配主单，供恢复服务读取当前 PROCESSING 状态。
+         */
         @Override
         public TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId) {
             return order;
         }
 
+        /**
+         * 返回同一预置主单，模拟按源交易号反查命中。
+         */
         @Override
         public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId) {
             return order;
         }
 
+        /**
+         * 返回同一预置主单，模拟恢复事务已取得数据库行锁。
+         */
         @Override
         public TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId) {
             return order;
         }
 
+        /**
+         * 返回预置动作单，供恢复服务复用已落库的渠道身份。
+         */
         @Override
         public TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId) {
             return operation;
         }
 
+        /**
+         * 返回唯一预置动作单，模拟商户订单维度查询命中。
+         */
         @Override
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId) {
             return List.of(operation);
         }
 
+        /**
+         * 返回唯一预置初始动作单，避免用例依赖真实分表查询。
+         */
         @Override
         public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
             return List.of(operation);
         }
 
+        /**
+         * 固定返回无在途请款，隔离恢复状态推进与额度占用检查。
+         */
         @Override
         public List<TransactionOperationDO> findNonTerminalCaptures(String merchantId,
                                                                     String operationId,
@@ -3477,11 +3673,17 @@ class PaymentTransactionConsistencyBaselineTests {
             return List.of();
         }
 
+        /**
+         * 返回预置动作单，模拟按渠道订单号和渠道交易号反查命中。
+         */
         @Override
         public TransactionOperationDO findOperationByChannelTransaction(String channelOrderNo, String channelTransactionId) {
             return operation;
         }
 
+        /**
+         * 返回唯一预置待匹配动作单，模拟恢复调度的一批扫描结果。
+         */
         @Override
         public List<TransactionOperationDO> listPendingChannelMatch(LocalDateTime transactionDateTime,
                                                                     String channelCode,
@@ -3490,10 +3692,16 @@ class PaymentTransactionConsistencyBaselineTests {
             return List.of(operation);
         }
 
+        /**
+         * 恢复任务不创建后续交易，空实现用于限制用例观察范围。
+         */
         @Override
         public void recordFollowUpTransaction(TransactionFollowUpRecordDTO recordDTO) {
         }
 
+        /**
+         * 断言恢复结果符合预期终态，并捕获终态与失败原因供测试核对。
+         */
         @Override
         public boolean completeByChannelCallback(TransactionOperationDO operationDO,
                                                  TransactionOrderDO orderDO,
@@ -3510,6 +3718,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return true;
         }
 
+        /**
+         * 固定模拟匹配元数据更新成功，使用例聚焦终态恢复结果。
+         */
         @Override
         public boolean updateChannelMatch(TransactionOperationDO operationDO,
                                           String matchStatus,
@@ -3521,6 +3732,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return true;
         }
 
+        /**
+         * 固定模拟商户响应日志更新成功，当前恢复用例不检查日志内容。
+         */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateCommandDTO commandDTO) {
             return true;
@@ -3625,6 +3839,9 @@ class PaymentTransactionConsistencyBaselineTests {
             this.queryStatus = queryStatus;
         }
 
+        /**
+         * 捕获普通查询调用的平台与渠道订单号，并返回预设渠道状态。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,
@@ -3649,6 +3866,9 @@ class PaymentTransactionConsistencyBaselineTests {
             return resultDTO;
         }
 
+        /**
+         * 捕获已准备请求中的完整渠道身份，并返回预设渠道状态用于恢复终态。
+         */
         @Override
         public PaymentChannelInvokeResultDTO invoke(PaymentCreateCommandDTO commandDTO,
                                                     PaymentRouteResultDTO routeResult,

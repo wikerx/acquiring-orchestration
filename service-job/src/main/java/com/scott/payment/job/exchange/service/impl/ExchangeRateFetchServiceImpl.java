@@ -292,6 +292,19 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         return result;
     }
 
+    /**
+     * 校验并处理汇率源返回的一条原始报价。
+     * <p>
+     * 缺少标准币种、发布时间或有效报价时记为跳过；重复原始报价不再次插入，但会尝试补齐
+     * 缺失的业务汇率。{@code dryRun} 只做校验和统计，不写原始或业务汇率表。
+     * </p>
+     *
+     * @param source  已启用的汇率源
+     * @param item    原始报价
+     * @param batchNo 本次抓取批次号
+     * @param dryRun  是否仅演练
+     * @param result  本批次统计结果
+     */
     private void processItem(ExchangeRateSourceDO source,
                              RawRateItem item,
                              String batchNo,
@@ -343,6 +356,19 @@ public class ExchangeRateFetchServiceImpl implements ExchangeRateFetchService {
         result.setSuccessCount(result.getSuccessCount() + 1);
     }
 
+    /**
+     * 为已存在的原始报价补齐尚未生成的业务汇率。
+     * <p>
+     * 按币种对、发布时间和启用状态精确定位原始报价；每种 rateType 只选择优先级最高规则，
+     * 并通过原始汇率与规则组合判重，避免重复生成交易或结算汇率。
+     * </p>
+     *
+     * @param sourceCode   汇率源编码
+     * @param baseCurrency 基准币种
+     * @param quoteCurrency 报价币种
+     * @param publishTime  原始报价发布时间
+     * @param result       本批次统计结果
+     */
     private void backfillMissingBusinessRates(String sourceCode,
                                               String baseCurrency,
                                               String quoteCurrency,

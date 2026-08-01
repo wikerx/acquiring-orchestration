@@ -44,6 +44,14 @@ public class DefaultIncrementalAuthorizationChannelResultTransactionService impl
         this.transactionRecordService = transactionRecordService;
     }
 
+    /**
+     * 在独立事务中持久化增量授权渠道同步结果。
+     *
+     * <p>仅对已落库的增量授权动作执行 CAS 完成；动作不存在时不根据瞬时渠道响应伪造交易事实。</p>
+     *
+     * @param preparationResultDTO 本地准备事务结果
+     * @param invokeResultDTO      渠道调用结果
+     */
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void recordIncrementalAuthorizationChannelResult(

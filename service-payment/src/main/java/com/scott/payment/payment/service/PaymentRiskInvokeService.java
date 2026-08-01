@@ -21,4 +21,16 @@ public interface PaymentRiskInvokeService {
      * @return 风控决策
      */
     PaymentRiskDecisionDTO checkPreRoute(PaymentCreateCommandDTO commandDTO);
+
+    /**
+     * 支付本地事务失败后补偿撤销商户累计限额预占。
+     *
+     * @param commandDTO 支付创建命令
+     * @param decisionDTO 风控决策
+     * @param reason 补偿原因
+     */
+    default void cancelMerchantLimitReservation(PaymentCreateCommandDTO commandDTO,
+                                                PaymentRiskDecisionDTO decisionDTO,
+                                                String reason) {
+    }
 }

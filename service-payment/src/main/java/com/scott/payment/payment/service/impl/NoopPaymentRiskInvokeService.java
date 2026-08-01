@@ -3,7 +3,7 @@ package com.scott.payment.payment.service.impl;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.dto.PaymentRiskDecisionDTO;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Service;
 
 /**
@@ -16,7 +16,7 @@ import org.springframework.stereotype.Service;
  * @status : create
  */
 @Service
-@ConditionalOnProperty(prefix = "payment.risk-client", name = "remote-enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnExpression("${payment.risk-client.noop-enabled:false} && !${payment.risk-client.remote-enabled:true}")
 public class NoopPaymentRiskInvokeService implements PaymentRiskInvokeService {
 
     /**

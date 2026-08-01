@@ -89,6 +89,12 @@ public class JobTaskServiceImpl implements JobTaskService {
         this.jobHandlerRegistry = jobHandlerRegistry;
     }
 
+    /**
+     * 分页查询未逻辑删除的任务定义。
+     *
+     * @param request 状态、任务编码、分组、处理器和名称查询条件
+     * @return 按分组和任务编码升序排列的分页结果
+     */
     @Override
     public PageResult<SysJobTaskDO> pageTasks(JobTaskQueryRequest request) {
         JobTaskQueryRequest query = request == null ? new JobTaskQueryRequest() : request;
@@ -107,6 +113,15 @@ public class JobTaskServiceImpl implements JobTaskService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
+    /**
+     * 创建唯一任务编码的调度定义并计算首次触发时间。
+     * <p>
+     * 新任务不继承任何运行状态或锁持有者；Cron、处理器和重试等规则在写库前统一校验。
+     * </p>
+     *
+     * @param request 任务保存请求
+     * @return 已落库的任务定义
+     */
     @Override
     public SysJobTaskDO createTask(JobTaskSaveRequest request) {
         validateRequest(request);
@@ -131,6 +146,13 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
+    /**
+     * 更新任务可编辑配置并重新计算下一触发时间。
+     *
+     * @param taskId  待更新任务主键
+     * @param request 任务保存请求
+     * @return 更新后的任务定义
+     */
     @Override
     public SysJobTaskDO updateTask(Long taskId, JobTaskSaveRequest request) {
         validateRequest(request);
@@ -146,6 +168,14 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
+    /**
+     * 切换任务启停状态并同步下一触发时间。
+     *
+     * @param taskId   任务主键
+     * @param status   {@link JobStatusEnum} 名称
+     * @param operator 操作人
+     * @return 更新后的任务定义
+     */
     @Override
     public SysJobTaskDO changeStatus(Long taskId, String status, String operator) {
         SysJobTaskDO task = getRequiredTask(taskId);
@@ -157,6 +187,12 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
+    /**
+     * 逻辑删除并停用任务，保留历史运行日志和审计记录。
+     *
+     * @param taskId   任务主键
+     * @param operator 操作人
+     */
     @Override
     public void deleteTask(Long taskId, String operator) {
         SysJobTaskDO task = getRequiredTask(taskId);
@@ -167,6 +203,13 @@ public class JobTaskServiceImpl implements JobTaskService {
         sysJobTaskMapper.updateById(task);
     }
 
+    /**
+     * 查询仍有效的任务定义。
+     *
+     * @param taskId 任务主键
+     * @return 未逻辑删除的任务
+     * @throws ServiceException 任务不存在或已删除时抛出
+     */
     @Override
     public SysJobTaskDO getRequiredTask(Long taskId) {
         SysJobTaskDO task = sysJobTaskMapper.selectById(taskId);
@@ -176,17 +219,42 @@ public class JobTaskServiceImpl implements JobTaskService {
         return task;
     }
 
+    /**
+     * 查询指定时间前已到期且可抢占的任务。
+     *
+     * @param triggerTime 调度扫描时间
+     * @param limit       单批最大任务数
+     * @return 到期任务列表
+     */
     @Override
     public List<SysJobTaskDO> selectDueTasks(LocalDateTime triggerTime, int limit) {
         return sysJobTaskMapper.selectDueTasks(triggerTime, limit);
     }
 
+    /**
+     * 使用任务版本和过期锁条件尝试取得数据库调度锁。
+     * <p>
+     * 锁租期至少 30 秒，较长任务使用其 timeoutSeconds；并发节点只有一个 CAS 更新成功。
+     * </p>
+     *
+     * @param task        扫描到的任务快照
+     * @param nodeId      当前执行节点
+     * @param currentTime 抢锁基准时间
+     * @return 当前节点成功更新锁时返回 {@code true}
+     */
     @Override
     public boolean tryAcquireLock(SysJobTaskDO task, String nodeId, LocalDateTime currentTime) {
         LocalDateTime lockUntil = currentTime.plusSeconds(Math.max(task.getTimeoutSeconds(), 30));
         return sysJobTaskMapper.acquireLock(task.getId(), nodeId, lockUntil, task.getVersion()) > 0;
     }
 
+    /**
+     * 记录本次计划触发时间和下一次 Cron 触发时间。
+     *
+     * @param taskId          任务主键
+     * @param lastTriggerTime 本次计划触发时间
+     * @param nextTriggerTime 下一计划触发时间
+     */
     @Override
     public void markScheduled(Long taskId, LocalDateTime lastTriggerTime, LocalDateTime nextTriggerTime) {
         SysJobTaskDO task = getRequiredTask(taskId);
@@ -196,6 +264,13 @@ public class JobTaskServiceImpl implements JobTaskService {
         sysJobTaskMapper.updateById(task);
     }
 
+    /**
+     * 仅由当前锁持有节点延长任务租期。
+     *
+     * @param taskId   任务主键
+     * @param nodeId   当前锁持有节点
+     * @param lockUntil 新的锁过期时间
+     */
     @Override
     public void extendLock(Long taskId, String nodeId, LocalDateTime lockUntil) {
         sysJobTaskMapper.extendLock(taskId, nodeId, lockUntil);

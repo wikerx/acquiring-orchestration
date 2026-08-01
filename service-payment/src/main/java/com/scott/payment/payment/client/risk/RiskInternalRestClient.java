@@ -10,11 +10,14 @@ import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientRequestDTO;
 import com.scott.payment.payment.client.risk.dto.RiskPaymentEvaluateClientResponseDTO;
+import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationClientRequestDTO;
+import com.scott.payment.payment.client.risk.dto.RiskMerchantLimitReservationClientResponseDTO;
 import com.scott.payment.payment.config.RiskClientProperties;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -66,6 +69,9 @@ public class RiskInternalRestClient implements RiskInternalClient {
      * service-risk 服务名和内部路径是代码级服务契约，不进入 Nacos 或参数设置表。
      */
     private static final String SERVICE_RISK_EVALUATE_URL = "http://service-risk/internal/risk/evaluate/payment";
+
+    private static final String SERVICE_RISK_CANCEL_RESERVATION_URL =
+            "http://service-risk/internal/risk/merchant-limit/reservations/cancel";
 
     /**
      * 直连 RestTemplate，用于 localhost、IP 或完整域名。
@@ -121,7 +127,7 @@ public class RiskInternalRestClient implements RiskInternalClient {
         try {
             String responseBody = chooseRestTemplate(SERVICE_RISK_EVALUATE_URL).postForObject(
                     SERVICE_RISK_EVALUATE_URL,
-                    buildSignedEntity(uri, requestDTO),
+                    buildSignedEntity(uri, JsonUtils.toJsonString(requestDTO)),
                     String.class
             );
             CommonResult<RiskPaymentEvaluateClientResponseDTO> result = JsonUtils.parseObject(
@@ -159,6 +165,50 @@ public class RiskInternalRestClient implements RiskInternalClient {
         }
     }
 
+    /**
+     * 调用 service-risk 幂等撤销商户累计限额预占。
+     *
+     * <p>空响应、业务失败或网络异常均向上抛出，调用方不得把补偿失败当作成功忽略。</p>
+     *
+     * @param requestDTO 预占补偿请求
+     * @return 补偿统计结果
+     */
+    @Override
+    public RiskMerchantLimitReservationClientResponseDTO cancelMerchantLimitReservation(
+            RiskMerchantLimitReservationClientRequestDTO requestDTO) {
+        URI uri = URI.create(SERVICE_RISK_CANCEL_RESERVATION_URL);
+        try {
+            String responseBody = chooseRestTemplate(SERVICE_RISK_CANCEL_RESERVATION_URL).postForObject(
+                    SERVICE_RISK_CANCEL_RESERVATION_URL,
+                    buildSignedEntity(uri, JsonUtils.toJsonString(requestDTO)),
+                    String.class);
+            CommonResult<RiskMerchantLimitReservationClientResponseDTO> result = JsonUtils.parseObject(
+                    responseBody,
+                    new TypeReference<CommonResult<RiskMerchantLimitReservationClientResponseDTO>>() {
+                    });
+            if (result == null) {
+                throw new ServiceException(
+                        ApiResultEnum.BAD_GATEWAY.getCode(),
+                        "service-risk reservation response is empty");
+            }
+            if (!CommonResult.isSuccess(result)) {
+                throw new ServiceException(result.getCode(), result.getMessage());
+            }
+            return result.getData();
+        } catch (RestClientException exception) {
+            throw new ServiceException(
+                    ApiResultEnum.BAD_GATEWAY.getCode(),
+                    "service-risk reservation cancellation failed",
+                    exception);
+        }
+    }
+
+    /**
+     * 按目标主机类型选择服务发现或直连客户端。
+     *
+     * @param evaluateUrl service-risk 内部接口地址
+     * @return 匹配目标地址类型的 RestTemplate
+     */
     private RestTemplate chooseRestTemplate(String evaluateUrl) {
         URI uri = URI.create(evaluateUrl);
         String host = uri.getHost();
@@ -172,7 +222,14 @@ public class RiskInternalRestClient implements RiskInternalClient {
         return loadBalancedRestTemplate;
     }
 
-    private HttpEntity<RiskPaymentEvaluateClientRequestDTO> buildSignedEntity(URI uri, RiskPaymentEvaluateClientRequestDTO requestDTO) {
+    /**
+     * 构造带时间戳、随机数和内部 HMAC 签名的请求。
+     *
+     * @param uri         service-risk 内部接口地址
+     * @param requestBody JSON 请求体
+     * @return 带内部认证头的请求实体
+     */
+    private HttpEntity<String> buildSignedEntity(URI uri, String requestBody) {
         long timestamp = InternalServiceSignature.currentTimeMillis();
         String nonce = UUID.randomUUID().toString();
         String caller = riskClientProperties.getInternalCaller();
@@ -189,7 +246,8 @@ public class RiskInternalRestClient implements RiskInternalClient {
         headers.add(InternalServiceSignature.HEADER_TIMESTAMP, String.valueOf(timestamp));
         headers.add(InternalServiceSignature.HEADER_NONCE, nonce);
         headers.add(InternalServiceSignature.HEADER_SIGNATURE, signature);
-        return new HttpEntity<>(requestDTO, headers);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        return new HttpEntity<>(requestBody, headers);
     }
 
     /**

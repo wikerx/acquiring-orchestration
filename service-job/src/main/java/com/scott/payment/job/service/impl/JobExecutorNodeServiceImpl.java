@@ -70,6 +70,12 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
         this.jobNodeContext = jobNodeContext;
     }
 
+    /**
+     * 上报当前执行节点的在线状态、并发容量和心跳时间。
+     * <p>
+     * Mapper 使用节点标识执行 upsert，使重启或重复心跳更新同一节点记录。
+     * </p>
+     */
     @Override
     public void reportHeartbeat() {
         LocalDateTime now = LocalDateTime.now();
@@ -91,8 +97,9 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
     /**
      * 标记超时在线节点为离线。
      *
-     * <p>心跳上报和离线扫描会并发更新同一张节点表。这里采用小批量、固定排序、排除当前节点以及死锁重试，
-     * 避免偶发 MySQL 死锁直接冒泡到调度线程。</p>
+     * <p>心跳上报和离线扫描会并发访问同一张节点表。离线扫描先以一致性读取得少量候选主键，再按主键固定顺序更新，
+     * 避免状态心跳范围 UPDATE 与心跳 UPSERT 形成二级索引、主键的反向锁环。更新条件会再次校验心跳时间，
+     * 已在查询后恢复心跳的节点不会被误标记为离线；短退避重试仅作为极端并发下的最后保护。</p>
      */
     @Override
     public void markOfflineNodes() {
@@ -100,26 +107,44 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
         String currentNodeId = jobNodeContext.nodeId();
         for (int attempt = 1; attempt <= MARK_OFFLINE_MAX_RETRY; attempt++) {
             try {
-                int affectedRows = sysJobExecutorNodeMapper.markOffline(
+                List<Long> candidateNodeIds = sysJobExecutorNodeMapper.selectTimedOutNodeIds(
                         offlineBefore,
                         currentNodeId,
                         MARK_OFFLINE_BATCH_SIZE);
+                if (candidateNodeIds == null || candidateNodeIds.isEmpty()) {
+                    return;
+                }
+                int affectedRows = sysJobExecutorNodeMapper.markOfflineByIds(
+                        candidateNodeIds,
+                        offlineBefore,
+                        currentNodeId);
                 if (affectedRows > 0) {
-                    log.info("超时任务节点已标记离线，affectedRows：{}，offlineBefore：{}", affectedRows, offlineBefore);
+                    log.info("event: JOB_EXECUTOR_NODE_OFFLINE_MARKED affectedRows: {} candidateCount: {} offlineBefore: {}",
+                            affectedRows,
+                            candidateNodeIds.size(),
+                            offlineBefore);
                 }
                 return;
             } catch (PessimisticLockingFailureException exception) {
                 if (attempt >= MARK_OFFLINE_MAX_RETRY) {
-                    log.warn("超时任务节点离线扫描遇到锁冲突，已达到最大重试次数，offlineBefore：{}，原因：{}",
+                    log.warn("event: JOB_EXECUTOR_NODE_OFFLINE_FAILED reason: lockConflict attempts: {} offlineBefore: {} exceptionType: {}",
+                            attempt,
                             offlineBefore,
-                            exception.getMessage());
+                            exception.getClass().getSimpleName());
                     return;
                 }
-                sleepBeforeRetry(attempt, exception);
+                if (!sleepBeforeRetry(attempt, exception)) {
+                    return;
+                }
             }
         }
     }
 
+    /**
+     * 查询全部执行节点，供管理端观察在线状态与最后心跳。
+     *
+     * @return 按最近心跳倒序、节点标识升序排列的节点列表
+     */
     @Override
     public List<SysJobExecutorNodeDO> listNodes() {
         return sysJobExecutorNodeMapper.selectList(new LambdaQueryWrapper<SysJobExecutorNodeDO>()
@@ -127,16 +152,29 @@ public class JobExecutorNodeServiceImpl implements JobExecutorNodeService {
                 .orderByAsc(SysJobExecutorNodeDO::getNodeId));
     }
 
-    private void sleepBeforeRetry(int attempt, PessimisticLockingFailureException exception) {
+    /**
+     * 对离线扫描的数据库锁冲突执行线性短退避。
+     * <p>
+     * 线程被中断时恢复中断标记，不吞掉调度器停止信号。
+     * </p>
+     *
+     * @param attempt   当前重试序号，从 1 开始
+     * @param exception 本次锁冲突异常
+     * @return 完成退避时返回 true；线程被中断时返回 false
+     */
+    private boolean sleepBeforeRetry(int attempt, PessimisticLockingFailureException exception) {
         long backoffMillis = DEADLOCK_RETRY_BACKOFF_MILLIS * attempt;
-        log.warn("超时任务节点离线扫描遇到锁冲突，准备重试，attempt：{}，backoffMillis：{}，原因：{}",
+        log.info("event: JOB_EXECUTOR_NODE_OFFLINE_RETRY reason: lockConflict attempt: {} backoffMillis: {} exceptionType: {}",
                 attempt,
                 backoffMillis,
-                exception.getMessage());
+                exception.getClass().getSimpleName());
         try {
             Thread.sleep(backoffMillis);
+            return true;
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
+            log.info("event: JOB_EXECUTOR_NODE_OFFLINE_RETRY_ABORTED reason: threadInterrupted attempt: {}", attempt);
+            return false;
         }
     }
 }

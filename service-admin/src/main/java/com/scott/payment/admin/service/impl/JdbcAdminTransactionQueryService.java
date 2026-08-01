@@ -13,6 +13,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPaymentMethodSummaryResponse;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
+import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.model.PageRequest;
@@ -219,6 +220,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      */
     private final TransactionShardingKeyParser transactionShardingKeyParser;
 
+    /**
+     * 风控审计时间轴查询服务。
+     */
+    private final AdminRiskTimelineQueryService riskTimelineQueryService;
+
 /**
  * 整理jdbcadmin交易查询service，返回当前业务步骤需要的规范化结果。
  * <p>
@@ -232,12 +238,22 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
  */
     public JdbcAdminTransactionQueryService(NamedParameterJdbcTemplate jdbcTemplate,
                                             ShardingDataTemplate shardingDataTemplate,
-                                            TransactionShardingKeyParser transactionShardingKeyParser) {
+                                            TransactionShardingKeyParser transactionShardingKeyParser,
+                                            AdminRiskTimelineQueryService riskTimelineQueryService) {
         this.jdbcTemplate = jdbcTemplate;
         this.shardingDataTemplate = shardingDataTemplate;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
+        this.riskTimelineQueryService = riskTimelineQueryService;
     }
 
+    /**
+     * 在只读数据源按时间范围跨交易主单物理表分页查询。
+     *
+     * <p>按物理表顺序累计总数并消耗全局 offset，避免每张分表分别分页造成重复或漏数。</p>
+     *
+     * @param query 商户、交易号、状态、金额、时间范围和分页条件
+     * @return 跨物理表合并后的交易主单分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
@@ -259,12 +275,24 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
     }
 
+    /**
+     * 在只读数据源分页查询交易操作单。
+     *
+     * @param query 交易筛选和分页条件
+     * @return 跨物理表合并后的操作单分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
         return pageOperationsNormalized(normalize(query));
     }
 
+    /**
+     * 查询交易操作单分页结果及相同条件下的汇总指标。
+     *
+     * @param query 交易筛选和分页条件
+     * @return 操作单分页数据与汇总信息
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
@@ -275,6 +303,15 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return response;
     }
 
+    /**
+     * 按平台交易号解析分表时间并聚合交易主单、操作单和全链路时间轴。
+     *
+     * <p>详情包含状态、金额、风控、渠道交互、回调和商户通知等记录；
+     * 交易号无法解析或主记录不存在时统一返回订单不存在。</p>
+     *
+     * @param transactionId 平台交易号，必须携带可解析的分表时间
+     * @return 管理端交易聚合详情
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public TransactionDetailResponse detail(String transactionId) {
@@ -310,6 +347,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         detail.setOperations(operations);
         detail.setStatusHistory(selectMapsByOperationId(TRANSACTION_STATUS_HISTORY_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setFlowEvents(selectMapsByOperationId(TRANSACTION_FLOW_EVENT_TABLE, beginTime, endTime, order.getOperationId()));
+        detail.setRiskEvents(riskTimelineQueryService.findRiskEvents(sourceOperation.getTransactionId()));
         detail.setAmountChanges(selectMapsByOperationId(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setChannelRequests(selectMapsByOperationId(TRANSACTION_CHANNEL_REQUEST_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setChannelInteractionLogs(selectMapsByOperationId(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
@@ -321,6 +359,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return detail;
     }
 
+    /**
+     * 分页查询渠道请求与响应交互日志。
+     *
+     * @param query 渠道、交易、状态、时间范围和分页条件
+     * @return 渠道交互日志分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
@@ -328,6 +372,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return pageChannelLogsNormalized(safeQuery);
     }
 
+    /**
+     * 分页查询渠道回调记录。
+     *
+     * @param query 渠道回调筛选和分页条件
+     * @return 跨物理表合并后的渠道回调分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
@@ -335,6 +385,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return pageMaps(TRANSACTION_CHANNEL_CALLBACK_TABLE, channelCallbackWhereSql(safeQuery), channelCallbackParams(safeQuery), safeQuery);
     }
 
+    /**
+     * 分页查询向商户发送的交易通知任务。
+     *
+     * @param query 商户通知筛选和分页条件
+     * @return 跨物理表合并后的商户通知分页结果
+     */
     @Override
     @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
@@ -342,6 +398,12 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return pageMaps(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, merchantNotificationWhereSql(safeQuery), merchantNotificationParams(safeQuery), safeQuery);
     }
 
+    /**
+     * 使用已规范化查询跨操作单及支付信息物理表执行全局分页。
+     *
+     * @param safeQuery 已校验页码并补齐时间范围的查询
+     * @return 跨物理表合并后的操作单分页结果
+     */
     private PageResult<TransactionOperationResponse> pageOperationsNormalized(TransactionPageQuery safeQuery) {
         long total = 0L;
         long offset = offset(safeQuery);

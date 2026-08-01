@@ -11,6 +11,7 @@ import com.scott.payment.admin.entity.SysOperLogDO;
 import com.scott.payment.admin.mapper.SysOperLogMapper;
 import com.scott.payment.admin.service.AdminOperLogService;
 import com.scott.payment.component.core.model.PageResult;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -101,7 +102,14 @@ public class AdminOperLogServiceImpl implements AdminOperLogService {
         entity.setErrorMsg(request.getErrorMsg());
         entity.setOperatedAt(operatedAt);
         entity.setCreatedAt(now);
-        operLogMapper.insert(entity);
+        try {
+            operLogMapper.insert(entity);
+        } catch (DuplicateKeyException exception) {
+            if (!StringUtils.hasText(request.getIdempotentKey())) {
+                throw exception;
+            }
+            // MQ 重投可能绕过 Redis 快速层；数据库唯一键命中即表示该审计日志已经持久化。
+        }
     }
 
     /**

@@ -51,12 +51,24 @@ public class AdminMerchantUserController {
         this.adminMerchantUserApplicationService = adminMerchantUserApplicationService;
     }
 
+    /**
+     * 分页查询商户后台用户，敏感认证字段不得进入列表响应。
+     *
+     * @param request 商户号、账号、状态和分页条件
+     * @return 商户用户分页结果
+     */
     @GetMapping
     @RequiresPermission("admin:merchant:user:list")
     public CommonResult<PageResult<AdminMerchantUserListDTO>> pageMerchantUsers(@ModelAttribute AdminMerchantUserQueryRequest request) {
         return success(adminMerchantUserApplicationService.pageMerchantUsers(request));
     }
 
+    /**
+     * 查询指定商户用户详情，密码、盐值和令牌等认证材料不对管理端返回。
+     *
+     * @param accountId 商户用户账号主键
+     * @return 商户用户详情
+     */
     @GetMapping("/{accountId}")
     @RequiresPermission("admin:merchant:user:detail")
     public CommonResult<AdminMerchantUserDetailDTO> getMerchantUser(@PathVariable("accountId") Long accountId) {

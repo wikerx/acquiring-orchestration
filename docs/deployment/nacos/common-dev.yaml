@@ -12,6 +12,23 @@ management:
       exposure:
         # 暴露基础健康检查、服务信息和 Prometheus 指标。
         include: health,info,prometheus
+  prometheus:
+    metrics:
+      export:
+        # 显式启用 Prometheus Registry；生产环境仍必须由内网采集和访问控制保护端点。
+        enabled: true
+  metrics:
+    tags:
+      # 所有业务指标携带固定服务名，禁止使用实例运行时业务标识作为公共标签。
+      application: ${spring.application.name}
+      # 环境标签用于隔离 dev、test、uat、prod 告警和仪表盘。
+      environment: ${spring.profiles.active}
+    distribution:
+      percentiles-histogram:
+        # Redis 业务路径和 Lettuce 命令需要直方图才能在 Prometheus 聚合 P95/P99。
+        acquiring.redis.operation.duration: true
+        acquiring.redis.cache.invalidation.outbox.batch.duration: true
+        lettuce.command.completion: true
 
 global-payment:
   trace:

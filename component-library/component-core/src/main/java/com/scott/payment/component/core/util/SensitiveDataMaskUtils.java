@@ -37,6 +37,14 @@ public final class SensitiveDataMaskUtils {
     );
 
     /**
+     * 扩展 CardBin 最多只允许在日志中保留前 6 位。
+     */
+    private static final Pattern CARD_BIN_FIELD_PATTERN = Pattern.compile(
+            "(\"cardBin\"\\s*:\\s*\")([0-9]{6})[0-9]{1,5}(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
      * 银行账号、IBAN、Swift/BIC 保留少量定位信息，避免完整账号或银行路由信息进入日志。
      */
     private static final Pattern ACCOUNT_FIELD_PATTERN = Pattern.compile(
@@ -77,6 +85,14 @@ public final class SensitiveDataMaskUtils {
     );
 
     /**
+     * 姓名、地址、客户标识和设备指纹不保留明文片段。
+     */
+    private static final Pattern PERSONAL_FIELD_PATTERN = Pattern.compile(
+            "(\"(?:firstName|lastName|cardholderName|legalPerson|enterprise|subName|subCompanyName|customerId|deviceFingerprint|billingAddress|shippingAddress|merchantBillingAddress|street|subStreet)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
+            Pattern.CASE_INSENSITIVE
+    );
+
+    /**
      * URL encoded 表单中的 3DS 敏感字段统一隐藏。
      */
     private static final Pattern FORM_SECRET_FIELD_PATTERN = Pattern.compile(
@@ -102,11 +118,13 @@ public final class SensitiveDataMaskUtils {
         }
         String masked = SECRET_FIELD_PATTERN.matcher(json).replaceAll("$1***$3");
         masked = maskCardNo(masked);
+        masked = CARD_BIN_FIELD_PATTERN.matcher(masked).replaceAll("$1$2*****$3");
         masked = maskAccountNumber(masked);
         masked = maskMobileField(masked);
         masked = maskEmailField(masked);
         masked = SECURITY_CODE_PATTERN.matcher(masked).replaceAll("$1***$3");
         masked = ID_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
+        masked = PERSONAL_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
         return FORM_SECRET_FIELD_PATTERN.matcher(masked).replaceAll("$1***");
     }
 

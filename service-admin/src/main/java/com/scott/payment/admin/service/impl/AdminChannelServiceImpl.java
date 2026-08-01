@@ -872,6 +872,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         midBindingMapper.updateById(entity);
     }
 
+    /**
+     * 校验并规范化渠道基础资料。
+     *
+     * <p>约束渠道编码唯一、能力和状态取值合法、请求地址使用 HTTP(S)、
+     * 超时时间受控；不支持收单时强制关闭 3DS 能力。</p>
+     *
+     * @param request 渠道保存请求
+     * @param id 更新场景的渠道主键，创建时为 {@code null}
+     */
     private void validateChannelRequest(ChannelInfoSaveRequest request, Long id) {
         String code = normalizeCode(request.getChannelCode());
         if (!CHANNEL_CODE_PATTERN.matcher(code).matches()) {
@@ -900,6 +909,16 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         validateMetadataSchemas(request.getMetadataSchemas());
     }
 
+    /**
+     * 校验并规范化渠道 MID 配置及其交易范围。
+     *
+     * <p>校验渠道业务能力、支付方式、币种、结算周期、生效区间和元数据，
+     * 同一渠道下的 MID 必须唯一；金额和结算币种不在此处做隐式转换。</p>
+     *
+     * @param request MID 保存请求
+     * @param id 更新场景的 MID 主键，创建时为 {@code null}
+     * @return MID 所属渠道
+     */
     private ChannelInfoDO validateMidRequest(ChannelMidConfigSaveRequest request, Long id) {
         ChannelInfoDO channel = findChannel(request.getChannelId());
         String businessType = normalizeCode(request.getBusinessType());
@@ -2714,6 +2733,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return normalizeCodes(List.of(scope.split(TRANSACTION_TYPE_SEPARATOR)));
     }
 
+    /**
+     * 按渠道元数据 Schema 校验 MID 元数据的必填项和正则格式。
+     *
+     * @param channelId 渠道主键
+     * @param metadataValueJson MID 元数据 JSON，可能包含渠道密钥等敏感值
+     * @throws com.scott.payment.component.core.exception.ServiceException 必填值缺失或格式不合法时抛出
+     */
     @SuppressWarnings("unchecked")
     private void validateMetadataValues(Long channelId, String metadataValueJson) {
         Map<String, Object> values = StringUtils.hasText(metadataValueJson)
@@ -2737,6 +2763,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         }
     }
 
+    /**
+     * 从常见渠道商户号元数据字段解析 MID，未提供时回退到显式 channelMid。
+     *
+     * @param request MID 保存请求
+     * @return 去除首尾空白后的渠道 MID
+     */
     private String resolveChannelMid(ChannelMidConfigSaveRequest request) {
         String value = firstTextMetadataValue(request.getMetadataValueJson(),
                 "merchantId", "merchant_id", "channelMid", "channel_mid", "mid", "midNo", "mid_no", "merchantNo", "merchant_no");
@@ -2771,6 +2803,15 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return "";
     }
 
+    /**
+     * 合并 MID 更新中的敏感元数据，掩码或空值表示保留既有秘密值。
+     *
+     * <p>仅 Schema 标记为敏感的字段允许保留旧值，普通字段仍以本次请求为准，
+     * 避免管理端编辑脱敏响应时意外覆盖渠道密钥。</p>
+     *
+     * @param entity 已持久化的 MID 配置
+     * @param request 本次更新请求
+     */
     @SuppressWarnings("unchecked")
     private void mergeMetadataValuesForUpdate(ChannelMidConfigDO entity, ChannelMidConfigSaveRequest request) {
         Map<String, Object> incoming = parseMetadataMap(request.getMetadataValueJson());
@@ -2795,6 +2836,12 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         request.setMetadataValueJson(JsonUtils.toJsonString(merged));
     }
 
+    /**
+     * 将 MID 元数据 JSON 解析为键值映射。
+     *
+     * @param metadataValueJson 元数据 JSON
+     * @return 元数据映射；输入为空或 JSON 结果为空时返回空映射
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseMetadataMap(String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {
@@ -2804,6 +2851,13 @@ public class AdminChannelServiceImpl implements AdminChannelService {
         return values == null ? Map.of() : values;
     }
 
+    /**
+     * 按渠道 Schema 将敏感 MID 元数据替换为固定掩码后再返回管理端。
+     *
+     * @param channelId 渠道主键
+     * @param metadataValueJson 持久化元数据 JSON，可能包含渠道秘密值
+     * @return 敏感字段已替换为掩码的 JSON
+     */
     private String maskMetadataJson(Long channelId, String metadataValueJson) {
         if (!StringUtils.hasText(metadataValueJson)) {
             return metadataValueJson;

@@ -1,15 +1,11 @@
 package com.scott.payment.component.redis.config;
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
@@ -22,6 +18,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
  * @status : create
  */
 @Configuration
+@EnableConfigurationProperties(PaymentRedisProperties.class)
 public class RedisTemplateConfig {
 
     /**
@@ -34,32 +31,15 @@ public class RedisTemplateConfig {
      * @return 统一 RedisTemplate
      */
     @Bean
-    @ConditionalOnBean(RedisConnectionFactory.class)
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<String, Object> redisTemplate = new RedisTemplate<>();
+        RedisSerializer<Object> jsonSerializer = PaymentRedisSerializerFactory.create();
         redisTemplate.setConnectionFactory(redisConnectionFactory);
         redisTemplate.setKeySerializer(StringRedisSerializer.UTF_8);
         redisTemplate.setHashKeySerializer(StringRedisSerializer.UTF_8);
-        redisTemplate.setValueSerializer(jsonRedisSerializer());
-        redisTemplate.setHashValueSerializer(jsonRedisSerializer());
+        redisTemplate.setValueSerializer(jsonSerializer);
+        redisTemplate.setHashValueSerializer(jsonSerializer);
         redisTemplate.afterPropertiesSet();
         return redisTemplate;
-    }
-
-    /**
-     * 创建 JSON Redis 序列化器。
-     *
-     * @return JSON Redis 序列化器
-     */
-    private GenericJackson2JsonRedisSerializer jsonRedisSerializer() {
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        objectMapper.activateDefaultTyping(
-                objectMapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.NON_FINAL,
-                JsonTypeInfo.As.PROPERTY
-        );
-        return new GenericJackson2JsonRedisSerializer(objectMapper);
     }
 }

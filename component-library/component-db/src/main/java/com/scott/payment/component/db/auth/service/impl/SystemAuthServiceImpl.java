@@ -60,6 +60,8 @@ import com.scott.payment.component.db.auth.mapper.SysRoleMenuMapper;
 import com.scott.payment.component.db.auth.mapper.SysRolePermissionMapper;
 import com.scott.payment.component.db.auth.mapper.SysUserMapper;
 import com.scott.payment.component.db.auth.mapper.SysVerifyCodeMapper;
+import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
+import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.auth.service.SystemAuthService;
 import com.scott.payment.component.db.auth.support.MfaSecretCrypto;
 import com.scott.payment.component.db.auth.support.TotpUtils;
@@ -423,6 +425,10 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      */
     private final BaseMerchantInfoMapper baseMerchantInfoMapper;
     /**
+     * 商户基础资料缓存服务，用于商户端登录注册等高频校验读路径。
+     */
+    private final MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
+    /**
      * 创建系统登录权限服务。
      *
      * @param sysAppMapper            系统应用 Mapper
@@ -444,7 +450,8 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param sysAccountMfaMapper     MFA 配置 Mapper
      * @param sysAccountMfaTokenMapper MFA 票据 Mapper
      * @param sysAccountMfaLogMapper  MFA 日志 Mapper
-     * @param baseMerchantInfoMapper  商户基础信息 Mapper
+     * @param baseMerchantInfoMapper       商户基础信息 Mapper
+     * @param merchantRuntimeProfileCacheService 商户运行时资料缓存服务
      */
     public SystemAuthServiceImpl(SysAppMapper sysAppMapper,
                                  SysUserMapper sysUserMapper,
@@ -465,7 +472,8 @@ public class SystemAuthServiceImpl implements SystemAuthService {
                                  SysAccountMfaMapper sysAccountMfaMapper,
                                  SysAccountMfaTokenMapper sysAccountMfaTokenMapper,
                                  SysAccountMfaLogMapper sysAccountMfaLogMapper,
-                                 BaseMerchantInfoMapper baseMerchantInfoMapper) {
+                                 BaseMerchantInfoMapper baseMerchantInfoMapper,
+                                 MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService) {
         this.sysAppMapper = sysAppMapper;
         this.sysUserMapper = sysUserMapper;
         this.sysAccountMapper = sysAccountMapper;
@@ -486,6 +494,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         this.sysAccountMfaTokenMapper = sysAccountMfaTokenMapper;
         this.sysAccountMfaLogMapper = sysAccountMfaLogMapper;
         this.baseMerchantInfoMapper = baseMerchantInfoMapper;
+        this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
     }
 
     /**
@@ -988,14 +997,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @return 商户主表ID
      */
     private Long getMerchantInfoId(String merchantId) {
-        BaseMerchantInfoDO merchantInfo = baseMerchantInfoMapper.selectOne(
-                Wrappers.<BaseMerchantInfoDO>lambdaQuery()
-                        .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
-                        .eq(BaseMerchantInfoDO::getMerchantStatus, AuthConstants.ENABLED)
-                        .eq(BaseMerchantInfoDO::getDeleted, 0)
-                        .last("LIMIT 1")
-        );
+        MerchantRuntimeProfile merchantInfo = merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId);
         if (merchantInfo == null) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
+        }
+        if (!Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
         }
         return merchantInfo.getId();
@@ -1269,14 +1275,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchantId is required");
         }
-        BaseMerchantInfoDO merchantInfo = baseMerchantInfoMapper.selectOne(
-                Wrappers.<BaseMerchantInfoDO>lambdaQuery()
-                        .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
-                        .eq(BaseMerchantInfoDO::getMerchantStatus, AuthConstants.ENABLED)
-                        .eq(BaseMerchantInfoDO::getDeleted, 0)
-                        .last("LIMIT 1")
-        );
+        MerchantRuntimeProfile merchantInfo = merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId);
         if (merchantInfo == null) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
+        }
+        if (!Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
         }
     }
@@ -1294,14 +1297,11 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         if (!StringUtils.hasText(merchantId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "merchantId is required");
         }
-        BaseMerchantInfoDO merchantInfo = baseMerchantInfoMapper.selectOne(
-                Wrappers.<BaseMerchantInfoDO>lambdaQuery()
-                        .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
-                        .eq(BaseMerchantInfoDO::getMerchantStatus, AuthConstants.ENABLED)
-                        .eq(BaseMerchantInfoDO::getDeleted, 0)
-                        .last("LIMIT 1")
-        );
+        MerchantRuntimeProfile merchantInfo = merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId);
         if (merchantInfo == null) {
+            throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
+        }
+        if (!Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)) {
             throw new ServiceException(ApiResultEnum.MERCHANT_INVALID);
         }
     }
@@ -2193,7 +2193,7 @@ public class SystemAuthServiceImpl implements SystemAuthService {
         dto.setStatus(account.getStatus());
         if (AuthConstants.APP_MERCHANT.equals(app.getAppCode())) {
             SysMerchantUserDO merchantUser = getEnabledMerchantUser(account);
-            BaseMerchantInfoDO merchantInfo = selectEnabledMerchantInfo(account.getMerchantId());
+            MerchantRuntimeProfile merchantInfo = selectEnabledMerchantInfo(account.getMerchantId());
             dto.setMerchantUserId(merchantUser.getId());
             dto.setLoginAccount(merchantUser.getLoginAccount());
             dto.setRealName(StringUtils.hasText(merchantUser.getRealName()) ? merchantUser.getRealName() : user.getRealName());
@@ -2209,17 +2209,15 @@ public class SystemAuthServiceImpl implements SystemAuthService {
      * @param merchantId 平台商户号
      * @return 商户基础资料；不存在时返回 null
      */
-    private BaseMerchantInfoDO selectEnabledMerchantInfo(String merchantId) {
+    private MerchantRuntimeProfile selectEnabledMerchantInfo(String merchantId) {
         if (!StringUtils.hasText(merchantId)) {
             return null;
         }
-        return baseMerchantInfoMapper.selectOne(
-                Wrappers.<BaseMerchantInfoDO>lambdaQuery()
-                        .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
-                        .eq(BaseMerchantInfoDO::getMerchantStatus, AuthConstants.ENABLED)
-                        .eq(BaseMerchantInfoDO::getDeleted, 0)
-                        .last("LIMIT 1")
-        );
+        MerchantRuntimeProfile merchantInfo = merchantRuntimeProfileCacheService.findRuntimeProfile(merchantId);
+        if (merchantInfo == null || !Objects.equals(merchantInfo.getMerchantStatus(), AuthConstants.ENABLED)) {
+            return null;
+        }
+        return merchantInfo;
     }
 
     /**

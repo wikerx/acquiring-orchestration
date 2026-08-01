@@ -13,6 +13,7 @@ import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.auth.constant.AuthConstants;
 import com.scott.payment.component.db.iso.entity.IsoCountryDO;
 import com.scott.payment.component.db.iso.mapper.IsoCountryMapper;
+import com.scott.payment.component.db.iso.service.IsoDictionaryCacheInvalidator;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -63,6 +64,12 @@ public class AdminBaseCountryApplicationService {
      * 国家地区数据访问组件。
      */
     private final IsoCountryMapper isoCountryMapper;
+
+    /**
+     * ISO 字典缓存失效器；国家资料持久化成功后同步删除新旧国家缓存。
+     */
+    private final IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator;
+
     /**
      * excel Export Service 依赖，用于 Admin Base Country Application Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -95,13 +102,16 @@ public class AdminBaseCountryApplicationService {
      * 创建国家地区基础资料应用服务。
      *
      * @param isoCountryMapper 国家地区 Mapper
+     * @param isoDictionaryCacheInvalidator ISO 字典缓存失效器
      * @param excelExportService Excel 导出服务
      */
     public AdminBaseCountryApplicationService(IsoCountryMapper isoCountryMapper,
+                                              IsoDictionaryCacheInvalidator isoDictionaryCacheInvalidator,
                                               ExcelExportService excelExportService,
                                               ExcelI18nMessageResolver excelI18nMessageResolver,
                                               ExcelLocaleResolver excelLocaleResolver) {
         this.isoCountryMapper = isoCountryMapper;
+        this.isoDictionaryCacheInvalidator = isoDictionaryCacheInvalidator;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
@@ -190,6 +200,7 @@ public class AdminBaseCountryApplicationService {
             country.setStatus(DEFAULT_ENABLED_STATUS);
         }
         isoCountryMapper.insert(country);
+        isoDictionaryCacheInvalidator.evictCountries();
         return country;
     }
 
@@ -208,6 +219,7 @@ public class AdminBaseCountryApplicationService {
         mergeCountry(country, input);
         country.setUpdatedAt(LocalDateTime.now());
         isoCountryMapper.updateById(country);
+        isoDictionaryCacheInvalidator.evictCountries();
         return success(country);
     }
 
@@ -226,6 +238,7 @@ public class AdminBaseCountryApplicationService {
         country.setStatus(body.get("status"));
         country.setUpdatedAt(LocalDateTime.now());
         isoCountryMapper.updateById(country);
+        isoDictionaryCacheInvalidator.evictCountries();
         return success(country);
     }
 
@@ -240,6 +253,7 @@ public class AdminBaseCountryApplicationService {
             country.setDeleted(DELETED);
             country.setUpdatedAt(LocalDateTime.now());
             isoCountryMapper.updateById(country);
+            isoDictionaryCacheInvalidator.evictCountries();
         }
     }
 

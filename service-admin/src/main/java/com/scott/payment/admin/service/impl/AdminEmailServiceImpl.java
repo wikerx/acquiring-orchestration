@@ -301,6 +301,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         this.adminConfigService = adminConfigService;
     }
 
+    /**
+     * 分页查询发件账户并转换为不含 SMTP 密码明文的管理端视图。
+     *
+     * @param query 账户编码、应用、商户、状态和分页条件
+     * @return 发件账户分页结果
+     */
     @Override
     public PageResult<EmailAccountResponse> pageAccounts(EmailAccountQuery query) {
         EmailAccountQuery safeQuery = query == null ? new EmailAccountQuery() : query;
@@ -311,11 +317,23 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toAccountResponse).toList());
     }
 
+    /**
+     * 查询指定发件账户并返回脱敏配置。
+     *
+     * @param id 发件账户主键
+     * @return 不包含 SMTP 密码明文的账户详情
+     */
     @Override
     public EmailAccountResponse getAccount(Long id) {
         return toAccountResponse(requireAccount(id));
     }
 
+    /**
+     * 创建发件账户，生成稳定账户编码并维护同维度唯一默认账户。
+     *
+     * @param request 发件账户、服务器和敏感认证配置
+     * @return 创建后的脱敏账户详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EmailAccountResponse createAccount(EmailAccountSaveRequest request) {
@@ -334,6 +352,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toAccountResponse(row);
     }
 
+    /**
+     * 更新发件账户；请求未提供新密码时保留既有敏感凭证。
+     *
+     * @param id 发件账户主键
+     * @param request 账户配置更新请求
+     * @return 更新后的脱敏账户详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EmailAccountResponse updateAccount(Long id, EmailAccountSaveRequest request) {
@@ -346,6 +371,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toAccountResponse(row);
     }
 
+    /**
+     * 更新发件账户启停状态并记录操作人。
+     *
+     * @param id 发件账户主键
+     * @param status 目标状态
+     * @return 更新后的脱敏账户详情
+     */
     @Override
     public EmailAccountResponse updateAccountStatus(Long id, Integer status) {
         EmailAccountDO row = requireAccount(id);
@@ -356,6 +388,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toAccountResponse(row);
     }
 
+    /**
+     * 将指定账户设为其应用、商户和场景维度的唯一默认账户。
+     *
+     * @param id 发件账户主键
+     * @return 更新后的默认账户详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public EmailAccountResponse setDefaultAccount(Long id) {
@@ -368,6 +406,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toAccountResponse(row);
     }
 
+    /**
+     * 逻辑删除发件账户并清除默认标记。
+     *
+     * @param id 发件账户主键
+     */
     @Override
     public void deleteAccount(Long id) {
         EmailAccountDO row = requireAccount(id);
@@ -378,6 +421,16 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         accountMapper.updateById(row);
     }
 
+    /**
+     * 使用指定账户发送测试邮件并持久化完整发送状态。
+     *
+     * <p>收件地址以 JSON 结构持久化，SMTP 密码不写发送记录；
+     * 发送结果同步更新账户验证状态和最近错误摘要。</p>
+     *
+     * @param accountId 发件账户主键
+     * @param request 测试收件地址、主题和正文
+     * @return 测试邮件发送结果
+     */
     @Override
     public EmailSendResult sendTestEmail(Long accountId, EmailAccountTestRequest request) {
         EmailAccountDO account = requireAccount(accountId);
@@ -436,11 +489,23 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toTemplateResponse).toList());
     }
 
+    /**
+     * 查询指定邮件模板详情。
+     *
+     * @param id 邮件模板主键
+     * @return 模板详情
+     */
     @Override
     public EmailTemplateResponse getTemplate(Long id) {
         return toTemplateResponse(requireTemplate(id));
     }
 
+    /**
+     * 创建自定义邮件模板并校验模板编码与语言组合唯一。
+     *
+     * @param request 模板主题、正文、变量定义和语言
+     * @return 创建后的模板详情
+     */
     @Override
     public EmailTemplateResponse createTemplate(EmailTemplateSaveRequest request) {
         LocalDateTime now = LocalDateTime.now();
@@ -456,6 +521,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toTemplateResponse(row);
     }
 
+    /**
+     * 更新邮件模板并递增版本号，编码或语言变化时重新校验唯一性。
+     *
+     * @param id 邮件模板主键
+     * @param request 模板更新请求
+     * @return 更新后的模板详情
+     */
     @Override
     public EmailTemplateResponse updateTemplate(Long id, EmailTemplateSaveRequest request) {
         EmailTemplateDO row = requireTemplate(id);
@@ -470,6 +542,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toTemplateResponse(row);
     }
 
+    /**
+     * 复制邮件模板为默认停用的新记录，避免副本立即参与业务发送。
+     *
+     * @param id 源邮件模板主键
+     * @return 新建的模板副本
+     */
     @Override
     public EmailTemplateResponse copyTemplate(Long id) {
         EmailTemplateDO source = requireTemplate(id);
@@ -497,6 +575,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toTemplateResponse(row);
     }
 
+    /**
+     * 切换邮件模板启停状态。
+     *
+     * @param id 邮件模板主键
+     * @param status 目标状态
+     * @return 更新后的模板详情
+     */
     @Override
     public EmailTemplateResponse updateTemplateStatus(Long id, Integer status) {
         EmailTemplateDO row = requireTemplate(id);
@@ -507,6 +592,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toTemplateResponse(row);
     }
 
+    /**
+     * 逻辑删除指定邮件模板。
+     *
+     * @param id 邮件模板主键
+     */
     @Override
     public void deleteTemplate(Long id) {
         EmailTemplateDO row = requireTemplate(id);
@@ -516,6 +606,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         templateMapper.updateById(row);
     }
 
+    /**
+     * 使用调用方变量预览模板，并单独生成敏感变量脱敏后的正文。
+     *
+     * @param request 主题模板、正文模板、变量值和敏感变量名称
+     * @return 缺失变量集合；变量完整时同时返回渲染结果和脱敏正文
+     */
     @Override
     public EmailTemplatePreviewResponse previewTemplate(EmailTemplatePreviewRequest request) {
         Map<String, Object> variables = enrichSystemVariables(request.getVariables());
@@ -530,6 +626,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return response;
     }
 
+    /**
+     * 分页查询邮件发送记录并转换为管理端视图。
+     *
+     * @param query 邮件号、模板、业务号、状态、时间范围和分页条件
+     * @return 邮件发送记录分页结果
+     */
     @Override
     public PageResult<EmailRecordResponse> pageRecords(EmailRecordQuery query) {
         EmailRecordQuery safeQuery = query == null ? new EmailRecordQuery() : query;
@@ -540,6 +642,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords().stream().map(this::toRecordResponse).toList());
     }
 
+    /**
+     * 查询指定邮件发送记录详情。
+     *
+     * @param id 邮件发送记录主键
+     * @return 发送记录详情
+     */
     @Override
     public EmailRecordResponse getRecord(Long id) {
         return toRecordResponse(requireRecord(id));

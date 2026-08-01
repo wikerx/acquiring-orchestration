@@ -3,14 +3,15 @@
 spring:
   config:
     import:
-      - optional:nacos:${spring.application.name}-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:common-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:dataSource-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:sharding-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:redis-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:rocketmq-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:seata-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
-      - optional:nacos:xxl-job-${spring.profiles.active}.${spring.cloud.nacos.config.file-extension}
+      # dev 可叠加 live-regression profile，因此 DataId 必须明确绑定 dev，不能使用逗号分隔的 active profiles。
+      - optional:nacos:${spring.application.name}-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:common-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:dataSource-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:sharding-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:redis-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:rocketmq-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:seata-dev.${spring.cloud.nacos.config.file-extension}
+      - optional:nacos:xxl-job-dev.${spring.cloud.nacos.config.file-extension}
   cloud:
     bootstrap:
       enabled: true

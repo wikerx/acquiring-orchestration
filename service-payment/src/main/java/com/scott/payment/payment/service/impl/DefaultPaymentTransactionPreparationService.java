@@ -12,7 +12,6 @@ import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
-import com.scott.payment.payment.domain.state.PaymentPendingReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -188,6 +187,11 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     private final TransactionRecordService transactionRecordService;
 
     /**
+     * 风控累计限额预占补偿器；本地准备失败时负责取消已创建但尚未确认的预占。
+     */
+    private final PaymentRiskReservationCompensation riskReservationCompensation;
+
+    /**
      * 创建首次交易本地准备默认实现。
      *
      * @param isoDictionaryService ISO 币种字典服务
@@ -212,6 +216,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
         this.transactionRecordService = transactionRecordService;
+        this.riskReservationCompensation =
+                new PaymentRiskReservationCompensation(paymentRiskInvokeService);
     }
 
     /**
@@ -296,7 +302,8 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 commandDTO.getCurrency(),
                 commandDTO.getAmount());
         PaymentRiskDecisionDTO riskDecisionDTO = paymentRiskInvokeService.checkPreRoute(commandDTO);
-        PaymentRiskDecisionEnum riskDecisionEnum = resolveRiskDecision(riskDecisionDTO);
+        riskReservationCompensation.register(commandDTO, riskDecisionDTO);
+        PaymentRiskDecisionEnum riskDecisionEnum = PaymentRiskDecisionSupport.resolve(riskDecisionDTO);
         log.info("event: PAYMENT_RISK_EVALUATE_END stage=RISK traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} riskDecision: {} riskPassed: {} riskRecordNo: {} hitRuleId: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -317,7 +324,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
             applyNoConversion(commandDTO);
             resultDTO.setCurrency(commandDTO.getTransactionCurrency());
             resultDTO.setAmount(toMinorAmount(commandDTO.getTransactionAmount(), commandDTO.getTransactionCurrency()));
-            fillRiskStoppedResult(resultDTO, riskDecisionEnum);
+            PaymentRiskDecisionSupport.fillStoppedResult(resultDTO, riskDecisionEnum);
         } else {
             long routeStartNanos = System.nanoTime();
             log.info("event: PAYMENT_ROUTE_EVALUATE_BEGIN stage=ROUTE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {}",
@@ -880,65 +887,12 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
     }
 
     /**
-     * 构造风控stopped结果对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @param riskDecisionEnum risk Decision Enum 输入值，参与 风控结论enum 的查询、校验、转换、写入或日志摘要
+     * 汇总支付准备结果：复制订单和换汇字段、生成商户可见响应，并初始化累计金额。
+     *
+     * @param commandDTO      已完成本地准备的支付命令
+     * @param channelResponse 渠道响应，允许为空
+     * @param resultDTO       待补全的支付结果
      */
-    private void fillRiskStoppedResult(PaymentCreateResultDTO resultDTO, PaymentRiskDecisionEnum riskDecisionEnum) {
-        if (PaymentRiskDecisionEnum.REQUIRE_3DS == riskDecisionEnum) {
-            resultDTO.setStatus(PaymentTransactionStatusEnum.PENDING.getCode());
-            resultDTO.setProcessStage(PaymentProcessStageEnum.WAITING_3DS.getCode());
-            resultDTO.setPendingReasonCode(PaymentPendingReasonEnum.NEED_REDIRECT.getCode());
-            return;
-        }
-        if (PaymentRiskDecisionEnum.REVIEW == riskDecisionEnum) {
-            resultDTO.setStatus(PaymentTransactionStatusEnum.PENDING.getCode());
-            resultDTO.setProcessStage(PaymentProcessStageEnum.WAITING_RISK_REVIEW.getCode());
-            resultDTO.setPendingReasonCode(PaymentPendingReasonEnum.RISK_REVIEW.getCode());
-            return;
-        }
-        resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
-        resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
-        resultDTO.setFailReasonCode(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
-    }
-
-    /**
-     * 解析resolve风控结论，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param riskDecisionDTO risk Decision DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 构造、转换或解析后的业务值
-     */
-    private PaymentRiskDecisionEnum resolveRiskDecision(PaymentRiskDecisionDTO riskDecisionDTO) {
-        if (riskDecisionDTO == null) {
-            return PaymentRiskDecisionEnum.UNKNOWN;
-        }
-        PaymentRiskDecisionEnum decisionEnum = PaymentRiskDecisionEnum.of(riskDecisionDTO.getDecision());
-        if (!riskDecisionDTO.isPassed() && decisionEnum.isAllowProceed()) {
-            return PaymentRiskDecisionEnum.UNKNOWN;
-        }
-        return decisionEnum;
-    }
-
-/**
- * 构造结果对象对象，完成字段复制、格式标准化和敏感数据处理。
- * <p>
- * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
- * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
- * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
- * </p>
- * @param commandDTO command DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- * @param channelResponse 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
- * @param resultDTO result DTO，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
- */
     private void enrichResult(PaymentCreateCommandDTO commandDTO,
                               com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse channelResponse,
                               PaymentCreateResultDTO resultDTO) {
@@ -1131,6 +1085,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus())) {
             return resolveMerchantResponseMessage(resultDTO.getStatus());
         }
+        if (PaymentRiskDecisionSupport.isRiskRejected(resultDTO.getFailReasonCode())) {
+            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
+        }
         if (response == null || "ERROR".equalsIgnoreCase(response.getRawChannelStatus())) {
             return ApiResultEnum.PAYMENT_REJECTED.getMessage();
         }
@@ -1176,6 +1133,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         if (!PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)
                 || !StringUtils.hasText(failReasonCode)) {
             return null;
+        }
+        if (PaymentRiskDecisionSupport.isRiskRejected(failReasonCode)) {
+            return PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE;
         }
         return "Payment failed. Please use the transaction ID to query details or contact support.";
     }

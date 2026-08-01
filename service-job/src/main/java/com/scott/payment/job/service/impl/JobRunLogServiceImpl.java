@@ -47,6 +47,18 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         this.sysJobRunLogMapper = sysJobRunLogMapper;
     }
 
+    /**
+     * 在任务提交执行前创建 WAITING 日志快照。
+     * <p>
+     * 参数只能传入调用方已经脱敏的摘要；运行标识、重试序号、超时和 traceId 用于后续
+     * 状态 CAS 与审计追踪。
+     * </p>
+     *
+     * @param task         任务定义
+     * @param context      本次执行上下文
+     * @param maskedParams 已脱敏参数摘要
+     * @return 已持久化的运行日志
+     */
     @Override
     public SysJobRunLogDO createWaitingLog(SysJobTaskDO task, JobExecuteContext context, String maskedParams) {
         LocalDateTime now = LocalDateTime.now();
@@ -74,6 +86,11 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         return runLog;
     }
 
+    /**
+     * 将已提交的运行日志标记为 RUNNING 并记录真实开始时间。
+     *
+     * @param logId 运行日志主键
+     */
     @Override
     public void markRunning(Long logId) {
         SysJobRunLogDO runLog = new SysJobRunLogDO();
@@ -84,16 +101,39 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         sysJobRunLogMapper.updateById(runLog);
     }
 
+    /**
+     * 仅在日志仍为 RUNNING 时落成功终态。
+     *
+     * @param logId         运行日志主键
+     * @param durationMs    执行耗时，单位毫秒
+     * @param resultMessage 非敏感结果摘要
+     */
     @Override
     public void finishAsSuccess(Long logId, long durationMs, String resultMessage) {
         sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.SUCCESS.name(), resultMessage, null, durationMs);
     }
 
+    /**
+     * 仅在日志仍为 RUNNING 时落失败终态。
+     *
+     * @param logId        运行日志主键
+     * @param durationMs   执行耗时，单位毫秒
+     * @param errorMessage 已截断且不含敏感参数的错误摘要
+     */
     @Override
     public void finishAsFailed(Long logId, long durationMs, String errorMessage) {
         sysJobRunLogMapper.finishIfRunning(logId, JobRunStatusEnum.FAILED.name(), null, errorMessage, durationMs);
     }
 
+    /**
+     * 使用 RUNNING 条件更新将超时候选日志切换为 TIMEOUT。
+     * <p>
+     * 成功或失败等既有终态不会被超时扫描覆盖。
+     * </p>
+     *
+     * @param runLog 超时候选日志
+     * @return 本次 CAS 成功写入 TIMEOUT 时返回 {@code true}
+     */
     @Override
     public boolean finishAsTimeout(SysJobRunLogDO runLog) {
         long durationMs = runLog.getStartTime() == null ? 0L
@@ -107,6 +147,12 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         ) > 0;
     }
 
+    /**
+     * 按任务、状态、触发类型和节点分页查询运行日志。
+     *
+     * @param request 查询条件
+     * @return 按创建时间和主键倒序的分页结果
+     */
     @Override
     public PageResult<SysJobRunLogDO> pageLogs(JobRunLogQueryRequest request) {
         JobRunLogQueryRequest query = request == null ? new JobRunLogQueryRequest() : request;
@@ -117,21 +163,43 @@ public class JobRunLogServiceImpl implements JobRunLogService {
         return PageResult.of(page.getTotal(), page.getCurrent(), page.getSize(), page.getRecords());
     }
 
+    /**
+     * 按主键删除单条运行日志。
+     *
+     * @param id 日志主键
+     */
     @Override
     public void removeLog(Long id) {
         sysJobRunLogMapper.deleteById(id);
     }
 
+    /**
+     * 按显式查询条件批量清理运行日志。
+     *
+     * @param request 清理范围
+     * @return 删除行数
+     */
     @Override
     public int cleanLogs(JobRunLogQueryRequest request) {
         return sysJobRunLogMapper.delete(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
     }
 
+    /**
+     * 查询符合条件的运行日志列表，供受控导出使用。
+     *
+     * @param request 查询条件
+     * @return 按创建时间和主键倒序的日志列表
+     */
     @Override
     public List<SysJobRunLogDO> listLogs(JobRunLogQueryRequest request) {
         return sysJobRunLogMapper.selectList(buildQueryWrapper(request == null ? new JobRunLogQueryRequest() : request));
     }
 
+    /**
+     * 查询最多一批仍为 RUNNING 且超过各自 timeoutSeconds 的日志。
+     *
+     * @return 按开始时间升序排列的超时候选列表
+     */
     @Override
     public List<SysJobRunLogDO> selectTimeoutCandidates() {
         return sysJobRunLogMapper.selectTimeoutCandidates();

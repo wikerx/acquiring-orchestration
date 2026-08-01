@@ -13,6 +13,12 @@ import java.time.LocalDateTime;
  */
 public interface PaymentCheckoutTokenMapper extends BaseMapper<PaymentCheckoutTokenDO> {
 
+    /**
+     * 按不可逆令牌摘要查询有效或历史令牌记录。
+     *
+     * @param tokenHash 不透明访问令牌摘要
+     * @return 未删除的令牌记录；不存在时返回 null
+     */
     @Select("""
             SELECT *
             FROM payment_checkout_token
@@ -22,6 +28,17 @@ public interface PaymentCheckoutTokenMapper extends BaseMapper<PaymentCheckoutTo
             """)
     PaymentCheckoutTokenDO selectByTokenHash(@Param("tokenHash") String tokenHash);
 
+    /**
+     * 原子记录一次有效令牌使用。
+     *
+     * <p>SQL 同时校验 ACTIVE 状态和有效期，返回 0 表示令牌不可用，调用方不得继续访问会话。</p>
+     *
+     * @param tokenHash     不透明访问令牌摘要
+     * @param clientIpHash  客户端 IP 摘要
+     * @param userAgentHash User-Agent 摘要
+     * @param now           本次访问时间
+     * @return 更新行数，1 表示成功，0 表示令牌无效或已过期
+     */
     @Update("""
             UPDATE payment_checkout_token
             SET first_used_time = COALESCE(first_used_time, #{now}),
@@ -41,6 +58,17 @@ public interface PaymentCheckoutTokenMapper extends BaseMapper<PaymentCheckoutTo
                  @Param("userAgentHash") String userAgentHash,
                  @Param("now") LocalDateTime now);
 
+    /**
+     * 按当前状态和版本号 CAS 更新令牌状态。
+     *
+     * @param checkoutTokenId 服务端令牌记录号
+     * @param currentStatus   期望当前状态
+     * @param nextStatus      目标状态
+     * @param reasonCode      状态变更原因编码
+     * @param version         期望乐观锁版本
+     * @param now             状态变更时间
+     * @return 更新行数，0 表示状态或版本已变化
+     */
     @Update("""
             UPDATE payment_checkout_token
             SET token_status = #{nextStatus},

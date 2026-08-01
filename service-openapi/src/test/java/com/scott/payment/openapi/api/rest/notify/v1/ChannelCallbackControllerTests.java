@@ -32,7 +32,10 @@ import static org.mockito.Mockito.mock;
  */
 class ChannelCallbackControllerTests {
 
+    /** 用于构造签名范围和回调路由的测试渠道编码。 */
     private static final String CHANNEL_CODE = "MPGS";
+
+    /** 仅用于单元测试签名计算的渠道共享密钥，禁止用于任何运行环境。 */
     private static final String SECRET = "test-channel-callback-secret";
 
     /**
@@ -98,53 +101,64 @@ class ChannelCallbackControllerTests {
 
     private static class CapturingPaymentInternalClient implements PaymentInternalClient {
 
+        /** 最近一次转发到支付核心的回调请求，用于断言回调分类、安全结论和原文。 */
         private TransactionChannelCallbackClientRequestDTO callbackRequestDTO;
 
+        /** 本回调测试不允许进入授权交易路径，意外调用立即失败。 */
         @Override
         public PaymentCreateClientResponseDTO createAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本回调测试不允许进入一步支付路径，意外调用立即失败。 */
         @Override
         public PaymentCreateClientResponseDTO createPayment(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本回调测试不允许进入预授权路径，意外调用立即失败。 */
         @Override
         public PaymentCreateClientResponseDTO createPreAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本回调测试不允许进入增量授权路径，意外调用立即失败。 */
         @Override
         public PaymentCreateClientResponseDTO createIncrementalAuthorization(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本回调测试不允许进入请款路径，意外调用立即失败。 */
         @Override
         public PaymentCreateClientResponseDTO capture(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本回调测试不允许进入预授权完成路径，意外调用立即失败。 */
         @Override
         public PaymentCreateClientResponseDTO preAuthCompletion(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本回调测试不允许进入退款路径，意外调用立即失败。 */
         @Override
         public PaymentCreateClientResponseDTO refund(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本回调测试不允许进入撤销路径，意外调用立即失败。 */
         @Override
         public PaymentCreateClientResponseDTO voidPayment(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本回调测试不允许进入交易查询路径，意外调用立即失败。 */
         @Override
         public PaymentQueryClientResponseDTO query(PaymentCreateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 捕获控制器转发的回调请求，并返回尚待状态映射的固定受理结果。 */
         @Override
         public TransactionChannelCallbackClientResponseDTO recordChannelCallback(
                 TransactionChannelCallbackClientRequestDTO requestDTO) {
@@ -155,35 +169,41 @@ class ChannelCallbackControllerTests {
             return responseDTO;
         }
 
+        /** 本回调测试不允许回写商户响应日志，意外调用立即失败。 */
         @Override
         public boolean updateMerchantApiResponseLog(TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖 Hosted Checkout 会话创建，调用即表示测试路径越界。 */
         @Override
         public PaymentCheckoutClientDTOs.SessionCreateResponse createCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionCreateRequest requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖 Hosted Checkout 会话查询，调用即表示测试路径越界。 */
         @Override
         public PaymentCheckoutClientDTOs.SessionQueryResponse queryCheckoutSession(
                 PaymentCheckoutClientDTOs.SessionQueryRequest requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖 Hosted Checkout 支付提交，调用即表示测试路径越界。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse submitCheckoutPayment(
                 PaymentCheckoutClientDTOs.PaymentSubmitRequest requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖 Hosted Checkout 状态轮询，调用即表示测试路径越界。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse queryCheckoutPaymentStatus(
                 PaymentCheckoutClientDTOs.PaymentStatusRequest requestDTO) {
             throw new UnsupportedOperationException();
         }
 
+        /** 本测试桩不覆盖 3DS 返回处理，调用即表示测试路径越界。 */
         @Override
         public PaymentCheckoutClientDTOs.PaymentResultResponse handleCheckoutThreeDsReturn(
                 PaymentCheckoutClientDTOs.ThreeDsReturnRequest requestDTO) {

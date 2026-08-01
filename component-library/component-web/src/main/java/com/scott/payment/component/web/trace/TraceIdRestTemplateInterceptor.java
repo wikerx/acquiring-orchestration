@@ -19,6 +19,15 @@ import java.io.IOException;
  */
 public class TraceIdRestTemplateInterceptor implements ClientHttpRequestInterceptor {
 
+    /**
+     * 将当前调用链 traceId 写入服务间 HTTP 请求后继续执行。
+     *
+     * @param request   待发送的 HTTP 请求
+     * @param body      原始请求体；本拦截器不读取或记录其内容
+     * @param execution RestTemplate 请求执行器
+     * @return 下游 HTTP 响应
+     * @throws IOException 请求发送或响应读取失败
+     */
     @Override
     public ClientHttpResponse intercept(HttpRequest request,
                                         byte[] body,

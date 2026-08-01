@@ -6,8 +6,10 @@ import com.scott.payment.component.core.id.GlobalIdConstants;
 import com.scott.payment.component.core.id.GlobalIdGenerator;
 import com.scott.payment.component.core.id.GlobalIdValidator;
 import com.scott.payment.component.core.id.LuhnMod10Utils;
+import com.scott.payment.component.redis.observability.RedisBusinessMetrics;
+import com.scott.payment.component.redis.script.PaymentRedisScripts;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -15,6 +17,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 
 /**
@@ -23,49 +26,13 @@ import java.util.concurrent.TimeUnit;
  * @classname : RedisGlobalIdGenerator
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : Redis Global ID Generator 协作组件，位于 公共组件库，封装 redisglobalIDgenerator 相关的校验、转换、持久化访问或运行时协作入口。
+ * @description : 基于 Redis TIME 与单 Hash Lua 生成 22 位全局 ID，Redis 故障或状态配置异常时禁止本地降级
  * @status : create
  */
 public class RedisGlobalIdGenerator implements GlobalIdGenerator {
 
-    /**
-     * Redis 原子递增和防时间回拨脚本。
-     */
-    private static final DefaultRedisScript<List> SEQUENCE_SCRIPT = new DefaultRedisScript<>("""
-            local lastMillisKey = KEYS[1]
-            local seqKeyPrefix = ARGV[1]
-            local currentMillis = tonumber(ARGV[2])
-            local expireSeconds = tonumber(ARGV[3])
-            local maxSequence = tonumber(ARGV[4])
-
-            local lastMillisValue = redis.call('GET', lastMillisKey)
-            local lastMillis = 0
-
-            if lastMillisValue then
-                lastMillis = tonumber(lastMillisValue)
-            end
-
-            local effectiveMillis = currentMillis
-
-            if currentMillis < lastMillis then
-                effectiveMillis = lastMillis
-            else
-                redis.call('SET', lastMillisKey, currentMillis)
-            end
-
-            local seqKey = seqKeyPrefix .. effectiveMillis
-            local seq = redis.call('INCR', seqKey)
-
-            if seq == 1 then
-                redis.call('EXPIRE', seqKey, expireSeconds)
-            end
-
-            if seq > maxSequence then
-                return {effectiveMillis, seq, 1}
-            end
-
-            return {effectiveMillis, seq, 0}
-            """, List.class);
+    private static final Pattern STATE_KEY_PATTERN =
+            Pattern.compile("^acquiring:[A-Za-z0-9][A-Za-z0-9._-]{0,127}:global-id:state$");
 
     /**
      * Spring 字符串 Redis 模板。
@@ -88,7 +55,32 @@ public class RedisGlobalIdGenerator implements GlobalIdGenerator {
     private final ZoneId zoneId;
 
     /**
+     * Redis 业务指标记录器，不包含生成的编号或状态 Key 标签。
+     */
+    private final RedisBusinessMetrics metrics;
+
+    /**
      * 创建 Redis 分布式全局唯一标识生成器。
+     *
+     * @param stringRedisTemplate     Spring 字符串 Redis 模板
+     * @param redisServerTimeProvider Redis 服务端时间提供器
+     * @param properties              Redis 全局编号配置
+     * @param metrics                 Redis 业务指标记录器
+     */
+    public RedisGlobalIdGenerator(StringRedisTemplate stringRedisTemplate,
+                                  RedisServerTimeProvider redisServerTimeProvider,
+                                  RedisGlobalIdProperties properties,
+                                  RedisBusinessMetrics metrics) {
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.redisServerTimeProvider = redisServerTimeProvider;
+        this.properties = properties;
+        this.metrics = metrics;
+        this.zoneId = resolveZoneId(properties.getTimezone());
+        validateProperties(properties);
+    }
+
+    /**
+     * 创建不产生指标副作用的 Redis 全局编号生成器，供纯单元测试和隔离测试直接构造。
      *
      * @param stringRedisTemplate     Spring 字符串 Redis 模板
      * @param redisServerTimeProvider Redis 服务端时间提供器
@@ -97,11 +89,12 @@ public class RedisGlobalIdGenerator implements GlobalIdGenerator {
     public RedisGlobalIdGenerator(StringRedisTemplate stringRedisTemplate,
                                   RedisServerTimeProvider redisServerTimeProvider,
                                   RedisGlobalIdProperties properties) {
-        this.stringRedisTemplate = stringRedisTemplate;
-        this.redisServerTimeProvider = redisServerTimeProvider;
-        this.properties = properties;
-        this.zoneId = resolveZoneId(properties.getTimezone());
-        validateProperties(properties);
+        this(
+                stringRedisTemplate,
+                redisServerTimeProvider,
+                properties,
+                RedisBusinessMetrics.noop()
+        );
     }
 
     /**
@@ -130,21 +123,56 @@ public class RedisGlobalIdGenerator implements GlobalIdGenerator {
      * @return Redis 序列结果
      */
     private SequenceResult nextSequenceResult() {
-        long currentMillis = redisServerTimeProvider.currentTimeMillis();
+        long startNanos = System.nanoTime();
+        boolean scriptInvoked = false;
         try {
+            long currentMillis = redisServerTimeProvider.currentTimeMillis();
+            scriptInvoked = true;
             List<?> result = stringRedisTemplate.execute(
-                    SEQUENCE_SCRIPT,
-                    List.of(properties.getLastMillisKey()),
-                    properties.getSeqKeyPrefix(),
+                    PaymentRedisScripts.globalIdSequenceV1(),
+                    List.of(properties.getStateKey()),
                     String.valueOf(currentMillis),
-                    String.valueOf(properties.getSeqKeyExpireSeconds()),
-                    String.valueOf(properties.getMaxSequence())
+                    String.valueOf(properties.getMaxSequence()),
+                    String.valueOf(properties.getRestoreFloorEpochMillis())
             );
-            return parseSequenceResult(result);
+            SequenceResult sequenceResult = parseSequenceResult(result);
+            metrics.recordOperation(
+                    RedisBusinessMetrics.Feature.GLOBAL_ID,
+                    RedisBusinessMetrics.Operation.EXECUTE,
+                    RedisBusinessMetrics.Outcome.SUCCESS,
+                    System.nanoTime() - startNanos
+            );
+            return sequenceResult;
         } catch (ServiceException exception) {
+            recordSequenceFailure(exception, scriptInvoked, startNanos);
             throw exception;
         } catch (RuntimeException exception) {
+            recordSequenceFailure(exception, scriptInvoked, startNanos);
             throw new ServiceException(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), "Redis 生成全局唯一标识失败", exception);
+        }
+    }
+
+    /**
+     * 记录全局编号 Redis TIME 或 Lua 调用失败；失败详情只进入日志异常链，不进入指标标签。
+     *
+     * @param exception     Redis 调用异常
+     * @param scriptInvoked 是否已经进入 Lua 执行阶段
+     * @param startNanos    本次编号序列请求起始时间
+     */
+    private void recordSequenceFailure(RuntimeException exception,
+                                       boolean scriptInvoked,
+                                       long startNanos) {
+        metrics.recordOperation(
+                RedisBusinessMetrics.Feature.GLOBAL_ID,
+                RedisBusinessMetrics.Operation.EXECUTE,
+                RedisBusinessMetrics.Outcome.ERROR,
+                System.nanoTime() - startNanos
+        );
+        if (scriptInvoked) {
+            metrics.recordLuaFailure(
+                    RedisBusinessMetrics.Script.GLOBAL_ID_SEQUENCE,
+                    metrics.classifyFailure(exception)
+            );
         }
     }
 
@@ -251,8 +279,19 @@ public class RedisGlobalIdGenerator implements GlobalIdGenerator {
         if (target.getMaxSequence() <= 0L || target.getMaxSequence() > GlobalIdConstants.DEFAULT_MAX_SEQUENCE) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "全局唯一标识最大序列配置非法");
         }
-        if (target.getSeqKeyExpireSeconds() <= 0L || target.getMaxRetryTimes() < 0 || target.getRetrySleepMillis() < 0L) {
+        if (!StringUtils.hasText(target.getStateKey())
+                || !STATE_KEY_PATTERN.matcher(target.getStateKey()).matches()
+                || target.getMaxRetryTimes() < 0
+                || target.getRetrySleepMillis() < 0L) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "全局唯一标识 Redis 配置非法");
+        }
+        boolean hasRestoreFloor = target.getRestoreFloorEpochMillis() > 0L;
+        if (target.getRestoreFloorEpochMillis() < 0L
+                || target.isRestoreAcknowledged() != hasRestoreFloor) {
+            throw new ServiceException(
+                    ApiResultEnum.PARAM_INVALID.getCode(),
+                    "全局唯一标识状态恢复配置非法"
+            );
         }
     }
 

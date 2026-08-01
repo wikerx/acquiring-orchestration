@@ -143,6 +143,60 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
     @NotNull(message = "transactionInfo", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
     private TransactionInfoDTO transactionInfo;
 
+    /**
+     * 商户可选上送的交易风控上下文，仅用于实时风控匹配，不作为交易结果回显。
+     */
+    @Valid
+    private RiskContextDTO riskContext;
+
+    /**
+     * 商户可选上送的交易风控上下文。
+     *
+     * <p>字段只用于实时名单、频率和地址风险匹配，不作为支付结果回显；
+     * 地址、客户标识和设备指纹不得在普通日志中输出原文。</p>
+     */
+    @Data
+    @NoArgsConstructor
+    public static class RiskContextDTO implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /**
+         * 商户体系内的客户唯一标识，用于客户维度白名单和交易频率控制。
+         */
+        @Pattern(regexp = "^$|^[\\x21-\\x7E]{1,64}$",
+                message = "riskContext.customerId format does not match", groups = {Format.class})
+        private String customerId;
+
+        /**
+         * 商户生成的稳定设备指纹，不得包含原始设备采集报文。
+         */
+        @Pattern(regexp = "^$|^[\\x21-\\x7E]{1,128}$",
+                message = "riskContext.deviceFingerprint format does not match", groups = {Format.class})
+        private String deviceFingerprint;
+
+        /**
+         * 收货街道地址，用于收货地址黑名单匹配。
+         */
+        @Pattern(regexp = "^$|^[\\x20-\\x7E]{1,256}$",
+                message = "riskContext.shippingAddress format does not match", groups = {Format.class})
+        private String shippingAddress;
+
+        /**
+         * 收货邮编，允许字母、数字、空格和短横线。
+         */
+        @Pattern(regexp = "^$|^(?=.{2,20}$)[A-Za-z0-9]+(?:[ -][A-Za-z0-9]+)*$",
+                message = "riskContext.shippingPostalCode format does not match", groups = {Format.class})
+        private String shippingPostalCode;
+
+        /**
+         * 收货国家或地区 ISO 3166-1 alpha-3 代码。
+         */
+        @Pattern(regexp = "^$|^[A-Z]{3}$",
+                message = "riskContext.shippingCountry format does not match", groups = {Format.class})
+        private String shippingCountry;
+    }
+
     @Data
     @NoArgsConstructor
     /**
@@ -575,10 +629,22 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         private String cardBrand;
     }
 
+    /**
+     * 判断文本是否包含去除首尾空白后的有效字符。
+     *
+     * @param value 待检查文本
+     * @return 非空且非纯空白时返回 {@code true}
+     */
     private static boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
 
+    /**
+     * 安全计算可空文本长度。
+     *
+     * @param value 待计算文本
+     * @return 文本长度；输入为 {@code null} 时返回 0
+     */
     private static int length(String value) {
         return value == null ? 0 : value.length();
     }

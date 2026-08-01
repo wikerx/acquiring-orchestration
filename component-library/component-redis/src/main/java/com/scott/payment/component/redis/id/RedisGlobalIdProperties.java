@@ -3,325 +3,245 @@ package com.scott.payment.component.redis.id;
 import com.scott.payment.component.core.id.GlobalIdConstants;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-@ConfigurationProperties(prefix = "payment.global-id")
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : RedisGlobalIdProperties
  * @date : 2026-06-25 10:37
  * @email : scott_x@163.com
- * @description : Redis Global ID Properties 配置属性模型，位于 公共组件库，绑定 application 配置项并提供运行时默认值。
+ * @description : 绑定全局 ID 生成模式、Redis 状态 Key、序列容量和受控恢复下限
  * @status : create
  */
+@ConfigurationProperties(prefix = "payment.global-id")
 public class RedisGlobalIdProperties {
 
     /**
-     * 是否启用统一编号生成器自动装配。
+     * 是否启用统一编号生成器自动装配；生产和 UAT 关闭后必须由其他受审计实现提供 GlobalIdGenerator。
      */
     private boolean enabled = true;
 
     /**
-     * 生成模式：redis 或 local；未配置时默认 redis。
+     * 编号生成模式，允许 redis 或 local；local 只适用于单 JVM 开发和测试。
      */
     private String mode = "redis";
 
     /**
-     * 编号时间格式化时区。
+     * 22 位编号中时间片使用的 IANA 时区，默认 Asia/Shanghai；不包含敏感信息。
      */
     private String timezone = GlobalIdConstants.DEFAULT_ZONE_ID.getId();
 
     /**
-     * 毫秒内序列长度。
+     * 毫秒内序列位数，单位为位；当前协议固定为 6，不允许按环境变化。
      */
     private int sequenceLength = GlobalIdConstants.SEQUENCE_LENGTH;
 
     /**
-     * 毫秒内最大序列。
+     * 单毫秒最大序列值，单位为个；当前 6 位协议最大为 999999。
      */
     private long maxSequence = GlobalIdConstants.DEFAULT_MAX_SEQUENCE;
 
     /**
-     * 毫秒序列 Redis Key 前缀。
+     * 保存 last_millis 和 sequence 的持久 Hash Key；必须匹配 acquiring:{environment}:global-id:state。
      */
-    private String seqKeyPrefix = "biz:{global_id}:seq:";
+    private String stateKey = "acquiring:local:global-id:state";
 
     /**
-     * Redis 防时间回拨 Key。
-     */
-    private String lastMillisKey = "biz:{global_id}:last_millis";
-
-    /**
-     * 毫秒序列 Key 过期秒数。
-     */
-    private long seqKeyExpireSeconds = 172800L;
-
-    /**
-     * 序列溢出后最大重试次数。
+     * 单毫秒序列溢出后的最大重试次数，单位为次；失败后不允许降级到本地发号。
      */
     private int maxRetryTimes = 3;
 
     /**
-     * 序列溢出后重试等待毫秒数。
+     * 序列溢出后的等待时间，单位毫秒；只控制当前调用线程，不修改 Redis TTL。
      */
     private long retrySleepMillis = 1L;
 
     /**
-     * 判断 is enabled 条件是否成立，用于控制 Redis Global ID Properties 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @return 条件满足时返回 true，否则返回 false
+     * 是否确认本次启动使用了受审核的全局 ID 状态恢复方案；正常启动必须保持 false。
+     */
+    private boolean restoreAcknowledged;
+
+    /**
+     * 恢复后允许发号的最小 epochMillis；必须高于所有历史已签发编号的时间片，正常启动固定为 0。
+     */
+    private long restoreFloorEpochMillis;
+
+    /**
+     * 判断是否启用全局 ID 自动装配。
+     *
+     * @return 启用时为 true
      */
     public boolean isEnabled() {
         return enabled;
     }
 
     /**
-     * 写入setenabled，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param enabled enabled 输入值，参与 enabled 的查询、校验、转换、写入或日志摘要
+     * 设置是否启用全局 ID 自动装配。
+     *
+     * @param enabled 是否启用
      */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }
 
     /**
-     * 查询运行模式，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 获取编号生成模式。
+     *
+     * @return redis 或 local
      */
     public String getMode() {
         return mode;
     }
 
     /**
-     * 写入setmode，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param mode mode 输入值，参与 运行模式 的查询、校验、转换、写入或日志摘要
+     * 设置编号生成模式。
+     *
+     * @param mode redis 或 local
      */
     public void setMode(String mode) {
         this.mode = mode;
     }
 
     /**
-     * 查询时区配置，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 获取编号时间片时区。
+     *
+     * @return IANA 时区标识
      */
     public String getTimezone() {
         return timezone;
     }
 
     /**
-     * 写入settimezone，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param timezone 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * 设置编号时间片时区。
+     *
+     * @param timezone IANA 时区标识
      */
     public void setTimezone(String timezone) {
         this.timezone = timezone;
     }
 
     /**
-     * 查询序列长度，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 获取毫秒内序列位数。
+     *
+     * @return 序列位数
      */
     public int getSequenceLength() {
         return sequenceLength;
     }
 
     /**
-     * 写入setsequencelength，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param sequenceLength sequence Length 输入值，参与 序列长度 的查询、校验、转换、写入或日志摘要
+     * 设置毫秒内序列位数。
+     *
+     * @param sequenceLength 序列位数
      */
     public void setSequenceLength(int sequenceLength) {
         this.sequenceLength = sequenceLength;
     }
 
     /**
-     * 查询最大序列值，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 获取单毫秒最大序列值。
+     *
+     * @return 最大序列值
      */
     public long getMaxSequence() {
         return maxSequence;
     }
 
     /**
-     * 写入setmaxsequence，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param maxSequence max Sequence 输入值，参与 最大序列值 的查询、校验、转换、写入或日志摘要
+     * 设置单毫秒最大序列值。
+     *
+     * @param maxSequence 最大序列值
      */
     public void setMaxSequence(long maxSequence) {
         this.maxSequence = maxSequence;
     }
 
     /**
-     * 查询序列 Redis Key 前缀，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 获取全局 ID 持久状态 Key。
+     *
+     * @return acquiring:{environment}:global-id:state 格式的 Key
      */
-    public String getSeqKeyPrefix() {
-        return seqKeyPrefix;
+    public String getStateKey() {
+        return stateKey;
     }
 
     /**
-     * 写入setseq密钥prefix，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param seqKeyPrefix 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
+     * 设置全局 ID 持久状态 Key。
+     *
+     * @param stateKey acquiring:{environment}:global-id:state 格式的 Key
      */
-    public void setSeqKeyPrefix(String seqKeyPrefix) {
-        this.seqKeyPrefix = seqKeyPrefix;
+    public void setStateKey(String stateKey) {
+        this.stateKey = stateKey;
     }
 
     /**
-     * 查询上一毫秒 Redis Key，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
-    public String getLastMillisKey() {
-        return lastMillisKey;
-    }
-
-    /**
-     * 写入setlast毫秒数密钥，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param lastMillisKey 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     */
-    public void setLastMillisKey(String lastMillisKey) {
-        this.lastMillisKey = lastMillisKey;
-    }
-
-    /**
-     * 查询序列 Key 过期秒数，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
-    public long getSeqKeyExpireSeconds() {
-        return seqKeyExpireSeconds;
-    }
-
-    /**
-     * 写入setseq密钥失效seconds，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param seqKeyExpireSeconds 敏感或可识别输入，调用方必须按脱敏、加密或最小必要原则传递
-     */
-    public void setSeqKeyExpireSeconds(long seqKeyExpireSeconds) {
-        this.seqKeyExpireSeconds = seqKeyExpireSeconds;
-    }
-
-    /**
-     * 查询最大重试次数，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 获取序列溢出后的最大重试次数。
+     *
+     * @return 最大重试次数，单位为次
      */
     public int getMaxRetryTimes() {
         return maxRetryTimes;
     }
 
     /**
-     * 写入setmaxretrytimes，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param maxRetryTimes 时间值，使用系统约定时区或调用方传入的业务时区解释
+     * 设置序列溢出后的最大重试次数。
+     *
+     * @param maxRetryTimes 最大重试次数，单位为次
      */
     public void setMaxRetryTimes(int maxRetryTimes) {
         this.maxRetryTimes = maxRetryTimes;
     }
 
     /**
-     * 查询重试休眠毫秒数，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 公共组件库 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 获取序列溢出后的等待时间。
+     *
+     * @return 等待时间，单位毫秒
      */
     public long getRetrySleepMillis() {
         return retrySleepMillis;
     }
 
     /**
-     * 写入setretrysleep毫秒数，保持配置属性或测试夹具中的字段值与调用方输入一致。
-     * <p>
-     * 前置条件：调用方已准备 公共组件库 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param retrySleepMillis retry Sleep Millis 输入值，参与 重试休眠毫秒数 的查询、校验、转换、写入或日志摘要
+     * 设置序列溢出后的等待时间。
+     *
+     * @param retrySleepMillis 等待时间，单位毫秒
      */
     public void setRetrySleepMillis(long retrySleepMillis) {
         this.retrySleepMillis = retrySleepMillis;
+    }
+
+    /**
+     * 判断是否已确认使用受审核的状态恢复方案。
+     *
+     * @return 已确认恢复时为 true
+     */
+    public boolean isRestoreAcknowledged() {
+        return restoreAcknowledged;
+    }
+
+    /**
+     * 设置状态恢复确认标识。
+     *
+     * @param restoreAcknowledged 是否已完成备份校验、历史最大编号核对和双人审批
+     */
+    public void setRestoreAcknowledged(boolean restoreAcknowledged) {
+        this.restoreAcknowledged = restoreAcknowledged;
+    }
+
+    /**
+     * 获取状态恢复后的最小发号毫秒。
+     *
+     * @return epochMillis；正常启动为 0
+     */
+    public long getRestoreFloorEpochMillis() {
+        return restoreFloorEpochMillis;
+    }
+
+    /**
+     * 设置状态恢复后的最小发号毫秒。
+     *
+     * @param restoreFloorEpochMillis 必须高于所有历史已签发编号时间片的 epochMillis
+     */
+    public void setRestoreFloorEpochMillis(long restoreFloorEpochMillis) {
+        this.restoreFloorEpochMillis = restoreFloorEpochMillis;
     }
 }

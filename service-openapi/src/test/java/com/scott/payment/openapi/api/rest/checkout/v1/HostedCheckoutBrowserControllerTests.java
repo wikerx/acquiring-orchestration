@@ -7,6 +7,9 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+/**
+ * Hosted Checkout 浏览器桥接页测试，验证 3DS 返回数据不被误判为支付成功且敏感报文不回显。
+ */
 class HostedCheckoutBrowserControllerTests {
 
     @Test

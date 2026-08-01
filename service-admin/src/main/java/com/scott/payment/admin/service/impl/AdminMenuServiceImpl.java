@@ -163,6 +163,13 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return treeMenus(AuthConstants.APP_ADMIN, request);
     }
 
+    /**
+     * 查询指定应用的菜单树；未指定状态时默认只返回启用菜单，但保留按钮节点。
+     *
+     * @param appCode 应用编码
+     * @param request 菜单名称、类型、状态和可见性等可选条件
+     * @return 指定应用的菜单树
+     */
     @Override
     public List<SysMenuDTO> treeMenus(String appCode, SysMenuQueryRequest request) {
         SysMenuQueryRequest query = request == null ? new SysMenuQueryRequest() : request;
@@ -200,6 +207,13 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return createMenu(AuthConstants.APP_ADMIN, request);
     }
 
+    /**
+     * 在指定应用创建菜单，并为商户应用同步对应权限记录。
+     *
+     * @param appCode 应用编码
+     * @param request 菜单创建请求
+     * @return 创建后的菜单详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO createMenu(String appCode, SysMenuCreateRequest request) {
@@ -236,6 +250,13 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         return updateMenu(AuthConstants.APP_ADMIN, request);
     }
 
+    /**
+     * 更新指定应用菜单并校验父子层级，商户应用同时同步权限记录。
+     *
+     * @param appCode 应用编码
+     * @param request 菜单更新请求
+     * @return 更新后的菜单详情
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SysMenuDTO updateMenu(String appCode, SysMenuUpdateRequest request) {
@@ -267,6 +288,12 @@ public class AdminMenuServiceImpl implements AdminMenuService {
         updateStatus(AuthConstants.APP_ADMIN, request);
     }
 
+    /**
+     * 更新指定应用菜单状态，商户应用同时同步权限启停状态。
+     *
+     * @param appCode 应用编码
+     * @param request 菜单主键和目标状态
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateStatus(String appCode, SysMenuStatusRequest request) {

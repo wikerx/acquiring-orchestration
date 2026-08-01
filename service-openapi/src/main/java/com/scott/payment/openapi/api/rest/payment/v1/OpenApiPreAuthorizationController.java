@@ -53,6 +53,7 @@ public class OpenApiPreAuthorizationController {
      */
     @VerificationAndProcessing(
             dataReceiver = ApiMerchantPaymentRequestDTO.class,
+            deferIpWhitelistToRisk = true,
             validationGroups = {
                     ApiMerchantPaymentRequestDTO.PreAuthorization.class,
                     ApiMerchantPaymentRequestDTO.Format.class

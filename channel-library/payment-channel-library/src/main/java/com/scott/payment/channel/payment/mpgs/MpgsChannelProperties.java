@@ -9,17 +9,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @classname : MpgsChannelProperties
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : MPGS 渠道配置属性，位于 payment-channel-library 渠道配置层，仅保存网关地址、版本和凭据配置引用，禁止在代码中硬编码渠道密码。
+ * @description : MPGS 渠道兜底属性，位于 payment-channel-library 渠道配置层；交易优先使用数据库 MID 路由结果，禁止在代码中硬编码渠道密码。
  * @status : create
  */
 @Data
 @ConfigurationProperties(prefix = "payment.channel.mpgs")
 public class MpgsChannelProperties {
-
-    /**
-     * 是否启用 MPGS 真实渠道调用。
-     */
-    private boolean enabled;
 
     /**
      * MPGS REST 基础地址，例如 https://test-gateway.mastercard.com/api/rest。

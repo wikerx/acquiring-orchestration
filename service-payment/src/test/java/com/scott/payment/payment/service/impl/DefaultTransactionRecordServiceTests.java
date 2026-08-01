@@ -2,6 +2,7 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
+import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
 import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
@@ -10,6 +11,7 @@ import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
+import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -194,7 +196,91 @@ class DefaultTransactionRecordServiceTests {
         assertThat(channelEvent.getEventContent()).contains("渠道交易状态：FAILED");
         assertThat(channelEvent.getErrorMessage()).contains("Unexpected parameter");
         assertThat(statusEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
-        assertThat(statusEvent.getErrorCode()).isEqualTo("CHANNEL_REQUEST_FAILED");
+        assertThat(statusEvent.getEventName()).isEqualTo("交易失败");
+        assertThat(statusEvent.getEventContent())
+                .isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode() + "：" + ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        assertThat(statusEvent.getErrorCode()).isEqualTo(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        assertThat(statusEvent.getErrorCode()).isNotEqualTo(resultDTO.getFailReasonCode());
+    }
+
+    /**
+     * 风控拒绝属于交易失败，应写入交易列表事实和流程时间轴，并保留风控记录号供后台详情关联。
+     */
+    @Test
+    void shouldRecordRiskBlockedInitialTransactionAsFailedWithRiskTimeline() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        Captured<TransactionOrderDO> orderCapture = new Captured<>();
+        Captured<TransactionOperationDO> operationCapture = new Captured<>();
+        CapturedList<TransactionFlowEventDO> flowEventCapture = new CapturedList<>();
+        when(orderMapper.insertPhysical(anyString(), any(TransactionOrderDO.class))).thenAnswer(invocation -> {
+            orderCapture.physicalTable = invocation.getArgument(0);
+            orderCapture.value = invocation.getArgument(1);
+            return 1;
+        });
+        when(operationMapper.insertPhysical(anyString(), any(TransactionOperationDO.class))).thenAnswer(invocation -> {
+            operationCapture.physicalTable = invocation.getArgument(0);
+            operationCapture.value = invocation.getArgument(1);
+            return 1;
+        });
+        when(historyMapper.insertPhysical(anyString(), any(TransactionStatusHistoryDO.class))).thenReturn(1);
+        when(flowEventMapper.insertPhysical(anyString(), any(TransactionFlowEventDO.class))).thenAnswer(invocation -> {
+            flowEventCapture.values.add(invocation.getArgument(1));
+            return 1;
+        });
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                flowEventMapper,
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        commandDTO.setRiskRecordNo("RK202607280001");
+        commandDTO.setRiskCode("AML_HIT");
+        commandDTO.setRiskMessage("aml rule is hit");
+        PaymentCreateResultDTO resultDTO = resultDTO();
+        resultDTO.setStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+        resultDTO.setFailReasonCode(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
+        resultDTO.setFailReasonMessage(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
+        resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_REJECTED.getCode());
+        resultDTO.setMerchantResponseMessage(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
+
+        recordService.recordInitialTransaction(commandDTO, null, null, resultDTO, PaymentRiskDecisionEnum.REJECT, 2);
+
+        TransactionFlowEventDO riskEvent = flowEventCapture.values.stream()
+                .filter(event -> "RISK_CHECKED".equals(event.getEventType()))
+                .findFirst()
+                .orElseThrow();
+        TransactionFlowEventDO statusEvent = flowEventCapture.values.stream()
+                .filter(event -> "STATUS_RECORDED".equals(event.getEventType()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(orderCapture.value.getTransactionStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(orderCapture.value.getFailReasonMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
+        assertThat(orderCapture.value.getMerchantVisibleMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
+        assertThat(orderCapture.value.getInternalRiskRecordNo()).isEqualTo("RK202607280001");
+        assertThat(operationCapture.value.getFailReasonMessage()).isEqualTo(PaymentRiskDecisionSupport.MERCHANT_RISK_BLOCKED_MESSAGE);
+        assertThat(riskEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.FAILED.getCode());
+        assertThat(riskEvent.getEventContent()).contains("REJECT").contains("RK202607280001").contains("AML_HIT");
+        assertThat(riskEvent.getErrorCode()).isEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
+        assertThat(statusEvent.getEventName()).isEqualTo("交易失败");
+        assertThat(statusEvent.getEventContent()).isEqualTo("F210：Risk blocked");
+        assertThat(statusEvent.getErrorCode()).isEqualTo("F210");
+        assertThat(statusEvent.getErrorMessage()).isEqualTo("Risk blocked");
+        assertThat(statusEvent.getErrorCode()).isNotEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
+        assertThat(flowEventCapture.values)
+                .noneMatch(event -> "ROUTE_SELECTED".equals(event.getEventType()))
+                .noneMatch(event -> "CHANNEL_CALLED".equals(event.getEventType()));
+        verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
     }
 
     /**
@@ -254,6 +340,54 @@ class DefaultTransactionRecordServiceTests {
                 "TX202610011000000000001",
                 new BigDecimal("5.00"),
                 0);
+    }
+
+    /**
+     * 后续交易不适用内风控，流程事件必须记录 SKIP，不能伪造 PASS 或继承外部误传决策。
+     */
+    @Test
+    void shouldRecordSkipRiskDecisionForFollowUpFlowEvent() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        CapturedList<TransactionFlowEventDO> flowEventCapture = new CapturedList<>();
+        when(operationMapper.countByOperationIdPhysical(anyString(), anyString())).thenReturn(1);
+        when(operationMapper.insertPhysical(anyString(), any(TransactionOperationDO.class))).thenReturn(1);
+        when(orderMapper.increaseCapturedAmountPhysical(anyString(), anyString(), anyString(), any(BigDecimal.class), any()))
+                .thenReturn(1);
+        when(historyMapper.insertPhysical(anyString(), any(TransactionStatusHistoryDO.class))).thenReturn(1);
+        when(flowEventMapper.insertPhysical(anyString(), any(TransactionFlowEventDO.class))).thenAnswer(invocation -> {
+            flowEventCapture.values.add(invocation.getArgument(1));
+            return 1;
+        });
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                flowEventMapper,
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser());
+        TransactionFollowUpRecordDTO recordDTO = followUpRecord();
+        recordDTO.setRiskDecisionEnum(PaymentRiskDecisionEnum.REVIEW);
+
+        recordService.recordFollowUpTransaction(recordDTO);
+
+        TransactionFlowEventDO riskEvent = flowEventCapture.values.stream()
+                .filter(event -> "RISK_CHECKED".equals(event.getEventType()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(riskEvent.getEventStatus()).isEqualTo(PaymentTransactionStatusEnum.SUCCESS.getCode());
+        assertThat(riskEvent.getEventContent()).contains("SKIP").contains("不适用");
+        assertThat(flowEventCapture.values)
+                .anyMatch(event -> "ROUTE_SELECTED".equals(event.getEventType()))
+                .anyMatch(event -> "CHANNEL_CALLED".equals(event.getEventType()));
     }
 
     /**

@@ -78,6 +78,16 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 page.getRecords().stream().map(this::toResponse).toList());
     }
 
+    /**
+     * 构造商户字典查询条件。
+     * <p>
+     * 默认只查询未删除、启用、{@code zh-CN} 的字典项；调用方可指定 locale 和状态，
+     * 但不能绕过逻辑删除边界。
+     * </p>
+     *
+     * @param query 字典查询条件
+     * @return 按排序值和主键升序的 MyBatis 查询包装器
+     */
     private LambdaQueryWrapper<SysDictDataDO> buildQueryWrapper(DictDataQuery query) {
         String locale = StringUtils.hasText(query.getLocale()) ? query.getLocale() : DEFAULT_LOCALE;
         Integer status = query.getStatus() == null ? ENABLED : query.getStatus();
@@ -93,6 +103,12 @@ public class MerchantDictServiceImpl implements MerchantDictService {
                 .orderByAsc(SysDictDataDO::getId);
     }
 
+    /**
+     * 将数据库字典记录转换为商户后台只读响应。
+     *
+     * @param entity 字典数据记录
+     * @return 不包含数据库审计字段的字典响应
+     */
     private DictDataResponse toResponse(SysDictDataDO entity) {
         DictDataResponse response = new DictDataResponse();
         response.setId(entity.getId());

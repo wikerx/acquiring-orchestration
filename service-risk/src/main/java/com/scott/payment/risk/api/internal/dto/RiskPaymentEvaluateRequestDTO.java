@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
  * @classname : RiskPaymentEvaluateRequestDTO
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : 收单支付实时风控评估请求 DTO，位于 service-risk 内部接口 DTO 层，只接收必要风控上下文，不接收完整卡号和 CVV。
+ * @description : 收单支付实时风控评估请求 DTO，位于 service-risk 内部接口 DTO 层；完整卡号只允许在内存中用于名单和频控匹配，禁止写日志、MQ 和交易库。
  * @status : create
  */
 @Data
@@ -109,17 +109,42 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
     private String subMerchantCountryCode;
 
     /**
+     * 持卡人姓名，仅用于内存名单匹配，禁止日志明文输出。
+     */
+    private String cardholderName;
+
+    /**
+     * 个人子商户经营者姓名，用于 AML 法人规则匹配。
+     */
+    private String legalPerson;
+
+    /**
+     * 子商户企业名称，用于 AML 企业规则匹配。
+     */
+    private String enterprise;
+
+    /**
+     * 子商户账单地址，用于 AML 商户账单地址规则匹配。
+     */
+    private String merchantBillingAddress;
+
+    /**
      * 卡品牌，例如 VISA、MASTERCARD；允许为空。
      */
     private String cardBrand;
 
     /**
-     * 卡 BIN 前六位，仅用于风控识别，不接收完整 PAN。
+     * 完整 PAN，仅限内部风控内存匹配使用；禁止日志明文输出、禁止落库、禁止写 MQ。
+     */
+    private String cardNo;
+
+    /**
+     * 卡 BIN 前缀，最多 11 位，用于 BIN 区间和发卡国家识别。
      */
     private String cardBin;
 
     /**
-     * 卡号后四位，仅用于排查和风险辅助，不接收完整 PAN。
+     * 卡号后四位，仅用于排查和风险辅助。
      */
     private String cardLast4;
 
@@ -132,6 +157,56 @@ public class RiskPaymentEvaluateRequestDTO implements Serializable {
      * 账单邮箱，属于个人信息，禁止日志明文输出。
      */
     private String billingEmail;
+
+    /**
+     * 账单手机号，属于个人信息，禁止日志明文输出。
+     */
+    private String billingPhone;
+
+    /**
+     * 账单街道地址，属于个人信息，禁止日志明文输出。
+     */
+    private String billingAddress;
+
+    /**
+     * 账单邮编。
+     */
+    private String billingZip;
+
+    /**
+     * 账单州、省或区域代码。
+     */
+    private String billingRegion;
+
+    /**
+     * 账单城市，与国家、州省共同用于分层区域名单匹配。
+     */
+    private String billingCity;
+
+    /**
+     * 商户体系内客户标识，用于白名单和频率规则。
+     */
+    private String customerId;
+
+    /**
+     * 商户生成的稳定设备指纹，用于黑白名单和频率规则。
+     */
+    private String deviceFingerprint;
+
+    /**
+     * 收货街道地址。
+     */
+    private String shippingAddress;
+
+    /**
+     * 收货邮编。
+     */
+    private String shippingZip;
+
+    /**
+     * 收货国家或地区三字码。
+     */
+    private String shippingCountry;
 
     /**
      * 3DS ECI 值，用于判断认证责任转移状态。

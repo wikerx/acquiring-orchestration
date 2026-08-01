@@ -92,23 +92,23 @@ class MpgsApiClientMaskingTests {
     }
 
     /**
-     * 验证 MPGS MID 元数据标准字段 password 能用于 Basic Auth。
+     * 验证数据库渠道配置完整时可直接调用 MPGS，不依赖额外的环境启用开关或渠道兜底配置。
      * <p>
-     * 后台保存的 metadata_value_json 字段为 password，支付核心组装渠道请求时会转成 mid.password；
-     * 该字段必须优先于历史 apiPassword 读取，否则真实交易会在请求前失败。
+     * 支付核心会把 MID 中的请求地址、API 版本、渠道商户号和密码转换为 requestUrl 与 mid.* 扩展字段。
+     * 渠道客户端应以这些路由结果为本次交易事实，避免数据库已启用渠道后仍被环境开关阻断。
+     * </p>
      */
     @Test
-    void shouldUseMidPasswordMetadataForBasicAuth() {
+    void shouldExecuteWithCompleteDatabaseRouteConfiguration() {
         CapturingHttpClient httpClient = new CapturingHttpClient();
         MpgsChannelProperties properties = new MpgsChannelProperties();
-        properties.setEnabled(true);
-        properties.setBaseUrl("https://test-gateway.mastercard.com/api/rest");
-        properties.setVersion("100");
-        properties.setMerchantId("TESTDEVMER031");
         properties.setReadTimeoutMillis(30000);
         properties.setConnectTimeoutMillis(10000);
         MpgsApiClient client = new MpgsApiClient(properties, new MpgsRequestMapper(), new MpgsResponseMapper(), httpClient);
         ChannelPaymentRequest request = paymentRequest();
+        request.getExtension().put("requestUrl", "https://test-gateway.mastercard.com/api/rest");
+        request.getExtension().put("mid.version", "100");
+        request.getExtension().put("mid.merchantId", "TESTDEVMER031");
         request.getExtension().put("mid.password", "metadata-password");
 
         ChannelPaymentResponse response = client.execute(request);
@@ -125,7 +125,6 @@ class MpgsApiClientMaskingTests {
     void shouldBuildQueryUrlFromChannelOrderNoAndChannelTransactionId() {
         CapturingHttpClient httpClient = new CapturingHttpClient();
         MpgsChannelProperties properties = new MpgsChannelProperties();
-        properties.setEnabled(true);
         properties.setBaseUrl("https://test-gateway.mastercard.com/api/rest");
         properties.setVersion("100");
         properties.setMerchantId("TESTDEVMER031");
@@ -222,26 +221,41 @@ class MpgsApiClientMaskingTests {
             return new String(java.util.Base64.getDecoder().decode(authorizationHeader.substring("Basic ".length())));
         }
 
+        /**
+         * 不提供 Cookie 管理器，确保敏感信息脱敏测试不携带外部会话状态。
+         */
         @Override
         public Optional<CookieHandler> cookieHandler() {
             return Optional.empty();
         }
 
+        /**
+         * 返回固定连接超时，仅满足 JDK HTTP 客户端契约。
+         */
         @Override
         public Optional<Duration> connectTimeout() {
             return Optional.of(Duration.ofSeconds(10));
         }
 
+        /**
+         * 禁止自动重定向，避免认证请求头被转发到其他地址。
+         */
         @Override
         public Redirect followRedirects() {
             return Redirect.NEVER;
         }
 
+        /**
+         * 不使用代理，保证测试不读取本机代理配置。
+         */
         @Override
         public Optional<ProxySelector> proxy() {
             return Optional.empty();
         }
 
+        /**
+         * 创建独立 TLS 上下文以满足抽象客户端契约，不建立真实网络连接。
+         */
         @Override
         public SSLContext sslContext() {
             try {
@@ -253,21 +267,33 @@ class MpgsApiClientMaskingTests {
             }
         }
 
+        /**
+         * 返回默认 TLS 参数；当前测试不协商真实协议或密码套件。
+         */
         @Override
         public SSLParameters sslParameters() {
             return new SSLParameters();
         }
 
+        /**
+         * 不注册 JDK Authenticator，待测客户端必须自行构造 Basic 认证请求头。
+         */
         @Override
         public Optional<Authenticator> authenticator() {
             return Optional.empty();
         }
 
+        /**
+         * 固定声明 HTTP/1.1，使请求与响应协议版本保持确定。
+         */
         @Override
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;
         }
 
+        /**
+         * 不提供异步执行器，因为脱敏测试只使用同步请求。
+         */
         @Override
         public Optional<Executor> executor() {
             return Optional.empty();
@@ -302,26 +328,41 @@ class MpgsApiClientMaskingTests {
 
     private record SimpleHttpResponse<T>(HttpRequest request, T body) implements HttpResponse<T> {
 
+        /**
+         * 固定返回 HTTP 200，使测试聚焦 MPGS 业务响应解析和日志脱敏。
+         */
         @Override
         public int statusCode() {
             return 200;
         }
 
+        /**
+         * 返回空响应头，当前用例不依赖任何渠道响应头。
+         */
         @Override
         public HttpHeaders headers() {
             return HttpHeaders.of(java.util.Map.of(), (name, value) -> true);
         }
 
+        /**
+         * 固定表示不存在重定向前响应。
+         */
         @Override
         public Optional<HttpResponse<T>> previousResponse() {
             return Optional.empty();
         }
 
+        /**
+         * 返回原测试请求 URI，使响应与被捕获请求保持关联。
+         */
         @Override
         public URI uri() {
             return request.uri();
         }
 
+        /**
+         * 固定返回 HTTP/1.1，与测试客户端声明保持一致。
+         */
         @Override
         public HttpClient.Version version() {
             return HttpClient.Version.HTTP_1_1;

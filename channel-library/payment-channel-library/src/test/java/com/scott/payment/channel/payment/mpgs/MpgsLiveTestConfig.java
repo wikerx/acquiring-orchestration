@@ -255,7 +255,6 @@ final class MpgsLiveTestConfig {
      */
     MpgsChannelProperties toProperties() {
         MpgsChannelProperties properties = new MpgsChannelProperties();
-        properties.setEnabled(true);
         properties.setBaseUrl(baseUrl);
         properties.setVersion(version);
         properties.setMerchantId(merchantId);

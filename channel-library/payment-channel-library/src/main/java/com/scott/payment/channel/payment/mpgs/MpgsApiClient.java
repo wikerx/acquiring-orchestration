@@ -309,11 +309,11 @@ public class MpgsApiClient {
             throw new ChannelTimeoutException("MPGS request timed out", e);
         } catch (IOException e) {
             logRequestException(request, httpMethod, operation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS network request failed", e);
+            throw new ChannelRequestException("MPGS network request failed", e, true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logRequestException(request, httpMethod, operation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS request was interrupted", e);
+            throw new ChannelRequestException("MPGS request was interrupted", e, true);
         }
     }
 
@@ -356,11 +356,11 @@ public class MpgsApiClient {
             throw new ChannelTimeoutException("MPGS 3DS request timed out", e);
         } catch (IOException e) {
             logThreeDsException(request, apiOperation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS 3DS network request failed", e);
+            throw new ChannelRequestException("MPGS 3DS network request failed", e, true);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logThreeDsException(request, apiOperation, url, startNanos, e);
-            throw new ChannelRequestException("MPGS 3DS request was interrupted", e);
+            throw new ChannelRequestException("MPGS 3DS request was interrupted", e, true);
         }
     }
 
@@ -654,12 +654,13 @@ public class MpgsApiClient {
     }
 
     /**
-     * 校验 MPGS 渠道配置并补齐默认用户名。
+     * 校验 MPGS 交易路由结果，并允许使用本地属性作为非生产兜底值。
+     * <p>
+     * 渠道是否可交易由数据库中的渠道、MID、商户绑定和能力状态统一决定。客户端不再设置额外启用开关，
+     * 避免数据库配置已经生效后仍被环境配置阻断；地址、版本和凭证缺失时仍必须在发送 HTTP 请求前失败。
+     * </p>
      */
     private void validateProperties(ChannelPaymentRequest request) {
-        if (!properties.isEnabled()) {
-            throw new ChannelRequestException("MPGS live channel is disabled");
-        }
         requireText(extensionValue(request, EXT_REQUEST_URL, properties.getBaseUrl()), "MPGS baseUrl is required");
         requireText(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()), "MPGS version is required");
         requireText(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()), "MPGS merchantId is required");
@@ -667,12 +668,9 @@ public class MpgsApiClient {
     }
 
     /**
-     * 校验 MPGS 3DS 通道配置，支持按路由 MID 扩展覆盖默认配置。
+     * 校验 MPGS 3DS 路由结果，支持按数据库 MID 扩展覆盖本地兜底配置。
      */
     private void validateProperties(MpgsThreeDsAuthenticationRequest request) {
-        if (!properties.isEnabled()) {
-            throw new ChannelRequestException("MPGS live channel is disabled");
-        }
         requireText(extensionValue(request, EXT_REQUEST_URL, properties.getBaseUrl()), "MPGS baseUrl is required");
         requireText(extensionValue(request, EXT_MPGS_API_VERSION, properties.getVersion()), "MPGS version is required");
         requireText(extensionValue(request, EXT_MPGS_MERCHANT_ID, properties.getMerchantId()), "MPGS merchantId is required");

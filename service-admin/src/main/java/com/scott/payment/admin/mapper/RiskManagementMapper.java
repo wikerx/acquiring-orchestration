@@ -1530,7 +1530,7 @@ public interface RiskManagementMapper {
             SELECT *
             FROM risk_evaluation_hit_detail
             WHERE risk_record_no = #{riskRecordNo}
-            ORDER BY decision_time ASC, id ASC
+            ORDER BY COALESCE(stage_order, 9999) ASC, decision_time ASC, id ASC
             """)
     List<Map<String, Object>> selectEvaluationHits(@Param("riskRecordNo") String riskRecordNo);
 

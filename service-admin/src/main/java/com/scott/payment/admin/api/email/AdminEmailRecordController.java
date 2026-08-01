@@ -49,18 +49,36 @@ public class AdminEmailRecordController {
         this.emailApplicationService = emailApplicationService;
     }
 
+    /**
+     * 分页查询邮件发送记录，收件地址按展示规则处理。
+     *
+     * @param query 模板、收件地址、状态和时间范围等可选条件
+     * @return 邮件发送记录分页结果
+     */
     @PostMapping("/search")
     @RequiresPermission("email:record:list")
     public CommonResult<PageResult<EmailRecordResponse>> pageRecords(@RequestBody(required = false) EmailRecordQuery query) {
         return success(emailApplicationService.pageRecords(query));
     }
 
+    /**
+     * 查询指定邮件发送记录及失败摘要。
+     *
+     * @param id 邮件发送记录主键
+     * @return 邮件发送记录详情
+     */
     @GetMapping("/{id}")
     @RequiresPermission("email:record:detail")
     public CommonResult<EmailRecordResponse> getRecord(@PathVariable("id") Long id) {
         return success(emailApplicationService.getRecord(id));
     }
 
+    /**
+     * 基于历史记录重新发送邮件，并创建新的发送尝试。
+     *
+     * @param id 原邮件发送记录主键
+     * @return 本次重发结果
+     */
     @PostMapping("/{id}/resend")
     @RequiresPermission("email:record:resend")
     @OperationLog(moduleName = "邮件发送记录", businessType = OperationTypeConstants.UPDATE, operation = "重新发送邮件")

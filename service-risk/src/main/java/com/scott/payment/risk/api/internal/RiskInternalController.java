@@ -1,8 +1,11 @@
 package com.scott.payment.risk.api.internal;
 
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.risk.api.internal.dto.MerchantLimitReservationCommandDTO;
+import com.scott.payment.risk.api.internal.dto.MerchantLimitReservationCommandResultDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
+import com.scott.payment.risk.application.MerchantLimitReservationApplicationService;
 import com.scott.payment.risk.application.RiskEvaluationApplicationService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,13 +33,19 @@ public class RiskInternalController {
      */
     private final RiskEvaluationApplicationService riskEvaluationApplicationService;
 
+    /** 累计限额预占确认、取消和对账应用服务。 */
+    private final MerchantLimitReservationApplicationService reservationApplicationService;
+
     /**
      * 创建风控内部服务接口。
      *
      * @param riskEvaluationApplicationService 风控评估应用服务
      */
-    public RiskInternalController(RiskEvaluationApplicationService riskEvaluationApplicationService) {
+    public RiskInternalController(
+            RiskEvaluationApplicationService riskEvaluationApplicationService,
+            MerchantLimitReservationApplicationService reservationApplicationService) {
         this.riskEvaluationApplicationService = riskEvaluationApplicationService;
+        this.reservationApplicationService = reservationApplicationService;
     }
 
     /**
@@ -48,5 +57,17 @@ public class RiskInternalController {
     @PostMapping("/evaluate/payment")
     public CommonResult<RiskPaymentEvaluateResultDTO> evaluatePayment(@Valid @RequestBody RiskPaymentEvaluateRequestDTO requestDTO) {
         return success(riskEvaluationApplicationService.evaluatePayment(requestDTO));
+    }
+
+    /**
+     * 支付本地事务失败时撤销已经创建的商户累计限额预占。
+     *
+     * @param commandDTO 只包含稳定交易标识和补偿原因，不包含 Redis Key
+     * @return 幂等迁移统计
+     */
+    @PostMapping("/merchant-limit/reservations/cancel")
+    public CommonResult<MerchantLimitReservationCommandResultDTO> cancelMerchantLimitReservation(
+            @Valid @RequestBody MerchantLimitReservationCommandDTO commandDTO) {
+        return success(reservationApplicationService.cancel(commandDTO));
     }
 }

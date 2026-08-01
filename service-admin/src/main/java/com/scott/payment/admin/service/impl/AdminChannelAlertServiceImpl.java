@@ -642,6 +642,12 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                 page.getRecords().stream().map(this::toNotifyLogResponse).toList());
     }
 
+    /**
+     * 构建未删除渠道预警规则查询，统一规范业务类型、支付方式和风险等级编码。
+     *
+     * @param query 规则筛选条件
+     * @return 按更新时间和主键倒序的规则查询条件
+     */
     private LambdaQueryWrapper<ChannelAlertRuleDO> buildRuleQuery(ChannelAlertRuleQuery query) {
         return Wrappers.<ChannelAlertRuleDO>lambdaQuery()
                 .eq(ChannelAlertRuleDO::getDeleted, NOT_DELETED)
@@ -658,6 +664,12 @@ public class AdminChannelAlertServiceImpl implements AdminChannelAlertService {
                 .orderByDesc(ChannelAlertRuleDO::getId);
     }
 
+    /**
+     * 构建未删除渠道预警事件查询，支持触发时间闭区间筛选。
+     *
+     * @param query 事件、规则、渠道、状态和触发时间条件
+     * @return 按触发时间和主键倒序的事件查询条件
+     */
     private LambdaQueryWrapper<ChannelAlertEventDO> buildEventQuery(ChannelAlertEventQuery query) {
         return Wrappers.<ChannelAlertEventDO>lambdaQuery()
                 .eq(ChannelAlertEventDO::getDeleted, NOT_DELETED)

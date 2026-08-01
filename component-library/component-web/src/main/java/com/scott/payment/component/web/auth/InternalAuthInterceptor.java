@@ -142,10 +142,25 @@ public class InternalAuthInterceptor implements HandlerInterceptor {
         InternalAuthContextHolder.clear();
     }
 
+    /**
+     * 判断内部管理接口路径是否配置为免认证。
+     * <p>
+     * 命中后将跳过 token 和权限校验，因此白名单只能配置健康检查等无业务数据入口。
+     * </p>
+     *
+     * @param requestPath 当前请求路径
+     * @return 命中任一 Ant 路径规则时返回 {@code true}
+     */
     private boolean isWhitelisted(String requestPath) {
         return whitelistPatterns.stream().anyMatch(pattern -> PATH_MATCHER.match(pattern, requestPath));
     }
 
+    /**
+     * 解析处理器声明的权限编码，方法级声明优先于类级声明。
+     *
+     * @param handler Spring MVC 处理器
+     * @return 权限编码；非控制器方法或未声明权限时返回 {@code null}
+     */
     private String requiredPermission(Object handler) {
         if (!(handler instanceof HandlerMethod handlerMethod)) {
             return null;

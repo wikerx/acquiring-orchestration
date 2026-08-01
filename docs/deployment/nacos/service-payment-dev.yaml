@@ -1,5 +1,22 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
 payment:
+  transaction:
+    outbox:
+      # 持续投递 transaction_event_outbox；风险预占终态依赖该事件链路。
+      relay-enabled: ${PAYMENT_TRANSACTION_OUTBOX_RELAY_ENABLED:true}
+      fixed-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_FIXED_DELAY_MS:5000}
+      initial-delay-ms: ${PAYMENT_TRANSACTION_OUTBOX_INITIAL_DELAY_MS:10000}
+      batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
+      lookback-quarters: ${PAYMENT_TRANSACTION_OUTBOX_LOOKBACK_QUARTERS:8}
+    merchant-notification:
+      mq:
+        # 商户通知消费者默认关闭，避免未配置 RocketMQ 的环境启动时误注册消费者；需要真实消费时显式设置为 true。
+        enabled: ${PAYMENT_MERCHANT_NOTIFICATION_MQ_ENABLED:false}
+  risk-client:
+    remote-enabled: ${PAYMENT_RISK_CLIENT_REMOTE_ENABLED:true}
+    noop-enabled: ${PAYMENT_RISK_CLIENT_NOOP_ENABLED:false}
+    internal-caller: service-payment
+    internal-secret: ${PAYMENT_RISK_INTERNAL_SECRET:dev-internal-service-secret}
   order:
     # 收单支付平台订单号前缀。
     prefix: PA
@@ -11,8 +28,3 @@ payment:
     topic: payment-event
     # 交易动作创建事件 Tag。
     created-tag: TRANSACTION_CREATED
-  transaction:
-    merchant-notification:
-      mq:
-        # 商户通知消费者默认关闭，避免未配置 RocketMQ 的环境启动时误注册消费者；需要真实消费时显式设置为 true。
-        enabled: ${PAYMENT_MERCHANT_NOTIFICATION_MQ_ENABLED:false}

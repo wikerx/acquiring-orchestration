@@ -156,6 +156,12 @@ public class MerchantTransactionOrderController {
         return success(transactionApplicationService.voidPayment(currentMerchantId(), transactionId, request));
     }
 
+    /**
+     * 从内部认证上下文读取当前商户号，作为所有交易查询和操作的数据边界。
+     *
+     * @return 已认证商户号
+     * @throws ServiceException 上下文不存在或未绑定商户时抛出
+     */
     private String currentMerchantId() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null || !StringUtils.hasText(account.getMerchantId())) {
@@ -164,6 +170,11 @@ public class MerchantTransactionOrderController {
         return account.getMerchantId();
     }
 
+    /**
+     * 解析写入交易操作审计记录的当前操作人名称。
+     *
+     * @return 优先使用真实姓名，其次登录账号；上下文缺失时返回受控占位值
+     */
     private String currentOperatorName() {
         InternalAuthAccount account = InternalAuthContextHolder.get();
         if (account == null) {

@@ -1,7 +1,7 @@
 package com.scott.payment.component.redis.dedup.impl;
 
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
-import com.scott.payment.component.redis.constant.RedisKeyConstants;
+import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.dedup.RedisDeduplicationService;
 import com.scott.payment.component.redis.support.RedisKeySupport;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -68,12 +68,19 @@ public class RedisDeduplicationServiceImpl implements RedisDeduplicationService 
     private final StringRedisTemplate stringRedisTemplate;
 
     /**
+     * 提供环境隔离 Key 构造能力；消息业务键在进入 Key 前必须先转换为 SHA-256 摘要。
+     */
+    private final PaymentRedisProperties redisProperties;
+
+    /**
      * 创建 Redis 去重服务实现。
      *
      * @param stringRedisTemplate Spring 字符串 Redis 模板
      */
-    public RedisDeduplicationServiceImpl(StringRedisTemplate stringRedisTemplate) {
+    public RedisDeduplicationServiceImpl(StringRedisTemplate stringRedisTemplate,
+                                         PaymentRedisProperties redisProperties) {
         this.stringRedisTemplate = stringRedisTemplate;
+        this.redisProperties = redisProperties;
     }
 
     /**
@@ -106,10 +113,7 @@ public class RedisDeduplicationServiceImpl implements RedisDeduplicationService 
     @Override
     public String nextUniqueArn(String merchantId, Duration ttl) {
         RedisKeySupport.requireKey(merchantId);
-        String setKey = RedisKeyConstants.DEDUPLICATION_PREFIX
-                + "arn" + RedisKeyConstants.SEPARATOR
-                + today() + RedisKeyConstants.SEPARATOR
-                + merchantId;
+        String setKey = redisProperties.key("dedup", "arn", today(), merchantId);
         for (int index = 0; index < MAX_RETRY_TIMES; index++) {
             String arn = PaymentOrderNoGenerator.nextOrderNo(ARN_PREFIX);
             if (!checkAndAdd(setKey, arn, ttl)) {
@@ -130,10 +134,7 @@ public class RedisDeduplicationServiceImpl implements RedisDeduplicationService 
     public String nextDailyFileId(String merchantId, Duration ttl) {
         RedisKeySupport.requireKey(merchantId);
         RedisKeySupport.requirePositiveTtl(ttl);
-        String counterKey = RedisKeyConstants.DEDUPLICATION_PREFIX
-                + "file" + RedisKeyConstants.SEPARATOR
-                + today() + RedisKeyConstants.SEPARATOR
-                + merchantId;
+        String counterKey = redisProperties.key("dedup", "file", today(), merchantId);
         Long fileId = stringRedisTemplate.opsForValue().increment(counterKey);
         if (fileId != null && fileId == MIN_FILE_ID) {
             stringRedisTemplate.expire(counterKey, ttl);

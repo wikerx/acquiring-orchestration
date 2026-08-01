@@ -2,7 +2,7 @@ package com.scott.payment.component.redis.hash.impl;
 
 import com.scott.payment.component.redis.hash.RedisHashService;
 import com.scott.payment.component.redis.support.RedisKeySupport;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -22,11 +22,11 @@ import java.util.stream.Collectors;
  * @classname : RedisHashServiceImpl
  * @date : 2026-05-31 21:52
  * @email : scott_x@163.com
- * @description : Redis Hash 数据结构服务实现
+ * @description : 提供受配置门禁控制的通用 Hash 能力；默认不注册，业务启用前必须登记 Key、TTL 和字段容量
  * @status : create
  */
 @Service
-@ConditionalOnBean(RedisTemplate.class)
+@ConditionalOnProperty(prefix = "payment.redis.generic", name = "hash-enabled", havingValue = "true")
 public class RedisHashServiceImpl implements RedisHashService {
 
     /**

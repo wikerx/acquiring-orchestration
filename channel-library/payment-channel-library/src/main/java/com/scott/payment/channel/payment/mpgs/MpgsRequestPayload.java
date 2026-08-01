@@ -245,6 +245,9 @@ public class MpgsRequestPayload {
         private ThreeDs2 threeDs2;
     }
 
+    /**
+     * MPGS 浏览器支付配置，承载 3DS challenge 完成后的受控回跳地址。
+     */
     @Data
     public static class BrowserPayment {
 
@@ -254,6 +257,9 @@ public class MpgsRequestPayload {
         private String returnUrl;
     }
 
+    /**
+     * MPGS 3DS 重定向内容，供平台收银台渲染 challenge，不允许写入普通业务日志。
+     */
     @Data
     public static class Redirect {
 
