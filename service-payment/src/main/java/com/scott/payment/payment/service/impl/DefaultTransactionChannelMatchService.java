@@ -133,25 +133,6 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
     /**
-     * 兼容旧测试和手工构造场景的构造器。
-     *
-     * @param transactionRecordService 交易事实记录服务
-     * @param paymentChannelInvokeService 渠道调用服务
-     * @param paymentChannelRouteService 渠道路由服务
-     * @param channelStatusResolver 渠道状态解析服务
-     */
-    public DefaultTransactionChannelMatchService(TransactionRecordService transactionRecordService,
-                                                PaymentChannelInvokeService paymentChannelInvokeService,
-                                                PaymentChannelRouteService paymentChannelRouteService,
-                                                ChannelTransactionStatusResolver channelStatusResolver) {
-        this(transactionRecordService,
-                paymentChannelInvokeService,
-                new DefaultTransactionChannelMatchResultTransactionService(transactionRecordService),
-                paymentChannelRouteService,
-                channelStatusResolver);
-    }
-
-    /**
      * 处理待渠道查询确认的交易动作。
      *
      * @param commandDTO 查询勾兑命令

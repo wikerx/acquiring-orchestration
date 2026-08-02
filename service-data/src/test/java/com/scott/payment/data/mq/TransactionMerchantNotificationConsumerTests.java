@@ -3,7 +3,6 @@ package com.scott.payment.data.mq;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
-import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -18,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : TransactionMerchantNotificationConsumerTests
  * @date : 2026-08-01 16:00
  * @email : scott_x@163.com
- * @description : service-data 商户通知事件消费测试，覆盖精确触发、有界补偿和畸形消息跳过
+ * @description : service-data 商户通知事件消费测试，覆盖终态精确触发、创建事件隔离和畸形消息跳过
  * @status : create
  */
 @Slf4j
@@ -41,20 +40,34 @@ class TransactionMerchantNotificationConsumerTests {
         log.info("商户通知事件精确触发测试完成，结果: 未执行补偿扫描");
     }
 
-    /** 单笔任务未命中时应按配置批量执行同分表补偿。 */
+    /** 终态事件精确任务未命中时不得顺带投递其他交易，补偿由独立 Job 负责。 */
     @Test
-    void shouldFallbackToBoundedDueScanWhenTaskIsNotReady() {
-        log.info("测试商户通知事件补偿扫描，关键输入: 单笔未命中、批量上限 20");
+    void shouldNotFallbackToOtherTransactionsWhenExactTaskIsNotReady() {
+        log.info("测试商户通知事件精确边界，关键输入: 终态事件单笔未命中");
         InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(false);
         TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
 
         consumer.onMessage(JsonUtils.toJsonString(message()));
 
-        assertThat(deliveryService.notifyDueCalled).isTrue();
-        assertThat(deliveryService.limit).isEqualTo(20);
-        assertThat(deliveryService.transactionDateTime)
-                .isEqualTo(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
-        log.info("商户通知事件补偿扫描测试完成，结果: 按配置执行有界扫描");
+        assertThat(deliveryService.notifyTransactionCalled).isTrue();
+        assertThat(deliveryService.notifyDueCalled).isFalse();
+        log.info("商户通知事件精确边界测试完成，结果: 未投递其他交易");
+    }
+
+    /** 创建事件早于渠道终态，不得触发尚未激活的商户通知。 */
+    @Test
+    void shouldIgnoreTransactionCreatedEvent() {
+        log.info("测试创建事件通知边界，关键输入: TRANSACTION_CREATED");
+        InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(false);
+        TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
+        PaymentTransactionEventMessage message = message();
+        message.setEventType(MqTag.TRANSACTION_CREATED);
+
+        consumer.onMessage(JsonUtils.toJsonString(message));
+
+        assertThat(deliveryService.notifyTransactionCalled).isFalse();
+        assertThat(deliveryService.notifyDueCalled).isFalse();
+        log.info("创建事件通知边界测试完成，结果: 未访问通知任务");
     }
 
     /** 畸形 JSON 不应访问数据库投递服务。 */
@@ -85,11 +98,9 @@ class TransactionMerchantNotificationConsumerTests {
         assertThat(deliveryService.notifyDueCalled).isFalse();
     }
 
-    /** 创建使用默认补偿批量的消费者。 */
+    /** 创建仅处理消息对应交易的消费者。 */
     private TransactionMerchantNotificationConsumer consumer(InMemoryDeliveryService deliveryService) {
-        return new TransactionMerchantNotificationConsumer(
-                deliveryService,
-                new DataMerchantNotificationProperties());
+        return new TransactionMerchantNotificationConsumer(deliveryService);
     }
 
     /** 构造共享支付事件契约。 */

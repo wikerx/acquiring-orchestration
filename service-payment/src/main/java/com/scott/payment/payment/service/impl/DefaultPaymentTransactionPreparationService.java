@@ -29,6 +29,7 @@ import com.scott.payment.payment.service.PaymentRiskInvokeService;
 import com.scott.payment.payment.service.PaymentTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentExchangeRateDTO;
@@ -179,6 +180,9 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
      */
     private final TransactionEventOutboxService transactionEventOutboxService;
 
+    /** 无渠道短路已进入终态时，与交易事实同事务写入状态变更 Outbox。 */
+    private final TransactionLifecycleEventService lifecycleEventService;
+
     /**
      * transaction Record Service 依赖，用于 Default Payment Transaction Preparation Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -218,6 +222,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         this.paymentExchangeRateService = paymentExchangeRateService;
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
+        this.lifecycleEventService = new DefaultTransactionLifecycleEventService(transactionEventOutboxService);
         this.transactionRecordService = transactionRecordService;
         this.riskReservationCompensation =
                 new PaymentRiskReservationCompensation(paymentRiskInvokeService);
@@ -405,10 +410,18 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
                 resultDTO,
                 riskDecisionEnum,
                 currencyExponent);
+        if (isTerminal(resultDTO) || callChannel) {
+            saveTransactionCreatedEvent(commandDTO, resultDTO);
+        }
         if (isTerminal(resultDTO)) {
-            saveTransactionCreatedEvent(commandDTO, resultDTO);
-        } else if (callChannel) {
-            saveTransactionCreatedEvent(commandDTO, resultDTO);
+            lifecycleEventService.saveStatusChanged(
+                    resultDTO.getTransactionId(),
+                    resultDTO.getOperationId(),
+                    commandDTO.getMerchantId(),
+                    commandDTO.getMerchantOrderNo(),
+                    resultDTO.getTransactionType(),
+                    resultDTO.getStatus(),
+                    commandDTO.getTransactionDateTime());
         }
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
         log.info("event: PAYMENT_LOCAL_PREPARE_END stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} platformStatus: {} riskDecision: {} callChannel: {} channelCode: {} channelMidId: {} durationMs: {}",

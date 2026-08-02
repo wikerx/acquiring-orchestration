@@ -885,8 +885,8 @@ public interface RiskRuntimeMapper {
               AND transaction_status IN ('SUCCESS', 'PROCESSING', 'PENDING')
               AND transaction_date_time >= #{beginTime}
               AND transaction_date_time < #{endTime}
-              AND COALESCE(root_transaction_id, '') &lt;&gt; #{excludeTransactionId}
-              AND COALESCE(latest_transaction_id, '') &lt;&gt; #{excludeTransactionId}
+              AND COALESCE(root_transaction_id, '') <> #{excludeTransactionId}
+              AND COALESCE(latest_transaction_id, '') <> #{excludeTransactionId}
             """)
     BigDecimal sumRiskApprovedTransactionAmount(@Param("merchantId") String merchantId,
                                                 @Param("currency") String currency,

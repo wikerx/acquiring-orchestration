@@ -59,10 +59,6 @@ public class DataMerchantNotificationConfig {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "merchant notification processing timeout must exceed HTTP timeout");
         }
-        if (properties.getEventFallbackBatchLimit() <= 0) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
-                    "merchant notification event fallback batch limit must be greater than zero");
-        }
         if (properties.getRecoveryBatchLimit() <= 0 || properties.getRecoveryBatchLimit() > 500) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "merchant notification recovery batch limit must be between 1 and 500");

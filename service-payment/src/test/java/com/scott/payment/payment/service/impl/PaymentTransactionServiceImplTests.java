@@ -46,6 +46,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -809,6 +810,12 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getFailReasonCode()).isEqualTo(PaymentFailureReasonEnum.RISK_REJECTED.getCode());
         assertThat(eventOutboxService.eventDO).isNotNull();
         assertThat(eventOutboxService.eventDO.getTransactionId()).isEqualTo(resultDTO.getTransactionId());
+        assertThat(eventOutboxService.events)
+                .extracting(TransactionEventOutboxDO::getEventType)
+                .containsExactly("TRANSACTION_CREATED", "TRANSACTION_STATUS_CHANGED");
+        assertThat(eventOutboxService.events)
+                .extracting(TransactionEventOutboxDO::getTransactionDateTime)
+                .containsOnly(commandDTO.getTransactionDateTime());
     }
 
     /**
@@ -1811,6 +1818,9 @@ class PaymentTransactionServiceImplTests {
 
     private static class CapturingTransactionEventOutboxService implements TransactionEventOutboxService {
 
+        /** 按事务写入顺序捕获全部事件，验证创建事件和终态事件的先后关系。 */
+        private final List<TransactionEventOutboxDO> events = new ArrayList<>();
+
         /**
          * event DO，用于保存 Capturing Transaction Event Outbox Service 中与 eventdo 相关的业务属性。
          * <p>
@@ -1826,7 +1836,10 @@ class PaymentTransactionServiceImplTests {
          */
         @Override
         public void save(TransactionEventOutboxDO eventDO) {
-            this.eventDO = eventDO;
+            if (this.eventDO == null) {
+                this.eventDO = eventDO;
+            }
+            this.events.add(eventDO);
         }
 
         /**
@@ -1834,7 +1847,7 @@ class PaymentTransactionServiceImplTests {
          */
         @Override
         public List<TransactionEventOutboxDO> listDueEvents(LocalDateTime eventTime, LocalDateTime now, int limit) {
-            return eventDO == null ? List.of() : List.of(eventDO);
+            return List.copyOf(events);
         }
 
         /**

@@ -12,7 +12,6 @@ import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,21 +44,11 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
     private final TransactionLifecycleEventService lifecycleEventService;
 
     /**
-     * 创建渠道同步结果事务默认实现。
-     *
-     * @param transactionRecordService 交易事实记录服务
-     */
-    public DefaultPaymentChannelResultTransactionService(TransactionRecordService transactionRecordService) {
-        this(transactionRecordService, null);
-    }
-
-    /**
      * 创建带终态 Outbox 能力的渠道同步结果事务服务。
      *
      * @param transactionRecordService 交易事实记录服务
      * @param lifecycleEventService    交易状态变更 Outbox 服务
      */
-    @Autowired
     public DefaultPaymentChannelResultTransactionService(
             TransactionRecordService transactionRecordService,
             TransactionLifecycleEventService lifecycleEventService) {
@@ -92,7 +81,7 @@ public class DefaultPaymentChannelResultTransactionService implements PaymentCha
                 resultDTO,
                 riskDecisionEnum,
                 currencyExponent);
-        if (statusChanged && lifecycleEventService != null
+        if (statusChanged
                 && (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())
                 || PaymentTransactionStatusEnum.FAILED.getCode().equals(resultDTO.getStatus()))) {
             lifecycleEventService.saveStatusChanged(

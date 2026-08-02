@@ -1,6 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
+import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
@@ -16,7 +17,13 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 /**
- * 在交易状态事务内写入终态变更 Outbox。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : DefaultTransactionLifecycleEventService
+ * @date : 2026-08-02 20:00
+ * @email : scott_x@163.com
+ * @description : 交易终态生命周期事件实现，在状态 CAS 和通知激活事务内持久化携带真实分片时间的状态变更 Outbox
+ * @status : create
  */
 @Service
 public class DefaultTransactionLifecycleEventService implements TransactionLifecycleEventService {
@@ -84,6 +91,7 @@ public class DefaultTransactionLifecycleEventService implements TransactionLifec
         message.setTransactionStatus(transactionStatus);
         message.setEventType(TransactionMqConstants.TRANSACTION_STATUS_CHANGED_TAG);
         message.setTransactionDateTime(transactionDateTime);
+        message.setTraceId(TraceContext.getOrCreateTraceId());
 
         TransactionEventOutboxDO eventDO = new TransactionEventOutboxDO();
         eventDO.setEventNo(eventNo);

@@ -16,8 +16,8 @@ import java.util.zip.ZipOutputStream;
  * @classname : OpenApiKeyExportService
  * @date : 2026-06-25 19:11
  * @email : scott_x@163.com
- * @description : Open API Key Export Service 服务契约，位于 公共组件库，声明当前业务能力的输入、返回结果和异常边界，由实现类保持一致。
- * @status : create
+ * @description : 生成商户 OpenAPI 的配置、密钥文件和完整接入包；私钥只进入受控下载内容，不写日志或平台请求私钥。
+ * @status : update
  */
 public class OpenApiKeyExportService {
 
@@ -182,12 +182,12 @@ public class OpenApiKeyExportService {
      */
     public String merchantConfig(OpenApiKeyExportContext context) {
         return ""
-                + "# OpenAPI SDK 配置文件路径版。推荐与 keys/ 目录一起放入 classpath。\n"
+                + "# OpenAPI SDK 配置文件路径版。请与 keys/ 目录一起放在受限的外部配置目录。\n"
                 + "merchant.id=" + context.merchantId() + "\n"
                 + "merchant.jwt.secret=" + context.merchantJwtSecret() + "\n"
                 + "merchant.openapi.base-url=" + openApiBaseUrl() + "\n"
-                + "merchant.platform.public-key-file=classpath:keys/platform-public-key.pem\n"
-                + "merchant.response.private-key-file=classpath:keys/merchant-response-private-key.pem\n";
+                + "merchant.platform.public-key-file=keys/platform-public-key.pem\n"
+                + "merchant.response.private-key-file=keys/merchant-response-private-key.pem\n";
     }
 
     /**
@@ -289,11 +289,12 @@ public class OpenApiKeyExportService {
      */
     private String readme() {
         return ""
-                + "1. 推荐将 merchant-config.properties 放到商户服务端 classpath 根目录。\n"
-                + "2. 推荐将 keys/ 目录放到 classpath 下。\n"
-                + "3. 生产环境也可以使用 file:/ 开头的外部文件路径。\n"
-                + "4. merchant-response-private-key.pem 是商户响应私钥，请勿提交 Git、请勿上传前端、请勿打印日志。\n"
-                + "5. 如密钥泄露，请立即在管理系统或商户系统中轮换密钥。\n";
+                + "1. 将 merchant-config.properties 与 keys/ 保持当前相对目录结构，SDK 会从配置文件所在目录解析密钥。\n"
+                + "2. 接入材料必须保存在商户服务端受限的外部配置目录，不得打入应用 JAR 或容器镜像应用层。\n"
+                + "3. 生产环境也可以将相对路径改为 file:/ 开头的受限外部文件路径。\n"
+                + "4. 如平台为商户启用了来源网址限定，请在配置中增加 merchant.source-origin=<已登记来源>。\n"
+                + "5. merchant-response-private-key.pem 是商户响应私钥，请勿提交 Git、请勿上传前端、请勿打印日志。\n"
+                + "6. 如密钥泄露，请立即在管理系统或商户系统中轮换密钥。\n";
     }
 
     /**

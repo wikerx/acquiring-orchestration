@@ -32,6 +32,7 @@ import com.scott.payment.payment.service.IncrementalAuthorizationChannelResultTr
 import com.scott.payment.payment.service.IncrementalAuthorizationTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
+import com.scott.payment.payment.service.TransactionLifecycleEventService;
 import com.scott.payment.payment.service.PaymentChannelResultTransactionService;
 import com.scott.payment.payment.service.PaymentChannelInvokeService;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
@@ -440,6 +441,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
         this.transactionRecordService = transactionRecordService;
+        TransactionLifecycleEventService lifecycleEventService =
+                new DefaultTransactionLifecycleEventService(transactionEventOutboxService);
         this.paymentTransactionPreparationService = paymentTransactionPreparationService == null
                 ? new DefaultPaymentTransactionPreparationService(
                 isoDictionaryService,
@@ -451,7 +454,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 transactionRecordService)
                 : paymentTransactionPreparationService;
         this.paymentChannelResultTransactionService = paymentChannelResultTransactionService == null
-                ? new DefaultPaymentChannelResultTransactionService(transactionRecordService)
+                ? new DefaultPaymentChannelResultTransactionService(
+                        transactionRecordService, lifecycleEventService)
                 : paymentChannelResultTransactionService;
         this.captureTransactionPreparationService = captureTransactionPreparationService == null
                 ? new DefaultCaptureTransactionPreparationService(
@@ -463,7 +467,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 transactionStateMachineService)
                 : captureTransactionPreparationService;
         this.captureChannelResultTransactionService = captureChannelResultTransactionService == null
-                ? new DefaultCaptureChannelResultTransactionService(transactionRecordService)
+                ? new DefaultCaptureChannelResultTransactionService(
+                        transactionRecordService, lifecycleEventService)
                 : captureChannelResultTransactionService;
         this.refundTransactionPreparationService = refundTransactionPreparationService == null
                 ? new DefaultRefundTransactionPreparationService(
@@ -475,7 +480,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 transactionStateMachineService)
                 : refundTransactionPreparationService;
         this.refundChannelResultTransactionService = refundChannelResultTransactionService == null
-                ? new DefaultRefundChannelResultTransactionService(transactionRecordService)
+                ? new DefaultRefundChannelResultTransactionService(
+                        transactionRecordService, lifecycleEventService)
                 : refundChannelResultTransactionService;
         this.voidTransactionPreparationService = voidTransactionPreparationService == null
                 ? new DefaultVoidTransactionPreparationService(
@@ -487,7 +493,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 transactionStateMachineService)
                 : voidTransactionPreparationService;
         this.voidChannelResultTransactionService = voidChannelResultTransactionService == null
-                ? new DefaultVoidChannelResultTransactionService(transactionRecordService)
+                ? new DefaultVoidChannelResultTransactionService(
+                        transactionRecordService, lifecycleEventService)
                 : voidChannelResultTransactionService;
         this.incrementalAuthorizationTransactionPreparationService = incrementalAuthorizationTransactionPreparationService == null
                 ? new DefaultIncrementalAuthorizationTransactionPreparationService(
@@ -499,7 +506,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 transactionStateMachineService)
                 : incrementalAuthorizationTransactionPreparationService;
         this.incrementalAuthorizationChannelResultTransactionService = incrementalAuthorizationChannelResultTransactionService == null
-                ? new DefaultIncrementalAuthorizationChannelResultTransactionService(transactionRecordService)
+                ? new DefaultIncrementalAuthorizationChannelResultTransactionService(
+                        transactionRecordService, lifecycleEventService)
                 : incrementalAuthorizationChannelResultTransactionService;
         this.transactionStateMachineService = transactionStateMachineService;
         this.channelStatusResolver = channelStatusResolver == null

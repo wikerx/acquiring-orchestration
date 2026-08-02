@@ -42,7 +42,9 @@ class RiskRuntimeMapperShardingContractTests {
                 .contains("transaction_currency = #{currency}")
                 .contains("transaction_date_time >= #{beginTime}")
                 .contains("transaction_date_time < #{endTime}")
-                .doesNotContain("${", "UNION ALL");
+                .contains("COALESCE(root_transaction_id, '') <> #{excludeTransactionId}")
+                .contains("COALESCE(latest_transaction_id, '') <> #{excludeTransactionId}")
+                .doesNotContain("${", "UNION ALL", "&lt;&gt;");
     }
 
     @Test

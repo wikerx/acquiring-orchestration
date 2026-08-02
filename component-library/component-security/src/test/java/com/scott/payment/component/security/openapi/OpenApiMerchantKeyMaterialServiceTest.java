@@ -196,6 +196,26 @@ class OpenApiMerchantKeyMaterialServiceTest {
     }
 
     /**
+     * 路径版配置随完整接入包外置加载时，密钥路径必须相对配置文件目录解析，不能依赖应用 classpath。
+     */
+    @Test
+    void shouldExportKeyPathsRelativeToExternalConfigDirectory() {
+        OpenApiKeyExportService exportService = new OpenApiKeyExportService(
+                () -> "https://gateway.local.test");
+        OpenApiKeyExportService.OpenApiKeyExportContext context =
+                new OpenApiKeyExportService.OpenApiKeyExportContext(
+                        MERCHANT_ID, "test-jwt-secret", "HS256", 1800L,
+                        "test-platform-public-key", "test-response-private-key");
+
+        String config = exportService.merchantConfig(context);
+
+        assertThat(config)
+                .contains("merchant.platform.public-key-file=keys/platform-public-key.pem\n")
+                .contains("merchant.response.private-key-file=keys/merchant-response-private-key.pem\n")
+                .doesNotContain("classpath:keys/");
+    }
+
+    /**
      * 完整接入配置必须包含商户响应私钥；历史私钥缺失时不能生成不完整包。
      */
     @Test

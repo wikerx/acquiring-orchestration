@@ -5,7 +5,6 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
-import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.MessageModel;
@@ -21,7 +20,7 @@ import org.springframework.util.StringUtils;
  * @classname : TransactionMerchantNotificationConsumer
  * @date : 2026-08-01 16:00
  * @email : scott_x@163.com
- * @description : service-data 交易终态事件消费者，按交易分表精确触发商户通知并在单笔未命中时执行有界补偿扫描
+ * @description : service-data 交易终态事件消费者，只按消息携带的真实交易时间和交易号精确触发对应商户通知
  * @status : create
  */
 @Slf4j
@@ -30,8 +29,7 @@ import org.springframework.util.StringUtils;
 @RocketMQMessageListener(
         topic = MqTopic.PAYMENT_EVENT,
         consumerGroup = DataMqConsumerGroups.MERCHANT_NOTIFICATION,
-        selectorExpression = MqTag.TRANSACTION_CREATED
-                + " || " + MqTag.TRANSACTION_CALLBACK_PROCESSED
+        selectorExpression = MqTag.TRANSACTION_CALLBACK_PROCESSED
                 + " || " + MqTag.TRANSACTION_STATUS_CHANGED,
         messageModel = MessageModel.CLUSTERING
 )
@@ -40,19 +38,13 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
     /** 商户通知投递服务，数据库版本 CAS 提供最终重复消费保护。 */
     private final MerchantNotificationDeliveryService deliveryService;
 
-    /** 事件未命中单笔任务时的有界补偿批量配置。 */
-    private final DataMerchantNotificationProperties properties;
-
     /**
      * 创建交易终态商户通知消费者。
      *
      * @param deliveryService 商户通知投递服务
-     * @param properties 商户通知执行参数
      */
-    public TransactionMerchantNotificationConsumer(MerchantNotificationDeliveryService deliveryService,
-                                                   DataMerchantNotificationProperties properties) {
+    public TransactionMerchantNotificationConsumer(MerchantNotificationDeliveryService deliveryService) {
         this.deliveryService = deliveryService;
-        this.properties = properties;
     }
 
     /**
@@ -69,7 +61,8 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         PaymentTransactionEventMessage message = parseMessage(payload);
         if (message == null
                 || message.getTransactionDateTime() == null
-                || !StringUtils.hasText(message.getTransactionId())) {
+                || !StringUtils.hasText(message.getTransactionId())
+                || !isTerminalEvent(message.getEventType())) {
             log.warn("event: DATA_PAYMENT_EVENT_SKIPPED traceId: {} reason=messageInvalid payloadLength: {} durationMs: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length(), elapsedMillis(startNanos));
             return;
@@ -78,10 +71,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         try {
             boolean notified = deliveryService.notifyTransaction(
                     message.getTransactionDateTime(), message.getTransactionId());
-            int successCount = notified
-                    ? 1
-                    : deliveryService.notifyDue(
-                            message.getTransactionDateTime(), properties.getEventFallbackBatchLimit());
+            int successCount = notified ? 1 : 0;
             log.info("event: DATA_PAYMENT_EVENT_CONSUMED traceId: {} messageId: {} retryCount: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} transactionType: {} eventType: {} notifyId: {} successCount: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     message.getMessageId(),
@@ -98,6 +88,17 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         } finally {
             TraceContext.clear();
         }
+    }
+
+    /**
+     * 只接受已经在 Payment 终态事务内写入的事件，创建事件不能驱动商户通知。
+     *
+     * @param eventType MQ Tag 对应的事件类型
+     * @return true 表示通知任务在事件提交前已经完成激活
+     */
+    private boolean isTerminalEvent(String eventType) {
+        return MqTag.TRANSACTION_CALLBACK_PROCESSED.equals(eventType)
+                || MqTag.TRANSACTION_STATUS_CHANGED.equals(eventType);
     }
 
     /**

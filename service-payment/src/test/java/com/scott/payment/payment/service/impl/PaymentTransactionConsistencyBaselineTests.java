@@ -282,9 +282,14 @@ class PaymentTransactionConsistencyBaselineTests {
         RecoverableTransactionRecordService recordService = new RecoverableTransactionRecordService(PaymentTransactionStatusEnum.SUCCESS.getCode());
         CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
         QueryOnlyPaymentChannelInvokeService channelService = new QueryOnlyPaymentChannelInvokeService(ChannelTradeStatus.SUCCESS);
+        DefaultTransactionChannelMatchResultTransactionService resultTransactionService =
+                new DefaultTransactionChannelMatchResultTransactionService(
+                        recordService,
+                        new DefaultTransactionLifecycleEventService(outboxService));
         TransactionChannelMatchService matchService = new DefaultTransactionChannelMatchService(
                 recordService,
                 channelService,
+                resultTransactionService,
                 restoreRouteService(),
                 new DefaultChannelTransactionStatusResolver());
 
@@ -314,10 +319,16 @@ class PaymentTransactionConsistencyBaselineTests {
     @Test
     void shouldRecoverTimeoutPaymentAsFailedByQueryingOriginalChannelRequest() {
         RecoverableTransactionRecordService recordService = new RecoverableTransactionRecordService(PaymentTransactionStatusEnum.FAILED.getCode());
+        CapturingTransactionEventOutboxService outboxService = new CapturingTransactionEventOutboxService();
         QueryOnlyPaymentChannelInvokeService channelService = new QueryOnlyPaymentChannelInvokeService(ChannelTradeStatus.FAILED);
+        DefaultTransactionChannelMatchResultTransactionService resultTransactionService =
+                new DefaultTransactionChannelMatchResultTransactionService(
+                        recordService,
+                        new DefaultTransactionLifecycleEventService(outboxService));
         TransactionChannelMatchService matchService = new DefaultTransactionChannelMatchService(
                 recordService,
                 channelService,
+                resultTransactionService,
                 restoreRouteService(),
                 new DefaultChannelTransactionStatusResolver());
 
