@@ -27,4 +27,7 @@ public class DataMerchantNotificationProperties {
 
     /** PROCESSING 任务无状态推进后的恢复阈值，单位秒，必须大于 HTTP 读取超时。 */
     private long processingTimeoutSeconds = 60L;
+
+    /** 单季度每次扫描允许尝试恢复的最大 PROCESSING 候选数。 */
+    private int recoveryBatchLimit = 100;
 }

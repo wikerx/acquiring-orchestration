@@ -1,9 +1,5 @@
 package com.scott.payment.payment.service.impl;
 
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.TransactionShardingMode;
-import com.scott.payment.component.db.sharding.TransactionShardingProperties;
-import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mapper.TransactionEventOutboxMapper;
 import org.junit.jupiter.api.Test;
@@ -13,7 +9,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,22 +26,19 @@ class DefaultTransactionEventOutboxServiceTests {
     @Test
     void shardingModeShouldInsertOnlyThroughLogicalMapper() {
         TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
-        ShardingDataTemplate legacyTemplate = mock(ShardingDataTemplate.class);
-        DefaultTransactionEventOutboxService service = service(mapper, legacyTemplate);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
         TransactionEventOutboxDO eventDO = event(LocalDateTime.of(2026, 8, 2, 2, 40));
         when(mapper.insertLogical(eventDO)).thenReturn(1);
 
         service.save(eventDO);
 
         verify(mapper).insertLogical(eventDO);
-        verify(legacyTemplate, never()).insert(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     void shardingModeShouldScanOnlyTheEventQuarter() {
         TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
-        ShardingDataTemplate legacyTemplate = mock(ShardingDataTemplate.class);
-        DefaultTransactionEventOutboxService service = service(mapper, legacyTemplate);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
         LocalDateTime eventTime = LocalDateTime.of(2026, 9, 30, 23, 59, 59);
         LocalDateTime now = LocalDateTime.of(2026, 10, 2, 10, 0);
         List<TransactionEventOutboxDO> expected = List.of(event(eventTime));
@@ -62,7 +54,7 @@ class DefaultTransactionEventOutboxServiceTests {
     @Test
     void shardingModeShouldUseTransactionTimeAndVersionForStatusCas() {
         TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
-        DefaultTransactionEventOutboxService service = service(mapper, mock(ShardingDataTemplate.class));
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
         LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 2, 2, 40);
         LocalDateTime sentTime = transactionTime.plusMinutes(1);
         LocalDateTime retryTime = transactionTime.plusMinutes(5);
@@ -74,15 +66,6 @@ class DefaultTransactionEventOutboxServiceTests {
 
         assertThat(service.markSent(eventDO, sentTime)).isTrue();
         assertThat(service.markFailed(eventDO, retryTime, "timeout", sentTime)).isTrue();
-    }
-
-    private DefaultTransactionEventOutboxService service(TransactionEventOutboxMapper mapper,
-                                                         ShardingDataTemplate legacyTemplate) {
-        TransactionShardingProperties properties = new TransactionShardingProperties();
-        properties.setMode(TransactionShardingMode.SHARDINGSPHERE);
-        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
-        runtimeState.activate(properties);
-        return new DefaultTransactionEventOutboxService(mapper, legacyTemplate, runtimeState);
     }
 
     private TransactionEventOutboxDO event(LocalDateTime transactionTime) {

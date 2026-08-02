@@ -2,7 +2,7 @@ package com.scott.payment.job.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementRange;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalculator;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
@@ -57,7 +57,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
-    private final PaymentQuarterShardingProperties shardingProperties;
+    private final TransactionShardingGovernanceProperties shardingProperties;
 
     /** 当前已发布交易逻辑规则，用于生成仅增加已验证季度的候选版本。 */
     private final TransactionShardingProperties transactionShardingProperties;
@@ -174,11 +174,11 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
                 : context.getRunId();
         try {
             validateGovernanceConfiguration(safeRequest);
-            List<Map.Entry<String, PaymentQuarterShardingProperties.TableRule>> rules = enabledRules(safeRequest);
+            List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules = enabledRules(safeRequest);
             List<ShardingQuarter> targetQuarters = targetQuarters(safeRequest);
             result.setTargetQuarters(targetQuarters.stream().map(ShardingQuarter::displayName).toList());
             addExpiryWarnings(result, rules);
-            for (Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry : rules) {
+            for (Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry : rules) {
                 processRule(entry.getValue(), targetQuarters, safeRequest, result);
             }
             completeRuleCandidate(result, rules, targetQuarters);
@@ -210,7 +210,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
             throw new IllegalStateException("transaction governance rules must contain exactly 23 formal tables");
         }
         Set<String> configuredTables = new LinkedHashSet<>();
-        for (PaymentQuarterShardingProperties.TableRule rule : shardingProperties.getTables().values()) {
+        for (TransactionShardingGovernanceProperties.TableRule rule : shardingProperties.getTables().values()) {
             if (rule == null || !Boolean.TRUE.equals(rule.getEnabled()) || !StringUtils.hasText(rule.getLogicalTable())) {
                 throw new IllegalStateException("all transaction governance table rules must be enabled and named");
             }
@@ -259,7 +259,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
      * @param request 任务请求
      * @return 保持配置顺序的启用规则列表
      */
-    private List<Map.Entry<String, PaymentQuarterShardingProperties.TableRule>> enabledRules(ShardingTablePreCreateRequest request) {
+    private List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> enabledRules(ShardingTablePreCreateRequest request) {
         Set<String> logicalTables = new LinkedHashSet<>(request.getLogicalTables() == null ? List.of() : request.getLogicalTables());
         return shardingProperties.getTables().entrySet().stream()
                 .filter(entry -> Boolean.TRUE.equals(entry.getValue().getEnabled()))
@@ -303,7 +303,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
  * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
  * @param result 下游响应、HTTP 响应或本地处理结果，日志输出前必须完成脱敏或摘要化
  */
-    private void processRule(PaymentQuarterShardingProperties.TableRule rule,
+    private void processRule(TransactionShardingGovernanceProperties.TableRule rule,
                              List<ShardingQuarter> targetQuarters,
                              ShardingTablePreCreateRequest request,
                              ShardingTablePreCreateResult result) {
@@ -330,7 +330,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
  * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
  * @return 方法执行后的业务结果、更新行数、转换对象或空结果
  */
-    private ShardingTablePreCreateTableResult processTable(PaymentQuarterShardingProperties.TableRule rule,
+    private ShardingTablePreCreateTableResult processTable(TransactionShardingGovernanceProperties.TableRule rule,
                                                            ShardingQuarter quarter,
                                                            ShardingTablePreCreateRequest request) {
         ShardingTablePreCreateTableResult tableResult = new ShardingTablePreCreateTableResult();
@@ -409,14 +409,13 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
     /** 在规则结束前按滚动季度窗口发出续期告警，不恢复历史查询跨度限制。 */
     private void addExpiryWarnings(
             ShardingTablePreCreateResult result,
-            List<Map.Entry<String, PaymentQuarterShardingProperties.TableRule>> rules) {
-        int warningQuarters = shardingProperties instanceof TransactionShardingGovernanceProperties governance
-                ? Math.max(governance.getExpiryWarningQuarters(), 1) : 4;
+            List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules) {
+        int warningQuarters = Math.max(shardingProperties.getExpiryWarningQuarters(), 1);
         ShardingQuarter warningBoundary = quarterResolver.currentQuarter(shardingProperties);
         for (int i = 0; i < warningQuarters; i++) {
             warningBoundary = warningBoundary.next();
         }
-        for (Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry : rules) {
+        for (Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry : rules) {
             if (quarterResolver.endQuarter(entry.getValue()).compareTo(warningBoundary) <= 0) {
                 result.getWarnings().add("governance range renewal required for " + entry.getValue().getLogicalTable());
             }
@@ -428,7 +427,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
      */
     private void completeRuleCandidate(
             ShardingTablePreCreateResult result,
-            List<Map.Entry<String, PaymentQuarterShardingProperties.TableRule>> rules,
+            List<Map.Entry<String, TransactionShardingGovernanceProperties.TableRule>> rules,
             List<ShardingQuarter> targetQuarters) {
         Set<String> expectedTables = new LinkedHashSet<>(transactionShardingProperties.getLogicTables());
         Set<String> selectedTables = new LinkedHashSet<>();
@@ -538,7 +537,7 @@ public class ShardingTablePreCreateServiceImpl implements ShardingTablePreCreate
  * @param existedBefore existed Before 输入值，参与 existedbefore 的查询、校验、转换、写入或日志摘要
  * @param errorMessage error Message 输入值，参与 错误说明 的查询、校验、转换、写入或日志摘要
  */
-    private void savePhysicalTable(PaymentQuarterShardingProperties.TableRule rule,
+    private void savePhysicalTable(TransactionShardingGovernanceProperties.TableRule rule,
                                    ShardingQuarter quarter,
                                    ShardingTablePreCreateTableResult tableResult,
                                    boolean existedBefore,

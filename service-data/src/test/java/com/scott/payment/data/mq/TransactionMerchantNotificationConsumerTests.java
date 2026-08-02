@@ -36,6 +36,8 @@ class TransactionMerchantNotificationConsumerTests {
         assertThat(deliveryService.notifyTransactionCalled).isTrue();
         assertThat(deliveryService.notifyDueCalled).isFalse();
         assertThat(deliveryService.transactionId).isEqualTo("TX202608011600000000001");
+        assertThat(deliveryService.transactionDateTime)
+                .isEqualTo(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
         log.info("商户通知事件精确触发测试完成，结果: 未执行补偿扫描");
     }
 
@@ -50,6 +52,8 @@ class TransactionMerchantNotificationConsumerTests {
 
         assertThat(deliveryService.notifyDueCalled).isTrue();
         assertThat(deliveryService.limit).isEqualTo(20);
+        assertThat(deliveryService.transactionDateTime)
+                .isEqualTo(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
         log.info("商户通知事件补偿扫描测试完成，结果: 按配置执行有界扫描");
     }
 
@@ -67,6 +71,20 @@ class TransactionMerchantNotificationConsumerTests {
         log.info("商户通知畸形消息测试完成，结果: 未访问通知数据库");
     }
 
+    /** 第一版事件缺少真实分片时间时必须拒绝消费，不允许解析交易号或全分片检索。 */
+    @Test
+    void shouldSkipMessageWithoutTransactionDateTime() {
+        InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(false);
+        TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
+        PaymentTransactionEventMessage message = message();
+        message.setTransactionDateTime(null);
+
+        consumer.onMessage(JsonUtils.toJsonString(message));
+
+        assertThat(deliveryService.notifyTransactionCalled).isFalse();
+        assertThat(deliveryService.notifyDueCalled).isFalse();
+    }
+
     /** 创建使用默认补偿批量的消费者。 */
     private TransactionMerchantNotificationConsumer consumer(InMemoryDeliveryService deliveryService) {
         return new TransactionMerchantNotificationConsumer(
@@ -80,7 +98,7 @@ class TransactionMerchantNotificationConsumerTests {
         message.setMessageId("MSG202608011600000000001");
         message.setTransactionId("TX202608011600000000001");
         message.setEventType(MqTag.TRANSACTION_STATUS_CHANGED);
-        message.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 16, 0));
+        message.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
         return message;
     }
 
@@ -99,6 +117,9 @@ class TransactionMerchantNotificationConsumerTests {
         /** 消费者传入的平台交易 ID。 */
         private String transactionId;
 
+        /** 消费者传入的真实交易分片时间。 */
+        private LocalDateTime transactionDateTime;
+
         /** 消费者传入的补偿批量。 */
         private int limit;
 
@@ -110,6 +131,7 @@ class TransactionMerchantNotificationConsumerTests {
         @Override
         public int notifyDue(LocalDateTime transactionDateTime, int limit) {
             this.notifyDueCalled = true;
+            this.transactionDateTime = transactionDateTime;
             this.limit = limit;
             return 1;
         }
@@ -118,6 +140,7 @@ class TransactionMerchantNotificationConsumerTests {
         @Override
         public boolean notifyTransaction(LocalDateTime transactionDateTime, String transactionId) {
             this.notifyTransactionCalled = true;
+            this.transactionDateTime = transactionDateTime;
             this.transactionId = transactionId;
             return transactionResult;
         }

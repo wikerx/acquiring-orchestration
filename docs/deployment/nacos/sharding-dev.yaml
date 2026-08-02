@@ -1,11 +1,62 @@
-global-payment:
-  sharding:
+# ShardingSphere-JDBC 交易逻辑路由与物理表治理的 dev 非秘密发布草案。
+# 未经确认不得发布 Nacos；actualDataNodes 只包含已建表且通过治理校验的季度。
+transaction-sharding:
+  rule-version: "2026.08.02-001"
+  rule-checksum: "sha256:99bc03ee0b2db6dd27a69eda71b469ca822f2f27d91e2d8d12100c220da74791"
+  database-zone-id: Asia/Shanghai
+  sharding-column: transaction_date_time
+  primary-data-source: master
+  replica-data-sources:
+    - slave_1
+    - slave_2
+  physical-nodes:
+    - "202603"
+    - "202604"
+  logic-tables:
+    - transaction_order
+    - transaction_operation
+    - transaction_merchant_snapshot
+    - transaction_payment_method_info
+    - transaction_payer_info
+    - transaction_billing_info
+    - transaction_additional_info
+    - transaction_authentication_info
+    - transaction_product_item
+    - transaction_channel_request
+    - transaction_channel_interaction_log
+    - transaction_channel_callback
+    - transaction_channel_callback_log
+    - transaction_flow_event
+    - transaction_status_history
+    - transaction_amount_change_log
+    - transaction_finance_state
+    - transaction_currency_conversion
+    - transaction_merchant_notification
+    - transaction_merchant_notification_log
+    - transaction_merchant_api_interaction_log
+    - transaction_event_outbox
+    - transaction_abnormal_event
+  direct-access-services:
+    - service-payment
+    - service-admin
+    - service-merchant
+    - service-risk
+    - service-data
+  query-budget:
+    synchronous-timeout-millis: 5000
+    max-result-rows: 1000
+    max-concurrent-exports-per-user: 1
+
+  # 下列配置只供 Job/Admin 的模板、DDL、schema 和号段治理直连链路使用。
+  governance:
     # 分表策略。quarter 表示按 transaction_date_time 所在季度分表。
     strategy: quarter
     # 数据库统一时区。所有交易时间字段按 UTC+8 写入和路由，避免跨时区导致季度判断不一致。
     database-timezone: Asia/Shanghai
     # 全局默认分表字段。参与分表的表必须在写入和查询时传入该字段。
     sharding-column: transaction_date_time
+    # 在滚动治理范围结束前四个季度告警，避免再次依赖静态长期截止年份。
+    expiry-warning-quarters: 4
 
     table-maintenance:
       # 是否启用分表物理表治理能力。关闭后只保留规则展示，不执行预建表。
@@ -57,7 +108,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -82,7 +133,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -107,7 +158,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -132,7 +183,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -157,7 +208,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -182,7 +233,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -207,7 +258,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -232,7 +283,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -257,7 +308,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -282,7 +333,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -307,7 +358,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -332,7 +383,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -357,7 +408,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -382,7 +433,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -407,7 +458,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -432,7 +483,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -457,7 +508,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -482,7 +533,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -507,7 +558,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -532,7 +583,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -557,7 +608,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -582,7 +633,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。
@@ -607,7 +658,7 @@ global-payment:
         # 参数说明：配置分片表预生成范围的起始季度，有效值为 1-4。
         start-quarter: 3
         # 参数说明：配置分片表预生成范围的结束年份，必须覆盖业务数据保留周期。
-        end-year: 2035
+        end-year: 2027
         # 参数说明：配置分片表预生成范围的结束季度，有效值为 1-4。
         end-quarter: 4
         # 参数说明：配置季度物理表名格式，参数依次为逻辑表名、年份和季度。

@@ -97,7 +97,9 @@ Redis、RocketMQ、数据库、分表、Seata、XXL-JOB 等基础设施配置统
 当前工程已预留单元测试入口：
 
 ```text
-component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithmTest.java
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/QuarterTableShardingAlgorithmTest.java
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/TransactionShardingDataSourceConfigurationTest.java
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/TransactionShardingRuleChecksumTest.java
 service-openapi/src/test/java/com/scott/payment/openapi/OpenApiApplicationTests.java
 ```
 

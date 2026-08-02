@@ -38,7 +38,7 @@ Nacos yaml 的职责边界：
 - `service-risk-{env}.yaml`：只放风控服务内部鉴权、健康检查白名单和服务专属规则参数；Redis 与 MQ 连接参数分别复用公共 DataId。
 - `service-data-{env}.yaml`：只放异步数据消费和商户通知执行参数；操作日志、风控审计和商户通知消费者均由该服务独占。
 - `dataSource-{env}.yaml`：主从数据源、连接池、MyBatis-Plus。
-- `sharding-{env}.yaml`：共享的 Legacy 治理规则、ShardingSphere 逻辑拓扑和物理表治理规则；不保存服务级 `mode`。
+- `sharding-{env}.yaml`：ShardingSphere 逻辑拓扑和物理表治理规则；第一版直接启用单写，不保存服务级迁移 `mode`。
 - `redis-{env}.yaml`、`rocketmq-{env}.yaml`、`seata-{env}.yaml`、`xxl-job-{env}.yaml`：对应中间件配置。
 
 ## Redis
@@ -79,7 +79,8 @@ component-library/component-db/src/main/java/com/scott/payment/component/db/shar
 component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/TransactionShardingGovernanceProperties.java
 ```
 
-业务路由绑定 `transaction-sharding`，物理表治理绑定 `transaction-sharding.governance`。旧 `global-payment.sharding` 只在灰度回滚窗口保留，不得继续作为新业务路由配置。
+业务路由绑定 `transaction-sharding`，物理表治理绑定 `transaction-sharding.governance`。
+第一版不加载 `global-payment.sharding`、`LEGACY` 或 `COMPARE` 路由。
 
 测试入口位置：
 
@@ -104,9 +105,9 @@ docs/deployment/nacos/transaction-sharding-dev-draft.yaml
 docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 ```
 
-仓库中的三个文件是同一个 `sharding-{env}.yaml` DataId 的评审片段：
+仓库中的候选和草案是同一个 `sharding-{env}.yaml` DataId 的评审材料：
 
-- `sharding-dev.yaml` 提供回滚窗口内的 `global-payment.sharding`；
+- `sharding-dev.yaml` 提供已经合并的交易逻辑拓扑和治理配置候选；
 - `transaction-sharding-dev-draft.yaml` 提供 `transaction-sharding` 业务拓扑；
 - `transaction-sharding-governance-dev-draft.yaml` 提供 `transaction-sharding.governance`。
 
@@ -114,9 +115,7 @@ docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 `transaction-sharding` 根节点，否则后出现的根节点会覆盖前一个。五个服务已经只导入
 `sharding-{env}.yaml`，不得把草案文件名直接作为未导入的新 DataId 发布。
 
-服务级模式只放在各自的 `{service-name}-{env}.yaml`：Payment/Data 只允许 `LEGACY` 或
-`SHARDINGSPHERE`，Admin/Merchant/Risk 可先切 `COMPARE`。模式不参与拓扑 checksum，切换模式
-必须生成独立变更记录并滚动重启对应服务。
+五个直接访问服务没有独立迁移模式，必须直接使用 `transaction` 逻辑数据源并加载相同规则版本。
 
 发布约束：
 
@@ -124,9 +123,9 @@ docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 - Job 先 Dry Run，再建表并校验，最后只生成候选 `rule-version` 和 SHA-256 checksum；应用不会自动发布 Nacos。
 - 五个直接访问服务必须加载相同版本后才能开放新季度。
 - `/actuator/info` 的 `transactionSharding` 节点必须显示五个服务一致的 `ruleVersion` 和
-  `ruleChecksumPrefix`；`mode` 允许按灰度阶段不同。
-- 旧配置和旧代码只保留到单写灰度、季度边界演练及回滚窗口结束，禁止双写。
+  `ruleChecksumPrefix`。
+- 回滚只能使用仍识别当前全部节点的上一版 ShardingSphere 制品和规则，不能恢复旧物理路由，禁止双写。
 
-完整的候选规则生成、五服务滚动加载、只读/单写灰度、季度边界和回滚门禁见
-[`ShardingSphere 发布、灰度与回滚手册`](../shardingsphere-rollout-rollback-runbook.md)。该手册是
+完整的候选规则生成、五服务滚动加载、单写验收、季度边界和回滚门禁见
+[`ShardingSphere 发布、验收与回滚手册`](../shardingsphere-rollout-rollback-runbook.md)。该手册是
 变更单模板，不授权 Nacos 实际发布、数据库 DDL/Drop 或生产重启。

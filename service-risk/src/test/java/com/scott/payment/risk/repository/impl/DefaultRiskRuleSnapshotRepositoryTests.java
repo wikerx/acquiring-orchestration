@@ -1,7 +1,6 @@
 package com.scott.payment.risk.repository.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
@@ -173,7 +172,6 @@ class DefaultRiskRuleSnapshotRepositoryTests {
                 provider(legacyRedis),
                 provider(generationStore),
                 provider(redisTemplate),
-                provider(mock(ShardingDataTemplate.class)),
                 provider(null),
                 provider(null),
                 properties,

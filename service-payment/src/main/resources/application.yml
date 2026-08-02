@@ -32,9 +32,6 @@ payment:
       # 参数说明：配置单批处理记录数；增大可提高吞吐，但会增加数据库锁持有时间和单次失败影响。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE，基础配置默认值为 "100"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
-      # 参数说明：配置 Outbox 补扫历史季度数量，过大会增加分片查询开销。
-      # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_LOOKBACK_QUARTERS，基础配置默认值为 "8"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
-      lookback-quarters: ${PAYMENT_TRANSACTION_OUTBOX_LOOKBACK_QUARTERS:8}
   risk-client:
     # 初始交易必须调用 service-risk；仅单元测试或本地隔离调试才允许显式开启 noop-enabled。
     # 环境说明：环境变量：PAYMENT_RISK_CLIENT_REMOTE_ENABLED，基础配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。

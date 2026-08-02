@@ -1,13 +1,5 @@
 package com.scott.payment.data.service.impl;
 
-import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
-import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
-import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
-import com.scott.payment.component.db.sharding.TransactionShardingMode;
-import com.scott.payment.component.db.sharding.TransactionShardingProperties;
-import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
@@ -48,10 +40,10 @@ import static org.mockito.Mockito.when;
 @Slf4j
 class DefaultMerchantNotificationDeliveryServiceTests {
 
-    /** ShardingSphere 模式必须用逻辑表完成季度扫描、CAS 和日志写入。 */
+    /** 通知链路必须用逻辑表完成季度扫描、CAS 和日志写入。 */
     @Test
-    void shouldUseLogicalMapperForSuccessfulNotificationInShardingSphereMode() {
-        Fixture fixture = fixture(HttpStatus.OK, "{\"result\":\"ok\"}", TransactionShardingMode.SHARDINGSPHERE);
+    void shouldUseLogicalMapperForSuccessfulNotification() {
+        Fixture fixture = fixture(HttpStatus.OK, "{\"result\":\"ok\"}");
         LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
         when(fixture.notificationMapper().markSuccess(eq(1L), eq(transactionDateTime), eq(1), any()))
                 .thenReturn(1);
@@ -59,11 +51,11 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         int successCount = fixture.service().notifyDue(transactionDateTime, 10);
 
         assertThat(successCount).isEqualTo(1);
-        verify(fixture.notificationMapper()).recoverStaleProcessing(
+        verify(fixture.notificationMapper()).selectStaleProcessing(
                 eq(LocalDateTime.of(2026, 7, 1, 0, 0)),
                 eq(LocalDateTime.of(2026, 10, 1, 0, 0)),
                 any(),
-                any());
+                eq(100));
         verify(fixture.notificationMapper()).selectDueForNotify(
                 eq(LocalDateTime.of(2026, 7, 1, 0, 0)),
                 eq(LocalDateTime.of(2026, 10, 1, 0, 0)),
@@ -75,19 +67,12 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 ArgumentCaptor.forClass(DataMerchantNotificationLogDO.class);
         verify(fixture.logMapper()).insert(logCaptor.capture());
         assertThat(logCaptor.getValue().getTransactionDateTime()).isEqualTo(transactionDateTime);
-        verify(fixture.notificationMapper(), never()).selectDueForNotifyPhysical(anyString(), any(), anyInt());
-        verify(fixture.notificationMapper(), never()).markProcessingPhysical(anyString(), any(), any(), any());
-        verify(fixture.notificationMapper(), never()).markSuccessPhysical(anyString(), any(), any(), any());
-        verify(fixture.logMapper(), never()).insertPhysical(anyString(), any(DataMerchantNotificationLogDO.class));
     }
 
-    /** ShardingSphere 模式的失败重试 CAS 必须携带任务交易分片时间。 */
+    /** 失败重试 CAS 必须携带任务交易分片时间。 */
     @Test
-    void shouldUseLogicalFailureCasInShardingSphereMode() {
-        Fixture fixture = fixture(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "{\"result\":\"failed\"}",
-                TransactionShardingMode.SHARDINGSPHERE);
+    void shouldUseLogicalFailureCas() {
+        Fixture fixture = fixture(HttpStatus.INTERNAL_SERVER_ERROR, "{\"result\":\"failed\"}");
         LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
         when(fixture.notificationMapper().markFailed(
                 eq(1L), eq(transactionDateTime), eq(1), eq("FAILED"), any(), anyString(), any()))
@@ -104,14 +89,12 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 any(),
                 eq("merchant callback http status 500"),
                 any());
-        verify(fixture.notificationMapper(), never()).markFailedPhysical(
-                anyString(), any(), any(), anyString(), any(), anyString(), any());
     }
 
     /** MQ 精确通知必须用消息恢复的分片时间查询并推进同一季度任务。 */
     @Test
     void shouldUseExactTransactionTimeForLogicalSingleNotification() {
-        Fixture fixture = fixture(HttpStatus.OK, "{}", TransactionShardingMode.SHARDINGSPHERE);
+        Fixture fixture = fixture(HttpStatus.OK, "{}");
         LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
         when(fixture.notificationMapper().selectReadyByTransactionId(
                 eq(fixture.task().getTransactionId()), eq(transactionDateTime), any()))
@@ -125,14 +108,12 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         assertThat(notified).isTrue();
         verify(fixture.notificationMapper()).selectReadyByTransactionId(
                 eq(fixture.task().getTransactionId()), eq(transactionDateTime), any());
-        verify(fixture.notificationMapper(), never()).selectReadyByTransactionIdPhysical(
-                anyString(), anyString(), any());
     }
 
     /** 逻辑 SUCCESS CAS 冲突必须上抛，禁止把重复或异常消费确认成功。 */
     @Test
     void shouldFailWhenLogicalSuccessStateCompareAndSetMisses() {
-        Fixture fixture = fixture(HttpStatus.OK, "{}", TransactionShardingMode.SHARDINGSPHERE);
+        Fixture fixture = fixture(HttpStatus.OK, "{}");
 
         assertThatThrownBy(() -> fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10))
                 .isInstanceOf(IllegalStateException.class)
@@ -142,26 +123,14 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     /** 数据库任务缺失分片时间时必须在任何状态 Update 之前失败。 */
     @Test
     void shouldRejectTaskWithoutTransactionTimeBeforeAnyStateUpdate() {
-        Fixture fixture = fixture(HttpStatus.OK, "{}", TransactionShardingMode.SHARDINGSPHERE);
+        Fixture fixture = fixture(HttpStatus.OK, "{}");
         fixture.task().setTransactionDateTime(null);
 
         assertThatThrownBy(() -> fixture.service().notifyDue(LocalDateTime.of(2026, 8, 1, 16, 0), 10))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("merchant notification task transaction_date_time is required");
         verify(fixture.notificationMapper(), never()).markProcessing(any(), any(), any(), any());
-        verify(fixture.notificationMapper(), never()).markProcessingPhysical(anyString(), any(), any(), any());
         verifyNoInteractions(fixture.logMapper());
-    }
-
-    /** COMPARE 只允许只读比对，商户通知写入口必须在访问 Mapper 前拒绝。 */
-    @Test
-    void shouldRejectWritesInCompareMode() {
-        Fixture fixture = fixture(HttpStatus.OK, "{}", TransactionShardingMode.COMPARE);
-
-        assertThatThrownBy(() -> fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("merchant notification writes are disabled in COMPARE mode");
-        verifyNoInteractions(fixture.notificationMapper(), fixture.logMapper());
     }
 
     /** HTTP 2xx 时应写尝试日志并将任务推进为 SUCCESS。 */
@@ -169,22 +138,19 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     void shouldPersistLogAndMarkSuccessWhenCallbackReturns2xx() {
         log.info("测试商户通知成功，关键输入: HTTP 200、任务版本 0");
         Fixture fixture = fixture(HttpStatus.OK, "{\"result\":\"ok\"}");
-        when(fixture.notificationMapper().markSuccessPhysical(anyString(), eq(1L), eq(1), any())).thenReturn(1);
+        when(fixture.notificationMapper().markSuccess(eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1), any()))
+                .thenReturn(1);
 
         int successCount = fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10);
 
         assertThat(successCount).isEqualTo(1);
-        verify(fixture.notificationMapper()).markSuccessPhysical(anyString(), eq(1L), eq(1), any());
+        verify(fixture.notificationMapper()).markSuccess(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1), any());
         ArgumentCaptor<DataMerchantNotificationLogDO> logCaptor =
                 ArgumentCaptor.forClass(DataMerchantNotificationLogDO.class);
-        verify(fixture.logMapper()).insertPhysical(
-                eq("transaction_merchant_notification_log_202603"), logCaptor.capture());
+        verify(fixture.logMapper()).insert(logCaptor.capture());
         assertThat(logCaptor.getValue().getSuccess()).isEqualTo(1);
         assertThat(logCaptor.getValue().getHttpStatus()).isEqualTo(200);
-        verify(fixture.notificationMapper(), never()).selectDueForNotify(any(), any(), any(), anyInt());
-        verify(fixture.notificationMapper(), never()).markProcessing(any(), any(), any(), any());
-        verify(fixture.notificationMapper(), never()).markSuccess(any(), any(), any(), any());
-        verify(fixture.logMapper(), never()).insert(any(DataMerchantNotificationLogDO.class));
         log.info("商户通知成功测试完成，结果: SUCCESS 状态和脱敏日志均已写入");
     }
 
@@ -193,14 +159,16 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     void shouldScheduleRetryWhenCallbackReturnsNon2xx() {
         log.info("测试商户通知失败重试，关键输入: HTTP 500、最大重试 3 次");
         Fixture fixture = fixture(HttpStatus.INTERNAL_SERVER_ERROR, "{\"result\":\"failed\"}");
-        when(fixture.notificationMapper().markFailedPhysical(
-                anyString(), eq(1L), eq(1), eq("FAILED"), any(), anyString(), any())).thenReturn(1);
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), anyString(), any())).thenReturn(1);
 
         int successCount = fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10);
 
         assertThat(successCount).isZero();
-        verify(fixture.notificationMapper()).markFailedPhysical(
-                anyString(), eq(1L), eq(1), eq("FAILED"), any(), eq("merchant callback http status 500"), any());
+        verify(fixture.notificationMapper()).markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), eq("merchant callback http status 500"), any());
         log.info("商户通知失败测试完成，结果: 任务进入 FAILED 并生成下次重试时间");
     }
 
@@ -209,14 +177,26 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     void shouldRecoverStaleProcessingBeforeDueScan() {
         log.info("测试商户通知中断恢复，关键输入: 两条超时 PROCESSING 任务");
         Fixture fixture = fixture(HttpStatus.OK, "{}");
-        when(fixture.notificationMapper().recoverStaleProcessingPhysical(anyString(), any(), any())).thenReturn(2);
-        when(fixture.notificationMapper().selectDueForNotifyPhysical(anyString(), any(), anyInt())).thenReturn(List.of());
+        DataMerchantNotificationTaskDO first = recoveryCandidate(11L, 3, fixture.task().getTransactionDateTime());
+        DataMerchantNotificationTaskDO second = recoveryCandidate(12L, 7, fixture.task().getTransactionDateTime());
+        when(fixture.notificationMapper().selectStaleProcessing(any(), any(), any(), anyInt()))
+                .thenReturn(List.of(first, second));
+        when(fixture.notificationMapper().recoverStaleProcessingCas(eq(11L), any(), eq(3), any(), any()))
+                .thenReturn(1);
+        when(fixture.notificationMapper().recoverStaleProcessingCas(eq(12L), any(), eq(7), any(), any()))
+                .thenReturn(1);
+        when(fixture.notificationMapper().selectDueForNotify(any(), any(), any(), anyInt())).thenReturn(List.of());
 
         int successCount = fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10);
 
         assertThat(successCount).isZero();
-        verify(fixture.notificationMapper()).recoverStaleProcessingPhysical(
-                eq("transaction_merchant_notification_202603"), any(), any());
+        verify(fixture.notificationMapper()).selectStaleProcessing(
+                eq(LocalDateTime.of(2026, 7, 1, 0, 0)),
+                eq(LocalDateTime.of(2026, 10, 1, 0, 0)), any(), eq(100));
+        verify(fixture.notificationMapper()).recoverStaleProcessingCas(
+                eq(11L), eq(first.getTransactionDateTime()), eq(3), any(), any());
+        verify(fixture.notificationMapper()).recoverStaleProcessingCas(
+                eq(12L), eq(second.getTransactionDateTime()), eq(7), any(), any());
         log.info("商户通知中断恢复测试完成，结果: 超时任务已在查询前恢复");
     }
 
@@ -225,7 +205,8 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     void shouldFailWhenSuccessStateCompareAndSetMisses() {
         log.info("测试商户通知状态冲突，关键输入: HTTP 200、SUCCESS CAS 影响 0 行");
         Fixture fixture = fixture(HttpStatus.OK, "{}");
-        when(fixture.notificationMapper().markSuccessPhysical(anyString(), eq(1L), eq(1), any())).thenReturn(0);
+        when(fixture.notificationMapper().markSuccess(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1), any())).thenReturn(0);
 
         assertThatThrownBy(() -> fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10))
                 .isInstanceOf(IllegalStateException.class)
@@ -235,44 +216,21 @@ class DefaultMerchantNotificationDeliveryServiceTests {
 
     /** 创建商户通知服务测试夹具。 */
     private Fixture fixture(HttpStatus status, String body) {
-        return fixture(status, body, TransactionShardingMode.LEGACY);
-    }
-
-    /** 按交易分片运行模式创建商户通知服务测试夹具。 */
-    private Fixture fixture(HttpStatus status, String body, TransactionShardingMode mode) {
         DataMerchantNotificationMapper notificationMapper = mock(DataMerchantNotificationMapper.class);
         DataMerchantNotificationLogMapper logMapper = mock(DataMerchantNotificationLogMapper.class);
         DataMerchantNotificationTaskDO task = task();
-        if (mode == TransactionShardingMode.SHARDINGSPHERE) {
-            when(notificationMapper.selectDueForNotify(any(), any(), any(), anyInt())).thenReturn(List.of(task));
-            when(notificationMapper.markProcessing(eq(1L), eq(task.getTransactionDateTime()), eq(0), any()))
-                    .thenReturn(1);
-            when(logMapper.insert(any(DataMerchantNotificationLogDO.class))).thenReturn(1);
-        } else {
-            when(notificationMapper.selectDueForNotifyPhysical(anyString(), any(), anyInt())).thenReturn(List.of(task));
-            when(notificationMapper.markProcessingPhysical(anyString(), eq(1L), eq(0), any())).thenReturn(1);
-            when(logMapper.insertPhysical(anyString(), any(DataMerchantNotificationLogDO.class))).thenReturn(1);
-        }
+        when(notificationMapper.selectDueForNotify(any(), any(), any(), anyInt())).thenReturn(List.of(task));
+        when(notificationMapper.selectStaleProcessing(any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(notificationMapper.markProcessing(eq(1L), eq(task.getTransactionDateTime()), eq(0), any()))
+                .thenReturn(1);
+        when(logMapper.insert(any(DataMerchantNotificationLogDO.class))).thenReturn(1);
         DataMerchantNotificationProperties properties = new DataMerchantNotificationProperties();
         DefaultMerchantNotificationDeliveryService service = new DefaultMerchantNotificationDeliveryService(
                 notificationMapper,
                 logMapper,
-                shardingDataTemplate(),
                 new StubRestTemplate(status, body),
-                properties,
-                runtimeState(mode));
+                properties);
         return new Fixture(service, notificationMapper, logMapper, task);
-    }
-
-    /** 构造指定模式的交易分片运行状态。 */
-    private TransactionShardingRuntimeState runtimeState(TransactionShardingMode mode) {
-        TransactionShardingProperties properties = new TransactionShardingProperties();
-        properties.setMode(mode);
-        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
-        if (mode != TransactionShardingMode.LEGACY) {
-            runtimeState.activate(properties);
-        }
-        return runtimeState;
     }
 
     /** 构造不含卡数据和密钥的通知任务。 */
@@ -296,28 +254,15 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         return task;
     }
 
-    /** 构造包含通知任务和通知日志分表规则的测试解析器。 */
-    private ShardingDataTemplate shardingDataTemplate() {
-        PaymentQuarterShardingProperties properties = new PaymentQuarterShardingProperties();
-        properties.getTables().put("transaction_merchant_notification", tableRule("transaction_merchant_notification"));
-        properties.getTables().put("transaction_merchant_notification_log", tableRule("transaction_merchant_notification_log"));
-        return new ShardingDataTemplate(new ShardingTableRangeResolver(
-                properties,
-                new ShardingQuarterResolver(),
-                new ShardingPhysicalTableNameResolver()));
-    }
-
-    /** 构造季度分表规则。 */
-    private PaymentQuarterShardingProperties.TableRule tableRule(String logicalTable) {
-        PaymentQuarterShardingProperties.TableRule tableRule = new PaymentQuarterShardingProperties.TableRule();
-        tableRule.setLogicalTable(logicalTable);
-        tableRule.setTemplateTable(logicalTable);
-        tableRule.setStartYear(2026);
-        tableRule.setStartQuarter(1);
-        tableRule.setEndYear(2035);
-        tableRule.setEndQuarter(4);
-        tableRule.setTableNameFormat("%s_%d%02d");
-        return tableRule;
+    /** 构造只包含恢复 CAS 所需字段的超时任务候选。 */
+    private DataMerchantNotificationTaskDO recoveryCandidate(Long id,
+                                                             Integer version,
+                                                             LocalDateTime transactionDateTime) {
+        DataMerchantNotificationTaskDO task = new DataMerchantNotificationTaskDO();
+        task.setId(id);
+        task.setVersion(version);
+        task.setTransactionDateTime(transactionDateTime);
+        return task;
     }
 
     /** 商户通知服务测试依赖集合。 */

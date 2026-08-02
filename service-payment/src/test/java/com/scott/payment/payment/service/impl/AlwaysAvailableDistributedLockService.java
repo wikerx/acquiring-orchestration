@@ -12,16 +12,38 @@ import java.util.function.Supplier;
  */
 class AlwaysAvailableDistributedLockService implements DistributedLockService {
 
+    /**
+     * 模拟立即获得固定租约锁。
+     *
+     * @param key 测试锁 Key
+     * @param waitTime 测试等待时间
+     * @param leaseTime 测试固定租约
+     * @return 固定返回 true
+     */
     @Override
     public boolean tryLock(String key, Duration waitTime, Duration leaseTime) {
         return true;
     }
 
+    /**
+     * 模拟立即获得看门狗续期锁。
+     *
+     * @param key 测试锁 Key
+     * @param waitTime 测试等待时间
+     * @return 固定返回 true
+     */
     @Override
     public boolean tryLockWithWatchdog(String key, Duration waitTime) {
         return true;
     }
 
+    /**
+     * 模拟固定租约锁获取；保留真实接口的竞争异常契约。
+     *
+     * @param key 测试锁 Key
+     * @param waitTime 测试等待时间
+     * @param leaseTime 测试固定租约
+     */
     @Override
     public void lock(String key, Duration waitTime, Duration leaseTime) {
         if (!tryLock(key, waitTime, leaseTime)) {
@@ -29,10 +51,21 @@ class AlwaysAvailableDistributedLockService implements DistributedLockService {
         }
     }
 
+    /**
+     * 模拟幂等释放，不维护测试锁状态。
+     *
+     * @param key 测试锁 Key
+     */
     @Override
     public void unlock(String key) {
     }
 
+    /**
+     * 模拟当前线程始终持有测试锁。
+     *
+     * @param key 测试锁 Key
+     * @return 固定返回 true
+     */
     @Override
     public boolean isHeldByCurrentThread(String key) {
         return true;

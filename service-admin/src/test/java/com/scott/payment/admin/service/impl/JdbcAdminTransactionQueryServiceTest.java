@@ -1,18 +1,16 @@
 package com.scott.payment.admin.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
-import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
-import com.scott.payment.component.db.sharding.TransactionShardingMode;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
-import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -24,13 +22,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -44,50 +42,13 @@ import static org.mockito.Mockito.when;
  */
 class JdbcAdminTransactionQueryServiceTest {
 
-    @Test
-    void compareModeShouldReturnLegacyPageAndShadowReadLogicalTable() {
-        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
-        when(shardingDataTemplate.resolvePhysicalTables(any(ShardingRangeTableContext.class)))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
-                .thenReturn(3L, 4L);
-        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
-                jdbcTemplate,
-                shardingDataTemplate,
-                mock(TransactionShardingKeyParser.class),
-                mock(AdminRiskTimelineQueryService.class),
-                runtimeState(TransactionShardingMode.COMPARE),
-                new TransactionLogicalReadExecutor());
-        TransactionPageQuery query = new TransactionPageQuery();
-        query.setPageNo(2);
-        query.setPageSize(20);
-        query.setBeginTime(LocalDateTime.of(2026, 4, 1, 0, 0));
-        query.setEndTime(LocalDateTime.of(2026, 7, 31, 23, 59));
-
-        long returnedTotal = service.pageOrders(query).getTotal();
-
-        assertThat(returnedTotal).isEqualTo(3L);
-        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate, times(2)).queryForObject(
-                sqlCaptor.capture(), any(MapSqlParameterSource.class), eq(Long.class));
-        assertThat(sqlCaptor.getAllValues().get(0)).contains("FROM transaction_order_202603");
-        assertThat(sqlCaptor.getAllValues().get(1)).contains("FROM transaction_order");
-        assertThat(sqlCaptor.getAllValues().get(1)).doesNotContain("transaction_order_202603");
-    }
-
     /** ShardingSphere 模式必须通过 transaction 逻辑数据源执行固定逻辑表 SQL。 */
     @Test
     void pageOrdersShouldUseTransactionLogicalTableWithoutPhysicalResolution() throws NoSuchMethodException {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
                 jdbcTemplate,
-                shardingDataTemplate,
-                mock(TransactionShardingKeyParser.class),
-                mock(AdminRiskTimelineQueryService.class),
-                shardingSphereRuntimeState(),
-                new TransactionLogicalReadExecutor());
+                mock(AdminRiskTimelineQueryService.class));
         when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
                 .thenReturn(0L);
         TransactionPageQuery query = new TransactionPageQuery();
@@ -102,7 +63,6 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(sqlCaptor.getValue()).contains("FROM transaction_order");
         assertThat(sqlCaptor.getValue()).doesNotContain("transaction_order_2026");
         assertThat(sqlCaptor.getValue()).contains("transaction_date_time >= :beginTime");
-        verifyNoInteractions(shardingDataTemplate);
         assertThat(JdbcAdminTransactionQueryService.class.getAnnotation(DS.class)).isNull();
         DS dataSource = TransactionLogicalReadExecutor.class
                 .getMethod("read", java.util.function.Supplier.class)
@@ -117,10 +77,7 @@ class JdbcAdminTransactionQueryServiceTest {
         properties.getQueryBudget().setMaxResultRows(7);
         JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
                 jdbcTemplate,
-                mock(ShardingDataTemplate.class),
-                mock(TransactionShardingKeyParser.class),
                 mock(AdminRiskTimelineQueryService.class),
-                shardingSphereRuntimeState(),
                 new TransactionLogicalReadExecutor(),
                 properties);
         when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
@@ -133,19 +90,90 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(query.getPageSize()).isEqualTo(7);
     }
 
+    /** 详情首查必须使用列表返回的毫秒分片时间精确定位动作单。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void detailShouldBindExactShardingTimeInFirstQuery() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 7, 21, 19, 53, 50, 233_000_000);
+        LocalDateTime rootTransactionTime = LocalDateTime.of(2026, 4, 10, 9, 15, 30);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenReturn(Collections.emptyList());
+        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
+                jdbcTemplate, mock(AdminRiskTimelineQueryService.class));
+
+        assertThatThrownBy(() -> service.detail("transaction-a", transactionTime, rootTransactionTime))
+                .isInstanceOf(RuntimeException.class);
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).query(sqlCaptor.capture(), paramsCaptor.capture(), any(RowMapper.class));
+        assertThat(sqlCaptor.getValue()).contains("FROM transaction_operation");
+        assertThat(sqlCaptor.getValue()).contains("transaction_date_time = :transactionDateTime");
+        assertThat(sqlCaptor.getValue()).doesNotContain("transactionDateTimeEnd");
+        assertThat(paramsCaptor.getValue().getValue("transactionDateTime")).isEqualTo(transactionTime);
+        assertThat(paramsCaptor.getValue().hasValue("transactionDateTimeEnd")).isFalse();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void operationPageShouldBatchLoadLifecycleWithoutUnshardedOrderJoin() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        LocalDateTime actionTime = LocalDateTime.of(2026, 7, 21, 19, 53, 50);
+        LocalDateTime rootTime = LocalDateTime.of(2026, 4, 10, 9, 15, 30);
+        TransactionOperationResponse firstOperation = operation("operation-a", "transaction-a", actionTime);
+        TransactionOperationResponse secondOperation = operation("operation-b", "transaction-b", actionTime.plusSeconds(1));
+        TransactionOrderResponse firstOrder = order("operation-a", rootTime);
+        TransactionOrderResponse secondOrder = order("operation-b", rootTime.plusSeconds(1));
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(2L);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    if (sql.contains("SELECT o.*") && sql.contains("FROM transaction_operation o")) {
+                        return List.of(firstOperation, secondOperation);
+                    }
+                    if (sql.contains("FROM transaction_order")) {
+                        return List.of(firstOrder, secondOrder);
+                    }
+                    return Collections.emptyList();
+                });
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        TransactionPageQuery query = new TransactionPageQuery();
+        query.setBeginTime(LocalDateTime.of(2026, 7, 1, 0, 0));
+        query.setEndTime(LocalDateTime.of(2026, 7, 31, 23, 59));
+
+        List<TransactionOperationResponse> rows = service.pageOperations(query).getRecords();
+
+        assertThat(rows)
+                .extracting(TransactionOperationResponse::getRootTransactionDateTime)
+                .containsExactly(rootTime, rootTime.plusSeconds(1));
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate, atLeast(2)).query(
+                sqlCaptor.capture(), any(MapSqlParameterSource.class), any(RowMapper.class));
+        assertThat(sqlCaptor.getAllValues()).noneMatch(sql -> sql.contains("LEFT JOIN transaction_order"));
+        assertThat(sqlCaptor.getAllValues().stream().filter(sql -> sql.contains("FROM transaction_order")))
+                .singleElement()
+                .satisfies(sql -> {
+                    assertThat(sql).contains("operation_id IN (:operationIds)");
+                    assertThat(sql).contains("transaction_date_time >= :registeredNodeBegin");
+                    assertThat(sql).contains("transaction_date_time < :registeredNodeEnd");
+                });
+    }
+
     /**
      * 状态历史表没有 deleted 字段，详情聚合查询不应拼接 deleted = 0。
      */
     @Test
     void selectMapsByOperationIdShouldSkipDeletedConditionWhenTableHasNoSoftDeleteColumn() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate, "transaction_status_history_202603");
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
         when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(Collections.emptyList());
 
         invokeSelectMapsByOperationId(service, "transaction_status_history");
 
         String sql = captureQuerySql(jdbcTemplate);
-        assertThat(sql).contains("FROM transaction_status_history_202603");
+        assertThat(sql).contains("FROM transaction_status_history");
         assertThat(sql).contains("WHERE 1 = 1");
         assertThat(sql).contains("AND operation_id = :operationId");
         assertThat(sql).contains("AND transaction_date_time >= :beginTime");
@@ -159,13 +187,13 @@ class JdbcAdminTransactionQueryServiceTest {
     @Test
     void selectMapsByOperationIdShouldKeepDeletedConditionWhenTableHasSoftDeleteColumn() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate, "transaction_channel_request_202603");
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
         when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(Collections.emptyList());
 
         invokeSelectMapsByOperationId(service, "transaction_channel_request");
 
         String sql = captureQuerySql(jdbcTemplate);
-        assertThat(sql).contains("FROM transaction_channel_request_202603");
+        assertThat(sql).contains("FROM transaction_channel_request");
         assertThat(sql).contains("WHERE deleted = 0");
         assertThat(sql).contains("AND operation_id = :operationId");
     }
@@ -176,7 +204,7 @@ class JdbcAdminTransactionQueryServiceTest {
     @Test
     void selectMapsByOperationIdShouldReturnCamelCaseKeysForFrontendDetail() {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
-        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate, "transaction_channel_interaction_log_202603");
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("interaction_log_id", "CI202607211953505260922");
         row.put("transaction_id", "202607211953505070920");
@@ -194,26 +222,10 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(rows.get(0)).doesNotContainKeys("interaction_log_id", "transaction_id", "request_body_json_masked", "response_body_json_masked");
     }
 
-    private JdbcAdminTransactionQueryService buildService(NamedParameterJdbcTemplate jdbcTemplate, String physicalTableName) {
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
-        when(shardingDataTemplate.resolvePhysicalTables(any(ShardingRangeTableContext.class))).thenReturn(List.of(physicalTableName));
+    private JdbcAdminTransactionQueryService buildService(NamedParameterJdbcTemplate jdbcTemplate) {
         return new JdbcAdminTransactionQueryService(
                 jdbcTemplate,
-                shardingDataTemplate,
-                mock(TransactionShardingKeyParser.class),
                 mock(AdminRiskTimelineQueryService.class));
-    }
-
-    private TransactionShardingRuntimeState shardingSphereRuntimeState() {
-        return runtimeState(TransactionShardingMode.SHARDINGSPHERE);
-    }
-
-    private TransactionShardingRuntimeState runtimeState(TransactionShardingMode mode) {
-        TransactionShardingProperties properties = new TransactionShardingProperties();
-        properties.setMode(mode);
-        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
-        runtimeState.activate(properties);
-        return runtimeState;
     }
 
     @SuppressWarnings("unchecked")
@@ -232,5 +244,22 @@ class JdbcAdminTransactionQueryServiceTest {
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate).queryForList(sqlCaptor.capture(), any(MapSqlParameterSource.class));
         return sqlCaptor.getValue();
+    }
+
+    private TransactionOperationResponse operation(String operationId,
+                                                   String transactionId,
+                                                   LocalDateTime transactionDateTime) {
+        TransactionOperationResponse operation = new TransactionOperationResponse();
+        operation.setOperationId(operationId);
+        operation.setTransactionId(transactionId);
+        operation.setTransactionDateTime(transactionDateTime);
+        return operation;
+    }
+
+    private TransactionOrderResponse order(String operationId, LocalDateTime transactionDateTime) {
+        TransactionOrderResponse order = new TransactionOrderResponse();
+        order.setOperationId(operationId);
+        order.setTransactionDateTime(transactionDateTime);
+        return order;
     }
 }

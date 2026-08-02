@@ -28,8 +28,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -247,12 +249,23 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
      * 查询交易聚合详情。
      *
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表返回的当前动作真实分片时间
+     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
      * @return 交易聚合详情
      */
     @Override
-    public TransactionDetailResponse detail(String transactionId) {
+    public TransactionDetailResponse detail(String transactionId,
+                                            LocalDateTime transactionDateTime,
+                                            LocalDateTime rootTransactionDateTime) {
+        String url = UriComponentsBuilder
+                .fromUriString(servicePaymentUrl(DETAIL_BASE_PATH) + "/" + transactionId)
+                .queryParam("transactionDateTime", transactionDateTime)
+                .queryParam("rootTransactionDateTime", rootTransactionDateTime)
+                .build()
+                .encode()
+                .toUriString();
         CommonResult<TransactionDetailResponse> result = get(
-                servicePaymentUrl(DETAIL_BASE_PATH) + "/" + transactionId,
+                url,
                 new TypeReference<CommonResult<TransactionDetailResponse>>() {
                 });
         return unwrapData(result);

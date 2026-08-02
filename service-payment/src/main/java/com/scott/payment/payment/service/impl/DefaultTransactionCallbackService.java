@@ -12,10 +12,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
-import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackResultDTO;
@@ -215,16 +212,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     private final TransactionEventOutboxService transactionEventOutboxService;
 
     /**
-     * sharding Data Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final ShardingDataTemplate shardingDataTemplate;
-
-    /**
      * transaction Sharding Key Parser，用于保存 Default Transaction Callback Service 中与 交易sharding密钥parser 相关的业务属性。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
@@ -250,104 +237,58 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     private final ChannelTransactionStatusResolver channelStatusResolver;
 
     /**
-     * 当前实例交易分片模式。
-     */
-    private final TransactionShardingRuntimeState transactionShardingRuntimeState;
-
-    /**
      * 创建交易渠道回调服务默认实现。
      *
      * @param callbackLogMapper 渠道回调原始日志 Mapper
      * @param callbackMapper 渠道回调业务 Mapper
      * @param transactionRecordService 交易事实记录服务
      * @param transactionEventOutboxService 交易本地事件服务
-     * @param shardingDataTemplate 分表数据访问统一入口
      * @param transactionShardingKeyParser 交易分表键解析器
      * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
-     */
-    public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
-                                             TransactionChannelCallbackMapper callbackMapper,
-                                             TransactionRecordService transactionRecordService,
-                                             TransactionEventOutboxService transactionEventOutboxService,
-                                             ShardingDataTemplate shardingDataTemplate,
-                                             TransactionShardingKeyParser transactionShardingKeyParser,
-                                             Optional<PaymentChannelCallbackExecutor> callbackExecutor) {
-        this(callbackLogMapper,
-                callbackMapper,
-                transactionRecordService,
-                transactionEventOutboxService,
-                shardingDataTemplate,
-                transactionShardingKeyParser,
-                callbackExecutor,
-                new DefaultChannelTransactionStatusResolver(),
-                new TransactionShardingRuntimeState());
-    }
-
-    /**
-     * 创建交易渠道回调服务默认实现。
-     *
-     * @param callbackLogMapper 渠道回调原始日志 Mapper
-     * @param callbackMapper 渠道回调业务 Mapper
-     * @param transactionRecordService 交易事实记录服务
-     * @param transactionEventOutboxService 交易本地事件服务
-     * @param shardingDataTemplate 分表数据访问统一入口
-     * @param transactionShardingKeyParser 交易分表键解析器
-     * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
-     * @param channelStatusResolver 渠道状态解析服务
-     */
-    public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
-                                             TransactionChannelCallbackMapper callbackMapper,
-                                             TransactionRecordService transactionRecordService,
-                                             TransactionEventOutboxService transactionEventOutboxService,
-                                             ShardingDataTemplate shardingDataTemplate,
-                                             TransactionShardingKeyParser transactionShardingKeyParser,
-                                             Optional<PaymentChannelCallbackExecutor> callbackExecutor,
-                                             ChannelTransactionStatusResolver channelStatusResolver) {
-        this(callbackLogMapper,
-                callbackMapper,
-                transactionRecordService,
-                transactionEventOutboxService,
-                shardingDataTemplate,
-                transactionShardingKeyParser,
-                callbackExecutor,
-                channelStatusResolver,
-                new TransactionShardingRuntimeState());
-    }
-
-    /**
-     * 创建支持交易表族单写模式切换的渠道回调服务。
-     *
-     * @param callbackLogMapper 渠道回调原始日志 Mapper
-     * @param callbackMapper 渠道回调业务 Mapper
-     * @param transactionRecordService 交易事实记录服务
-     * @param transactionEventOutboxService 交易本地事件服务
-     * @param shardingDataTemplate Legacy 分表数据访问入口
-     * @param transactionShardingKeyParser 交易分片键解析器
-     * @param callbackExecutor 渠道回调执行器
-     * @param channelStatusResolver 渠道状态解析服务
-     * @param transactionShardingRuntimeState 当前实例分片模式
      */
     @Autowired
     public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
                                              TransactionChannelCallbackMapper callbackMapper,
                                              TransactionRecordService transactionRecordService,
                                              TransactionEventOutboxService transactionEventOutboxService,
-                                             ShardingDataTemplate shardingDataTemplate,
+                                             TransactionShardingKeyParser transactionShardingKeyParser,
+                                             Optional<PaymentChannelCallbackExecutor> callbackExecutor) {
+        this(callbackLogMapper,
+                callbackMapper,
+                transactionRecordService,
+                transactionEventOutboxService,
+                transactionShardingKeyParser,
+                callbackExecutor,
+                new DefaultChannelTransactionStatusResolver());
+    }
+
+    /**
+     * 创建交易渠道回调服务默认实现。
+     *
+     * @param callbackLogMapper 渠道回调原始日志 Mapper
+     * @param callbackMapper 渠道回调业务 Mapper
+     * @param transactionRecordService 交易事实记录服务
+     * @param transactionEventOutboxService 交易本地事件服务
+     * @param transactionShardingKeyParser 交易分表键解析器
+     * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
+     * @param channelStatusResolver 渠道状态解析服务
+     */
+    public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
+                                             TransactionChannelCallbackMapper callbackMapper,
+                                             TransactionRecordService transactionRecordService,
+                                             TransactionEventOutboxService transactionEventOutboxService,
                                              TransactionShardingKeyParser transactionShardingKeyParser,
                                              Optional<PaymentChannelCallbackExecutor> callbackExecutor,
-                                             ChannelTransactionStatusResolver channelStatusResolver,
-                                             TransactionShardingRuntimeState transactionShardingRuntimeState) {
+                                             ChannelTransactionStatusResolver channelStatusResolver) {
         this.callbackLogMapper = callbackLogMapper;
         this.callbackMapper = callbackMapper;
         this.transactionRecordService = transactionRecordService;
         this.transactionEventOutboxService = transactionEventOutboxService;
-        this.shardingDataTemplate = shardingDataTemplate;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
         this.callbackExecutor = callbackExecutor == null ? Optional.empty() : callbackExecutor;
         this.channelStatusResolver = channelStatusResolver == null
                 ? new DefaultChannelTransactionStatusResolver()
                 : channelStatusResolver;
-        this.transactionShardingRuntimeState = transactionShardingRuntimeState;
     }
 
     /**
@@ -380,9 +321,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         String callbackLogTable = tableForLog(TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, context.transactionDateTime());
         TransactionChannelCallbackLogDO callbackLogDO = buildCallbackLog(
                 commandDTO, context, callbackLogId, receivedTime, now);
-        int callbackLogRows = useLogicalTables()
-                ? callbackLogMapper.insertLogical(callbackLogDO)
-                : callbackLogMapper.insertPhysical(callbackLogTable, callbackLogDO);
+        int callbackLogRows = callbackLogMapper.insertLogical(callbackLogDO);
         log.info("event: PAYMENT_CHANNEL_CALLBACK_LOG_SAVED stage=CALLBACK traceId: {} channelCode: {} callbackLogId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} signatureValid: {} ipAllowed: {} logicalTable: {} physicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
@@ -406,9 +345,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 commandDTO, context, callbackLogId, callbackId, idempotencyKey, receivedTime, now);
         int callbackRows;
         try {
-            callbackRows = useLogicalTables()
-                    ? callbackMapper.insertLogical(callbackDO)
-                    : callbackMapper.insertPhysical(callbackTable, callbackDO);
+            callbackRows = callbackMapper.insertLogical(callbackDO);
         } catch (DuplicateKeyException exception) {
             TransactionChannelCallbackDO concurrentlyCreated = findByIdempotency(
                     callbackTable, commandDTO.getChannelCode(), idempotencyKey, context.transactionDateTime());
@@ -818,29 +755,18 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                                String processResult,
                                                                String failReason,
                                                                LocalDateTime processedTime) {
-        int affectedRows = useLogicalTables()
-                ? callbackMapper.updateProcessResultLogical(
-                        callbackId,
-                        transactionDateTime,
-                        INITIAL_VERSION,
-                        CALLBACK_PROCESSABLE_STATUSES,
-                        callbackStatus,
-                        parsedTransactionStatus,
-                        previousTransactionStatus,
-                        targetTransactionStatus,
-                        processResult,
-                        failReason,
-                        processedTime)
-                : callbackMapper.updateProcessResultPhysical(
-                        callbackTable,
-                        callbackId,
-                        callbackStatus,
-                        parsedTransactionStatus,
-                        previousTransactionStatus,
-                        targetTransactionStatus,
-                        processResult,
-                        failReason,
-                        processedTime);
+        int affectedRows = callbackMapper.updateProcessResultLogical(
+                callbackId,
+                transactionDateTime,
+                INITIAL_VERSION,
+                CALLBACK_PROCESSABLE_STATUSES,
+                callbackStatus,
+                parsedTransactionStatus,
+                previousTransactionStatus,
+                targetTransactionStatus,
+                processResult,
+                failReason,
+                processedTime);
         log.info("event: PAYMENT_CALLBACK_DB_UPDATE stage=CALLBACK_PROCESS traceId: {} callbackId: {} callbackStatus: {} previousStatus: {} targetStatus: {} processResult: {} logicalTable: {} physicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 callbackId,
@@ -872,11 +798,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                            String channelCode,
                                                            String idempotencyKey,
                                                            LocalDateTime transactionDateTime) {
-        return useLogicalTables()
-                ? callbackMapper.selectByIdempotency(
-                        normalizeChannelCode(channelCode), idempotencyKey, transactionDateTime)
-                : callbackMapper.selectByIdempotencyPhysical(
-                        callbackTable, normalizeChannelCode(channelCode), idempotencyKey);
+        return callbackMapper.selectByIdempotency(
+                normalizeChannelCode(channelCode), idempotencyKey, transactionDateTime);
     }
 
     /**
@@ -1215,39 +1138,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 整理物理表，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
-     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
-        return shardingDataTemplate.resolvePhysicalTable(
-                ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.MASTER));
-    }
-
-    /**
-     * 判断当前写路径是否已受控切换到 ShardingSphere 逻辑表。
-     *
-     * @return true 表示只允许逻辑表单写
-     */
-    private boolean useLogicalTables() {
-        return transactionShardingRuntimeState.isShardingWriteEnabled();
-    }
-
-    /**
      * 返回当前模式下用于审计日志的表标识，不参与 SQL 拼接。
      *
      * @param logicalTable 逻辑表名
      * @param transactionDateTime 交易分片时间
-     * @return 逻辑表或 Legacy 物理表名
+     * @return 逻辑表名
      */
     private String tableForLog(String logicalTable, LocalDateTime transactionDateTime) {
-        return useLogicalTables() ? logicalTable : physicalTable(logicalTable, transactionDateTime);
+        return logicalTable;
     }
 
     /**

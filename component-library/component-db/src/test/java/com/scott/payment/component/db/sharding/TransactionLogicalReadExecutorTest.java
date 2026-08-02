@@ -6,29 +6,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Transaction 逻辑只读执行器作用域测试。
+ * Transaction 逻辑只读执行器测试。
  */
 class TransactionLogicalReadExecutorTest {
 
     @Test
-    void shouldExposeLogicalRouteOnlyInsideReadCallback() {
+    void shouldReturnLogicalReadResult() {
         TransactionLogicalReadExecutor executor = new TransactionLogicalReadExecutor();
 
-        boolean activeInside = executor.read(executor::isLogicalRouteActive);
+        String result = executor.read(() -> "logical-result");
 
-        assertThat(activeInside).isTrue();
-        assertThat(executor.isLogicalRouteActive()).isFalse();
+        assertThat(result).isEqualTo("logical-result");
     }
 
     @Test
-    void shouldClearLogicalRouteAfterQueryFailure() {
+    void shouldPropagateLogicalReadFailure() {
         TransactionLogicalReadExecutor executor = new TransactionLogicalReadExecutor();
 
         assertThatThrownBy(() -> executor.read(() -> {
             throw new IllegalStateException("query failed");
         })).isInstanceOf(IllegalStateException.class);
-
-        assertThat(executor.isLogicalRouteActive()).isFalse();
     }
 
 }

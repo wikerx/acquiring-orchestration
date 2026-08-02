@@ -1,11 +1,8 @@
 package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
-import com.scott.payment.component.db.sharding.TransactionShardingMode;
-import com.scott.payment.component.db.sharding.TransactionShardingProperties;
-import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
+import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.mapper.TransactionAmountChangeLogMapper;
 import com.scott.payment.payment.mapper.TransactionChannelCallbackLogMapper;
@@ -27,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.invocation.Invocation;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -34,6 +32,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.when;
@@ -50,7 +49,7 @@ import static org.mockito.Mockito.when;
 class DefaultTransactionQueryServiceTests {
 
     @Test
-    void shouldUseLogicalOrderPaginationInShardingSphereMode() {
+    void shouldUseLogicalOrderPagination() {
         TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
         TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
         when(orderMapper.countPageLogical(any(), any(), any(), any(), any(), any())).thenReturn(1L);
@@ -69,7 +68,7 @@ class DefaultTransactionQueryServiceTests {
     }
 
     @Test
-    void shouldUseLogicalOperationPaginationAndCurrencySummariesInShardingSphereMode() {
+    void shouldUseLogicalOperationPaginationAndCurrencySummaries() {
         TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
         TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
         DefaultTransactionQueryService service = queryService(orderMapper, operationMapper);
@@ -81,6 +80,42 @@ class DefaultTransactionQueryServiceTests {
                 .contains("countPageLogical", "selectPageLogical",
                         "selectAmountSummaryLogical", "selectPaymentMethodSummaryLogical")
                 .noneMatch(name -> name.endsWith("Physical"));
+    }
+
+    /**
+     * 详情必须使用列表返回的根主单时间精确查询主单，不能从操作号推导时间。
+     */
+    @Test
+    void detailShouldUseProvidedRootTransactionDateTime() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        LocalDateTime transactionDateTime =
+                LocalDateTime.of(2026, 8, 2, 12, 8, 38, 176_000_000);
+        LocalDateTime rootTransactionDateTime =
+                LocalDateTime.of(2026, 8, 2, 12, 8, 36, 255_000_000);
+        TransactionOperationDO operation = new TransactionOperationDO();
+        operation.setOperationId("opaque-operation-id");
+        operation.setTransactionId("transaction-id");
+        operation.setTransactionDateTime(transactionDateTime);
+        operation.setOperationSequence(1);
+        TransactionOrderDO order = new TransactionOrderDO();
+        order.setOperationId(operation.getOperationId());
+        order.setTransactionDateTime(rootTransactionDateTime);
+        when(operationMapper.selectByTransactionId(
+                operation.getTransactionId(), transactionDateTime)).thenReturn(operation);
+        when(orderMapper.selectByOperationId(
+                operation.getOperationId(), rootTransactionDateTime)).thenReturn(order);
+        when(operationMapper.selectByOperationId(
+                org.mockito.ArgumentMatchers.eq(operation.getOperationId()),
+                org.mockito.ArgumentMatchers.eq(rootTransactionDateTime),
+                any(LocalDateTime.class))).thenReturn(new ArrayList<>(List.of(operation)));
+        DefaultTransactionQueryService service = queryService(orderMapper, operationMapper);
+
+        service.detail(
+                operation.getTransactionId(), transactionDateTime, rootTransactionDateTime);
+
+        verify(orderMapper).selectByOperationId(
+                operation.getOperationId(), rootTransactionDateTime);
     }
 
     private DefaultTransactionQueryService queryService(TransactionOrderMapper orderMapper,
@@ -99,9 +134,7 @@ class DefaultTransactionQueryServiceTests {
                 mock(TransactionMerchantNotificationLogMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 mock(TransactionPaymentMethodInfoMapper.class),
-                mock(ShardingDataTemplate.class),
-                new TransactionShardingKeyParser(),
-                shardingSphereRuntimeState());
+                new TransactionShardingKeyParser());
     }
 
     private TransactionPageQuery query() {
@@ -112,14 +145,6 @@ class DefaultTransactionQueryServiceTests {
         query.setPageNo(1);
         query.setPageSize(20);
         return query;
-    }
-
-    private TransactionShardingRuntimeState shardingSphereRuntimeState() {
-        TransactionShardingProperties properties = new TransactionShardingProperties();
-        properties.setMode(TransactionShardingMode.SHARDINGSPHERE);
-        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
-        runtimeState.activate(properties);
-        return runtimeState;
     }
 
     private Set<String> invokedMethodNames(Object mock) {

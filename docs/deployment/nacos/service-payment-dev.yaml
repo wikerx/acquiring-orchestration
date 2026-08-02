@@ -1,8 +1,4 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
-transaction-sharding:
-  # Payment 写路径只允许 LEGACY 或 SHARDINGSPHERE，禁止切到只读 COMPARE。
-  mode: ${PAYMENT_TRANSACTION_SHARDING_MODE:LEGACY}
-
 payment:
   redis:
     redisson:
@@ -65,9 +61,6 @@ payment:
       # 参数说明：配置单批处理记录数；增大可提高吞吐，但会增加数据库锁持有时间和单次失败影响。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE，dev 配置默认值为 "100"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       batch-size: ${PAYMENT_TRANSACTION_OUTBOX_BATCH_SIZE:100}
-      # 参数说明：配置 Outbox 补扫历史季度数量，过大会增加分片查询开销。
-      # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_LOOKBACK_QUARTERS，dev 配置默认值为 "8"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
-      lookback-quarters: ${PAYMENT_TRANSACTION_OUTBOX_LOOKBACK_QUARTERS:8}
   risk-client:
     # 参数说明：控制是否调用真实远程服务；UAT/生产必须开启并保证服务发现和鉴权可用。
     # 环境说明：环境变量：PAYMENT_RISK_CLIENT_REMOTE_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。

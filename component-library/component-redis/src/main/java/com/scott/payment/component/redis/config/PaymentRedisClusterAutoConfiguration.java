@@ -126,6 +126,11 @@ public class PaymentRedisClusterAutoConfiguration {
         return config;
     }
 
+    /**
+     * 在创建客户端前校验线程数和连接池上下界，避免错误配置在运行期耗尽连接。
+     *
+     * @param properties Redisson Cluster 配置
+     */
     private static void validatePoolBounds(PaymentRedissonProperties properties) {
         if (properties.getThreads() <= 0 || properties.getNettyThreads() <= 0
                 || properties.getRetryAttempts() < 0
@@ -142,6 +147,12 @@ public class PaymentRedisClusterAutoConfiguration {
         }
     }
 
+    /**
+     * 将未声明协议的 Cluster 节点标准化为 Redisson 接受的地址。
+     *
+     * @param node Redis 节点，格式为 host:port 或 redis(s) URI
+     * @return 带 redis 或 rediss 协议的节点地址
+     */
     private static String nodeAddress(String node) {
         if (!StringUtils.hasText(node)) {
             throw new IllegalStateException("Redis Cluster node must not be blank");
@@ -152,10 +163,24 @@ public class PaymentRedisClusterAutoConfiguration {
                 : "redis://" + address;
     }
 
+    /**
+     * 将可空超时转换为 Redisson 使用的正整数毫秒值。
+     *
+     * @param configured 显式配置的超时
+     * @param fallback 未配置时使用的默认超时
+     * @return 正整数毫秒值
+     */
     private static int durationMillis(Duration configured, Duration fallback) {
         return positiveMillis(configured == null ? fallback : configured, "Redis timeout");
     }
 
+    /**
+     * 校验 Duration 能安全转换为 Redisson 的 int 毫秒参数。
+     *
+     * @param duration 待转换时长
+     * @param label 异常信息中的配置项名称
+     * @return 1 到 Integer.MAX_VALUE 之间的毫秒值
+     */
     private static int positiveMillis(Duration duration, String label) {
         if (duration == null || duration.isNegative() || duration.isZero()
                 || duration.toMillis() > Integer.MAX_VALUE) {

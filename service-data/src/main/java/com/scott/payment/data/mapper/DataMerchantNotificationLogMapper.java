@@ -10,7 +10,7 @@ import org.apache.ibatis.annotations.Param;
  * @classname : DataMerchantNotificationLogMapper
  * @date : 2026-08-01 16:00
  * @email : scott_x@163.com
- * @description : service-data 商户通知日志 Mapper，只向指定季度物理分表写入脱敏尝试记录
+ * @description : service-data 商户通知日志 Mapper，通过 ShardingSphere 逻辑表写入脱敏尝试记录。
  * @status : create
  */
 public interface DataMerchantNotificationLogMapper {
@@ -43,33 +43,4 @@ public interface DataMerchantNotificationLogMapper {
             """)
     int insert(@Param("logDO") DataMerchantNotificationLogDO logDO);
 
-    /**
-     * 写入一次商户通知尝试日志。
-     *
-     * @param physicalTableName 已由分表组件校验的物理表名
-     * @param logDO 脱敏通知日志
-     * @return 影响行数
-     */
-    @Insert("""
-            INSERT INTO ${physicalTableName}
-            (
-              notify_log_id, notify_id, transaction_id, operation_id, merchant_id,
-              attempt_no, target_url_hash, http_status, request_header_json_masked,
-              request_body_json_masked, response_body_json_masked, success,
-              error_message, notify_time, duration_millis, transaction_date_time,
-              transaction_utc_time, transaction_time_zone, create_time
-            )
-            VALUES
-            (
-              #{logDO.notifyLogId}, #{logDO.notifyId}, #{logDO.transactionId},
-              #{logDO.operationId}, #{logDO.merchantId}, #{logDO.attemptNo},
-              #{logDO.targetUrlHash}, #{logDO.httpStatus}, #{logDO.requestHeaderJsonMasked},
-              #{logDO.requestBodyJsonMasked}, #{logDO.responseBodyJsonMasked},
-              #{logDO.success}, #{logDO.errorMessage}, #{logDO.notifyTime},
-              #{logDO.durationMillis}, #{logDO.transactionDateTime}, #{logDO.transactionUtcTime},
-              #{logDO.transactionTimeZone}, #{logDO.createTime}
-            )
-            """)
-    int insertPhysical(@Param("physicalTableName") String physicalTableName,
-                       @Param("logDO") DataMerchantNotificationLogDO logDO);
 }

@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.client.payment.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -66,6 +67,7 @@ public class PaymentCreateClientRequestDTO implements Serializable {
     /**
      * 交易业务时间，数据库与分表均按 UTC+8 处理。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 
     /**
@@ -530,9 +532,14 @@ public class PaymentCreateClientRequestDTO implements Serializable {
         /**
          * 原交易业务时间，用于 service-payment 按 transaction_date_time + transaction_id 定位原交易分表。
          * <p>
-         * 商户 OpenAPI 不要求上送该字段；内部调用方如已知原交易时间可传入，否则支付核心会先按 transaction_id 解析原交易时间。
+         * 后续动作和查询必须直接透传平台响应中的真实时间，不允许由支付核心从交易号解析。
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
+
+        /** 生命周期根主单的 transaction_date_time，用于 service-payment 精确路由 transaction_order。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * description，用于保存人工备注、交易说明或配置补充说明。

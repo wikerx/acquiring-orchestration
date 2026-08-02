@@ -28,17 +28,26 @@ class DataMerchantNotificationMapperContractTests {
                 LocalDateTime.class,
                 LocalDateTime.class,
                 int.class));
+        String staleSelectSql = selectSql(DataMerchantNotificationMapper.class.getMethod(
+                "selectStaleProcessing",
+                LocalDateTime.class,
+                LocalDateTime.class,
+                LocalDateTime.class,
+                int.class));
         String recoverySql = updateSql(DataMerchantNotificationMapper.class.getMethod(
-                "recoverStaleProcessing",
+                "recoverStaleProcessingCas",
+                Long.class,
                 LocalDateTime.class,
-                LocalDateTime.class,
+                Integer.class,
                 LocalDateTime.class,
                 LocalDateTime.class));
 
         assertQuarterRange(dueSql);
-        assertQuarterRange(recoverySql);
+        assertQuarterRange(staleSelectSql);
+        assertThat(staleSelectSql).contains("LIMIT #{limit}");
+        assertCas(recoverySql, "notify_status = 'PROCESSING'");
         assertThat(recoverySql)
-                .contains("notify_status = 'PROCESSING'")
+                .contains("update_time < #{staleBefore}")
                 .contains("last_attempt_no < max_retry_count");
     }
 

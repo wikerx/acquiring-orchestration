@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.client.payment.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -298,7 +299,12 @@ public class PaymentQueryClientResponseDTO implements Serializable {
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
+
+        /** 生命周期根主单的分片时间，供商户从查询结果继续发起动作。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * payment Method，表示支付方式、通知方式或调用方式。

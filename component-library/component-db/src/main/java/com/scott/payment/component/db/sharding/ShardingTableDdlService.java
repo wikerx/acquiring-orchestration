@@ -85,8 +85,8 @@ public class ShardingTableDdlService {
      * @return 创建后或已存在目标表的检查结果
      */
     @DS(DataSourceName.MASTER)
-    public ShardingTableInspectionResult createPhysicalTableIfAbsent(PaymentQuarterShardingProperties properties,
-                                                                     PaymentQuarterShardingProperties.TableRule rule,
+    public ShardingTableInspectionResult createPhysicalTableIfAbsent(TransactionShardingGovernanceProperties properties,
+                                                                     TransactionShardingGovernanceProperties.TableRule rule,
                                                                      ShardingQuarter quarter) {
         validateDdlEnabled(properties);
         String templateTable = tableNameResolver.templateTableName(rule);
@@ -119,11 +119,11 @@ public class ShardingTableDdlService {
      * @param properties 当前环境的分表配置
      * @throws ServiceException 配置缺失、维护未启用或 DDL 边界不满足时抛出
      */
-    private void validateDdlEnabled(PaymentQuarterShardingProperties properties) {
+    private void validateDdlEnabled(TransactionShardingGovernanceProperties properties) {
         if (properties == null || properties.getTableMaintenance() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding table maintenance config is required");
         }
-        PaymentQuarterShardingProperties.TableMaintenance maintenance = properties.getTableMaintenance();
+        TransactionShardingGovernanceProperties.TableMaintenance maintenance = properties.getTableMaintenance();
         if (!Boolean.TRUE.equals(maintenance.getEnabled())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "sharding table maintenance is disabled");
         }

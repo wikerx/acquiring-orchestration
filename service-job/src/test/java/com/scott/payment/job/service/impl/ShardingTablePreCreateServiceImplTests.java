@@ -1,6 +1,6 @@
 package com.scott.payment.job.service.impl;
 
-import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalculator;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarter;
@@ -128,9 +128,9 @@ class ShardingTablePreCreateServiceImplTests {
 
     private TransactionShardingGovernanceProperties governanceProperties() {
         TransactionShardingGovernanceProperties properties = new TransactionShardingGovernanceProperties();
-        LinkedHashMap<String, PaymentQuarterShardingProperties.TableRule> rules = new LinkedHashMap<>();
+        LinkedHashMap<String, TransactionShardingGovernanceProperties.TableRule> rules = new LinkedHashMap<>();
         for (String logicalTable : TransactionShardingProperties.defaultLogicTables()) {
-            PaymentQuarterShardingProperties.TableRule rule = new PaymentQuarterShardingProperties.TableRule();
+            TransactionShardingGovernanceProperties.TableRule rule = new TransactionShardingGovernanceProperties.TableRule();
             rule.setEnabled(true);
             rule.setLogicalTable(logicalTable);
             rule.setTemplateTable(logicalTable);

@@ -27,10 +27,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EnabledIfSystemProperty(named = "cache-generation.redis.cluster.integration.enabled", matches = "true")
 class RedisCacheGenerationClusterIntegrationTests {
 
+    /** 当前用例创建的 Redis Key，测试结束时逐项清理。 */
     private final Set<String> cleanupKeys = new LinkedHashSet<>();
 
+    /** 真实 Redis Cluster 测试使用的 Lettuce 连接工厂。 */
     private LettuceConnectionFactory connectionFactory;
+    /** 对真实 Cluster 执行代际 Lua 的字符串模板。 */
     private StringRedisTemplate redisTemplate;
+    /** 使用随机前缀隔离本次运行的 Redis 业务 Key。 */
     private PaymentRedisProperties redisProperties;
 
     @BeforeEach

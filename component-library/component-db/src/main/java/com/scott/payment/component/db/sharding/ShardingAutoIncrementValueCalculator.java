@@ -35,15 +35,15 @@ public class ShardingAutoIncrementValueCalculator {
      * @param quarter    目标季度
      * @return AUTO_INCREMENT 范围
      */
-    public ShardingAutoIncrementRange calculate(PaymentQuarterShardingProperties properties, ShardingQuarter quarter) {
+    public ShardingAutoIncrementRange calculate(TransactionShardingGovernanceProperties properties, ShardingQuarter quarter) {
         if (quarter == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "sharding quarter is required");
         }
-        PaymentQuarterShardingProperties.IdGenerator idGenerator = properties == null
-                ? new PaymentQuarterShardingProperties.IdGenerator()
+        TransactionShardingGovernanceProperties.IdGenerator idGenerator = properties == null
+                ? new TransactionShardingGovernanceProperties.IdGenerator()
                 : properties.getIdGenerator();
         if (idGenerator == null) {
-            idGenerator = new PaymentQuarterShardingProperties.IdGenerator();
+            idGenerator = new TransactionShardingGovernanceProperties.IdGenerator();
         }
         int sequenceWidth = idGenerator.getSequenceWidth() == null ? 12 : idGenerator.getSequenceWidth();
         long startSequence = idGenerator.getStartSequence() == null ? 1L : idGenerator.getStartSequence();

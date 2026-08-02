@@ -6,6 +6,8 @@ import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.Transa
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionPageQuery;
 
+import java.time.LocalDateTime;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -38,7 +40,11 @@ public interface MerchantTransactionQueryService {
      *
      * @param merchantId 当前登录商户号
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表返回的真实交易分片时间
      * @return 商户可见交易详情
      */
-    TransactionDetailResponse detail(String merchantId, String transactionId);
+    TransactionDetailResponse detail(String merchantId,
+                                     String transactionId,
+                                     LocalDateTime transactionDateTime,
+                                     LocalDateTime rootTransactionDateTime);
 }

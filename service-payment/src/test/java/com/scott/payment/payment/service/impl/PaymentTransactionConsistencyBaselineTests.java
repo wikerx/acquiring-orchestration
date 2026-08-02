@@ -1704,6 +1704,8 @@ class PaymentTransactionConsistencyBaselineTests {
         commandDTO.setAmount(amount);
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
         transactionInfoDTO.setSourceTransactionId("TX202607230001");
+        transactionInfoDTO.setSourceTransactionDateTime(TRANSACTION_TIME);
+        transactionInfoDTO.setRootTransactionDateTime(TRANSACTION_TIME);
         commandDTO.setTransactionInfo(transactionInfoDTO);
         return commandDTO;
     }
@@ -2639,7 +2641,9 @@ class PaymentTransactionConsistencyBaselineTests {
         @Override
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
                                                                           String merchantOrderNo,
-                                                                          String transactionId) {
+                                                                          String transactionId,
+                                                                          LocalDateTime transactionDateTime,
+                                                                          LocalDateTime rootTransactionDateTime) {
             if (lastInitialOperation == null
                     || !lastInitialOperation.getMerchantId().equals(merchantId)
                     || !lastInitialOperation.getMerchantOrderNo().equals(merchantOrderNo)) {
@@ -3649,7 +3653,11 @@ class PaymentTransactionConsistencyBaselineTests {
          * 返回唯一预置动作单，模拟商户订单维度查询命中。
          */
         @Override
-        public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId) {
+        public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
+                                                                          String merchantOrderNo,
+                                                                          String transactionId,
+                                                                          LocalDateTime transactionDateTime,
+                                                                          LocalDateTime rootTransactionDateTime) {
             return List.of(operation);
         }
 

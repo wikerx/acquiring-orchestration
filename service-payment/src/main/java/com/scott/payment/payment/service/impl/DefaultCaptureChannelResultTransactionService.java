@@ -63,7 +63,8 @@ public class DefaultCaptureChannelResultTransactionService implements CaptureCha
             return;
         }
         PaymentCreateResultDTO resultDTO = preparationResultDTO.getResultDTO();
-        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(resultDTO.getTransactionId());
+        TransactionOperationDO operationDO = transactionRecordService.findSourceOperationByTransactionId(
+                resultDTO.getTransactionId(), preparationResultDTO.getCommandDTO().getTransactionDateTime());
         if (operationDO == null) {
             return;
         }

@@ -35,86 +35,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TransactionShardingDataSourceConfigurationTest {
 
     @Test
-    void shouldRegisterNonOwningLegacyAliasAndClosePrimary() {
-        HikariDataSource primary = h2DataSource("legacy_primary");
-        createPhysicalTables(primary, List.of("transaction_order"));
-        new JdbcTemplate(primary).update("""
-                INSERT INTO transaction_order_202603(id, transaction_date_time)
-                VALUES (?, ?)
-                """, 1L, LocalDateTime.of(2026, 8, 2, 1, 0));
+    void shouldRejectMissingPublishedRule() {
+        HikariDataSource primary = h2DataSource("missing_rule_primary");
 
         contextRunner(Map.of(DataSourceName.MASTER, primary))
                 .withPropertyValues(
-                        "spring.application.name=service-payment",
-                        "transaction-sharding.mode=LEGACY")
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context).hasSingleBean(DynamicRoutingDataSource.class);
-                    assertThat(context).hasSingleBean(TransactionShardingRuntimeState.class);
-                    DynamicRoutingDataSource routing = context.getBean(DynamicRoutingDataSource.class);
-                    assertThat(routing.getDataSources()).containsKeys(DataSourceName.MASTER, DataSourceName.TRANSACTION);
-                    assertThat(routing.getDataSources().get(DataSourceName.TRANSACTION)).isNotSameAs(primary);
-                    assertThat(context.getBean(TransactionShardingRuntimeState.class).isActive()).isFalse();
-                    assertThat(context.getBean(TransactionShardingRuntimeState.class).getMode()).isEqualTo("LEGACY");
-
-                    DynamicDataSourceContextHolder.push(DataSourceName.TRANSACTION);
-                    try {
-                        Integer count = new JdbcTemplate(routing).queryForObject(
-                                "SELECT COUNT(*) FROM transaction_order_202603", Integer.class);
-                        assertThat(count).isEqualTo(1);
-                    } finally {
-                        DynamicDataSourceContextHolder.poll();
-                    }
-                });
-
-        assertThat(primary.isClosed()).isTrue();
-    }
-
-    @Test
-    void shouldValidateAndReportPublishedRuleWhileLegacyWritesRemainEnabled() {
-        HikariDataSource primary = h2DataSource("legacy_published_primary");
-        HikariDataSource replica = h2DataSource("legacy_published_replica");
-        String ruleVersion = "2026.08.02-legacy";
-        String checksum = checksum(ruleVersion, TransactionShardingMode.LEGACY, List.of(DataSourceName.SLAVE_1));
-        Map<String, DataSource> resources = new LinkedHashMap<>();
-        resources.put(DataSourceName.MASTER, primary);
-        resources.put(DataSourceName.SLAVE_1, replica);
-
-        contextRunner(resources)
-                .withPropertyValues(
-                        "spring.application.name=service-payment",
-                        "transaction-sharding.mode=LEGACY",
-                        "transaction-sharding.rule-version=" + ruleVersion,
-                        "transaction-sharding.rule-checksum=" + checksum,
-                        "transaction-sharding.replica-data-sources[0]=" + DataSourceName.SLAVE_1,
-                        "transaction-sharding.physical-nodes[0]=202603",
-                        "transaction-sharding.physical-nodes[1]=202604")
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    TransactionShardingRuntimeState state = context.getBean(TransactionShardingRuntimeState.class);
-                    assertThat(state.isActive()).isFalse();
-                    assertThat(state.getMode()).isEqualTo("LEGACY");
-                    assertThat(state.getRuleVersion()).isEqualTo(ruleVersion);
-                    assertThat(state.getChecksumPrefix()).isEqualTo(checksum.substring(0, 19));
-                });
-
-        assertThat(primary.isClosed()).isTrue();
-        assertThat(replica.isClosed()).isTrue();
-    }
-
-    @Test
-    void shouldRejectPartialPublishedRuleInLegacyMode() {
-        HikariDataSource primary = h2DataSource("legacy_invalid_primary");
-
-        contextRunner(Map.of(DataSourceName.MASTER, primary))
-                .withPropertyValues(
-                        "spring.application.name=service-payment",
-                        "transaction-sharding.mode=LEGACY",
-                        "transaction-sharding.rule-version=2026.08.02-invalid")
+                        "spring.application.name=service-payment")
                 .run(context -> assertThat(context)
                         .hasFailed()
                         .getFailure()
-                        .hasMessage("transaction sharding physical nodes must contain verified existing quarters"));
+                        .hasMessage("transaction sharding rule version must be published before activation"));
 
         assertThat(primary.isClosed()).isTrue();
     }
@@ -134,7 +64,6 @@ class TransactionShardingDataSourceConfigurationTest {
         contextRunner(resources)
                 .withPropertyValues(
                         "spring.application.name=service-payment",
-                        "transaction-sharding.mode=SHARDINGSPHERE",
                         "transaction-sharding.rule-version=" + ruleVersion,
                         "transaction-sharding.rule-checksum=" + checksum,
                         "transaction-sharding.replica-data-sources[0]=" + DataSourceName.SLAVE_1,
@@ -154,10 +83,6 @@ class TransactionShardingDataSourceConfigurationTest {
                     assertThat(routing.getDataSources().get(DataSourceName.SLAVE_1))
                             .isNotInstanceOf(ItemDataSource.class)
                             .isNotInstanceOf(AutoCloseable.class);
-                    assertThat(context.getBean(TransactionShardingRuntimeState.class).isActive()).isTrue();
-                    assertThat(context.getBean(TransactionShardingRuntimeState.class).isShardingWriteEnabled()).isTrue();
-                    assertThat(context.getBean(TransactionShardingRuntimeState.class).isReadComparisonEnabled()).isFalse();
-
                     DynamicDataSourceContextHolder.push(DataSourceName.TRANSACTION);
                     try {
                         TransactionTemplate transaction = new TransactionTemplate(
@@ -183,40 +108,6 @@ class TransactionShardingDataSourceConfigurationTest {
     }
 
     @Test
-    void shouldRegisterCompositeDatasourceForReadOnlyComparisonWithoutEnablingWrites() {
-        HikariDataSource primary = h2DataSource("compare_primary");
-        HikariDataSource replica = h2DataSource("compare_replica");
-        createPhysicalTables(primary, TransactionShardingProperties.defaultLogicTables());
-        createPhysicalTables(replica, TransactionShardingProperties.defaultLogicTables());
-        String ruleVersion = "2026.08.02-compare";
-        String checksum = checksum(ruleVersion, TransactionShardingMode.COMPARE, List.of(DataSourceName.SLAVE_1));
-        Map<String, DataSource> resources = new LinkedHashMap<>();
-        resources.put(DataSourceName.MASTER, primary);
-        resources.put(DataSourceName.SLAVE_1, replica);
-
-        contextRunner(resources)
-                .withPropertyValues(
-                        "spring.application.name=service-admin",
-                        "transaction-sharding.mode=COMPARE",
-                        "transaction-sharding.rule-version=" + ruleVersion,
-                        "transaction-sharding.rule-checksum=" + checksum,
-                        "transaction-sharding.replica-data-sources[0]=" + DataSourceName.SLAVE_1,
-                        "transaction-sharding.physical-nodes[0]=202603",
-                        "transaction-sharding.physical-nodes[1]=202604")
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    TransactionShardingRuntimeState state = context.getBean(TransactionShardingRuntimeState.class);
-                    assertThat(state.isActive()).isTrue();
-                    assertThat(state.getMode()).isEqualTo("COMPARE");
-                    assertThat(state.isReadComparisonEnabled()).isTrue();
-                    assertThat(state.isShardingWriteEnabled()).isFalse();
-                });
-
-        assertThat(primary.isClosed()).isTrue();
-        assertThat(replica.isClosed()).isTrue();
-    }
-
-    @Test
     void shouldCloseCompositeDatasourceWhenOuterRegistrationFails() {
         HikariDataSource primary = h2DataSource("registration_failure_primary");
         HikariDataSource replica = h2DataSource("registration_failure_replica");
@@ -231,7 +122,6 @@ class TransactionShardingDataSourceConfigurationTest {
         contextRunner(resources, true)
                 .withPropertyValues(
                         "spring.application.name=service-payment",
-                        "transaction-sharding.mode=SHARDINGSPHERE",
                         "transaction-sharding.rule-version=" + ruleVersion,
                         "transaction-sharding.rule-checksum=" + checksum,
                         "transaction-sharding.replica-data-sources[0]=" + DataSourceName.SLAVE_1,
@@ -281,16 +171,9 @@ class TransactionShardingDataSourceConfigurationTest {
     }
 
     private String checksum(String ruleVersion) {
-        return checksum(ruleVersion, TransactionShardingMode.SHARDINGSPHERE, List.of(DataSourceName.SLAVE_1));
-    }
-
-    private String checksum(String ruleVersion,
-                            TransactionShardingMode mode,
-                            List<String> replicaDataSources) {
         TransactionShardingProperties properties = new TransactionShardingProperties();
-        properties.setMode(mode);
         properties.setRuleVersion(ruleVersion);
-        properties.setReplicaDataSources(replicaDataSources);
+        properties.setReplicaDataSources(List.of(DataSourceName.SLAVE_1));
         properties.setPhysicalNodes(List.of("202603", "202604"));
         return TransactionShardingRuleChecksum.calculate(properties);
     }

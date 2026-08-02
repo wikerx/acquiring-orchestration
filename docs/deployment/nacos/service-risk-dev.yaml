@@ -1,8 +1,4 @@
 # service-risk 专属配置：实时风控内部接口鉴权和规则骨架参数。
-transaction-sharding:
-  # Risk 可按变更单依次使用 LEGACY、COMPARE、SHARDINGSPHERE；切换后必须滚动重启。
-  mode: ${RISK_TRANSACTION_SHARDING_MODE:LEGACY}
-
 internal-service:
   auth:
     # dev 可开启内部 HMAC 校验，调用方 service-payment 必须使用相同共享密钥签名。

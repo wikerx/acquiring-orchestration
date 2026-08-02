@@ -14,16 +14,11 @@ import java.util.Locale;
  * @classname : TransactionShardingKeyParser
  * @date : 2026-07-21 00:00
  * @email : scott_x@163.com
- * @description : 交易分表键时间片解析组件，位于 component-db 分表基础层，统一解析平台交易号和生命周期操作号中的业务时间。
+ * @description : 内部异步链路缺少显式时间上下文时，从第一版平台交易号或生命周期操作号恢复业务时间；Admin/Merchant 在线查询不得依赖该组件。
  * @status : create
  */
 @Component
 public class TransactionShardingKeyParser {
-
-    /**
-     * 历史平台交易 ID 前缀。
-     */
-    private static final String LEGACY_TRANSACTION_ID_PREFIX = "TX";
 
     /**
      * 交易生命周期操作号前缀。
@@ -43,12 +38,11 @@ public class TransactionShardingKeyParser {
     /**
      * 从平台交易 ID 中解析分表时间。
      *
-     * @param transactionId 平台交易 ID，兼容无前缀和历史 TX 前缀
+     * @param transactionId 第一版无前缀平台交易 ID
      * @return 交易业务时间，无法解析时返回 null
      */
     public LocalDateTime parseTransactionDateTime(String transactionId) {
-        LocalDateTime dateTime = parseBusinessDateTime(transactionId, "");
-        return dateTime == null ? parseBusinessDateTime(transactionId, LEGACY_TRANSACTION_ID_PREFIX) : dateTime;
+        return parseBusinessDateTime(transactionId, "");
     }
 
     /**

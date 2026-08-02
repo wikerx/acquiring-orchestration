@@ -167,8 +167,12 @@ public class MerchantTransactionApplicationService {
      * @param transactionId  平台交易 ID
      * @return 交易聚合详情
      */
-    public TransactionDetailResponse detail(String merchantId, String transactionId) {
-        return transactionQueryService.detail(merchantId, transactionId);
+    public TransactionDetailResponse detail(String merchantId,
+                                            String transactionId,
+                                            LocalDateTime transactionDateTime,
+                                            LocalDateTime rootTransactionDateTime) {
+        return transactionQueryService.detail(
+                merchantId, transactionId, transactionDateTime, rootTransactionDateTime);
     }
 
     /**
@@ -180,7 +184,9 @@ public class MerchantTransactionApplicationService {
      * @return 请款动作结果
      */
     public TransactionActionResponse capture(String merchantId, String transactionId, TransactionActionRequest request) {
-        TransactionDetailResponse detailResponse = detail(merchantId, transactionId);
+        TransactionDetailResponse detailResponse = detail(
+                merchantId, transactionId, requiredTransactionDateTime(request),
+                requiredRootTransactionDateTime(request));
         ensureBelongsToMerchant(merchantId, detailResponse);
         TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
         if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
@@ -210,7 +216,9 @@ public class MerchantTransactionApplicationService {
      * @return 退款动作结果
      */
     public TransactionActionResponse refund(String merchantId, String transactionId, TransactionActionRequest request) {
-        TransactionDetailResponse detailResponse = detail(merchantId, transactionId);
+        TransactionDetailResponse detailResponse = detail(
+                merchantId, transactionId, requiredTransactionDateTime(request),
+                requiredRootTransactionDateTime(request));
         ensureBelongsToMerchant(merchantId, detailResponse);
         TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
         if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
@@ -247,7 +255,9 @@ public class MerchantTransactionApplicationService {
      * @return 撤销动作结果
      */
     public TransactionActionResponse voidPayment(String merchantId, String transactionId, TransactionActionRequest request) {
-        TransactionDetailResponse detailResponse = detail(merchantId, transactionId);
+        TransactionDetailResponse detailResponse = detail(
+                merchantId, transactionId, requiredTransactionDateTime(request),
+                requiredRootTransactionDateTime(request));
         ensureBelongsToMerchant(merchantId, detailResponse);
         TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
         if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
@@ -536,9 +546,32 @@ public class MerchantTransactionApplicationService {
         PaymentTransactionActionClientRequestDTO.TransactionInfoDTO transactionInfoDTO =
                 new PaymentTransactionActionClientRequestDTO.TransactionInfoDTO();
         transactionInfoDTO.setSourceTransactionId(sourceOperation.getTransactionId());
+        transactionInfoDTO.setSourceTransactionDateTime(sourceOperation.getTransactionDateTime());
+        transactionInfoDTO.setRootTransactionDateTime(sourceOperation.getRootTransactionDateTime());
         transactionInfoDTO.setDescription(request == null ? null : request.getReason());
         requestDTO.setTransactionInfo(transactionInfoDTO);
         return requestDTO;
+    }
+
+    /**
+     * 校验商户动作携带的源交易分片时间，避免跨商户、跨分片扫描。
+     *
+     * @param request 商户交易动作请求
+     * @return 源交易分片时间
+     */
+    private LocalDateTime requiredTransactionDateTime(TransactionActionRequest request) {
+        if (request == null || request.getTransactionDateTime() == null) {
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "transactionDateTime is required");
+        }
+        return request.getTransactionDateTime();
+    }
+
+    /** 校验商户动作携带的生命周期根主单分片时间。 */
+    private LocalDateTime requiredRootTransactionDateTime(TransactionActionRequest request) {
+        if (request == null || request.getRootTransactionDateTime() == null) {
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "rootTransactionDateTime is required");
+        }
+        return request.getRootTransactionDateTime();
     }
 
     /**

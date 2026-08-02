@@ -1,12 +1,6 @@
 package com.scott.payment.risk.repository.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
-import com.scott.payment.component.db.sharding.TransactionShardingMode;
-import com.scott.payment.component.db.sharding.TransactionShardingProperties;
-import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
@@ -374,17 +368,13 @@ class DefaultRiskListRuntimeRepositoryTests {
     }
 
     @Test
-    void shouldReserveCumulativeMerchantLimitFromMasterDatabaseBaseline() {
+    void shouldReserveCumulativeMerchantLimitFromLogicalTransactionTable() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         RiskListMatch dailyRule = cumulativeRule(11L, "DAILY", "200.000000");
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(dailyRule));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                org.mockito.ArgumentMatchers.anyList(),
+        when(mapper.sumRiskApprovedTransactionAmount(
                 org.mockito.ArgumentMatchers.eq("M202607290001"),
                 org.mockito.ArgumentMatchers.eq("USD"),
                 org.mockito.ArgumentMatchers.any(),
@@ -401,7 +391,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(110_000_000L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, mock(RedisStringService.class), redisTemplate, shardingDataTemplate);
+                mapper, mock(RedisStringService.class), redisTemplate, null);
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
                 cumulativeRequest("TXN-001", "10.000000"));
@@ -413,17 +403,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                     assertThat(detail.getAmountLimit()).isEqualByComparingTo("200.000000");
                 });
         assertThat(evaluation.reservations()).hasSize(1);
-        ArgumentCaptor<ShardingRangeTableContext> contextCaptor =
-                ArgumentCaptor.forClass(ShardingRangeTableContext.class);
-        verify(shardingDataTemplate).resolvePhysicalTables(contextCaptor.capture());
-        assertThat(contextCaptor.getValue()).satisfies(context -> {
-            assertThat(context.logicalTable()).isEqualTo("transaction_order");
-            assertThat(context.beginTime()).isEqualTo(LocalDateTime.of(2026, 7, 29, 0, 0));
-            assertThat(context.endTime()).isEqualTo(LocalDateTime.of(2026, 7, 30, 0, 0));
-            assertThat(context.dataSource()).isEqualTo(DataSourceName.MASTER);
-        });
-        verify(mapper).sumRiskApprovedTransactionAmountPhysical(
-                List.of("transaction_order_202603"),
+        verify(mapper).sumRiskApprovedTransactionAmount(
                 "M202607290001",
                 "USD",
                 LocalDateTime.of(2026, 7, 29, 0, 0),
@@ -433,113 +413,15 @@ class DefaultRiskListRuntimeRepositoryTests {
     }
 
     @Test
-    void shouldReserveCumulativeLimitFromLogicalTransactionTableInShardingSphereMode() {
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
-        RiskListMatch dailyRule = cumulativeRule(12L, "DAILY", "200.000000");
-        when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
-                .thenReturn(List.of(dailyRule));
-        when(mapper.sumRiskApprovedTransactionAmount(
-                "M202607290001",
-                "USD",
-                LocalDateTime.of(2026, 7, 29, 0, 0),
-                LocalDateTime.of(2026, 7, 30, 0, 0),
-                "TXN-LOGICAL-001"))
-                .thenReturn(new BigDecimal("100.000000"));
-        when(redisTemplate.execute(
-                any(), org.mockito.ArgumentMatchers.anyList(),
-                any(), any(), any(), any(), any()))
-                .thenReturn(110_000_000L);
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                mock(RedisStringService.class),
-                redisTemplate,
-                shardingDataTemplate,
-                null,
-                runtimeState(TransactionShardingMode.SHARDINGSPHERE));
-
-        MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
-                cumulativeRequest("TXN-LOGICAL-001", "10.000000"));
-
-        assertThat(evaluation.details()).singleElement()
-                .satisfies(detail -> assertThat(detail.getCurrentAmount()).isEqualByComparingTo("110.000000"));
-        verify(mapper).sumRiskApprovedTransactionAmount(
-                "M202607290001",
-                "USD",
-                LocalDateTime.of(2026, 7, 29, 0, 0),
-                LocalDateTime.of(2026, 7, 30, 0, 0),
-                "TXN-LOGICAL-001");
-        verify(mapper, never()).sumRiskApprovedTransactionAmountPhysical(
-                org.mockito.ArgumentMatchers.anyList(),
-                anyString(),
-                anyString(),
-                any(),
-                any(),
-                anyString());
-        verifyNoInteractions(shardingDataTemplate);
-    }
-
-    @Test
-    void shouldCompareLogicalAmountButUseLegacyAmountInCompareMode() {
-        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
-        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
-        when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
-                .thenReturn(List.of(cumulativeRule(13L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                any(), anyString(), anyString(), any(), any(), anyString()))
-                .thenReturn(new BigDecimal("100.000000"));
-        when(mapper.sumRiskApprovedTransactionAmount(
-                anyString(), anyString(), any(), any(), anyString()))
-                .thenReturn(new BigDecimal("90.000000"));
-        when(redisTemplate.execute(
-                any(), org.mockito.ArgumentMatchers.anyList(),
-                any(), any(), any(), any(), any()))
-                .thenReturn(110_000_000L);
-        DefaultRiskListRuntimeRepository repository = repository(
-                mapper,
-                mock(RedisStringService.class),
-                redisTemplate,
-                shardingDataTemplate,
-                null,
-                runtimeState(TransactionShardingMode.COMPARE));
-
-        MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
-                cumulativeRequest("TXN-COMPARE-001", "10.000000"));
-
-        assertThat(evaluation.details()).singleElement()
-                .satisfies(detail -> assertThat(detail.getCurrentAmount()).isEqualByComparingTo("110.000000"));
-        verify(mapper).sumRiskApprovedTransactionAmountPhysical(
-                List.of("transaction_order_202603"),
-                "M202607290001",
-                "USD",
-                LocalDateTime.of(2026, 7, 29, 0, 0),
-                LocalDateTime.of(2026, 7, 30, 0, 0),
-                "TXN-COMPARE-001");
-        verify(mapper).sumRiskApprovedTransactionAmount(
-                "M202607290001",
-                "USD",
-                LocalDateTime.of(2026, 7, 29, 0, 0),
-                LocalDateTime.of(2026, 7, 30, 0, 0),
-                "TXN-COMPARE-001");
-    }
-
-    @Test
     void shouldKeepLegacySeedWhileObservingLifecycleBaselineInShadowMode() {
         log.info("测试累计基线 shadow，关键输入: 历史基线 100 USD、生命周期基线 90 USD");
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         RiskShadowComparisonMonitor monitor = mock(RiskShadowComparisonMonitor.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(41L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202607"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                any(), anyString(), anyString(), any(), any(), anyString()))
+        when(mapper.sumRiskApprovedTransactionAmount(
+                anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(mapper.sumLifecycleReservationAmountUnits(
                 "M202607290001", 41L, "USD", "20260729", "TXN-BASELINE-SHADOW"))
@@ -552,7 +434,6 @@ class DefaultRiskListRuntimeRepositoryTests {
         DefaultRiskListRuntimeRepository repository = repository(
                 mapper,
                 redisTemplate,
-                shardingDataTemplate,
                 properties,
                 monitor);
 
@@ -581,13 +462,10 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("测试累计计数重建，关键输入: 已确认 LIFECYCLE 基线 75 USD、同槽计数模式");
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(42L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202607"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                any(), anyString(), anyString(), any(), any(), anyString()))
+        when(mapper.sumRiskApprovedTransactionAmount(
+                anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(mapper.sumLifecycleReservationAmountUnits(
                 "M202607290001", 42L, "USD", "20260729", "TXN-LIFECYCLE-REBUILD"))
@@ -600,7 +478,6 @@ class DefaultRiskListRuntimeRepositoryTests {
         DefaultRiskListRuntimeRepository repository = repository(
                 mapper,
                 redisTemplate,
-                shardingDataTemplate,
                 properties,
                 null);
 
@@ -633,17 +510,14 @@ class DefaultRiskListRuntimeRepositoryTests {
         log.info("测试累计周期边界，关键输入: 2028-02-29 23:59:59 的日、周、月规则");
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(
                         cumulativeRule(51L, "DAILY", "100.000000"),
                         cumulativeRule(52L, "WEEKLY", "200.000000"),
                         cumulativeRule(53L, "MONTHLY", "300.000000")
                 ));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202802"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                any(), anyString(), anyString(), any(), any(), anyString()))
+        when(mapper.sumRiskApprovedTransactionAmount(
+                anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(BigDecimal.ZERO);
         when(redisTemplate.execute(
                 any(), org.mockito.ArgumentMatchers.anyList(),
@@ -653,7 +527,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 mapper,
                 mock(RedisStringService.class),
                 redisTemplate,
-                shardingDataTemplate);
+                null);
         RiskPaymentEvaluateRequestDTO request =
                 cumulativeRequest("TXN-LEAP-BOUNDARY", "1.000000");
         request.setTransactionDateTime(LocalDateTime.of(2028, 2, 29, 23, 59, 59));
@@ -661,25 +535,21 @@ class DefaultRiskListRuntimeRepositoryTests {
         MerchantLimitEvaluation evaluation =
                 repository.reserveCumulativeMerchantLimits(request);
 
-        ArgumentCaptor<ShardingRangeTableContext> contextCaptor =
-                ArgumentCaptor.forClass(ShardingRangeTableContext.class);
-        verify(shardingDataTemplate, org.mockito.Mockito.times(3))
-                .resolvePhysicalTables(contextCaptor.capture());
-        assertThat(contextCaptor.getAllValues())
-                .extracting(
-                        ShardingRangeTableContext::beginTime,
-                        ShardingRangeTableContext::endTime)
-                .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(
-                                LocalDateTime.of(2028, 2, 29, 0, 0),
-                                LocalDateTime.of(2028, 3, 1, 0, 0)),
-                        org.assertj.core.groups.Tuple.tuple(
-                                LocalDateTime.of(2028, 2, 28, 0, 0),
-                                LocalDateTime.of(2028, 3, 6, 0, 0)),
-                        org.assertj.core.groups.Tuple.tuple(
-                                LocalDateTime.of(2028, 2, 1, 0, 0),
-                                LocalDateTime.of(2028, 3, 1, 0, 0))
-                );
+        verify(mapper).sumRiskApprovedTransactionAmount(
+                "M202607290001", "USD",
+                LocalDateTime.of(2028, 2, 29, 0, 0),
+                LocalDateTime.of(2028, 3, 1, 0, 0),
+                "TXN-LEAP-BOUNDARY");
+        verify(mapper).sumRiskApprovedTransactionAmount(
+                "M202607290001", "USD",
+                LocalDateTime.of(2028, 2, 28, 0, 0),
+                LocalDateTime.of(2028, 3, 6, 0, 0),
+                "TXN-LEAP-BOUNDARY");
+        verify(mapper).sumRiskApprovedTransactionAmount(
+                "M202607290001", "USD",
+                LocalDateTime.of(2028, 2, 1, 0, 0),
+                LocalDateTime.of(2028, 3, 1, 0, 0),
+                "TXN-LEAP-BOUNDARY");
         assertThat(evaluation.details()).hasSize(3);
         log.info("累计周期边界验证完成，结果: 闰日日/周/月区间均为左闭右开");
     }
@@ -688,15 +558,12 @@ class DefaultRiskListRuntimeRepositoryTests {
     void shouldPersistPreparingBeforeRedisMutationAndMarkReservedAfterSuccess() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         MerchantLimitReservationStateService stateService =
                 mock(MerchantLimitReservationStateService.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(11L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                any(), anyString(), anyString(), any(), any(), anyString()))
+        when(mapper.sumRiskApprovedTransactionAmount(
+                anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(stateService.prepare(any())).thenAnswer(invocation -> {
             MerchantLimitReservationDO reservation = invocation.getArgument(0);
@@ -715,7 +582,6 @@ class DefaultRiskListRuntimeRepositoryTests {
                 mapper,
                 mock(RedisStringService.class),
                 redisTemplate,
-                shardingDataTemplate,
                 stateService);
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
@@ -747,13 +613,9 @@ class DefaultRiskListRuntimeRepositoryTests {
     void shouldUseConciseCoLocatedKeysForClusterSafeCumulativeCounter() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(11L, "DAILY", "200.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                org.mockito.ArgumentMatchers.anyList(),
+        when(mapper.sumRiskApprovedTransactionAmount(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
@@ -773,7 +635,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 mapper,
                 mock(RedisStringService.class),
                 redisTemplate,
-                shardingDataTemplate
+                null
         );
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
@@ -797,13 +659,9 @@ class DefaultRiskListRuntimeRepositoryTests {
     void shouldRejectCumulativeMerchantLimitWithoutPersistingReservation() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(cumulativeRule(12L, "MONTHLY", "105.000000")));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                org.mockito.ArgumentMatchers.anyList(),
+        when(mapper.sumRiskApprovedTransactionAmount(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
@@ -820,7 +678,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(-110_000_000L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, mock(RedisStringService.class), redisTemplate, shardingDataTemplate);
+                mapper, mock(RedisStringService.class), redisTemplate, null);
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
                 cumulativeRequest("TXN-002", "10.000000"));
@@ -837,17 +695,13 @@ class DefaultRiskListRuntimeRepositoryTests {
     void shouldAuditAllCumulativeRulesBeforeReturningBlockedDecision() {
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
         when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
                 .thenReturn(List.of(
                         cumulativeRule(31L, "DAILY", "100.000000"),
                         cumulativeRule(32L, "WEEKLY", "200.000000"),
                         cumulativeRule(33L, "MONTHLY", "300.000000")
                 ));
-        when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                org.mockito.ArgumentMatchers.anyList(),
+        when(mapper.sumRiskApprovedTransactionAmount(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
@@ -864,7 +718,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(-510_000_000L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, mock(RedisStringService.class), redisTemplate, shardingDataTemplate);
+                mapper, mock(RedisStringService.class), redisTemplate, null);
 
         MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
                 cumulativeRequest("TXN-003", "10.000000"));
@@ -907,7 +761,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(1L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, redis, redisTemplate, mock(ShardingDataTemplate.class));
+                mapper, redis, redisTemplate, null);
         RiskPaymentEvaluateRequestDTO requestDTO = cumulativeRequest("TXN-FREQUENCY-001", "10.000000");
         RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
         ipLookup.setMatchValueHash("ip-hash");
@@ -958,7 +812,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 mapper,
                 redis,
                 redisTemplate,
-                mock(ShardingDataTemplate.class)
+                null
         );
         RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
         ipLookup.setMatchValueHash("ip-hash");
@@ -1005,7 +859,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 org.mockito.ArgumentMatchers.any()))
                 .thenReturn(1L);
         DefaultRiskListRuntimeRepository repository = repository(
-                mapper, redis, redisTemplate, mock(ShardingDataTemplate.class));
+                mapper, redis, redisTemplate, null);
         RiskPaymentEvaluateRequestDTO requestDTO = cumulativeRequest("TXN-FREQUENCY-002", "10.000000");
         requestDTO.setSubMerchantId("WRONG-CUSTOMER-ID");
         requestDTO.setRequestFingerprint("WRONG-DEVICE-FINGERPRINT");
@@ -1057,7 +911,6 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(null),
                 provider(null),
                 provider(null),
-                provider(null),
                 properties,
                 redisProperties);
     }
@@ -1065,35 +918,7 @@ class DefaultRiskListRuntimeRepositoryTests {
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
                                                         RedisStringService redis,
                                                         StringRedisTemplate redisTemplate,
-                                                        ShardingDataTemplate shardingDataTemplate) {
-        return repository(
-                mapper,
-                redis,
-                redisTemplate,
-                shardingDataTemplate,
-                null);
-    }
-
-    private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
-                                                        RedisStringService redis,
-                                                        StringRedisTemplate redisTemplate,
-                                                        ShardingDataTemplate shardingDataTemplate,
                                                         MerchantLimitReservationStateService stateService) {
-        return repository(
-                mapper,
-                redis,
-                redisTemplate,
-                shardingDataTemplate,
-                stateService,
-                new TransactionShardingRuntimeState());
-    }
-
-    private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
-                                                        RedisStringService redis,
-                                                        StringRedisTemplate redisTemplate,
-                                                        ShardingDataTemplate shardingDataTemplate,
-                                                        MerchantLimitReservationStateService stateService,
-                                                        TransactionShardingRuntimeState transactionShardingRuntimeState) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
         properties.setRuntimeEnabled(true);
         properties.setCacheHitTtlSeconds(300);
@@ -1108,20 +933,10 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(redis),
                 provider(generationStore),
                 provider(redisTemplate),
-                provider(shardingDataTemplate),
                 provider(stateService),
                 provider(null),
                 properties,
-                redisProperties,
-                transactionShardingRuntimeState);
-    }
-
-    private TransactionShardingRuntimeState runtimeState(TransactionShardingMode mode) {
-        TransactionShardingProperties properties = new TransactionShardingProperties();
-        properties.setMode(mode);
-        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
-        runtimeState.activate(properties);
-        return runtimeState;
+                redisProperties);
     }
 
     /**
@@ -1143,7 +958,6 @@ class DefaultRiskListRuntimeRepositoryTests {
      *
      * @param mapper                风控主库 Mapper
      * @param redisTemplate         Redis 脚本执行器
-     * @param shardingDataTemplate  分片物理表解析器
      * @param properties            风控迁移配置
      * @param monitor               shadow 汇总监控器，允许为空
      * @return 风控运行时仓储
@@ -1151,7 +965,6 @@ class DefaultRiskListRuntimeRepositoryTests {
     private DefaultRiskListRuntimeRepository repository(
             RiskRuntimeMapper mapper,
             StringRedisTemplate redisTemplate,
-            ShardingDataTemplate shardingDataTemplate,
             RiskEvaluationProperties properties,
             RiskShadowComparisonMonitor monitor) {
         PaymentRedisProperties redisProperties = new PaymentRedisProperties();
@@ -1164,7 +977,6 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(mock(RedisStringService.class)),
                 provider(generationStore),
                 provider(redisTemplate),
-                provider(shardingDataTemplate),
                 provider(null),
                 provider(monitor),
                 properties,

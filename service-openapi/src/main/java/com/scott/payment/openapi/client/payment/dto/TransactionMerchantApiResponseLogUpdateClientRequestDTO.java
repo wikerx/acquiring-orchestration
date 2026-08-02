@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.client.payment.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -26,6 +27,12 @@ public class TransactionMerchantApiResponseLogUpdateClientRequestDTO implements 
      * 平台当前交易唯一标识。
      */
     private String transactionId;
+
+    /**
+     * 当前交易真实分片时间，由支付响应原样回传，禁止从 transactionId 推导。
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+    private LocalDateTime transactionDateTime;
 
     /**
      * 商户请求唯一号，通常等于 orderInfo.orderId。

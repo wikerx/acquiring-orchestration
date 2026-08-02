@@ -49,6 +49,9 @@ public class OpenApiKeyExportService {
      */
     private static final String ZIP_CONTENT_TYPE = "application/zip";
 
+    /** Gateway 中所有商户 OpenAPI 的统一外部前缀。 */
+    private static final String OPENAPI_BASE_PATH = "/api/rest";
+
     /**
      * base URL Resolver，表示回调、通知、来源站点或远程接口地址。
      * <p>
@@ -307,7 +310,14 @@ public class OpenApiKeyExportService {
         if (baseUrl == null || baseUrl.trim().isEmpty()) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "OpenAPI 基础地址未配置");
         }
-        return baseUrl.trim();
+        String normalizedBaseUrl = baseUrl.trim();
+        while (normalizedBaseUrl.endsWith("/")) {
+            normalizedBaseUrl = normalizedBaseUrl.substring(0, normalizedBaseUrl.length() - 1);
+        }
+        if (normalizedBaseUrl.endsWith(OPENAPI_BASE_PATH)) {
+            return normalizedBaseUrl + "/";
+        }
+        return normalizedBaseUrl + OPENAPI_BASE_PATH + "/";
     }
 
     /**

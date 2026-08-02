@@ -34,7 +34,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDateTime;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -293,11 +297,19 @@ public class PaymentInternalController {
      * 查询交易聚合详情。
      *
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表返回的当前动作真实分片时间
+     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
      * @return 交易详情
      */
     @GetMapping("/transactions/{transactionId}")
-    public CommonResult<TransactionDetailResponse> detail(@PathVariable("transactionId") String transactionId) {
-        return success(paymentTransactionApplicationService.detail(transactionId));
+    public CommonResult<TransactionDetailResponse> detail(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime transactionDateTime,
+            @RequestParam("rootTransactionDateTime")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime rootTransactionDateTime) {
+        return success(paymentTransactionApplicationService.detail(
+                transactionId, transactionDateTime, rootTransactionDateTime));
     }
 
     /**

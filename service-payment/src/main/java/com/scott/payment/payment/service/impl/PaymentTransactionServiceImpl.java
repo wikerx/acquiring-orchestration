@@ -71,6 +71,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
@@ -623,12 +624,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
         String requestedTransactionId = commandDTO.getTransactionInfo() == null
                 ? null : commandDTO.getTransactionInfo().getTransactionId();
+        LocalDateTime requestedTransactionDateTime = commandDTO.getTransactionInfo().getSourceTransactionDateTime();
+        LocalDateTime rootTransactionDateTime = commandDTO.getTransactionInfo().getRootTransactionDateTime();
         List<TransactionOperationDO> operations = transactionRecordService.findOperationsByMerchantOrder(
-                commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo(), requestedTransactionId);
+                commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo(), requestedTransactionId,
+                requestedTransactionDateTime, rootTransactionDateTime);
         if (operations.isEmpty()) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        TransactionOrderDO sourceOrderDO = resolveOrderForQuery(operations.get(0));
+        TransactionOrderDO sourceOrderDO = resolveOrderForQuery(operations.get(0), rootTransactionDateTime);
         if (!Objects.equals(commandDTO.getMerchantId(), sourceOrderDO.getMerchantId())
                 || !Objects.equals(commandDTO.getMerchantOrderNo(), sourceOrderDO.getMerchantOrderNo())) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
@@ -1153,7 +1157,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
         }
         TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
-                commandDTO.getTransactionInfo().getSourceTransactionId());
+                commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
         normalizeFollowUpCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildFollowUpResult(commandDTO, sourceOrderDO, transactionId, transactionTypeEnum);
@@ -1383,6 +1388,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (commandDTO.getTransactionDateTime() == null) {
             commandDTO.setTransactionDateTime(LocalDateTime.now());
         }
+        commandDTO.setTransactionDateTime(normalizeShardingTime(commandDTO.getTransactionDateTime()));
         if (!StringUtils.hasText(commandDTO.getTransactionType())) {
             commandDTO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
         }
@@ -1404,14 +1410,38 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 || !StringUtils.hasText(commandDTO.getTransactionInfo().getSourceTransactionId())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+        PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
+        if (transactionInfoDTO.getSourceTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(),
+                    "sourceTransactionDateTime is required");
+        }
+        if (transactionInfoDTO.getRootTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(),
+                    "rootTransactionDateTime is required");
+        }
         if (commandDTO.getTransactionDateTime() == null) {
             commandDTO.setTransactionDateTime(LocalDateTime.now());
         }
+        commandDTO.setTransactionDateTime(normalizeShardingTime(commandDTO.getTransactionDateTime()));
         if (requiresAmount(transactionTypeEnum)
                 && (commandDTO.getAmount() == null || commandDTO.getAmount().compareTo(BigDecimal.ZERO) <= 0
                 || requiresRequestCurrency(transactionTypeEnum) && !StringUtils.hasText(commandDTO.getCurrency()))) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
+    }
+
+    /**
+     * 将交易分片时间统一为 MySQL {@code DATETIME(3)} 精度。
+     * <p>
+     * 该值会同时进入持久化、渠道结果回写、CAS、Outbox 和通知链路；必须在首次使用前冻结，
+     * 避免 JDBC 落库后的毫秒值与内存中的微秒值不一致而导致精确路由查询未命中。
+     * </p>
+     *
+     * @param transactionDateTime 调用链传入或服务端生成的交易时间
+     * @return 毫秒精度的交易分片时间
+     */
+    private LocalDateTime normalizeShardingTime(LocalDateTime transactionDateTime) {
+        return transactionDateTime.truncatedTo(ChronoUnit.MILLIS);
     }
 
     /**
@@ -1780,7 +1810,9 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 || !StringUtils.hasText(commandDTO.getMerchantId())
                 || !StringUtils.hasText(commandDTO.getMerchantOrderNo())
                 || !StringUtils.hasText(commandDTO.getMerchantOrderId())
-                || commandDTO.getTransactionInfo() == null) {
+                || commandDTO.getTransactionInfo() == null
+                || commandDTO.getTransactionInfo().getSourceTransactionDateTime() == null
+                || commandDTO.getTransactionInfo().getRootTransactionDateTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
     }
@@ -1788,8 +1820,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     /**
      * 定位原交易主单。
      * <p>
-     * 商户 OpenAPI 不要求上送原交易时间；支付核心按 sourceTransactionId 中的业务时间片段定位动作分表，
-     * 再通过动作单的 operation_id 精确读取同一生命周期主单。
+     * 调用链必须同时传入源动作和生命周期主单的真实分片时间，支付热链路不解析业务编号。
      *
      * @param commandDTO 后续动作或查询命令
      * @return 原交易主单
@@ -1800,7 +1831,15 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         }
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
         String sourceTransactionId = transactionInfoDTO.getSourceTransactionId();
-        TransactionOrderDO sourceOrderDO = transactionRecordService.findSourceOrderByTransactionId(sourceTransactionId);
+        if (transactionInfoDTO.getSourceTransactionDateTime() == null
+                || transactionInfoDTO.getRootTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(),
+                    "sourceTransactionDateTime and rootTransactionDateTime are required");
+        }
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findSourceOrderByTransactionId(
+                sourceTransactionId,
+                normalizeShardingTime(transactionInfoDTO.getSourceTransactionDateTime()),
+                normalizeShardingTime(transactionInfoDTO.getRootTransactionDateTime()));
         if (sourceOrderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -1826,41 +1865,22 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
      * 根据查询命中的动作单读取生命周期主单。
      *
      * @param operationDO 查询命中的动作单
+     * @param rootTransactionDateTime 生命周期根主单分片时间
      * @return 生命周期主单
      */
-    private TransactionOrderDO resolveOrderForQuery(TransactionOperationDO operationDO) {
-        if (operationDO == null || !StringUtils.hasText(operationDO.getOperationId())) {
+    private TransactionOrderDO resolveOrderForQuery(TransactionOperationDO operationDO,
+                                                    LocalDateTime rootTransactionDateTime) {
+        if (operationDO == null
+                || !StringUtils.hasText(operationDO.getOperationId())
+                || rootTransactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        LocalDateTime orderTransactionDateTime = parseOperationDateTime(operationDO);
-        TransactionOrderDO orderDO = transactionRecordService.findOrder(orderTransactionDateTime, operationDO.getOperationId());
+        TransactionOrderDO orderDO = transactionRecordService.findOrder(
+                normalizeShardingTime(rootTransactionDateTime), operationDO.getOperationId());
         if (orderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         return orderDO;
-    }
-
-    /**
-     * 从 operationId 中解析生命周期主单所在分表时间。
-     * <p>
-     * operation_id 带有生成时间片段，优先用于定位主单分表；解析失败时回退动作业务时间，兼容历史或人工补录数据。
-     *
-     * @param operationDO 查询命中的动作单
-     * @return 主单分表时间
-     */
-    private LocalDateTime parseOperationDateTime(TransactionOperationDO operationDO) {
-        String operationId = operationDO.getOperationId();
-        int startIndex = operationId.startsWith(OPERATION_ID_PREFIX) ? OPERATION_ID_PREFIX.length() : 0;
-        int endIndex = startIndex + 17;
-        if (operationId.length() >= endIndex) {
-            try {
-                return LocalDateTime.parse(operationId.substring(startIndex, endIndex),
-                        java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS", Locale.ROOT));
-            } catch (java.time.format.DateTimeParseException ignored) {
-                // 回退到动作业务时间，兼容历史 operation_id 或异常补录数据。
-            }
-        }
-        return operationDO.getTransactionDateTime();
     }
 
     /**
@@ -1907,6 +1927,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         target.setMessage(resolveMerchantResponseMessage(operationDO));
         target.setTransactionType(operationDO.getTransactionType());
         target.setTransactionDateTime(operationDO.getTransactionDateTime());
+        target.setRootTransactionDateTime(orderDO.getTransactionDateTime());
         target.setPaymentMethod(StringUtils.hasText(orderDO.getPaymentMethod()) ? orderDO.getPaymentMethod() : DEFAULT_PAYMENT_METHOD);
         target.setCardBrand(orderDO.getPaymentBrand());
         target.setCardBin(null);
@@ -2063,6 +2084,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         resultDTO.setRateSource(commandDTO.getRateSource());
         resultDTO.setRateTime(commandDTO.getRateTime());
         resultDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        resultDTO.setRootTransactionDateTime(commandDTO.getTransactionDateTime());
         resultDTO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
         resultDTO.setPaymentMethod(commandDTO.getPaymentMethod());
         resultDTO.setPaymentBrand(resolvePaymentBrand(commandDTO));
@@ -2143,6 +2165,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                                       ChannelPaymentResponse channelResponse,
                                       PaymentCreateResultDTO resultDTO) {
         enrichResult(commandDTO, routeResultDTO, channelResponse, resultDTO);
+        resultDTO.setRootTransactionDateTime(sourceOrderDO.getTransactionDateTime());
         resultDTO.setPaymentMethod(sourceOrderDO.getPaymentMethod());
         resultDTO.setPaymentBrand(firstText(resultDTO.getPaymentBrand(), sourceOrderDO.getPaymentBrand()));
         resultDTO.setOrderAmount(commandDTO.getLabelAmount());

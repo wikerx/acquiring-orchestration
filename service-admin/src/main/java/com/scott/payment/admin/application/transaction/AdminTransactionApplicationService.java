@@ -229,7 +229,8 @@ public class AdminTransactionApplicationService {
      * @return 请款动作结果
      */
     public TransactionActionResponse capture(String transactionId, TransactionActionRequest request) {
-        TransactionDetailResponse detailResponse = detail(transactionId);
+        TransactionDetailResponse detailResponse = detail(
+                transactionId, requiredTransactionDateTime(request), requiredRootTransactionDateTime(request));
         TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
         if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED, "only successful authorizations can be captured");
@@ -258,7 +259,8 @@ public class AdminTransactionApplicationService {
      * @return 退款动作结果
      */
     public TransactionActionResponse refund(String transactionId, TransactionActionRequest request) {
-        TransactionDetailResponse detailResponse = detail(transactionId);
+        TransactionDetailResponse detailResponse = detail(
+                transactionId, requiredTransactionDateTime(request), requiredRootTransactionDateTime(request));
         TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
         if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED, "only successful transactions can be refunded");
@@ -294,7 +296,8 @@ public class AdminTransactionApplicationService {
      * @return 撤销动作结果
      */
     public TransactionActionResponse voidPayment(String transactionId, TransactionActionRequest request) {
-        TransactionDetailResponse detailResponse = detail(transactionId);
+        TransactionDetailResponse detailResponse = detail(
+                transactionId, requiredTransactionDateTime(request), requiredRootTransactionDateTime(request));
         TransactionOperationResponse sourceOperation = resolveSourceOperation(detailResponse, transactionId);
         if (!"SUCCESS".equals(sourceOperation.getTransactionStatus())) {
             throw new ApiException(ApiResultEnum.TRANSACTION_TYPE_NOT_SUPPORTED, "only successful authorizations can be voided");
@@ -315,10 +318,34 @@ public class AdminTransactionApplicationService {
      * 查询交易聚合详情。
      *
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表返回的真实交易分片时间
      * @return 交易聚合详情
      */
-    public TransactionDetailResponse detail(String transactionId) {
-        return transactionQueryService.detail(transactionId);
+    public TransactionDetailResponse detail(String transactionId,
+                                            LocalDateTime transactionDateTime,
+                                            LocalDateTime rootTransactionDateTime) {
+        return transactionQueryService.detail(transactionId, transactionDateTime, rootTransactionDateTime);
+    }
+
+    /**
+     * 校验后台动作携带的源交易分片时间，防止支付动作广播查询。
+     *
+     * @param request 后台交易动作请求
+     * @return 源交易分片时间
+     */
+    private LocalDateTime requiredTransactionDateTime(TransactionActionRequest request) {
+        if (request == null || request.getTransactionDateTime() == null) {
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "transactionDateTime is required");
+        }
+        return request.getTransactionDateTime();
+    }
+
+    /** 校验后台动作携带的生命周期根主单分片时间。 */
+    private LocalDateTime requiredRootTransactionDateTime(TransactionActionRequest request) {
+        if (request == null || request.getRootTransactionDateTime() == null) {
+            throw new ApiException(ApiResultEnum.PARAM_MISSING, "rootTransactionDateTime is required");
+        }
+        return request.getRootTransactionDateTime();
     }
 
     /**
@@ -892,6 +919,8 @@ public class AdminTransactionApplicationService {
         PaymentTransactionActionClientRequestDTO.TransactionInfoDTO transactionInfoDTO =
                 new PaymentTransactionActionClientRequestDTO.TransactionInfoDTO();
         transactionInfoDTO.setSourceTransactionId(sourceOperation.getTransactionId());
+        transactionInfoDTO.setSourceTransactionDateTime(sourceOperation.getTransactionDateTime());
+        transactionInfoDTO.setRootTransactionDateTime(sourceOperation.getRootTransactionDateTime());
         transactionInfoDTO.setDescription(request == null ? null : request.getReason());
         requestDTO.setTransactionInfo(transactionInfoDTO);
         return requestDTO;

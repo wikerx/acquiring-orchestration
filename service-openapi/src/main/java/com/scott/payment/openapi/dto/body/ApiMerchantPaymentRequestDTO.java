@@ -6,6 +6,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
@@ -603,6 +604,18 @@ public class ApiMerchantPaymentRequestDTO implements Serializable {
         @NotBlank(message = "transactionInfo.sourceTransactionId", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Reversal.class})
         @Pattern(regexp = "^$|^[\\x21-\\x7E\\s]{1,64}$", message = "transactionInfo.sourceTransactionId format does not match", groups = {Format.class})
         private String sourceTransactionId;
+
+        /**
+         * 源交易动作发生时间，必须取自平台交易响应并保留偏移量，用于精确路由源动作单。
+         */
+        @NotNull(message = "transactionInfo.sourceTransactionDateTime", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        private OffsetDateTime sourceTransactionDateTime;
+
+        /**
+         * 源交易所属生命周期主单时间，必须取自平台响应，用于精确路由 transaction_order。
+         */
+        @NotNull(message = "transactionInfo.rootTransactionDateTime", groups = {IncrementalAuthorization.class, Capture.class, PreAuthCompletion.class, Refund.class, AuthorizationCancel.class, Query.class, Reversal.class})
+        private OffsetDateTime rootTransactionDateTime;
 
         /**
          * 平台当前交易唯一标识。查询接口可选传入；传入时只返回该商户订单下命中的单笔交易动作。

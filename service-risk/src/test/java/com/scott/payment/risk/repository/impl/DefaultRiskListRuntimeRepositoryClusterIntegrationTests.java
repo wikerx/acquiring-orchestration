@@ -1,6 +1,5 @@
 package com.scott.payment.risk.repository.impl;
 
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
@@ -193,18 +192,13 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         when(mapper.selectActiveCumulativeMerchantLimitRules(merchantId, "USD"))
                 .thenReturn(cumulativeRules);
         when(mapper.selectActiveFrequencyRules(merchantId)).thenReturn(frequencyRules);
-        when(mapper.sumRiskApprovedTransactionAmountPhysical(
-                any(),
+        when(mapper.sumRiskApprovedTransactionAmount(
                 org.mockito.ArgumentMatchers.eq(merchantId),
                 org.mockito.ArgumentMatchers.eq("USD"),
                 any(),
                 any(),
                 anyString()
         )).thenReturn(new BigDecimal("100.000000"));
-
-        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
-        when(shardingDataTemplate.resolvePhysicalTables(any()))
-                .thenReturn(List.of("transaction_order_202607"));
 
         RedisStringService redisStringService = mock(RedisStringService.class);
         when(redisStringService.get(anyString())).thenReturn(null);
@@ -220,7 +214,6 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
                 provider(redisStringService),
                 provider(generationStore),
                 provider(redisTemplate),
-                provider(shardingDataTemplate),
                 provider(null),
                 provider(null),
                 properties,

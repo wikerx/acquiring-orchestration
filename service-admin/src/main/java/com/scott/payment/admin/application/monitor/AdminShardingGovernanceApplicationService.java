@@ -20,7 +20,6 @@ import com.scott.payment.admin.mapper.SysShardingTableCreateLogMapper;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
-import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementRange;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalculator;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
@@ -28,7 +27,6 @@ import com.scott.payment.component.db.sharding.ShardingQuarter;
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
 import com.scott.payment.component.db.sharding.TransactionShardingGovernanceProperties;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -58,9 +56,6 @@ public class AdminShardingGovernanceApplicationService {
      * </p>
      */
     private final TransactionShardingGovernanceProperties shardingProperties;
-
-    /** 灰度窗口内用于只读展示的旧治理配置；仅在新治理配置尚未发布时回退。 */
-    private final PaymentQuarterShardingProperties legacyShardingProperties;
 
     /** 当前实例加载的 ShardingSphere 交易规则元数据。 */
     private final TransactionShardingProperties transactionShardingProperties;
@@ -132,8 +127,7 @@ public class AdminShardingGovernanceApplicationService {
     /**
      * 创建分表治理应用服务。
      *
-     * @param legacyShardingProperties      灰度窗口旧分表配置
-     * @param shardingProperties            新物理表治理配置
+     * @param shardingProperties            物理表治理配置
      * @param transactionShardingProperties ShardingSphere 交易规则元数据
      * @param quarterResolver               季度解析器
      * @param tableNameResolver             物理表名解析器
@@ -144,8 +138,6 @@ public class AdminShardingGovernanceApplicationService {
      * @param shardingGovernanceConverter  分表治理对象转换器
      */
     public AdminShardingGovernanceApplicationService(
-                                                     @Qualifier("paymentQuarterShardingProperties")
-                                                     PaymentQuarterShardingProperties legacyShardingProperties,
                                                      TransactionShardingGovernanceProperties shardingProperties,
                                                      TransactionShardingProperties transactionShardingProperties,
                                                      ShardingQuarterResolver quarterResolver,
@@ -155,7 +147,6 @@ public class AdminShardingGovernanceApplicationService {
                                                      SysShardingTableCreateLogMapper createLogMapper,
                                                      JobSchedulerInternalClient jobSchedulerInternalClient,
                                                      ShardingGovernanceConverter shardingGovernanceConverter) {
-        this.legacyShardingProperties = legacyShardingProperties;
         this.shardingProperties = shardingProperties;
         this.transactionShardingProperties = transactionShardingProperties;
         this.quarterResolver = quarterResolver;
@@ -185,7 +176,7 @@ public class AdminShardingGovernanceApplicationService {
      * @return 分表规则
      */
     public ShardingRuleResponse getRule(String logicalTable) {
-        Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry = findRule(logicalTable);
+        Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry = findRule(logicalTable);
         return toRuleResponse(entry);
     }
 
@@ -334,7 +325,7 @@ public class AdminShardingGovernanceApplicationService {
     public ShardingIdRuleResponse idRule() {
         ShardingQuarter currentQuarter = quarterResolver.currentQuarter(shardingProperties);
         ShardingAutoIncrementRange range = autoIncrementValueCalculator.calculate(shardingProperties, currentQuarter);
-        PaymentQuarterShardingProperties.IdGenerator idGenerator = shardingProperties.getIdGenerator();
+        TransactionShardingGovernanceProperties.IdGenerator idGenerator = shardingProperties.getIdGenerator();
         ShardingIdRuleResponse response = new ShardingIdRuleResponse();
         response.setMode(idGenerator.getMode());
         response.setPrefixFormat(idGenerator.getPrefixFormat());
@@ -358,8 +349,8 @@ public class AdminShardingGovernanceApplicationService {
      * @param entry entry 输入值，参与 entry 的查询、校验、转换、写入或日志摘要
      * @return 构造、转换或解析后的业务值
      */
-    private ShardingRuleResponse toRuleResponse(Map.Entry<String, PaymentQuarterShardingProperties.TableRule> entry) {
-        PaymentQuarterShardingProperties.TableRule rule = entry.getValue();
+    private ShardingRuleResponse toRuleResponse(Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> entry) {
+        TransactionShardingGovernanceProperties.TableRule rule = entry.getValue();
         ShardingQuarter currentQuarter = quarterResolver.currentQuarter(shardingProperties);
         ShardingRuleResponse response = new ShardingRuleResponse();
         response.setRuleKey(entry.getKey());
@@ -399,7 +390,7 @@ public class AdminShardingGovernanceApplicationService {
      * @param rule rule 输入值，参与 规则 的查询、校验、转换、写入或日志摘要
      * @return 构造、转换或解析后的业务值
      */
-    private List<String> resolvePhysicalTables(PaymentQuarterShardingProperties.TableRule rule) {
+    private List<String> resolvePhysicalTables(TransactionShardingGovernanceProperties.TableRule rule) {
         return quarterResolver.quartersInRange(rule).stream()
                 .map(quarter -> tableNameResolver.physicalTableName(rule, quarter))
                 .toList();
@@ -416,7 +407,7 @@ public class AdminShardingGovernanceApplicationService {
      * @param quarter quarter 输入值，参与 quarter 的查询、校验、转换、写入或日志摘要
      * @return 构造、转换或解析后的业务值
      */
-    private String resolvePhysicalTableName(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
+    private String resolvePhysicalTableName(TransactionShardingGovernanceProperties.TableRule rule, ShardingQuarter quarter) {
         if (!quarterResolver.inRange(rule, quarter)) {
             return null;
         }
@@ -433,7 +424,7 @@ public class AdminShardingGovernanceApplicationService {
      * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private Map.Entry<String, PaymentQuarterShardingProperties.TableRule> findRule(String logicalTable) {
+    private Map.Entry<String, TransactionShardingGovernanceProperties.TableRule> findRule(String logicalTable) {
         if (!StringUtils.hasText(logicalTable)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "logicalTable is required");
         }
@@ -445,15 +436,12 @@ public class AdminShardingGovernanceApplicationService {
     }
 
     /**
-     * 新治理配置尚未发布时，只读回退到旧配置中的 23 张正式表，绝不展示 test_* 规则。
+     * 只返回固定的 23 张正式交易表，拒绝任何 test_* 或未知治理规则进入页面和预建入口。
      */
-    private Map<String, PaymentQuarterShardingProperties.TableRule> configuredRules() {
-        if (!shardingProperties.getTables().isEmpty()) {
-            return shardingProperties.getTables();
-        }
+    private Map<String, TransactionShardingGovernanceProperties.TableRule> configuredRules() {
         Set<String> formalTables = Set.copyOf(TransactionShardingProperties.defaultLogicTables());
-        Map<String, PaymentQuarterShardingProperties.TableRule> result = new LinkedHashMap<>();
-        legacyShardingProperties.getTables().forEach((key, rule) -> {
+        Map<String, TransactionShardingGovernanceProperties.TableRule> result = new LinkedHashMap<>();
+        shardingProperties.getTables().forEach((key, rule) -> {
             if (rule != null && formalTables.contains(rule.getLogicalTable())) {
                 result.put(key, rule);
             }
@@ -465,7 +453,8 @@ public class AdminShardingGovernanceApplicationService {
     private ShardingPhysicalTableResponse enrichPhysicalTableResponse(ShardingPhysicalTableResponse response) {
         response.setRuleVersion(transactionShardingProperties.getRuleVersion());
         response.setRuleChecksumPrefix(checksumPrefix());
-        response.setNodeRegistered(response.getQuarterSuffix() != null
+        response.setNodeRegistered(TransactionShardingProperties.defaultLogicTables().contains(response.getLogicalTable())
+                && response.getQuarterSuffix() != null
                 && transactionShardingProperties.getPhysicalNodes().contains(response.getQuarterSuffix()));
         return response;
     }

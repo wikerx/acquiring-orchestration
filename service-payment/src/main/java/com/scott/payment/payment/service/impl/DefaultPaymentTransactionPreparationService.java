@@ -911,6 +911,7 @@ public class DefaultPaymentTransactionPreparationService implements PaymentTrans
         resultDTO.setRateSource(commandDTO.getRateSource());
         resultDTO.setRateTime(commandDTO.getRateTime());
         resultDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        resultDTO.setRootTransactionDateTime(commandDTO.getTransactionDateTime());
         resultDTO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
         resultDTO.setPaymentMethod(commandDTO.getPaymentMethod());
         resultDTO.setPaymentBrand(resolvePaymentBrand(commandDTO));

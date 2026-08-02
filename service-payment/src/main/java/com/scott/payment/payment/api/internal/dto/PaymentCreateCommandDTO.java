@@ -1,5 +1,6 @@
 package com.scott.payment.payment.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -133,6 +134,7 @@ public class PaymentCreateCommandDTO implements Serializable {
     /**
      * 交易请求时间，按 UTC+8 业务时区写入。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 
     /**
@@ -636,7 +638,12 @@ public class PaymentCreateCommandDTO implements Serializable {
         /**
          * 原交易业务时间，用于按 transaction_date_time + transaction_id 精确定位交易主单所在物理分表。
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime sourceTransactionDateTime;
+
+        /** 生命周期根主单的 transaction_date_time，由调用链透传，禁止从业务编号解析。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * 原交易对应的渠道交易 ID，由支付核心按 sourceTransactionId 查询原动作单后补齐，不要求商户上送。

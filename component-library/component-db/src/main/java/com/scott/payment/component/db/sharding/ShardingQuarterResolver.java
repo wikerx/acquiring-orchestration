@@ -28,7 +28,7 @@ public class ShardingQuarterResolver {
      * @param properties 分表配置
      * @return 当前季度
      */
-    public ShardingQuarter currentQuarter(PaymentQuarterShardingProperties properties) {
+    public ShardingQuarter currentQuarter(TransactionShardingGovernanceProperties properties) {
         ZoneId zoneId = zoneId(properties);
         ZonedDateTime now = ZonedDateTime.now(zoneId);
         return fromDateTime(now.toLocalDateTime());
@@ -54,7 +54,7 @@ public class ShardingQuarterResolver {
      * @param rule 单表分表规则
      * @return 季度列表
      */
-    public List<ShardingQuarter> quartersInRange(PaymentQuarterShardingProperties.TableRule rule) {
+    public List<ShardingQuarter> quartersInRange(TransactionShardingGovernanceProperties.TableRule rule) {
         ShardingQuarter start = startQuarter(rule);
         ShardingQuarter end = endQuarter(rule);
         if (start.compareTo(end) > 0) {
@@ -76,7 +76,7 @@ public class ShardingQuarterResolver {
      * @param quarter 目标季度
      * @return true 表示在范围内
      */
-    public boolean inRange(PaymentQuarterShardingProperties.TableRule rule, ShardingQuarter quarter) {
+    public boolean inRange(TransactionShardingGovernanceProperties.TableRule rule, ShardingQuarter quarter) {
         if (quarter == null) {
             return false;
         }
@@ -89,7 +89,7 @@ public class ShardingQuarterResolver {
      * @param properties 分表配置
      * @return 时区
      */
-    public ZoneId zoneId(PaymentQuarterShardingProperties properties) {
+    public ZoneId zoneId(TransactionShardingGovernanceProperties properties) {
         String timezone = properties == null ? null : properties.getDatabaseTimezone();
         if (timezone == null || timezone.isBlank()) {
             timezone = "Asia/Shanghai";
@@ -107,7 +107,7 @@ public class ShardingQuarterResolver {
      * @param rule 单表分表规则
      * @return 起始季度
      */
-    public ShardingQuarter startQuarter(PaymentQuarterShardingProperties.TableRule rule) {
+    public ShardingQuarter startQuarter(TransactionShardingGovernanceProperties.TableRule rule) {
         validateRuleQuarter(rule == null ? null : rule.getStartYear(), rule == null ? null : rule.getStartQuarter(), "start");
         return new ShardingQuarter(rule.getStartYear(), rule.getStartQuarter());
     }
@@ -118,7 +118,7 @@ public class ShardingQuarterResolver {
      * @param rule 单表分表规则
      * @return 结束季度
      */
-    public ShardingQuarter endQuarter(PaymentQuarterShardingProperties.TableRule rule) {
+    public ShardingQuarter endQuarter(TransactionShardingGovernanceProperties.TableRule rule) {
         validateRuleQuarter(rule == null ? null : rule.getEndYear(), rule == null ? null : rule.getEndQuarter(), "end");
         return new ShardingQuarter(rule.getEndYear(), rule.getEndQuarter());
     }

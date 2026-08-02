@@ -10,6 +10,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.component.core.model.PageResult;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -67,9 +68,12 @@ public interface AdminTransactionQueryService {
      * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
      * </p>
      * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
+     * @param transactionDateTime 列表返回的真实交易分片时间
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
-    TransactionDetailResponse detail(String transactionId);
+    TransactionDetailResponse detail(String transactionId,
+                                     LocalDateTime transactionDateTime,
+                                     LocalDateTime rootTransactionDateTime);
 
     /**
      * 查询渠道日志，按调用方提供的过滤条件返回对应业务视图。

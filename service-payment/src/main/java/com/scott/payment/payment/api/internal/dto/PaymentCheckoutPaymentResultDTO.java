@@ -1,5 +1,6 @@
 package com.scott.payment.payment.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -54,6 +55,7 @@ public class PaymentCheckoutPaymentResultDTO implements Serializable {
         /** 平台交易号。 */
         private String transactionId;
         /** 支付核心记录的交易业务时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
         /** 渠道授权码，按最小必要原则返回。 */
         private String authCode;

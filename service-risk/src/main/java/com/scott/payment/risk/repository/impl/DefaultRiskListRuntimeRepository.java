@@ -3,10 +3,7 @@ package com.scott.payment.risk.repository.impl;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
 import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
-import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
@@ -75,9 +72,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
 
     /** Lua 双精度整数可精确表达的上限，超过该值时拒绝执行资金计数脚本。 */
     private static final long MAX_SAFE_LUA_INTEGER = 9_007_199_254_740_991L;
-
-    /** 累计限额数据库基线查询使用的交易订单逻辑表名。 */
-    private static final String TRANSACTION_ORDER_TABLE = "transaction_order";
 
     /** 按规则时区自然日累计的限额类型。 */
     private static final String LIMIT_TYPE_DAILY = "DAILY";
@@ -177,12 +171,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     /** 执行累计限额和频率计数 Lua 脚本的原生字符串模板。 */
     private final StringRedisTemplate stringRedisTemplate;
 
-    /** 将累计限额时间区间解析为受控交易物理表集合。 */
-    private final ShardingDataTemplate shardingDataTemplate;
-
-    /** 当前实例交易分片只读/单写切换模式。 */
-    private final TransactionShardingRuntimeState transactionShardingRuntimeState;
-
     /** 风控运行开关、缓存 TTL、数据库基线模式和容量上限配置。 */
     private final RiskEvaluationProperties properties;
 
@@ -208,7 +196,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * <p>基础设施通过可选 Provider 装配；缺少强依赖时相关规则返回空或 REVIEW，
      * 不允许因 Redis 异常静默放行累计限额和频率规则。</p>
      *
-     * @param transactionShardingRuntimeState 当前实例交易分片模式
      */
     @Autowired
     public DefaultRiskListRuntimeRepository(
@@ -216,24 +203,20 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             ObjectProvider<RedisStringService> redisStringServiceProvider,
             ObjectProvider<RedisCacheGenerationStore> cacheGenerationStoreProvider,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-            ObjectProvider<ShardingDataTemplate> shardingDataTemplateProvider,
             ObjectProvider<MerchantLimitReservationStateService> reservationStateServiceProvider,
             ObjectProvider<RiskShadowComparisonMonitor> shadowComparisonMonitorProvider,
             RiskEvaluationProperties properties,
             PaymentRedisProperties redisProperties,
-            ObjectProvider<RedisBusinessMetrics> metricsProvider,
-            TransactionShardingRuntimeState transactionShardingRuntimeState) {
+            ObjectProvider<RedisBusinessMetrics> metricsProvider) {
         this(
                 riskRuntimeMapperProvider,
                 redisStringServiceProvider,
                 cacheGenerationStoreProvider,
                 stringRedisTemplateProvider,
-                shardingDataTemplateProvider,
                 reservationStateServiceProvider,
                 shadowComparisonMonitorProvider,
                 properties,
                 redisProperties,
-                transactionShardingRuntimeState,
                 metricsProvider.getIfAvailable(RedisBusinessMetrics::noop)
         );
     }
@@ -245,7 +228,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @param redisStringServiceProvider Redis String 服务提供器
      * @param cacheGenerationStoreProvider 缓存代际存储提供器
      * @param stringRedisTemplateProvider Redis 模板提供器
-     * @param shardingDataTemplateProvider 分表数据模板提供器
      * @param reservationStateServiceProvider 累计限额生命周期服务提供器
      * @param shadowComparisonMonitorProvider shadow 比较器提供器
      * @param properties 风控运行配置
@@ -256,7 +238,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             ObjectProvider<RedisStringService> redisStringServiceProvider,
             ObjectProvider<RedisCacheGenerationStore> cacheGenerationStoreProvider,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-            ObjectProvider<ShardingDataTemplate> shardingDataTemplateProvider,
             ObjectProvider<MerchantLimitReservationStateService> reservationStateServiceProvider,
             ObjectProvider<RiskShadowComparisonMonitor> shadowComparisonMonitorProvider,
             RiskEvaluationProperties properties,
@@ -266,52 +247,10 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 redisStringServiceProvider,
                 cacheGenerationStoreProvider,
                 stringRedisTemplateProvider,
-                shardingDataTemplateProvider,
                 reservationStateServiceProvider,
                 shadowComparisonMonitorProvider,
                 properties,
                 redisProperties,
-                new TransactionShardingRuntimeState(),
-                RedisBusinessMetrics.noop()
-        );
-    }
-
-    /**
-     * 创建指定交易分片模式的风控运行时仓储，供迁移行为测试直接构造。
-     *
-     * @param riskRuntimeMapperProvider 风控 Mapper 提供器
-     * @param redisStringServiceProvider Redis String 服务提供器
-     * @param cacheGenerationStoreProvider 缓存代际存储提供器
-     * @param stringRedisTemplateProvider Redis 模板提供器
-     * @param shardingDataTemplateProvider Legacy 分表入口
-     * @param reservationStateServiceProvider 累计限额生命周期服务提供器
-     * @param shadowComparisonMonitorProvider shadow 比较器提供器
-     * @param properties 风控运行配置
-     * @param redisProperties Redis Key 配置
-     * @param transactionShardingRuntimeState 当前实例交易分片模式
-     */
-    public DefaultRiskListRuntimeRepository(
-            ObjectProvider<RiskRuntimeMapper> riskRuntimeMapperProvider,
-            ObjectProvider<RedisStringService> redisStringServiceProvider,
-            ObjectProvider<RedisCacheGenerationStore> cacheGenerationStoreProvider,
-            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-            ObjectProvider<ShardingDataTemplate> shardingDataTemplateProvider,
-            ObjectProvider<MerchantLimitReservationStateService> reservationStateServiceProvider,
-            ObjectProvider<RiskShadowComparisonMonitor> shadowComparisonMonitorProvider,
-            RiskEvaluationProperties properties,
-            PaymentRedisProperties redisProperties,
-            TransactionShardingRuntimeState transactionShardingRuntimeState) {
-        this(
-                riskRuntimeMapperProvider,
-                redisStringServiceProvider,
-                cacheGenerationStoreProvider,
-                stringRedisTemplateProvider,
-                shardingDataTemplateProvider,
-                reservationStateServiceProvider,
-                shadowComparisonMonitorProvider,
-                properties,
-                redisProperties,
-                transactionShardingRuntimeState,
                 RedisBusinessMetrics.noop()
         );
     }
@@ -326,7 +265,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @param redisStringServiceProvider 读写可降级规则缓存的 String 服务提供器
      * @param cacheGenerationStoreProvider 协调规则缓存 generation 的存储提供器
      * @param stringRedisTemplateProvider 执行风控 Lua 的字符串模板提供器
-     * @param shardingDataTemplateProvider 解析累计限额物理分表的数据模板提供器
      * @param reservationStateServiceProvider 持久化累计限额预占生命周期的服务提供器
      * @param shadowComparisonMonitorProvider 汇总新旧路径比较结果的监控器提供器
      * @param properties 风控运行、迁移模式、TTL 和容量配置
@@ -338,19 +276,15 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             ObjectProvider<RedisStringService> redisStringServiceProvider,
             ObjectProvider<RedisCacheGenerationStore> cacheGenerationStoreProvider,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
-            ObjectProvider<ShardingDataTemplate> shardingDataTemplateProvider,
             ObjectProvider<MerchantLimitReservationStateService> reservationStateServiceProvider,
             ObjectProvider<RiskShadowComparisonMonitor> shadowComparisonMonitorProvider,
             RiskEvaluationProperties properties,
             PaymentRedisProperties redisProperties,
-            TransactionShardingRuntimeState transactionShardingRuntimeState,
             RedisBusinessMetrics metrics) {
         this.riskRuntimeMapper = riskRuntimeMapperProvider.getIfAvailable();
         this.redisStringService = redisStringServiceProvider.getIfAvailable();
         this.cacheGenerationStore = cacheGenerationStoreProvider.getIfAvailable();
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
-        this.shardingDataTemplate = shardingDataTemplateProvider.getIfAvailable();
-        this.transactionShardingRuntimeState = transactionShardingRuntimeState;
         this.reservationStateService = reservationStateServiceProvider.getIfAvailable();
         this.shadowComparisonMonitor = shadowComparisonMonitorProvider.getIfAvailable();
         this.properties = properties;
@@ -771,7 +705,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         boolean lifecycleManaged = reservationStateService != null && StringUtils.hasText(riskRecordNo);
         boolean limitBlocked = false;
         if (requestDTO.getAmount() == null || !StringUtils.hasText(requestDTO.getTransactionId())
-                || stringRedisTemplate == null || shardingDataTemplate == null) {
+                || stringRedisTemplate == null) {
             details.add(cumulativeLimitUnavailable(rules.get(0), "merchant cumulative limit runtime is unavailable"));
             return new MerchantLimitEvaluation(details, List.of());
         }
@@ -2366,45 +2300,10 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         return normalizedLifecycleUnits;
     }
 
-    /** 按当前交易分片模式读取累计交易金额；COMPARE 只观察差异并返回 Legacy 结果。 */
+    /** 从 primary 上的交易逻辑表读取同商户、同币种累计交易金额。 */
     private BigDecimal loadTransactionPeriodAmount(RiskPaymentEvaluateRequestDTO requestDTO,
                                                    String currency,
                                                    MerchantLimitPeriod period) {
-        if (transactionShardingRuntimeState.isShardingWriteEnabled()) {
-            return loadLogicalTransactionPeriodAmount(requestDTO, currency, period);
-        }
-        BigDecimal legacyAmount = loadLegacyTransactionPeriodAmount(requestDTO, currency, period);
-        if (transactionShardingRuntimeState.isReadComparisonEnabled()) {
-            compareLogicalTransactionPeriodAmount(requestDTO, currency, period, legacyAmount);
-        }
-        return legacyAmount;
-    }
-
-    /** 使用 Legacy 物理表集合汇总同商户、同币种累计金额。 */
-    private BigDecimal loadLegacyTransactionPeriodAmount(RiskPaymentEvaluateRequestDTO requestDTO,
-                                                         String currency,
-                                                         MerchantLimitPeriod period) {
-        List<String> physicalTables = shardingDataTemplate.resolvePhysicalTables(
-                ShardingRangeTableContext.of(
-                        TRANSACTION_ORDER_TABLE,
-                        period.beginTime(),
-                        period.endTime(),
-                        DataSourceName.MASTER
-                )
-        );
-        return riskRuntimeMapper.sumRiskApprovedTransactionAmountPhysical(
-                physicalTables,
-                requestDTO.getMerchantId().trim(),
-                currency,
-                period.beginTime(),
-                period.endTime(),
-                requestDTO.getTransactionId().trim());
-    }
-
-    /** 使用 primary 上的交易逻辑表范围查询汇总同商户、同币种累计金额。 */
-    private BigDecimal loadLogicalTransactionPeriodAmount(RiskPaymentEvaluateRequestDTO requestDTO,
-                                                          String currency,
-                                                          MerchantLimitPeriod period) {
         try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
             return riskRuntimeMapper.sumRiskApprovedTransactionAmount(
                     requestDTO.getMerchantId().trim(),
@@ -2412,26 +2311,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     period.beginTime(),
                     period.endTime(),
                     requestDTO.getTransactionId().trim());
-        }
-    }
-
-    /** COMPARE 模式记录逻辑表与 Legacy 金额差异，不改变在线限额决策。 */
-    private void compareLogicalTransactionPeriodAmount(RiskPaymentEvaluateRequestDTO requestDTO,
-                                                       String currency,
-                                                       MerchantLimitPeriod period,
-                                                       BigDecimal legacyAmount) {
-        try {
-            BigDecimal logicalAmount = loadLogicalTransactionPeriodAmount(requestDTO, currency, period);
-            BigDecimal normalizedLegacy = legacyAmount == null ? BigDecimal.ZERO : legacyAmount;
-            BigDecimal normalizedLogical = logicalAmount == null ? BigDecimal.ZERO : logicalAmount;
-            if (normalizedLegacy.compareTo(normalizedLogical) != 0) {
-                log.warn("event: RISK_TRANSACTION_AMOUNT_SHARDING_COMPARE_MISMATCH merchantId: {} currency: {} beginTime: {} endTime: {} legacyAmount: {} logicalAmount: {}",
-                        requestDTO.getMerchantId(), currency, period.beginTime(), period.endTime(),
-                        normalizedLegacy, normalizedLogical);
-            }
-        } catch (RuntimeException exception) {
-            log.warn("event: RISK_TRANSACTION_AMOUNT_SHARDING_COMPARE_FAILED merchantId: {} currency: {} exceptionType: {}",
-                    requestDTO.getMerchantId(), currency, exception.getClass().getSimpleName());
         }
     }
 

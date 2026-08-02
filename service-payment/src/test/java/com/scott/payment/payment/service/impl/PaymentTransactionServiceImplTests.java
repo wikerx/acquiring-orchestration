@@ -68,6 +68,35 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PaymentTransactionServiceImplTests {
 
     /**
+     * 分片时间必须在任何持久化、渠道调用和结果回写之前统一到 MySQL DATETIME(3) 精度。
+     */
+    @Test
+    void shouldNormalizeInitialTransactionTimeToDatabasePrecisionBeforeProcessing() {
+        CapturingPaymentChannelInvokeService channelInvokeService =
+                new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.PROCESSING));
+        PaymentTransactionServiceImpl service = newService(
+                riskDecision(PaymentRiskDecisionEnum.PASS),
+                new InMemoryTransactionIdempotencyService(),
+                new CapturingTransactionEventOutboxService(),
+                List.of(),
+                channelInvokeService);
+        PaymentCreateCommandDTO commandDTO = new PaymentCreateCommandDTO();
+        commandDTO.setMerchantId("200001");
+        commandDTO.setMerchantOrderNo("M202608020001");
+        commandDTO.setMerchantOrderId("PAY202608020001");
+        commandDTO.setAmount(new BigDecimal("12.34"));
+        commandDTO.setCurrency("USD");
+        commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 8, 2, 12, 31, 25, 233_622_000));
+
+        service.createPayment(commandDTO);
+
+        assertThat(commandDTO.getTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 8, 2, 12, 31, 25, 233_000_000));
+        assertThat(channelInvokeService.commandDTO.getTransactionDateTime())
+                .isEqualTo(commandDTO.getTransactionDateTime());
+    }
+
+    /**
      * 测试用原平台交易 ID，时间片段为 2026-07-12 10:30:00.000。
      */
     private static final String SOURCE_TRANSACTION_ID = "TX202607121030000000001";
@@ -700,7 +729,11 @@ class PaymentTransactionServiceImplTests {
         PaymentCreateCommandDTO commandDTO = baseCommand();
         commandDTO.setAmount(null);
         commandDTO.setCurrency(null);
-        commandDTO.setTransactionInfo(new PaymentCreateCommandDTO.TransactionInfoDTO());
+        PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
+        transactionInfoDTO.setTransactionId(SOURCE_TRANSACTION_ID);
+        transactionInfoDTO.setSourceTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+        transactionInfoDTO.setRootTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+        commandDTO.setTransactionInfo(transactionInfoDTO);
 
         PaymentQueryResultDTO resultDTO = service.query(commandDTO);
 
@@ -709,38 +742,39 @@ class PaymentTransactionServiceImplTests {
         assertThat(resultDTO.getTransactionInfo()).hasSize(1);
         assertThat(resultDTO.getTransactionInfo().get(0).getTransactionId()).isEqualTo(SOURCE_TRANSACTION_ID);
         assertThat(resultDTO.getTransactionInfo().get(0).getCode()).isEqualTo(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+        assertThat(resultDTO.getTransactionInfo().get(0).getRootTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30));
     }
 
-    /**
-     * 商户后续动作不需要上送原交易时间；系统应从平台交易号时间片定位原动作分表，再统一后续动作分表时间。
-     */
+    /** 后续动作必须使用调用链传入的动作时间和根主单时间，禁止从平台交易号解析分片。 */
     @Test
-    void shouldResolveSourceTransactionDateTimeFromTransactionIdWhenMerchantDoesNotPassIt() {
+    void shouldLocateSourceOrderWithExplicitActionAndRootShardingTimes() {
+        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 new InMemoryTransactionIdempotencyService(),
                 new CapturingTransactionEventOutboxService(),
-                new CapturingTransactionRecordService(),
+                transactionRecordService,
                 List.of(),
                 channelInvokeService);
         PaymentCreateCommandDTO commandDTO = followUpCommand(PaymentTransactionTypeEnum.CAPTURE, new BigDecimal("5.00"));
-        commandDTO.getTransactionInfo().setSourceTransactionDateTime(null);
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 14, 16, 16));
 
         PaymentCreateResultDTO resultDTO = service.capture(commandDTO);
 
         assertThat(resultDTO.getOperationId()).isEqualTo(SOURCE_OPERATION_ID);
-        assertThat(commandDTO.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 7, 14, 16, 16));
-        assertThat(commandDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
+        assertThat(transactionRecordService.sourceLookupTransactionId).isEqualTo(SOURCE_TRANSACTION_ID);
+        assertThat(transactionRecordService.sourceLookupDateTime)
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30));
+        assertThat(transactionRecordService.rootLookupDateTime)
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30));
         assertThat(channelInvokeService.commandDTO).isSameAs(commandDTO);
     }
 
-    /**
-     * 后续动作不依赖幂等记录定位原交易；即使没有首次幂等记录，也应从标准平台 transaction_id 推导原交易分表时间。
-     */
+    /** 缺少显式源交易分片时间时必须拒绝，不能退回交易号解析。 */
     @Test
-    void shouldResolveSourceTransactionDateTimeFromTransactionIdWhenIdempotencyMissed() {
+    void shouldRejectFollowUpWhenSourceTransactionDateTimeIsMissing() {
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
                 new EmptyInitialTransactionIdempotencyService(),
@@ -752,11 +786,9 @@ class PaymentTransactionServiceImplTests {
         commandDTO.getTransactionInfo().setSourceTransactionDateTime(null);
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 14, 16, 17));
 
-        PaymentCreateResultDTO resultDTO = service.capture(commandDTO);
-
-        assertThat(resultDTO.getOperationId()).isEqualTo(SOURCE_OPERATION_ID);
-        assertThat(commandDTO.getTransactionDateTime()).isEqualTo(LocalDateTime.of(2026, 7, 14, 16, 17));
-        assertThat(commandDTO.getTransactionInfo().getSourceTransactionDateTime()).isNull();
+        assertThatThrownBy(() -> service.capture(commandDTO))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("sourceTransactionDateTime");
     }
 
     /**
@@ -1089,6 +1121,8 @@ class PaymentTransactionServiceImplTests {
         commandDTO.setTransactionDateTime(LocalDateTime.of(2026, 7, 13, 11, 30));
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = new PaymentCreateCommandDTO.TransactionInfoDTO();
         transactionInfoDTO.setSourceTransactionId(SOURCE_TRANSACTION_ID);
+        transactionInfoDTO.setSourceTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
+        transactionInfoDTO.setRootTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
         commandDTO.setTransactionInfo(transactionInfoDTO);
         return commandDTO;
     }
@@ -1368,6 +1402,12 @@ class PaymentTransactionServiceImplTests {
          * </p>
          */
         private PaymentCreateResultDTO resultDTO;
+        /** 最近一次源交易查询收到的平台交易号。 */
+        private String sourceLookupTransactionId;
+        /** 最近一次源交易查询收到的动作真实分片时间。 */
+        private LocalDateTime sourceLookupDateTime;
+        /** 最近一次源交易查询收到的生命周期主单真实分片时间。 */
+        private LocalDateTime rootLookupDateTime;
 
         /**
          * risk Decision Enum，用于保存 Capturing Transaction Record Service 中与 riskdecisionenum 相关的业务属性。
@@ -1568,6 +1608,19 @@ class PaymentTransactionServiceImplTests {
         }
 
         /**
+         * 记录后续动作显式传入的源交易和根交易分片时间，再复用固定测试主单。
+         */
+        @Override
+        public TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId,
+                                                                 LocalDateTime sourceTransactionDateTime,
+                                                                 LocalDateTime rootTransactionDateTime) {
+            this.sourceLookupTransactionId = sourceTransactionId;
+            this.sourceLookupDateTime = sourceTransactionDateTime;
+            this.rootLookupDateTime = rootTransactionDateTime;
+            return findSourceOrderByTransactionId(sourceTransactionId);
+        }
+
+        /**
          * 复用主单查询结果模拟数据库行锁读取，不额外实现并发控制。
          */
         @Override
@@ -1642,7 +1695,9 @@ class PaymentTransactionServiceImplTests {
         @Override
         public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
                                                                           String merchantOrderNo,
-                                                                          String transactionId) {
+                                                                          String transactionId,
+                                                                          LocalDateTime transactionDateTime,
+                                                                          LocalDateTime rootTransactionDateTime) {
             if (!"200001".equals(merchantId) || !"M202607120001".equals(merchantOrderNo)) {
                 return List.of();
             }
@@ -2193,11 +2248,25 @@ class PaymentTransactionServiceImplTests {
 
     private abstract static class TestDistributedLockService implements DistributedLockService {
 
+        /**
+         * 将测试看门狗锁统一映射为 30 秒固定租约锁，复用子类竞争行为。
+         *
+         * @param key 测试锁 Key
+         * @param waitTime 测试等待时间
+         * @return 子类固定租约锁的获取结果
+         */
         @Override
         public boolean tryLockWithWatchdog(String key, Duration waitTime) {
             return tryLock(key, waitTime, Duration.ofSeconds(30));
         }
 
+        /**
+         * 获取测试固定租约锁，竞争失败时保留真实接口的异常契约。
+         *
+         * @param key 测试锁 Key
+         * @param waitTime 测试等待时间
+         * @param leaseTime 测试固定租约
+         */
         @Override
         public void lock(String key, Duration waitTime, Duration leaseTime) {
             if (!tryLock(key, waitTime, leaseTime)) {
@@ -2205,6 +2274,12 @@ class PaymentTransactionServiceImplTests {
             }
         }
 
+        /**
+         * 测试替身不维护线程所有权，统一视为当前线程持锁。
+         *
+         * @param key 测试锁 Key
+         * @return 固定返回 true
+         */
         @Override
         public boolean isHeldByCurrentThread(String key) {
             return true;

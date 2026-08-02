@@ -722,7 +722,11 @@ class DefaultTransactionChannelMatchServiceTests {
          * 返回唯一预置动作单，模拟商户订单维度的数据库查询结果。
          */
         @Override
-        public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId) {
+        public List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
+                                                                          String merchantOrderNo,
+                                                                          String transactionId,
+                                                                          LocalDateTime transactionDateTime,
+                                                                          LocalDateTime rootTransactionDateTime) {
             return List.of(operation);
         }
 

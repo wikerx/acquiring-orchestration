@@ -31,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HexFormat;
 
 
@@ -46,6 +47,9 @@ import java.util.HexFormat;
 @Slf4j
 @RestControllerAdvice
 public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
+
+    /** 将 OpenAPI 响应中的交易时间统一解释为季度路由使用的数据库时区。 */
+    private static final ZoneId TRANSACTION_DATABASE_ZONE = ZoneId.of("Asia/Shanghai");
 
     /**
      * OpenAPI 报文混合加密工具，用于把服务端响应 data 加密成商户可解密的 compact 密文。
@@ -184,6 +188,12 @@ public class OpenApiResponseBodyAdvice implements ResponseBodyAdvice<Object> {
         TransactionMerchantApiResponseLogUpdateClientRequestDTO requestDTO =
                 new TransactionMerchantApiResponseLogUpdateClientRequestDTO();
         requestDTO.setTransactionId(transactionInfo.getTransactionId());
+        if (transactionInfo.getTransactionDateTime() == null) {
+            return;
+        }
+        requestDTO.setTransactionDateTime(transactionInfo.getTransactionDateTime()
+                .atZoneSameInstant(TRANSACTION_DATABASE_ZONE)
+                .toLocalDateTime());
         requestDTO.setResponsePlainJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(plainDataJson));
         requestDTO.setResponseCipherDigest(sha256Hex(encryptedData));
         requestDTO.setResponseCipherMasked(maskCipher(encryptedData));

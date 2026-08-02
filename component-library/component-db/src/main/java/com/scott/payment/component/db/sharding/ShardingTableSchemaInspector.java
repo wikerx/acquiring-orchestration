@@ -48,7 +48,7 @@ public class ShardingTableSchemaInspector {
      * @param rule 单表分表规则
      * @return 检查结果
      */
-    public ShardingTableInspectionResult inspectTemplate(PaymentQuarterShardingProperties.TableRule rule) {
+    public ShardingTableInspectionResult inspectTemplate(TransactionShardingGovernanceProperties.TableRule rule) {
         String templateTable = tableNameResolver.templateTableName(rule);
         String idColumn = tableNameResolver.idColumnName(rule);
         String shardingColumn = tableNameResolver.requireSafeIdentifier(rule.getShardingColumn(), "sharding column");
@@ -62,7 +62,7 @@ public class ShardingTableSchemaInspector {
      * @param physicalTable 目标物理表
      * @return 检查结果
      */
-    public ShardingTableInspectionResult inspectPhysicalTable(PaymentQuarterShardingProperties.TableRule rule,
+    public ShardingTableInspectionResult inspectPhysicalTable(TransactionShardingGovernanceProperties.TableRule rule,
                                                               String physicalTable) {
         String safePhysicalTable = tableNameResolver.requireSafeIdentifier(physicalTable, "physical table");
         String templateTable = tableNameResolver.templateTableName(rule);

@@ -19,19 +19,40 @@ import java.util.function.Supplier;
  */
 public class RedissonDistributedLockService implements DistributedLockService {
 
+    /** Spring 管理的共享 Redisson 客户端；本服务不负责关闭其生命周期。 */
     private final RedissonClient redissonClient;
+    /** 锁获取、竞争、失败和释放结果的低基数指标记录器。 */
     private final RedisBusinessMetrics metrics;
 
+    /**
+     * 使用空操作指标创建锁服务，供无需指标装配的测试或轻量调用方使用。
+     *
+     * @param redissonClient Spring 管理的 Redisson 客户端
+     */
     public RedissonDistributedLockService(RedissonClient redissonClient) {
         this(redissonClient, RedisBusinessMetrics.noop());
     }
 
+    /**
+     * 创建带 Redis 业务指标的统一锁服务。
+     *
+     * @param redissonClient Spring 管理的 Redisson 客户端
+     * @param metrics 锁操作指标记录器；为空时退化为空操作实现
+     */
     public RedissonDistributedLockService(RedissonClient redissonClient,
                                           RedisBusinessMetrics metrics) {
         this.redissonClient = Objects.requireNonNull(redissonClient, "redissonClient");
         this.metrics = metrics == null ? RedisBusinessMetrics.noop() : metrics;
     }
 
+    /**
+     * 在限定时间内获取带固定租约的可重入锁，并保留线程中断语义。
+     *
+     * @param key 完整 Redis 锁 Key，不允许为空
+     * @param waitTime 最大等待时间，允许为零
+     * @param leaseTime 固定锁租约，必须大于零
+     * @return 获取成功返回 true，锁竞争超时返回 false
+     */
     @Override
     public boolean tryLock(String key, Duration waitTime, Duration leaseTime) {
         RLock lock = lock(key);
@@ -52,6 +73,13 @@ public class RedissonDistributedLockService implements DistributedLockService {
         }
     }
 
+    /**
+     * 在限定时间内获取由 Redisson 看门狗续期的可重入锁。
+     *
+     * @param key 完整 Redis 锁 Key，不允许为空
+     * @param waitTime 最大等待时间，允许为零
+     * @return 获取成功返回 true，锁竞争超时返回 false
+     */
     @Override
     public boolean tryLockWithWatchdog(String key, Duration waitTime) {
         RLock lock = lock(key);
@@ -70,6 +98,13 @@ public class RedissonDistributedLockService implements DistributedLockService {
         }
     }
 
+    /**
+     * 获取固定租约锁，竞争超时时抛出业务可识别的锁繁忙异常。
+     *
+     * @param key 完整 Redis 锁 Key
+     * @param waitTime 最大等待时间
+     * @param leaseTime 固定锁租约
+     */
     @Override
     public void lock(String key, Duration waitTime, Duration leaseTime) {
         if (!tryLock(key, waitTime, leaseTime)) {
@@ -77,6 +112,11 @@ public class RedissonDistributedLockService implements DistributedLockService {
         }
     }
 
+    /**
+     * 仅由当前持锁线程释放可重入锁；非持有线程调用保持幂等。
+     *
+     * @param key 完整 Redis 锁 Key
+     */
     @Override
     public void unlock(String key) {
         RLock lock = lock(key);
@@ -103,6 +143,12 @@ public class RedissonDistributedLockService implements DistributedLockService {
         }
     }
 
+    /**
+     * 检查当前线程是否持有指定锁，用于安全释放和测试锁所有权。
+     *
+     * @param key 完整 Redis 锁 Key
+     * @return 当前线程持锁时返回 true
+     */
     @Override
     public boolean isHeldByCurrentThread(String key) {
         return lock(key).isHeldByCurrentThread();
@@ -125,6 +171,12 @@ public class RedissonDistributedLockService implements DistributedLockService {
         }
     }
 
+    /**
+     * 校验锁 Key 并获取 Redisson 可重入锁句柄，不执行远程加锁。
+     *
+     * @param key 完整 Redis 锁 Key
+     * @return 对应 Redisson 锁句柄
+     */
     private RLock lock(String key) {
         if (!StringUtils.hasText(key)) {
             throw new IllegalArgumentException("Distributed lock key must not be blank");
@@ -132,6 +184,12 @@ public class RedissonDistributedLockService implements DistributedLockService {
         return redissonClient.getLock(key);
     }
 
+    /**
+     * 校验锁等待时间并转换为毫秒；零表示仅尝试一次。
+     *
+     * @param waitTime 最大等待时间
+     * @return 非负毫秒值
+     */
     private long waitMillis(Duration waitTime) {
         if (waitTime == null || waitTime.isNegative()) {
             throw new IllegalArgumentException("waitTime must not be negative");
@@ -139,6 +197,13 @@ public class RedissonDistributedLockService implements DistributedLockService {
         return waitTime.toMillis();
     }
 
+    /**
+     * 校验固定租约等时长为可用的正毫秒值。
+     *
+     * @param duration 待校验时长
+     * @param label 异常信息中的参数名称
+     * @return 正毫秒值
+     */
     private long positiveMillis(Duration duration, String label) {
         if (duration == null || duration.isNegative() || duration.isZero() || duration.toMillis() <= 0L) {
             throw new IllegalArgumentException(label + " must be positive");
@@ -146,6 +211,12 @@ public class RedissonDistributedLockService implements DistributedLockService {
         return duration.toMillis();
     }
 
+    /**
+     * 记录锁获取成功或竞争结果及本地观测耗时。
+     *
+     * @param acquired 是否获得锁
+     * @param startNanos 获取尝试开始时间
+     */
     private void recordAcquire(boolean acquired, long startNanos) {
         metrics.recordOperation(
                 RedisBusinessMetrics.Feature.LOCK,
@@ -155,6 +226,11 @@ public class RedissonDistributedLockService implements DistributedLockService {
         );
     }
 
+    /**
+     * 记录锁获取调用异常及本地观测耗时，不写入锁 Key。
+     *
+     * @param startNanos 获取尝试开始时间
+     */
     private void recordAcquireError(long startNanos) {
         metrics.recordOperation(
                 RedisBusinessMetrics.Feature.LOCK,

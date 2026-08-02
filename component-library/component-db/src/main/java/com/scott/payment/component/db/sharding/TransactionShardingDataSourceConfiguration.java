@@ -55,21 +55,10 @@ public class TransactionShardingDataSourceConfiguration {
     private static final String LOAD_BALANCER_NAME = "transaction_round_robin";
 
     /**
-     * 创建数据源实际装载状态，供健康检查报告配置与运行结果是否一致。
-     *
-     * @return 初始为 Legacy 未激活状态的运行时对象
-     */
-    @Bean
-    public TransactionShardingRuntimeState transactionShardingRuntimeState() {
-        return new TransactionShardingRuntimeState();
-    }
-
-    /**
      * 在所有单例初始化后注册 transaction 逻辑数据源，避免业务 Bean 提前取得半成品路由。
      *
      * @param routingDataSourceProvider dynamic-datasource 外层路由
      * @param properties 已绑定的版本化规则
-     * @param runtimeState 实际装载状态
      * @param environment 当前服务身份
      * @return 单例初始化回调
      */
@@ -77,17 +66,15 @@ public class TransactionShardingDataSourceConfiguration {
     public SmartInitializingSingleton transactionShardingDataSourceRegistrar(
             ObjectProvider<DynamicRoutingDataSource> routingDataSourceProvider,
             TransactionShardingProperties properties,
-            TransactionShardingRuntimeState runtimeState,
             Environment environment) {
-        return () -> register(routingDataSourceProvider.getIfAvailable(), properties, runtimeState, environment);
+        return () -> register(routingDataSourceProvider.getIfAvailable(), properties, environment);
     }
 
     /**
-     * 按服务身份和切换模式注册别名或复合数据源；任一规则不完整时在启动阶段失败。
+     * 按服务身份注册 ShardingSphere 复合数据源；任一规则不完整时在启动阶段失败。
      */
     private void register(DynamicRoutingDataSource routingDataSource,
                           TransactionShardingProperties properties,
-                          TransactionShardingRuntimeState runtimeState,
                           Environment environment) {
         String applicationName = environment.getProperty("spring.application.name", "");
         if (!properties.getDirectAccessServices().contains(applicationName)) {
@@ -101,16 +88,6 @@ public class TransactionShardingDataSourceConfiguration {
         }
         DataSource primary = requiredDataSource(routingDataSource, properties.getPrimaryDataSource());
         properties.validateForActivation();
-        if (!properties.getMode().isCompositeDataSourceRequired()) {
-            if (properties.hasPublishedRuleConfiguration()) {
-                properties.getReplicaDataSources().forEach(name -> requiredDataSource(routingDataSource, name));
-            }
-            routingDataSource.addDataSource(DataSourceName.TRANSACTION, new NonClosingDelegatingDataSource(primary));
-            runtimeState.loadLegacy(properties);
-            log.info("Transaction datasource registered in LEGACY mode for service {}, ruleVersion={}, checksumPrefix={}",
-                    applicationName, runtimeState.getRuleVersion(), runtimeState.getChecksumPrefix());
-            return;
-        }
         Map<String, DataSource> resources = new LinkedHashMap<>();
         Map<String, DataSource> routingResources = new LinkedHashMap<>();
         routingResources.put(properties.getPrimaryDataSource(), primary);
@@ -126,13 +103,17 @@ public class TransactionShardingDataSourceConfiguration {
             DataSource transactionDataSource = ShardingSphereDataSourceFactory.createDataSource(
                     resources, buildRules(properties, replicas), buildSystemProperties());
             registerCompositeDataSource(routingDataSource, routingResources, transactionDataSource);
-            runtimeState.activate(properties);
-            log.info("Transaction datasource registered in {} mode, ruleVersion={}, checksumPrefix={}",
-                    runtimeState.getMode(), runtimeState.getRuleVersion(), runtimeState.getChecksumPrefix());
+            log.info("Transaction ShardingSphere datasource registered for service {}, ruleVersion={}, checksumPrefix={}",
+                    applicationName, properties.getRuleVersion(), checksumPrefix(properties.getRuleChecksum()));
         } catch (SQLException exception) {
             throw new IllegalStateException("failed to build transaction sharding datasource for rule "
                     + properties.getRuleVersion(), exception);
         }
+    }
+
+    /** 返回可公开记录的规则 checksum 前缀。 */
+    private String checksumPrefix(String checksum) {
+        return checksum.substring(0, Math.min(checksum.length(), 19));
     }
 
     /**
@@ -257,7 +238,7 @@ public class TransactionShardingDataSourceConfiguration {
     }
 
     /**
-     * Legacy 模式别名不拥有底层连接池生命周期，避免 dynamic-datasource 关闭同一个主库两次。
+     * dynamic-datasource 保留的代理不拥有底层连接池生命周期，避免与 ShardingSphere 重复关闭。
      */
     private static final class NonClosingDelegatingDataSource implements DataSource {
         /** 仍由原 owner 或 ShardingSphere 管理生命周期的真实数据源。 */

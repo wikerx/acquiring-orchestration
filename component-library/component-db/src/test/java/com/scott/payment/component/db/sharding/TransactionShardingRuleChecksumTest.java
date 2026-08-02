@@ -54,9 +54,24 @@ class TransactionShardingRuleChecksumTest {
         assertThrows(IllegalStateException.class, properties::validateForActivation);
     }
 
+    /** 候选规则校验失败后，上一版完整拓扑仍可通过激活门禁。 */
+    @Test
+    void shouldRestorePreviousPublishedRuleAfterCandidateChecksumFailure() {
+        TransactionShardingProperties previous = validProperties();
+        String previousChecksum = previous.getRuleChecksum();
+
+        TransactionShardingProperties candidate = validProperties();
+        candidate.setRuleVersion("2026.08.02-002");
+        candidate.setRuleChecksum("sha256:invalid-candidate");
+
+        assertThrows(IllegalStateException.class, candidate::validateForActivation);
+        previous.validateForActivation();
+        assertEquals("2026.08.02-001", previous.getRuleVersion());
+        assertEquals(previousChecksum, previous.getRuleChecksum());
+    }
+
     private TransactionShardingProperties validProperties() {
         TransactionShardingProperties properties = new TransactionShardingProperties();
-        properties.setMode(TransactionShardingMode.SHARDINGSPHERE);
         properties.setRuleVersion("2026.08.02-001");
         properties.setPhysicalNodes(List.of("202603", "202604"));
         properties.setRuleChecksum(TransactionShardingRuleChecksum.calculate(properties));

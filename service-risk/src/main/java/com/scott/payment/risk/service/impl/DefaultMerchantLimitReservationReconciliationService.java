@@ -102,7 +102,10 @@ public class DefaultMerchantLimitReservationReconciliationService
         int confirmed = 0;
         for (MerchantLimitReservationDO reservation : reservedTransactions.values()) {
             PaymentTransactionLookupResult lookup =
-                    paymentStatusRepository.findStatus(reservation.getTransactionId());
+                    paymentStatusRepository.findStatus(
+                            reservation.getTransactionId(),
+                            reservation.getPeriodBeginTime(),
+                            reservation.getPeriodEndTime());
             if (lookup.availability()
                     == PaymentTransactionLookupResult.Availability.FOUND) {
                 MerchantLimitReservationTransitionSummary summary =

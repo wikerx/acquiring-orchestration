@@ -173,8 +173,26 @@ class OpenApiMerchantKeyMaterialServiceTest {
         String config = service.copy(MERCHANT_ID, configTextRequest()).getContent();
 
         assertThat(vo.getOpenApiBaseUrl()).isEqualTo(gatewayBaseUrl);
-        assertThat(config).contains("merchant.openapi.base-url=" + gatewayBaseUrl);
+        assertThat(config).contains("merchant.openapi.base-url=" + gatewayBaseUrl + "/api/rest/");
         assertThat(config).doesNotContain("https://ignored.example.com");
+    }
+
+    /**
+     * 系统参数已经带 OpenAPI 前缀时，导出配置只能保留一份前缀并统一末尾斜杠。
+     */
+    @Test
+    void shouldNotDuplicateExistingOpenApiBasePath() {
+        OpenApiKeyExportService exportService = new OpenApiKeyExportService(
+                () -> "https://gateway.local.test/api/rest///");
+        OpenApiKeyExportService.OpenApiKeyExportContext context =
+                new OpenApiKeyExportService.OpenApiKeyExportContext(
+                        MERCHANT_ID, "test-jwt-secret", "HS256", 1800L,
+                        "test-platform-public-key", "test-response-private-key");
+
+        String config = exportService.merchantConfig(context);
+
+        assertThat(config).contains("merchant.openapi.base-url=https://gateway.local.test/api/rest/\n");
+        assertThat(config).doesNotContain("/api/rest/api/rest/");
     }
 
     /**

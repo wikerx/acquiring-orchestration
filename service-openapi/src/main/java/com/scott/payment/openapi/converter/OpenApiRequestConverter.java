@@ -79,6 +79,8 @@ public interface OpenApiRequestConverter {
         transactionInfoVO.setTransactionStatus(responseDTO.getStatus());
         transactionInfoVO.setProcessStage(responseDTO.getProcessStage());
         transactionInfoVO.setTransactionDateTime(toOffsetDateTime(responseDTO.getTransactionDateTime(), responseDTO.getTransactionTimeZone()));
+        transactionInfoVO.setRootTransactionDateTime(toOffsetDateTime(
+                responseDTO.getRootTransactionDateTime(), responseDTO.getTransactionTimeZone()));
         transactionInfoVO.setPaymentMethod(responseDTO.getPaymentMethod());
         transactionInfoVO.setCardBrand(responseDTO.getPaymentBrand());
         transactionInfoVO.setCardBin(responseDTO.getCardBin());
@@ -545,6 +547,7 @@ public interface OpenApiRequestConverter {
         target.setMessage(source.getMessage());
         target.setTransactionType(source.getTransactionType());
         target.setTransactionDateTime(toOffsetDateTime(source.getTransactionDateTime(), timeZone));
+        target.setRootTransactionDateTime(toOffsetDateTime(source.getRootTransactionDateTime(), timeZone));
         target.setPaymentMethod(source.getPaymentMethod());
         target.setCardBrand(source.getCardBrand());
         target.setCardBin(source.getCardBin());
@@ -628,8 +631,17 @@ public interface OpenApiRequestConverter {
      * @param source OpenAPI 交易扩展信息
      * @return 支付内部调用交易扩展信息
      */
-    @Mapping(target = "sourceTransactionDateTime", ignore = true)
     PaymentCreateClientRequestDTO.TransactionInfoDTO toPaymentClientTransactionInfo(ApiMerchantPaymentRequestDTO.TransactionInfoDTO source);
+
+    /**
+     * 将带偏移的商户请求时间统一转换为支付数据库业务时区，避免调用方时区改变季度路由。
+     *
+     * @param source 商户请求时间
+     * @return Asia/Shanghai 本地业务时间；输入为空时返回 null
+     */
+    default LocalDateTime toLocalDateTime(OffsetDateTime source) {
+        return source == null ? null : source.atZoneSameInstant(ZoneId.of("Asia/Shanghai")).toLocalDateTime();
+    }
 
     /**
      * 转换商户实时风控上下文。

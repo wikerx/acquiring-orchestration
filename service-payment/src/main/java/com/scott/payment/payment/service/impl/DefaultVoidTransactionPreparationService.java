@@ -292,7 +292,8 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
         }
         TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
-                commandDTO.getTransactionInfo().getSourceTransactionId());
+                commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
         normalizeVoidCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildVoidResult(commandDTO, sourceOrderDO, transactionId);
@@ -331,8 +332,12 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
      * @return 构造、转换或解析后的业务值
      */
     private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
-        String sourceTransactionId = commandDTO.getTransactionInfo().getSourceTransactionId();
-        TransactionOrderDO sourceOrderDO = transactionRecordService.findSourceOrderByTransactionId(sourceTransactionId);
+        PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
+        String sourceTransactionId = transactionInfoDTO.getSourceTransactionId();
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findSourceOrderByTransactionId(
+                sourceTransactionId,
+                transactionInfoDTO.getSourceTransactionDateTime(),
+                transactionInfoDTO.getRootTransactionDateTime());
         if (sourceOrderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -831,6 +836,7 @@ public class DefaultVoidTransactionPreparationService implements VoidTransaction
         resultDTO.setRateSource(commandDTO.getRateSource());
         resultDTO.setRateTime(commandDTO.getRateTime());
         resultDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        resultDTO.setRootTransactionDateTime(sourceOrderDO.getTransactionDateTime());
         resultDTO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
         resultDTO.setPaymentMethod(sourceOrderDO.getPaymentMethod());
         resultDTO.setPaymentBrand(sourceOrderDO.getPaymentBrand());

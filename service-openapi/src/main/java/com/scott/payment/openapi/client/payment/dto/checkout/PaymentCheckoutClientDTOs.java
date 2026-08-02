@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.client.payment.dto.checkout;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
@@ -665,6 +666,7 @@ public final class PaymentCheckoutClientDTOs {
         /**
          * 交易时间。
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
 
         /**

@@ -22,11 +22,9 @@ class TransactionShardingInfoContributorTest {
 
     @Test
     void shouldExposeLoadedRuleForDirectAccessService() {
-        TransactionShardingProperties properties = publishedLegacyProperties();
-        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
-        runtimeState.loadLegacy(properties);
+        TransactionShardingProperties properties = publishedProperties();
         TransactionShardingInfoContributor contributor = new TransactionShardingInfoContributor(
-                properties, runtimeState,
+                properties,
                 new MockEnvironment().withProperty("spring.application.name", "service-payment"));
 
         Info.Builder builder = new Info.Builder();
@@ -34,19 +32,17 @@ class TransactionShardingInfoContributorTest {
 
         assertThat(builder.build().getDetails().get("transactionSharding"))
                 .isEqualTo(Map.of(
-                        "mode", "LEGACY",
+                        "mode", "SHARDINGSPHERE",
                         "ruleVersion", "2026.08.02-001",
                         "ruleChecksumPrefix", properties.getRuleChecksum().substring(0, 19),
-                        "compositeDataSourceActive", false));
+                        "compositeDataSourceActive", true));
     }
 
     @Test
     void shouldNotExposeRuleForNonDirectService() {
-        TransactionShardingProperties properties = publishedLegacyProperties();
-        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
-        runtimeState.loadLegacy(properties);
+        TransactionShardingProperties properties = publishedProperties();
         TransactionShardingInfoContributor contributor = new TransactionShardingInfoContributor(
-                properties, runtimeState,
+                properties,
                 new MockEnvironment().withProperty("spring.application.name", "service-gateway"));
 
         Info.Builder builder = new Info.Builder();
@@ -55,9 +51,8 @@ class TransactionShardingInfoContributorTest {
         assertThat(builder.build().getDetails()).doesNotContainKey("transactionSharding");
     }
 
-    private TransactionShardingProperties publishedLegacyProperties() {
+    private TransactionShardingProperties publishedProperties() {
         TransactionShardingProperties properties = new TransactionShardingProperties();
-        properties.setMode(TransactionShardingMode.LEGACY);
         properties.setRuleVersion("2026.08.02-001");
         properties.setPhysicalNodes(List.of("202603", "202604"));
         properties.setRuleChecksum(TransactionShardingRuleChecksum.calculate(properties));

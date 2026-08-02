@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.dto.transaction;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import lombok.Data;
@@ -472,7 +473,14 @@ public final class TransactionQueryDTOs {
         /**
          * 主单交易业务时间。
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
+
+        /**
+         * 生命周期根主单分片时间；主单响应中与 transactionDateTime 相同。
+         */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * 主单交易业务时区。
@@ -706,7 +714,14 @@ public final class TransactionQueryDTOs {
         /**
          * 当前动作交易业务时间。
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
+
+        /**
+         * 当前动作所属生命周期根主单分片时间。
+         */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * 当前动作发生时间。

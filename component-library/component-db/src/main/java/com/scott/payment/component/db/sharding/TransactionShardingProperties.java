@@ -23,8 +23,6 @@ public class TransactionShardingProperties {
     /** 所有交易逻辑表统一使用的分片键。 */
     public static final String REQUIRED_SHARDING_COLUMN = "transaction_date_time";
 
-    /** 当前实例的单写切换模式；默认保持 Legacy。 */
-    private TransactionShardingMode mode = TransactionShardingMode.LEGACY;
     /** 版本化规则标识，未发布配置不得激活复合数据源。 */
     private String ruleVersion = "unpublished";
     /** 对路由相关字段计算的 SHA-256，用于阻止半份或漂移配置启动。 */
@@ -85,9 +83,6 @@ public class TransactionShardingProperties {
      * @throws IllegalStateException 任一发布字段缺失、漂移或不完整时抛出
      */
     public void validateForActivation() {
-        if (!mode.isCompositeDataSourceRequired() && !hasPublishedRuleConfiguration()) {
-            return;
-        }
         if (!REQUIRED_ZONE_ID.equals(databaseZoneId)) {
             throw new IllegalStateException("transaction sharding database zone must be Asia/Shanghai");
         }
@@ -100,6 +95,10 @@ public class TransactionShardingProperties {
         if (physicalNodes == null || physicalNodes.isEmpty()) {
             throw new IllegalStateException("transaction sharding physical nodes must contain verified existing quarters");
         }
+        if (physicalNodes.stream().anyMatch(node -> node == null || !node.matches("\\d{4}0[1-4]"))
+                || physicalNodes.stream().distinct().count() != physicalNodes.size()) {
+            throw new IllegalStateException("transaction sharding physical nodes must be unique yyyyQQ suffixes");
+        }
         if (logicTables == null || !logicTables.containsAll(defaultLogicTables()) || logicTables.size() != 23) {
             throw new IllegalStateException("transaction sharding rules must contain exactly 23 formal logic tables");
         }
@@ -108,30 +107,6 @@ public class TransactionShardingProperties {
         if (!calculated.equalsIgnoreCase(ruleChecksum)) {
             throw new IllegalStateException("transaction sharding rule checksum mismatch for version " + ruleVersion);
         }
-    }
-
-    /**
-     * 判断当前实例是否已经收到需要校验并对外报告的版本化规则。
-     *
-     * <p>任一发布字段出现即视为开始发布，缺少其余字段时由完整性校验拒绝启动，
-     * 避免 Legacy 首发阶段静默接受半份规则。</p>
-     *
-     * @return true 表示存在已发布或部分发布的规则元数据
-     */
-    public boolean hasPublishedRuleConfiguration() {
-        return (ruleVersion != null && !ruleVersion.isBlank() && !"unpublished".equals(ruleVersion))
-                || (ruleChecksum != null && !ruleChecksum.isBlank())
-                || (physicalNodes != null && !physicalNodes.isEmpty());
-    }
-
-    /** @return 当前单写切换模式 */
-    public TransactionShardingMode getMode() {
-        return mode;
-    }
-
-    /** @param mode 单写切换模式，null 按 Legacy 处理 */
-    public void setMode(TransactionShardingMode mode) {
-        this.mode = mode == null ? TransactionShardingMode.LEGACY : mode;
     }
 
     /** @return 当前规则版本 */

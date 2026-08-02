@@ -15,7 +15,7 @@ import java.util.List;
  * @classname : TransactionFlowEventMapper
  * @date : 2026-07-14 19:44
  * @email : scott_x@163.com
- * @description : 交易流程事件 Mapper，位于 service-payment 数据访问层，仅负责 transaction_flow_event 物理分表写入。
+ * @description : 交易流程事件 Mapper，位于 service-payment 数据访问层，仅访问 transaction_flow_event 逻辑表。
  * @status : create
  */
 public interface TransactionFlowEventMapper extends BaseMapper<TransactionFlowEventDO> {
@@ -85,67 +85,4 @@ public interface TransactionFlowEventMapper extends BaseMapper<TransactionFlowEv
     List<TransactionFlowEventDO> selectByOperationId(@Param("operationId") String operationId,
                                                      @Param("beginTime") LocalDateTime beginTime,
                                                      @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
-
-    /**
-     * 写入交易流程事件物理分表。
-     *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param eventDO           流程事件
-     * @return 影响行数
-     */
-    @Insert("""
-            INSERT INTO ${physicalTableName}
-            (
-              flow_event_id, transaction_id, operation_id, event_type, event_stage, event_status,
-              event_name, event_content, previous_status, current_status, operator_type, operator_id,
-              reference_type, reference_id, error_code, error_message, event_time, transaction_date_time,
-              transaction_utc_time, transaction_time_zone, create_time
-            )
-            VALUES
-            (
-              #{eventDO.flowEventId}, #{eventDO.transactionId}, #{eventDO.operationId},
-              #{eventDO.eventType}, #{eventDO.eventStage}, #{eventDO.eventStatus},
-              #{eventDO.eventName}, #{eventDO.eventContent}, #{eventDO.previousStatus},
-              #{eventDO.currentStatus}, #{eventDO.operatorType}, #{eventDO.operatorId},
-              #{eventDO.referenceType}, #{eventDO.referenceId}, #{eventDO.errorCode},
-              #{eventDO.errorMessage}, #{eventDO.eventTime}, #{eventDO.transactionDateTime},
-              #{eventDO.transactionUtcTime}, #{eventDO.transactionTimeZone}, #{eventDO.createTime}
-            )
-            """)
-    int insertPhysical(@Param("physicalTableName") String physicalTableName,
-                       @Param("eventDO") TransactionFlowEventDO eventDO);
-
-    /**
-     * 按平台交易 ID 查询交易流程事件。
-     *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param transactionId 平台当前交易 ID
-     * @return 流程事件列表
-     */
-    @Select("""
-            SELECT *
-            FROM ${physicalTableName}
-            WHERE transaction_id = #{transactionId}
-            ORDER BY event_time ASC, id ASC
-            LIMIT 200
-            """)
-    List<TransactionFlowEventDO> selectByTransactionIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                               @Param("transactionId") String transactionId);
-
-    /**
-     * 按 operation_id 查询交易生命周期流程事件。
-     *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param operationId 平台内部生命周期关联标识
-     * @return 流程事件列表
-     */
-    @Select("""
-            SELECT *
-            FROM ${physicalTableName}
-            WHERE operation_id = #{operationId}
-            ORDER BY event_time ASC, id ASC
-            LIMIT 500
-            """)
-    List<TransactionFlowEventDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                             @Param("operationId") String operationId);
 }

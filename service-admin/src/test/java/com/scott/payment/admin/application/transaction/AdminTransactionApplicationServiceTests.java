@@ -43,6 +43,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
  */
 class AdminTransactionApplicationServiceTests {
 
+    private static final LocalDateTime TRANSACTION_DATE_TIME =
+            LocalDateTime.of(2026, 7, 14, 12, 30, 45);
+    private static final LocalDateTime ROOT_TRANSACTION_DATE_TIME =
+            LocalDateTime.of(2026, 4, 10, 9, 15, 30);
+
     /**
      * 退款动作应回填原交易上下文，并生成后台幂等请求号后调用支付核心。
      */
@@ -51,7 +56,9 @@ class AdminTransactionApplicationServiceTests {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
         AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
         AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
-        when(transactionQueryService.detail("TX202607140001")).thenReturn(detail("TX202607140001", "PAYMENT"));
+        when(transactionQueryService.detail(
+                "TX202607140001", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail("TX202607140001", "PAYMENT"));
         TransactionActionResponse expected = actionResponse("TX202607140002", "REFUND");
         ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
                 ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
@@ -60,6 +67,8 @@ class AdminTransactionApplicationServiceTests {
         TransactionActionRequest request = new TransactionActionRequest();
         request.setAmount(new BigDecimal("1.23"));
         request.setReason("manual refund");
+        request.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
         TransactionActionResponse actual = service.refund("TX202607140001", request);
 
         assertThat(actual).isSameAs(expected);
@@ -70,6 +79,10 @@ class AdminTransactionApplicationServiceTests {
         assertThat(command.getAmount()).isEqualByComparingTo("1.23");
         assertThat(command.getCurrency()).isEqualTo("USD");
         assertThat(command.getTransactionInfo().getSourceTransactionId()).isEqualTo("TX202607140001");
+        assertThat(command.getTransactionInfo().getSourceTransactionDateTime())
+                .isEqualTo(TRANSACTION_DATE_TIME);
+        assertThat(command.getTransactionInfo().getRootTransactionDateTime())
+                .isEqualTo(ROOT_TRANSACTION_DATE_TIME);
         assertThat(command.getTransactionInfo().getDescription()).isEqualTo("manual refund");
     }
 
@@ -81,13 +94,18 @@ class AdminTransactionApplicationServiceTests {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
         AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
         AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
-        when(transactionQueryService.detail("TX202607140010")).thenReturn(detail("TX202607140010", "AUTHORIZATION"));
+        when(transactionQueryService.detail(
+                "TX202607140010", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail("TX202607140010", "AUTHORIZATION"));
         TransactionActionResponse expected = actionResponse("TX202607140011", "VOID");
         ArgumentCaptor<PaymentTransactionActionClientRequestDTO> captor =
                 ArgumentCaptor.forClass(PaymentTransactionActionClientRequestDTO.class);
         when(paymentInternalClient.voidPayment(captor.capture())).thenReturn(expected);
 
-        TransactionActionResponse actual = service.voidPayment("TX202607140010", null);
+        TransactionActionRequest request = new TransactionActionRequest();
+        request.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
+        TransactionActionResponse actual = service.voidPayment("TX202607140010", request);
 
         assertThat(actual).isSameAs(expected);
         PaymentTransactionActionClientRequestDTO command = captor.getValue();
@@ -96,6 +114,10 @@ class AdminTransactionApplicationServiceTests {
         assertThat(command.getLabelAmount()).isEqualByComparingTo("3.00");
         assertThat(command.getCurrency()).isEqualTo("USD");
         assertThat(command.getTransactionInfo().getSourceTransactionId()).isEqualTo("TX202607140010");
+        assertThat(command.getTransactionInfo().getSourceTransactionDateTime())
+                .isEqualTo(TRANSACTION_DATE_TIME);
+        assertThat(command.getTransactionInfo().getRootTransactionDateTime())
+                .isEqualTo(ROOT_TRANSACTION_DATE_TIME);
     }
 
     /**
@@ -106,9 +128,13 @@ class AdminTransactionApplicationServiceTests {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
         AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
         AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
-        when(transactionQueryService.detail("TX202607140001")).thenReturn(detail("TX202607140001", "PAYMENT"));
+        when(transactionQueryService.detail(
+                "TX202607140001", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail("TX202607140001", "PAYMENT"));
         TransactionActionRequest request = new TransactionActionRequest();
         request.setAmount(BigDecimal.ZERO);
+        request.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
 
         assertThatThrownBy(() -> service.refund("TX202607140001", request))
                 .isInstanceOf(ApiException.class);
@@ -122,9 +148,13 @@ class AdminTransactionApplicationServiceTests {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
         AdminTransactionQueryService transactionQueryService = mock(AdminTransactionQueryService.class);
         AdminTransactionApplicationService service = buildService(paymentInternalClient, transactionQueryService);
-        when(transactionQueryService.detail("TX202607140020")).thenReturn(detail("TX202607140020", "AUTHORIZATION"));
+        when(transactionQueryService.detail(
+                "TX202607140020", TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME))
+                .thenReturn(detail("TX202607140020", "AUTHORIZATION"));
         TransactionActionRequest request = new TransactionActionRequest();
         request.setAmount(new BigDecimal("1.00"));
+        request.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        request.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
 
         assertThatThrownBy(() -> service.refund("TX202607140020", request))
                 .isInstanceOf(ApiException.class);
@@ -214,6 +244,8 @@ class AdminTransactionApplicationServiceTests {
         operation.setTransactionStatus("SUCCESS");
         operation.setTransactionCurrency("USD");
         operation.setTransactionAmount(new BigDecimal("3.00"));
+        operation.setTransactionDateTime(TRANSACTION_DATE_TIME);
+        operation.setRootTransactionDateTime(ROOT_TRANSACTION_DATE_TIME);
         operation.setOperationTime(operationTime);
         return operation;
     }

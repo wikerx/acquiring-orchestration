@@ -104,16 +104,31 @@ class DataMerchantNotificationLogicalMapperPocTest {
                     .isZero();
             assertThat(notificationMapper.markSuccess(ready.getId(), q3Time, 1, now.plusSeconds(1)))
                     .isEqualTo(1);
-            assertThat(notificationMapper.recoverStaleProcessing(
+            List<DataMerchantNotificationTaskDO> q3Stale = notificationMapper.selectStaleProcessing(
                     LocalDateTime.of(2026, 7, 1, 0, 0),
                     LocalDateTime.of(2026, 10, 1, 0, 0),
                     now.minusMinutes(30),
-                    now)).isZero();
-            assertThat(notificationMapper.recoverStaleProcessing(
+                    10);
+            assertThat(q3Stale).isEmpty();
+            List<DataMerchantNotificationTaskDO> q4Stale = notificationMapper.selectStaleProcessing(
                     LocalDateTime.of(2026, 10, 1, 0, 0),
                     LocalDateTime.of(2027, 1, 1, 0, 0),
                     now.minusMinutes(30),
-                    now)).isEqualTo(1);
+                    10);
+            assertThat(q4Stale).singleElement().satisfies(candidate -> {
+                assertThat(notificationMapper.recoverStaleProcessingCas(
+                        candidate.getId(),
+                        candidate.getTransactionDateTime(),
+                        candidate.getVersion(),
+                        now.minusMinutes(30),
+                        now)).isEqualTo(1);
+                assertThat(notificationMapper.recoverStaleProcessingCas(
+                        candidate.getId(),
+                        candidate.getTransactionDateTime(),
+                        candidate.getVersion(),
+                        now.minusMinutes(30),
+                        now)).isZero();
+            });
 
             DataMerchantNotificationLogDO logDO = notificationLog(q3Time, now);
             assertThat(logMapper.insert(logDO)).isEqualTo(1);

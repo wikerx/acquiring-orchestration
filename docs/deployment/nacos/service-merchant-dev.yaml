@@ -1,8 +1,4 @@
 # service-merchant 专属配置：商户后台服务个性化参数。
-transaction-sharding:
-  # Merchant 可按变更单依次使用 LEGACY、COMPARE、SHARDINGSPHERE；切换后必须滚动重启。
-  mode: ${MERCHANT_TRANSACTION_SHARDING_MODE:LEGACY}
-
 acquiring:
   openapi:
     merchant-key-export:

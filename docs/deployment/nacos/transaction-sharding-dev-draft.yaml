@@ -1,7 +1,7 @@
 # ShardingSphere-JDBC 交易分片非秘密候选配置。
 # 真实 Dry Run 已通过；仍须经 Nacos 发布审批和五服务滚动加载验收后才能生效。
 transaction-sharding:
-  # mode 必须由各 service-*-dev.yaml 单独配置，不能放在五服务共享拓扑中。
+  # 第一版直接启用 ShardingSphere 单写，不配置 LEGACY/COMPARE 服务级迁移 mode。
   rule-version: "2026.08.02-001"
   rule-checksum: "sha256:99bc03ee0b2db6dd27a69eda71b469ca822f2f27d91e2d8d12100c220da74791"
   database-zone-id: Asia/Shanghai

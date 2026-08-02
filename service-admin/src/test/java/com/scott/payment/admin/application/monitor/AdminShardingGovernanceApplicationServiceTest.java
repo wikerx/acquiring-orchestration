@@ -2,10 +2,11 @@ package com.scott.payment.admin.application.monitor;
 
 import com.scott.payment.admin.client.job.JobSchedulerInternalClient;
 import com.scott.payment.admin.converter.ShardingGovernanceConverter;
+import com.scott.payment.admin.dto.monitor.ShardingPhysicalTableResponse;
 import com.scott.payment.admin.dto.monitor.ShardingRuleResponse;
+import com.scott.payment.admin.entity.SysShardingPhysicalTableDO;
 import com.scott.payment.admin.mapper.SysShardingPhysicalTableMapper;
 import com.scott.payment.admin.mapper.SysShardingTableCreateLogMapper;
-import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
 import com.scott.payment.component.db.sharding.ShardingAutoIncrementValueCalculator;
 import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
 import com.scott.payment.component.db.sharding.ShardingQuarter;
@@ -34,11 +35,10 @@ class AdminShardingGovernanceApplicationServiceTest {
 
     @Test
     void shouldExcludeLegacyTestRulesAndExposeVerifiedNodeState() {
-        PaymentQuarterShardingProperties legacy = new PaymentQuarterShardingProperties();
-        legacy.setTables(new LinkedHashMap<>());
-        legacy.getTables().put("transaction_order", rule("transaction_order"));
-        legacy.getTables().put("test_transaction", rule("test_transaction"));
         TransactionShardingGovernanceProperties governance = new TransactionShardingGovernanceProperties();
+        governance.setTables(new LinkedHashMap<>());
+        governance.getTables().put("transaction_order", rule("transaction_order"));
+        governance.getTables().put("test_transaction", rule("test_transaction"));
         TransactionShardingProperties transaction = new TransactionShardingProperties();
         transaction.setRuleVersion("2026.08.02-001");
         transaction.setRuleChecksum("sha256:1234567890abcdef1234567890abcdef");
@@ -50,7 +50,6 @@ class AdminShardingGovernanceApplicationServiceTest {
         when(quarterResolver.quartersInRange(any())).thenReturn(List.of(currentQuarter, currentQuarter.next()));
 
         AdminShardingGovernanceApplicationService service = new AdminShardingGovernanceApplicationService(
-                legacy,
                 governance,
                 transaction,
                 quarterResolver,
@@ -73,8 +72,38 @@ class AdminShardingGovernanceApplicationServiceTest {
         });
     }
 
-    private PaymentQuarterShardingProperties.TableRule rule(String logicalTable) {
-        PaymentQuarterShardingProperties.TableRule rule = new PaymentQuarterShardingProperties.TableRule();
+    @Test
+    void shouldNotMarkRetiredTestTableAsRegisteredByQuarterSuffixAlone() {
+        TransactionShardingGovernanceProperties governance = new TransactionShardingGovernanceProperties();
+        TransactionShardingProperties transaction = new TransactionShardingProperties();
+        transaction.setRuleVersion("2026.08.02-001");
+        transaction.setRuleChecksum("sha256:1234567890abcdef1234567890abcdef");
+        transaction.setPhysicalNodes(List.of("202603"));
+        SysShardingPhysicalTableMapper physicalTableMapper = mock(SysShardingPhysicalTableMapper.class);
+        ShardingGovernanceConverter converter = mock(ShardingGovernanceConverter.class);
+        SysShardingPhysicalTableDO entity = new SysShardingPhysicalTableDO();
+        ShardingPhysicalTableResponse response = new ShardingPhysicalTableResponse();
+        response.setLogicalTable("test_transaction");
+        response.setQuarterSuffix("202603");
+        when(physicalTableMapper.selectById(1L)).thenReturn(entity);
+        when(converter.toPhysicalTableResponse(entity)).thenReturn(response);
+
+        AdminShardingGovernanceApplicationService service = new AdminShardingGovernanceApplicationService(
+                governance,
+                transaction,
+                mock(ShardingQuarterResolver.class),
+                new ShardingPhysicalTableNameResolver(),
+                new ShardingAutoIncrementValueCalculator(),
+                physicalTableMapper,
+                mock(SysShardingTableCreateLogMapper.class),
+                mock(JobSchedulerInternalClient.class),
+                converter);
+
+        assertThat(service.getPhysicalTable(1L).getNodeRegistered()).isFalse();
+    }
+
+    private TransactionShardingGovernanceProperties.TableRule rule(String logicalTable) {
+        TransactionShardingGovernanceProperties.TableRule rule = new TransactionShardingGovernanceProperties.TableRule();
         rule.setLogicalTable(logicalTable);
         rule.setTemplateTable(logicalTable);
         rule.setStartYear(2026);
