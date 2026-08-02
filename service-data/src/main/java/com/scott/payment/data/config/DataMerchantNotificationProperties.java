@@ -17,7 +17,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class DataMerchantNotificationProperties {
 
     /** 商户回调建连超时，单位毫秒，必须大于零。 */
-    private int connectTimeoutMillis = 3_000;
+    private int connectTimeoutMillis = 30_000;
 
     /** 商户回调读取超时，单位毫秒，必须大于零。 */
     private int readTimeoutMillis = 10_000;

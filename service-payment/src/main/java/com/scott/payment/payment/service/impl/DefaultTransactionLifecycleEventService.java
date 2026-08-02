@@ -4,6 +4,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
@@ -75,6 +76,9 @@ public class DefaultTransactionLifecycleEventService implements TransactionLifec
                 || !StringUtils.hasText(transactionStatus)
                 || transactionDateTime == null) {
             throw new IllegalArgumentException("terminal transaction event identity is incomplete");
+        }
+        if (!PaymentTransactionEventStatus.isTerminal(transactionStatus)) {
+            throw new IllegalArgumentException("transaction status is not terminal");
         }
         LocalDateTime now = LocalDateTime.now();
         String eventNo = PaymentOrderNoGenerator.nextOrderNo(

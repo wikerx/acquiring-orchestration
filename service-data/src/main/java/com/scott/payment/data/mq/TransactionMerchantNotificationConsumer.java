@@ -4,6 +4,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
@@ -62,7 +63,8 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         if (message == null
                 || message.getTransactionDateTime() == null
                 || !StringUtils.hasText(message.getTransactionId())
-                || !isTerminalEvent(message.getEventType())) {
+                || !isTerminalEvent(message.getEventType())
+                || !PaymentTransactionEventStatus.isTerminal(message.getTransactionStatus())) {
             log.warn("event: DATA_PAYMENT_EVENT_SKIPPED traceId: {} reason=messageInvalid payloadLength: {} durationMs: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length(), elapsedMillis(startNanos));
             return;

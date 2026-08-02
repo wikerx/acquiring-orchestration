@@ -2,6 +2,7 @@ package com.scott.payment.data.mq;
 
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTag;
+import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
@@ -70,6 +71,22 @@ class TransactionMerchantNotificationConsumerTests {
         log.info("创建事件通知边界测试完成，结果: 未访问通知任务");
     }
 
+    /** 状态变更 Tag 只有携带成功或失败终态时才能触发商户通知。 */
+    @Test
+    void shouldIgnoreNonTerminalStatusChangedEvent() {
+        log.info("测试非终态通知边界，关键输入: PROCESSING 状态变更事件");
+        InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(false);
+        TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
+        PaymentTransactionEventMessage message = message();
+        message.setTransactionStatus(PaymentTransactionEventStatus.PROCESSING.getCode());
+
+        consumer.onMessage(JsonUtils.toJsonString(message));
+
+        assertThat(deliveryService.notifyTransactionCalled).isFalse();
+        assertThat(deliveryService.notifyDueCalled).isFalse();
+        log.info("非终态通知边界测试完成，结果: 未访问通知任务");
+    }
+
     /** 畸形 JSON 不应访问数据库投递服务。 */
     @Test
     void shouldSkipMalformedPayloadWithoutDelivery() {
@@ -109,6 +126,7 @@ class TransactionMerchantNotificationConsumerTests {
         message.setMessageId("MSG202608011600000000001");
         message.setTransactionId("TX202608011600000000001");
         message.setEventType(MqTag.TRANSACTION_STATUS_CHANGED);
+        message.setTransactionStatus(PaymentTransactionEventStatus.SUCCESS.getCode());
         message.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
         return message;
     }

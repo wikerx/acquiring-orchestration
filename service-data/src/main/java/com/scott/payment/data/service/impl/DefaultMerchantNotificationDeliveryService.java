@@ -146,9 +146,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         }
         LocalDateTime now = LocalDateTime.now();
         DataMerchantNotificationTaskDO task;
-        LocalDateTime beginTime = quarterBegin(transactionDateTime);
         try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
-            recoverStaleProcessing(beginTime, now);
             task = notificationMapper.selectReadyByTransactionId(transactionId, transactionDateTime, now);
         }
         boolean notified = task != null && notifySingle(task);

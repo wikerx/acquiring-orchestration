@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -108,6 +109,34 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         assertThat(notified).isTrue();
         verify(fixture.notificationMapper()).selectReadyByTransactionId(
                 eq(fixture.task().getTransactionId()), eq(transactionDateTime), any());
+        verify(fixture.notificationMapper(), never())
+                .selectStaleProcessing(any(), any(), any(), anyInt());
+    }
+
+    /** 重复 MQ 在首笔成功后不得再次抢占任务或发起商户 HTTP 回调。 */
+    @Test
+    void shouldAbsorbDuplicateMessageAfterNotificationSucceeds() {
+        log.info("测试商户通知重复 MQ，关键输入: 同一交易连续消费两次");
+        Fixture fixture = fixture(HttpStatus.OK, "{}");
+        LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        when(fixture.notificationMapper().selectReadyByTransactionId(
+                eq(fixture.task().getTransactionId()), eq(transactionDateTime), any()))
+                .thenReturn(fixture.task())
+                .thenReturn(null);
+        when(fixture.notificationMapper().markSuccess(eq(1L), eq(transactionDateTime), eq(1), any()))
+                .thenReturn(1);
+
+        boolean first = fixture.service().notifyTransaction(
+                transactionDateTime, fixture.task().getTransactionId());
+        boolean duplicate = fixture.service().notifyTransaction(
+                transactionDateTime, fixture.task().getTransactionId());
+
+        assertThat(first).isTrue();
+        assertThat(duplicate).isFalse();
+        assertThat(fixture.restTemplate().postCount).isEqualTo(1);
+        verify(fixture.notificationMapper(), times(1))
+                .markProcessing(eq(1L), eq(transactionDateTime), eq(0), any());
+        log.info("商户通知重复 MQ 测试完成，结果: 第二次消费未抢占且未发 HTTP");
     }
 
     /** 逻辑 SUCCESS CAS 冲突必须上抛，禁止把重复或异常消费确认成功。 */
@@ -225,12 +254,13 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 .thenReturn(1);
         when(logMapper.insert(any(DataMerchantNotificationLogDO.class))).thenReturn(1);
         DataMerchantNotificationProperties properties = new DataMerchantNotificationProperties();
+        StubRestTemplate restTemplate = new StubRestTemplate(status, body);
         DefaultMerchantNotificationDeliveryService service = new DefaultMerchantNotificationDeliveryService(
                 notificationMapper,
                 logMapper,
-                new StubRestTemplate(status, body),
+                restTemplate,
                 properties);
-        return new Fixture(service, notificationMapper, logMapper, task);
+        return new Fixture(service, notificationMapper, logMapper, task, restTemplate);
     }
 
     /** 构造不含卡数据和密钥的通知任务。 */
@@ -269,7 +299,8 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     private record Fixture(DefaultMerchantNotificationDeliveryService service,
                            DataMerchantNotificationMapper notificationMapper,
                            DataMerchantNotificationLogMapper logMapper,
-                           DataMerchantNotificationTaskDO task) {
+                           DataMerchantNotificationTaskDO task,
+                           StubRestTemplate restTemplate) {
     }
 
     /** 返回预设 HTTP 状态和响应体，并校验实际回调地址没有被脱敏值替换。 */
@@ -280,6 +311,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
 
         /** 预设商户响应体。 */
         private final String body;
+
+        /** 实际发起商户 HTTP 回调的次数。 */
+        private int postCount;
 
         private StubRestTemplate(HttpStatus status, String body) {
             this.status = status;
@@ -296,6 +330,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                                                    Object... uriVariables) {
             assertThat(url).isEqualTo("https://merchant.example/callback?token=secret-token");
             assertThat(request).isInstanceOf(HttpEntity.class);
+            postCount++;
             return new ResponseEntity<>(responseType.cast(body), status);
         }
     }

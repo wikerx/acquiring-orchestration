@@ -6,6 +6,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
+import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.service.ChannelTransactionStatusResolver;
@@ -196,7 +197,8 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                 resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
                 return;
             }
-            if ("SUCCESS".equals(resolution.getTargetStatus()) || "FAILED".equals(resolution.getTargetStatus())) {
+            if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resolution.getTargetStatus())
+                    || PaymentTransactionStatusEnum.FAILED.getCode().equals(resolution.getTargetStatus())) {
                 if (complete(operationDO, originalRequestDO, invokeResultDTO, resolution, now)) {
                     resultDTO.setMatchedCount(resultDTO.getMatchedCount() + 1);
                     return;
