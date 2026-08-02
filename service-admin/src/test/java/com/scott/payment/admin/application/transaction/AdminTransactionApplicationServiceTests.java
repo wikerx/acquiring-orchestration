@@ -6,11 +6,16 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionA
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionActionResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
+import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.redis.concurrency.RedisConcurrencyLimiter;
+import com.scott.payment.component.core.model.PageResult;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -21,8 +26,11 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 /**
  * @author : scott
@@ -122,18 +130,70 @@ class AdminTransactionApplicationServiceTests {
                 .isInstanceOf(ApiException.class);
     }
 
+    @Test
+    void exportShouldRejectWhenAccountConcurrencyBudgetIsFull() {
+        AdminTransactionQueryService queryService = mock(AdminTransactionQueryService.class);
+        RedisConcurrencyLimiter limiter = mock(RedisConcurrencyLimiter.class);
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        AdminTransactionApplicationService service = buildService(queryService, properties, limiter);
+        when(limiter.execute(anyString(), anyString(), anyString(), anyInt(), any(), any()))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.exportOrders(
+                new TransactionPageQuery(), "operator", mock(HttpServletResponse.class)))
+                .isInstanceOf(ApiException.class);
+
+        verifyNoInteractions(queryService);
+    }
+
+    @Test
+    void exportShouldApplyConfiguredMaximumResultRows() {
+        AdminTransactionQueryService queryService = mock(AdminTransactionQueryService.class);
+        RedisConcurrencyLimiter limiter = mock(RedisConcurrencyLimiter.class);
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.getQueryBudget().setMaxResultRows(1);
+        when(limiter.execute(anyString(), anyString(), anyString(), anyInt(), any(), any()))
+                .thenAnswer(invocation -> {
+                    invocation.getArgument(5, Runnable.class).run();
+                    return true;
+                });
+        when(queryService.pageOrders(any(TransactionPageQuery.class)))
+                .thenReturn(PageResult.of(2L, 1L, 1L, List.of()));
+        AdminTransactionApplicationService service = buildService(queryService, properties, limiter);
+
+        assertThatThrownBy(() -> service.exportOrders(
+                new TransactionPageQuery(), "operator", mock(HttpServletResponse.class)))
+                .isInstanceOf(ApiException.class)
+                .hasMessageContaining("asynchronous export");
+    }
+
     private AdminTransactionApplicationService buildService(PaymentInternalClient paymentInternalClient) {
         return buildService(paymentInternalClient, mock(AdminTransactionQueryService.class));
     }
 
     private AdminTransactionApplicationService buildService(PaymentInternalClient paymentInternalClient,
                                                             AdminTransactionQueryService transactionQueryService) {
+        return buildService(transactionQueryService, new TransactionShardingProperties(),
+                mock(RedisConcurrencyLimiter.class), paymentInternalClient);
+    }
+
+    private AdminTransactionApplicationService buildService(AdminTransactionQueryService transactionQueryService,
+                                                            TransactionShardingProperties properties,
+                                                            RedisConcurrencyLimiter limiter) {
+        return buildService(transactionQueryService, properties, limiter, mock(PaymentInternalClient.class));
+    }
+
+    private AdminTransactionApplicationService buildService(AdminTransactionQueryService transactionQueryService,
+                                                            TransactionShardingProperties properties,
+                                                            RedisConcurrencyLimiter limiter,
+                                                            PaymentInternalClient paymentInternalClient) {
         return new AdminTransactionApplicationService(
-                paymentInternalClient,
-                transactionQueryService,
+                paymentInternalClient, transactionQueryService,
                 mock(ExcelExportService.class),
                 mock(ExcelI18nMessageResolver.class),
-                mock(ExcelLocaleResolver.class)
+                mock(ExcelLocaleResolver.class),
+                properties,
+                limiter
         );
     }
 

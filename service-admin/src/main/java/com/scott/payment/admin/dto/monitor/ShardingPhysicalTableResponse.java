@@ -1,5 +1,7 @@
 package com.scott.payment.admin.dto.monitor;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -24,6 +26,7 @@ public class ShardingPhysicalTableResponse {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /**
@@ -144,6 +147,7 @@ public class ShardingPhysicalTableResponse {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long autoIncrementStart;
 
     /**
@@ -154,6 +158,7 @@ public class ShardingPhysicalTableResponse {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long autoIncrementCurrent;
 
     /**
@@ -164,7 +169,17 @@ public class ShardingPhysicalTableResponse {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long autoIncrementMax;
+
+    /** 当前实例加载的交易分片规则版本。 */
+    private String ruleVersion;
+
+    /** 当前实例规则 checksum 前缀，不暴露配置秘密。 */
+    private String ruleChecksumPrefix;
+
+    /** 当前物理表季度是否已登记为 ShardingSphere 实际节点。 */
+    private Boolean nodeRegistered;
 
     /**
      * schema Check Status，表示当前记录在业务流程中的处理状态。

@@ -44,7 +44,11 @@ import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
 import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
+import com.baomidou.dynamic.datasource.annotation.DS;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -73,6 +77,7 @@ import java.util.Objects;
  */
 @Service
 @Slf4j
+@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionRecordService implements TransactionRecordService {
 
     /**
@@ -381,6 +386,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     private final TransactionShardingKeyParser transactionShardingKeyParser;
 
     /**
+     * 当前实例交易分片模式。
+     */
+    private final TransactionShardingRuntimeState transactionShardingRuntimeState;
+
+    /**
+     * 已验证逻辑节点与查询边界配置。
+     */
+    private final TransactionShardingProperties transactionShardingProperties;
+
+    /**
      * 创建交易事实记录服务默认实现。
      *
      * @param transactionOrderMapper         交易生命周期主单 Mapper
@@ -408,6 +423,55 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                            TransactionPaymentMethodInfoMapper transactionPaymentMethodInfoMapper,
                                            ShardingDataTemplate shardingDataTemplate,
                                            TransactionShardingKeyParser transactionShardingKeyParser) {
+        this(transactionOrderMapper,
+                transactionOperationMapper,
+                transactionStatusHistoryMapper,
+                transactionChannelRequestMapper,
+                transactionChannelInteractionLogMapper,
+                transactionFlowEventMapper,
+                transactionAmountChangeLogMapper,
+                transactionMerchantNotificationMapper,
+                transactionMerchantApiInteractionLogMapper,
+                transactionPaymentMethodInfoMapper,
+                shardingDataTemplate,
+                transactionShardingKeyParser,
+                new TransactionShardingRuntimeState(),
+                new TransactionShardingProperties());
+    }
+
+    /**
+     * 创建支持交易表族单写模式切换的交易事实服务。
+     *
+     * @param transactionOrderMapper 主单 Mapper
+     * @param transactionOperationMapper 动作单 Mapper
+     * @param transactionStatusHistoryMapper 状态历史 Mapper
+     * @param transactionChannelRequestMapper 渠道请求 Mapper
+     * @param transactionChannelInteractionLogMapper 渠道交互日志 Mapper
+     * @param transactionFlowEventMapper 流程事件 Mapper
+     * @param transactionAmountChangeLogMapper 金额变动 Mapper
+     * @param transactionMerchantNotificationMapper 商户通知 Mapper
+     * @param transactionMerchantApiInteractionLogMapper 商户 API 日志 Mapper
+     * @param transactionPaymentMethodInfoMapper 支付工具摘要 Mapper
+     * @param shardingDataTemplate Legacy 分表入口
+     * @param transactionShardingKeyParser 交易分片键解析器
+     * @param transactionShardingRuntimeState 当前实例分片模式
+     * @param transactionShardingProperties 已验证逻辑节点配置
+     */
+    @Autowired
+    public DefaultTransactionRecordService(TransactionOrderMapper transactionOrderMapper,
+                                           TransactionOperationMapper transactionOperationMapper,
+                                           TransactionStatusHistoryMapper transactionStatusHistoryMapper,
+                                           TransactionChannelRequestMapper transactionChannelRequestMapper,
+                                           TransactionChannelInteractionLogMapper transactionChannelInteractionLogMapper,
+                                           TransactionFlowEventMapper transactionFlowEventMapper,
+                                           TransactionAmountChangeLogMapper transactionAmountChangeLogMapper,
+                                           TransactionMerchantNotificationMapper transactionMerchantNotificationMapper,
+                                           TransactionMerchantApiInteractionLogMapper transactionMerchantApiInteractionLogMapper,
+                                           TransactionPaymentMethodInfoMapper transactionPaymentMethodInfoMapper,
+                                           ShardingDataTemplate shardingDataTemplate,
+                                           TransactionShardingKeyParser transactionShardingKeyParser,
+                                           TransactionShardingRuntimeState transactionShardingRuntimeState,
+                                           TransactionShardingProperties transactionShardingProperties) {
         this.transactionOrderMapper = transactionOrderMapper;
         this.transactionOperationMapper = transactionOperationMapper;
         this.transactionStatusHistoryMapper = transactionStatusHistoryMapper;
@@ -420,6 +484,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         this.transactionPaymentMethodInfoMapper = transactionPaymentMethodInfoMapper;
         this.shardingDataTemplate = shardingDataTemplate;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
+        this.transactionShardingRuntimeState = transactionShardingRuntimeState;
+        this.transactionShardingProperties = transactionShardingProperties;
     }
 
     /**
@@ -449,13 +515,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         TransactionStatusHistoryDO orderHistoryDO = buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_ORDER, commandDTO.getTransactionDateTime(), now);
         TransactionStatusHistoryDO operationHistoryDO = buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_OPERATION, commandDTO.getTransactionDateTime(), now);
 
-        String orderTable = resolvePhysicalTable(TRANSACTION_ORDER_TABLE, commandDTO.getTransactionDateTime());
-        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, commandDTO.getTransactionDateTime());
-        int orderRows = transactionOrderMapper.insertPhysical(orderTable, orderDO);
-        int operationRows = transactionOperationMapper.insertPhysical(operationTable, operationDO);
-        String statusHistoryTable = resolvePhysicalTable(TRANSACTION_STATUS_HISTORY_TABLE, commandDTO.getTransactionDateTime());
-        int orderHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, orderHistoryDO);
-        int operationHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, operationHistoryDO);
+        String orderTable = tableForLog(TRANSACTION_ORDER_TABLE, commandDTO.getTransactionDateTime());
+        String operationTable = tableForLog(TRANSACTION_OPERATION_TABLE, commandDTO.getTransactionDateTime());
+        String statusHistoryTable = tableForLog(TRANSACTION_STATUS_HISTORY_TABLE, commandDTO.getTransactionDateTime());
+        int orderRows;
+        int operationRows;
+        int orderHistoryRows;
+        int operationHistoryRows;
+        if (useLogicalTables()) {
+            orderRows = transactionOrderMapper.insert(orderDO);
+            operationRows = transactionOperationMapper.insert(operationDO);
+            orderHistoryRows = transactionStatusHistoryMapper.insertLogical(orderHistoryDO);
+            operationHistoryRows = transactionStatusHistoryMapper.insertLogical(operationHistoryDO);
+        } else {
+            orderRows = transactionOrderMapper.insertPhysical(orderTable, orderDO);
+            operationRows = transactionOperationMapper.insertPhysical(operationTable, operationDO);
+            orderHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, orderHistoryDO);
+            operationHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, operationHistoryDO);
+        }
         log.info("event: PAYMENT_LOCAL_PREPARE_COMMIT stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} platformStatus: {} logicalTable: {} physicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -577,7 +654,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (transactionDateTime == null || !StringUtils.hasText(operationId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time and operation_id are required");
         }
-        return transactionOrderMapper.selectByOperationIdPhysical(resolvePhysicalTable(TRANSACTION_ORDER_TABLE, transactionDateTime), operationId);
+        if (useLogicalTables()) {
+            return transactionOrderMapper.selectByOperationId(operationId, transactionDateTime);
+        }
+        return transactionOrderMapper.selectByOperationIdPhysical(
+                resolvePhysicalTable(TRANSACTION_ORDER_TABLE, transactionDateTime), operationId);
     }
 
     /**
@@ -592,8 +673,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (transactionDateTime == null || !StringUtils.hasText(operationId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time and operation_id are required");
         }
-        TransactionOrderDO orderDO = transactionOrderMapper.selectByOperationIdForUpdatePhysical(
-                resolvePhysicalTable(TRANSACTION_ORDER_TABLE, transactionDateTime), operationId);
+        TransactionOrderDO orderDO = useLogicalTables()
+                ? transactionOrderMapper.selectByOperationIdForUpdate(operationId, transactionDateTime)
+                : transactionOrderMapper.selectByOperationIdForUpdatePhysical(
+                        resolvePhysicalTable(TRANSACTION_ORDER_TABLE, transactionDateTime), operationId);
         if (orderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -635,8 +718,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (sourceTransactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, sourceTransactionDateTime);
-        TransactionOperationDO sourceOperationDO = transactionOperationMapper.selectByTransactionIdPhysical(operationTable, sourceTransactionId);
+        TransactionOperationDO sourceOperationDO = useLogicalTables()
+                ? transactionOperationMapper.selectByTransactionId(sourceTransactionId, sourceTransactionDateTime)
+                : transactionOperationMapper.selectByTransactionIdPhysical(
+                        resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, sourceTransactionDateTime), sourceTransactionId);
         if (sourceOperationDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -660,12 +745,21 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         LocalDateTime parsedTransactionTime = parseTransactionDateTime(transactionId);
         if (parsedTransactionTime != null) {
+            if (useLogicalTables()) {
+                LocalDateTime quarterBegin = quarterBegin(parsedTransactionTime);
+                return transactionOperationMapper.selectByMerchantOrder(
+                        merchantId, merchantOrderNo, transactionId, quarterBegin, quarterBegin.plusMonths(3));
+            }
             String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, parsedTransactionTime);
             return transactionOperationMapper.selectByMerchantOrderPhysical(
                     operationTable, merchantId, merchantOrderNo, transactionId);
         }
         List<TransactionOperationDO> operations = new java.util.ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
+        if (useLogicalTables()) {
+            return transactionOperationMapper.selectByMerchantOrder(
+                    merchantId, merchantOrderNo, transactionId, logicalBegin(null), exclusiveEnd(now));
+        }
         for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, null, now)) {
             operations.addAll(transactionOperationMapper.selectByMerchantOrderPhysical(
                     operationTable, merchantId, merchantOrderNo, transactionId));
@@ -690,6 +784,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         List<TransactionOperationDO> operations = new java.util.ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
+        if (useLogicalTables()) {
+            return transactionOperationMapper.selectInitialByMerchantOrder(
+                    merchantId, merchantOrderNo, logicalBegin(null), exclusiveEnd(now));
+        }
         for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, null, now)) {
             operations.addAll(transactionOperationMapper.selectInitialByMerchantOrderPhysical(
                     operationTable, merchantId, merchantOrderNo));
@@ -720,6 +818,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         LocalDateTime safeEndTime = endTime == null ? LocalDateTime.now() : endTime;
         LocalDateTime safeBeginTime = beginTime == null ? parseTransactionDateTime(sourceTransactionId) : beginTime;
+        if (useLogicalTables()) {
+            return transactionOperationMapper.selectNonTerminalCaptures(
+                    merchantId, operationId, sourceTransactionId, logicalBegin(safeBeginTime), exclusiveEnd(safeEndTime));
+        }
         List<TransactionOperationDO> operations = new java.util.ArrayList<>();
         for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, safeBeginTime, safeEndTime)) {
             operations.addAll(transactionOperationMapper.selectNonTerminalCapturesPhysical(
@@ -747,6 +849,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         LocalDateTime safeEndTime = endTime == null ? LocalDateTime.now() : endTime;
         LocalDateTime safeBeginTime = beginTime == null ? safeEndTime : beginTime;
+        if (useLogicalTables()) {
+            return transactionOperationMapper.selectNonTerminalRefunds(
+                    merchantId, operationId, logicalBegin(safeBeginTime), exclusiveEnd(safeEndTime));
+        }
         List<TransactionOperationDO> operations = new java.util.ArrayList<>();
         for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, safeBeginTime, safeEndTime)) {
             operations.addAll(transactionOperationMapper.selectNonTerminalRefundsPhysical(
@@ -774,6 +880,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         LocalDateTime safeEndTime = endTime == null ? LocalDateTime.now() : endTime;
         LocalDateTime safeBeginTime = beginTime == null ? safeEndTime : beginTime;
+        if (useLogicalTables()) {
+            return transactionOperationMapper.selectNonTerminalVoids(
+                    merchantId, operationId, logicalBegin(safeBeginTime), exclusiveEnd(safeEndTime));
+        }
         List<TransactionOperationDO> operations = new java.util.ArrayList<>();
         for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, safeBeginTime, safeEndTime)) {
             operations.addAll(transactionOperationMapper.selectNonTerminalVoidsPhysical(
@@ -801,6 +911,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         }
         LocalDateTime safeEndTime = endTime == null ? LocalDateTime.now() : endTime;
         LocalDateTime safeBeginTime = beginTime == null ? safeEndTime : beginTime;
+        if (useLogicalTables()) {
+            return transactionOperationMapper.selectNonTerminalIncrementalAuthorizations(
+                    merchantId, operationId, logicalBegin(safeBeginTime), exclusiveEnd(safeEndTime));
+        }
         List<TransactionOperationDO> operations = new java.util.ArrayList<>();
         for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, safeBeginTime, safeEndTime)) {
             operations.addAll(transactionOperationMapper.selectNonTerminalIncrementalAuthorizationsPhysical(
@@ -826,6 +940,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
         LocalDateTime now = LocalDateTime.now();
+        if (useLogicalTables()) {
+            return transactionOperationMapper.selectByChannelTransaction(
+                    channelOrderNo, channelTransactionId, sourceTransactionDateTime, exclusiveEnd(now));
+        }
         for (String operationTable : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, sourceTransactionDateTime, now)) {
             TransactionOperationDO operationDO = transactionOperationMapper.selectByChannelTransactionPhysical(
                     operationTable, channelOrderNo, channelTransactionId);
@@ -853,6 +971,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transactionDateTime is required");
         }
+        if (useLogicalTables()) {
+            LocalDateTime beginTime = quarterBegin(transactionDateTime);
+            return transactionOperationMapper.selectPendingChannelMatch(
+                    channelCode,
+                    beginTime,
+                    beginTime.plusMonths(3),
+                    now == null ? LocalDateTime.now() : now,
+                    limit);
+        }
         return transactionOperationMapper.selectPendingChannelMatchPhysical(
                 resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, transactionDateTime),
                 channelCode,
@@ -872,6 +999,34 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     @Override
     public TransactionChannelRequestDO findOriginalChannelRequestForQuery(TransactionOperationDO operationDO) {
         if (operationDO == null || operationDO.getTransactionDateTime() == null) {
+            return null;
+        }
+        if (useLogicalTables()) {
+            if (StringUtils.hasText(operationDO.getLastChannelMatchRequestId())) {
+                TransactionChannelRequestDO requestDO = transactionChannelRequestMapper.selectByRequestId(
+                        operationDO.getLastChannelMatchRequestId(), operationDO.getTransactionDateTime());
+                if (requestDO != null) {
+                    return requestDO;
+                }
+            }
+            if (StringUtils.hasText(operationDO.getTransactionId()) && StringUtils.hasText(operationDO.getChannelCode())) {
+                TransactionChannelRequestDO requestDO = transactionChannelRequestMapper.selectOriginalByTransaction(
+                        operationDO.getTransactionId(), operationDO.getChannelCode(), operationDO.getTransactionDateTime());
+                if (requestDO != null) {
+                    return requestDO;
+                }
+            }
+            if (StringUtils.hasText(operationDO.getChannelCode())
+                    && StringUtils.hasText(operationDO.getChannelOrderNo())
+                    && StringUtils.hasText(operationDO.getChannelTransactionId())) {
+                LocalDateTime beginTime = quarterBegin(operationDO.getTransactionDateTime());
+                return transactionChannelRequestMapper.selectByChannelTransaction(
+                        operationDO.getChannelCode(),
+                        operationDO.getChannelOrderNo(),
+                        operationDO.getChannelTransactionId(),
+                        beginTime,
+                        beginTime.plusMonths(3));
+            }
             return null;
         }
         String requestTable = resolvePhysicalTable(TRANSACTION_CHANNEL_REQUEST_TABLE, operationDO.getTransactionDateTime());
@@ -917,21 +1072,29 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         PaymentCreateResultDTO resultDTO = recordDTO.getResultDTO();
         TransactionOrderDO sourceOrderDO = recordDTO.getSourceOrderDO();
         LocalDateTime actionTransactionDateTime = commandDTO.getTransactionDateTime();
-        String orderTable = resolvePhysicalTable(TRANSACTION_ORDER_TABLE, sourceOrderDO.getTransactionDateTime());
-        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, actionTransactionDateTime);
-        String statusHistoryTable = resolvePhysicalTable(TRANSACTION_STATUS_HISTORY_TABLE, actionTransactionDateTime);
+        String orderTable = tableForLog(TRANSACTION_ORDER_TABLE, sourceOrderDO.getTransactionDateTime());
+        String operationTable = tableForLog(TRANSACTION_OPERATION_TABLE, actionTransactionDateTime);
+        String statusHistoryTable = tableForLog(TRANSACTION_STATUS_HISTORY_TABLE, actionTransactionDateTime);
         TransactionOperationDO operationDO = buildFollowUpOperation(recordDTO, now,
                 countExistingOperations(sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(), actionTransactionDateTime) + 1);
-        int operationRows = transactionOperationMapper.insertPhysical(operationTable, operationDO);
+        int operationRows = useLogicalTables()
+                ? transactionOperationMapper.insert(operationDO)
+                : transactionOperationMapper.insertPhysical(operationTable, operationDO);
         int orderRows = 0;
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
             orderRows = updateSourceOrderAmount(orderTable, sourceOrderDO, resultDTO);
             recordAmountChange(recordDTO, now);
         }
-        int orderHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable,
-                buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_ORDER, actionTransactionDateTime, now));
-        int operationHistoryRows = transactionStatusHistoryMapper.insertPhysical(statusHistoryTable,
-                buildStatusHistory(commandDTO, resultDTO, STATUS_OBJECT_OPERATION, actionTransactionDateTime, now));
+        TransactionStatusHistoryDO orderHistory = buildStatusHistory(
+                commandDTO, resultDTO, STATUS_OBJECT_ORDER, actionTransactionDateTime, now);
+        TransactionStatusHistoryDO operationHistory = buildStatusHistory(
+                commandDTO, resultDTO, STATUS_OBJECT_OPERATION, actionTransactionDateTime, now);
+        int orderHistoryRows = useLogicalTables()
+                ? transactionStatusHistoryMapper.insertLogical(orderHistory)
+                : transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, orderHistory);
+        int operationHistoryRows = useLogicalTables()
+                ? transactionStatusHistoryMapper.insertLogical(operationHistory)
+                : transactionStatusHistoryMapper.insertPhysical(statusHistoryTable, operationHistory);
         log.info("event: PAYMENT_LOCAL_PREPARE_COMMIT stage=LOCAL_PREPARE traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} paymentMethod: {} currency: {} amount: {} channelCode: {} channelMidId: {} platformStatus: {} logicalTable: {} physicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -1121,28 +1284,44 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return false;
         }
         LocalDateTime now = LocalDateTime.now();
-        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
-        int operationUpdated = transactionOperationMapper.completeStatusPhysical(
-                operationTable,
-                operationDO.getId(),
-                operationDO.getVersion(),
-                targetTransactionStatus,
-                "FINISHED",
-                failReasonCode,
-                failReasonMessage,
-                channelStatus,
-                channelResponseCode,
-                channelResponseMessage,
-                null,
-                null,
-                null,
-                CHANNEL_MATCH_MATCHED);
+        String operationTable = tableForLog(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
+        int operationUpdated = useLogicalTables()
+                ? transactionOperationMapper.completeStatus(
+                        operationDO.getId(),
+                        operationDO.getTransactionDateTime(),
+                        operationDO.getVersion(),
+                        targetTransactionStatus,
+                        "FINISHED",
+                        failReasonCode,
+                        failReasonMessage,
+                        channelStatus,
+                        channelResponseCode,
+                        channelResponseMessage,
+                        null,
+                        null,
+                        null,
+                        CHANNEL_MATCH_MATCHED)
+                : transactionOperationMapper.completeStatusPhysical(
+                        operationTable,
+                        operationDO.getId(),
+                        operationDO.getVersion(),
+                        targetTransactionStatus,
+                        "FINISHED",
+                        failReasonCode,
+                        failReasonMessage,
+                        channelStatus,
+                        channelResponseCode,
+                        channelResponseMessage,
+                        null,
+                        null,
+                        null,
+                        CHANNEL_MATCH_MATCHED);
         if (operationUpdated != 1) {
             recordCallbackStatusHistory(operationDO, callbackId, targetTransactionStatus, TRANSITION_IGNORED,
                     "operation state has changed");
             return false;
         }
-        String orderTable = resolvePhysicalTable(TRANSACTION_ORDER_TABLE, orderDO.getTransactionDateTime());
+        String orderTable = tableForLog(TRANSACTION_ORDER_TABLE, orderDO.getTransactionDateTime());
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(targetTransactionStatus);
         boolean orderUpdated = updateOrderByCallback(orderTable, orderDO, operationDO, success,
                 targetTransactionStatus, failReasonCode, failReasonMessage);
@@ -1199,16 +1378,28 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (operationDO == null || operationDO.getId() == null || operationDO.getTransactionDateTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        int updated = transactionOperationMapper.updateChannelMatchPhysical(
-                resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime()),
-                operationDO.getId(),
-                operationDO.getVersion(),
-                matchStatus,
-                safeLength(matchResult, 256),
-                requestId,
-                matchTime == null ? LocalDateTime.now() : matchTime,
-                nextMatchTime,
-                safeLength(failReason, 512));
+        LocalDateTime actualMatchTime = matchTime == null ? LocalDateTime.now() : matchTime;
+        int updated = useLogicalTables()
+                ? transactionOperationMapper.updateChannelMatch(
+                        operationDO.getId(),
+                        operationDO.getTransactionDateTime(),
+                        operationDO.getVersion(),
+                        matchStatus,
+                        safeLength(matchResult, 256),
+                        requestId,
+                        actualMatchTime,
+                        nextMatchTime,
+                        safeLength(failReason, 512))
+                : transactionOperationMapper.updateChannelMatchPhysical(
+                        resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime()),
+                        operationDO.getId(),
+                        operationDO.getVersion(),
+                        matchStatus,
+                        safeLength(matchResult, 256),
+                        requestId,
+                        actualMatchTime,
+                        nextMatchTime,
+                        safeLength(failReason, 512));
         return updated == 1;
     }
 
@@ -1235,24 +1426,48 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         ChannelPaymentResponse response = invokeResultDTO == null ? null : invokeResultDTO.getChannelResponse();
         Map<String, String> rawResponse = response == null ? Map.of() : response.getRawResponse();
         String requestStatus = invokeResultDTO == null ? originalRequestDO.getRequestStatus() : invokeResultDTO.getRequestStatus();
-        int updated = transactionChannelRequestMapper.updateStatusPhysical(
-                resolvePhysicalTable(TRANSACTION_CHANNEL_REQUEST_TABLE, operationDO.getTransactionDateTime()),
-                originalRequestDO.getRequestId(),
-                originalRequestDO.getVersion(),
-                List.of("INIT", "SENT", "TIMEOUT", "FAILED"),
-                requestStatus,
-                rawResponse.get("result"),
-                rawResponse.get("gatewayCode"),
-                rawResponse.get("acquirerCode"),
-                rawResponse.get("acquirerMessage"),
-                response == null ? originalRequestDO.getChannelStatus() : response.getRawChannelStatus(),
-                PaymentTransactionStatusEnum.SUCCESS.getCode().equals(platformResultCode) ? 1 : 0,
-                platformResultCode,
-                firstText(failReason,
-                        invokeResultDTO == null ? null : invokeResultDTO.getExceptionMessage(),
-                        originalRequestDO.getPlatformFailReason()),
-                invokeResultDTO == null || invokeResultDTO.getResponseTime() == null ? LocalDateTime.now() : invokeResultDTO.getResponseTime(),
-                invokeResultDTO == null ? null : invokeResultDTO.getDurationMillis());
+        int updated;
+        if (useLogicalTables()) {
+            updated = transactionChannelRequestMapper.updateStatusLogical(
+                    originalRequestDO.getRequestId(),
+                    operationDO.getTransactionDateTime(),
+                    originalRequestDO.getVersion(),
+                    List.of("INIT", "SENT", "TIMEOUT", "FAILED"),
+                    requestStatus,
+                    rawResponse.get("result"),
+                    rawResponse.get("gatewayCode"),
+                    rawResponse.get("acquirerCode"),
+                    rawResponse.get("acquirerMessage"),
+                    response == null ? originalRequestDO.getChannelStatus() : response.getRawChannelStatus(),
+                    PaymentTransactionStatusEnum.SUCCESS.getCode().equals(platformResultCode) ? 1 : 0,
+                    platformResultCode,
+                    firstText(failReason,
+                            invokeResultDTO == null ? null : invokeResultDTO.getExceptionMessage(),
+                            originalRequestDO.getPlatformFailReason()),
+                    invokeResultDTO == null || invokeResultDTO.getResponseTime() == null
+                            ? LocalDateTime.now() : invokeResultDTO.getResponseTime(),
+                    invokeResultDTO == null ? null : invokeResultDTO.getDurationMillis());
+        } else {
+            updated = transactionChannelRequestMapper.updateStatusPhysical(
+                    resolvePhysicalTable(TRANSACTION_CHANNEL_REQUEST_TABLE, operationDO.getTransactionDateTime()),
+                    originalRequestDO.getRequestId(),
+                    originalRequestDO.getVersion(),
+                    List.of("INIT", "SENT", "TIMEOUT", "FAILED"),
+                    requestStatus,
+                    rawResponse.get("result"),
+                    rawResponse.get("gatewayCode"),
+                    rawResponse.get("acquirerCode"),
+                    rawResponse.get("acquirerMessage"),
+                    response == null ? originalRequestDO.getChannelStatus() : response.getRawChannelStatus(),
+                    PaymentTransactionStatusEnum.SUCCESS.getCode().equals(platformResultCode) ? 1 : 0,
+                    platformResultCode,
+                    firstText(failReason,
+                            invokeResultDTO == null ? null : invokeResultDTO.getExceptionMessage(),
+                            originalRequestDO.getPlatformFailReason()),
+                    invokeResultDTO == null || invokeResultDTO.getResponseTime() == null
+                            ? LocalDateTime.now() : invokeResultDTO.getResponseTime(),
+                    invokeResultDTO == null ? null : invokeResultDTO.getDurationMillis());
+        }
         return updated == 1 || !isOriginalRequestResultConflict(originalRequestDO, platformResultCode);
     }
 
@@ -1271,15 +1486,24 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        String physicalTable = resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, transactionDateTime);
-        int updated = transactionMerchantApiInteractionLogMapper.updateResponseCipherPhysical(
-                physicalTable,
-                commandDTO.getTransactionId(),
-                commandDTO.getRequestId(),
-                safeLength(commandDTO.getResponsePlainJsonMasked(), 16_000),
-                commandDTO.getResponseCipherDigest(),
-                commandDTO.getResponseCipherMasked(),
-                commandDTO.getResponseTime() == null ? LocalDateTime.now() : commandDTO.getResponseTime());
+        String physicalTable = tableForLog(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, transactionDateTime);
+        int updated = useLogicalTables()
+                ? transactionMerchantApiInteractionLogMapper.updateResponseCipherLogical(
+                        commandDTO.getTransactionId(),
+                        transactionDateTime,
+                        commandDTO.getRequestId(),
+                        safeLength(commandDTO.getResponsePlainJsonMasked(), 16_000),
+                        commandDTO.getResponseCipherDigest(),
+                        commandDTO.getResponseCipherMasked(),
+                        commandDTO.getResponseTime() == null ? LocalDateTime.now() : commandDTO.getResponseTime())
+                : transactionMerchantApiInteractionLogMapper.updateResponseCipherPhysical(
+                        physicalTable,
+                        commandDTO.getTransactionId(),
+                        commandDTO.getRequestId(),
+                        safeLength(commandDTO.getResponsePlainJsonMasked(), 16_000),
+                        commandDTO.getResponseCipherDigest(),
+                        commandDTO.getResponseCipherMasked(),
+                        commandDTO.getResponseTime() == null ? LocalDateTime.now() : commandDTO.getResponseTime());
         log.info("event: PAYMENT_MERCHANT_API_LOG_RESPONSE_UPDATED stage=RESPONSE_LOG traceId: {} transactionId: {} requestId: {} logicalTable: {} physicalTable: {} affectedRows: {} responseCipherDigest: {} responseCipherMasked: {} responsePlainLength: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getTransactionId(),
@@ -1858,13 +2082,23 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                           String failReasonMessage) {
         if (success) {
             if (!StringUtils.hasText(operationDO.getSourceTransactionId())) {
-                int updated = transactionOrderMapper.markInitialSuccessPhysical(
-                        orderTable,
-                        orderDO.getOperationId(),
-                        operationDO.getTransactionId(),
-                operationDO.getTransactionAmount() == null ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
-                        orderDO.getVersion(),
-                        CHANNEL_MATCH_MATCHED);
+                int updated = useLogicalTables()
+                        ? transactionOrderMapper.markInitialSuccess(
+                                orderDO.getOperationId(),
+                                orderDO.getTransactionDateTime(),
+                                operationDO.getTransactionId(),
+                                operationDO.getTransactionAmount() == null
+                                        ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
+                                orderDO.getVersion(),
+                                CHANNEL_MATCH_MATCHED)
+                        : transactionOrderMapper.markInitialSuccessPhysical(
+                                orderTable,
+                                orderDO.getOperationId(),
+                                operationDO.getTransactionId(),
+                                operationDO.getTransactionAmount() == null
+                                        ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
+                                orderDO.getVersion(),
+                                CHANNEL_MATCH_MATCHED);
                 return updated == 1;
             }
             PaymentCreateResultDTO resultDTO = new PaymentCreateResultDTO();
@@ -1880,18 +2114,31 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 && PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(operationDO.getTransactionType())) {
             return true;
         }
-        int updated = transactionOrderMapper.completeStatusPhysical(
-                orderTable,
-                orderDO.getOperationId(),
-                operationDO.getTransactionId(),
-                orderDO.getVersion(),
-                targetTransactionStatus,
-                PaymentProcessStageEnum.FINISHED.getCode(),
-                failReasonCode,
-                failReasonMessage,
-                failReasonCode,
-                failReasonCode,
-                CHANNEL_MATCH_MATCHED);
+        int updated = useLogicalTables()
+                ? transactionOrderMapper.completeStatus(
+                        orderDO.getOperationId(),
+                        orderDO.getTransactionDateTime(),
+                        operationDO.getTransactionId(),
+                        orderDO.getVersion(),
+                        targetTransactionStatus,
+                        PaymentProcessStageEnum.FINISHED.getCode(),
+                        failReasonCode,
+                        failReasonMessage,
+                        failReasonCode,
+                        failReasonCode,
+                        CHANNEL_MATCH_MATCHED)
+                : transactionOrderMapper.completeStatusPhysical(
+                        orderTable,
+                        orderDO.getOperationId(),
+                        operationDO.getTransactionId(),
+                        orderDO.getVersion(),
+                        targetTransactionStatus,
+                        PaymentProcessStageEnum.FINISHED.getCode(),
+                        failReasonCode,
+                        failReasonMessage,
+                        failReasonCode,
+                        failReasonCode,
+                        CHANNEL_MATCH_MATCHED);
         return updated == 1;
     }
 
@@ -1913,31 +2160,50 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                              PaymentChannelInvokeResultDTO invokeResultDTO,
                                              PaymentCreateResultDTO resultDTO,
                                              LocalDateTime now) {
-        String requestTable = resolvePhysicalTable(TRANSACTION_CHANNEL_REQUEST_TABLE, commandDTO.getTransactionDateTime());
-        TransactionChannelRequestDO requestDO = transactionChannelRequestMapper.selectByRequestIdPhysical(
-                requestTable,
-                invokeResultDTO.getRequestId());
+        String requestTable = tableForLog(TRANSACTION_CHANNEL_REQUEST_TABLE, commandDTO.getTransactionDateTime());
+        TransactionChannelRequestDO requestDO = useLogicalTables()
+                ? transactionChannelRequestMapper.selectByRequestId(
+                        invokeResultDTO.getRequestId(), commandDTO.getTransactionDateTime())
+                : transactionChannelRequestMapper.selectByRequestIdPhysical(
+                        requestTable, invokeResultDTO.getRequestId());
         if (requestDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND.getCode(), "channel request fact can not be found");
         }
         ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
         Map<String, String> rawResponse = response == null ? Map.of() : response.getRawResponse();
-        int updated = transactionChannelRequestMapper.updateStatusPhysical(
-                requestTable,
-                invokeResultDTO.getRequestId(),
-                requestDO.getVersion(),
-                List.of("INIT", "SENT", "TIMEOUT", "FAILED"),
-                invokeResultDTO.getRequestStatus(),
-                rawResponse.get("result"),
-                rawResponse.get("gatewayCode"),
-                rawResponse.get("acquirerCode"),
-                rawResponse.get("acquirerMessage"),
-                response == null ? null : response.getRawChannelStatus(),
-                PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus()) ? 1 : 0,
-                resultDTO.getStatus(),
-                firstText(invokeResultDTO.getExceptionMessage(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage()),
-                invokeResultDTO.getResponseTime() == null ? now : invokeResultDTO.getResponseTime(),
-                invokeResultDTO.getDurationMillis());
+        int updated = useLogicalTables()
+                ? transactionChannelRequestMapper.updateStatusLogical(
+                        invokeResultDTO.getRequestId(),
+                        commandDTO.getTransactionDateTime(),
+                        requestDO.getVersion(),
+                        List.of("INIT", "SENT", "TIMEOUT", "FAILED"),
+                        invokeResultDTO.getRequestStatus(),
+                        rawResponse.get("result"),
+                        rawResponse.get("gatewayCode"),
+                        rawResponse.get("acquirerCode"),
+                        rawResponse.get("acquirerMessage"),
+                        response == null ? null : response.getRawChannelStatus(),
+                        PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus()) ? 1 : 0,
+                        resultDTO.getStatus(),
+                        firstText(invokeResultDTO.getExceptionMessage(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage()),
+                        invokeResultDTO.getResponseTime() == null ? now : invokeResultDTO.getResponseTime(),
+                        invokeResultDTO.getDurationMillis())
+                : transactionChannelRequestMapper.updateStatusPhysical(
+                        requestTable,
+                        invokeResultDTO.getRequestId(),
+                        requestDO.getVersion(),
+                        List.of("INIT", "SENT", "TIMEOUT", "FAILED"),
+                        invokeResultDTO.getRequestStatus(),
+                        rawResponse.get("result"),
+                        rawResponse.get("gatewayCode"),
+                        rawResponse.get("acquirerCode"),
+                        rawResponse.get("acquirerMessage"),
+                        response == null ? null : response.getRawChannelStatus(),
+                        PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus()) ? 1 : 0,
+                        resultDTO.getStatus(),
+                        firstText(invokeResultDTO.getExceptionMessage(), resultDTO.getFailReasonCode(), resultDTO.getFailReasonMessage()),
+                        invokeResultDTO.getResponseTime() == null ? now : invokeResultDTO.getResponseTime(),
+                        invokeResultDTO.getDurationMillis());
         if (updated != 1 && isRequestResultConflict(requestDO, resultDTO)) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "channel request state has changed");
         }
@@ -1983,25 +2249,44 @@ public class DefaultTransactionRecordService implements TransactionRecordService
             return;
         }
         TransactionChannelInteractionLogDO logDO = buildChannelInteractionLog(commandDTO, invokeResultDTO, resultDTO, now);
-        int updated = transactionChannelInteractionLogMapper.updateByRequestIdPhysical(
-                resolvePhysicalTable(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime()),
-                invokeResultDTO.getRequestId(),
-                logDO.getInteractionType(),
-                logDO.getHttpMethod(),
-                logDO.getRequestUrlMasked(),
-                logDO.getHttpStatus(),
-                logDO.getRequestHeaderJsonMasked(),
-                logDO.getRequestBodyJsonMasked(),
-                logDO.getResponseHeaderJsonMasked(),
-                logDO.getResponseBodyJsonMasked(),
-                logDO.getExceptionType(),
-                logDO.getExceptionMessage(),
-                logDO.getDurationMillis(),
-                logDO.getInteractionTime());
-        String physicalTable = resolvePhysicalTable(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime());
+        String physicalTable = tableForLog(
+                TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime());
+        int updated = useLogicalTables()
+                ? transactionChannelInteractionLogMapper.updateByRequestIdLogical(
+                        invokeResultDTO.getRequestId(),
+                        commandDTO.getTransactionDateTime(),
+                        logDO.getInteractionType(),
+                        logDO.getHttpMethod(),
+                        logDO.getRequestUrlMasked(),
+                        logDO.getHttpStatus(),
+                        logDO.getRequestHeaderJsonMasked(),
+                        logDO.getRequestBodyJsonMasked(),
+                        logDO.getResponseHeaderJsonMasked(),
+                        logDO.getResponseBodyJsonMasked(),
+                        logDO.getExceptionType(),
+                        logDO.getExceptionMessage(),
+                        logDO.getDurationMillis(),
+                        logDO.getInteractionTime())
+                : transactionChannelInteractionLogMapper.updateByRequestIdPhysical(
+                        physicalTable,
+                        invokeResultDTO.getRequestId(),
+                        logDO.getInteractionType(),
+                        logDO.getHttpMethod(),
+                        logDO.getRequestUrlMasked(),
+                        logDO.getHttpStatus(),
+                        logDO.getRequestHeaderJsonMasked(),
+                        logDO.getRequestBodyJsonMasked(),
+                        logDO.getResponseHeaderJsonMasked(),
+                        logDO.getResponseBodyJsonMasked(),
+                        logDO.getExceptionType(),
+                        logDO.getExceptionMessage(),
+                        logDO.getDurationMillis(),
+                        logDO.getInteractionTime());
         int affectedRows = updated;
         if (updated < 1) {
-            affectedRows = transactionChannelInteractionLogMapper.insertPhysical(physicalTable, logDO);
+            affectedRows = useLogicalTables()
+                    ? transactionChannelInteractionLogMapper.insertLogical(logDO)
+                    : transactionChannelInteractionLogMapper.insertPhysical(physicalTable, logDO);
         }
         log.info("event: PAYMENT_CHANNEL_INTERACTION_LOG_SAVED stage=CHANNEL_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} channelRequestId: {} httpStatus: {} durationMs: {} logicalTable: {} physicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
@@ -2055,17 +2340,31 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 || !StringUtils.hasText(commandDTO.getMerchantRequestPlainJsonMasked())) {
             return;
         }
-        transactionMerchantApiInteractionLogMapper.updateFinalResultPhysical(
-                resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime()),
-                resultDTO.getTransactionId(),
-                commandDTO.getRequestId(),
-                resultDTO.getStatus(),
-                resultDTO.getStatus(),
-                resolveMerchantResponseCode(resultDTO),
-                resolveMerchantResponseMessage(resultDTO),
-                safeLength(maskedJson(merchantVisiblePayload(commandDTO, resultDTO)), 16_000),
-                now,
-                resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
+        if (useLogicalTables()) {
+            transactionMerchantApiInteractionLogMapper.updateFinalResultLogical(
+                    resultDTO.getTransactionId(),
+                    commandDTO.getTransactionDateTime(),
+                    commandDTO.getRequestId(),
+                    resultDTO.getStatus(),
+                    resultDTO.getStatus(),
+                    resolveMerchantResponseCode(resultDTO),
+                    resolveMerchantResponseMessage(resultDTO),
+                    safeLength(maskedJson(merchantVisiblePayload(commandDTO, resultDTO)), 16_000),
+                    now,
+                    resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
+        } else {
+            transactionMerchantApiInteractionLogMapper.updateFinalResultPhysical(
+                    resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime()),
+                    resultDTO.getTransactionId(),
+                    commandDTO.getRequestId(),
+                    resultDTO.getStatus(),
+                    resultDTO.getStatus(),
+                    resolveMerchantResponseCode(resultDTO),
+                    resolveMerchantResponseMessage(resultDTO),
+                    safeLength(maskedJson(merchantVisiblePayload(commandDTO, resultDTO)), 16_000),
+                    now,
+                    resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
+        }
     }
 
     /**
@@ -2103,52 +2402,91 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                                   PaymentChannelInvokeResultDTO invokeResultDTO,
                                                   PaymentCreateResultDTO resultDTO) {
         ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
-        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
-        int operationUpdated = transactionOperationMapper.completeStatusPhysical(
-                operationTable,
-                operationDO.getId(),
-                operationDO.getVersion(),
-                resultDTO.getStatus(),
-                resultDTO.getProcessStage(),
-                resultDTO.getFailReasonCode(),
-                resultDTO.getFailReasonMessage(),
-                response == null ? null : response.getRawChannelStatus(),
-                response == null ? null : response.getChannelResponseCode(),
-                response == null ? null : response.getChannelResponseMessage(),
-                response == null ? null : response.getAuthCode(),
-                response == null ? null : response.getRrn(),
-                response == null ? null : response.getAcquirerReferenceNo(),
-                CHANNEL_MATCH_NOT_REQUIRED);
+        String operationTable = tableForLog(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
+        int operationUpdated = useLogicalTables()
+                ? transactionOperationMapper.completeStatus(
+                        operationDO.getId(),
+                        operationDO.getTransactionDateTime(),
+                        operationDO.getVersion(),
+                        resultDTO.getStatus(),
+                        resultDTO.getProcessStage(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonMessage(),
+                        response == null ? null : response.getRawChannelStatus(),
+                        response == null ? null : response.getChannelResponseCode(),
+                        response == null ? null : response.getChannelResponseMessage(),
+                        response == null ? null : response.getAuthCode(),
+                        response == null ? null : response.getRrn(),
+                        response == null ? null : response.getAcquirerReferenceNo(),
+                        CHANNEL_MATCH_NOT_REQUIRED)
+                : transactionOperationMapper.completeStatusPhysical(
+                        operationTable,
+                        operationDO.getId(),
+                        operationDO.getVersion(),
+                        resultDTO.getStatus(),
+                        resultDTO.getProcessStage(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonMessage(),
+                        response == null ? null : response.getRawChannelStatus(),
+                        response == null ? null : response.getChannelResponseCode(),
+                        response == null ? null : response.getChannelResponseMessage(),
+                        response == null ? null : response.getAuthCode(),
+                        response == null ? null : response.getRrn(),
+                        response == null ? null : response.getAcquirerReferenceNo(),
+                        CHANNEL_MATCH_NOT_REQUIRED);
         if (operationUpdated != 1) {
             return false;
         }
-        String orderTable = resolvePhysicalTable(TRANSACTION_ORDER_TABLE, orderDO.getTransactionDateTime());
+        String orderTable = tableForLog(TRANSACTION_ORDER_TABLE, orderDO.getTransactionDateTime());
         boolean success = PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus());
         if (success) {
-            int orderUpdated = transactionOrderMapper.markInitialSuccessPhysical(
-                    orderTable,
-                    orderDO.getOperationId(),
-                    resultDTO.getTransactionId(),
-                    operationDO.getTransactionAmount() == null ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
-                    orderDO.getVersion(),
-                    CHANNEL_MATCH_NOT_REQUIRED);
+            int orderUpdated = useLogicalTables()
+                    ? transactionOrderMapper.markInitialSuccess(
+                            orderDO.getOperationId(),
+                            orderDO.getTransactionDateTime(),
+                            resultDTO.getTransactionId(),
+                            operationDO.getTransactionAmount() == null
+                                    ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
+                            orderDO.getVersion(),
+                            CHANNEL_MATCH_NOT_REQUIRED)
+                    : transactionOrderMapper.markInitialSuccessPhysical(
+                            orderTable,
+                            orderDO.getOperationId(),
+                            resultDTO.getTransactionId(),
+                            operationDO.getTransactionAmount() == null
+                                    ? BigDecimal.ZERO : operationDO.getTransactionAmount(),
+                            orderDO.getVersion(),
+                            CHANNEL_MATCH_NOT_REQUIRED);
             if (orderUpdated != 1) {
                 throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "order state has changed");
             }
             return true;
         }
-        int orderUpdated = transactionOrderMapper.completeStatusPhysical(
-                orderTable,
-                orderDO.getOperationId(),
-                resultDTO.getTransactionId(),
-                orderDO.getVersion(),
-                resultDTO.getStatus(),
-                resultDTO.getProcessStage(),
-                resultDTO.getFailReasonCode(),
-                resultDTO.getFailReasonMessage(),
-                resultDTO.getFailReasonCode(),
-                resultDTO.getFailReasonCode(),
-                CHANNEL_MATCH_NOT_REQUIRED);
+        int orderUpdated = useLogicalTables()
+                ? transactionOrderMapper.completeStatus(
+                        orderDO.getOperationId(),
+                        orderDO.getTransactionDateTime(),
+                        resultDTO.getTransactionId(),
+                        orderDO.getVersion(),
+                        resultDTO.getStatus(),
+                        resultDTO.getProcessStage(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonMessage(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonCode(),
+                        CHANNEL_MATCH_NOT_REQUIRED)
+                : transactionOrderMapper.completeStatusPhysical(
+                        orderTable,
+                        orderDO.getOperationId(),
+                        resultDTO.getTransactionId(),
+                        orderDO.getVersion(),
+                        resultDTO.getStatus(),
+                        resultDTO.getProcessStage(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonMessage(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonCode(),
+                        CHANNEL_MATCH_NOT_REQUIRED);
         if (orderUpdated != 1) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "order state has changed");
         }
@@ -2173,21 +2511,36 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                                    PaymentCreateResultDTO resultDTO,
                                                    LocalDateTime now) {
         ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
-        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
-        int updated = transactionOperationMapper.updateNonTerminalChannelResultPhysical(
-                operationTable,
-                operationDO.getId(),
-                operationDO.getVersion(),
-                resultDTO.getStatus(),
-                resultDTO.getProcessStage(),
-                resultDTO.getPendingReasonCode(),
-                resultDTO.getFailReasonCode(),
-                resultDTO.getFailReasonMessage(),
-                response == null ? null : response.getRawChannelStatus(),
-                response == null ? null : response.getChannelResponseCode(),
-                response == null ? null : response.getChannelResponseMessage(),
-                invokeResultDTO.getRequestId(),
-                now);
+        String operationTable = tableForLog(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
+        int updated = useLogicalTables()
+                ? transactionOperationMapper.updateNonTerminalChannelResult(
+                        operationDO.getId(),
+                        operationDO.getTransactionDateTime(),
+                        operationDO.getVersion(),
+                        resultDTO.getStatus(),
+                        resultDTO.getProcessStage(),
+                        resultDTO.getPendingReasonCode(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonMessage(),
+                        response == null ? null : response.getRawChannelStatus(),
+                        response == null ? null : response.getChannelResponseCode(),
+                        response == null ? null : response.getChannelResponseMessage(),
+                        invokeResultDTO.getRequestId(),
+                        now)
+                : transactionOperationMapper.updateNonTerminalChannelResultPhysical(
+                        operationTable,
+                        operationDO.getId(),
+                        operationDO.getVersion(),
+                        resultDTO.getStatus(),
+                        resultDTO.getProcessStage(),
+                        resultDTO.getPendingReasonCode(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonMessage(),
+                        response == null ? null : response.getRawChannelStatus(),
+                        response == null ? null : response.getChannelResponseCode(),
+                        response == null ? null : response.getChannelResponseMessage(),
+                        invokeResultDTO.getRequestId(),
+                        now);
         log.info("event: PAYMENT_STATUS_DB_UPDATED stage=STATUS_RESULT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} channelResultCode: {} logicalTable: {} physicalTable: {} affectedRows: {} statusBefore: {} statusAfter: {}",
                 TraceContext.getTraceId(),
                 operationDO.getMerchantId(),
@@ -2237,28 +2590,44 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                                   int currencyExponent,
                                                   LocalDateTime now) {
         ChannelPaymentResponse response = invokeResultDTO.getChannelResponse();
-        String operationTable = resolvePhysicalTable(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
-        int operationUpdated = transactionOperationMapper.completeStatusPhysical(
-                operationTable,
-                operationDO.getId(),
-                operationDO.getVersion(),
-                resultDTO.getStatus(),
-                resultDTO.getProcessStage(),
-                resultDTO.getFailReasonCode(),
-                resultDTO.getFailReasonMessage(),
-                response == null ? null : response.getRawChannelStatus(),
-                response == null ? null : response.getChannelResponseCode(),
-                response == null ? null : response.getChannelResponseMessage(),
-                response == null ? null : response.getAuthCode(),
-                response == null ? null : response.getRrn(),
-                response == null ? null : response.getAcquirerReferenceNo(),
-                CHANNEL_MATCH_NOT_REQUIRED);
+        String operationTable = tableForLog(TRANSACTION_OPERATION_TABLE, operationDO.getTransactionDateTime());
+        int operationUpdated = useLogicalTables()
+                ? transactionOperationMapper.completeStatus(
+                        operationDO.getId(),
+                        operationDO.getTransactionDateTime(),
+                        operationDO.getVersion(),
+                        resultDTO.getStatus(),
+                        resultDTO.getProcessStage(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonMessage(),
+                        response == null ? null : response.getRawChannelStatus(),
+                        response == null ? null : response.getChannelResponseCode(),
+                        response == null ? null : response.getChannelResponseMessage(),
+                        response == null ? null : response.getAuthCode(),
+                        response == null ? null : response.getRrn(),
+                        response == null ? null : response.getAcquirerReferenceNo(),
+                        CHANNEL_MATCH_NOT_REQUIRED)
+                : transactionOperationMapper.completeStatusPhysical(
+                        operationTable,
+                        operationDO.getId(),
+                        operationDO.getVersion(),
+                        resultDTO.getStatus(),
+                        resultDTO.getProcessStage(),
+                        resultDTO.getFailReasonCode(),
+                        resultDTO.getFailReasonMessage(),
+                        response == null ? null : response.getRawChannelStatus(),
+                        response == null ? null : response.getChannelResponseCode(),
+                        response == null ? null : response.getChannelResponseMessage(),
+                        response == null ? null : response.getAuthCode(),
+                        response == null ? null : response.getRrn(),
+                        response == null ? null : response.getAcquirerReferenceNo(),
+                        CHANNEL_MATCH_NOT_REQUIRED);
         if (operationUpdated != 1) {
             return false;
         }
         TransactionOperationDO mergedOperation = mergeOperationResult(operationDO, invokeResultDTO, resultDTO);
         if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resultDTO.getStatus())) {
-            String orderTable = resolvePhysicalTable(TRANSACTION_ORDER_TABLE, sourceOrderDO.getTransactionDateTime());
+            String orderTable = tableForLog(TRANSACTION_ORDER_TABLE, sourceOrderDO.getTransactionDateTime());
             updateSourceOrderAmount(orderTable, sourceOrderDO, resultDTO);
             recordAmountChange(mergedOperation, sourceOrderDO, now);
         }
@@ -2382,14 +2751,22 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                             String failReasonMessage,
                                             boolean orderUpdated,
                                             LocalDateTime now) {
-        String historyTable = resolvePhysicalTable(TRANSACTION_STATUS_HISTORY_TABLE, operationDO.getTransactionDateTime());
-        transactionStatusHistoryMapper.insertPhysical(historyTable,
-                buildCallbackStatusHistory(operationDO, STATUS_OBJECT_OPERATION, callbackId, targetTransactionStatus,
-                        TRANSITION_SUCCESS, null, now));
-        transactionStatusHistoryMapper.insertPhysical(historyTable,
-                buildCallbackStatusHistory(operationDO, STATUS_OBJECT_ORDER, callbackId, targetTransactionStatus,
-                        orderUpdated ? TRANSITION_SUCCESS : TRANSITION_IGNORED,
-                        orderUpdated ? null : "order state has changed", now));
+        String historyTable = tableForLog(
+                TRANSACTION_STATUS_HISTORY_TABLE, operationDO.getTransactionDateTime());
+        TransactionStatusHistoryDO operationHistory = buildCallbackStatusHistory(
+                operationDO, STATUS_OBJECT_OPERATION, callbackId, targetTransactionStatus,
+                TRANSITION_SUCCESS, null, now);
+        TransactionStatusHistoryDO orderHistory = buildCallbackStatusHistory(
+                operationDO, STATUS_OBJECT_ORDER, callbackId, targetTransactionStatus,
+                orderUpdated ? TRANSITION_SUCCESS : TRANSITION_IGNORED,
+                orderUpdated ? null : "order state has changed", now);
+        if (useLogicalTables()) {
+            transactionStatusHistoryMapper.insertLogical(operationHistory);
+            transactionStatusHistoryMapper.insertLogical(orderHistory);
+        } else {
+            transactionStatusHistoryMapper.insertPhysical(historyTable, operationHistory);
+            transactionStatusHistoryMapper.insertPhysical(historyTable, orderHistory);
+        }
         TransactionFlowEventDO eventDO = new TransactionFlowEventDO();
         eventDO.setFlowEventId(PaymentOrderNoGenerator.nextOrderNo(FLOW_EVENT_PREFIX, operationDO.getTransactionDateTime()));
         eventDO.setTransactionId(operationDO.getTransactionId());
@@ -2409,9 +2786,13 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setEventTime(now);
         fillTransactionTime(eventDO, operationDO.getTransactionDateTime());
         eventDO.setCreateTime(now);
-        transactionFlowEventMapper.insertPhysical(
-                resolvePhysicalTable(TRANSACTION_FLOW_EVENT_TABLE, operationDO.getTransactionDateTime()),
-                eventDO);
+        if (useLogicalTables()) {
+            transactionFlowEventMapper.insertLogical(eventDO);
+        } else {
+            transactionFlowEventMapper.insertPhysical(
+                    resolvePhysicalTable(TRANSACTION_FLOW_EVENT_TABLE, operationDO.getTransactionDateTime()),
+                    eventDO);
+        }
     }
 
     /**
@@ -2431,10 +2812,16 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (operationDO == null || operationDO.getTransactionDateTime() == null) {
             return;
         }
-        transactionStatusHistoryMapper.insertPhysical(
-                resolvePhysicalTable(TRANSACTION_STATUS_HISTORY_TABLE, operationDO.getTransactionDateTime()),
-                buildCallbackStatusHistory(operationDO, STATUS_OBJECT_OPERATION, callbackId, targetTransactionStatus,
-                        transitionResult, failReason, LocalDateTime.now()));
+        TransactionStatusHistoryDO historyDO = buildCallbackStatusHistory(
+                operationDO, STATUS_OBJECT_OPERATION, callbackId, targetTransactionStatus,
+                transitionResult, failReason, LocalDateTime.now());
+        if (useLogicalTables()) {
+            transactionStatusHistoryMapper.insertLogical(historyDO);
+        } else {
+            transactionStatusHistoryMapper.insertPhysical(
+                    resolvePhysicalTable(TRANSACTION_STATUS_HISTORY_TABLE, operationDO.getTransactionDateTime()),
+                    historyDO);
+        }
     }
 
     /**
@@ -2491,13 +2878,22 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                               String failReasonCode,
                                               String failReasonMessage,
                                               LocalDateTime now) {
-        String table = resolvePhysicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, operationDO.getTransactionDateTime());
-        int affectedRows = transactionMerchantNotificationMapper.activateByTransactionId(
-                table,
-                operationDO.getTransactionId(),
-                maskedJson(merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode)),
-                now,
-                now);
+        String table = tableForLog(
+                TRANSACTION_MERCHANT_NOTIFICATION_TABLE, operationDO.getTransactionDateTime());
+        int affectedRows = useLogicalTables()
+                ? transactionMerchantNotificationMapper.activateByTransactionId(
+                        operationDO.getTransactionId(),
+                        operationDO.getTransactionDateTime(),
+                        INITIAL_VERSION,
+                        maskedJson(merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode)),
+                        now,
+                        now)
+                : transactionMerchantNotificationMapper.activateByTransactionIdPhysical(
+                        table,
+                        operationDO.getTransactionId(),
+                        maskedJson(merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode)),
+                        now,
+                        now);
         log.info("event: PAYMENT_MERCHANT_NOTIFY_ACTIVATED stage=NOTIFY_CREATE traceId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} platformStatus: {} logicalTable: {} physicalTable: {} affectedRows: {} willNotify: {}",
                 TraceContext.getTraceId(),
                 operationDO.getTransactionId(),
@@ -2548,18 +2944,38 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         int updated;
         if (PaymentTransactionTypeEnum.CAPTURE.getCode().equals(resultDTO.getTransactionType())
                 || PaymentTransactionTypeEnum.PRE_AUTH_COMPLETION.getCode().equals(resultDTO.getTransactionType())) {
-            updated = transactionOrderMapper.increaseCapturedAmountPhysical(
-                    orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion());
+            updated = useLogicalTables()
+                    ? transactionOrderMapper.increaseCapturedAmount(
+                            sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(),
+                            resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion())
+                    : transactionOrderMapper.increaseCapturedAmountPhysical(
+                            orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), amount,
+                            sourceOrderDO.getVersion());
         } else if (PaymentTransactionTypeEnum.REFUND.getCode().equals(resultDTO.getTransactionType())) {
-            updated = transactionOrderMapper.increaseRefundedAmountPhysical(
-                    orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion());
+            updated = useLogicalTables()
+                    ? transactionOrderMapper.increaseRefundedAmount(
+                            sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(),
+                            resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion())
+                    : transactionOrderMapper.increaseRefundedAmountPhysical(
+                            orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), amount,
+                            sourceOrderDO.getVersion());
         } else if (PaymentTransactionTypeEnum.INCREMENTAL_AUTHORIZATION.getCode().equals(resultDTO.getTransactionType())) {
-            updated = transactionOrderMapper.increaseAuthorizedAmountPhysical(
-                    orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion());
+            updated = useLogicalTables()
+                    ? transactionOrderMapper.increaseAuthorizedAmount(
+                            sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(),
+                            resultDTO.getTransactionId(), amount, sourceOrderDO.getVersion())
+                    : transactionOrderMapper.increaseAuthorizedAmountPhysical(
+                            orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), amount,
+                            sourceOrderDO.getVersion());
         } else if (PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType())) {
             BigDecimal cancelAmount = remainingAuthorizedAmount(sourceOrderDO);
-            updated = transactionOrderMapper.markVoidSuccessPhysical(
-                    orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), cancelAmount, sourceOrderDO.getVersion());
+            updated = useLogicalTables()
+                    ? transactionOrderMapper.markVoidSuccess(
+                            sourceOrderDO.getOperationId(), sourceOrderDO.getTransactionDateTime(),
+                            resultDTO.getTransactionId(), cancelAmount, sourceOrderDO.getVersion())
+                    : transactionOrderMapper.markVoidSuccessPhysical(
+                            orderTable, sourceOrderDO.getOperationId(), resultDTO.getTransactionId(), cancelAmount,
+                            sourceOrderDO.getVersion());
         } else {
             updated = 1;
         }
@@ -2639,12 +3055,19 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (invokeResultDTO == null || invokeResultDTO.getChannelRequest() == null) {
             return;
         }
-        String requestTable = resolvePhysicalTable(TRANSACTION_CHANNEL_REQUEST_TABLE, commandDTO.getTransactionDateTime());
-        String interactionTable = resolvePhysicalTable(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime());
-        int requestRows = transactionChannelRequestMapper.insertPhysical(requestTable,
-                buildChannelRequest(commandDTO, routeResultDTO, invokeResultDTO, resultDTO, now));
-        int interactionRows = transactionChannelInteractionLogMapper.insertPhysical(interactionTable,
-                buildChannelInteractionLog(commandDTO, invokeResultDTO, resultDTO, now));
+        String requestTable = tableForLog(TRANSACTION_CHANNEL_REQUEST_TABLE, commandDTO.getTransactionDateTime());
+        String interactionTable = tableForLog(
+                TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime());
+        TransactionChannelRequestDO requestDO = buildChannelRequest(
+                commandDTO, routeResultDTO, invokeResultDTO, resultDTO, now);
+        TransactionChannelInteractionLogDO interactionDO = buildChannelInteractionLog(
+                commandDTO, invokeResultDTO, resultDTO, now);
+        int requestRows = useLogicalTables()
+                ? transactionChannelRequestMapper.insertLogical(requestDO)
+                : transactionChannelRequestMapper.insertPhysical(requestTable, requestDO);
+        int interactionRows = useLogicalTables()
+                ? transactionChannelInteractionLogMapper.insertLogical(interactionDO)
+                : transactionChannelInteractionLogMapper.insertPhysical(interactionTable, interactionDO);
         log.info("event: PAYMENT_CHANNEL_AUDIT_SAVED stage=CHANNEL_AUDIT traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} currency: {} amount: {} channelCode: {} channelMidId: {} channelRequestId: {} channelTransactionId: {} platformStatus: {} logicalTable: {} physicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -2719,8 +3142,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         fillTransactionTime(infoDO, transactionDateTime);
         infoDO.setCreateTime(now);
         infoDO.setUpdateTime(now);
-        String table = resolvePhysicalTable(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, transactionDateTime);
-        int affectedRows = transactionPaymentMethodInfoMapper.insertPhysical(table, infoDO);
+        String table = tableForLog(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, transactionDateTime);
+        int affectedRows = useLogicalTables()
+                ? transactionPaymentMethodInfoMapper.insertLogical(infoDO)
+                : transactionPaymentMethodInfoMapper.insertPhysical(table, infoDO);
         log.info("event: PAYMENT_METHOD_INFO_SAVED stage=PAYMENT_METHOD traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} paymentMethod: {} paymentBrand: {} cardBin: {} cardLast4: {} logicalTable: {} physicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 commandDTO == null ? null : commandDTO.getMerchantId(),
@@ -2786,6 +3211,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                                                        LocalDateTime actionTransactionDateTime) {
         LocalDateTime beginTime = sourceOrderDO.getTransactionDateTime();
         LocalDateTime endTime = actionTransactionDateTime == null ? LocalDateTime.now() : actionTransactionDateTime;
+        if (useLogicalTables()) {
+            List<TransactionPaymentMethodInfoDO> rows = transactionPaymentMethodInfoMapper.selectByOperationId(
+                    sourceOrderDO.getOperationId(), logicalBegin(beginTime), exclusiveEnd(endTime));
+            if (rows == null || rows.isEmpty()) {
+                return null;
+            }
+            return rows.stream()
+                    .filter(this::hasCardSummary)
+                    .findFirst()
+                    .orElse(rows.get(0));
+        }
         for (String table : resolvePhysicalTables(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, beginTime, endTime)) {
             List<TransactionPaymentMethodInfoDO> rows = transactionPaymentMethodInfoMapper.selectByOperationIdPhysical(
                     table, sourceOrderDO.getOperationId());
@@ -3150,7 +3586,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                   PaymentCreateResultDTO resultDTO,
                                   PaymentRiskDecisionEnum riskDecisionEnum,
                                   LocalDateTime now) {
-        String table = resolvePhysicalTable(TRANSACTION_FLOW_EVENT_TABLE, commandDTO.getTransactionDateTime());
+        String table = tableForLog(TRANSACTION_FLOW_EVENT_TABLE, commandDTO.getTransactionDateTime());
         insertFlowEvent(table, commandDTO, resultDTO, "API_ACCEPTED", "API", "SUCCESS",
                 "API受理", "交易请求已进入支付核心", null, resultDTO.getStatus(), "MERCHANT",
                 commandDTO.getMerchantId(), "TRANSACTION", resultDTO.getTransactionId(), null, null, now);
@@ -3363,8 +3799,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setDurationMillis(resolveDurationMillis(commandDTO.getOpenApiRequestTime(), now));
         fillTransactionTime(logDO, commandDTO.getTransactionDateTime());
         logDO.setCreateTime(now);
-        String physicalTable = resolvePhysicalTable(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime());
-        int affectedRows = transactionMerchantApiInteractionLogMapper.insertPhysical(physicalTable, logDO);
+        String physicalTable = tableForLog(
+                TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, commandDTO.getTransactionDateTime());
+        int affectedRows = useLogicalTables()
+                ? transactionMerchantApiInteractionLogMapper.insertLogical(logDO)
+                : transactionMerchantApiInteractionLogMapper.insertPhysical(physicalTable, logDO);
         log.info("event: PAYMENT_MERCHANT_API_LOG_SAVED stage=REQUEST_LOG traceId: {} apiLogId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} requestId: {} apiOperation: {} logicalTable: {} physicalTable: {} affectedRows: {} requestCipherDigest: {} requestCipherMasked: {} requestPlainLength: {} responsePlainLength: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 logDO.getApiLogId(),
@@ -3457,7 +3896,11 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         eventDO.setEventTime(now);
         fillTransactionTime(eventDO, commandDTO.getTransactionDateTime());
         eventDO.setCreateTime(now);
-        transactionFlowEventMapper.insertPhysical(table, eventDO);
+        if (useLogicalTables()) {
+            transactionFlowEventMapper.insertLogical(eventDO);
+        } else {
+            transactionFlowEventMapper.insertPhysical(table, eventDO);
+        }
     }
 
     /**
@@ -3470,7 +3913,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      */
     private void recordAmountChange(TransactionFollowUpRecordDTO recordDTO, LocalDateTime now) {
         LocalDateTime actionTransactionDateTime = recordDTO.getCommandDTO().getTransactionDateTime();
-        String table = resolvePhysicalTable(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, actionTransactionDateTime);
+        String table = tableForLog(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, actionTransactionDateTime);
         TransactionOrderDO source = recordDTO.getSourceOrderDO();
         PaymentCreateResultDTO result = recordDTO.getResultDTO();
         BigDecimal amount = amountFromResult(result, source);
@@ -3487,7 +3930,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setChangeTime(now);
         fillTransactionTime(logDO, actionTransactionDateTime);
         logDO.setCreateTime(now);
-        int affectedRows = transactionAmountChangeLogMapper.insertPhysical(table, logDO);
+        int affectedRows = useLogicalTables()
+                ? transactionAmountChangeLogMapper.insertLogical(logDO)
+                : transactionAmountChangeLogMapper.insertPhysical(table, logDO);
         log.info("event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED stage=AMOUNT_UPDATE traceId: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} logicalTable: {} physicalTable: {} affectedRows: {} authorizedBefore: {} authorizedAfter: {} capturedBefore: {} capturedAfter: {} refundedBefore: {} refundedAfter: {} availableCaptureBefore: {} availableCaptureAfter: {} availableRefundBefore: {} availableRefundAfter: {}",
                 TraceContext.getTraceId(),
                 result.getTransactionId(),
@@ -3522,7 +3967,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                     TransactionOrderDO sourceOrderDO,
                                     LocalDateTime now) {
         LocalDateTime actionTransactionDateTime = operationDO.getTransactionDateTime();
-        String table = resolvePhysicalTable(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, actionTransactionDateTime);
+        String table = tableForLog(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, actionTransactionDateTime);
         BigDecimal amount = operationDO.getTransactionAmount() == null ? BigDecimal.ZERO : operationDO.getTransactionAmount();
         TransactionAmountChangeLogDO logDO = new TransactionAmountChangeLogDO();
         logDO.setAmountChangeId(PaymentOrderNoGenerator.nextOrderNo(AMOUNT_CHANGE_PREFIX, actionTransactionDateTime));
@@ -3537,7 +3982,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         logDO.setChangeTime(now);
         fillTransactionTime(logDO, actionTransactionDateTime);
         logDO.setCreateTime(now);
-        int affectedRows = transactionAmountChangeLogMapper.insertPhysical(table, logDO);
+        int affectedRows = useLogicalTables()
+                ? transactionAmountChangeLogMapper.insertLogical(logDO)
+                : transactionAmountChangeLogMapper.insertPhysical(table, logDO);
         log.info("event: PAYMENT_AMOUNT_CHANGE_LOG_SAVED stage=CALLBACK_AMOUNT_UPDATE traceId: {} transactionId: {} operationId: {} sourceTransactionId: {} transactionType: {} currency: {} amount: {} logicalTable: {} physicalTable: {} affectedRows: {} authorizedBefore: {} authorizedAfter: {} capturedBefore: {} capturedAfter: {} refundedBefore: {} refundedAfter: {} availableCaptureBefore: {} availableCaptureAfter: {} availableRefundBefore: {} availableRefundAfter: {}",
                 TraceContext.getTraceId(),
                 operationDO.getTransactionId(),
@@ -3642,8 +4089,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         notificationDO.setDeleted(NOT_DELETED);
         notificationDO.setCreateTime(now);
         notificationDO.setUpdateTime(now);
-        String table = resolvePhysicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, commandDTO.getTransactionDateTime());
-        int affectedRows = transactionMerchantNotificationMapper.insertPhysical(table, notificationDO);
+        String table = tableForLog(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, commandDTO.getTransactionDateTime());
+        int affectedRows = useLogicalTables()
+                ? transactionMerchantNotificationMapper.insertLogical(notificationDO)
+                : transactionMerchantNotificationMapper.insertPhysical(table, notificationDO);
         log.info("event: PAYMENT_MERCHANT_NOTIFY_CREATED stage=NOTIFY_CREATE traceId: {} notifyId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} callbackUrl: {} notifyStatus: {} nextRetryTime: {} logicalTable: {} physicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 notificationDO.getNotifyId(),
@@ -4512,6 +4961,71 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 判断当前写路径是否已受控切换到 ShardingSphere 逻辑表。
+     *
+     * @return true 表示只允许逻辑表单写
+     */
+    private boolean useLogicalTables() {
+        return transactionShardingRuntimeState.isShardingWriteEnabled();
+    }
+
+    /**
+     * 返回当前模式下用于审计日志的表标识，不参与 SQL 拼接。
+     *
+     * @param logicalTable 逻辑表名
+     * @param transactionDateTime 交易分片时间
+     * @return 逻辑表或 Legacy 物理表名
+     */
+    private String tableForLog(String logicalTable, LocalDateTime transactionDateTime) {
+        return useLogicalTables() ? logicalTable : resolvePhysicalTable(logicalTable, transactionDateTime);
+    }
+
+    /**
+     * 计算交易时间所属季度的开始时刻。
+     *
+     * @param transactionDateTime 交易分片时间
+     * @return 季度开始时刻
+     */
+    private LocalDateTime quarterBegin(LocalDateTime transactionDateTime) {
+        int firstMonth = ((transactionDateTime.getMonthValue() - 1) / 3) * 3 + 1;
+        return LocalDateTime.of(transactionDateTime.getYear(), firstMonth, 1, 0, 0);
+    }
+
+    /**
+     * 返回逻辑查询开始时间；未指定时使用最早已验证物理节点。
+     *
+     * @param requestedBegin 调用方指定开始时间，可为空
+     * @return 可用于 ShardingSphere 路由的开始时间
+     */
+    private LocalDateTime logicalBegin(LocalDateTime requestedBegin) {
+        if (requestedBegin != null) {
+            return requestedBegin;
+        }
+        String earliestSuffix = transactionShardingProperties.getPhysicalNodes().stream()
+                .min(String::compareTo)
+                .orElseThrow(() -> new ServiceException(
+                        ApiResultEnum.COMMON_FAILED.getCode(), "transaction sharding has no verified physical node"));
+        if (!earliestSuffix.matches("\\d{4}0[1-4]")) {
+            throw new ServiceException(
+                    ApiResultEnum.COMMON_FAILED.getCode(), "transaction sharding physical node is invalid");
+        }
+        int year = Integer.parseInt(earliestSuffix.substring(0, 4));
+        int quarter = Integer.parseInt(earliestSuffix.substring(5));
+        return LocalDateTime.of(year, (quarter - 1) * 3 + 1, 1, 0, 0);
+    }
+
+    /**
+     * 将现有包含式结束时间转换为 DATETIME(3) 半开区间上界。
+     *
+     * @param endTime 现有查询结束时间
+     * @return 不包含的结束时间
+     */
+    private LocalDateTime exclusiveEnd(LocalDateTime endTime) {
+        LocalDateTime actualEnd = endTime == null ? LocalDateTime.now() : endTime;
+        return actualEnd.plusNanos(1_000_000L);
+    }
+
+    /**
      * 解析resolve物理表，将原始输入转换为当前调用链需要的规范化结果。
      * <p>
      * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
@@ -4546,6 +5060,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         LocalDateTime endTime = sourceTransactionDateTime.isAfter(actionTransactionDateTime)
                 ? sourceTransactionDateTime
                 : actionTransactionDateTime;
+        if (useLogicalTables()) {
+            return transactionOperationMapper.countByOperationId(
+                    operationId, logicalBegin(beginTime), exclusiveEnd(endTime));
+        }
         int total = 0;
         for (String table : resolvePhysicalTables(TRANSACTION_OPERATION_TABLE, beginTime, endTime)) {
             total += transactionOperationMapper.countByOperationIdPhysical(table, operationId);

@@ -1,5 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.entity.TransactionOrderDO;
@@ -25,6 +27,7 @@ import java.time.LocalDateTime;
  * @status : create
  */
 @Service
+@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionChannelMatchResultTransactionService implements TransactionChannelMatchResultTransactionService {
 
     /**

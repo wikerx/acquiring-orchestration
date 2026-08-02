@@ -1,4 +1,8 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
+transaction-sharding:
+  # Payment 写路径只允许 LEGACY 或 SHARDINGSPHERE，禁止切到只读 COMPARE。
+  mode: ${PAYMENT_TRANSACTION_SHARDING_MODE:LEGACY}
+
 payment:
   redis:
     redisson:

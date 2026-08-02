@@ -1,5 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
  * @status : create
  */
 @Service
+@DS(DataSourceName.TRANSACTION)
 public class DefaultPaymentChannelResultTransactionService implements PaymentChannelResultTransactionService {
 
     /**

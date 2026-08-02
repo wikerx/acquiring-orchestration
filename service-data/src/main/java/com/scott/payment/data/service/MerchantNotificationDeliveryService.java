@@ -14,9 +14,9 @@ import java.time.LocalDateTime;
 public interface MerchantNotificationDeliveryService {
 
     /**
-     * 执行指定交易时间所在分表的到期通知任务。
+     * 执行指定交易时间所在季度的到期通知任务。
      *
-     * @param transactionDateTime 交易业务时间，用于定位通知物理分表
+     * @param transactionDateTime 交易业务时间，用于定位通知逻辑表季度
      * @param limit 最大处理数量，必须大于零
      * @return 本次成功通知数量
      */
@@ -25,7 +25,7 @@ public interface MerchantNotificationDeliveryService {
     /**
      * 按平台交易 ID 精确触发一条已经到期的通知任务。
      *
-     * @param transactionDateTime 交易业务时间，用于定位通知物理分表
+     * @param transactionDateTime 交易业务时间，用于精确定位通知逻辑表季度
      * @param transactionId 平台交易 ID
      * @return true 表示本次抢占并成功通知，false 表示任务不存在、未到期或抢占失败
      */

@@ -867,10 +867,37 @@ public interface RiskRuntimeMapper {
                                                                  @Param("currency") String currency);
 
     /**
-     * 从主库受控交易分表汇总指定半开时间区间内已通过风控的交易金额。
+     * 从交易逻辑表汇总指定商户、币种和半开时间区间内已通过风控的交易金额。
      *
      * <p>排除当前交易的根交易号和最新交易号，避免补偿或重试重复计入。</p>
      *
+     * @return 与交易金额同币种、同精度的累计金额；无记录时返回零
+     */
+    @DS(DataSourceName.TRANSACTION)
+    @Select("""
+            SELECT COALESCE(SUM(transaction_amount), 0)
+            FROM transaction_order
+            WHERE deleted = 0
+              AND merchant_id = #{merchantId}
+              AND transaction_currency = #{currency}
+              AND transaction_type IN ('PAYMENT', 'AUTHORIZATION', 'PRE_AUTHORIZATION')
+              AND internal_risk_decision IN ('PASS', 'SKIP')
+              AND transaction_status IN ('SUCCESS', 'PROCESSING', 'PENDING')
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTime}
+              AND COALESCE(root_transaction_id, '') &lt;&gt; #{excludeTransactionId}
+              AND COALESCE(latest_transaction_id, '') &lt;&gt; #{excludeTransactionId}
+            """)
+    BigDecimal sumRiskApprovedTransactionAmount(@Param("merchantId") String merchantId,
+                                                @Param("currency") String currency,
+                                                @Param("beginTime") LocalDateTime beginTime,
+                                                @Param("endTime") LocalDateTime endTime,
+                                                @Param("excludeTransactionId") String excludeTransactionId);
+
+    /**
+     * Legacy 模式从已校验物理表集合汇总同商户、同币种交易金额。
+     *
+     * @param tableNames 已由 Legacy 分表规则解析的物理表集合
      * @return 与交易金额同币种、同精度的累计金额；无记录时返回零
      */
     @DS(DataSourceName.MASTER)
@@ -895,17 +922,39 @@ public interface RiskRuntimeMapper {
             ) period_totals
             </script>
             """)
-    BigDecimal sumRiskApprovedTransactionAmount(@Param("tableNames") List<String> tableNames,
-                                                @Param("merchantId") String merchantId,
-                                                @Param("currency") String currency,
-                                                @Param("beginTime") LocalDateTime beginTime,
-                                                @Param("endTime") LocalDateTime endTime,
-                                                @Param("excludeTransactionId") String excludeTransactionId);
+    BigDecimal sumRiskApprovedTransactionAmountPhysical(@Param("tableNames") List<String> tableNames,
+                                                        @Param("merchantId") String merchantId,
+                                                        @Param("currency") String currency,
+                                                        @Param("beginTime") LocalDateTime beginTime,
+                                                        @Param("endTime") LocalDateTime endTime,
+                                                        @Param("excludeTransactionId") String excludeTransactionId);
 
     /**
-     * 从已校验的交易物理表查询指定交易的当前状态。
+     * 从交易逻辑表的单个季度范围查询指定交易的当前状态。
      *
-     * @param physicalTableName 已由分表模板解析并校验的物理表名
+     * @param transactionId 平台交易号
+     * @param beginTime 交易号解析出的季度开始时间（含）
+     * @param endTimeExclusive 下一季度开始时间（不含）
+     * @return 交易状态；记录不存在时返回 {@code null}
+     */
+    @DS(DataSourceName.TRANSACTION)
+    @Select("""
+            SELECT transaction_status
+            FROM transaction_operation
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+              AND deleted = 0
+            LIMIT 1
+            """)
+    String selectPaymentTransactionStatus(@Param("transactionId") String transactionId,
+                                          @Param("beginTime") LocalDateTime beginTime,
+                                          @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /**
+     * Legacy 模式从已校验交易物理表查询指定交易当前状态。
+     *
+     * @param physicalTableName 已由 Legacy 分表规则校验的物理表名
      * @param transactionId 平台交易号
      * @return 交易状态；记录不存在时返回 {@code null}
      */
@@ -916,8 +965,8 @@ public interface RiskRuntimeMapper {
               AND deleted = 0
             LIMIT 1
             """)
-    String selectPaymentTransactionStatus(@Param("physicalTableName") String physicalTableName,
-                                          @Param("transactionId") String transactionId);
+    String selectPaymentTransactionStatusPhysical(@Param("physicalTableName") String physicalTableName,
+                                                  @Param("transactionId") String transactionId);
 
     /**
      * 汇总同商户、规则、币种和周期桶内其他交易的有效预占金额。

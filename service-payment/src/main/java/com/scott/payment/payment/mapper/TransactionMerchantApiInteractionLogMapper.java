@@ -23,6 +23,142 @@ import java.util.List;
 public interface TransactionMerchantApiInteractionLogMapper extends BaseMapper<TransactionMerchantApiInteractionLogDO> {
 
     /**
+     * 写入商户 OpenAPI 交互日志逻辑表。
+     *
+     * @param logDO 商户 API 交互日志
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO transaction_merchant_api_interaction_log
+            (
+              api_log_id, request_id, transaction_id, operation_id, merchant_id,
+              merchant_order_no, merchant_order_id, api_operation, request_path, request_time,
+              request_result, request_cipher_digest, request_cipher_masked, request_plain_json_masked,
+              response_time, response_result, merchant_response_code, merchant_response_message,
+              response_plain_json_masked, response_cipher_digest, response_cipher_masked,
+              duration_millis, trace_id, transaction_date_time, transaction_utc_time,
+              transaction_time_zone, create_time
+            )
+            VALUES
+            (
+              #{logDO.apiLogId}, #{logDO.requestId}, #{logDO.transactionId}, #{logDO.operationId},
+              #{logDO.merchantId}, #{logDO.merchantOrderNo}, #{logDO.merchantOrderId},
+              #{logDO.apiOperation}, #{logDO.requestPath}, #{logDO.requestTime},
+              #{logDO.requestResult}, #{logDO.requestCipherDigest}, #{logDO.requestCipherMasked},
+              #{logDO.requestPlainJsonMasked}, #{logDO.responseTime}, #{logDO.responseResult},
+              #{logDO.merchantResponseCode}, #{logDO.merchantResponseMessage},
+              #{logDO.responsePlainJsonMasked}, #{logDO.responseCipherDigest},
+              #{logDO.responseCipherMasked}, #{logDO.durationMillis}, #{logDO.traceId},
+              #{logDO.transactionDateTime}, #{logDO.transactionUtcTime}, #{logDO.transactionTimeZone},
+              #{logDO.createTime}
+            )
+            """)
+    int insertLogical(@Param("logDO") TransactionMerchantApiInteractionLogDO logDO);
+
+    /**
+     * 按生命周期和半开交易时间范围查询商户 API 交互日志。
+     *
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 商户 API 交互日志列表
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_merchant_api_interaction_log
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+            ORDER BY request_time DESC, id DESC
+            LIMIT 500
+            """)
+    List<TransactionMerchantApiInteractionLogDO> selectByOperationIdLogical(
+            @Param("operationId") String operationId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /**
+     * 幂等回写逻辑表中指定交易分片的响应密文摘要。
+     *
+     * @param transactionId 平台当前交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @param requestId 商户请求唯一号，可为空
+     * @param responsePlainJsonMasked 平台响应脱敏明文，可为空
+     * @param responseCipherDigest 平台响应密文摘要
+     * @param responseCipherMasked 平台响应密文掩码
+     * @param responseTime 响应加密完成时间
+     * @return 影响行数
+     */
+    @Update("""
+            <script>
+            UPDATE transaction_merchant_api_interaction_log
+            SET response_cipher_digest = #{responseCipherDigest},
+                response_cipher_masked = #{responseCipherMasked},
+                response_time = #{responseTime}
+                <if test="responsePlainJsonMasked != null and responsePlainJsonMasked != ''">
+                  , response_plain_json_masked = #{responsePlainJsonMasked}
+                </if>
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND (response_cipher_digest IS NULL OR response_cipher_digest = #{responseCipherDigest})
+              <if test="requestId != null and requestId != ''">
+                AND request_id = #{requestId}
+              </if>
+            </script>
+            """)
+    int updateResponseCipherLogical(@Param("transactionId") String transactionId,
+                                    @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                    @Param("requestId") String requestId,
+                                    @Param("responsePlainJsonMasked") String responsePlainJsonMasked,
+                                    @Param("responseCipherDigest") String responseCipherDigest,
+                                    @Param("responseCipherMasked") String responseCipherMasked,
+                                    @Param("responseTime") LocalDateTime responseTime);
+
+    /**
+     * 将逻辑表中指定交易分片的 PROCESSING 日志推进到同步终态。
+     *
+     * @param transactionId 平台当前交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @param requestId 商户请求唯一号，可为空
+     * @param requestResult 最终请求处理结果
+     * @param responseResult 最终响应处理结果
+     * @param merchantResponseCode 商户侧可见响应码
+     * @param merchantResponseMessage 商户侧可见响应描述
+     * @param responsePlainJsonMasked 平台最终响应脱敏明文
+     * @param responseTime 响应完成时间
+     * @param durationMillis OpenAPI 到当前响应耗时
+     * @return 影响行数
+     */
+    @Update("""
+            <script>
+            UPDATE transaction_merchant_api_interaction_log
+            SET request_result = #{requestResult},
+                response_result = #{responseResult},
+                merchant_response_code = #{merchantResponseCode},
+                merchant_response_message = #{merchantResponseMessage},
+                response_plain_json_masked = #{responsePlainJsonMasked},
+                response_time = #{responseTime},
+                duration_millis = #{durationMillis}
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND request_result = 'PROCESSING'
+              <if test="requestId != null and requestId != ''">
+                AND request_id = #{requestId}
+              </if>
+            </script>
+            """)
+    int updateFinalResultLogical(@Param("transactionId") String transactionId,
+                                 @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                 @Param("requestId") String requestId,
+                                 @Param("requestResult") String requestResult,
+                                 @Param("responseResult") String responseResult,
+                                 @Param("merchantResponseCode") String merchantResponseCode,
+                                 @Param("merchantResponseMessage") String merchantResponseMessage,
+                                 @Param("responsePlainJsonMasked") String responsePlainJsonMasked,
+                                 @Param("responseTime") LocalDateTime responseTime,
+                                 @Param("durationMillis") Integer durationMillis);
+
+    /**
      * 写入商户 OpenAPI 交互日志物理分表。
      *
      * @param physicalTableName 经分表规则解析器校验后的物理表名

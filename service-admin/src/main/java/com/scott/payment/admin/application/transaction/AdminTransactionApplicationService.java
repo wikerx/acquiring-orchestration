@@ -18,12 +18,16 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionP
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
+import com.scott.payment.component.redis.concurrency.RedisConcurrencyLimiter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -31,6 +35,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,14 +56,11 @@ import java.util.Set;
 public class AdminTransactionApplicationService {
 
     /**
-     * 同步导出最大记录数，超过该上限应改用后续异步导出任务能力。
-     */
-    private static final int MAX_SYNC_EXPORT_ROWS = 5000;
-
-    /**
      * 内部分页拉取大小，受 PageRequest 安全上限保护。
      */
     private static final int EXPORT_PAGE_SIZE = 500;
+    /** 异常退出后 Redis 并发租约的最长自恢复时间。 */
+    private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
 
     /**
      * 导出文件时间戳格式。
@@ -119,23 +121,36 @@ public class AdminTransactionApplicationService {
      * Excel 导出语言解析器。
      */
     private final ExcelLocaleResolver excelLocaleResolver;
+    /** 交易查询和同步导出资源预算。 */
+    private final TransactionShardingProperties shardingProperties;
+    /** 跨实例限制同一后台账号并发导出的 Redis 租约服务。 */
+    private final RedisConcurrencyLimiter exportConcurrencyLimiter;
 
     /**
      * 创建管理后台交易查询应用服务。
      *
      * @param paymentInternalClient service-payment 内部状态变更客户端
      * @param transactionQueryService 管理后台交易只读查询服务
+     * @param excelExportService Excel 导出服务
+     * @param excelI18nMessageResolver Excel 国际化文案解析器
+     * @param excelLocaleResolver 当前请求导出语言解析器
+     * @param shardingProperties 交易查询和同步导出资源预算
+     * @param exportConcurrencyLimiter 跨实例账号导出并发租约
      */
     public AdminTransactionApplicationService(PaymentInternalClient paymentInternalClient,
                                               AdminTransactionQueryService transactionQueryService,
                                               ExcelExportService excelExportService,
                                               ExcelI18nMessageResolver excelI18nMessageResolver,
-                                              ExcelLocaleResolver excelLocaleResolver) {
+                                              ExcelLocaleResolver excelLocaleResolver,
+                                              TransactionShardingProperties shardingProperties,
+                                              RedisConcurrencyLimiter exportConcurrencyLimiter) {
         this.paymentInternalClient = paymentInternalClient;
         this.transactionQueryService = transactionQueryService;
         this.excelExportService = excelExportService;
         this.excelI18nMessageResolver = excelI18nMessageResolver;
         this.excelLocaleResolver = excelLocaleResolver;
+        this.shardingProperties = shardingProperties;
+        this.exportConcurrencyLimiter = exportConcurrencyLimiter;
     }
 
     /**
@@ -156,11 +171,14 @@ public class AdminTransactionApplicationService {
      * @param response HTTP 响应
      */
     public void exportOrders(TransactionPageQuery query, String operator, HttpServletResponse response) {
-        Locale locale = excelLocaleResolver.resolveCurrentLocale();
-        List<TransactionOrderExportRow> rows = loadAllOrders(query).stream()
-                .map(this::toOrderExportRow)
-                .toList();
-        exportExcel("excel.transaction.order.title", TransactionOrderExportRow.class, rows, querySummary(query, locale), operator, locale, response);
+        runExport(operator, () -> {
+            Locale locale = excelLocaleResolver.resolveCurrentLocale();
+            List<TransactionOrderExportRow> rows = loadAllOrders(query).stream()
+                    .map(this::toOrderExportRow)
+                    .toList();
+            exportExcel("excel.transaction.order.title", TransactionOrderExportRow.class, rows,
+                    querySummary(query, locale), operator, locale, response);
+        });
     }
 
     /**
@@ -181,11 +199,14 @@ public class AdminTransactionApplicationService {
      * @param response HTTP 响应
      */
     public void exportOperations(TransactionPageQuery query, String operator, HttpServletResponse response) {
-        Locale locale = excelLocaleResolver.resolveCurrentLocale();
-        List<TransactionOperationExportRow> rows = loadAllOperations(query).stream()
-                .map(this::toOperationExportRow)
-                .toList();
-        exportExcel("excel.transaction.operation.title", TransactionOperationExportRow.class, rows, querySummary(query, locale), operator, locale, response);
+        runExport(operator, () -> {
+            Locale locale = excelLocaleResolver.resolveCurrentLocale();
+            List<TransactionOperationExportRow> rows = loadAllOperations(query).stream()
+                    .map(this::toOperationExportRow)
+                    .toList();
+            exportExcel("excel.transaction.operation.title", TransactionOperationExportRow.class, rows,
+                    querySummary(query, locale), operator, locale, response);
+        });
     }
 
     /**
@@ -338,11 +359,14 @@ public class AdminTransactionApplicationService {
      * @param response HTTP 响应
      */
     public void exportMerchantNotifications(MerchantNotificationQuery query, String operator, HttpServletResponse response) {
-        Locale locale = excelLocaleResolver.resolveCurrentLocale();
-        List<TransactionMerchantNotificationExportRow> rows = loadAllMerchantNotifications(query).stream()
-                .map(this::toMerchantNotificationExportRow)
-                .toList();
-        exportExcel("excel.transaction.notification.title", TransactionMerchantNotificationExportRow.class, rows, notificationQuerySummary(query, locale), operator, locale, response);
+        runExport(operator, () -> {
+            Locale locale = excelLocaleResolver.resolveCurrentLocale();
+            List<TransactionMerchantNotificationExportRow> rows = loadAllMerchantNotifications(query).stream()
+                    .map(this::toMerchantNotificationExportRow)
+                    .toList();
+            exportExcel("excel.transaction.notification.title", TransactionMerchantNotificationExportRow.class, rows,
+                    notificationQuerySummary(query, locale), operator, locale, response);
+        });
     }
 
     /**
@@ -358,7 +382,7 @@ public class AdminTransactionApplicationService {
     private List<TransactionOrderResponse> loadAllOrders(TransactionPageQuery sourceQuery) {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
         query.setPageNo(1);
-        query.setPageSize(EXPORT_PAGE_SIZE);
+        query.setPageSize(exportPageSize());
         PageResult<TransactionOrderResponse> firstPage = transactionQueryService.pageOrders(query);
         ensureExportSize(firstPage.getTotal());
         List<TransactionOrderResponse> rows = new ArrayList<>(firstPage.getRecords());
@@ -386,7 +410,7 @@ public class AdminTransactionApplicationService {
     private List<TransactionOperationResponse> loadAllOperations(TransactionPageQuery sourceQuery) {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
         query.setPageNo(1);
-        query.setPageSize(EXPORT_PAGE_SIZE);
+        query.setPageSize(exportPageSize());
         PageResult<TransactionOperationResponse> firstPage = transactionQueryService.pageOperations(query);
         ensureExportSize(firstPage.getTotal());
         List<TransactionOperationResponse> rows = new ArrayList<>(firstPage.getRecords());
@@ -414,7 +438,7 @@ public class AdminTransactionApplicationService {
     private List<Map<String, Object>> loadAllMerchantNotifications(MerchantNotificationQuery sourceQuery) {
         MerchantNotificationQuery query = copyNotificationQuery(sourceQuery);
         query.setPageNo(1);
-        query.setPageSize(EXPORT_PAGE_SIZE);
+        query.setPageSize(exportPageSize());
         PageResult<Map<String, Object>> firstPage = transactionQueryService.pageMerchantNotifications(query);
         ensureExportSize(firstPage.getTotal());
         List<Map<String, Object>> rows = new ArrayList<>(firstPage.getRecords());
@@ -439,9 +463,41 @@ public class AdminTransactionApplicationService {
      * @param total total 输入值，参与 total 的查询、校验、转换、写入或日志摘要
      */
     private void ensureExportSize(long total) {
-        if (total > MAX_SYNC_EXPORT_ROWS) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "export result exceeds " + MAX_SYNC_EXPORT_ROWS + " rows, please narrow the query range");
+        int maxRows = shardingProperties.getQueryBudget().getMaxResultRows();
+        if (total > maxRows) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID,
+                    "export result exceeds " + maxRows + " rows, please use asynchronous export");
         }
+    }
+
+    /** @return 同步导出单次分页大小，不超过规则声明的结果行数上限 */
+    private int exportPageSize() {
+        return Math.min(EXPORT_PAGE_SIZE, shardingProperties.getQueryBudget().getMaxResultRows());
+    }
+
+    /** 在同一后台账号的集群级并发预算内执行一次同步交易导出。 */
+    private void runExport(String operator, Runnable action) {
+        boolean acquired = exportConcurrencyLimiter.execute(
+                "transaction",
+                "admin-export",
+                exportIdentity(operator),
+                shardingProperties.getQueryBudget().getMaxConcurrentExportsPerUser(),
+                EXPORT_LEASE_TIME,
+                action
+        );
+        if (!acquired) {
+            throw new ApiException(ApiResultEnum.TOO_MANY_REQUESTS,
+                    "another transaction export is already running");
+        }
+    }
+
+    /** 返回稳定账号身份；Redis Key 构造器只保存该值的 SHA-256 摘要。 */
+    private String exportIdentity(String operator) {
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        if (account != null && account.getAccountId() != null) {
+            return "admin-account:" + account.getAccountId();
+        }
+        return StringUtils.hasText(operator) ? "admin-operator:" + operator : "admin-operator:unknown";
     }
 
     private <T> void exportExcel(String titleKey,

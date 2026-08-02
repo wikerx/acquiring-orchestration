@@ -22,6 +22,21 @@ public class ShardingRuleResponse {
      */
     private String ruleKey;
 
+    /** 当前实例加载的交易分片规则版本。 */
+    private String ruleVersion;
+
+    /** 当前实例规则 checksum 前缀。 */
+    private String ruleChecksumPrefix;
+
+    /** 当前实例已验证并登记的季度节点。 */
+    private List<String> verifiedPhysicalNodes = new ArrayList<>();
+
+    /** 当前季度是否已登记为实际节点。 */
+    private Boolean currentNodeRegistered;
+
+    /** 下一季度是否已登记为实际节点。 */
+    private Boolean nextNodeRegistered;
+
     /**
      * logical Table，用于保存 Sharding Rule Response 中与 logicaltable 相关的业务属性。
      * <p>

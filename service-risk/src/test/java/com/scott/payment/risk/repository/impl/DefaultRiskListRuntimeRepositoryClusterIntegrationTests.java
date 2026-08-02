@@ -193,7 +193,7 @@ class DefaultRiskListRuntimeRepositoryClusterIntegrationTests {
         when(mapper.selectActiveCumulativeMerchantLimitRules(merchantId, "USD"))
                 .thenReturn(cumulativeRules);
         when(mapper.selectActiveFrequencyRules(merchantId)).thenReturn(frequencyRules);
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 any(),
                 org.mockito.ArgumentMatchers.eq(merchantId),
                 org.mockito.ArgumentMatchers.eq("USD"),

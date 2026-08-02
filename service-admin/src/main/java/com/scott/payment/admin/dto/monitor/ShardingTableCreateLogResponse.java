@@ -1,5 +1,7 @@
 package com.scott.payment.admin.dto.monitor;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -24,6 +26,7 @@ public class ShardingTableCreateLogResponse {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long id;
 
     /**

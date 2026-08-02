@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -19,6 +20,81 @@ import java.util.List;
  * @status : create
  */
 public interface TransactionPaymentMethodInfoMapper extends BaseMapper<TransactionPaymentMethodInfoDO> {
+
+    /**
+     * 写入支付工具摘要逻辑表。
+     *
+     * @param infoDO 支付工具摘要
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO transaction_payment_method_info
+            (
+              payment_info_id, transaction_id, operation_id, payment_method, payment_brand,
+              card_bin, card_last4, card_number_masked, cardholder_name_masked, expiry_month,
+              expiry_year, token_id, wallet_type, payment_account_hash, issuer_country,
+              funding_method, three_ds_indicator, csc_result, avs_result, transaction_date_time,
+              transaction_utc_time, transaction_time_zone, create_time, update_time
+            )
+            VALUES
+            (
+              #{infoDO.paymentInfoId}, #{infoDO.transactionId}, #{infoDO.operationId},
+              #{infoDO.paymentMethod}, #{infoDO.paymentBrand}, #{infoDO.cardBin},
+              #{infoDO.cardLast4}, #{infoDO.cardNumberMasked}, #{infoDO.cardholderNameMasked},
+              #{infoDO.expiryMonth}, #{infoDO.expiryYear}, #{infoDO.tokenId}, #{infoDO.walletType},
+              #{infoDO.paymentAccountHash}, #{infoDO.issuerCountry}, #{infoDO.fundingMethod},
+              #{infoDO.threeDsIndicator}, #{infoDO.cscResult}, #{infoDO.avsResult},
+              #{infoDO.transactionDateTime}, #{infoDO.transactionUtcTime}, #{infoDO.transactionTimeZone},
+              #{infoDO.createTime}, #{infoDO.updateTime}
+            )
+            """)
+    int insertLogical(@Param("infoDO") TransactionPaymentMethodInfoDO infoDO);
+
+    /**
+     * 按交易 ID 集合和半开时间范围查询支付工具摘要。
+     *
+     * @param transactionIds 平台交易 ID 集合
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 支付工具摘要列表
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM transaction_payment_method_info
+            WHERE transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt; #{endTimeExclusive}
+              AND transaction_id IN
+            <foreach collection="transactionIds" item="transactionId" open="(" separator="," close=")">
+              #{transactionId}
+            </foreach>
+            </script>
+            """)
+    List<TransactionPaymentMethodInfoDO> selectByTransactionIds(
+            @Param("transactionIds") Collection<String> transactionIds,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /**
+     * 按生命周期和半开时间范围查询支付工具摘要。
+     *
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 支付工具摘要列表
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_payment_method_info
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+            ORDER BY transaction_date_time ASC, id ASC
+            LIMIT 50
+            """)
+    List<TransactionPaymentMethodInfoDO> selectByOperationId(@Param("operationId") String operationId,
+                                                             @Param("beginTime") LocalDateTime beginTime,
+                                                             @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
      * 写入交易支付工具摘要物理分表。

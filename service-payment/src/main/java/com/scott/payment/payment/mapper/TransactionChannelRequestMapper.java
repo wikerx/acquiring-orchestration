@@ -22,6 +22,327 @@ import java.util.List;
 public interface TransactionChannelRequestMapper extends BaseMapper<TransactionChannelRequestDO> {
 
     /**
+     * 写入渠道请求逻辑表。
+     *
+     * @param requestDO 渠道请求记录
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO transaction_channel_request
+            (
+              request_id, transaction_id, operation_id, channel_id, channel_code, channel_mid_config_id,
+              transaction_type, request_scene, channel_match_flag, request_status, http_method,
+              request_url_masked, request_currency, request_amount, channel_order_no, channel_transaction_id,
+              gateway_result, gateway_code, acquirer_code, acquirer_message, channel_status,
+              platform_success, platform_result_code, platform_fail_reason, request_start_time,
+              response_time, duration_millis, transaction_date_time, transaction_utc_time,
+              transaction_time_zone, version, deleted, create_time, update_time
+            )
+            VALUES
+            (
+              #{requestDO.requestId}, #{requestDO.transactionId}, #{requestDO.operationId},
+              #{requestDO.channelId}, #{requestDO.channelCode}, #{requestDO.channelMidConfigId},
+              #{requestDO.transactionType}, #{requestDO.requestScene}, #{requestDO.channelMatchFlag},
+              #{requestDO.requestStatus}, #{requestDO.httpMethod}, #{requestDO.requestUrlMasked},
+              #{requestDO.requestCurrency}, #{requestDO.requestAmount}, #{requestDO.channelOrderNo},
+              #{requestDO.channelTransactionId}, #{requestDO.gatewayResult}, #{requestDO.gatewayCode},
+              #{requestDO.acquirerCode}, #{requestDO.acquirerMessage}, #{requestDO.channelStatus},
+              #{requestDO.platformSuccess}, #{requestDO.platformResultCode}, #{requestDO.platformFailReason},
+              #{requestDO.requestStartTime}, #{requestDO.responseTime}, #{requestDO.durationMillis},
+              #{requestDO.transactionDateTime}, #{requestDO.transactionUtcTime}, #{requestDO.transactionTimeZone},
+              #{requestDO.version}, #{requestDO.deleted}, #{requestDO.createTime}, #{requestDO.updateTime}
+            )
+            """)
+    int insertLogical(@Param("requestDO") TransactionChannelRequestDO requestDO);
+
+    /**
+     * 按请求 ID 和精确分片时间查询渠道请求。
+     *
+     * @param requestId 平台渠道请求 ID
+     * @param transactionDateTime 交易分片时间
+     * @return 渠道请求记录，不存在时返回 null
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_channel_request
+            WHERE request_id = #{requestId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND deleted = 0
+            LIMIT 1
+            """)
+    TransactionChannelRequestDO selectByRequestId(@Param("requestId") String requestId,
+                                                  @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
+     * 在受控半开时间范围内按渠道身份恢复请求。
+     *
+     * @param channelCode 渠道编码
+     * @param channelOrderNo 渠道订单号
+     * @param channelTransactionId 渠道交易 ID
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 渠道请求记录，不存在时返回 null
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_channel_request
+            WHERE channel_code = #{channelCode}
+              AND channel_order_no = #{channelOrderNo}
+              AND channel_transaction_id = #{channelTransactionId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+              AND deleted = 0
+            ORDER BY transaction_date_time DESC, id DESC
+            LIMIT 1
+            """)
+    TransactionChannelRequestDO selectByChannelTransaction(
+            @Param("channelCode") String channelCode,
+            @Param("channelOrderNo") String channelOrderNo,
+            @Param("channelTransactionId") String channelTransactionId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /**
+     * 使用分片时间、版本和允许状态 CAS 推进渠道请求。
+     *
+     * @param requestId 平台渠道请求 ID
+     * @param transactionDateTime 交易分片时间
+     * @param expectedVersion 读取渠道请求时的版本号
+     * @param expectedStatuses 允许推进的当前请求状态
+     * @param requestStatus 目标请求状态
+     * @param gatewayResult 渠道网关外层结果
+     * @param gatewayCode 渠道网关响应码
+     * @param acquirerCode 收单响应码
+     * @param acquirerMessage 收单响应描述
+     * @param channelStatus 渠道原始状态
+     * @param platformSuccess 平台成功判断
+     * @param platformResultCode 平台统一结果码
+     * @param platformFailReason 平台失败原因
+     * @param responseTime 响应时间
+     * @param durationMillis 请求耗时
+     * @return 影响行数
+     */
+    @Update("""
+            <script>
+            UPDATE transaction_channel_request
+            SET request_status = #{requestStatus},
+                gateway_result = #{gatewayResult},
+                gateway_code = #{gatewayCode},
+                acquirer_code = #{acquirerCode},
+                acquirer_message = #{acquirerMessage},
+                channel_status = #{channelStatus},
+                platform_success = #{platformSuccess},
+                platform_result_code = #{platformResultCode},
+                platform_fail_reason = #{platformFailReason},
+                response_time = #{responseTime},
+                duration_millis = #{durationMillis},
+                version = version + 1,
+                update_time = CURRENT_TIMESTAMP(3)
+            WHERE request_id = #{requestId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND request_status IN
+              <foreach collection="expectedStatuses" item="expectedStatus" open="(" separator="," close=")">
+                #{expectedStatus}
+              </foreach>
+              AND deleted = 0
+            </script>
+            """)
+    int updateStatusLogical(@Param("requestId") String requestId,
+                            @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                            @Param("expectedVersion") Integer expectedVersion,
+                            @Param("expectedStatuses") List<String> expectedStatuses,
+                            @Param("requestStatus") String requestStatus,
+                            @Param("gatewayResult") String gatewayResult,
+                            @Param("gatewayCode") String gatewayCode,
+                            @Param("acquirerCode") String acquirerCode,
+                            @Param("acquirerMessage") String acquirerMessage,
+                            @Param("channelStatus") String channelStatus,
+                            @Param("platformSuccess") Integer platformSuccess,
+                            @Param("platformResultCode") String platformResultCode,
+                            @Param("platformFailReason") String platformFailReason,
+                            @Param("responseTime") LocalDateTime responseTime,
+                            @Param("durationMillis") Integer durationMillis);
+
+    /**
+     * 按交易 ID 和精确分片时间查询渠道请求摘要。
+     *
+     * @param transactionId 平台当前交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @return 渠道请求列表
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_channel_request
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND deleted = 0
+            ORDER BY request_start_time DESC
+            LIMIT 100
+            """)
+    List<TransactionChannelRequestDO> selectByTransactionId(
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
+     * 按交易 ID、渠道和精确分片时间查询原资金动作请求。
+     *
+     * @param transactionId 平台当前交易 ID
+     * @param channelCode 渠道编码
+     * @param transactionDateTime 交易分片时间
+     * @return 原资金动作渠道请求，不存在时返回 null
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_channel_request
+            WHERE transaction_id = #{transactionId}
+              AND channel_code = #{channelCode}
+              AND transaction_date_time = #{transactionDateTime}
+              AND channel_match_flag = 0
+              AND deleted = 0
+            ORDER BY request_start_time ASC, id ASC
+            LIMIT 1
+            """)
+    TransactionChannelRequestDO selectOriginalByTransaction(
+            @Param("transactionId") String transactionId,
+            @Param("channelCode") String channelCode,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
+     * 按生命周期和半开时间范围查询渠道请求摘要。
+     *
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 渠道请求列表
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_channel_request
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+              AND deleted = 0
+            ORDER BY request_start_time DESC
+            LIMIT 200
+            """)
+    List<TransactionChannelRequestDO> selectByOperationId(
+            @Param("operationId") String operationId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /**
+     * 按请求 ID 集合和半开时间范围批量查询请求摘要。
+     *
+     * @param requestIds 渠道请求 ID 列表
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 渠道请求摘要列表
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM transaction_channel_request
+            WHERE deleted = 0
+              AND transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt; #{endTimeExclusive}
+              AND request_id IN
+              <foreach collection="requestIds" item="requestId" open="(" separator="," close=")">
+                #{requestId}
+              </foreach>
+            </script>
+            """)
+    List<TransactionChannelRequestDO> selectByRequestIds(
+            @Param("requestIds") List<String> requestIds,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /**
+     * 按半开交易时间范围分页查询渠道请求逻辑表。
+     *
+     * @param channelCode 渠道编码，可为空
+     * @param transactionId 平台交易 ID，可为空
+     * @param channelOrderNo 渠道订单号，可为空
+     * @param requestStatus 请求状态，可为空
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @param offset 分页偏移
+     * @param limit 分页大小
+     * @return 渠道请求列表
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM transaction_channel_request
+            WHERE deleted = 0
+              AND transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt; #{endTimeExclusive}
+              <if test="channelCode != null and channelCode != ''">
+                AND channel_code = #{channelCode}
+              </if>
+              <if test="transactionId != null and transactionId != ''">
+                AND transaction_id = #{transactionId}
+              </if>
+              <if test="channelOrderNo != null and channelOrderNo != ''">
+                AND channel_order_no = #{channelOrderNo}
+              </if>
+              <if test="requestStatus != null and requestStatus != ''">
+                AND request_status = #{requestStatus}
+              </if>
+            ORDER BY transaction_date_time DESC, id DESC
+            LIMIT #{offset}, #{limit}
+            </script>
+            """)
+    List<TransactionChannelRequestDO> selectPageLogical(
+            @Param("channelCode") String channelCode,
+            @Param("transactionId") String transactionId,
+            @Param("channelOrderNo") String channelOrderNo,
+            @Param("requestStatus") String requestStatus,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
+            @Param("offset") long offset,
+            @Param("limit") long limit);
+
+    /**
+     * 统计半开交易时间范围内的渠道请求。
+     *
+     * @param channelCode 渠道编码，可为空
+     * @param transactionId 平台交易 ID，可为空
+     * @param channelOrderNo 渠道订单号，可为空
+     * @param requestStatus 请求状态，可为空
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 命中记录数
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(1)
+            FROM transaction_channel_request
+            WHERE deleted = 0
+              AND transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt; #{endTimeExclusive}
+              <if test="channelCode != null and channelCode != ''">
+                AND channel_code = #{channelCode}
+              </if>
+              <if test="transactionId != null and transactionId != ''">
+                AND transaction_id = #{transactionId}
+              </if>
+              <if test="channelOrderNo != null and channelOrderNo != ''">
+                AND channel_order_no = #{channelOrderNo}
+              </if>
+              <if test="requestStatus != null and requestStatus != ''">
+                AND request_status = #{requestStatus}
+              </if>
+            </script>
+            """)
+    long countPageLogical(@Param("channelCode") String channelCode,
+                          @Param("transactionId") String transactionId,
+                          @Param("channelOrderNo") String channelOrderNo,
+                          @Param("requestStatus") String requestStatus,
+                          @Param("beginTime") LocalDateTime beginTime,
+                          @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /**
      * 写入渠道请求物理分表。
      *
      * @param physicalTableName 经分表规则解析器校验后的物理表名

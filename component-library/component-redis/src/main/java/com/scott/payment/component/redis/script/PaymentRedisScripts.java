@@ -31,6 +31,9 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<Long> TOKEN_LEASE_RELEASE_V1 =
             load("v1/token-lease-release.lua", Long.class);
 
+    private static final DefaultRedisScript<Long> CONCURRENCY_LEASE_ACQUIRE_V1 =
+            load("v1/concurrency-lease-acquire.lua", Long.class);
+
     private static final DefaultRedisScript<String> CACHE_GENERATION_READ_V1 =
             load("v1/cache-generation-read.lua", String.class);
 
@@ -68,6 +71,15 @@ public final class PaymentRedisScripts {
      */
     public static RedisScript<Long> tokenLeaseReleaseV1() {
         return TOKEN_LEASE_RELEASE_V1;
+    }
+
+    /**
+     * 获取有界并发租约 v1 脚本。
+     *
+     * @return 清理过期持有者后原子判断容量并写入新 token 的脚本
+     */
+    public static RedisScript<Long> concurrencyLeaseAcquireV1() {
+        return CONCURRENCY_LEASE_ACQUIRE_V1;
     }
 
     /**

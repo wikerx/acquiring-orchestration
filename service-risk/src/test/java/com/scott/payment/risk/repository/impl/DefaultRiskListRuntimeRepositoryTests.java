@@ -4,6 +4,9 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
+import com.scott.payment.component.db.sharding.TransactionShardingMode;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
@@ -380,7 +383,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .thenReturn(List.of(dailyRule));
         when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 org.mockito.ArgumentMatchers.anyList(),
                 org.mockito.ArgumentMatchers.eq("M202607290001"),
                 org.mockito.ArgumentMatchers.eq("USD"),
@@ -419,7 +422,7 @@ class DefaultRiskListRuntimeRepositoryTests {
             assertThat(context.endTime()).isEqualTo(LocalDateTime.of(2026, 7, 30, 0, 0));
             assertThat(context.dataSource()).isEqualTo(DataSourceName.MASTER);
         });
-        verify(mapper).sumRiskApprovedTransactionAmount(
+        verify(mapper).sumRiskApprovedTransactionAmountPhysical(
                 List.of("transaction_order_202603"),
                 "M202607290001",
                 "USD",
@@ -427,6 +430,101 @@ class DefaultRiskListRuntimeRepositoryTests {
                 LocalDateTime.of(2026, 7, 30, 0, 0),
                 "TXN-001"
         );
+    }
+
+    @Test
+    void shouldReserveCumulativeLimitFromLogicalTransactionTableInShardingSphereMode() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
+        RiskListMatch dailyRule = cumulativeRule(12L, "DAILY", "200.000000");
+        when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
+                .thenReturn(List.of(dailyRule));
+        when(mapper.sumRiskApprovedTransactionAmount(
+                "M202607290001",
+                "USD",
+                LocalDateTime.of(2026, 7, 29, 0, 0),
+                LocalDateTime.of(2026, 7, 30, 0, 0),
+                "TXN-LOGICAL-001"))
+                .thenReturn(new BigDecimal("100.000000"));
+        when(redisTemplate.execute(
+                any(), org.mockito.ArgumentMatchers.anyList(),
+                any(), any(), any(), any(), any()))
+                .thenReturn(110_000_000L);
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper,
+                mock(RedisStringService.class),
+                redisTemplate,
+                shardingDataTemplate,
+                null,
+                runtimeState(TransactionShardingMode.SHARDINGSPHERE));
+
+        MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
+                cumulativeRequest("TXN-LOGICAL-001", "10.000000"));
+
+        assertThat(evaluation.details()).singleElement()
+                .satisfies(detail -> assertThat(detail.getCurrentAmount()).isEqualByComparingTo("110.000000"));
+        verify(mapper).sumRiskApprovedTransactionAmount(
+                "M202607290001",
+                "USD",
+                LocalDateTime.of(2026, 7, 29, 0, 0),
+                LocalDateTime.of(2026, 7, 30, 0, 0),
+                "TXN-LOGICAL-001");
+        verify(mapper, never()).sumRiskApprovedTransactionAmountPhysical(
+                org.mockito.ArgumentMatchers.anyList(),
+                anyString(),
+                anyString(),
+                any(),
+                any(),
+                anyString());
+        verifyNoInteractions(shardingDataTemplate);
+    }
+
+    @Test
+    void shouldCompareLogicalAmountButUseLegacyAmountInCompareMode() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        ShardingDataTemplate shardingDataTemplate = mock(ShardingDataTemplate.class);
+        when(mapper.selectActiveCumulativeMerchantLimitRules("M202607290001", "USD"))
+                .thenReturn(List.of(cumulativeRule(13L, "DAILY", "200.000000")));
+        when(shardingDataTemplate.resolvePhysicalTables(any()))
+                .thenReturn(List.of("transaction_order_202603"));
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
+                any(), anyString(), anyString(), any(), any(), anyString()))
+                .thenReturn(new BigDecimal("100.000000"));
+        when(mapper.sumRiskApprovedTransactionAmount(
+                anyString(), anyString(), any(), any(), anyString()))
+                .thenReturn(new BigDecimal("90.000000"));
+        when(redisTemplate.execute(
+                any(), org.mockito.ArgumentMatchers.anyList(),
+                any(), any(), any(), any(), any()))
+                .thenReturn(110_000_000L);
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper,
+                mock(RedisStringService.class),
+                redisTemplate,
+                shardingDataTemplate,
+                null,
+                runtimeState(TransactionShardingMode.COMPARE));
+
+        MerchantLimitEvaluation evaluation = repository.reserveCumulativeMerchantLimits(
+                cumulativeRequest("TXN-COMPARE-001", "10.000000"));
+
+        assertThat(evaluation.details()).singleElement()
+                .satisfies(detail -> assertThat(detail.getCurrentAmount()).isEqualByComparingTo("110.000000"));
+        verify(mapper).sumRiskApprovedTransactionAmountPhysical(
+                List.of("transaction_order_202603"),
+                "M202607290001",
+                "USD",
+                LocalDateTime.of(2026, 7, 29, 0, 0),
+                LocalDateTime.of(2026, 7, 30, 0, 0),
+                "TXN-COMPARE-001");
+        verify(mapper).sumRiskApprovedTransactionAmount(
+                "M202607290001",
+                "USD",
+                LocalDateTime.of(2026, 7, 29, 0, 0),
+                LocalDateTime.of(2026, 7, 30, 0, 0),
+                "TXN-COMPARE-001");
     }
 
     @Test
@@ -440,7 +538,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .thenReturn(List.of(cumulativeRule(41L, "DAILY", "200.000000")));
         when(shardingDataTemplate.resolvePhysicalTables(any()))
                 .thenReturn(List.of("transaction_order_202607"));
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 any(), anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(mapper.sumLifecycleReservationAmountUnits(
@@ -488,7 +586,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .thenReturn(List.of(cumulativeRule(42L, "DAILY", "200.000000")));
         when(shardingDataTemplate.resolvePhysicalTables(any()))
                 .thenReturn(List.of("transaction_order_202607"));
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 any(), anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(mapper.sumLifecycleReservationAmountUnits(
@@ -544,7 +642,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 ));
         when(shardingDataTemplate.resolvePhysicalTables(any()))
                 .thenReturn(List.of("transaction_order_202802"));
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 any(), anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(BigDecimal.ZERO);
         when(redisTemplate.execute(
@@ -597,7 +695,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .thenReturn(List.of(cumulativeRule(11L, "DAILY", "200.000000")));
         when(shardingDataTemplate.resolvePhysicalTables(any()))
                 .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 any(), anyString(), anyString(), any(), any(), anyString()))
                 .thenReturn(new BigDecimal("100.000000"));
         when(stateService.prepare(any())).thenAnswer(invocation -> {
@@ -654,7 +752,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .thenReturn(List.of(cumulativeRule(11L, "DAILY", "200.000000")));
         when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 org.mockito.ArgumentMatchers.anyList(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
@@ -704,7 +802,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 .thenReturn(List.of(cumulativeRule(12L, "MONTHLY", "105.000000")));
         when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 org.mockito.ArgumentMatchers.anyList(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
@@ -748,7 +846,7 @@ class DefaultRiskListRuntimeRepositoryTests {
                 ));
         when(shardingDataTemplate.resolvePhysicalTables(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(List.of("transaction_order_202603"));
-        when(mapper.sumRiskApprovedTransactionAmount(
+        when(mapper.sumRiskApprovedTransactionAmountPhysical(
                 org.mockito.ArgumentMatchers.anyList(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
@@ -981,6 +1079,21 @@ class DefaultRiskListRuntimeRepositoryTests {
                                                         StringRedisTemplate redisTemplate,
                                                         ShardingDataTemplate shardingDataTemplate,
                                                         MerchantLimitReservationStateService stateService) {
+        return repository(
+                mapper,
+                redis,
+                redisTemplate,
+                shardingDataTemplate,
+                stateService,
+                new TransactionShardingRuntimeState());
+    }
+
+    private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,
+                                                        RedisStringService redis,
+                                                        StringRedisTemplate redisTemplate,
+                                                        ShardingDataTemplate shardingDataTemplate,
+                                                        MerchantLimitReservationStateService stateService,
+                                                        TransactionShardingRuntimeState transactionShardingRuntimeState) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
         properties.setRuntimeEnabled(true);
         properties.setCacheHitTtlSeconds(300);
@@ -999,7 +1112,16 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(stateService),
                 provider(null),
                 properties,
-                redisProperties);
+                redisProperties,
+                transactionShardingRuntimeState);
+    }
+
+    private TransactionShardingRuntimeState runtimeState(TransactionShardingMode mode) {
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setMode(mode);
+        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
+        runtimeState.activate(properties);
+        return runtimeState;
     }
 
     /**

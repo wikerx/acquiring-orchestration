@@ -46,6 +46,7 @@ class PaymentRedisScriptsTests {
 
         assertThat(script.getResultType()).isEqualTo(Long.class);
         assertThat(script.getScriptAsString())
+                .contains("redis.call('TIME')")
                 .contains("ZREMRANGEBYSCORE")
                 .contains("redis.call('TIME')")
                 .contains("ZCARD', currentBucketKey")
@@ -69,5 +70,21 @@ class PaymentRedisScriptsTests {
                 .contains("redis.call('del', KEYS[1])");
         assertThat(script.getSha1()).matches("[0-9a-f]{40}");
         log.info("token 租约释放 Lua 资源测试完成，结果: 比较后删除契约存在");
+    }
+
+    /**
+     * 并发租约 v1 脚本必须原子清理过期持有者、检查容量并写入新 token。
+     */
+    @Test
+    void shouldLoadVersionedConcurrencyLeaseAcquireScript() {
+        var script = PaymentRedisScripts.concurrencyLeaseAcquireV1();
+
+        assertThat(script.getResultType()).isEqualTo(Long.class);
+        assertThat(script.getScriptAsString())
+                .contains("ZREMRANGEBYSCORE")
+                .contains("ZCARD")
+                .contains("ZADD")
+                .contains("PEXPIRE");
+        assertThat(script.getSha1()).matches("[0-9a-f]{40}");
     }
 }

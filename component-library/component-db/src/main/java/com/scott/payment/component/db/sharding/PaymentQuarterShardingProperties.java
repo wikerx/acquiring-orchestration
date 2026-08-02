@@ -2,6 +2,7 @@ package com.scott.payment.component.db.sharding;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
@@ -9,6 +10,7 @@ import java.util.Map;
 
 @Data
 @Component
+@Primary
 @ConfigurationProperties(prefix = "global-payment.sharding")
 /**
  * @author : scott
@@ -149,7 +151,7 @@ public class PaymentQuarterShardingProperties {
         private Boolean enabled = Boolean.TRUE;
 
         /**
-         * 逻辑表名，例如 test_transaction、test_transaction_info。
+         * 逻辑表名，例如 transaction_order、transaction_operation。
          */
         private String logicalTable;
 
@@ -159,7 +161,7 @@ public class PaymentQuarterShardingProperties {
         private String templateTable;
 
         /**
-         * 自增主键字段名，当前测试分表统一使用 id。
+         * 自增主键字段名，交易季度分表统一使用 id。
          */
         private String idColumn = "id";
 
@@ -189,7 +191,7 @@ public class PaymentQuarterShardingProperties {
         private Integer endQuarter;
 
         /**
-         * 物理表名格式，默认格式为逻辑表名_yyyyQQ，例如 test_transaction_202602。
+         * 物理表名格式，默认格式为逻辑表名_yyyyQQ，例如 transaction_order_202603。
          */
         private String tableNameFormat = "%s_%d%02d";
 

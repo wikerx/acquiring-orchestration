@@ -57,6 +57,24 @@ public class ShardingTablePreCreateResultResponse {
      */
     private String currentQuarter;
 
+    /** 待人工评审的候选规则版本。 */
+    private String candidateRuleVersion;
+
+    /** 候选规则 SHA-256 checksum。 */
+    private String candidateRuleChecksum;
+
+    /** 仅由已建表且全量校验通过的季度组成的候选节点。 */
+    private List<String> verifiedPhysicalNodes = new ArrayList<>();
+
+    /** 是否允许进入人工发布和滚动重启步骤。 */
+    private Boolean publicationReady = Boolean.FALSE;
+
+    /** 阻止候选规则发布的治理原因。 */
+    private List<String> publicationBlockers = new ArrayList<>();
+
+    /** 下一步受控操作标识，不会由接口自动执行。 */
+    private String nextAction;
+
     /**
      * target Quarters，用于保存 Sharding Table Pre Create Result Response 中与 targetquarters 相关的业务属性。
      * <p>

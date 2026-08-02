@@ -30,10 +30,10 @@ class PaymentOrderShardingAlgorithmTest {
         PaymentQuarterShardingProperties properties = buildProperties();
 
         String tableName = algorithm.tableName(properties,
-                "test_transaction",
+                "unit_transaction",
                 LocalDateTime.of(2026, 5, 29, 10, 30, 0));
 
-        assertThat(tableName).isEqualTo("test_transaction_202602");
+        assertThat(tableName).isEqualTo("unit_transaction_202602");
     }
 
     /**
@@ -45,7 +45,7 @@ class PaymentOrderShardingAlgorithmTest {
         PaymentQuarterShardingProperties properties = buildProperties();
 
         assertThatThrownBy(() -> algorithm.tableName(properties,
-                "test_transaction",
+                "unit_transaction",
                 LocalDateTime.of(2026, 1, 1, 0, 0, 0)))
                 .isInstanceOf(ServiceException.class)
                 .hasMessageContaining("outside sharding table range");
@@ -59,38 +59,41 @@ class PaymentOrderShardingAlgorithmTest {
         PaymentOrderShardingAlgorithm algorithm = new PaymentOrderShardingAlgorithm();
         PaymentQuarterShardingProperties properties = buildProperties();
 
-        List<String> tableNames = algorithm.physicalTables(properties, "test_transaction");
+        List<String> tableNames = algorithm.physicalTables(properties, "unit_transaction");
 
         assertThat(tableNames).containsExactly(
-                "test_transaction_202602",
-                "test_transaction_202603",
-                "test_transaction_202604",
-                "test_transaction_202701"
+                "unit_transaction_202602",
+                "unit_transaction_202603",
+                "unit_transaction_202604",
+                "unit_transaction_202701"
         );
     }
 
     /**
-     * 验证默认分表配置使用测试逻辑表和 yyyyQQ 命名。
+     * 验证未配置逻辑表时直接失败，不允许回退到内置测试规则。
      */
     @Test
-    void shouldUseDefaultTestShardingRules() {
+    void shouldRejectUnconfiguredLogicalTable() {
         PaymentOrderShardingAlgorithm algorithm = new PaymentOrderShardingAlgorithm();
+        PaymentQuarterShardingProperties properties = buildProperties();
 
-        String tableName = algorithm.tableName("test_transaction_info", LocalDateTime.of(2026, 10, 1, 0, 0));
-
-        assertThat(tableName).isEqualTo("test_transaction_info_202604");
+        assertThatThrownBy(() -> algorithm.tableName(properties,
+                "unit_transaction_info",
+                LocalDateTime.of(2026, 10, 1, 0, 0)))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("not configured for sharding");
     }
 
     private PaymentQuarterShardingProperties buildProperties() {
         PaymentQuarterShardingProperties properties = new PaymentQuarterShardingProperties();
         PaymentQuarterShardingProperties.TableRule tableRule = new PaymentQuarterShardingProperties.TableRule();
-        tableRule.setLogicalTable("test_transaction");
+        tableRule.setLogicalTable("unit_transaction");
         tableRule.setStartYear(2026);
         tableRule.setStartQuarter(2);
         tableRule.setEndYear(2027);
         tableRule.setEndQuarter(1);
         tableRule.setDescription("测试交易主表");
-        properties.getTables().put("test-transaction", tableRule);
+        properties.getTables().put("unit-transaction", tableRule);
         return properties;
     }
 }

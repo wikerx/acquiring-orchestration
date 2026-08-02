@@ -1,10 +1,12 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -54,6 +56,7 @@ import java.util.Objects;
  * @status : create
  */
 @Service
+@DS(DataSourceName.TRANSACTION)
 public class DefaultRefundTransactionPreparationService implements RefundTransactionPreparationService {
 
     /**

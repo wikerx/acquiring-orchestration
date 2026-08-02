@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
@@ -8,6 +9,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
@@ -64,6 +66,7 @@ import java.util.Objects;
  */
 @Service
 @Slf4j
+@DS(DataSourceName.TRANSACTION)
 public class DefaultPaymentTransactionPreparationService implements PaymentTransactionPreparationService {
 
     /**

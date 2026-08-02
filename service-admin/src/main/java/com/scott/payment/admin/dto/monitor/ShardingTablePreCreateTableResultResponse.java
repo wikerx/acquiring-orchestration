@@ -1,5 +1,7 @@
 package com.scott.payment.admin.dto.monitor;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 
 @Data
@@ -74,6 +76,15 @@ public class ShardingTablePreCreateTableResultResponse {
      */
     private String schemaCheckStatus;
 
+    /** 分片时间字段 DATETIME(3) 校验状态。 */
+    private String shardingTimeCheckStatus;
+
+    /** 物理表 utf8mb4 字符集校验状态。 */
+    private String charsetCheckStatus;
+
+    /** 当前 AUTO_INCREMENT 是否处于季度安全号段。 */
+    private String autoIncrementCheckStatus;
+
     /**
      * auto Increment Start，用于保存 Sharding Table Pre Create Table Result Response 中与 autoincrementstart 相关的业务属性。
      * <p>
@@ -82,6 +93,7 @@ public class ShardingTablePreCreateTableResultResponse {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long autoIncrementStart;
 
     /**
@@ -92,6 +104,7 @@ public class ShardingTablePreCreateTableResultResponse {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long autoIncrementCurrent;
 
     /**
@@ -102,6 +115,7 @@ public class ShardingTablePreCreateTableResultResponse {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long autoIncrementMax;
 
     /**

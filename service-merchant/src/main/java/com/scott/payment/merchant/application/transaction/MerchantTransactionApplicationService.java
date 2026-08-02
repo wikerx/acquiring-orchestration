@@ -2,8 +2,12 @@ package com.scott.payment.merchant.application.transaction;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
+import com.scott.payment.component.core.auth.InternalAuthAccount;
+import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.redis.concurrency.RedisConcurrencyLimiter;
 import com.scott.payment.merchant.client.payment.PaymentInternalClient;
 import com.scott.payment.merchant.client.payment.dto.PaymentTransactionActionClientRequestDTO;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionActionRequest;
@@ -26,6 +30,7 @@ import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,14 +50,11 @@ import java.util.Set;
 public class MerchantTransactionApplicationService {
 
     /**
-     * 同步导出最大记录数。
-     */
-    private static final int MAX_SYNC_EXPORT_ROWS = 5000;
-
-    /**
      * 内部分页拉取大小。
      */
     private static final int EXPORT_PAGE_SIZE = 500;
+    /** 异常退出后 Redis 并发租约的最长自恢复时间。 */
+    private static final Duration EXPORT_LEASE_TIME = Duration.ofMinutes(5);
 
     /**
      * 导出文件时间戳格式。
@@ -113,17 +115,27 @@ public class MerchantTransactionApplicationService {
      * </p>
      */
     private final MerchantTransactionQueryService transactionQueryService;
+    /** 交易查询和同步导出资源预算。 */
+    private final TransactionShardingProperties shardingProperties;
+    /** 跨实例限制同一商户账号并发导出的 Redis 租约服务。 */
+    private final RedisConcurrencyLimiter exportConcurrencyLimiter;
 
     /**
      * 创建商户后台交易查询应用服务。
      *
      * @param paymentInternalClient service-payment 状态变更内部客户端
      * @param transactionQueryService 商户交易只读查询服务
+     * @param shardingProperties 交易查询和同步导出资源预算
+     * @param exportConcurrencyLimiter 跨实例商户账号导出并发租约
      */
     public MerchantTransactionApplicationService(PaymentInternalClient paymentInternalClient,
-                                                 MerchantTransactionQueryService transactionQueryService) {
+                                                  MerchantTransactionQueryService transactionQueryService,
+                                                  TransactionShardingProperties shardingProperties,
+                                                  RedisConcurrencyLimiter exportConcurrencyLimiter) {
         this.paymentInternalClient = paymentInternalClient;
         this.transactionQueryService = transactionQueryService;
+        this.shardingProperties = shardingProperties;
+        this.exportConcurrencyLimiter = exportConcurrencyLimiter;
     }
 
     /**
@@ -263,19 +275,20 @@ public class MerchantTransactionApplicationService {
      * @param response   HTTP 响应
      */
     public void exportOrders(String merchantId, TransactionPageQuery query, String operator, HttpServletResponse response) {
-        List<TransactionOperationResponse> rows = loadAllOperations(merchantId, query);
-        String fileName = "merchant_transaction_operations_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()) + ".csv";
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.setContentType("text/csv;charset=UTF-8");
-        response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-        response.setHeader("Content-Disposition", "attachment;filename*=utf-8''"
-                + URLEncoder.encode(fileName, StandardCharsets.UTF_8));
-        try (PrintWriter writer = response.getWriter()) {
-            writer.write(UTF8_BOM);
-            writer.println("操作人," + csv(operator));
-            writer.println("导出时间," + csv(LocalDateTime.now()));
-            writer.println();
-            writer.println(String.join(",",
+        runExport(merchantId, operator, () -> {
+            List<TransactionOperationResponse> rows = loadAllOperations(merchantId, query);
+            String fileName = "merchant_transaction_operations_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()) + ".csv";
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            response.setContentType("text/csv;charset=UTF-8");
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            response.setHeader("Content-Disposition", "attachment;filename*=utf-8''"
+                    + URLEncoder.encode(fileName, StandardCharsets.UTF_8));
+            try (PrintWriter writer = response.getWriter()) {
+                writer.write(UTF8_BOM);
+                writer.println("操作人," + csv(operator));
+                writer.println("导出时间," + csv(LocalDateTime.now()));
+                writer.println();
+                writer.println(String.join(",",
                     "系统订单号",
                     "原系统订单号",
                     "商户订单号",
@@ -302,11 +315,12 @@ public class MerchantTransactionApplicationService {
                     "对账状态",
                     "动作时间",
                     "交易时间"
-            ));
-            rows.forEach(row -> writer.println(toOperationCsvLine(row)));
-        } catch (IOException exception) {
-            throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "export merchant transactions failed");
-        }
+                ));
+                rows.forEach(row -> writer.println(toOperationCsvLine(row)));
+            } catch (IOException exception) {
+                throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "export merchant transactions failed");
+            }
+        });
     }
 
     /**
@@ -343,7 +357,7 @@ public class MerchantTransactionApplicationService {
     private List<TransactionOperationResponse> loadAllOperations(String merchantId, TransactionPageQuery sourceQuery) {
         TransactionPageQuery query = merchantScopedQuery(merchantId, sourceQuery);
         query.setPageNo(1);
-        query.setPageSize(EXPORT_PAGE_SIZE);
+        query.setPageSize(exportPageSize());
         PageResult<TransactionOperationResponse> firstPage = transactionQueryService.searchOperations(query).getPage();
         ensureExportSize(firstPage.getTotal());
         List<TransactionOperationResponse> rows = new ArrayList<>(firstPage.getRecords());
@@ -368,9 +382,41 @@ public class MerchantTransactionApplicationService {
      * @param total total 输入值，参与 total 的查询、校验、转换、写入或日志摘要
      */
     private void ensureExportSize(long total) {
-        if (total > MAX_SYNC_EXPORT_ROWS) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID, "export result exceeds " + MAX_SYNC_EXPORT_ROWS + " rows, please narrow the query range");
+        int maxRows = shardingProperties.getQueryBudget().getMaxResultRows();
+        if (total > maxRows) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID,
+                    "export result exceeds " + maxRows + " rows, please use asynchronous export");
         }
+    }
+
+    /** @return 同步导出单次分页大小，不超过规则声明的结果行数上限 */
+    private int exportPageSize() {
+        return Math.min(EXPORT_PAGE_SIZE, shardingProperties.getQueryBudget().getMaxResultRows());
+    }
+
+    /** 在同一商户账号的集群级并发预算内执行一次同步交易导出。 */
+    private void runExport(String merchantId, String operator, Runnable action) {
+        boolean acquired = exportConcurrencyLimiter.execute(
+                "transaction",
+                "merchant-export",
+                exportIdentity(merchantId, operator),
+                shardingProperties.getQueryBudget().getMaxConcurrentExportsPerUser(),
+                EXPORT_LEASE_TIME,
+                action
+        );
+        if (!acquired) {
+            throw new ApiException(ApiResultEnum.TOO_MANY_REQUESTS,
+                    "another transaction export is already running");
+        }
+    }
+
+    /** 返回商户与账号组合身份；Redis Key 构造器只保存该值的 SHA-256 摘要。 */
+    private String exportIdentity(String merchantId, String operator) {
+        InternalAuthAccount account = InternalAuthContextHolder.get();
+        String accountIdentity = account != null && account.getAccountId() != null
+                ? account.getAccountId().toString()
+                : (StringUtils.hasText(operator) ? operator : "unknown");
+        return "merchant-account:" + merchantId + ":" + accountIdentity;
     }
 
     /**

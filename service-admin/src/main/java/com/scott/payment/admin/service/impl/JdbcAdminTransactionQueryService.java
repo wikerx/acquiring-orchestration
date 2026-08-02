@@ -1,6 +1,5 @@
 package com.scott.payment.admin.service.impl;
 
-import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelCallbackQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.ChannelLogQuery;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
@@ -23,12 +22,20 @@ import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
 import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
+import com.scott.payment.component.db.sharding.TransactionQueryJdbcTemplateFactory;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import javax.sql.DataSource;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -45,6 +52,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * @author : scott
@@ -52,11 +60,13 @@ import java.util.Set;
  * @classname : JdbcAdminTransactionQueryService
  * @date : 2026-07-21 00:00
  * @email : scott_x@163.com
- * @description : 管理后台交易 JDBC 只读查询实现，位于 service-admin 服务实现层，按公共分表组件解析物理表并读取备库。
+ * @description : 管理后台交易只读查询实现，按服务模式隔离 Legacy 物理路径与 ShardingSphere 逻辑表路径，并统一执行路由和查询预算。
  * @status : create
  */
 @Service
 public class JdbcAdminTransactionQueryService implements AdminTransactionQueryService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(JdbcAdminTransactionQueryService.class);
 
     /**
      * TRANSACTION ORDER TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易订单table 相关的业务属性。
@@ -220,6 +230,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      */
     private final TransactionShardingKeyParser transactionShardingKeyParser;
 
+    /** 当前实例交易分片模式，用于隔离 Legacy 物理路径和 ShardingSphere 逻辑表路径。 */
+    private final TransactionShardingRuntimeState transactionShardingRuntimeState;
+
+    /** 在 transaction 逻辑数据源上执行普通读、强一致读和 COMPARE 影子读。 */
+    private final TransactionLogicalReadExecutor transactionLogicalReadExecutor;
+    /** 单次同步查询允许返回的最大记录数。 */
+    private final int maxResultRows;
+
     /**
      * 风控审计时间轴查询服务。
      */
@@ -240,10 +258,82 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                                             ShardingDataTemplate shardingDataTemplate,
                                             TransactionShardingKeyParser transactionShardingKeyParser,
                                             AdminRiskTimelineQueryService riskTimelineQueryService) {
+        this(jdbcTemplate, shardingDataTemplate, transactionShardingKeyParser, riskTimelineQueryService,
+                new TransactionShardingRuntimeState(), new TransactionLogicalReadExecutor(),
+                new TransactionShardingProperties());
+    }
+
+    /**
+     * 创建支持 ShardingSphere 逻辑表切换的管理端交易查询服务。
+     *
+     * @param jdbcTemplate 命名参数 JDBC 模板
+     * @param shardingDataTemplate Legacy 分表数据访问入口
+     * @param transactionShardingKeyParser 交易分片键解析器
+     * @param riskTimelineQueryService 风控时间轴查询服务
+     * @param transactionShardingRuntimeState 当前实例交易分片模式
+     * @param transactionLogicalReadExecutor 交易逻辑数据源只读执行器
+     */
+    public JdbcAdminTransactionQueryService(NamedParameterJdbcTemplate jdbcTemplate,
+                                            ShardingDataTemplate shardingDataTemplate,
+                                            TransactionShardingKeyParser transactionShardingKeyParser,
+                                            AdminRiskTimelineQueryService riskTimelineQueryService,
+                                            TransactionShardingRuntimeState transactionShardingRuntimeState,
+                                            TransactionLogicalReadExecutor transactionLogicalReadExecutor) {
+        this(jdbcTemplate, shardingDataTemplate, transactionShardingKeyParser, riskTimelineQueryService,
+                transactionShardingRuntimeState, transactionLogicalReadExecutor, new TransactionShardingProperties());
+    }
+
+    /**
+     * 创建生产环境管理端交易查询服务，并为每条 JDBC Statement 应用同步查询超时。
+     *
+     * @param dataSource dynamic-datasource 外层路由数据源
+     * @param shardingDataTemplate Legacy 分表数据访问入口
+     * @param transactionShardingKeyParser 交易分片键解析器
+     * @param riskTimelineQueryService 风控时间轴查询服务
+     * @param transactionShardingRuntimeState 当前实例交易分片模式
+     * @param transactionLogicalReadExecutor 交易逻辑数据源只读执行器
+     * @param shardingProperties 查询资源预算配置
+     * @param queryJdbcTemplateFactory 查询专用 JDBC 模板工厂
+     */
+    @Autowired
+    public JdbcAdminTransactionQueryService(DataSource dataSource,
+                                            ShardingDataTemplate shardingDataTemplate,
+                                            TransactionShardingKeyParser transactionShardingKeyParser,
+                                            AdminRiskTimelineQueryService riskTimelineQueryService,
+                                            TransactionShardingRuntimeState transactionShardingRuntimeState,
+                                            TransactionLogicalReadExecutor transactionLogicalReadExecutor,
+                                            TransactionShardingProperties shardingProperties,
+                                            TransactionQueryJdbcTemplateFactory queryJdbcTemplateFactory) {
+        this(queryJdbcTemplateFactory.create(dataSource, shardingProperties),
+                shardingDataTemplate, transactionShardingKeyParser, riskTimelineQueryService,
+                transactionShardingRuntimeState, transactionLogicalReadExecutor, shardingProperties);
+    }
+
+    /**
+     * 创建同时执行逻辑路由和结果行数预算的管理端交易查询服务。
+     *
+     * @param jdbcTemplate 命名参数 JDBC 模板
+     * @param shardingDataTemplate Legacy 分表数据访问入口
+     * @param transactionShardingKeyParser 交易分片键解析器
+     * @param riskTimelineQueryService 风控时间轴查询服务
+     * @param transactionShardingRuntimeState 当前实例交易分片模式
+     * @param transactionLogicalReadExecutor 交易逻辑数据源只读执行器
+     * @param shardingProperties 查询资源预算配置
+     */
+    public JdbcAdminTransactionQueryService(NamedParameterJdbcTemplate jdbcTemplate,
+                                            ShardingDataTemplate shardingDataTemplate,
+                                            TransactionShardingKeyParser transactionShardingKeyParser,
+                                            AdminRiskTimelineQueryService riskTimelineQueryService,
+                                            TransactionShardingRuntimeState transactionShardingRuntimeState,
+                                            TransactionLogicalReadExecutor transactionLogicalReadExecutor,
+                                            TransactionShardingProperties shardingProperties) {
         this.jdbcTemplate = jdbcTemplate;
         this.shardingDataTemplate = shardingDataTemplate;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
         this.riskTimelineQueryService = riskTimelineQueryService;
+        this.transactionShardingRuntimeState = transactionShardingRuntimeState;
+        this.transactionLogicalReadExecutor = transactionLogicalReadExecutor;
+        this.maxResultRows = shardingProperties.getQueryBudget().getMaxResultRows();
     }
 
     /**
@@ -255,9 +345,18 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 跨物理表合并后的交易主单分页结果
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
+        return executeRead("admin.pageOrders", false, () -> pageOrdersNormalized(safeQuery));
+    }
+
+    /**
+     * 在已归一化时间范围内执行逻辑表或 Legacy 物理表分页，并保持全局 offset 语义。
+     *
+     * @param safeQuery 已校验页码、页大小和 transaction_date_time 范围的查询
+     * @return 全季度总数和当前页记录
+     */
+    private PageResult<TransactionOrderResponse> pageOrdersNormalized(TransactionPageQuery safeQuery) {
         long total = 0L;
         long offset = offset(safeQuery);
         long limit = safeQuery.safePageSize();
@@ -282,9 +381,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 跨物理表合并后的操作单分页结果
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
-        return pageOperationsNormalized(normalize(query));
+        TransactionPageQuery safeQuery = normalize(query);
+        return executeRead("admin.pageOperations", false, () -> pageOperationsNormalized(safeQuery));
     }
 
     /**
@@ -294,13 +393,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 操作单分页数据与汇总信息
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
-        TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
-        response.setPage(pageOperationsNormalized(safeQuery));
-        response.setSummary(operationSummary(safeQuery));
-        return response;
+        return executeRead("admin.searchOperations", false, () -> {
+            TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
+            response.setPage(pageOperationsNormalized(safeQuery));
+            response.setSummary(operationSummary(safeQuery));
+            return response;
+        });
     }
 
     /**
@@ -313,7 +413,6 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 管理端交易聚合详情
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public TransactionDetailResponse detail(String transactionId) {
         if (!StringUtils.hasText(transactionId)) {
             throw new ApiException(ApiResultEnum.PARAM_INVALID);
@@ -322,8 +421,20 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         if (transactionDateTime == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
         }
+        return executeRead("admin.detail", true,
+                () -> detailNormalized(transactionId, transactionDateTime));
+    }
+
+    /**
+     * 在强一致读作用域内按交易分片时间装配详情，避免回调后立即查询读到副本旧状态。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 从交易号恢复的分片时间
+     * @return 主单、动作单和时间线聚合详情
+     */
+    private TransactionDetailResponse detailNormalized(String transactionId, LocalDateTime transactionDateTime) {
         TransactionOperationResponse sourceOperation = selectOperationByTransactionId(
-                physicalTable(TRANSACTION_OPERATION_TABLE, transactionDateTime), transactionId);
+                physicalTable(TRANSACTION_OPERATION_TABLE, transactionDateTime), transactionId, transactionDateTime);
         if (sourceOperation == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -331,7 +442,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         if (orderTime == null) {
             orderTime = sourceOperation.getTransactionDateTime();
         }
-        TransactionOrderResponse order = selectOrderByOperationId(physicalTable(TRANSACTION_ORDER_TABLE, orderTime), sourceOperation.getOperationId());
+        TransactionOrderResponse order = selectOrderByOperationId(
+                physicalTable(TRANSACTION_ORDER_TABLE, orderTime), sourceOperation.getOperationId(), orderTime);
         if (order == null) {
             throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -366,10 +478,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 渠道交互日志分页结果
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageChannelLogs(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = normalize(query);
-        return pageChannelLogsNormalized(safeQuery);
+        return executeRead("admin.pageChannelLogs", false, () -> pageChannelLogsNormalized(safeQuery));
     }
 
     /**
@@ -379,10 +490,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 跨物理表合并后的渠道回调分页结果
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageChannelCallbacks(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = normalize(query);
-        return pageMaps(TRANSACTION_CHANNEL_CALLBACK_TABLE, channelCallbackWhereSql(safeQuery), channelCallbackParams(safeQuery), safeQuery);
+        return executeRead("admin.pageChannelCallbacks", false,
+                () -> pageMaps(TRANSACTION_CHANNEL_CALLBACK_TABLE, channelCallbackWhereSql(safeQuery),
+                        channelCallbackParams(safeQuery), safeQuery));
     }
 
     /**
@@ -392,10 +504,11 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 跨物理表合并后的商户通知分页结果
      */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = normalize(query);
-        return pageMaps(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, merchantNotificationWhereSql(safeQuery), merchantNotificationParams(safeQuery), safeQuery);
+        return executeRead("admin.pageMerchantNotifications", false,
+                () -> pageMaps(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, merchantNotificationWhereSql(safeQuery),
+                        merchantNotificationParams(safeQuery), safeQuery));
     }
 
     /**
@@ -578,7 +691,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 LEFT JOIN %s r ON r.request_id = l.request_id AND r.deleted = 0
                 LEFT JOIN %s o ON o.transaction_id = l.transaction_id AND o.deleted = 0
                 WHERE l.transaction_date_time >= :beginTime
-                  AND l.transaction_date_time <= :endTime
+                  AND l.transaction_date_time < :endTime
                 %s
                 """.formatted(table, requestTable, operationTable, channelLogWhereSql(query)), channelLogParams(query), Long.class);
         return count == null ? 0L : count;
@@ -627,7 +740,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                 LEFT JOIN %s r ON r.request_id = l.request_id AND r.deleted = 0
                 LEFT JOIN %s o ON o.transaction_id = l.transaction_id AND o.deleted = 0
                 WHERE l.transaction_date_time >= :beginTime
-                  AND l.transaction_date_time <= :endTime
+                  AND l.transaction_date_time < :endTime
                 %s
                 ORDER BY l.interaction_time DESC, l.id DESC
                 LIMIT :offset, :limit
@@ -774,7 +887,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String orderWhereSql(TransactionPageQuery query) {
-        StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time <= :endTime");
+        StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND merchant_id = :merchantId");
         append(sql, query.getMerchantOrderNo(), "AND merchant_order_no = :merchantOrderNo");
         append(sql, query.getTransactionId(), "AND (root_transaction_id = :transactionId OR latest_transaction_id = :transactionId)");
@@ -802,7 +915,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String operationWhereSql(TransactionPageQuery query, String paymentTable) {
-        StringBuilder sql = new StringBuilder(" AND o.transaction_date_time >= :beginTime AND o.transaction_date_time <= :endTime");
+        StringBuilder sql = new StringBuilder(" AND o.transaction_date_time >= :beginTime AND o.transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND o.merchant_id = :merchantId");
         append(sql, query.getMerchantOrderNo(), "AND o.merchant_order_no = :merchantOrderNo");
         append(sql, query.getTransactionId(), "AND o.transaction_id = :transactionId");
@@ -869,7 +982,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String channelCallbackWhereSql(ChannelCallbackQuery query) {
-        StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time <= :endTime");
+        StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getChannelCode(), "AND channel_code = :channelCode");
         append(sql, query.getTransactionId(), "AND transaction_id = :transactionId");
         append(sql, query.getChannelOrderNo(), "AND channel_order_no = :channelOrderNo");
@@ -889,7 +1002,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String merchantNotificationWhereSql(MerchantNotificationQuery query) {
-        StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time <= :endTime");
+        StringBuilder sql = new StringBuilder(" AND transaction_date_time >= :beginTime AND transaction_date_time < :endTime");
         append(sql, query.getMerchantId(), "AND merchant_id = :merchantId");
         append(sql, query.getTransactionId(), "AND transaction_id = :transactionId");
         append(sql, query.getNotifyStatus(), "AND notify_status = :notifyStatus");
@@ -1025,7 +1138,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private MapSqlParameterSource baseParams(LocalDateTime beginTime, LocalDateTime endTime) {
-        return new MapSqlParameterSource().addValue("beginTime", beginTime).addValue("endTime", endTime);
+        return new MapSqlParameterSource().addValue("beginTime", beginTime).addValue("endTime", exclusiveEnd(endTime));
     }
 
     /**
@@ -1042,7 +1155,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         TransactionPageQuery safeQuery = query == null ? new TransactionPageQuery() : query;
         fillDefaultTimeRange(safeQuery);
         normalizeMerchantResponseCode(safeQuery);
-        return safeQuery;
+        return applyResultRowBudget(safeQuery);
     }
 
     /**
@@ -1061,7 +1174,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         safeQuery.setBeginTime(range.beginTime());
         safeQuery.setEndTime(range.endTime());
         safeQuery.setQueryTimeZone(range.queryTimeZone());
-        return safeQuery;
+        return applyResultRowBudget(safeQuery);
     }
 
     /**
@@ -1080,7 +1193,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         safeQuery.setBeginTime(range.beginTime());
         safeQuery.setEndTime(range.endTime());
         safeQuery.setQueryTimeZone(range.queryTimeZone());
-        return safeQuery;
+        return applyResultRowBudget(safeQuery);
     }
 
     /**
@@ -1099,7 +1212,13 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         safeQuery.setBeginTime(range.beginTime());
         safeQuery.setEndTime(range.endTime());
         safeQuery.setQueryTimeZone(range.queryTimeZone());
-        return safeQuery;
+        return applyResultRowBudget(safeQuery);
+    }
+
+    /** 将所有管理端交易分页请求收敛到版本化规则声明的单次结果行数上限。 */
+    private <T extends PageRequest> T applyResultRowBudget(T query) {
+        query.setPageSize((int) Math.min(query.safePageSize(), maxResultRows));
+        return query;
     }
 
     /**
@@ -1411,7 +1530,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private TransactionOperationResponse selectOperationByTransactionId(String table, String transactionId) {
+    private TransactionOperationResponse selectOperationByTransactionId(String table,
+                                                                         String transactionId,
+                                                                         LocalDateTime transactionDateTime) {
         List<TransactionOperationResponse> rows = jdbcTemplate.query("""
                 SELECT o.*,
                        p.payment_method AS joined_payment_method,
@@ -1420,10 +1541,14 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                        p.card_number_masked AS joined_card_number_masked
                 FROM %s o
                 LEFT JOIN %s p ON p.transaction_id = o.transaction_id AND p.transaction_date_time = o.transaction_date_time
-                WHERE o.deleted = 0 AND o.transaction_id = :transactionId
+                WHERE o.deleted = 0
+                  AND o.transaction_id = :transactionId
+                  AND o.transaction_date_time = :transactionDateTime
                 LIMIT 1
                 """.formatted(table, paymentInfoTableForOperationTable(table)),
-                new MapSqlParameterSource("transactionId", transactionId), operationMapper(true));
+                new MapSqlParameterSource()
+                        .addValue("transactionId", transactionId)
+                        .addValue("transactionDateTime", transactionDateTime), operationMapper(true));
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -1438,13 +1563,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private TransactionOrderResponse selectOrderByOperationId(String table, String operationId) {
+    private TransactionOrderResponse selectOrderByOperationId(String table,
+                                                               String operationId,
+                                                               LocalDateTime transactionDateTime) {
         List<TransactionOrderResponse> rows = jdbcTemplate.query("""
                 SELECT *
                 FROM %s
-                WHERE deleted = 0 AND operation_id = :operationId
+                WHERE deleted = 0
+                  AND operation_id = :operationId
+                  AND transaction_date_time = :transactionDateTime
                 LIMIT 1
-                """.formatted(table), new MapSqlParameterSource("operationId", operationId), orderMapper());
+                """.formatted(table), new MapSqlParameterSource()
+                .addValue("operationId", operationId)
+                .addValue("transactionDateTime", transactionDateTime), orderMapper());
         return rows.isEmpty() ? null : rows.get(0);
     }
 
@@ -1471,10 +1602,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                            p.card_number_masked AS joined_card_number_masked
                     FROM %s o
                     LEFT JOIN %s p ON p.transaction_id = o.transaction_id AND p.transaction_date_time = o.transaction_date_time
-                    WHERE o.deleted = 0 AND o.operation_id = :operationId
+                    WHERE o.deleted = 0
+                      AND o.operation_id = :operationId
+                      AND o.transaction_date_time >= :beginTime
+                      AND o.transaction_date_time < :endTime
                     ORDER BY o.operation_sequence ASC, o.operation_time ASC
                     """.formatted(table, paymentInfoTableForOperationTable(table)),
-                    new MapSqlParameterSource("operationId", operationId), operationMapper(true)));
+                    new MapSqlParameterSource()
+                            .addValue("operationId", operationId)
+                            .addValue("beginTime", beginTime)
+                            .addValue("endTime", exclusiveEnd(endTime)), operationMapper(true)));
         }
         return rows;
     }
@@ -1503,7 +1640,7 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                     WHERE %s
                       AND operation_id = :operationId
                       AND transaction_date_time >= :beginTime
-                      AND transaction_date_time <= :endTime
+                      AND transaction_date_time < :endTime
                     ORDER BY transaction_date_time ASC, id ASC
                     """.formatted(table, softDeleteCondition(softDeleteTable)),
                     params)));
@@ -1544,6 +1681,9 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
+        if (useLogicalTables()) {
+            return logicalTable;
+        }
         return shardingDataTemplate.resolvePhysicalTable(
                 ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.SLAVE));
     }
@@ -1561,8 +1701,53 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     private List<String> physicalTablesInRange(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
+        if (useLogicalTables()) {
+            return List.of(logicalTable);
+        }
         return shardingDataTemplate.resolvePhysicalTables(
                 ShardingRangeTableContext.of(logicalTable, beginTime, endTime, DataSourceName.SLAVE));
+    }
+
+    /** 判断当前读路径是否已切换为 ShardingSphere 逻辑表查询。 */
+    private boolean useLogicalTables() {
+        return transactionShardingRuntimeState.isShardingWriteEnabled()
+                || transactionLogicalReadExecutor.isLogicalRouteActive();
+    }
+
+    /**
+     * 按服务级模式执行 Legacy、COMPARE 或 ShardingSphere 只读查询。
+     * COMPARE 始终返回 Legacy 结果，影子结果只记录不含业务数据的差异事件。
+     */
+    private <T> T executeRead(String queryName, boolean primaryOnly, Supplier<T> query) {
+        if (transactionShardingRuntimeState.isShardingWriteEnabled()) {
+            return logicalRead(primaryOnly, query);
+        }
+        T legacyResult = query.get();
+        if (!transactionShardingRuntimeState.isReadComparisonEnabled()) {
+            return legacyResult;
+        }
+        try {
+            T logicalResult = logicalRead(true, query);
+            if (!Objects.equals(legacyResult, logicalResult)) {
+                LOGGER.warn("event: ADMIN_TRANSACTION_SHARDING_COMPARE_MISMATCH query: {}", queryName);
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn("event: ADMIN_TRANSACTION_SHARDING_COMPARE_FAILED query: {} exceptionType: {}",
+                    queryName, exception.getClass().getSimpleName());
+        }
+        return legacyResult;
+    }
+
+    private <T> T logicalRead(boolean primaryOnly, Supplier<T> query) {
+        return primaryOnly
+                ? transactionLogicalReadExecutor.readPrimary(query)
+                : transactionLogicalReadExecutor.read(query);
+    }
+
+    /** 将包含式结束时间转换为 MySQL DATETIME(3) 半开区间上界。 */
+    private LocalDateTime exclusiveEnd(LocalDateTime endTime) {
+        LocalDateTime actualEnd = endTime == null ? LocalDateTime.now() : endTime;
+        return actualEnd.plusNanos(1_000_000L);
     }
 
     /**

@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -18,6 +19,72 @@ import java.util.List;
  * @status : create
  */
 public interface TransactionFlowEventMapper extends BaseMapper<TransactionFlowEventDO> {
+
+    /**
+     * 写入交易流程事件逻辑表。
+     *
+     * @param eventDO 流程事件
+     * @return 影响行数
+     */
+    @Insert("""
+            INSERT INTO transaction_flow_event
+            (
+              flow_event_id, transaction_id, operation_id, event_type, event_stage, event_status,
+              event_name, event_content, previous_status, current_status, operator_type, operator_id,
+              reference_type, reference_id, error_code, error_message, event_time, transaction_date_time,
+              transaction_utc_time, transaction_time_zone, create_time
+            )
+            VALUES
+            (
+              #{eventDO.flowEventId}, #{eventDO.transactionId}, #{eventDO.operationId},
+              #{eventDO.eventType}, #{eventDO.eventStage}, #{eventDO.eventStatus},
+              #{eventDO.eventName}, #{eventDO.eventContent}, #{eventDO.previousStatus},
+              #{eventDO.currentStatus}, #{eventDO.operatorType}, #{eventDO.operatorId},
+              #{eventDO.referenceType}, #{eventDO.referenceId}, #{eventDO.errorCode},
+              #{eventDO.errorMessage}, #{eventDO.eventTime}, #{eventDO.transactionDateTime},
+              #{eventDO.transactionUtcTime}, #{eventDO.transactionTimeZone}, #{eventDO.createTime}
+            )
+            """)
+    int insertLogical(@Param("eventDO") TransactionFlowEventDO eventDO);
+
+    /**
+     * 按交易 ID 和精确分片时间查询流程事件。
+     *
+     * @param transactionId 平台当前交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @return 流程事件列表
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_flow_event
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+            ORDER BY event_time ASC, id ASC
+            LIMIT 200
+            """)
+    List<TransactionFlowEventDO> selectByTransactionId(@Param("transactionId") String transactionId,
+                                                       @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
+     * 按生命周期和半开交易时间范围查询流程事件。
+     *
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 流程事件列表
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_flow_event
+            WHERE operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+            ORDER BY event_time ASC, id ASC
+            LIMIT 500
+            """)
+    List<TransactionFlowEventDO> selectByOperationId(@Param("operationId") String operationId,
+                                                     @Param("beginTime") LocalDateTime beginTime,
+                                                     @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
      * 写入交易流程事件物理分表。

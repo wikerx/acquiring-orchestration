@@ -9,6 +9,9 @@ import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
 import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.component.db.sharding.TransactionShardingMode;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
@@ -145,6 +148,188 @@ class DefaultTransactionRecordServiceTests {
         assertThat(paymentInfoCapture.value.getCardNumberMasked()).doesNotContain("5123456789010008");
         assertThat(paymentInfoCapture.value.getPaymentAccountHash()).isNotBlank();
         verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
+        verify(orderMapper, never()).insert(any(TransactionOrderDO.class));
+        verify(operationMapper, never()).insert(any(TransactionOperationDO.class));
+        verify(historyMapper, never()).insertLogical(any(TransactionStatusHistoryDO.class));
+        verify(paymentMethodInfoMapper, never()).insertLogical(any(TransactionPaymentMethodInfoDO.class));
+    }
+
+    /**
+     * ShardingSphere 单写模式应将首次交易全表族交给逻辑 Mapper，禁止回退到动态物理表 SQL。
+     */
+    @Test
+    void shouldRecordInitialTransactionTableFamilyThroughLogicalMappers() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionChannelRequestMapper channelRequestMapper = mock(TransactionChannelRequestMapper.class);
+        TransactionChannelInteractionLogMapper interactionLogMapper = mock(TransactionChannelInteractionLogMapper.class);
+        TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        TransactionMerchantApiInteractionLogMapper merchantApiLogMapper = mock(TransactionMerchantApiInteractionLogMapper.class);
+        TransactionPaymentMethodInfoMapper paymentMethodInfoMapper = mock(TransactionPaymentMethodInfoMapper.class);
+        TransactionShardingProperties properties = logicalShardingProperties();
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                channelRequestMapper,
+                interactionLogMapper,
+                flowEventMapper,
+                mock(TransactionAmountChangeLogMapper.class),
+                notificationMapper,
+                merchantApiLogMapper,
+                paymentMethodInfoMapper,
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                shardingSphereRuntimeState(properties),
+                properties);
+        PaymentCreateCommandDTO commandDTO = baseCommand();
+        commandDTO.setMerchantRequestPlainJsonMasked("{\"orderNo\":\"M202607140001\"}");
+        commandDTO.setCallbackUrl("https://merchant.example/callback");
+
+        recordService.recordInitialTransaction(
+                commandDTO, routeResult(), channelInvokeResult(), resultDTO(), PaymentRiskDecisionEnum.PASS, 2);
+
+        verify(orderMapper).insert(any(TransactionOrderDO.class));
+        verify(operationMapper).insert(any(TransactionOperationDO.class));
+        verify(historyMapper, times(2)).insertLogical(any(TransactionStatusHistoryDO.class));
+        verify(channelRequestMapper).insertLogical(any(TransactionChannelRequestDO.class));
+        verify(interactionLogMapper).insertLogical(any(TransactionChannelInteractionLogDO.class));
+        verify(flowEventMapper, times(5)).insertLogical(any(TransactionFlowEventDO.class));
+        verify(paymentMethodInfoMapper).insertLogical(any(TransactionPaymentMethodInfoDO.class));
+        verify(merchantApiLogMapper).insertLogical(any(TransactionMerchantApiInteractionLogDO.class));
+        verify(notificationMapper).insertLogical(any(TransactionMerchantNotificationDO.class));
+        verify(orderMapper, never()).insertPhysical(anyString(), any(TransactionOrderDO.class));
+        verify(operationMapper, never()).insertPhysical(anyString(), any(TransactionOperationDO.class));
+        verify(historyMapper, never()).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
+        verify(channelRequestMapper, never()).insertPhysical(anyString(), any(TransactionChannelRequestDO.class));
+        verify(interactionLogMapper, never()).insertPhysical(anyString(), any(TransactionChannelInteractionLogDO.class));
+        verify(flowEventMapper, never()).insertPhysical(anyString(), any(TransactionFlowEventDO.class));
+        verify(paymentMethodInfoMapper, never()).insertPhysical(anyString(), any(TransactionPaymentMethodInfoDO.class));
+        verify(merchantApiLogMapper, never()).insertPhysical(anyString(), any(TransactionMerchantApiInteractionLogDO.class));
+        verify(notificationMapper, never()).insertPhysical(anyString(), any(TransactionMerchantNotificationDO.class));
+    }
+
+    /**
+     * 锁查询必须携带精确交易分片时间，确保 FOR UPDATE 只路由到一个季度节点。
+     */
+    @Test
+    void shouldLockOrderThroughSingleLogicalShard() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
+        TransactionOrderDO orderDO = processingInitialOrder();
+        when(orderMapper.selectByOperationIdForUpdate("OP202607010030000000001", transactionDateTime))
+                .thenReturn(orderDO);
+        TransactionShardingProperties properties = logicalShardingProperties();
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                mock(TransactionOperationMapper.class),
+                mock(TransactionStatusHistoryMapper.class),
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                mock(TransactionMerchantNotificationMapper.class),
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                shardingSphereRuntimeState(properties),
+                properties);
+
+        TransactionOrderDO locked = recordService.lockOrder(
+                transactionDateTime, "OP202607010030000000001");
+
+        assertThat(locked).isSameAs(orderDO);
+        verify(orderMapper).selectByOperationIdForUpdate("OP202607010030000000001", transactionDateTime);
+        verify(orderMapper, never()).selectByOperationIdForUpdatePhysical(
+                anyString(), anyString());
+    }
+
+    /**
+     * 回调终态推进必须在逻辑表上同时保护动作版本、主单版本和通知初始版本。
+     */
+    @Test
+    void shouldCompleteCallbackWithLogicalOperationOrderAndNotificationCas() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionFlowEventMapper flowEventMapper = mock(TransactionFlowEventMapper.class);
+        TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
+        when(operationMapper.completeStatus(any(), any(), any(), anyString(), anyString(), any(), any(),
+                any(), any(), any(), any(), any(), any(), anyString())).thenReturn(1);
+        when(orderMapper.markInitialSuccess(anyString(), any(), anyString(), any(BigDecimal.class), any(), anyString()))
+                .thenReturn(1);
+        when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
+        when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenReturn(1);
+        when(notificationMapper.activateByTransactionId(anyString(), any(), any(), anyString(), any(), any()))
+                .thenReturn(1);
+        TransactionShardingProperties properties = logicalShardingProperties();
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                flowEventMapper,
+                mock(TransactionAmountChangeLogMapper.class),
+                notificationMapper,
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                shardingSphereRuntimeState(properties),
+                properties);
+
+        boolean changed = recordService.completeByChannelCallback(
+                processingInitialOperation(),
+                processingInitialOrder(),
+                "CCB202607010030000000001",
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                null,
+                null,
+                "AUTHORIZED",
+                "00",
+                "Approved");
+
+        assertThat(changed).isTrue();
+        verify(operationMapper).completeStatus(
+                11L,
+                transactionDateTime,
+                0,
+                PaymentTransactionStatusEnum.SUCCESS.getCode(),
+                PaymentProcessStageEnum.FINISHED.getCode(),
+                null,
+                null,
+                "AUTHORIZED",
+                "00",
+                "Approved",
+                null,
+                null,
+                null,
+                "MATCHED");
+        verify(orderMapper).markInitialSuccess(
+                "OP202607010030000000001",
+                transactionDateTime,
+                "TX202607010030000000001",
+                new BigDecimal("12.34"),
+                0,
+                "MATCHED");
+        verify(notificationMapper).activateByTransactionId(
+                eq("TX202607010030000000001"),
+                eq(transactionDateTime),
+                eq(0),
+                anyString(),
+                any(LocalDateTime.class),
+                any(LocalDateTime.class));
+        verify(operationMapper, never()).completeStatusPhysical(
+                anyString(), any(), any(), anyString(), anyString(), any(), any(), any(), any(), any(), any(), any(), any(), anyString());
+        verify(orderMapper, never()).markInitialSuccessPhysical(
+                anyString(), anyString(), anyString(), any(BigDecimal.class), any(), anyString());
+        verify(notificationMapper, never()).activateByTransactionIdPhysical(
+                anyString(), anyString(), anyString(), any(), any());
     }
 
     /**
@@ -629,7 +814,7 @@ class DefaultTransactionRecordServiceTests {
                 "MATCHED");
         verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertPhysical(anyString(), any());
-        verify(notificationMapper).activateByTransactionId(anyString(), anyString(), anyString(), any(), any());
+        verify(notificationMapper).activateByTransactionIdPhysical(anyString(), anyString(), anyString(), any(), any());
     }
 
     /**
@@ -740,7 +925,7 @@ class DefaultTransactionRecordServiceTests {
                 "NOT_REQUIRED");
         verify(historyMapper, times(2)).insertPhysical(anyString(), any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertPhysical(anyString(), any(TransactionFlowEventDO.class));
-        verify(notificationMapper).activateByTransactionId(anyString(), anyString(), anyString(), any(), any());
+        verify(notificationMapper).activateByTransactionIdPhysical(anyString(), anyString(), anyString(), any(), any());
         verify(merchantApiLogMapper).updateFinalResultPhysical(
                 eq("transaction_merchant_api_interaction_log_202603"),
                 eq("202607010030000000001"),
@@ -1297,6 +1482,20 @@ class DefaultTransactionRecordServiceTests {
         properties.getTables().put("transaction_merchant_notification", tableRule("transaction_merchant_notification"));
         properties.getTables().put("transaction_merchant_api_interaction_log", tableRule("transaction_merchant_api_interaction_log"));
         return properties;
+    }
+
+    private TransactionShardingProperties logicalShardingProperties() {
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setMode(TransactionShardingMode.SHARDINGSPHERE);
+        properties.setPhysicalNodes(List.of("202603", "202604"));
+        return properties;
+    }
+
+    private TransactionShardingRuntimeState shardingSphereRuntimeState(
+            TransactionShardingProperties properties) {
+        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
+        runtimeState.activate(properties);
+        return runtimeState;
     }
 
     private ShardingDataTemplate shardingDataTemplate() {

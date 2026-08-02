@@ -5,9 +5,12 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.ShardingDataTemplate;
 import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
+import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mapper.TransactionEventOutboxMapper;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
+import com.baomidou.dynamic.datasource.annotation.DS;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -24,6 +27,7 @@ import java.util.List;
  * @status : create
  */
 @Service
+@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionEventOutboxService implements TransactionEventOutboxService {
 
     /**
@@ -42,15 +46,35 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     private final ShardingDataTemplate shardingDataTemplate;
 
     /**
+     * 当前实例交易分片模式。
+     */
+    private final TransactionShardingRuntimeState shardingRuntimeState;
+
+    /**
      * 创建交易本地消息服务默认实现。
      *
      * @param eventOutboxMapper  交易本地事件 Mapper
      * @param shardingDataTemplate 分表数据访问统一入口
      */
     public DefaultTransactionEventOutboxService(TransactionEventOutboxMapper eventOutboxMapper,
-                                               ShardingDataTemplate shardingDataTemplate) {
+                                                ShardingDataTemplate shardingDataTemplate) {
+        this(eventOutboxMapper, shardingDataTemplate, new TransactionShardingRuntimeState());
+    }
+
+    /**
+     * 创建支持受控单写切换的交易本地消息服务。
+     *
+     * @param eventOutboxMapper 交易本地事件 Mapper
+     * @param shardingDataTemplate Legacy 分表数据访问入口
+     * @param shardingRuntimeState 当前实例交易分片模式
+     */
+    @Autowired
+    public DefaultTransactionEventOutboxService(TransactionEventOutboxMapper eventOutboxMapper,
+                                                ShardingDataTemplate shardingDataTemplate,
+                                                TransactionShardingRuntimeState shardingRuntimeState) {
         this.eventOutboxMapper = eventOutboxMapper;
         this.shardingDataTemplate = shardingDataTemplate;
+        this.shardingRuntimeState = shardingRuntimeState;
     }
 
     /**
@@ -61,6 +85,10 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     @Override
     public void save(TransactionEventOutboxDO eventDO) {
         validateEvent(eventDO);
+        if (shardingRuntimeState.isShardingWriteEnabled()) {
+            requireSingleRow(eventOutboxMapper.insertLogical(eventDO));
+            return;
+        }
         shardingDataTemplate.insert(
                 shardingContext(eventDO.getTransactionDateTime()),
                 table -> eventOutboxMapper.insertPhysical(table, eventDO));
@@ -85,6 +113,11 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
         if (limit <= 0) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "limit must be greater than zero");
         }
+        if (shardingRuntimeState.isShardingWriteEnabled()) {
+            LocalDateTime beginTime = quarterBegin(eventTime);
+            return eventOutboxMapper.selectDueForPublishLogical(
+                    beginTime, beginTime.plusMonths(3), now, limit);
+        }
         return shardingDataTemplate.queryOne(
                 shardingContext(eventTime),
                 table -> eventOutboxMapper.selectDueForPublish(table, now, limit));
@@ -101,6 +134,10 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     public boolean markSent(TransactionEventOutboxDO eventDO, LocalDateTime sentTime) {
         validatePersistedEvent(eventDO);
         LocalDateTime actualSentTime = sentTime == null ? LocalDateTime.now() : sentTime;
+        if (shardingRuntimeState.isShardingWriteEnabled()) {
+            return eventOutboxMapper.markSentLogical(
+                    eventDO.getId(), eventDO.getTransactionDateTime(), eventDO.getVersion(), actualSentTime) == 1;
+        }
         return shardingDataTemplate.update(
                 shardingContext(eventDO.getTransactionDateTime()),
                 table -> eventOutboxMapper.markSent(
@@ -134,6 +171,15 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
             safeFailReason = safeFailReason.substring(0, 512);
         }
         String failureReasonForUpdate = safeFailReason;
+        if (shardingRuntimeState.isShardingWriteEnabled()) {
+            return eventOutboxMapper.markFailedLogical(
+                    eventDO.getId(),
+                    eventDO.getTransactionDateTime(),
+                    eventDO.getVersion(),
+                    nextRetryTime,
+                    failureReasonForUpdate,
+                    actualNow) == 1;
+        }
         return shardingDataTemplate.update(
                 shardingContext(eventDO.getTransactionDateTime()),
                 table -> eventOutboxMapper.markFailed(
@@ -175,6 +221,28 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     private void validatePersistedEvent(TransactionEventOutboxDO eventDO) {
         if (eventDO == null || eventDO.getId() == null || eventDO.getVersion() == null || eventDO.getTransactionDateTime() == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+    }
+
+    /**
+     * 计算事件所属季度的闭区间起点，供 due 查询同时携带分片谓词。
+     *
+     * @param transactionDateTime 事件分片时间
+     * @return 所属季度首日零点
+     */
+    private LocalDateTime quarterBegin(LocalDateTime transactionDateTime) {
+        int firstMonth = ((transactionDateTime.getMonthValue() - 1) / 3) * 3 + 1;
+        return LocalDateTime.of(transactionDateTime.getYear(), firstMonth, 1, 0, 0);
+    }
+
+    /**
+     * 强制 Outbox 插入只影响一行，避免事件丢失后主流程仍误判成功。
+     *
+     * @param affectedRows Mapper 返回的受影响行数
+     */
+    private void requireSingleRow(int affectedRows) {
+        if (affectedRows != 1) {
+            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "transaction outbox insert failed");
         }
     }
 

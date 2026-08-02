@@ -38,7 +38,7 @@ Nacos yaml 的职责边界：
 - `service-risk-{env}.yaml`：只放风控服务内部鉴权、健康检查白名单和服务专属规则参数；Redis 与 MQ 连接参数分别复用公共 DataId。
 - `service-data-{env}.yaml`：只放异步数据消费和商户通知执行参数；操作日志、风控审计和商户通知消费者均由该服务独占。
 - `dataSource-{env}.yaml`：主从数据源、连接池、MyBatis-Plus。
-- `sharding-{env}.yaml`：参与分表的逻辑表、分表字段、起始表、结束表和物理表命名格式。
+- `sharding-{env}.yaml`：共享的 Legacy 治理规则、ShardingSphere 逻辑拓扑和物理表治理规则；不保存服务级 `mode`。
 - `redis-{env}.yaml`、`rocketmq-{env}.yaml`、`seata-{env}.yaml`、`xxl-job-{env}.yaml`：对应中间件配置。
 
 ## Redis
@@ -55,11 +55,11 @@ Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis �
 
 | 组件 | 默认地址 | 默认账号 | 说明 |
 | --- | --- | --- | --- |
-| MySQL | `127.0.0.1:3306/payment_acquiring` | `root` | `master`、`slave_1`、`slave_2` 先指向同一个库，驱动使用 MySQL Connector/J 8.4.0，后续从库就绪后替换从库 URL。 |
-| Redis | `127.0.0.1:7001-7006` | 无用户名 | dev 使用 Redis 6.2.23 Cluster（3 Master + 3 Replica）、DB 0；密码通过 `REDIS_PASSWORD` 覆盖。 |
-| Nacos | `127.0.0.1:8848` | `nacos` | dev 默认 namespace ID 为 `324ad8dc-58d0-4d0d-b264-24a9f951a2b0`，对应命名空间 `dev`。 |
+| MySQL | `${MYSQL_ENDPOINT}` | 环境注入 | `master`、`slave_1`、`slave_2` 由环境安全配置提供，仓库文档不保存真实连接信息。 |
+| Redis | `${REDIS_ENDPOINTS}` | 环境注入 | 集群节点和认证信息由环境变量或受控配置中心提供。 |
+| Nacos | `${NACOS_ENDPOINT}` | 环境注入 | namespace、认证和网络边界由各环境独立配置。 |
 
-读请求如需走从库，可在 service 或 mapper 方法上使用 `@DS(DataSourceName.SLAVE)`；未声明时默认走 `master`。
+交易逻辑表统一选择 `transaction` 复合数据源，底层 primary/replica 路由由 ShardingSphere 管理；业务 Mapper 不得直接使用 `@DS(MASTER/SLAVE)`。非交易表的数据源边界继续按各服务现有配置管理。
 
 ## 数据库与分表
 
@@ -71,21 +71,22 @@ Redis 按集群模式配置，禁止在业务服务本地写死单节点 Redis �
 - `slave`：读库分组，负责查询、统计、报表等读请求。
 - `slave_1`、`slave_2`：当前 dev 默认都连接同一个 MySQL，生产环境按真实从库拆分。
 
-分表算法代码位置：
+交易分片与治理代码位置：
 
 ```text
-component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithm.java
-component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/PaymentQuarterShardingProperties.java
+component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/QuarterTableShardingAlgorithm.java
+component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/TransactionShardingProperties.java
+component-library/component-db/src/main/java/com/scott/payment/component/db/sharding/TransactionShardingGovernanceProperties.java
 ```
 
-`PaymentQuarterShardingProperties` 通过 `@ConfigurationProperties(prefix = "global-payment.sharding")` 绑定 Nacos 中的 `global-payment.sharding` 节点。
+业务路由绑定 `transaction-sharding`，物理表治理绑定 `transaction-sharding.governance`。旧 `global-payment.sharding` 只在灰度回滚窗口保留，不得继续作为新业务路由配置。
 
 测试入口位置：
 
 ```text
-component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/PaymentOrderShardingAlgorithmTest.java
-service-openapi/src/test/java/com/scott/payment/openapi/OpenApiApplicationTests.java
-service-openapi/src/test/java/com/scott/payment/openapi/MerchantOpenApiEndToEndTests.java
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/QuarterTableShardingAlgorithmTest.java
+component-library/component-db/src/test/java/com/scott/payment/component/db/sharding/TransactionShardingDataSourceConfigurationTest.java
+service-job/src/test/java/com/scott/payment/job/service/impl/ShardingTablePreCreateServiceImplTests.java
 ```
 
 分表统一按季度分表。所有需要分表的业务表都必须传入交易时间字段 `transaction_date_time`，表名格式为：
@@ -94,37 +95,38 @@ service-openapi/src/test/java/com/scott/payment/openapi/MerchantOpenApiEndToEndT
 {logical_table}_{yyyy}{QQ}
 ```
 
-其中 `QQ` 表示季度编号，`Q1 -> 01`、`Q2 -> 02`、`Q3 -> 03`、`Q4 -> 04`。示例：`transaction_date_time = 2026-05-29 10:30:00` 时，`test_transaction` 表路由到 `test_transaction_202602`。
+其中 `QQ` 表示季度编号，`Q1 -> 01`、`Q2 -> 02`、`Q3 -> 03`、`Q4 -> 04`。季度按 `Asia/Shanghai` 计算；四条 `test_*` 规则不进入正式配置。
 
-分表起始表和结束表在 `sharding-{env}.yaml` 中配置，每个环境独立维护：
+脱敏配置草案分别位于：
 
-```yaml
-global-payment:
-  sharding:
-    strategy: quarter
-    database-timezone: Asia/Shanghai
-    sharding-column: transaction_date_time
-    tables:
-      transaction:
-        enabled: true
-        logical-table: test_transaction
-        template-table: test_transaction
-        id-column: id
-        sharding-column: transaction_date_time
-        start-year: 2026
-        start-quarter: 1
-        end-year: 2035
-        end-quarter: 4
-        table-name-format: "%s_%d%02d"
-        actual-data-source: master
+```text
+docs/deployment/nacos/transaction-sharding-dev-draft.yaml
+docs/deployment/nacos/transaction-sharding-governance-dev-draft.yaml
 ```
 
-字段说明：
+仓库中的三个文件是同一个 `sharding-{env}.yaml` DataId 的评审片段：
 
-- `enabled`：控制当前逻辑表是否参与分表。
-- `template-table`：物理表建表模板，自动预建表通过 `CREATE TABLE target LIKE template` 复制结构。
-- `id-column`：物理表自增主键字段，当前默认 `id`。
-- `start-year` / `start-quarter`：当前环境的起始物理表。
-- `end-year` / `end-quarter`：当前环境已经准备好的最后一张物理表，后续追加表时扩展这里。
-- `table-name-format`：物理表命名规则，默认生成 `test_transaction_202602` 这种表名；禁止使用旧格式 `%s_%d_q%d`。
-- `actual-data-source`：物理表所在数据源，当前默认在 `master`。
+- `sharding-dev.yaml` 提供回滚窗口内的 `global-payment.sharding`；
+- `transaction-sharding-dev-draft.yaml` 提供 `transaction-sharding` 业务拓扑；
+- `transaction-sharding-governance-dev-draft.yaml` 提供 `transaction-sharding.governance`。
+
+真实候选配置必须按 YAML 对象结构合并为一个文档，不能直接拼接两个
+`transaction-sharding` 根节点，否则后出现的根节点会覆盖前一个。五个服务已经只导入
+`sharding-{env}.yaml`，不得把草案文件名直接作为未导入的新 DataId 发布。
+
+服务级模式只放在各自的 `{service-name}-{env}.yaml`：Payment/Data 只允许 `LEGACY` 或
+`SHARDINGSPHERE`，Admin/Merchant/Risk 可先切 `COMPARE`。模式不参与拓扑 checksum，切换模式
+必须生成独立变更记录并滚动重启对应服务。
+
+发布约束：
+
+- `physical-nodes` 只登记已经存在且 23 张正式表全部通过 schema、`DATETIME(3)`、字符集和号段校验的季度。
+- Job 先 Dry Run，再建表并校验，最后只生成候选 `rule-version` 和 SHA-256 checksum；应用不会自动发布 Nacos。
+- 五个直接访问服务必须加载相同版本后才能开放新季度。
+- `/actuator/info` 的 `transactionSharding` 节点必须显示五个服务一致的 `ruleVersion` 和
+  `ruleChecksumPrefix`；`mode` 允许按灰度阶段不同。
+- 旧配置和旧代码只保留到单写灰度、季度边界演练及回滚窗口结束，禁止双写。
+
+完整的候选规则生成、五服务滚动加载、只读/单写灰度、季度边界和回滚门禁见
+[`ShardingSphere 发布、灰度与回滚手册`](../shardingsphere-rollout-rollback-runbook.md)。该手册是
+变更单模板，不授权 Nacos 实际发布、数据库 DDL/Drop 或生产重启。

@@ -6,6 +6,10 @@ import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver
 import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
 import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.component.db.sharding.TransactionShardingMode;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.db.sharding.TransactionShardingRuntimeState;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
@@ -28,6 +32,7 @@ import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -35,11 +40,13 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,6 +60,145 @@ import static org.mockito.Mockito.when;
  * @status : create
  */
 class DefaultTransactionCallbackServiceTests {
+
+    /**
+     * ShardingSphere 模式必须在同一交易数据源事务中只使用逻辑表，并以分片时间、版本和当前状态完成回调 CAS。
+     */
+    @Test
+    void shouldUseLogicalCallbackTableFamilyInShardingSphereMode() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 14, 10, 0);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(1);
+        when(recordService.findOperationByChannelTransaction(
+                "TX202607141000000000001", "CH202607141000000000001")).thenReturn(operation());
+        when(recordService.findOrder(transactionDateTime, "OP202607141000000000001")).thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"))).thenReturn(true);
+        TransactionShardingRuntimeState runtimeState = shardingSphereRuntimeState();
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                new DefaultChannelTransactionStatusResolver(),
+                runtimeState);
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(callbackCommand());
+
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("PROCESSED");
+        verify(callbackLogMapper).insertLogical(any());
+        verify(callbackMapper).selectByIdempotency(
+                eq("MPGS"), anyString(), eq(transactionDateTime));
+        verify(callbackMapper).insertLogical(any());
+        verify(callbackMapper).updateProcessResultLogical(
+                anyString(),
+                eq(transactionDateTime),
+                eq(0),
+                eq(List.of("RECEIVED", "FAILED")),
+                eq("PROCESSED"),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                eq(PaymentTransactionStatusEnum.PROCESSING.getCode()),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                eq("STATUS_CHANGED"),
+                any(),
+                any(LocalDateTime.class));
+        verify(callbackLogMapper, never()).insertPhysical(anyString(), any());
+        verify(callbackMapper, never()).selectByIdempotencyPhysical(anyString(), anyString(), anyString());
+        verify(callbackMapper, never()).insertPhysical(anyString(), any());
+        verify(callbackMapper, never()).updateProcessResultPhysical(
+                anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any());
+    }
+
+    /**
+     * 并发请求在先查后插窗口命中唯一键时，应回查并返回已存在的回调，不得重复推进交易状态。
+     */
+    @Test
+    void shouldRecoverConcurrentDuplicateByReloadingExistingCallback() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 14, 10, 0);
+        TransactionChannelCallbackDO existed = existingCallback();
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.selectByIdempotency(eq("MPGS"), anyString(), eq(transactionDateTime)))
+                .thenReturn(null, existed);
+        when(callbackMapper.insertLogical(any()))
+                .thenThrow(new DuplicateKeyException("callback idempotency key conflict"));
+        when(recordService.findOperationByChannelTransaction(
+                "TX202607141000000000001", "CH202607141000000000001")).thenReturn(operation());
+        when(recordService.findOrder(transactionDateTime, "OP202607141000000000001")).thenReturn(order());
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                new DefaultChannelTransactionStatusResolver(),
+                shardingSphereRuntimeState());
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(callbackCommand());
+
+        assertThat(resultDTO.getCallbackId()).isEqualTo("CCB202607141000000000001");
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("PROCESSED");
+        assertThat(resultDTO.getProcessResult()).isEqualTo("DUPLICATE");
+        verify(callbackMapper, times(2)).selectByIdempotency(eq("MPGS"), anyString(), eq(transactionDateTime));
+        verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
+                anyString(), any(), any(), any(), any(), any());
+        verify(callbackMapper, never()).updateProcessResultLogical(
+                anyString(), any(), any(), any(), anyString(), any(), any(), any(), anyString(), any(), any());
+    }
+
+    /**
+     * 回调处理结果 CAS 冲突必须抛出异常，让外层事务回滚交易状态、Outbox 和回调记录。
+     */
+    @Test
+    void shouldFailTransactionWhenLogicalCallbackCasConflicts() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 14, 10, 0);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(0);
+        when(recordService.findOperationByChannelTransaction(
+                "TX202607141000000000001", "CH202607141000000000001")).thenReturn(operation());
+        when(recordService.findOrder(transactionDateTime, "OP202607141000000000001")).thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"))).thenReturn(true);
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                shardingDataTemplate(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                new DefaultChannelTransactionStatusResolver(),
+                shardingSphereRuntimeState());
+
+        assertThatThrownBy(() -> callbackService.recordChannelCallback(callbackCommand()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("callback process state has changed");
+        verify(recordService).completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"));
+    }
 
     /**
      * MPGS 成功回调应通过 order.id 和 transaction.id 定位动作单，并调用交易记录服务推进成功终态。
@@ -241,6 +387,14 @@ class DefaultTransactionCallbackServiceTests {
         return commandDTO;
     }
 
+    private TransactionShardingRuntimeState shardingSphereRuntimeState() {
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setMode(TransactionShardingMode.SHARDINGSPHERE);
+        TransactionShardingRuntimeState runtimeState = new TransactionShardingRuntimeState();
+        runtimeState.activate(properties);
+        return runtimeState;
+    }
+
     private TransactionOperationDO operation() {
         TransactionOperationDO operationDO = new TransactionOperationDO();
         operationDO.setId(1L);
@@ -274,6 +428,18 @@ class DefaultTransactionCallbackServiceTests {
         orderDO.setTransactionDateTime(LocalDateTime.of(2026, 7, 14, 10, 0));
         orderDO.setVersion(0);
         return orderDO;
+    }
+
+    private TransactionChannelCallbackDO existingCallback() {
+        TransactionChannelCallbackDO callbackDO = new TransactionChannelCallbackDO();
+        callbackDO.setCallbackId("CCB202607141000000000001");
+        callbackDO.setTransactionId("TX202607141000000000001");
+        callbackDO.setOperationId("OP202607141000000000001");
+        callbackDO.setChannelCode("MPGS");
+        callbackDO.setChannelOrderNo("TX202607141000000000001");
+        callbackDO.setChannelTransactionId("CH202607141000000000001");
+        callbackDO.setCallbackStatus("PROCESSED");
+        return callbackDO;
     }
 
     private PaymentQuarterShardingProperties shardingProperties() {
