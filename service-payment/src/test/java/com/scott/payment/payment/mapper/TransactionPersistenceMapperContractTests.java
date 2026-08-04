@@ -237,6 +237,7 @@ class TransactionPersistenceMapperContractTests {
                 java.time.LocalDateTime.class,
                 Integer.class,
                 String.class,
+                String.class,
                 java.time.LocalDateTime.class,
                 java.time.LocalDateTime.class), Update.class);
 
@@ -249,6 +250,7 @@ class TransactionPersistenceMapperContractTests {
                 .contains("transaction_date_time = #{transactionDateTime}")
                 .contains("version = #{expectedVersion}")
                 .contains("version = version + 1")
+                .contains("#{callbackPayloadJson}")
                 .contains("notify_status = 'INIT'")
                 .contains("deleted = 0")
                 .doesNotContain("${");

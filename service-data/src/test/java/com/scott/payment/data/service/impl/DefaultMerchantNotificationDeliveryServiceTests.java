@@ -148,6 +148,27 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("后台人工重发终态通知测试完成，结果: 精确分片 CAS 和稳定事件 ID 均已使用");
     }
 
+    /** 人工重发抢占冲突必须上抛，让 RocketMQ 重投该事件而不是静默确认。 */
+    @Test
+    void shouldRequestMqRedeliveryWhenManualRetryClaimConflicts() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        when(fixture.notificationMapper().selectRetryableByTransactionId(
+                fixture.task().getTransactionId(), transactionDateTime)).thenReturn(fixture.task());
+        when(fixture.notificationMapper().markProcessingForManualRetry(
+                eq(1L), eq(transactionDateTime), eq(0), any())).thenReturn(0);
+
+        assertThatThrownBy(() -> fixture.service().retryTransaction(
+                transactionDateTime,
+                fixture.task().getTransactionId(),
+                "MNR-20260804-CONFLICT"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("merchant notification manual retry claim conflict");
+
+        assertThat(fixture.restTemplate().postCount).isZero();
+        verifyNoInteractions(fixture.requestFactory());
+    }
+
     /** 重复 MQ 在首笔成功后不得再次抢占任务或发起商户 HTTP 回调。 */
     @Test
     void shouldAbsorbDuplicateMessageAfterNotificationSucceeds() {

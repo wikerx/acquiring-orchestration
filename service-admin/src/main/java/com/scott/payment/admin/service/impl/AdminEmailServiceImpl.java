@@ -783,7 +783,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      */
     private LambdaQueryWrapper<EmailSendRecordDO> recordQueryWrapper(EmailRecordQuery query) {
         return Wrappers.<EmailSendRecordDO>lambdaQuery()
-                // 列表只读取展示字段，避免投递密文进入查询结果，也允许数据库迁移前查询既有记录。
+                // 列表只读取展示字段，避免投递密文进入查询结果，并降低分页查询的网络与内存开销。
                 .select(
                         EmailSendRecordDO::getId,
                         EmailSendRecordDO::getEmailNo,

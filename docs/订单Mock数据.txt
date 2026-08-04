@@ -1,0 +1,5 @@
+非法请求订单：http://localhost:5175/
+未支付订单：http://localhost:5175/checkout/dev-unpaid/sample?lang=zh-CN
+支付成功订单：http://localhost:5175/checkout/dev-success/sample?lang=zh-CN
+支付失败订单：http://localhost:5175/checkout/dev-failed/sample?lang=zh-CN
+处理中订单：http://localhost:5175/checkout/dev-processing/sample?lang=zh-CN

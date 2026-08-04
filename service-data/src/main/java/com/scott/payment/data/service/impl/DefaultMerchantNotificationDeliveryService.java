@@ -220,8 +220,12 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
                 : notificationMapper.markProcessing(
                         task.getId(), task.getTransactionDateTime(), task.getVersion(), beginTime);
         if (claimed != 1) {
-            log.info("event: DATA_MERCHANT_NOTIFY_SKIP traceId: {} notifyId: {} transactionId: {} reason=processingLockMiss",
-                    TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId());
+            log.info("event: DATA_MERCHANT_NOTIFY_SKIP traceId: {} notifyId: {} transactionId: {} manualRetry: {} reason=processingLockMiss",
+                    TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), manualRetry);
+            if (manualRetry) {
+                // 人工重发是一条独立业务指令；抢占冲突必须让 MQ 重投，不能静默丢失用户操作。
+                throw new IllegalStateException("merchant notification manual retry claim conflict");
+            }
             return false;
         }
         int processingVersion = task.getVersion() == null ? 1 : task.getVersion() + 1;

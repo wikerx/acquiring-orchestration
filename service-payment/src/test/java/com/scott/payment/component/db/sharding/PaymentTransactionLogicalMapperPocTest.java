@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @description : 通过真实 Payment Mapper 验证三表逻辑 SQL 的季度路由、自增回填、Binding 和单分片锁。
  * @status : create
  */
-class PaymentTransactionLogicalMapperPocTest {
+public class PaymentTransactionLogicalMapperPocTest {
 
     /** 同时承载两个季度物理表的隔离主库连接池。 */
     private HikariDataSource primary;
@@ -55,6 +55,9 @@ class PaymentTransactionLogicalMapperPocTest {
         primary.setMaximumPoolSize(2);
         primary.setMinimumIdle(0);
         direct = new JdbcTemplate(primary);
+        direct.execute("CREATE ALIAS IF NOT EXISTS JSON_SET FOR \""
+                + PaymentTransactionLogicalMapperPocTest.class.getName()
+                + ".jsonSet\"");
         createPhysicalTables();
 
         TransactionShardingProperties properties = new TransactionShardingProperties();
@@ -172,6 +175,7 @@ class PaymentTransactionLogicalMapperPocTest {
         result.setNotifyId(notifyId);
         result.setTransactionId(transactionId);
         result.setNotifyStatus("INIT");
+        result.setNotifyConfigSnapshotJson("{}");
         result.setTransactionDateTime(transactionDateTime);
         result.setVersion(0);
         result.setDeleted(0);
@@ -180,6 +184,18 @@ class PaymentTransactionLogicalMapperPocTest {
 
     private int count(String table) {
         return direct.queryForObject("SELECT COUNT(*) FROM " + table, Integer.class);
+    }
+
+    /**
+     * 为 H2 POC 提供 MySQL JSON_SET 的最小等价行为，避免测试绕过生产 Mapper SQL。
+     *
+     * @param sourceJson 当前 JSON 快照
+     * @param path       本用例固定使用的 payloadJson 路径
+     * @param valueJson  待写入的回调 JSON
+     * @return 更新后的 JSON 快照
+     */
+    public static String jsonSet(String sourceJson, String path, String valueJson) {
+        return "{\"payloadJson\":" + valueJson + "}";
     }
 
     private void createPhysicalTables() {
@@ -195,6 +211,7 @@ class PaymentTransactionLogicalMapperPocTest {
             direct.execute("CREATE TABLE transaction_merchant_notification_" + suffix + " ("
                     + "id BIGINT AUTO_INCREMENT NOT NULL, notify_id VARCHAR(64) NOT NULL, "
                     + "transaction_id VARCHAR(64) NOT NULL, notify_status VARCHAR(32) NOT NULL, "
+                    + "notify_config_snapshot_json VARCHAR(1024), "
                     + "payload_json_masked VARCHAR(512), next_retry_time TIMESTAMP(3), update_time TIMESTAMP(3), "
                     + "transaction_date_time TIMESTAMP(3) NOT NULL, version INT NOT NULL, deleted INT NOT NULL)");
         }

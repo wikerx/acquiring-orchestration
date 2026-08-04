@@ -1699,60 +1699,6 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
     }
 
     /**
-     * 校验同一商户订单号下支付流和授权流互斥。
-     * <p>
-     * PAYMENT 与 AUTHORIZATION/PRE_AUTHORIZATION 都是首次起点动作；同一商户订单号只能存在一条非失败起点流程。
-     * 后续请款、退款、撤销必须通过 sourceTransactionId 进入同一生命周期；FAILED 起点允许商户修正参数后重试。
-     *
-     * @param commandDTO      首次交易命令
-     * @param transactionType 当前首次交易类型
-     */
-    private void validateMerchantOrderFlow(PaymentCreateCommandDTO commandDTO, String transactionType) {
-        if (transactionRecordService == null || !isInitialFlowType(transactionType)) {
-            return;
-        }
-        List<TransactionOperationDO> operations = transactionRecordService.findInitialOperationsByMerchantOrder(
-                commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
-        for (TransactionOperationDO operationDO : operations) {
-            if (operationDO == null || isFailedStatus(operationDO.getTransactionStatus())) {
-                continue;
-            }
-            throw new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS.getCode(),
-                    "merchant order number already has an active payment flow");
-        }
-    }
-
-    /**
-     * 判断 is initial flow type 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param transactionType transaction Type 输入值，参与 交易type 的查询、校验、转换、写入或日志摘要
-     * @return 条件满足时返回 true，否则返回 false
-     */
-    private boolean isInitialFlowType(String transactionType) {
-        return PaymentTransactionTypeEnum.PAYMENT.getCode().equals(transactionType)
-                || PaymentTransactionTypeEnum.AUTHORIZATION.getCode().equals(transactionType)
-                || PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode().equals(transactionType);
-    }
-
-    /**
-     * 判断 is failed status 条件是否成立，用于控制 Payment Transaction Service Impl 的后续分支。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 判断所需的对象、枚举或配置。
-     * 该方法不修改业务状态，只返回布尔判断结果供后续分支使用。
-     * 异常边界：入参缺失时按当前方法实现返回 false 或抛出约定异常。
-     * </p>
-     * @param transactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
-     * @return 条件满足时返回 true，否则返回 false
-     */
-    private boolean isFailedStatus(String transactionStatus) {
-        return PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus);
-    }
-
-    /**
      * 整理商户订单flowlock密钥，返回当前业务步骤需要的规范化结果。
      * <p>
      * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。

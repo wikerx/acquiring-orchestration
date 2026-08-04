@@ -41,7 +41,9 @@ import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -66,6 +68,9 @@ import java.util.stream.Stream;
  */
 @Service
 public class AdminRiskManagementApplicationService {
+
+    /** 风险工作台的“今日”边界统一按平台数据库业务时区计算。 */
+    private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     /**
      * DEFAULT SCOPE，用于保存 Admin Risk Management Application Service 中与 defaultscope 相关的业务属性。
@@ -1346,15 +1351,6 @@ public class AdminRiskManagementApplicationService {
     }
 
     /**
-     * 查询今日风险事件，供风险工作台独立页面展示。
-     *
-     * @return 当日风控评估记录，按决策时间倒序
-     */
-    public List<Map<String, Object>> todayRiskEvents() {
-        return riskManagementMapper.selectTodayRiskEvents(100);
-    }
-
-    /**
      * 查询高风险商户排行，供风险工作台独立页面展示。
      *
      * @return 近 30 天商户风险统计，按高风险命中数倒序
@@ -1374,6 +1370,28 @@ public class AdminRiskManagementApplicationService {
         long total = riskManagementMapper.countChangeLogs();
         List<Map<String, Object>> rows = enrichChangeLogRows(riskManagementMapper.selectChangeLogs(offset(query.safePageNo(), query.safePageSize()), query.safePageSize()));
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), rows);
+    }
+
+    /**
+     * 分页查询风险工作台事件；未传时间时限定为平台时区当天，禁止单边无界时间条件。
+     *
+     * @param request 商户、订单、风险等级、决策结果、时间范围和分页条件
+     * @return 风控评估记录分页数据
+     */
+    public PageResult<Map<String, Object>> pageTodayRiskEvents(RiskDTOs.EvaluationQueryRequest request) {
+        RiskDTOs.EvaluationQueryRequest query = request == null
+                ? new RiskDTOs.EvaluationQueryRequest()
+                : request;
+        boolean startMissing = query.getEvaluationStartTime() == null;
+        boolean endMissing = query.getEvaluationEndTimeExclusive() == null;
+        if (startMissing && endMissing) {
+            LocalDate platformDate = LocalDate.now(PLATFORM_ZONE_ID);
+            query.setEvaluationStartTime(platformDate.atStartOfDay());
+            query.setEvaluationEndTimeExclusive(platformDate.plusDays(1).atStartOfDay());
+        } else if (startMissing || endMissing) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "评估时间范围必须同时包含开始和结束时间");
+        }
+        return pageEvaluations(query);
     }
 
     /**

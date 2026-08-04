@@ -1,6 +1,7 @@
 package com.scott.payment.admin.api.risk;
 
 import com.scott.payment.admin.application.risk.AdminRiskManagementApplicationService;
+import com.scott.payment.admin.dto.risk.RiskDTOs;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.web.auth.annotation.RequiresPermission;
@@ -61,14 +62,16 @@ public class AdminRiskDashboardController {
     }
 
     /**
-     * 查询今日风险事件。
+     * 按当前菜单权限分页查询今日或指定日期范围的风险事件。
      *
-     * @return 当日风控评估记录
+     * @param request 商户、订单、风险等级、决策结果、时间范围和分页条件
+     * @return 风控评估记录分页结果
      */
-    @GetMapping("/dashboard/today-events")
+    @PostMapping("/dashboard/today-events/page")
     @RequiresPermission("risk:dashboard:todayEvents:list")
-    public CommonResult<java.util.List<Map<String, Object>>> todayEvents() {
-        return success(riskManagementApplicationService.todayRiskEvents());
+    public CommonResult<PageResult<Map<String, Object>>> pageTodayEvents(
+            @RequestBody(required = false) RiskDTOs.EvaluationQueryRequest request) {
+        return success(riskManagementApplicationService.pageTodayRiskEvents(request));
     }
 
     /**

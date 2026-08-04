@@ -1273,33 +1273,6 @@ public interface RiskManagementMapper {
     long countChangeLogs();
 
     /**
-     * 查询今日风险事件。
-     *
-     * @param limit 返回数量上限
-     * @return 当日风控评估记录
-     */
-    @Select("""
-            SELECT risk_record_no,
-                   merchant_id,
-                   merchant_name,
-                   merchant_order_no,
-                   payment_order_no,
-                   transaction_amount,
-                   transaction_currency,
-                   risk_level,
-                   decision_result,
-                   decision_reason,
-                   hit_count,
-                   evaluation_time
-            FROM risk_evaluation_record
-            WHERE evaluation_time >= CURRENT_DATE()
-              AND evaluation_time < DATE_ADD(CURRENT_DATE(), INTERVAL 1 DAY)
-            ORDER BY evaluation_time DESC, id DESC
-            LIMIT #{limit}
-            """)
-    List<Map<String, Object>> selectTodayRiskEvents(@Param("limit") int limit);
-
-    /**
      * 查询近 30 天高风险商户排行。
      *
      * @param limit 返回数量上限

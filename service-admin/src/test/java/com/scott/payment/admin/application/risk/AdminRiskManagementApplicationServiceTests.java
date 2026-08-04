@@ -8,22 +8,57 @@ import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * 管理端风控评估记录查询测试。
  */
 class AdminRiskManagementApplicationServiceTests {
+
+    @Test
+    void shouldDefaultTodayEventsToShanghaiCurrentDay() {
+        RiskManagementMapper mapper = mock(RiskManagementMapper.class);
+        when(mapper.countEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any())).thenReturn(0L);
+        AdminRiskManagementApplicationService service = service(mapper);
+
+        service.pageTodayRiskEvents(null);
+
+        ArgumentCaptor<LocalDateTime> startCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> endCaptor = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(mapper).countEvaluations(isNull(), isNull(), isNull(), isNull(), isNull(),
+                startCaptor.capture(), endCaptor.capture());
+        LocalDateTime start = startCaptor.getValue();
+        assertThat(start.toLocalTime()).isEqualTo(LocalTime.MIDNIGHT);
+        assertThat(start.toLocalDate()).isEqualTo(java.time.LocalDate.now(ZoneId.of("Asia/Shanghai")));
+        assertThat(endCaptor.getValue()).isEqualTo(start.plusDays(1));
+    }
+
+    @Test
+    void shouldRejectTodayEventsWithOnlyOneTimeBoundary() {
+        AdminRiskManagementApplicationService service = service(mock(RiskManagementMapper.class));
+        RiskDTOs.EvaluationQueryRequest request = new RiskDTOs.EvaluationQueryRequest();
+        request.setEvaluationStartTime(LocalDateTime.of(2026, 8, 4, 0, 0));
+
+        assertThatThrownBy(() -> service.pageTodayRiskEvents(request))
+                .isInstanceOf(com.scott.payment.component.core.exception.ServiceException.class)
+                .hasMessageContaining("评估时间范围必须同时包含开始和结束时间");
+    }
 
     @Test
     void shouldDisplayZeroHitsForHistoricalNonPassEvaluations() {
@@ -85,5 +120,17 @@ class AdminRiskManagementApplicationServiceTests {
         row.put("decision_result", decision);
         row.put("hit_count", hitCount);
         return row;
+    }
+
+    private AdminRiskManagementApplicationService service(RiskManagementMapper mapper) {
+        return new AdminRiskManagementApplicationService(
+                mapper,
+                mock(RiskListValueNormalizer.class),
+                mock(AdminRiskImportLogService.class),
+                mock(RiskRuleCacheInvalidationCoordinator.class),
+                mock(ExcelExportService.class),
+                mock(ExcelI18nMessageResolver.class),
+                mock(ExcelLocaleResolver.class)
+        );
     }
 }

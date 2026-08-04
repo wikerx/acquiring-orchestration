@@ -152,7 +152,11 @@ class PaymentTransactionServiceImplTests {
         assertThat(eventOutboxService.eventDO.getMessageKey()).isEqualTo(resultDTO.getTransactionId());
         assertThat(eventOutboxService.eventDO.getEventStatus()).isEqualTo("INIT");
         assertThat(eventOutboxService.eventDO.getEventType()).isEqualTo("TRANSACTION_CREATED");
-        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:M202607120001:INITIAL"))
+        assertThat(idempotencyService.find("TRANSACTION_OPERATION", "200001:AUTH202607120001:AUTHORIZATION"))
+                .get()
+                .extracting(TransactionIdempotencyDO::getTransactionId)
+                .isEqualTo(resultDTO.getTransactionId());
+        assertThat(idempotencyService.find("MERCHANT_ORDER_FLOW", "200001:M202607120001"))
                 .get()
                 .extracting(TransactionIdempotencyDO::getTransactionId)
                 .isEqualTo(resultDTO.getTransactionId());
@@ -390,7 +394,10 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
         assertThat(channelInvokeService.commandDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.PAYMENT.getCode());
-        assertThat(idempotencyService.records).containsKey("TRANSACTION_OPERATION:200001:M202607120001:INITIAL");
+        assertThat(idempotencyService.records)
+                .containsKeys(
+                        "TRANSACTION_OPERATION:200001:AUTH202607120001:PAYMENT",
+                        "MERCHANT_ORDER_FLOW:200001:M202607120001");
     }
 
     /**
@@ -398,14 +405,17 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldRejectAuthorizationWhenMerchantOrderAlreadyHasPaymentFlow() {
-        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.PAYMENT, PaymentTransactionStatusEnum.SUCCESS));
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        idempotencyService.seedMerchantOrderFlow(
+                PaymentTransactionTypeEnum.PAYMENT,
+                PaymentTransactionStatusEnum.SUCCESS,
+                "PAYMENT-ATTEMPT-001");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
-                new InMemoryTransactionIdempotencyService(),
+                idempotencyService,
                 new CapturingTransactionEventOutboxService(),
-                transactionRecordService,
+                new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService);
 
@@ -421,14 +431,17 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldRejectPaymentWhenMerchantOrderAlreadyHasAuthorizationFlow() {
-        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.AUTHORIZATION, PaymentTransactionStatusEnum.PROCESSING));
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        idempotencyService.seedMerchantOrderFlow(
+                PaymentTransactionTypeEnum.AUTHORIZATION,
+                PaymentTransactionStatusEnum.PROCESSING,
+                "AUTHORIZATION-ATTEMPT-001");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
-                new InMemoryTransactionIdempotencyService(),
+                idempotencyService,
                 new CapturingTransactionEventOutboxService(),
-                transactionRecordService,
+                new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService);
 
@@ -444,14 +457,17 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldRejectDuplicateAuthorizationWhenMerchantOrderAlreadyHasAuthorizationFlow() {
-        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.AUTHORIZATION, PaymentTransactionStatusEnum.SUCCESS));
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        idempotencyService.seedMerchantOrderFlow(
+                PaymentTransactionTypeEnum.AUTHORIZATION,
+                PaymentTransactionStatusEnum.SUCCESS,
+                "AUTHORIZATION-ATTEMPT-001");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
-                new InMemoryTransactionIdempotencyService(),
+                idempotencyService,
                 new CapturingTransactionEventOutboxService(),
-                transactionRecordService,
+                new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService);
 
@@ -467,14 +483,17 @@ class PaymentTransactionServiceImplTests {
      */
     @Test
     void shouldAllowRetryWhenExistingInitialFlowFailed() {
-        CapturingTransactionRecordService transactionRecordService = new CapturingTransactionRecordService();
-        transactionRecordService.initialOperations = List.of(initialOperation(PaymentTransactionTypeEnum.PAYMENT, PaymentTransactionStatusEnum.FAILED));
+        InMemoryTransactionIdempotencyService idempotencyService = new InMemoryTransactionIdempotencyService();
+        idempotencyService.seedMerchantOrderFlow(
+                PaymentTransactionTypeEnum.PAYMENT,
+                PaymentTransactionStatusEnum.FAILED,
+                "FAILED-ATTEMPT-001");
         CapturingPaymentChannelInvokeService channelInvokeService = new CapturingPaymentChannelInvokeService(channelResponse(ChannelTradeStatus.SUCCESS));
         PaymentTransactionServiceImpl service = newService(
                 riskDecision(PaymentRiskDecisionEnum.PASS),
-                new InMemoryTransactionIdempotencyService(),
+                idempotencyService,
                 new CapturingTransactionEventOutboxService(),
-                transactionRecordService,
+                new CapturingTransactionRecordService(),
                 List.of(),
                 channelInvokeService);
 
@@ -482,6 +501,10 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(resultDTO.getTransactionType()).isEqualTo(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
         assertThat(channelInvokeService.commandDTO).isNotNull();
+        assertThat(idempotencyService.find("MERCHANT_ORDER_FLOW", "200001:M202607120001"))
+                .get()
+                .extracting(TransactionIdempotencyDO::getMerchantOrderId)
+                .isEqualTo("AUTH202607120001");
     }
 
     /**
@@ -891,7 +914,11 @@ class PaymentTransactionServiceImplTests {
 
         assertThat(repeatedResult.getTransactionId()).isEqualTo(firstResult.getTransactionId());
         assertThat(repeatedResult.getOperationId()).isEqualTo(firstResult.getOperationId());
-        assertThat(idempotencyService.records).hasSize(1);
+        assertThat(idempotencyService.records)
+                .hasSize(2)
+                .containsKeys(
+                        "TRANSACTION_OPERATION:200001:AUTH202607120001:AUTHORIZATION",
+                        "MERCHANT_ORDER_FLOW:200001:M202607120001");
     }
 
     /**
@@ -1241,28 +1268,6 @@ class PaymentTransactionServiceImplTests {
         return response;
     }
 
-    /**
-     * 构造商户订单号起点动作，用于验证支付流和授权流互斥规则。
-     *
-     * @param typeEnum   起点交易类型
-     * @param statusEnum 起点交易状态
-     * @return 测试动作单
-     */
-    private TransactionOperationDO initialOperation(PaymentTransactionTypeEnum typeEnum,
-                                                    PaymentTransactionStatusEnum statusEnum) {
-        TransactionOperationDO operationDO = new TransactionOperationDO();
-        operationDO.setOperationId(SOURCE_OPERATION_ID);
-        operationDO.setTransactionId(SOURCE_TRANSACTION_ID);
-        operationDO.setMerchantId("200001");
-        operationDO.setMerchantOrderNo("M202607120001");
-        operationDO.setMerchantOrderId("AUTH202607120001");
-        operationDO.setTransactionType(typeEnum.getCode());
-        operationDO.setTransactionStatus(statusEnum.getCode());
-        operationDO.setTransactionDateTime(LocalDateTime.of(2026, 7, 12, 10, 30));
-        operationDO.setOperationTime(LocalDateTime.of(2026, 7, 12, 10, 30));
-        return operationDO;
-    }
-
     private IsoDictionaryService isoDictionaryService() {
         return new IsoDictionaryService() {
             @Override
@@ -1497,16 +1502,6 @@ class PaymentTransactionServiceImplTests {
         private BigDecimal sourceAvailableRefundAmount = new BigDecimal("5.00");
 
         /**
-         * initial Operations，用于保存 Capturing Transaction Record Service 中与 initial动作 相关的业务属性。
-         * <p>
-         * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-         * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：自动化测试夹具、Mock 对象或测试用例输入。
-         * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-         * </p>
-         */
-        private List<TransactionOperationDO> initialOperations = List.of();
-
-        /**
          * 捕获渠道调用前落库的初始交易参数，供用例核对准备阶段的交易事实。
          */
         @Override
@@ -1729,10 +1724,7 @@ class PaymentTransactionServiceImplTests {
          */
         @Override
         public List<TransactionOperationDO> findInitialOperationsByMerchantOrder(String merchantId, String merchantOrderNo) {
-            if (!"200001".equals(merchantId) || !"M202607120001".equals(merchantOrderNo)) {
-                return List.of();
-            }
-            return initialOperations;
+            return List.of();
         }
 
         /**
@@ -2109,6 +2101,46 @@ class PaymentTransactionServiceImplTests {
                 return false;
             }
             records.put(storageKey, record);
+            return true;
+        }
+
+        /**
+         * 预置商户订单支付流守卫，模拟数据库中已存在的 PROCESSING、SUCCESS 或 FAILED 记录。
+         */
+        private void seedMerchantOrderFlow(PaymentTransactionTypeEnum transactionType,
+                                           PaymentTransactionStatusEnum transactionStatus,
+                                           String merchantOrderId) {
+            String key = buildMerchantOrderFlowKey("200001", "M202607120001");
+            TransactionIdempotencyDO record = newProcessingRecord(
+                    "MERCHANT_ORDER_FLOW",
+                    key,
+                    "200001",
+                    "M202607120001",
+                    merchantOrderId,
+                    transactionType.getCode(),
+                    LocalDateTime.of(2026, 7, 12, 10, 30),
+                    "Asia/Shanghai",
+                    "seed-fingerprint",
+                    LocalDateTime.of(2026, 7, 12, 10, 30));
+            record.setOperationId(SOURCE_OPERATION_ID);
+            record.setTransactionId(SOURCE_TRANSACTION_ID);
+            record.setTransactionStatus(transactionStatus.getCode());
+            records.put("MERCHANT_ORDER_FLOW:" + key, record);
+        }
+
+        /**
+         * 仅允许测试内存记录从 FAILED 原子替换为新的 PROCESSING 流守卫。
+         */
+        @Override
+        public boolean tryRestartFailedFlow(TransactionIdempotencyDO existingRecord,
+                                            TransactionIdempotencyDO replacement) {
+            String storageKey = "MERCHANT_ORDER_FLOW:" + existingRecord.getIdempotencyKey();
+            TransactionIdempotencyDO current = records.get(storageKey);
+            if (current != existingRecord
+                    || !PaymentTransactionStatusEnum.FAILED.getCode().equals(current.getTransactionStatus())) {
+                return false;
+            }
+            records.put(storageKey, replacement);
             return true;
         }
 

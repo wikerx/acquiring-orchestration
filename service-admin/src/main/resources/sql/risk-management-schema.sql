@@ -83,10 +83,12 @@ CREATE TABLE IF NOT EXISTS risk_evaluation_record (
     create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '创建时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_risk_record_no (risk_record_no),
-    KEY idx_risk_eval_merchant_time (merchant_id, evaluation_time),
+    KEY idx_risk_eval_merchant_time (merchant_id, evaluation_time, id),
     KEY idx_risk_eval_order (merchant_order_no, payment_order_no),
     KEY idx_risk_eval_payment_time (payment_order_no, evaluation_time, risk_record_no),
-    KEY idx_risk_eval_result_time (decision_result, evaluation_time)
+    KEY idx_risk_eval_result_time (decision_result, evaluation_time, id),
+    KEY idx_risk_eval_level_time (risk_level, evaluation_time, id),
+    KEY idx_risk_eval_time_id (evaluation_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='风控评估记录表';
 
 CREATE TABLE IF NOT EXISTS risk_evaluation_hit_detail (
