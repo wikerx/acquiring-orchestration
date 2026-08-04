@@ -5,10 +5,12 @@ import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
 import com.scott.payment.data.mapper.DataMerchantNotificationLogMapper;
 import com.scott.payment.data.mapper.DataMerchantNotificationMapper;
+import com.scott.payment.data.model.MerchantCallbackHttpRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
@@ -44,7 +46,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     /** 通知链路必须用逻辑表完成季度扫描、CAS 和日志写入。 */
     @Test
     void shouldUseLogicalMapperForSuccessfulNotification() {
-        Fixture fixture = fixture(HttpStatus.OK, "{\"result\":\"ok\"}");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
         LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
         when(fixture.notificationMapper().markSuccess(eq(1L), eq(transactionDateTime), eq(1), any()))
                 .thenReturn(1);
@@ -95,7 +97,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     /** MQ 精确通知必须用消息恢复的分片时间查询并推进同一季度任务。 */
     @Test
     void shouldUseExactTransactionTimeForLogicalSingleNotification() {
-        Fixture fixture = fixture(HttpStatus.OK, "{}");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
         LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
         when(fixture.notificationMapper().selectReadyByTransactionId(
                 eq(fixture.task().getTransactionId()), eq(transactionDateTime), any()))
@@ -113,11 +115,44 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 .selectStaleProcessing(any(), any(), any(), anyInt());
     }
 
+    /** 后台人工重发应重新抢占终态通知，并把 MQ 消息号固定为回调协议事件 ID。 */
+    @Test
+    void shouldManuallyRetryTerminalNotificationWithStableEventId() {
+        log.info("测试后台人工重发终态通知，关键输入: SUCCESS 任务和稳定 MQ 事件号");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
+        when(fixture.notificationMapper().selectRetryableByTransactionId(
+                fixture.task().getTransactionId(), transactionDateTime)).thenReturn(fixture.task());
+        when(fixture.notificationMapper().markProcessingForManualRetry(
+                eq(1L), eq(transactionDateTime), eq(0), any())).thenReturn(1);
+        when(fixture.notificationMapper().markSuccess(eq(1L), eq(transactionDateTime), eq(1), any()))
+                .thenReturn(1);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth("test-token-not-a-real-secret");
+        when(fixture.requestFactory().create(
+                fixture.task(), 1, "MNR-20260804-0001"))
+                .thenReturn(new MerchantCallbackHttpRequest(
+                        "MNR-20260804-0001", headers, "{\"data\":\"encrypted\"}", "{\"data\":\"***\"}"));
+
+        boolean notified = fixture.service().retryTransaction(
+                transactionDateTime,
+                fixture.task().getTransactionId(),
+                "MNR-20260804-0001");
+
+        assertThat(notified).isTrue();
+        verify(fixture.notificationMapper()).selectRetryableByTransactionId(
+                fixture.task().getTransactionId(), transactionDateTime);
+        verify(fixture.notificationMapper()).markProcessingForManualRetry(
+                eq(1L), eq(transactionDateTime), eq(0), any());
+        verify(fixture.requestFactory()).create(fixture.task(), 1, "MNR-20260804-0001");
+        log.info("后台人工重发终态通知测试完成，结果: 精确分片 CAS 和稳定事件 ID 均已使用");
+    }
+
     /** 重复 MQ 在首笔成功后不得再次抢占任务或发起商户 HTTP 回调。 */
     @Test
     void shouldAbsorbDuplicateMessageAfterNotificationSucceeds() {
         log.info("测试商户通知重复 MQ，关键输入: 同一交易连续消费两次");
-        Fixture fixture = fixture(HttpStatus.OK, "{}");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
         LocalDateTime transactionDateTime = fixture.task().getTransactionDateTime();
         when(fixture.notificationMapper().selectReadyByTransactionId(
                 eq(fixture.task().getTransactionId()), eq(transactionDateTime), any()))
@@ -142,7 +177,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     /** 逻辑 SUCCESS CAS 冲突必须上抛，禁止把重复或异常消费确认成功。 */
     @Test
     void shouldFailWhenLogicalSuccessStateCompareAndSetMisses() {
-        Fixture fixture = fixture(HttpStatus.OK, "{}");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
 
         assertThatThrownBy(() -> fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10))
                 .isInstanceOf(IllegalStateException.class)
@@ -152,7 +187,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     /** 数据库任务缺失分片时间时必须在任何状态 Update 之前失败。 */
     @Test
     void shouldRejectTaskWithoutTransactionTimeBeforeAnyStateUpdate() {
-        Fixture fixture = fixture(HttpStatus.OK, "{}");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
         fixture.task().setTransactionDateTime(null);
 
         assertThatThrownBy(() -> fixture.service().notifyDue(LocalDateTime.of(2026, 8, 1, 16, 0), 10))
@@ -162,11 +197,11 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         verifyNoInteractions(fixture.logMapper());
     }
 
-    /** HTTP 2xx 时应写尝试日志并将任务推进为 SUCCESS。 */
+    /** HTTP 200 且返回 succeed 时应写尝试日志并将任务推进为 SUCCESS。 */
     @Test
     void shouldPersistLogAndMarkSuccessWhenCallbackReturns2xx() {
         log.info("测试商户通知成功，关键输入: HTTP 200、任务版本 0");
-        Fixture fixture = fixture(HttpStatus.OK, "{\"result\":\"ok\"}");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
         when(fixture.notificationMapper().markSuccess(eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1), any()))
                 .thenReturn(1);
 
@@ -201,11 +236,39 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("商户通知失败测试完成，结果: 任务进入 FAILED 并生成下次重试时间");
     }
 
+    /** 其它 2xx 也不能确认成功，避免商户网关吞掉正文或返回异步受理。 */
+    @Test
+    void shouldRetryWhenCallbackReturns204() {
+        Fixture fixture = fixture(HttpStatus.NO_CONTENT, "succeed");
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), anyString(), any())).thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10)).isZero();
+        verify(fixture.notificationMapper()).markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1), eq("FAILED"), any(),
+                eq("merchant callback http status 204"), any());
+    }
+
+    /** HTTP 200 但确认词不是 succeed 时必须重试。 */
+    @Test
+    void shouldRetryWhenCallbackAcknowledgementDoesNotMatch() {
+        Fixture fixture = fixture(HttpStatus.OK, "{\"result\":\"ok\"}");
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), anyString(), any())).thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10)).isZero();
+        verify(fixture.notificationMapper()).markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1), eq("FAILED"), any(),
+                eq("merchant callback acknowledgement must be succeed"), any());
+    }
+
     /** 每次扫描前应恢复超过执行窗口的 PROCESSING 任务。 */
     @Test
     void shouldRecoverStaleProcessingBeforeDueScan() {
         log.info("测试商户通知中断恢复，关键输入: 两条超时 PROCESSING 任务");
-        Fixture fixture = fixture(HttpStatus.OK, "{}");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
         DataMerchantNotificationTaskDO first = recoveryCandidate(11L, 3, fixture.task().getTransactionDateTime());
         DataMerchantNotificationTaskDO second = recoveryCandidate(12L, 7, fixture.task().getTransactionDateTime());
         when(fixture.notificationMapper().selectStaleProcessing(any(), any(), any(), anyInt()))
@@ -233,7 +296,7 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     @Test
     void shouldFailWhenSuccessStateCompareAndSetMisses() {
         log.info("测试商户通知状态冲突，关键输入: HTTP 200、SUCCESS CAS 影响 0 行");
-        Fixture fixture = fixture(HttpStatus.OK, "{}");
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
         when(fixture.notificationMapper().markSuccess(
                 eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1), any())).thenReturn(0);
 
@@ -255,12 +318,21 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         when(logMapper.insert(any(DataMerchantNotificationLogDO.class))).thenReturn(1);
         DataMerchantNotificationProperties properties = new DataMerchantNotificationProperties();
         StubRestTemplate restTemplate = new StubRestTemplate(status, body);
+        MerchantCallbackRequestFactory requestFactory = mock(MerchantCallbackRequestFactory.class);
+        MerchantCallbackTargetValidator targetValidator = mock(MerchantCallbackTargetValidator.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth("test-token-not-a-real-secret");
+        when(requestFactory.create(any(DataMerchantNotificationTaskDO.class), anyInt()))
+                .thenReturn(new MerchantCallbackHttpRequest(
+                        "EVENT-1", headers, "{\"data\":\"encrypted\"}", "{\"data\":\"***\"}"));
         DefaultMerchantNotificationDeliveryService service = new DefaultMerchantNotificationDeliveryService(
                 notificationMapper,
                 logMapper,
                 restTemplate,
-                properties);
-        return new Fixture(service, notificationMapper, logMapper, task, restTemplate);
+                properties,
+                requestFactory,
+                targetValidator);
+        return new Fixture(service, notificationMapper, logMapper, task, restTemplate, requestFactory);
     }
 
     /** 构造不含卡数据和密钥的通知任务。 */
@@ -300,7 +372,8 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                            DataMerchantNotificationMapper notificationMapper,
                            DataMerchantNotificationLogMapper logMapper,
                            DataMerchantNotificationTaskDO task,
-                           StubRestTemplate restTemplate) {
+                           StubRestTemplate restTemplate,
+                           MerchantCallbackRequestFactory requestFactory) {
     }
 
     /** 返回预设 HTTP 状态和响应体，并校验实际回调地址没有被脱敏值替换。 */

@@ -1379,17 +1379,28 @@ public class AdminRiskManagementApplicationService {
     /**
      * 分页查询风控评估记录。
      *
-     * @param request 查询条件，允许按商户号、商户订单号、平台订单号和决策结果过滤
+     * @param request 查询条件，允许按交易标识、风险等级、决策结果和评估时间范围过滤
      * @return 风控评估记录分页数据
      */
     public PageResult<Map<String, Object>> pageEvaluations(RiskDTOs.EvaluationQueryRequest request) {
         RiskDTOs.EvaluationQueryRequest query = request == null ? new RiskDTOs.EvaluationQueryRequest() : request;
-        long total = riskManagementMapper.countEvaluations(query.getMerchantId(), query.getMerchantOrderNo(), query.getPaymentOrderNo(), query.getDecisionResult());
+        validateEvaluationTimeRange(query);
+        long total = riskManagementMapper.countEvaluations(
+                query.getMerchantId(),
+                query.getMerchantOrderNo(),
+                query.getPaymentOrderNo(),
+                query.getDecisionResult(),
+                query.getRiskLevel(),
+                query.getEvaluationStartTime(),
+                query.getEvaluationEndTimeExclusive());
         List<Map<String, Object>> rows = riskManagementMapper.selectEvaluations(
                 query.getMerchantId(),
                 query.getMerchantOrderNo(),
                 query.getPaymentOrderNo(),
                 query.getDecisionResult(),
+                query.getRiskLevel(),
+                query.getEvaluationStartTime(),
+                query.getEvaluationEndTimeExclusive(),
                 offset(query.safePageNo(), query.safePageSize()),
                 query.safePageSize()
         );
@@ -1397,6 +1408,15 @@ public class AdminRiskManagementApplicationService {
                 .map(this::normalizeEvaluationSummary)
                 .toList();
         return PageResult.of(total, query.safePageNo(), query.safePageSize(), normalizedRows);
+    }
+
+    /** 拒绝空区间和反向区间，防止页面误传时间后触发无意义的大范围扫描。 */
+    private void validateEvaluationTimeRange(RiskDTOs.EvaluationQueryRequest query) {
+        if (query.getEvaluationStartTime() != null
+                && query.getEvaluationEndTimeExclusive() != null
+                && !query.getEvaluationStartTime().isBefore(query.getEvaluationEndTimeExclusive())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "评估结束时间必须晚于开始时间");
+        }
     }
 
     /**

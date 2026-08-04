@@ -10,6 +10,7 @@ import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
+import com.scott.payment.payment.config.MerchantNotificationProperties;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
@@ -35,6 +36,7 @@ import com.scott.payment.payment.mapper.TransactionOperationMapper;
 import com.scott.payment.payment.mapper.TransactionOrderMapper;
 import com.scott.payment.payment.mapper.TransactionPaymentMethodInfoMapper;
 import com.scott.payment.payment.mapper.TransactionStatusHistoryMapper;
+import com.scott.payment.payment.service.TransactionIdempotencyService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.PaymentChannelInvokeResultDTO;
 import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
@@ -287,11 +289,6 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     private static final String NOTIFY_STATUS_INIT = "INIT";
 
     /**
-     * 默认商户通知最大重试次数。
-     */
-    private static final int DEFAULT_NOTIFY_MAX_RETRY_COUNT = 2000;
-
-    /**
      * 状态对象：订单。
      */
     private static final String STATUS_OBJECT_ORDER = "ORDER";
@@ -382,6 +379,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     private final TransactionShardingProperties transactionShardingProperties;
 
     /**
+     * 商户通知重试策略；在任务创建时固化到交易通知记录。
+     */
+    private final MerchantNotificationProperties merchantNotificationProperties;
+
+    /** 首次交易请求幂等和商户订单流守卫状态同步服务。 */
+    private final TransactionIdempotencyService transactionIdempotencyService;
+
+    /**
      * 创建交易事实记录服务默认实现。
      *
      * @param transactionOrderMapper         交易生命周期主单 Mapper
@@ -396,6 +401,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * @param transactionPaymentMethodInfoMapper     支付工具摘要 Mapper
      * @param transactionShardingKeyParser           交易分表键解析器
      * @param transactionShardingProperties          已验证逻辑节点配置
+     * @param merchantNotificationProperties         商户通知重试策略
      */
     @Autowired
     public DefaultTransactionRecordService(TransactionOrderMapper transactionOrderMapper,
@@ -409,7 +415,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                            TransactionMerchantApiInteractionLogMapper transactionMerchantApiInteractionLogMapper,
                                            TransactionPaymentMethodInfoMapper transactionPaymentMethodInfoMapper,
                                            TransactionShardingKeyParser transactionShardingKeyParser,
-                                           TransactionShardingProperties transactionShardingProperties) {
+                                           TransactionShardingProperties transactionShardingProperties,
+                                           MerchantNotificationProperties merchantNotificationProperties,
+                                           TransactionIdempotencyService transactionIdempotencyService) {
         this.transactionOrderMapper = transactionOrderMapper;
         this.transactionOperationMapper = transactionOperationMapper;
         this.transactionStatusHistoryMapper = transactionStatusHistoryMapper;
@@ -422,6 +430,37 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         this.transactionPaymentMethodInfoMapper = transactionPaymentMethodInfoMapper;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
         this.transactionShardingProperties = transactionShardingProperties;
+        this.merchantNotificationProperties = merchantNotificationProperties;
+        this.transactionIdempotencyService = transactionIdempotencyService;
+    }
+
+    /** 测试构造入口，使用与生产默认值一致的有界通知策略。 */
+    DefaultTransactionRecordService(TransactionOrderMapper transactionOrderMapper,
+                                    TransactionOperationMapper transactionOperationMapper,
+                                    TransactionStatusHistoryMapper transactionStatusHistoryMapper,
+                                    TransactionChannelRequestMapper transactionChannelRequestMapper,
+                                    TransactionChannelInteractionLogMapper transactionChannelInteractionLogMapper,
+                                    TransactionFlowEventMapper transactionFlowEventMapper,
+                                    TransactionAmountChangeLogMapper transactionAmountChangeLogMapper,
+                                    TransactionMerchantNotificationMapper transactionMerchantNotificationMapper,
+                                    TransactionMerchantApiInteractionLogMapper transactionMerchantApiInteractionLogMapper,
+                                    TransactionPaymentMethodInfoMapper transactionPaymentMethodInfoMapper,
+                                    TransactionShardingKeyParser transactionShardingKeyParser,
+                                    TransactionShardingProperties transactionShardingProperties) {
+        this(transactionOrderMapper,
+                transactionOperationMapper,
+                transactionStatusHistoryMapper,
+                transactionChannelRequestMapper,
+                transactionChannelInteractionLogMapper,
+                transactionFlowEventMapper,
+                transactionAmountChangeLogMapper,
+                transactionMerchantNotificationMapper,
+                transactionMerchantApiInteractionLogMapper,
+                transactionPaymentMethodInfoMapper,
+                transactionShardingKeyParser,
+                transactionShardingProperties,
+                new MerchantNotificationProperties(),
+                null);
     }
 
     /**
@@ -1181,6 +1220,10 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                 failReasonCode, failReasonMessage, orderUpdated, now);
         if (orderUpdated) {
             activateMerchantNotification(operationDO, targetTransactionStatus, failReasonCode, failReasonMessage, now);
+        }
+        if (transactionIdempotencyService != null) {
+            transactionIdempotencyService.synchronizeInitialTransactionStatus(
+                    operationDO.getTransactionId(), targetTransactionStatus);
         }
         return true;
     }
@@ -2520,11 +2563,14 @@ public class DefaultTransactionRecordService implements TransactionRecordService
                                               String failReasonCode,
                                               String failReasonMessage,
                                               LocalDateTime now) {
+        String callbackPayloadJson = JsonUtils.toJsonString(
+                merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode));
         int affectedRows = transactionMerchantNotificationMapper.activateByTransactionId(
                 operationDO.getTransactionId(),
                 operationDO.getTransactionDateTime(),
                 INITIAL_VERSION,
-                maskedJson(merchantVisiblePayload(operationDO, targetTransactionStatus, failReasonCode)),
+                callbackPayloadJson,
+                SensitiveDataMaskUtils.maskJsonSafely(callbackPayloadJson),
                 now,
                 now);
         log.info("event: PAYMENT_MERCHANT_NOTIFY_ACTIVATED stage=NOTIFY_CREATE traceId: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} platformStatus: {} logicalTable: {} affectedRows: {} willNotify: {}",
@@ -3646,13 +3692,17 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         notificationDO.setNotifyType(resultDTO.getTransactionType() + "_RESULT");
         notificationDO.setEventType("TRANSACTION_CREATED");
         notificationDO.setNotifyStatus(NOTIFY_STATUS_INIT);
-        // 实际回调地址只保存在数据库任务快照中供 service-data 投递；日志和查询继续使用脱敏字段，禁止写入 Redis。
-        notificationDO.setNotifyConfigSnapshotJson(JsonUtils.toJsonString(Map.of("callbackUrl", callbackUrl)));
+        Map<String, Object> callbackPayload = merchantVisiblePayload(commandDTO, resultDTO);
+        String callbackPayloadJson = JsonUtils.toJsonString(callbackPayload);
+        // 正式载荷和实际 URL 只进入受保护执行快照；管理查询和日志始终读取脱敏审计列。
+        notificationDO.setNotifyConfigSnapshotJson(JsonUtils.toJsonString(Map.of(
+                "callbackUrl", callbackUrl,
+                "payloadJson", callbackPayloadJson)));
         notificationDO.setTargetUrlHash(sha256Hex(callbackUrl));
         notificationDO.setTargetUrlMasked(maskUrl(callbackUrl));
-        notificationDO.setPayloadJsonMasked(maskedJson(merchantVisiblePayload(commandDTO, resultDTO)));
+        notificationDO.setPayloadJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(callbackPayloadJson));
         notificationDO.setLastAttemptNo(0);
-        notificationDO.setMaxRetryCount(DEFAULT_NOTIFY_MAX_RETRY_COUNT);
+        notificationDO.setMaxRetryCount(merchantNotificationProperties.getMaxRetryCount());
         notificationDO.setNextRetryTime(isNonTerminal(resultDTO) ? null : now);
         fillTransactionTime(notificationDO, commandDTO.getTransactionDateTime());
         notificationDO.setVersion(INITIAL_VERSION);
@@ -3727,7 +3777,7 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         putIfPresent(transactionInfo, "sourceTransactionId", operationDO.getSourceTransactionId());
         putIfPresent(transactionInfo, "transactionType", operationDO.getTransactionType());
         putIfPresent(transactionInfo, "transactionStatus", targetTransactionStatus);
-        putIfPresent(transactionInfo, "processStage", operationDO.getProcessStage());
+        putIfPresent(transactionInfo, "processStage", PaymentProcessStageEnum.FINISHED.getCode());
         putIfPresent(transactionInfo, "transactionDateTime", offsetDateTimeString(operationDO.getTransactionDateTime(), operationDO.getTransactionTimeZone()));
         putIfPresent(transactionInfo, "authCode", operationDO.getAuthCode());
         putIfPresent(transactionInfo, "arn", operationDO.getAcquirerReferenceNo());
@@ -4170,7 +4220,43 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         if (commandDTO.getTransactionInfo() != null && StringUtils.hasText(commandDTO.getTransactionInfo().getCallbackUrl())) {
             return commandDTO.getTransactionInfo().getCallbackUrl();
         }
-        return null;
+        return resolveSourceTransactionCallbackUrl(commandDTO);
+    }
+
+    /**
+     * 后续动作按源交易精确分片时间继承 Payment 内部保存的通知配置，避免真实回调地址经过管理端或商户端。
+     * 配置快照异常不能回滚已经提交到外部渠道的资金动作，因此只记录不含敏感值的告警并跳过通知创建。
+     */
+    private String resolveSourceTransactionCallbackUrl(PaymentCreateCommandDTO commandDTO) {
+        PaymentCreateCommandDTO.TransactionInfoDTO transactionInfo = commandDTO.getTransactionInfo();
+        if (transactionInfo == null
+                || !StringUtils.hasText(transactionInfo.getSourceTransactionId())
+                || transactionInfo.getSourceTransactionDateTime() == null
+                || !StringUtils.hasText(commandDTO.getMerchantId())) {
+            return null;
+        }
+        TransactionMerchantNotificationDO sourceNotification =
+                transactionMerchantNotificationMapper.selectLatestConfigByTransactionId(
+                        commandDTO.getMerchantId(),
+                        transactionInfo.getSourceTransactionId(),
+                        transactionInfo.getSourceTransactionDateTime());
+        if (sourceNotification == null || !StringUtils.hasText(sourceNotification.getNotifyConfigSnapshotJson())) {
+            return null;
+        }
+        try {
+            Map<?, ?> configSnapshot = JsonUtils.parseObject(
+                    sourceNotification.getNotifyConfigSnapshotJson(), Map.class);
+            Object callbackUrl = configSnapshot == null ? null : configSnapshot.get("callbackUrl");
+            return callbackUrl instanceof String value && StringUtils.hasText(value) ? value : null;
+        } catch (RuntimeException exception) {
+            log.warn("event: PAYMENT_MERCHANT_NOTIFY_CONFIG_INVALID stage=NOTIFY_CREATE traceId: {} merchantId: {} sourceTransactionId: {} sourceTransactionDateTime: {} exceptionType: {}",
+                    TraceContext.getTraceId(),
+                    commandDTO.getMerchantId(),
+                    transactionInfo.getSourceTransactionId(),
+                    transactionInfo.getSourceTransactionDateTime(),
+                    exception.getClass().getSimpleName());
+            return null;
+        }
     }
 
     /**

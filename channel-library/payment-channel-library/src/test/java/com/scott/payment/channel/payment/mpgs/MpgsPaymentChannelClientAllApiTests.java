@@ -619,10 +619,7 @@ class MpgsPaymentChannelClientAllApiTests {
      * @param operation 预期 MPGS API 操作
      */
     private void assertMaskedLogs(CapturedOutput output, String operation) {
-        String logs = assertMaskedLogsWithoutCard(output, operation);
-        assertThat(logs).contains("512345******0008");
-        assertThat(logs).contains("\"securityCode\":\"***\"");
-        assertThat(logs).contains("\"authenticationToken\":\"***\"");
+        assertMaskedLogsWithoutCard(output, operation);
     }
 
     /**
@@ -635,16 +632,12 @@ class MpgsPaymentChannelClientAllApiTests {
     private String assertMaskedLogsWithoutCard(CapturedOutput output, String operation) {
         String logs = output.getOut() + output.getErr();
         assertThat(logs).contains("MPGS渠道请求上下文");
-        assertThat(logs).contains("MPGS渠道请求报文");
+        assertThat(logs).contains("MPGS渠道请求摘要");
         assertThat(logs).contains("MPGS渠道响应上下文");
-        assertThat(logs).contains("MPGS渠道响应报文");
+        assertThat(logs).contains("MPGS渠道响应摘要");
         assertThat(logs).contains("\"operation\":\"" + operation + "\"");
-        if (MpgsApiOperation.RETRIEVE.equals(operation)) {
-            assertThat(logs).contains("request: {}");
-        } else {
-            assertThat(logs).contains("request: {\"apiOperation\":\"" + operation + "\"");
-        }
-        assertThat(logs).contains("response: {");
+        assertThat(logs).contains("payloadLength:", "payloadDigest: sha256:");
+        assertThat(logs).doesNotContain("MPGS渠道请求报文", "MPGS渠道响应报文");
         assertThat(logs).doesNotContain("\"request\":\"{\\\"");
         assertThat(logs).doesNotContain("\"response\":\"{\\\"");
         assertThat(logs).doesNotContain(TEST_CARD_NO);

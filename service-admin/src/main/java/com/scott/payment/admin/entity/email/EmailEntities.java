@@ -684,6 +684,10 @@ public final class EmailEntities {
          * </p>
          */
         private String contentSnapshot;
+        /** 加密保存的实际投递正文，仅在消费者发送成功前保留。 */
+        private String deliveryContentCipher;
+        /** 实际投递正文类型，取值为 HTML 或 TEXT。 */
+        private String contentType;
         /**
          * variables Snapshot，用于保存 Email Send Record DO 中与 variablessnapshot 相关的业务属性。
          * <p>

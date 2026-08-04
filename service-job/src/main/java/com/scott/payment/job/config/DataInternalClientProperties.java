@@ -16,6 +16,12 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "job.data-client")
 public class DataInternalClientProperties {
 
+    /** service-data 建连超时，单位毫秒。 */
+    private int connectTimeoutMillis = 3_000;
+
+    /** service-data 有界批次读取超时，单位毫秒。 */
+    private int readTimeoutMillis = 240_000;
+
     /** 内部调用方标识，用于 service-data 审计来源。 */
     private String internalCaller = "service-job";
 

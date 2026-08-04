@@ -39,6 +39,9 @@ risk:
     # 参数说明：限制单次风控规则快照最大字符数，防止超大配置占用堆内存。
     # 环境说明：环境变量：RISK_RULE_SNAPSHOT_MAX_CHARACTERS，dev 配置默认值为 "5242880"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     rule-snapshot-max-characters: ${RISK_RULE_SNAPSHOT_MAX_CHARACTERS:5242880}
+    # 超容量后短时间跳过重复全量加载；标记绑定 generation，精确数据库查询仍会执行。
+    # 环境说明：环境变量：RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS，dev 默认值为 "30"；其他环境按规则变更频率和数据库承载能力配置。
+    rule-snapshot-capacity-bypass-ttl-seconds: ${RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS:30}
     # 固定窗口规则容量上限；越界时进入 REVIEW，不静默放行。
     # 环境说明：环境变量：RISK_FREQUENCY_MAX_WINDOW_SECONDS，dev 配置默认值为 "86400"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     frequency-max-window-seconds: ${RISK_FREQUENCY_MAX_WINDOW_SECONDS:86400}

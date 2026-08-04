@@ -27,4 +27,13 @@ public class DataMerchantNotificationProperties {
 
     /** 单季度每次扫描允许尝试恢复的最大 PROCESSING 候选数。 */
     private int recoveryBatchLimit = 100;
+
+    /** 平台签发回调 JWT 的有效期，单位秒，最大 300 秒。 */
+    private long callbackJwtTtlSeconds = 180L;
+
+    /** 是否允许明文 HTTP，仅限隔离开发环境显式开启。 */
+    private boolean allowHttp;
+
+    /** 是否允许回环、私网和保留地址，仅限隔离开发环境显式开启。 */
+    private boolean allowPrivateNetwork;
 }

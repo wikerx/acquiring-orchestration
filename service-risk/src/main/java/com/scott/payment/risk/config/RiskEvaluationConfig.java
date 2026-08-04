@@ -33,6 +33,9 @@ public class RiskEvaluationConfig {
     /** 单个序列化规则快照允许的绝对最大字符数，约 20 MiB。 */
     private static final int ABSOLUTE_MAX_RULE_SNAPSHOT_CHARACTERS = 20 * 1024 * 1024;
 
+    /** 超容量快照旁路允许的绝对最大秒数，避免误配置长期跳过容量重新探测。 */
+    private static final int ABSOLUTE_MAX_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS = 300;
+
     /**
      * 校验数据库基线切换门禁及规则快照、固定频率窗口容量边界。
      *
@@ -70,6 +73,13 @@ public class RiskEvaluationConfig {
             throw new IllegalStateException(
                     "risk.evaluation.rule-snapshot-max-characters must be between 1 and "
                             + ABSOLUTE_MAX_RULE_SNAPSHOT_CHARACTERS);
+        }
+        if (properties.getRuleSnapshotCapacityBypassTtlSeconds() <= 0
+                || properties.getRuleSnapshotCapacityBypassTtlSeconds()
+                > ABSOLUTE_MAX_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS) {
+            throw new IllegalStateException(
+                    "risk.evaluation.rule-snapshot-capacity-bypass-ttl-seconds must be between 1 and "
+                            + ABSOLUTE_MAX_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS);
         }
     }
 

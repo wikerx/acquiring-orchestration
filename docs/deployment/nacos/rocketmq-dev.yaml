@@ -74,6 +74,16 @@ acquiring:
           read-queue-nums: 4
           # 参数说明：配置 RocketMQ Topic 写队列数，必须为正整数并结合生产吞吐设置。
           write-queue-nums: 4
+        # Admin 与 Merchant 登录审计 Topic。
+        - name: acquiring_login_audit_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
+        # Admin 与 Merchant 业务邮件定位消息 Topic，不携带正文或地址。
+        - name: acquiring_email_delivery_topic
+          type: TOPIC
+          read-queue-nums: 4
+          write-queue-nums: 4
         # 参数说明：声明 RocketMQ Topic 或消费者组的资源名称；不同环境必须避免重名串用。
         - name: acquiring-data-admin-operation-log-consumer
           # 参数说明：声明 RocketMQ 初始化资源类型，仅支持 TOPIC 或 CONSUMER_GROUP。
@@ -124,6 +134,29 @@ acquiring:
           retry-max-times: 16
           # 参数说明：配置 RocketMQ 消费超时，单位分钟；超过后消息可能进入重试流程。
           consume-timeout-minute: 15
+        # 登录审计由 service-data 集中持久化。
+        - name: acquiring-data-login-audit-consumer
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        # Admin 与 Merchant 使用独立消费组，按 Tag 隔离发送账户和业务边界。
+        - name: acquiring-admin-email-delivery-consumer
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+        - name: acquiring-merchant-email-delivery-consumer
+          type: CONSUMER_GROUP
+          retry-queue-nums: 1
+          retry-max-times: 16
+          consume-timeout-minute: 15
+    outbox:
+      relay-enabled: true
+      batch-size: 100
+      max-retry-count: 8
+      retry-delay-seconds: 10
+      processing-timeout-seconds: 120
   operation-log:
     mq:
       # 管理类系统操作日志 MQ 链路总开关。
@@ -151,3 +184,19 @@ acquiring:
       enabled: true
       # Redis 只保留短期消费幂等标记，数据库 event_no 唯一键是最终依据。
       consume-idempotent-ttl-seconds: 604800
+
+  email:
+    delivery:
+      # 仅在表结构、运行时密钥、Topic 和消费组均已就绪后启用。
+      enabled: ${EMAIL_DELIVERY_ENABLED:false}
+      default-max-retry-count: 3
+      retry-delay-seconds: 30
+      max-retry-delay-seconds: 3600
+      processing-timeout-seconds: 300
+      batch-size: 100
+      relay-interval-millis: 30000
+
+payment:
+  email:
+    # 必须由环境变量或密钥管理服务注入，禁止在 Nacos 草案中写入真实密钥。
+    secret: ${PAYMENT_EMAIL_SECRET:}

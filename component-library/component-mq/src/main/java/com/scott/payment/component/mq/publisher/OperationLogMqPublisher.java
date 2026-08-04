@@ -2,7 +2,6 @@ package com.scott.payment.component.mq.publisher;
 
 import com.scott.payment.component.mq.enums.OperationLogSystemCode;
 import com.scott.payment.component.mq.message.OperationLogMessage;
-import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import com.scott.payment.component.web.operation.service.OperationLogPublisher;
@@ -36,7 +35,7 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
     /**
      * MQ 消息发送器。
      */
-    private final MqProducer mqProducer;
+    private final IndependentReliableMqPublisher mqPublisher;
 
     /**
      * 操作日志 MQ 配置。
@@ -61,16 +60,16 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
     /**
      * 创建 RocketMQ 操作日志发布器。
      *
-     * @param mqProducer 消息发送器
+     * @param mqPublisher 可靠消息发布器
      * @param properties 操作日志 MQ 配置
      * @param systemCode 当前系统编码
      */
-    public OperationLogMqPublisher(MqProducer mqProducer,
+    public OperationLogMqPublisher(IndependentReliableMqPublisher mqPublisher,
                                    OperationLogMqProperties properties,
                                    OperationLogSystemCode systemCode,
                                    OperationLogTopicResolver topicResolver,
                                    OperationLogMessageSanitizer messageSanitizer) {
-        this.mqProducer = mqProducer;
+        this.mqPublisher = mqPublisher;
         this.properties = properties;
         this.systemCode = systemCode;
         this.topicResolver = topicResolver;
@@ -88,8 +87,8 @@ public class OperationLogMqPublisher implements OperationLogPublisher {
             return;
         }
         OperationLogMessage message = buildMessage(record);
-        mqProducer.send(resolveTopic(), null, message);
-        log.info("操作日志消息已投递，systemCode：{}，topic：{}，messageId：{}，requestId：{}",
+        mqPublisher.publish(resolveTopic(), null, message);
+        log.info("操作日志消息已进入可靠投递队列，systemCode：{}，topic：{}，messageId：{}，requestId：{}",
                 systemCode.name(),
                 resolveTopic(),
                 message.getMessageId(),

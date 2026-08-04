@@ -1155,5 +1155,14 @@ public final class RiskDTOs {
          * 决策结果：PASS、REJECT、REVIEW，允许为空。
          */
         private String decisionResult;
+
+        /** 风险等级：LOW、MEDIUM、HIGH、CRITICAL，允许为空。 */
+        private String riskLevel;
+
+        /** 评估时间范围起点（包含），按平台业务时区解释。 */
+        private LocalDateTime evaluationStartTime;
+
+        /** 评估时间范围终点（不包含），避免跨天查询出现边界重复。 */
+        private LocalDateTime evaluationEndTimeExclusive;
     }
 }

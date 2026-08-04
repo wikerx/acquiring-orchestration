@@ -898,8 +898,8 @@ public interface RiskRuntimeMapper {
      * 从交易逻辑表的单个季度范围查询指定交易的当前状态。
      *
      * @param transactionId 平台交易号
-     * @param beginTime 交易号解析出的季度开始时间（含）
-     * @param endTimeExclusive 下一季度开始时间（不含）
+     * @param beginTime 风控编排持久化业务周期的开始时间（含）
+     * @param endTimeExclusive 风控编排持久化业务周期的结束时间（不含）
      * @return 交易状态；记录不存在时返回 {@code null}
      */
     @DS(DataSourceName.TRANSACTION)

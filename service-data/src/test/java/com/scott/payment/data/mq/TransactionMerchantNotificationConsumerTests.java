@@ -3,6 +3,7 @@ package com.scott.payment.data.mq;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
+import com.scott.payment.component.mq.message.MerchantNotificationRetryMessage;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
@@ -115,6 +116,30 @@ class TransactionMerchantNotificationConsumerTests {
         assertThat(deliveryService.notifyDueCalled).isFalse();
     }
 
+    /** 后台人工重发必须使用页面传入的真实分片时间，并将 MQ 消息号固定为回调事件号。 */
+    @Test
+    void shouldRetryMerchantNotificationWithStableMqEventId() {
+        log.info("测试后台人工重发商户回调，关键输入: 精确交易时间和稳定 MQ 消息号");
+        InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(true);
+        TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
+        MerchantNotificationRetryMessage retryMessage = new MerchantNotificationRetryMessage();
+        retryMessage.setMessageId("MNR-20260804-0001");
+        retryMessage.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED);
+        retryMessage.setTransactionId("TX202608011600000000001");
+        retryMessage.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
+        retryMessage.setRequestId("REQ-20260804-0001");
+
+        consumer.onMessage(JsonUtils.toJsonString(retryMessage));
+
+        assertThat(deliveryService.retryTransactionCalled).isTrue();
+        assertThat(deliveryService.transactionId).isEqualTo("TX202608011600000000001");
+        assertThat(deliveryService.transactionDateTime)
+                .isEqualTo(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
+        assertThat(deliveryService.callbackEventId).isEqualTo("MNR-20260804-0001");
+        assertThat(deliveryService.notifyTransactionCalled).isFalse();
+        log.info("后台人工重发商户回调测试完成，结果: MQ 消息号和真实分片时间均已透传");
+    }
+
     /** 创建仅处理消息对应交易的消费者。 */
     private TransactionMerchantNotificationConsumer consumer(InMemoryDeliveryService deliveryService) {
         return new TransactionMerchantNotificationConsumer(deliveryService);
@@ -143,6 +168,9 @@ class TransactionMerchantNotificationConsumerTests {
         /** 是否调用过到期扫描。 */
         private boolean notifyDueCalled;
 
+        /** 是否调用过后台人工重发。 */
+        private boolean retryTransactionCalled;
+
         /** 消费者传入的平台交易 ID。 */
         private String transactionId;
 
@@ -151,6 +179,9 @@ class TransactionMerchantNotificationConsumerTests {
 
         /** 消费者传入的补偿批量。 */
         private int limit;
+
+        /** 人工重发使用的稳定回调事件 ID。 */
+        private String callbackEventId;
 
         private InMemoryDeliveryService(boolean transactionResult) {
             this.transactionResult = transactionResult;
@@ -171,6 +202,18 @@ class TransactionMerchantNotificationConsumerTests {
             this.notifyTransactionCalled = true;
             this.transactionDateTime = transactionDateTime;
             this.transactionId = transactionId;
+            return transactionResult;
+        }
+
+        /** 记录后台人工重发参数并返回预设结果。 */
+        @Override
+        public boolean retryTransaction(LocalDateTime transactionDateTime,
+                                        String transactionId,
+                                        String callbackEventId) {
+            this.retryTransactionCalled = true;
+            this.transactionDateTime = transactionDateTime;
+            this.transactionId = transactionId;
+            this.callbackEventId = callbackEventId;
             return transactionResult;
         }
     }

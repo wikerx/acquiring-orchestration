@@ -2,6 +2,7 @@ package com.scott.payment.component.db.sharding;
 
 import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
+import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import org.apache.shardingsphere.sharding.api.sharding.standard.PreciseShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.RangeShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.StandardShardingAlgorithm;
@@ -69,9 +70,8 @@ public class QuarterTableShardingAlgorithm implements StandardShardingAlgorithm<
         return availableTargetNames.stream()
                 .filter(expected::equals)
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("missing verified sharding node for "
-                        + shardingValue.getLogicTableName() + " quarter " + quarterLabel(dateTime)
-                        + " rule " + ruleVersion));
+                .orElseThrow(() -> new TransactionDataUnavailableException(
+                        shardingValue.getLogicTableName(), quarterLabel(dateTime), ruleVersion));
     }
 
     /**
@@ -107,8 +107,8 @@ public class QuarterTableShardingAlgorithm implements StandardShardingAlgorithm<
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         if (!registered.containsAll(expected)) {
             ShardingQuarter missing = expected.stream().filter(item -> !registered.contains(item)).findFirst().orElseThrow();
-            throw new IllegalStateException("missing verified sharding node for " + shardingValue.getLogicTableName()
-                    + " quarter " + missing.year() + "-Q" + missing.quarter() + " rule " + ruleVersion);
+            throw new TransactionDataUnavailableException(
+                    shardingValue.getLogicTableName(), missing.year() + "-Q" + missing.quarter(), ruleVersion);
         }
         return candidates.stream()
                 .filter(candidate -> expected.contains(candidate.quarter()))

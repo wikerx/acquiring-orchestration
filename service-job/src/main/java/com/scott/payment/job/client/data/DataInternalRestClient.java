@@ -6,6 +6,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.config.DataInternalClientProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,9 @@ public class DataInternalRestClient implements DataInternalClient {
     /** 商户通知到期补偿内部接口路径。 */
     private static final String NOTIFY_DUE_PATH = "/internal/data/merchant-notifications/notify-due";
 
+    /** 单笔商户通知精确补偿内部接口路径。 */
+    private static final String NOTIFY_TRANSACTION_PATH = "/internal/data/merchant-notifications/notify-transaction";
+
     /** 直连 HTTP 客户端。 */
     private final RestTemplate directRestTemplate;
 
@@ -75,17 +79,27 @@ public class DataInternalRestClient implements DataInternalClient {
      */
     @Override
     public Integer notifyDueMerchantNotifications(DataMerchantNotificationNotifyDueClientRequestDTO requestDTO) {
-        URI uri = URI.create(SERVICE_DATA_BASE_URL + NOTIFY_DUE_PATH);
+        return post(NOTIFY_DUE_PATH, requestDTO, new TypeReference<CommonResult<Integer>>() {
+        });
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Boolean notifyMerchantNotification(DataMerchantNotificationNotifyClientRequestDTO requestDTO) {
+        return post(NOTIFY_TRANSACTION_PATH, requestDTO, new TypeReference<CommonResult<Boolean>>() {
+        });
+    }
+
+    /** 执行带内部签名的 service-data POST 并统一解包。 */
+    private <T> T post(String path, Object requestDTO, TypeReference<CommonResult<T>> responseType) {
+        URI uri = URI.create(SERVICE_DATA_BASE_URL + path);
         try {
             String responseBody = chooseRestTemplate(uri).exchange(
                     uri,
                     HttpMethod.POST,
                     buildSignedEntity(uri, requestDTO),
                     String.class).getBody();
-            CommonResult<Integer> result = JsonUtils.parseObject(
-                    responseBody,
-                    new TypeReference<CommonResult<Integer>>() {
-                    });
+            CommonResult<T> result = JsonUtils.parseObject(responseBody, responseType);
             if (result == null) {
                 throw new ServiceException(ApiResultEnum.BAD_GATEWAY.getCode(), "service-data response is empty");
             }

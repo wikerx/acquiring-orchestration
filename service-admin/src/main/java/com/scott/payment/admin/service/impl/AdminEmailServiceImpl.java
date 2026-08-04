@@ -32,43 +32,37 @@ import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.model.PageResult;
-import jakarta.mail.internet.MimeMessage;
-import org.springframework.mail.javamail.JavaMailSenderImpl;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import com.scott.payment.component.mq.email.EmailDeliveryFailureSummary;
+import com.scott.payment.component.mq.email.EmailPayloadCrypto;
+import com.scott.payment.component.mq.enums.EmailDeliveryStatus;
+import com.scott.payment.component.mq.properties.EmailDeliveryProperties;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-@Service
 /**
  * @author : scott
  * @version : v1.0.0
  * @classname : AdminEmailServiceImpl
  * @date : 2026-07-04 16:11
  * @email : scott_x@163.com
- * @description : Admin Email Service Impl 服务实现，位于 运营后台服务，执行领域校验、配置读取、数据库更新或远程调用编排，并向上层返回明确结果。
+ * @description : 管理邮件账户、模板和发送记录；业务邮件只冻结加密记录与 Outbox，测试邮箱保留显式同步发送
  * @status : create
  */
+@Service
 public class AdminEmailServiceImpl implements AdminEmailService {
 
     /**
@@ -151,7 +145,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
-    private static final int SEND_SENDING = 1;
+    private static final int SEND_PENDING = EmailDeliveryStatus.PENDING.getCode();
+    /** 同步测试邮件发送过程中使用的中间状态。 */
+    private static final int SEND_SENDING = EmailDeliveryStatus.SENDING.getCode();
     /**
      * SEND SUCCESS，用于保存 Admin Email Service Impl 中与 sendsuccess 相关的业务属性。
      * <p>
@@ -160,7 +156,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
-    private static final int SEND_SUCCESS = 2;
+    private static final int SEND_SUCCESS = EmailDeliveryStatus.SUCCESS.getCode();
     /**
      * SEND FAILED，用于保存 Admin Email Service Impl 中与 sendfailed 相关的业务属性。
      * <p>
@@ -169,7 +165,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
      * </p>
      */
-    private static final int SEND_FAILED = 3;
+    private static final int SEND_FAILED = EmailDeliveryStatus.CLOSED.getCode();
     /**
      * COMMON SCENE，用于保存 Admin Email Service Impl 中与 commonscene 相关的业务属性。
      * <p>
@@ -238,16 +234,6 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      */
     private static final Pattern TEMPLATE_VARIABLE_PATTERN = Pattern.compile("\\$\\{([A-Za-z][A-Za-z0-9_]*)}");
     /**
-     * SECURE RANDOM，用于保存 Admin Email Service Impl 中与 securerandom 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；不允许为空；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-
-    /**
      * account Mapper，表示当前统计、分页、扫描或重试场景中的数量。
      * <p>
      * 单位：个或次；格式：整数；是否允许为空由接口校验、数据库约束或调用契约决定；可识别字段，日志输出必须脱敏或截断。
@@ -278,6 +264,14 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * 系统参数配置服务，用于邮件模板注入平台访问地址等公共变量。
      */
     private final AdminConfigService adminConfigService;
+    /** 邮件正文和 SMTP 密码的运行时密钥加密组件。 */
+    private final EmailPayloadCrypto payloadCrypto;
+    /** Admin 邮件异步投递编排。 */
+    private final AdminEmailDeliveryService deliveryService;
+    /** 测试邮箱场景使用的同步 SMTP 边界。 */
+    private final AdminSmtpEmailSender smtpEmailSender;
+    /** 邮件默认重试配置。 */
+    private final EmailDeliveryProperties deliveryProperties;
 
 /**
  * 整理admin邮件serviceimpl，返回当前业务步骤需要的规范化结果。
@@ -294,11 +288,19 @@ public class AdminEmailServiceImpl implements AdminEmailService {
     public AdminEmailServiceImpl(EmailAccountMapper accountMapper,
                                  EmailTemplateMapper templateMapper,
                                  EmailSendRecordMapper recordMapper,
-                                 AdminConfigService adminConfigService) {
+                                 AdminConfigService adminConfigService,
+                                 EmailPayloadCrypto payloadCrypto,
+                                 AdminEmailDeliveryService deliveryService,
+                                 AdminSmtpEmailSender smtpEmailSender,
+                                 EmailDeliveryProperties deliveryProperties) {
         this.accountMapper = accountMapper;
         this.templateMapper = templateMapper;
         this.recordMapper = recordMapper;
         this.adminConfigService = adminConfigService;
+        this.payloadCrypto = payloadCrypto;
+        this.deliveryService = deliveryService;
+        this.smtpEmailSender = smtpEmailSender;
+        this.deliveryProperties = deliveryProperties;
     }
 
     /**
@@ -653,17 +655,14 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         return toRecordResponse(requireRecord(id));
     }
 
-    @Override
     /**
-     * 发送bytemplate消息或请求，补齐目标地址、链路标识和业务载荷。
-     * <p>
-     * 前置条件：调用方已确定 运营后台服务 的目标地址、消息主题、业务编号和重试策略。
-     * 该方法可能调用外部系统、内部服务或 MQ；traceId 必须沿调用链透传，重试应保留原业务标识。
-     * 异常边界：网络异常、超时或投递失败需转换为当前模块可识别的失败结果并记录脱敏摘要。
-     * </p>
-     * @param request request，来源于接口入参、内部服务调用或任务调度，字段含义按所属模型定义
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 在独立事务中冻结模板、地址和加密正文，并写入同事务 Outbox。
+     *
+     * @param request 模板编码、收件地址、业务标识和渲染变量
+     * @return 新建发送记录的标识和 PENDING 状态
      */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public EmailSendResult sendByTemplate(EmailSendRequest request) {
         EmailTemplateDO template = requireEnabledTemplate(request.getTemplateCode(), defaultIfBlank(request.getLocale(), DEFAULT_LOCALE));
         Map<String, Object> variables = enrichSystemVariables(request.getVariables());
@@ -683,8 +682,11 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         record.setSubject(render(template.getSubjectTemplate(), variables));
         record.setContentSnapshot(maskSensitiveContent(template.getContentTemplate(), variables, parseStringList(template.getSensitiveVariableNames())));
         record.setVariablesSnapshot(JSON.toJSONString(maskVariables(variables, parseStringList(template.getSensitiveVariableNames()))));
+        record.setDeliveryContentCipher(encryptSecret(content));
+        record.setContentType(defaultIfBlank(trimUpper(template.getContentType()), CONTENT_HTML));
         recordMapper.insert(record);
-        return doSend(record, account, content, CONTENT_HTML.equalsIgnoreCase(template.getContentType()));
+        deliveryService.enqueue(record);
+        return toSendResult(record);
     }
 
     /**
@@ -698,18 +700,24 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public EmailSendResult resend(Long id) {
         EmailSendRecordDO source = requireRecord(id);
-        if (source.getSendStatus() == SEND_SUCCESS) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "发送成功的邮件不允许重新发送");
+        EmailDeliveryStatus sourceStatus = EmailDeliveryStatus.fromCode(source.getSendStatus());
+        if (sourceStatus != EmailDeliveryStatus.CLOSED && sourceStatus != EmailDeliveryStatus.CANCELLED) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "仅关闭或取消的邮件允许重新创建发送任务");
         }
         if ("LOGIN_OTP".equals(source.getSceneCode()) || "PASSWORD_RESET".equals(source.getSceneCode())) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "验证码和找回密码邮件请通过原业务流程重新发送");
         }
-        EmailAccountDO account = requireAccount(source.getAccountId());
+        requireAccount(source.getAccountId());
+        if (!StringUtils.hasText(source.getDeliveryContentCipher())) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "邮件记录缺少可投递正文，请通过原业务流程重新创建");
+        }
         EmailSendRecordDO record = copyRetryRecord(source);
         recordMapper.insert(record);
-        return doSend(record, account, source.getContentSnapshot(), true);
+        deliveryService.enqueue(record);
+        return toSendResult(record);
     }
 
     /**
@@ -775,6 +783,49 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      */
     private LambdaQueryWrapper<EmailSendRecordDO> recordQueryWrapper(EmailRecordQuery query) {
         return Wrappers.<EmailSendRecordDO>lambdaQuery()
+                // 列表只读取展示字段，避免投递密文进入查询结果，也允许数据库迁移前查询既有记录。
+                .select(
+                        EmailSendRecordDO::getId,
+                        EmailSendRecordDO::getEmailNo,
+                        EmailSendRecordDO::getAppCode,
+                        EmailSendRecordDO::getMerchantId,
+                        EmailSendRecordDO::getMerchantNo,
+                        EmailSendRecordDO::getMerchantName,
+                        EmailSendRecordDO::getSceneCode,
+                        EmailSendRecordDO::getTemplateCode,
+                        EmailSendRecordDO::getTemplateName,
+                        EmailSendRecordDO::getLocale,
+                        EmailSendRecordDO::getAccountId,
+                        EmailSendRecordDO::getAccountCode,
+                        EmailSendRecordDO::getProviderType,
+                        EmailSendRecordDO::getFromName,
+                        EmailSendRecordDO::getFromEmail,
+                        EmailSendRecordDO::getReplyToEmail,
+                        EmailSendRecordDO::getToEmails,
+                        EmailSendRecordDO::getCcEmails,
+                        EmailSendRecordDO::getBccEmails,
+                        EmailSendRecordDO::getSubject,
+                        EmailSendRecordDO::getContentSnapshot,
+                        EmailSendRecordDO::getVariablesSnapshot,
+                        EmailSendRecordDO::getBizType,
+                        EmailSendRecordDO::getBizNo,
+                        EmailSendRecordDO::getSendStatus,
+                        EmailSendRecordDO::getRetryCount,
+                        EmailSendRecordDO::getMaxRetryCount,
+                        EmailSendRecordDO::getNextRetryTime,
+                        EmailSendRecordDO::getSendStartTime,
+                        EmailSendRecordDO::getSendEndTime,
+                        EmailSendRecordDO::getSendSuccessTime,
+                        EmailSendRecordDO::getCostMs,
+                        EmailSendRecordDO::getErrorCode,
+                        EmailSendRecordDO::getErrorMessage,
+                        EmailSendRecordDO::getOperatorId,
+                        EmailSendRecordDO::getOperatorName,
+                        EmailSendRecordDO::getCreateBy,
+                        EmailSendRecordDO::getCreateTime,
+                        EmailSendRecordDO::getUpdateBy,
+                        EmailSendRecordDO::getUpdateTime,
+                        EmailSendRecordDO::getDeleted)
                 .eq(EmailSendRecordDO::getDeleted, NOT_DELETED)
                 .like(StringUtils.hasText(query.getEmailNo()), EmailSendRecordDO::getEmailNo, trim(query.getEmailNo()))
                 .eq(StringUtils.hasText(query.getAppCode()), EmailSendRecordDO::getAppCode, trimUpper(query.getAppCode()))
@@ -919,9 +970,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         record.setBccEmails(JSON.toJSONString(defaultList(request.getBccEmails())));
         record.setBizType(trimUpper(request.getBizType()));
         record.setBizNo(trim(request.getBizNo()));
-        record.setSendStatus(SEND_SENDING);
+        record.setSendStatus(SEND_PENDING);
         record.setRetryCount(0);
-        record.setMaxRetryCount(defaultIfNull(request.getMaxRetryCount(), 0));
+        record.setMaxRetryCount(defaultIfNull(request.getMaxRetryCount(), deliveryProperties.getDefaultMaxRetryCount()));
         fillOperator(record);
         record.setCreateBy(currentOperatorName());
         record.setUpdateBy(currentOperatorName());
@@ -969,25 +1020,7 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         record.setSendStatus(SEND_SENDING);
         recordMapper.updateById(record);
         try {
-            JavaMailSenderImpl sender = buildMailSender(account);
-            MimeMessage message = sender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            helper.setFrom(account.getFromEmail(), account.getFromName());
-            if (StringUtils.hasText(account.getReplyToEmail())) {
-                helper.setReplyTo(account.getReplyToEmail());
-            }
-            helper.setTo(parseEmailArray(record.getToEmails()));
-            String[] cc = parseEmailArray(record.getCcEmails());
-            if (cc.length > 0) {
-                helper.setCc(cc);
-            }
-            String[] bcc = parseEmailArray(record.getBccEmails());
-            if (bcc.length > 0) {
-                helper.setBcc(bcc);
-            }
-            helper.setSubject(record.getSubject());
-            helper.setText(content, html);
-            sender.send(message);
+            smtpEmailSender.send(account, record, content, html);
             record.setSendStatus(SEND_SUCCESS);
             record.setSendEndTime(LocalDateTime.now());
             record.setSendSuccessTime(record.getSendEndTime());
@@ -999,44 +1032,12 @@ public class AdminEmailServiceImpl implements AdminEmailService {
             record.setSendEndTime(LocalDateTime.now());
             record.setCostMs(Duration.between(start, record.getSendEndTime()).toMillis());
             record.setErrorCode("EMAIL_SEND_FAILED");
-            record.setErrorMessage(truncate(ex.getMessage(), 1800));
+            record.setErrorMessage(EmailDeliveryFailureSummary.summarize(ex));
         }
         record.setUpdateBy(currentOperatorName());
         record.setUpdateTime(LocalDateTime.now());
         recordMapper.updateById(record);
         return toSendResult(record);
-    }
-
-    /**
-     * 构造mailsender对象，完成字段复制、格式标准化和敏感数据处理。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 所需的源对象、配置或协议字段。
-     * 该方法主要完成字段映射、格式标准化、金额币种整理或响应组装，不承担远程调用职责。
-     * 异常边界：必要字段缺失或格式非法时抛出当前模块约定异常；敏感字段只保留脱敏、摘要或最小必要值。
-     * </p>
-     * @param account account 输入值，参与 账号 的查询、校验、转换、写入或日志摘要
-     * @return 构造、转换或解析后的业务值
-     */
-    private JavaMailSenderImpl buildMailSender(EmailAccountDO account) {
-        JavaMailSenderImpl sender = new JavaMailSenderImpl();
-        sender.setHost(account.getSmtpHost());
-        sender.setPort(account.getSmtpPort());
-        sender.setUsername(account.getSmtpUsername());
-        if (account.getSmtpAuthRequired() == YES) {
-            sender.setPassword(decryptSecret(account.getSmtpPasswordCipher()));
-        }
-        Properties props = sender.getJavaMailProperties();
-        props.put("mail.smtp.auth", String.valueOf(account.getSmtpAuthRequired() == YES));
-        props.put("mail.smtp.connectiontimeout", String.valueOf(account.getConnectTimeoutMs()));
-        props.put("mail.smtp.timeout", String.valueOf(account.getReadTimeoutMs()));
-        props.put("mail.smtp.writetimeout", String.valueOf(account.getReadTimeoutMs()));
-        if ("SSL".equals(account.getEncryptionType()) || "TLS".equals(account.getEncryptionType())) {
-            props.put("mail.smtp.ssl.enable", "true");
-        } else if ("STARTTLS".equals(account.getEncryptionType())) {
-            props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.starttls.required", "true");
-        }
-        return sender;
     }
 
     /**
@@ -1330,11 +1331,13 @@ public class AdminEmailServiceImpl implements AdminEmailService {
         record.setBccEmails(source.getBccEmails());
         record.setSubject(source.getSubject());
         record.setContentSnapshot(source.getContentSnapshot());
+        record.setDeliveryContentCipher(source.getDeliveryContentCipher());
+        record.setContentType(source.getContentType());
         record.setVariablesSnapshot(source.getVariablesSnapshot());
         record.setBizType(source.getBizType());
         record.setBizNo(source.getBizNo());
-        record.setSendStatus(SEND_SENDING);
-        record.setRetryCount(defaultIfNull(source.getRetryCount(), 0) + 1);
+        record.setSendStatus(SEND_PENDING);
+        record.setRetryCount(0);
         record.setMaxRetryCount(source.getMaxRetryCount());
         fillOperator(record);
         record.setCreateBy(currentOperatorName());
@@ -1817,51 +1820,9 @@ public class AdminEmailServiceImpl implements AdminEmailService {
      */
     private String encryptSecret(String plainText) {
         try {
-            byte[] iv = new byte[12];
-            SECURE_RANDOM.nextBytes(iv);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(secretKey(), "AES"), new GCMParameterSpec(128, iv));
-            byte[] encrypted = cipher.doFinal(plainText.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(iv) + "." + Base64.getEncoder().encodeToString(encrypted);
+            return payloadCrypto.encrypt(plainText);
         } catch (Exception ex) {
-            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "SMTP 密码加密失败");
+            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "邮件加密密钥未配置或不可用");
         }
-    }
-
-    /**
-     * 规范化secret，返回调用链后续步骤可直接使用的业务值。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param cipherText cipher Text 输入值，参与 密文文本 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private String decryptSecret(String cipherText) {
-        try {
-            String[] parts = cipherText.split("\\.", 2);
-            byte[] iv = Base64.getDecoder().decode(parts[0]);
-            byte[] encrypted = Base64.getDecoder().decode(parts[1]);
-            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(secretKey(), "AES"), new GCMParameterSpec(128, iv));
-            return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
-        } catch (Exception ex) {
-            throw new ServiceException(ApiResultEnum.COMMON_FAILED.getCode(), "SMTP 密码解密失败");
-        }
-    }
-
-    /**
-     * 整理密钥材料，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private byte[] secretKey() throws Exception {
-        String seed = System.getProperty("payment.email.secret", System.getenv().getOrDefault("PAYMENT_EMAIL_SECRET", "local-email-secret-change-me"));
-        return MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));
     }
 }

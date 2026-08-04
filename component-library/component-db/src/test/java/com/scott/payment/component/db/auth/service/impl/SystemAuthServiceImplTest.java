@@ -21,6 +21,7 @@ import com.scott.payment.component.db.auth.entity.SysMerchantUserDO;
 import com.scott.payment.component.db.auth.entity.SysRoleDO;
 import com.scott.payment.component.db.auth.entity.SysUserDO;
 import com.scott.payment.component.db.auth.entity.SysVerifyCodeDO;
+import com.scott.payment.component.db.auth.event.LoginAuditEvent;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMapper;
 import com.scott.payment.component.db.auth.mapper.SysAccountMfaLogMapper;
@@ -45,6 +46,7 @@ import com.scott.payment.component.db.auth.model.MerchantRuntimeProfile;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -56,6 +58,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 
@@ -153,6 +157,10 @@ class SystemAuthServiceImplTest {
      * 商户基础资料缓存服务，用于商户端登录商户有效性校验。
      */
     private MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService;
+    /** 登录审计事件发布器，用于验证失败审计不再依赖认证事务直接落库。 */
+    private ApplicationEventPublisher applicationEventPublisher;
+    /** 登录日志 Mapper，仅用于断言认证服务不再同步写审计表。 */
+    private SysLoginLogMapper sysLoginLogMapper;
     /**
      * system Auth Service 依赖，用于 System Auth Service Impl Test 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -181,7 +189,7 @@ class SystemAuthServiceImplTest {
         SysMerchantPermissionGrantMapper sysMerchantPermissionGrantMapper = mock(SysMerchantPermissionGrantMapper.class);
         sysMerchantUserMapper = mock(SysMerchantUserMapper.class);
         sysMerchantUserRoleMapper = mock(SysMerchantUserRoleMapper.class);
-        SysLoginLogMapper sysLoginLogMapper = mock(SysLoginLogMapper.class);
+        sysLoginLogMapper = mock(SysLoginLogMapper.class);
         sysLoginSessionMapper = mock(SysLoginSessionMapper.class);
         sysVerifyCodeMapper = mock(SysVerifyCodeMapper.class);
         sysAccountMfaMapper = mock(SysAccountMfaMapper.class);
@@ -189,6 +197,7 @@ class SystemAuthServiceImplTest {
         SysAccountMfaLogMapper sysAccountMfaLogMapper = mock(SysAccountMfaLogMapper.class);
         baseMerchantInfoMapper = mock(BaseMerchantInfoMapper.class);
         merchantRuntimeProfileCacheService = mock(MerchantRuntimeProfileCacheService.class);
+        applicationEventPublisher = mock(ApplicationEventPublisher.class);
 
         systemAuthService = new SystemAuthServiceImpl(
                 sysAppMapper,
@@ -204,14 +213,14 @@ class SystemAuthServiceImplTest {
                 sysMerchantPermissionGrantMapper,
                 sysMerchantUserMapper,
                 sysMerchantUserRoleMapper,
-                sysLoginLogMapper,
                 sysLoginSessionMapper,
                 sysVerifyCodeMapper,
                 sysAccountMfaMapper,
                 sysAccountMfaTokenMapper,
                 sysAccountMfaLogMapper,
                 baseMerchantInfoMapper,
-                merchantRuntimeProfileCacheService
+                merchantRuntimeProfileCacheService,
+                applicationEventPublisher
         );
     }
 
@@ -387,6 +396,35 @@ class SystemAuthServiceImplTest {
         assertThat(response.getMfaPolicy()).isEqualTo(AuthConstants.MFA_POLICY_OPTIONAL);
         assertThat(response.getMfaStatus()).isEqualTo(AuthConstants.MFA_STATUS_NOT_ENABLED);
         verify(sysLoginSessionMapper).insert(any(SysLoginSessionDO.class));
+    }
+
+    /** 密码错误抛出业务异常前必须发布独立审计事件，认证事务不得直接写登录日志表。 */
+    @Test
+    void failedLoginShouldPublishAuditEventInsteadOfWritingLoginLogInAuthenticationTransaction() {
+        String correctPassword = "Merchant@123456";
+        SysAccountDO account = merchantAccountWithPassword(correctPassword);
+        when(sysAppMapper.selectOne(any())).thenReturn(merchantApp());
+        when(merchantRuntimeProfileCacheService.findRuntimeProfile("200045")).thenReturn(activeMerchantInfo());
+        when(sysMerchantUserMapper.selectOne(any())).thenReturn(merchantAccountUser());
+        when(sysAccountMapper.selectById(eq(60L))).thenReturn(account);
+        when(sysVerifyCodeMapper.selectById(eq(900L))).thenReturn(validLoginCaptcha());
+
+        assertThatThrownBy(() -> systemAuthService.login(
+                AuthConstants.APP_MERCHANT,
+                merchantLoginRequest("Wrong@123456"),
+                "127.0.0.1",
+                "merchant-browser"))
+                .isInstanceOf(ServiceException.class)
+                .extracting("code")
+                .isEqualTo(ApiResultEnum.UNAUTHORIZED.getCode());
+
+        verify(applicationEventPublisher).publishEvent(argThat((LoginAuditEvent event) ->
+                event.eventId() != null
+                        && event.appId().equals(2L)
+                        && event.accountId().equals(60L)
+                        && event.loginStatus() == 0
+                        && "password mismatch".equals(event.failReason())));
+        verifyNoInteractions(sysLoginLogMapper);
     }
 
     private SysAppDO adminApp() {

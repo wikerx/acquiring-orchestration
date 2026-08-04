@@ -1,6 +1,7 @@
 package com.scott.payment.data.api.internal;
 
 import com.scott.payment.component.core.model.CommonResult;
+import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyCommandDTO;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyDueCommandDTO;
 import com.scott.payment.data.application.MerchantNotificationApplicationService;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,5 +45,16 @@ public class DataMerchantNotificationInternalController {
     @PostMapping("/notify-due")
     public CommonResult<Integer> notifyDue(@RequestBody MerchantNotificationNotifyDueCommandDTO commandDTO) {
         return success(applicationService.notifyDue(commandDTO));
+    }
+
+    /**
+     * 使用交易号和显式交易时间精确重试一条通知。
+     *
+     * @param commandDTO 单笔补偿命令
+     * @return true 表示商户端点返回 2xx
+     */
+    @PostMapping("/notify-transaction")
+    public CommonResult<Boolean> notifyTransaction(@RequestBody MerchantNotificationNotifyCommandDTO commandDTO) {
+        return success(applicationService.notifyTransaction(commandDTO));
     }
 }

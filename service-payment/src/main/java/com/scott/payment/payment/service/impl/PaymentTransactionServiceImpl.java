@@ -671,8 +671,8 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         validateCreateCommand(commandDTO);
         long startNanos = System.nanoTime();
         String transactionType = resolveTransactionType(commandDTO);
-        String idempotencyKey = transactionIdempotencyService.buildInitialTransactionKey(
-                commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo());
+        String idempotencyKey = transactionIdempotencyService.buildTransactionOperationKey(
+                commandDTO.getMerchantId(), commandDTO.getMerchantOrderId(), transactionType);
         log.info("event: PAYMENT_TRANSACTION_START stage=ACCEPT traceId: {} merchantId: {} merchantOrderNo: {} transactionType: {} paymentMethod: {} currency: {} amount: {} idempotencyKey: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -2944,6 +2944,18 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount(),
                 resultDTO.getCurrency(),
                 JsonUtils.toJsonString(resultDTO));
+        if (isInitialTransactionType(resultDTO.getTransactionType())) {
+            transactionIdempotencyService.complete(
+                    "MERCHANT_ORDER_FLOW",
+                    transactionIdempotencyService.buildMerchantOrderFlowKey(
+                            commandDTO.getMerchantId(), commandDTO.getMerchantOrderNo()),
+                    resultDTO.getOperationId(),
+                    resultDTO.getTransactionId(),
+                    resultDTO.getStatus(),
+                    commandDTO.getTransactionAmount() == null ? commandDTO.getAmount() : commandDTO.getTransactionAmount(),
+                    resultDTO.getCurrency(),
+                    JsonUtils.toJsonString(resultDTO));
+        }
         log.info("event: PAYMENT_IDEMPOTENCY_COMPLETE stage=IDEMPOTENCY traceId: {} merchantId: {} merchantOrderNo: {} transactionId: {} operationId: {} transactionType: {} platformStatus: {} currency: {} amount: {} idempotencyKey: {}",
                 TraceContext.getTraceId(),
                 commandDTO.getMerchantId(),
@@ -2977,6 +2989,7 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
         if (StringUtils.hasText(record.getResultSnapshot())) {
             PaymentCreateResultDTO resultDTO = JsonUtils.parseObject(record.getResultSnapshot(), PaymentCreateResultDTO.class);
             if (resultDTO != null) {
+                applyLatestIdempotencyStatus(resultDTO, record.getTransactionStatus());
                 return resultDTO;
             }
         }
@@ -2992,6 +3005,30 @@ public class PaymentTransactionServiceImpl implements PaymentTransactionService 
                 : toMinorAmount(record.getTransactionAmount(), record.getTransactionCurrency()));
         resultDTO.setCurrency(record.getTransactionCurrency());
         return resultDTO;
+    }
+
+    /** 以幂等记录的最新状态覆盖渠道异步确认前保存的历史响应快照。 */
+    private void applyLatestIdempotencyStatus(PaymentCreateResultDTO resultDTO, String transactionStatus) {
+        if (!StringUtils.hasText(transactionStatus)) {
+            return;
+        }
+        resultDTO.setStatus(transactionStatus);
+        if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)) {
+            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_SUCCESS.getCode());
+            resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_SUCCESS.getMessage());
+        } else if (PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus)) {
+            resultDTO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+            resultDTO.setMerchantResponseCode(ApiResultEnum.PAYMENT_REJECTED.getCode());
+            resultDTO.setMerchantResponseMessage(ApiResultEnum.PAYMENT_REJECTED.getMessage());
+        }
+    }
+
+    /** 判断当前动作是否为共用商户订单流守卫的首次交易类型。 */
+    private boolean isInitialTransactionType(String transactionType) {
+        return PaymentTransactionTypeEnum.PAYMENT.getCode().equals(transactionType)
+                || PaymentTransactionTypeEnum.AUTHORIZATION.getCode().equals(transactionType)
+                || PaymentTransactionTypeEnum.PRE_AUTHORIZATION.getCode().equals(transactionType);
     }
 
     /**

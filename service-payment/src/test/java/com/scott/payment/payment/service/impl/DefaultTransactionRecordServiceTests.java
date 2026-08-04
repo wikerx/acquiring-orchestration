@@ -279,8 +279,11 @@ class DefaultTransactionRecordServiceTests {
                 .thenReturn(1);
         when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
         when(flowEventMapper.insertLogical(any(TransactionFlowEventDO.class))).thenReturn(1);
-        when(notificationMapper.activateByTransactionId(anyString(), any(), any(), anyString(), any(), any()))
+        when(notificationMapper.activateByTransactionId(
+                anyString(), any(), any(), anyString(), anyString(), any(), any()))
                 .thenReturn(1);
+        ArgumentCaptor<String> callbackPayloadCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> notificationAuditPayloadCaptor = ArgumentCaptor.forClass(String.class);
         TransactionShardingProperties properties = logicalShardingProperties();
         DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
                 orderMapper,
@@ -296,8 +299,10 @@ class DefaultTransactionRecordServiceTests {
                 new TransactionShardingKeyParser(),
                 properties);
 
+        TransactionOperationDO operationDO = processingInitialOperation();
+        operationDO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         boolean changed = recordService.completeByChannelCallback(
-                processingInitialOperation(),
+                operationDO,
                 processingInitialOrder(),
                 "CCB202607010030000000001",
                 PaymentTransactionStatusEnum.SUCCESS.getCode(),
@@ -334,9 +339,16 @@ class DefaultTransactionRecordServiceTests {
                 eq("TX202607010030000000001"),
                 eq(transactionDateTime),
                 eq(0),
-                anyString(),
+                callbackPayloadCaptor.capture(),
+                notificationAuditPayloadCaptor.capture(),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class));
+        assertThat(callbackPayloadCaptor.getValue())
+                .contains("\"transactionStatus\":\"SUCCESS\"")
+                .contains("\"processStage\":\"FINISHED\"")
+                .doesNotContain("\"processStage\":\"CHANNEL_REQUESTING\"");
+        assertThat(notificationAuditPayloadCaptor.getValue())
+                .contains("\"transactionStatus\":\"SUCCESS\"");
     }
 
     /**
@@ -577,6 +589,111 @@ class DefaultTransactionRecordServiceTests {
     }
 
     /**
+     * 商户后台发起退款时不接触原始回调地址，Payment 必须按源交易精确分片时间继承通知配置。
+     */
+    @Test
+    void shouldInheritSourceTransactionCallbackWhenRecordingRefund() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        Captured<TransactionMerchantNotificationDO> notificationCapture = new Captured<>();
+        LocalDateTime sourceTransactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
+        TransactionMerchantNotificationDO sourceNotification = new TransactionMerchantNotificationDO();
+        sourceNotification.setNotifyConfigSnapshotJson(
+                "{\"callbackUrl\":\"https://merchant.example/refund-callback?source=qa\"}");
+        when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(1);
+        when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
+        when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
+        when(orderMapper.increaseRefundedAmount(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any())).thenReturn(1);
+        when(notificationMapper.selectLatestConfigByTransactionId(
+                "200001", "TX202607010030000000001", sourceTransactionDateTime))
+                .thenReturn(sourceNotification);
+        when(notificationMapper.insertLogical(any(TransactionMerchantNotificationDO.class))).thenAnswer(invocation -> {
+            notificationCapture.value = invocation.getArgument(0);
+            return 1;
+        });
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                notificationMapper,
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+        TransactionFollowUpRecordDTO recordDTO = followUpRecord();
+        recordDTO.getSourceOrderDO().setCapturedAmount(new BigDecimal("12.34"));
+        recordDTO.getSourceOrderDO().setAvailableRefundAmount(new BigDecimal("12.34"));
+        recordDTO.getCommandDTO().setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+        recordDTO.getCommandDTO().getTransactionInfo().setSourceTransactionDateTime(sourceTransactionDateTime);
+        recordDTO.getResultDTO().setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+
+        recordService.recordFollowUpTransaction(recordDTO);
+
+        assertThat(notificationCapture.value).isNotNull();
+        assertThat(notificationCapture.value.getNotifyConfigSnapshotJson())
+                .contains("https://merchant.example/refund-callback?source=qa");
+        assertThat(notificationCapture.value.getTargetUrlMasked())
+                .isEqualTo("https://merchant.example/refund-callback?***");
+        verify(notificationMapper).selectLatestConfigByTransactionId(
+                "200001", "TX202607010030000000001", sourceTransactionDateTime);
+    }
+
+    /**
+     * 源通知快照损坏时不得回滚已经落库的退款动作，也不得创建缺少有效地址的通知任务。
+     */
+    @Test
+    void shouldKeepRefundFactsWhenSourceNotificationConfigIsInvalid() {
+        TransactionOrderMapper orderMapper = mock(TransactionOrderMapper.class);
+        TransactionOperationMapper operationMapper = mock(TransactionOperationMapper.class);
+        TransactionStatusHistoryMapper historyMapper = mock(TransactionStatusHistoryMapper.class);
+        TransactionMerchantNotificationMapper notificationMapper = mock(TransactionMerchantNotificationMapper.class);
+        LocalDateTime sourceTransactionDateTime = LocalDateTime.of(2026, 7, 1, 0, 30);
+        TransactionMerchantNotificationDO sourceNotification = new TransactionMerchantNotificationDO();
+        sourceNotification.setNotifyConfigSnapshotJson("{invalid-json");
+        when(operationMapper.countByOperationId(anyString(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(1);
+        when(operationMapper.insert(any(TransactionOperationDO.class))).thenReturn(1);
+        when(historyMapper.insertLogical(any(TransactionStatusHistoryDO.class))).thenReturn(1);
+        when(orderMapper.increaseRefundedAmount(anyString(), any(LocalDateTime.class), anyString(),
+                any(BigDecimal.class), any())).thenReturn(1);
+        when(notificationMapper.selectLatestConfigByTransactionId(
+                "200001", "TX202607010030000000001", sourceTransactionDateTime))
+                .thenReturn(sourceNotification);
+        DefaultTransactionRecordService recordService = new DefaultTransactionRecordService(
+                orderMapper,
+                operationMapper,
+                historyMapper,
+                mock(TransactionChannelRequestMapper.class),
+                mock(TransactionChannelInteractionLogMapper.class),
+                mock(TransactionFlowEventMapper.class),
+                mock(TransactionAmountChangeLogMapper.class),
+                notificationMapper,
+                mock(TransactionMerchantApiInteractionLogMapper.class),
+                mock(TransactionPaymentMethodInfoMapper.class),
+                new TransactionShardingKeyParser(),
+                logicalShardingProperties());
+        TransactionFollowUpRecordDTO recordDTO = followUpRecord();
+        recordDTO.getSourceOrderDO().setCapturedAmount(new BigDecimal("12.34"));
+        recordDTO.getSourceOrderDO().setAvailableRefundAmount(new BigDecimal("12.34"));
+        recordDTO.getCommandDTO().setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+        recordDTO.getCommandDTO().getTransactionInfo().setSourceTransactionDateTime(sourceTransactionDateTime);
+        recordDTO.getResultDTO().setTransactionType(PaymentTransactionTypeEnum.REFUND.getCode());
+
+        recordService.recordFollowUpTransaction(recordDTO);
+
+        verify(operationMapper).insert(any(TransactionOperationDO.class));
+        verify(notificationMapper, never()).insertLogical(any(TransactionMerchantNotificationDO.class));
+    }
+
+    /**
      * 授权撤销成功后，主单可请款金额必须被清零，避免页面和后续请款校验继续显示可用额度。
      */
     @Test
@@ -814,7 +931,8 @@ class DefaultTransactionRecordServiceTests {
         verify(historyMapper, times(2)).insertLogical(any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertLogical(any());
         verify(notificationMapper).activateByTransactionId(
-                anyString(), any(LocalDateTime.class), any(), anyString(), any(LocalDateTime.class), any(LocalDateTime.class));
+                anyString(), any(LocalDateTime.class), any(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class));
     }
 
     /**
@@ -929,7 +1047,8 @@ class DefaultTransactionRecordServiceTests {
         verify(historyMapper, times(2)).insertLogical(any(TransactionStatusHistoryDO.class));
         verify(flowEventMapper).insertLogical(any(TransactionFlowEventDO.class));
         verify(notificationMapper).activateByTransactionId(
-                anyString(), any(LocalDateTime.class), any(), anyString(), any(LocalDateTime.class), any(LocalDateTime.class));
+                anyString(), any(LocalDateTime.class), any(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class));
         verify(merchantApiLogMapper).updateFinalResultLogical(
                 eq("202607010030000000001"),
                 eq(LocalDateTime.of(2026, 7, 1, 0, 30)),
@@ -1410,7 +1529,7 @@ class DefaultTransactionRecordServiceTests {
                 """);
         commandDTO.setOpenApiRequestPath("/api/rest/payment/v1/authorization");
         commandDTO.setOpenApiRequestTime(LocalDateTime.of(2026, 7, 1, 0, 29, 59));
-        commandDTO.setCallbackUrl("https://merchant.example/callback?token=secret");
+        commandDTO.setCallbackUrl("https://merchant.example/callback?source=qa");
         PaymentChannelInvokeResultDTO invokeResultDTO = channelInvokeResult();
         invokeResultDTO.setHttpMethod("POST");
         invokeResultDTO.setRequestUrlMasked("https://test-gateway.mastercard.com/api/rest/order/CODX260714180001/transaction/CH260714180001");
@@ -1470,7 +1589,8 @@ class DefaultTransactionRecordServiceTests {
         assertThat(merchantApiCapture.value.getResponseCipherDigest()).isNull();
         assertThat(notificationCapture.value.getTargetUrlMasked()).isEqualTo("https://merchant.example/callback?***");
         assertThat(notificationCapture.value.getNotifyConfigSnapshotJson())
-                .contains("https://merchant.example/callback?token=secret");
+                .contains("https://merchant.example/callback?source=qa");
+        assertThat(notificationCapture.value.getMaxRetryCount()).isEqualTo(10);
         assertNestedMerchantPayload(notificationCapture.value.getPayloadJsonMasked());
     }
 

@@ -21,9 +21,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -35,7 +38,7 @@ import java.util.regex.Pattern;
  * @classname : MpgsApiClient
  * @date : 2026-07-12 00:00
  * @email : scott_x@163.com
- * @description : MPGS REST API 客户端，位于 payment-channel-library 渠道实现层，负责构造 MPGS URL、Basic Auth、HTTP 调用和脱敏请求响应日志；不处理平台交易状态机。
+ * @description : MPGS REST API 客户端，位于 payment-channel-library 渠道实现层，负责构造 MPGS URL、Basic Auth、HTTP 调用和请求响应摘要日志；不处理平台交易状态机。
  * @status : create
  */
 @Slf4j
@@ -348,7 +351,7 @@ public class MpgsApiClient {
                     HTTP_METHOD_PUT, apiOperation, request.getOperationId(), request.getTransactionId(),
                     request.getChannelOrderNo(), request.getAuthenticationTransactionId(), request.getMerchantOrderNo()
             )));
-            log.info("MPGS 3DS请求报文，request: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(requestBody)));
+            logPayloadMetadata("MPGS 3DS请求摘要", requestBody);
             HttpResponse<String> response = sendPut(request, url, requestBody);
             return handleAuthenticationResponse(request, response, apiOperation, url, startNanos);
         } catch (java.net.http.HttpTimeoutException e) {
@@ -365,7 +368,7 @@ public class MpgsApiClient {
     }
 
     /**
-     * 处理 MPGS HTTP 响应并打印脱敏响应日志。
+     * 处理 MPGS HTTP 响应并记录不可逆响应摘要。
      *
      * @param request    渠道统一请求
      * @param response   MPGS HTTP 响应
@@ -386,7 +389,7 @@ public class MpgsApiClient {
                 request.getChannelOrderNo(), request.getChannelTransactionId(), request.getMerchantOrderNo(),
                 response.statusCode(), elapsedMillis(startNanos)
         )));
-        log.info("MPGS渠道响应报文，response: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
+        logPayloadMetadata("MPGS渠道响应摘要", body);
         if (!StringUtils.hasText(body)) {
             throw new ChannelResponseException("MPGS response body is empty");
         }
@@ -691,7 +694,7 @@ public class MpgsApiClient {
                 request.getChannelOrderNo(), request.getAuthenticationTransactionId(), response.statusCode(),
                 elapsedMillis(startNanos)
         )));
-        log.info("MPGS 3DS响应报文，response: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(body)));
+        logPayloadMetadata("MPGS 3DS响应摘要", body);
         if (!StringUtils.hasText(body)) {
             throw new ChannelResponseException("MPGS 3DS response body is empty");
         }
@@ -787,7 +790,7 @@ public class MpgsApiClient {
     }
 
     /**
-     * 打印 MPGS 脱敏请求日志。
+     * 打印 MPGS 请求上下文和不可逆报文摘要。
      *
      * @param request     渠道统一请求
      * @param httpMethod  HTTP 方法
@@ -806,7 +809,7 @@ public class MpgsApiClient {
                 request.getMerchantId(), request.getMerchantOrderNo(), request.getMerchantOrderId(), request.getTransactionType(),
                 String.valueOf(request.getAmount()), request.getCurrency()
         )));
-        log.info("MPGS渠道请求报文，request: {}", JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
+        logPayloadMetadata("MPGS渠道请求摘要", payload);
     }
 
     /**
@@ -851,20 +854,21 @@ public class MpgsApiClient {
      * 记录 MPGS 渠道请求发起日志。
      * <p>
      * 日志字段覆盖渠道、操作、endpoint 主机与 path、渠道 MID 摘要、平台交易号、
-     * 动作单号、渠道请求号和脱敏请求摘要。请求摘要复用 MPGS 既有脱敏方法，不输出完整卡号、CVV 或认证头。
+     * 动作单号、渠道请求号以及请求长度和不可逆摘要，不输出完整渠道报文、卡号、CVV 或认证头。
      * </p>
      * @param request 渠道支付请求，提供平台交易标识、渠道码、渠道交易号和扩展字段
      * @param httpMethod HTTP 方法
      * @param operation MPGS API 操作名称
      * @param url MPGS endpoint 完整地址，用于拆分主机和 path
-     * @param payload MPGS 请求载荷，写日志前必须经过现有脱敏逻辑
+     * @param payload MPGS 请求载荷，仅计算字节长度和不可逆摘要
      */
     private void logStructuredRequestStart(ChannelPaymentRequest request,
                                            String httpMethod,
                                            String operation,
                                            String url,
                                            MpgsRequestPayload payload) {
-        log.info("event: CHANNEL_REQUEST_START traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} requestSummary: {}",
+        PayloadLogMetadata metadata = payloadLogMetadata(payload);
+        log.info("event: CHANNEL_REQUEST_START traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} channelTransactionId: {} payloadLength: {} payloadDigest: {}",
                 TraceContext.getTraceId(),
                 request.getChannelCode(),
                 operation,
@@ -876,14 +880,15 @@ public class MpgsApiClient {
                 request.getOperationId(),
                 requestId(request),
                 request.getChannelTransactionId(),
-                JsonUtils.toJsonString(toMaskedJsonLogObject(payload)));
+                metadata.length(),
+                metadata.digest());
     }
 
     /**
      * 记录 MPGS 渠道响应完成日志。
      * <p>
-     * 日志覆盖 HTTP 状态、脱敏响应摘要、渠道结果、收单参考号、响应码、STAN、
-     * 渠道交易号和耗时。响应摘要复用 MPGS 既有脱敏方法，不记录完整渠道报文。
+     * 日志覆盖 HTTP 状态、响应长度和不可逆摘要、渠道结果、收单参考号、响应码、STAN、
+     * 渠道交易号和耗时，不记录完整渠道报文。
      * </p>
      * @param request 渠道支付请求，提供平台交易标识、渠道码和扩展请求号
      * @param channelResponse 已映射的渠道响应对象，允许为空
@@ -891,7 +896,7 @@ public class MpgsApiClient {
      * @param httpMethod HTTP 方法
      * @param operation MPGS API 操作名称
      * @param url MPGS endpoint 完整地址，用于拆分主机和 path
-     * @param body 渠道原始响应体，写日志前必须经过现有脱敏逻辑
+     * @param body 渠道原始响应体，仅计算字节长度和不可逆摘要
      * @param startNanos 请求开始时间，单位为纳秒
      */
     private void logStructuredResponseEnd(ChannelPaymentRequest request,
@@ -902,7 +907,8 @@ public class MpgsApiClient {
                                           String url,
                                           String body,
                                           long startNanos) {
-        log.info("event: CHANNEL_RESPONSE_END traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} httpStatus: {} responseSummary: {} channelResult: {} acquirerCode: {} responseCode: {} stan: {} channelTransactionId: {} durationMs: {}",
+        PayloadLogMetadata metadata = payloadLogMetadata(body);
+        log.info("event: CHANNEL_RESPONSE_END traceId: {} channelCode: {} apiOperation: {} endpointHost: {} endpointPath: {} httpMethod: {} midSummary: {} transactionId: {} operationId: {} channelRequestId: {} httpStatus: {} payloadLength: {} payloadDigest: {} channelResult: {} acquirerCode: {} responseCode: {} stan: {} channelTransactionId: {} durationMs: {}",
                 TraceContext.getTraceId(),
                 request.getChannelCode(),
                 operation,
@@ -914,13 +920,44 @@ public class MpgsApiClient {
                 request.getOperationId(),
                 requestId(request),
                 response.statusCode(),
-                JsonUtils.toJsonString(toMaskedJsonLogObject(body)),
+                metadata.length(),
+                metadata.digest(),
                 channelResponse == null ? null : channelResponse.getChannelTradeStatus(),
                 channelResponse == null ? null : channelResponse.getAcquirerReferenceNo(),
                 channelResponse == null ? null : channelResponse.getChannelResponseCode(),
                 channelResponse == null ? null : channelResponse.getRrn(),
                 channelResponse == null ? null : channelResponse.getChannelTransactionId(),
                 elapsedMillis(startNanos));
+    }
+
+    /**
+     * 记录渠道报文的最小元数据，避免完整结构进入应用日志。
+     *
+     * @param eventName 日志事件名称
+     * @param payload 渠道请求或响应对象
+     */
+    private void logPayloadMetadata(String eventName, Object payload) {
+        PayloadLogMetadata metadata = payloadLogMetadata(payload);
+        log.info("{}，payloadLength: {}, payloadDigest: {}", eventName, metadata.length(), metadata.digest());
+    }
+
+    /**
+     * 计算渠道报文 UTF-8 字节长度和 SHA-256 摘要，不保留可逆内容。
+     *
+     * @param payload 渠道请求或响应对象
+     * @return 仅包含长度和不可逆摘要的日志元数据
+     */
+    private PayloadLogMetadata payloadLogMetadata(Object payload) {
+        String text = payload == null ? "" : payload instanceof String value
+                ? value
+                : JsonUtils.toJsonString(payload);
+        byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+            return new PayloadLogMetadata(bytes.length, "sha256:" + HexFormat.of().formatHex(digest));
+        } catch (NoSuchAlgorithmException exception) {
+            return new PayloadLogMetadata(bytes.length, "sha256_unavailable");
+        }
     }
 
     /**
@@ -1269,39 +1306,6 @@ public class MpgsApiClient {
         return MPGS_HTML_FIELD_PATTERN.matcher(masked).replaceAll("$1***$3");
     }
 
-    /**
-     * 将请求对象转为可直接复制的脱敏 JSON 日志对象。
-     *
-     * @param payload MPGS 请求对象，查询接口为空
-     * @return 可序列化的脱敏 JSON 对象
-     */
-    private Object toMaskedJsonLogObject(MpgsRequestPayload payload) {
-        if (payload == null) {
-            return Collections.emptyMap();
-        }
-        return toMaskedJsonLogObject(JsonUtils.toJsonString(payload));
-    }
-
-    /**
-     * 将原始 JSON 字符串转为可直接复制的脱敏 JSON 日志对象。
-     * <p>
-     * MPGS HTTP 响应进入系统时先是字符串，这里先脱敏再解析为对象，避免日志出现嵌套 JSON 字符串和反斜杠转义。
-     *
-     * @param json 原始 JSON 字符串
-     * @return 可序列化的脱敏 JSON 对象；非 JSON 内容以脱敏字符串返回
-     */
-    private Object toMaskedJsonLogObject(String json) {
-        String masked = maskMpgsJson(json);
-        if (!StringUtils.hasText(masked)) {
-            return Collections.emptyMap();
-        }
-        try {
-            return JsonUtils.parseObject(masked, Object.class);
-        } catch (RuntimeException e) {
-            return masked;
-        }
-    }
-
     private record ThreeDsRequestLogContext(String httpMethod,
                                             String operation,
                                             String operationId,
@@ -1345,5 +1349,8 @@ public class MpgsApiClient {
                                       String merchantOrderNo,
                                       int httpStatus,
                                       long durationMillis) {
+    }
+
+    private record PayloadLogMetadata(int length, String digest) {
     }
 }

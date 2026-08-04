@@ -3,7 +3,6 @@ package com.scott.payment.component.mq.publisher;
 import com.scott.payment.component.mq.enums.OperationLogSystemCode;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.message.OperationLogMessage;
-import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.component.mq.properties.OperationLogMqProperties;
 import com.scott.payment.component.web.operation.dto.OperationLogRecord;
 import org.junit.jupiter.api.Test;
@@ -29,10 +28,10 @@ class OperationLogMqPublisherTests {
     /** 错误摘要使用数据库上限，请求和响应正文继续使用通用消息上限。 */
     @Test
     void shouldLimitErrorSummaryWithoutReducingRequestAndResponseLimit() {
-        MqProducer mqProducer = mock(MqProducer.class);
+        IndependentReliableMqPublisher mqPublisher = mock(IndependentReliableMqPublisher.class);
         OperationLogMqProperties properties = new OperationLogMqProperties();
         OperationLogMqPublisher publisher = new OperationLogMqPublisher(
-                mqProducer,
+                mqPublisher,
                 properties,
                 OperationLogSystemCode.ADMIN,
                 new OperationLogTopicResolver(properties),
@@ -48,7 +47,7 @@ class OperationLogMqPublisherTests {
         publisher.publish(record);
 
         ArgumentCaptor<BaseMqMessage> captor = ArgumentCaptor.forClass(BaseMqMessage.class);
-        verify(mqProducer).send(eq(properties.getAdminTopic()), isNull(), captor.capture());
+        verify(mqPublisher).publish(eq(properties.getAdminTopic()), isNull(), captor.capture());
         OperationLogMessage message = (OperationLogMessage) captor.getValue();
         assertThat(message.getErrorMessage()).hasSize(OperationLogMessage.ERROR_MESSAGE_MAX_LENGTH);
         assertThat(message.getRequestParams()).hasSize(properties.getMaxMessageLength());

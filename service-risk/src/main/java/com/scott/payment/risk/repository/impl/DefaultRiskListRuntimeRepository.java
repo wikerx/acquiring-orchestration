@@ -106,6 +106,9 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     /** 精确名单 Hash 内保存 generation、loaded 和 count 的保留字段。 */
     private static final String SNAPSHOT_META_FIELD = "@meta";
 
+    /** 超容量数据集使用的短 TTL 旁路标记后缀，标记值为规则 generation。 */
+    private static final String SNAPSHOT_CAPACITY_BYPASS_SUFFIX = ":capacity-bypass";
+
     /** 将规则中的全部元素拼成一个联合维度后共用单个计数器。 */
     private static final String FREQUENCY_DIMENSION_COMBINATION = "ELEMENT_COMBINATION";
 
@@ -1244,7 +1247,14 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             );
         }
 
-        List<RiskRuleSnapshotRow> rows = boundedSnapshotRows(() -> loadSnapshotRows(function, merchantId));
+        if (snapshotCapacityBypassActive(cacheKey, generation)) {
+            return SnapshotListMatch.unavailable();
+        }
+        List<RiskRuleSnapshotRow> rows = boundedSnapshotRows(
+                cacheKey,
+                generation,
+                () -> loadSnapshotRows(function, merchantId)
+        );
         if (rows == null) {
             return SnapshotListMatch.unavailable();
         }
@@ -1271,6 +1281,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     function.name(),
                     serializedCharacters
             );
+            markSnapshotCapacityBypass(cacheKey, generation);
             return SnapshotListMatch.unavailable();
         }
         replaceHashSnapshot(cacheKey, fields);
@@ -1357,7 +1368,10 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             );
         }
 
-        List<RiskRuleSnapshotRow> rows = boundedSnapshotRows(loader);
+        if (snapshotCapacityBypassActive(cacheKey, generation)) {
+            return SnapshotRows.unavailable();
+        }
+        List<RiskRuleSnapshotRow> rows = boundedSnapshotRows(cacheKey, generation, loader);
         if (rows == null) {
             return SnapshotRows.unavailable();
         }
@@ -1369,6 +1383,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     RedisKeyDigest.sha256(cacheKey),
                     snapshotJson.length()
             );
+            markSnapshotCapacityBypass(cacheKey, generation);
             return SnapshotRows.unavailable();
         }
         try {
@@ -1583,18 +1598,78 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     /**
      * 执行配置上限加一查询并识别大集合。
      *
+     * @param cacheKey 规则快照 Key
+     * @param generation 当前规则代际
      * @param loader 有界主库加载器
      * @return 不超过上限的不可变列表；越界时返回 null
      */
-    private List<RiskRuleSnapshotRow> boundedSnapshotRows(Supplier<List<RiskRuleSnapshotRow>> loader) {
+    private List<RiskRuleSnapshotRow> boundedSnapshotRows(String cacheKey,
+                                                          String generation,
+                                                          Supplier<List<RiskRuleSnapshotRow>> loader) {
         List<RiskRuleSnapshotRow> loaded = loader.get();
         List<RiskRuleSnapshotRow> safeRows = immutableSnapshotRows(loaded);
         if (safeRows.size() > properties.getRuleSnapshotMaxRows()) {
-            log.warn("event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED dimension: ROWS count: {}",
+            log.warn("event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED keyDigest: {} dimension: ROWS count: {}",
+                    RedisKeyDigest.sha256(cacheKey),
                     safeRows.size());
+            markSnapshotCapacityBypass(cacheKey, generation);
             return null;
         }
         return safeRows;
+    }
+
+    /**
+     * 判断当前 generation 的数据集是否已确认不适合构建完整 Redis 快照。
+     *
+     * <p>旁路只省略有界全量加载，调用方仍执行现有数据库精确查询。Redis 异常时返回 false，
+     * 让当前请求重新探测容量，避免把缓存故障解释为规则未命中。</p>
+     *
+     * @param cacheKey 规则快照 Key
+     * @param generation 当前规则代际
+     * @return 同 generation 的短 TTL 旁路标记存在时为 true
+     */
+    private boolean snapshotCapacityBypassActive(String cacheKey, String generation) {
+        String bypassKey = snapshotCapacityBypassKey(cacheKey);
+        try {
+            return Objects.equals(generation, stringRedisTemplate.opsForValue().get(bypassKey));
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "event: RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_READ_FAILED keyDigest: {} exceptionType: {}",
+                    RedisKeyDigest.sha256(bypassKey),
+                    exception.getClass().getSimpleName()
+            );
+            return false;
+        }
+    }
+
+    /**
+     * 为超容量数据集写入与 generation 绑定的短 TTL 旁路标记。
+     *
+     * @param cacheKey 规则快照 Key
+     * @param generation 当前规则代际
+     */
+    private void markSnapshotCapacityBypass(String cacheKey, String generation) {
+        String bypassKey = snapshotCapacityBypassKey(cacheKey);
+        Duration ttl = Duration.ofSeconds(Math.max(1L, properties.getRuleSnapshotCapacityBypassTtlSeconds()));
+        try {
+            stringRedisTemplate.opsForValue().set(bypassKey, generation, ttl);
+        } catch (RuntimeException exception) {
+            log.warn(
+                    "event: RISK_RULE_SNAPSHOT_CAPACITY_BYPASS_WRITE_FAILED keyDigest: {} exceptionType: {}",
+                    RedisKeyDigest.sha256(bypassKey),
+                    exception.getClass().getSimpleName()
+            );
+        }
+    }
+
+    /**
+     * 构造独立于正式规则快照的容量旁路 Key。
+     *
+     * @param cacheKey 规则快照 Key
+     * @return 仅保存 generation 的短 TTL Key
+     */
+    private String snapshotCapacityBypassKey(String cacheKey) {
+        return cacheKey + SNAPSHOT_CAPACITY_BYPASS_SUFFIX;
     }
 
     /**
@@ -1819,10 +1894,15 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     exception.getClass().getSimpleName()
             );
         }
+        if (snapshotCapacityBypassActive(cacheKey, generation.get())) {
+            return SnapshotMatches.unavailable();
+        }
         List<RiskListMatch> matches = immutableList(loader.get());
         if (matches.size() > properties.getRuleSnapshotMaxRows()) {
-            log.warn("event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED dimension: ROWS count: {}",
+            log.warn("event: RISK_RULE_SNAPSHOT_CAPACITY_EXCEEDED keyDigest: {} dimension: ROWS count: {}",
+                    RedisKeyDigest.sha256(cacheKey),
                     matches.size());
+            markSnapshotCapacityBypass(cacheKey, generation.get());
             return SnapshotMatches.unavailable();
         }
         RiskRuleSnapshot snapshot = RiskRuleSnapshot.matches(generation.get(), matches);
@@ -1833,6 +1913,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     RedisKeyDigest.sha256(cacheKey),
                     snapshotJson.length()
             );
+            markSnapshotCapacityBypass(cacheKey, generation.get());
             return SnapshotMatches.unavailable();
         }
         try {

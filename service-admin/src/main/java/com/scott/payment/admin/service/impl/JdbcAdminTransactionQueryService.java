@@ -29,6 +29,7 @@ import org.springframework.util.StringUtils;
 
 import javax.sql.DataSource;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.DateTimeException;
@@ -157,6 +158,16 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      * </p>
      */
     private static final String TRANSACTION_MERCHANT_NOTIFICATION_TABLE = "transaction_merchant_notification";
+
+    /** 管理端通知详情投影，明确排除包含完整回调地址的 notify_config_snapshot_json。 */
+    private static final String TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION = """
+            id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
+            notify_type, event_type, notify_status, notify_config_version,
+            target_url_hash, target_url_masked, payload_json_masked, sign_type,
+            last_attempt_no, max_retry_count, next_retry_time, success_time, fail_reason,
+            transaction_date_time, transaction_utc_time, transaction_time_zone,
+            version, deleted, create_time, update_time
+            """;
     /**
      * TRANSACTION MERCHANT NOTIFICATION LOG TABLE，用于保存 Jdbc Admin Transaction Query Service 中与 交易商户通知日志table 相关的业务属性。
      * <p>
@@ -387,7 +398,8 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         detail.setChannelCallbackLogs(selectMapsByOperationId(TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setMerchantNotifications(selectMapsByOperationId(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, beginTime, endTime, order.getOperationId()));
         detail.setMerchantNotificationLogs(selectMapsByOperationId(TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
-        detail.setMerchantApiInteractionLogs(selectOptionalMapsByOperationId(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
+        detail.setMerchantApiInteractionLogs(selectMapsByOperationId(
+                TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, beginTime, endTime, order.getOperationId()));
         return detail;
     }
 
@@ -429,6 +441,38 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
         return executeRead(false,
                 () -> pageMaps(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, merchantNotificationWhereSql(safeQuery),
                         merchantNotificationParams(safeQuery), safeQuery));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean existsRetryableTerminalMerchantNotification(String transactionId,
+                                                               LocalDateTime transactionDateTime) {
+        if (!StringUtils.hasText(transactionId) || transactionDateTime == null) {
+            return false;
+        }
+        return executeRead(true, () -> Boolean.TRUE.equals(jdbcTemplate.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM transaction_operation operation_record
+                    JOIN transaction_merchant_notification notification
+                      ON notification.transaction_id = operation_record.transaction_id
+                     AND notification.transaction_date_time = operation_record.transaction_date_time
+                    WHERE operation_record.transaction_id = :transactionId
+                      AND operation_record.transaction_date_time = :transactionDateTime
+                      AND operation_record.transaction_status IN ('SUCCESS', 'FAILED')
+                      AND operation_record.deleted = 0
+                      AND notification.deleted = 0
+                      AND (
+                            notification.notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')
+                            OR (notification.notify_status = 'INIT'
+                                AND notification.next_retry_time IS NOT NULL)
+                          )
+                )
+                """, new MapSqlParameterSource()
+                .addValue("transactionId", transactionId.trim())
+                .addValue("transactionDateTime", transactionDateTime), Boolean.class)));
     }
 
     /**
@@ -1585,37 +1629,28 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     private List<Map<String, Object>> selectMapsByOperationId(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime, String operationId) {
         boolean softDeleteTable = hasSoftDeleteColumn(logicalTable);
         MapSqlParameterSource params = baseParams(beginTime, endTime).addValue("operationId", operationId);
-        return toCamelCaseRows(jdbcTemplate.queryForList("""
-                    SELECT *
+        List<Map<String, Object>> rows = toCamelCaseRows(jdbcTemplate.queryForList("""
+                    SELECT %s
                     FROM %s
                     WHERE %s
                       AND operation_id = :operationId
                       AND transaction_date_time >= :beginTime
                       AND transaction_date_time < :endTime
                     ORDER BY transaction_date_time ASC, id ASC
-                    """.formatted(logicalTable, softDeleteCondition(softDeleteTable)),
+                    """.formatted(adminDetailProjection(logicalTable), logicalTable,
+                    softDeleteCondition(softDeleteTable)),
                     params));
+        if (TRANSACTION_MERCHANT_NOTIFICATION_TABLE.equals(logicalTable)) {
+            rows.forEach(row -> row.remove("notifyConfigSnapshotJson"));
+        }
+        return rows;
     }
 
-    /**
-     * 查询optionalmapsby动作ID，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 运营后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
-     * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
-    private List<Map<String, Object>> selectOptionalMapsByOperationId(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime, String operationId) {
-        try {
-            return selectMapsByOperationId(logicalTable, beginTime, endTime, operationId);
-        } catch (RuntimeException exception) {
-            return Collections.emptyList();
-        }
+    /** 返回管理端详情允许读取的字段投影。 */
+    private String adminDetailProjection(String logicalTable) {
+        return TRANSACTION_MERCHANT_NOTIFICATION_TABLE.equals(logicalTable)
+                ? TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION
+                : "*";
     }
 
     /**
@@ -1725,8 +1760,27 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
      */
     private Map<String, Object> toCamelCaseRow(Map<String, Object> row) {
         Map<String, Object> converted = new LinkedHashMap<>();
-        row.forEach((key, value) -> converted.put(toLowerCamelCase(key), value));
+        row.forEach((key, value) -> {
+            String convertedKey = toLowerCamelCase(key);
+            converted.put(convertedKey, frontendSafeMapValue(convertedKey, value));
+        });
         return converted;
+    }
+
+    /**
+     * 将数据库数值型标识转换为字符串，防止 JavaScript 解析超过 2^53-1 的 BIGINT 时丢失精度。
+     * 金额、次数、耗时等非标识数值保持原类型，避免改变管理端统计和排序语义。
+     *
+     * @param key   已转换为 lowerCamelCase 的响应字段名
+     * @param value JDBC 返回值
+     * @return 可安全交给浏览器解析的响应值
+     */
+    private Object frontendSafeMapValue(String key, Object value) {
+        boolean identifierKey = "id".equals(key) || key != null && key.endsWith("Id");
+        if (identifierKey && (value instanceof Long || value instanceof BigInteger)) {
+            return value.toString();
+        }
+        return value;
     }
 
     /**

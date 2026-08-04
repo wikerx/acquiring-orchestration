@@ -3,7 +3,7 @@ package com.scott.payment.openapi.security;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.SecurityInterceptAuditMessage;
-import com.scott.payment.component.mq.producer.MqProducer;
+import com.scott.payment.component.mq.publisher.IndependentReliableMqPublisher;
 import com.scott.payment.component.mq.properties.SecurityAuditMqProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ class SecurityInterceptEventRecorderTests {
     @Test
     void shouldPublishSanitizedSecurityAuditMessage() {
         log.info("测试安全拦截审计发布，关键输入: 认证请求头存在且请求路径带查询参数");
-        MqProducer producer = mock(MqProducer.class);
+        IndependentReliableMqPublisher producer = mock(IndependentReliableMqPublisher.class);
         SecurityInterceptEventRecorder recorder = new SecurityInterceptEventRecorder(
                 producer, new SecurityAuditMqProperties());
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/rest/payment/v1/create");
@@ -49,7 +49,7 @@ class SecurityInterceptEventRecorderTests {
 
         ArgumentCaptor<SecurityInterceptAuditMessage> captor =
                 ArgumentCaptor.forClass(SecurityInterceptAuditMessage.class);
-        verify(producer).send(
+        verify(producer).publish(
                 org.mockito.ArgumentMatchers.eq(MqTopic.SECURITY_INTERCEPT_AUDIT),
                 org.mockito.ArgumentMatchers.eq(MqTag.SECURITY_INTERCEPT_AUDIT),
                 captor.capture());
@@ -68,7 +68,7 @@ class SecurityInterceptEventRecorderTests {
     @Test
     void shouldSkipPublishingWhenDisabled() {
         log.info("测试安全审计开关，关键输入: enabled=false");
-        MqProducer producer = mock(MqProducer.class);
+        IndependentReliableMqPublisher producer = mock(IndependentReliableMqPublisher.class);
         SecurityAuditMqProperties properties = new SecurityAuditMqProperties();
         properties.setEnabled(false);
         SecurityInterceptEventRecorder recorder = new SecurityInterceptEventRecorder(producer, properties);
@@ -76,7 +76,7 @@ class SecurityInterceptEventRecorderTests {
         recorder.recordBlocked(null, null, "OPENAPI_JWT_INVALID", null,
                 null, null, null, null);
 
-        verify(producer, never()).send(
+        verify(producer, never()).publish(
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any());
@@ -87,9 +87,9 @@ class SecurityInterceptEventRecorderTests {
     @Test
     void shouldIsolatePublishFailureFromSecurityDecision() {
         log.info("测试安全审计发布失败隔离，关键输入: RocketMQ 不可用");
-        MqProducer producer = mock(MqProducer.class);
+        IndependentReliableMqPublisher producer = mock(IndependentReliableMqPublisher.class);
         doThrow(new IllegalStateException("rocketmq unavailable"))
-                .when(producer).send(
+                .when(producer).publish(
                         org.mockito.ArgumentMatchers.anyString(),
                         org.mockito.ArgumentMatchers.anyString(),
                         org.mockito.ArgumentMatchers.any());

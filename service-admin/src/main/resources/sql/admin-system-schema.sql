@@ -1950,10 +1950,12 @@ CREATE TABLE IF NOT EXISTS msg_email_send_record (
     bcc_emails TEXT NULL COMMENT '密送邮箱JSON数组',
     subject VARCHAR(500) NOT NULL COMMENT '邮件标题',
     content_snapshot LONGTEXT NULL COMMENT '邮件正文快照，敏感内容需脱敏',
+    delivery_content_cipher LONGTEXT NULL COMMENT '实际投递正文 AES-GCM 密文，发送成功后清空',
+    content_type VARCHAR(16) NULL COMMENT '实际投递正文类型：HTML、TEXT',
     variables_snapshot JSON NULL COMMENT '模板变量快照，敏感变量需脱敏',
     biz_type VARCHAR(64) NULL COMMENT '业务类型',
     biz_no VARCHAR(100) NULL COMMENT '业务单号',
-    send_status TINYINT NOT NULL DEFAULT 0 COMMENT '发送状态：0待发送，1发送中，2发送成功，3发送失败，4重试中，5已取消',
+    send_status TINYINT NOT NULL DEFAULT 0 COMMENT '发送状态：0待发送，1发送中，2发送成功，3已关闭，4等待重试，5已取消',
     retry_count INT NOT NULL DEFAULT 0 COMMENT '已重试次数',
     max_retry_count INT NOT NULL DEFAULT 0 COMMENT '最大重试次数',
     next_retry_time DATETIME(3) NULL COMMENT '下次重试时间',
@@ -1977,7 +1979,9 @@ CREATE TABLE IF NOT EXISTS msg_email_send_record (
     KEY idx_email_record_template (template_code),
     KEY idx_email_record_biz (biz_type, biz_no),
     KEY idx_email_record_create_time (create_time),
-    KEY idx_email_record_send_time (send_success_time)
+    KEY idx_email_record_send_time (send_success_time),
+    KEY idx_email_record_retry (app_code, send_status, next_retry_time, deleted),
+    KEY idx_email_record_recovery (app_code, send_status, send_start_time, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮件发送记录表';
 
 INSERT INTO sys_dict_type (id, dict_name, dict_type, biz_domain, system_builtin, editable, status, deleted)
@@ -2023,8 +2027,8 @@ VALUES
 (5060, 'email_send_status', '待发送', '0', 'zh-CN', 1, 'info', 1, 1, 0),
 (5061, 'email_send_status', '发送中', '1', 'zh-CN', 2, 'warning', 0, 1, 0),
 (5062, 'email_send_status', '发送成功', '2', 'zh-CN', 3, 'success', 0, 1, 0),
-(5063, 'email_send_status', '发送失败', '3', 'zh-CN', 4, 'danger', 0, 1, 0),
-(5064, 'email_send_status', '重试中', '4', 'zh-CN', 5, 'warning', 0, 1, 0),
+(5063, 'email_send_status', '已关闭', '3', 'zh-CN', 4, 'danger', 0, 1, 0),
+(5064, 'email_send_status', '等待重试', '4', 'zh-CN', 5, 'warning', 0, 1, 0),
 (5065, 'email_send_status', '已取消', '5', 'zh-CN', 6, 'info', 0, 1, 0),
 (5070, 'email_content_type', 'HTML', 'HTML', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5071, 'email_content_type', '纯文本', 'TEXT', 'zh-CN', 2, 'info', 0, 1, 0),
@@ -2052,8 +2056,8 @@ VALUES
 (15060, 'email_send_status', 'Pending', '0', 'en-US', 1, 'info', 1, 1, 0),
 (15061, 'email_send_status', 'Sending', '1', 'en-US', 2, 'warning', 0, 1, 0),
 (15062, 'email_send_status', 'Success', '2', 'en-US', 3, 'success', 0, 1, 0),
-(15063, 'email_send_status', 'Failed', '3', 'en-US', 4, 'danger', 0, 1, 0),
-(15064, 'email_send_status', 'Retrying', '4', 'en-US', 5, 'warning', 0, 1, 0),
+(15063, 'email_send_status', 'Closed', '3', 'en-US', 4, 'danger', 0, 1, 0),
+(15064, 'email_send_status', 'Retry Wait', '4', 'en-US', 5, 'warning', 0, 1, 0),
 (15065, 'email_send_status', 'Cancelled', '5', 'en-US', 6, 'info', 0, 1, 0),
 (15070, 'email_content_type', 'HTML', 'HTML', 'en-US', 1, 'primary', 1, 1, 0),
 (15071, 'email_content_type', 'Text', 'TEXT', 'en-US', 2, 'info', 0, 1, 0);
@@ -2287,7 +2291,8 @@ VALUES
 (1072, 1, 1045, 'transaction:merchant-notification:detail', '商户回调记录详情', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/search', 1, 0),
 (1073, 1, 1041, 'transaction:order:export', '交易主单导出', 'BUTTON', 'POST', '/admin/transactions/orders/export', 1, 0),
 (1074, 1, 1042, 'transaction:operation:export', '交易动作导出', 'BUTTON', 'POST', '/admin/transactions/operations/export', 1, 0),
-(1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0);
+(1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0),
+(1077, 1, 1045, 'transaction:merchant-notification:retry', '商户终态回调重发', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/retry', 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
@@ -2304,6 +2309,7 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_channel_callback_v1', 'admin_transaction_channel_callback_detail_v1', '渠道回调记录详情', 'transaction:channel-callback:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_detail_v1', '商户回调记录详情', 'transaction:merchant-notification:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_export_v1', '商户回调记录导出', 'transaction:merchant-notification:export', 2
+    UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_retry_v1', '商户终态回调重发', 'transaction:merchant-notification:retry', 3
 ) button ON button.parent_code = parent.menu_code
 WHERE parent.app_id = 1
   AND parent.deleted = 0

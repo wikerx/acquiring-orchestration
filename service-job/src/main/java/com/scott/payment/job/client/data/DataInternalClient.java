@@ -1,5 +1,6 @@
 package com.scott.payment.job.client.data;
 
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
 
 /**
@@ -20,4 +21,12 @@ public interface DataInternalClient {
      * @return 成功通知数量
      */
     Integer notifyDueMerchantNotifications(DataMerchantNotificationNotifyDueClientRequestDTO requestDTO);
+
+    /**
+     * 精确重试单笔商户通知，分片时间必须由调用方显式传入。
+     *
+     * @param requestDTO 单笔商户通知补偿请求
+     * @return true 表示商户端点返回 2xx
+     */
+    Boolean notifyMerchantNotification(DataMerchantNotificationNotifyClientRequestDTO requestDTO);
 }

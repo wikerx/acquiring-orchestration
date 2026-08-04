@@ -1,7 +1,6 @@
 package com.scott.payment.component.web.trace;
 
 import com.scott.payment.component.core.trace.TraceContext;
-import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ReadListener;
 import jakarta.servlet.ServletInputStream;
@@ -31,8 +30,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * @author : scott
@@ -63,9 +60,9 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
     public static final String REQUEST_BODY_SUMMARY_ATTRIBUTE = HttpTrafficLoggingFilter.class.getName() + ".REQUEST_BODY_SUMMARY";
 
     /**
-     * 日志摘要最大字符数。
+     * HTTP 正文固定省略标记。正文只计算长度和不可逆指纹，禁止把支付数据或未知扩展字段写入日志。
      */
-    private static final int MAX_SUMMARY_LENGTH = 1200;
+    private static final String BODY_OMITTED_SUMMARY = "[BODY_OMITTED]";
 
     /**
      * 请求体预读最大字节数，保证认证失败等业务未读取 body 的场景也可记录密文摘要。
@@ -76,14 +73,6 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
      * 响应体预览最大字节数，避免导出文件或大列表完整进入内存。
      */
     private static final int MAX_RESPONSE_CAPTURE_BYTES = 16 * 1024;
-
-    /**
-     * 加密报文、认证头和原始 body 字段正则，日志中只允许输出长度和摘要。
-     */
-    private static final Pattern OPAQUE_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:data|encryptedData|rawBody|requestBody|authorization|Authorization|token|accessToken|refreshToken)\"\\s*:\\s*\")([^\"\\\\]*)(\")",
-            Pattern.CASE_INSENSITIVE
-    );
 
     /**
      * 截取一次 Servlet 请求和响应的有限摘要并在链路结束后记录统一日志。
@@ -234,7 +223,8 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
     /**
      * 生成请求或响应 body 摘要。
      * <p>
-     * JSON 和文本类内容输出脱敏、遮蔽和截断后的片段；其它二进制或未知类型只输出长度和摘要指纹。
+     * 文本正文统一省略，只输出固定标记；其它二进制或未知类型不输出内容。
+     * 具体报文通过独立的长度和 SHA-256 短指纹关联，避免新增字段绕过枚举式脱敏规则。
      * </p>
      * @param body body 字节
      * @param contentType Content-Type
@@ -245,9 +235,7 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
         if (body.length == 0 || !isTextBody(contentType)) {
             return null;
         }
-        String raw = new String(body, resolveCharset(encoding));
-        String masked = maskOpaqueFields(SensitiveDataMaskUtils.maskJsonSafely(raw));
-        return truncate(masked);
+        return BODY_OMITTED_SUMMARY;
     }
 
     /**
@@ -268,48 +256,6 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 遮蔽日志中不应出现原文的字段。
-     * <p>
-     * OpenAPI 的 data 密文、原始 body 和认证 token 只保留长度、SHA-256 短摘要和首尾掩码，便于比对不泄露完整内容。
-     * </p>
-     * @param value 已经过基础脱敏的文本
-     * @return 二次遮蔽后的文本
-     */
-    private String maskOpaqueFields(String value) {
-        if (value == null || value.isEmpty()) {
-            return value;
-        }
-        Matcher matcher = OPAQUE_FIELD_PATTERN.matcher(value);
-        return matcher.replaceAll(match -> Matcher.quoteReplacement(
-                match.group(1)
-                        + "{length=" + match.group(2).length()
-                        + ",digest=" + digest16(match.group(2).getBytes(StandardCharsets.UTF_8))
-                        + ",masked=" + maskOpaqueValue(match.group(2))
-                        + "}"
-                        + match.group(3)
-        ));
-    }
-
-    /**
-     * 对密文、token 或原始 body 做首尾掩码。
-     * <p>
-     * 返回值只用于日志排障，不允许还原原始报文；短值统一显示为固定占位，避免泄露完整凭证。
-     * </p>
-     * @param value 原始不可透明字段值
-     * @return 首尾掩码后的摘要
-     */
-    private String maskOpaqueValue(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        String normalized = value.trim();
-        if (normalized.length() <= 16) {
-            return "***";
-        }
-        return normalized.substring(0, 8) + "***" + normalized.substring(normalized.length() - 8);
-    }
-
-    /**
      * 解析 body 字符集。
      * <p>
      * 缺失或非法编码统一使用 UTF-8，避免日志摘要阶段影响真实业务响应。
@@ -326,21 +272,6 @@ public class HttpTrafficLoggingFilter extends OncePerRequestFilter {
         } catch (RuntimeException exception) {
             return StandardCharsets.UTF_8;
         }
-    }
-
-    /**
-     * 截断日志摘要。
-     * <p>
-     * 长文本只保留前 1200 字符，避免单次请求响应撑爆控制台或文件日志。
-     * </p>
-     * @param value 原始日志摘要
-     * @return 截断后的日志摘要
-     */
-    private String truncate(String value) {
-        if (value == null || value.length() <= MAX_SUMMARY_LENGTH) {
-            return value;
-        }
-        return value.substring(0, MAX_SUMMARY_LENGTH) + "...";
     }
 
     /**

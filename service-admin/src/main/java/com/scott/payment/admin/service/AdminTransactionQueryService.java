@@ -110,4 +110,14 @@ public interface AdminTransactionQueryService {
      * @return 查询得到的业务对象、分页结果或空结果
      */
     PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query);
+
+    /**
+     * 判断精确交易分片中是否存在允许人工重发的终态商户通知。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 页面查询得到的真实交易分片时间
+     * @return true 表示交易为成功或失败终态，且通知任务当前允许人工重发
+     */
+    boolean existsRetryableTerminalMerchantNotification(String transactionId,
+                                                         LocalDateTime transactionDateTime);
 }

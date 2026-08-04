@@ -1252,7 +1252,8 @@ public class AdminUserServiceImpl implements AdminUserService {
             request.setVariables(variables);
             adminEmailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("admin account created notice send failed, accountId: {}", account.getId(), exception);
+            log.warn("admin account created notice send failed, accountId: {}, exceptionType: {}",
+                    account.getId(), exception.getClass().getSimpleName());
         }
     }
 

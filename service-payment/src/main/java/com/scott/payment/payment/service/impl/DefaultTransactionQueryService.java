@@ -322,11 +322,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      */
     private final TransactionPaymentMethodInfoMapper paymentMethodInfoMapper;
     /**
-     * transaction Sharding Key Parser，用于从内部生命周期号恢复主单所在季度。
+     * 交易分片键解析器，仅用于列表组装时恢复生命周期根主单所在季度。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 列表返回后必须携带数据库记录中的 transactionDateTime 与 rootTransactionDateTime；
+     * Admin、Merchant 详情查询直接回传这两个时间，禁止再次从平台编号推导。
      * </p>
      */
     private final TransactionShardingKeyParser transactionShardingKeyParser;
@@ -538,7 +537,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                         Comparator.nullsLast(LocalDateTime::compareTo)));
         TransactionDetailResponse detail = new TransactionDetailResponse();
         detail.setOrder(toOrderResponse(order));
-        Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap = paymentInfoMap(operations);
+        Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap = paymentInfoMap(operations, detailBeginTime);
         detail.setOperations(operations.stream()
                 .map(operation -> toOperationResponse(operation, paymentInfoMap.get(operation.getTransactionId()), order))
                 .toList());
@@ -1695,6 +1694,19 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 以交易号为键的支付工具信息；不包含完整 PAN 或 CVV
      */
     private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap(List<TransactionOperationDO> rows) {
+        return paymentInfoMap(rows, null);
+    }
+
+    /**
+     * 按动作记录中的真实分片时间批量加载支付工具摘要。
+     *
+     * @param rows 动作记录
+     * @param lifecycleBeginTime 已知的生命周期根主单时间；列表查询未知时允许为空
+     * @return 以交易号为键的支付工具信息
+     */
+    private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap(
+            List<TransactionOperationDO> rows,
+            LocalDateTime lifecycleBeginTime) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
         }
@@ -1722,7 +1734,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                     .collect(Collectors.toMap(TransactionPaymentMethodInfoDO::getTransactionId,
                             Function.identity(), (left, right) -> left));
         }
-        Map<String, TransactionPaymentMethodInfoDO> byOperationId = paymentInfoMapByOperationId(rows);
+        Map<String, TransactionPaymentMethodInfoDO> byOperationId = paymentInfoMapByOperationId(
+                rows, lifecycleBeginTime);
         Map<String, TransactionPaymentMethodInfoDO> result = new HashMap<>();
         rows.stream()
                 .filter(row -> StringUtils.hasText(row.getTransactionId()))
@@ -1737,18 +1750,22 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 按操作号补查无法通过交易号直接命中的支付工具记录。
+     * 按操作号补查支付工具记录；详情查询优先使用调用方已查询到的根主单时间。
      *
-     * @param rows 交易动作列表
+     * @param rows 动作记录
+     * @param lifecycleBeginTime 已知的生命周期起点；列表查询未知时允许为空
      * @return 以操作号为键的支付工具信息
      */
-    private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMapByOperationId(List<TransactionOperationDO> rows) {
+    private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMapByOperationId(
+            List<TransactionOperationDO> rows,
+            LocalDateTime lifecycleBeginTime) {
         Map<String, List<TransactionOperationDO>> operationRows = rows.stream()
                 .filter(row -> StringUtils.hasText(row.getOperationId()) && row.getTransactionDateTime() != null)
                 .collect(Collectors.groupingBy(TransactionOperationDO::getOperationId));
         Map<String, TransactionPaymentMethodInfoDO> result = new java.util.HashMap<>();
         operationRows.forEach((operationId, operationList) -> {
-            TransactionPaymentMethodInfoDO infoDO = findPaymentInfoByOperationId(operationId, operationList);
+            TransactionPaymentMethodInfoDO infoDO = findPaymentInfoByOperationId(
+                    operationId, operationList, lifecycleBeginTime);
             if (infoDO != null) {
                 result.put(operationId, infoDO);
             }
@@ -1757,24 +1774,26 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 查询paymentinfoby动作ID，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 支付核心服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
-     * @param rows 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 补查同一生命周期内按操作号关联的支付工具摘要。
+     *
+     * @param operationId 生命周期操作号
+     * @param rows 当前动作记录
+     * @param lifecycleBeginTime 已查询到的根主单时间；为空时仅列表路径可受控解析
+     * @return 优先包含卡片摘要的支付工具记录，不存在时返回 {@code null}
      */
-    private TransactionPaymentMethodInfoDO findPaymentInfoByOperationId(String operationId, List<TransactionOperationDO> rows) {
+    private TransactionPaymentMethodInfoDO findPaymentInfoByOperationId(
+            String operationId,
+            List<TransactionOperationDO> rows,
+            LocalDateTime lifecycleBeginTime) {
         LocalDateTime rowBeginTime = rows.stream()
                 .map(TransactionOperationDO::getTransactionDateTime)
                 .filter(Objects::nonNull)
                 .min(LocalDateTime::compareTo)
                 .orElse(null);
-        LocalDateTime rootBeginTime = parseOperationDateTime(operationId);
-        LocalDateTime beginTime = rootBeginTime == null ? rowBeginTime : rootBeginTime;
+        LocalDateTime rootBeginTime = lifecycleBeginTime == null
+                ? parseOperationDateTime(operationId)
+                : lifecycleBeginTime;
+        LocalDateTime beginTime = earliest(rowBeginTime, rootBeginTime);
         LocalDateTime endTime = rows.stream()
                 .map(TransactionOperationDO::getTransactionDateTime)
                 .filter(Objects::nonNull)
@@ -1789,6 +1808,17 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
             return null;
         }
         return infos.stream().filter(this::hasCardSummary).findFirst().orElse(infos.get(0));
+    }
+
+    /** 返回两个可空时间中的较早值。 */
+    private LocalDateTime earliest(LocalDateTime first, LocalDateTime second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first.isBefore(second) ? first : second;
     }
 
 /**
@@ -1853,14 +1883,12 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 查询订单for动作，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 支付核心服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 为动作列表补充生命周期根主单及其真实分片时间。
+     *
+     * <p>这里的编号解析只负责单季度定位；详情点击必须回传查询所得的根主单时间，不得重复解析编号。</p>
+     *
+     * @param row 动作列表记录
+     * @return 生命周期根主单，不存在或无法路由时返回 {@code null}
      */
     private TransactionOrderDO findOrderForOperation(TransactionOperationDO row) {
         LocalDateTime orderTransactionDateTime = parseOperationDateTime(row.getOperationId());
@@ -1936,14 +1964,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 解析parse动作date时间，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
-     * @return 构造、转换或解析后的业务值
+     * 从第一版生命周期操作号恢复根主单季度，仅供列表补充查询使用。
+     *
+     * @param operationId 生命周期操作号
+     * @return 根主单分片时间，格式不符合第一版编号规则时返回 {@code null}
      */
     private LocalDateTime parseOperationDateTime(String operationId) {
         return transactionShardingKeyParser.parseOperationDateTime(operationId);

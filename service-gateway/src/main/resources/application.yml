@@ -29,8 +29,8 @@ spring:
           httpclient:
             # 连接下游微服务的超时时间，单位毫秒。
             connect-timeout: 3000
-            # 下游接口整体响应超时，避免网关线程长时间堆积。
-            response-timeout: 10s
+            # 下游整体响应预算需覆盖最长 30 秒渠道调用，并给解密、风控和响应加密预留时间。
+            response-timeout: 40s
           default-filters:
             # 保留原始 Host，方便下游根据域名做审计或多租户判断。
             - PreserveHostHeader

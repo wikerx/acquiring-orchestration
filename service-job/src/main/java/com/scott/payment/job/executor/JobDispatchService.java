@@ -179,6 +179,12 @@ public class JobDispatchService {
      */
     public String triggerManual(Long taskId, JobManualTriggerRequest request) {
         SysJobTaskDO task = jobTaskService.getRequiredTask(taskId);
+        LocalDateTime triggerTime = LocalDateTime.now();
+        boolean acquired = jobTaskService.tryAcquireLock(task, jobNodeContext.nodeId(), triggerTime);
+        if (!acquired) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(),
+                    "job task is disabled or already running");
+        }
         String paramsJson = request.getParamsJson() == null || request.getParamsJson().isBlank()
                 ? task.getParams()
                 : request.getParamsJson();
@@ -194,7 +200,7 @@ public class JobDispatchService {
         jobFutureRegistry.cancel(runLog.getRunId());
         boolean updated = jobRunLogService.finishAsTimeout(runLog);
         if (updated) {
-            jobTaskService.finishTaskRun(runLog.getJobId(), JobRunStatusEnum.TIMEOUT);
+            finishTaskRun(runLog.getJobId(), JobRunStatusEnum.TIMEOUT, runLog.getRunId());
         }
     }
 
@@ -236,6 +242,8 @@ public class JobDispatchService {
                 : null;
         if (asyncJobHandler != null || descriptor.getExecuteMode() == JobExecuteModeEnum.ASYNC) {
             executeAsync(task, context, runLog, asyncJobHandler != null ? asyncJobHandler : castAsync(handler));
+        } else if (triggerType == JobTriggerTypeEnum.MANUAL) {
+            executeDetachedSync(task, context, runLog, handler);
         } else {
             executeSync(task, context, runLog, handler);
         }
@@ -255,14 +263,7 @@ public class JobDispatchService {
                              SysJobRunLogDO runLog,
                              JobHandler handler) {
         Instant start = Instant.now();
-        CompletableFuture<JobExecuteResult> future = CompletableFuture.supplyAsync(() -> {
-            TraceIdSupport.bindTraceId(context.getTraceId());
-            try {
-                return handler.execute(context);
-            } finally {
-                TraceIdSupport.clear();
-            }
-        }, jobTaskExecutor);
+        CompletableFuture<JobExecuteResult> future = submitSyncHandler(context, handler);
         jobFutureRegistry.register(context.getRunId(), future);
         try {
             JobExecuteResult result = future.get(task.getTimeoutSeconds(), TimeUnit.SECONDS);
@@ -277,6 +278,44 @@ public class JobDispatchService {
         } finally {
             jobFutureRegistry.unregister(context.getRunId());
         }
+    }
+
+    /**
+     * 手动触发同步处理器时把执行留在任务线程池，HTTP 请求立即返回 runId。
+     * 执行结果仍由统一运行日志和超时扫描器收口，任务锁在最终状态写入后释放。
+     */
+    private void executeDetachedSync(SysJobTaskDO task,
+                                     JobExecuteContext context,
+                                     SysJobRunLogDO runLog,
+                                     JobHandler handler) {
+        Instant start = Instant.now();
+        CompletableFuture<JobExecuteResult> future = submitSyncHandler(context, handler);
+        jobFutureRegistry.register(context.getRunId(), future);
+        future.whenComplete((result, throwable) -> runWithTrace(context, () -> {
+            try {
+                if (throwable != null) {
+                    finishSuccessOrFailure(task, runLog, context,
+                            JobExecuteResult.failed(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(), throwable.getMessage()),
+                            start);
+                    return;
+                }
+                finishSuccessOrFailure(task, runLog, context, result, start);
+            } finally {
+                jobFutureRegistry.unregister(context.getRunId());
+            }
+        }));
+    }
+
+    /** 提交带 traceId 生命周期的同步处理器。 */
+    private CompletableFuture<JobExecuteResult> submitSyncHandler(JobExecuteContext context, JobHandler handler) {
+        return CompletableFuture.supplyAsync(() -> {
+            TraceIdSupport.bindTraceId(context.getTraceId());
+            try {
+                return handler.execute(context);
+            } finally {
+                TraceIdSupport.clear();
+            }
+        }, jobTaskExecutor);
     }
 
     /**
@@ -339,7 +378,7 @@ public class JobDispatchService {
         }
         if (result != null && result.isSuccess()) {
             jobRunLogService.finishAsSuccess(runLog.getId(), durationMs, result.getMessage());
-            jobTaskService.finishTaskRun(task.getId(), JobRunStatusEnum.SUCCESS);
+            finishTaskRun(task.getId(), JobRunStatusEnum.SUCCESS, context.getRunId());
             logJobEnd(context, durationMs, JobRunStatusEnum.SUCCESS.name(), null);
             return;
         }
@@ -351,8 +390,16 @@ public class JobDispatchService {
             logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
             return;
         }
-        jobTaskService.finishTaskRun(task.getId(), JobRunStatusEnum.FAILED);
+        finishTaskRun(task.getId(), JobRunStatusEnum.FAILED, context.getRunId());
         logJobEnd(context, durationMs, JobRunStatusEnum.FAILED.name(), failureMessage);
+    }
+
+    /** 释放当前节点持有的任务锁；锁已转移时保留新持有者并记录可观测告警。 */
+    private void finishTaskRun(Long taskId, JobRunStatusEnum status, String runId) {
+        if (!jobTaskService.finishTaskRun(taskId, status, jobNodeContext.nodeId())) {
+            log.warn("event: JOB_TASK_LOCK_RELEASE_SKIPPED jobId: {} runId: {} status: {} nodeId: {}",
+                    taskId, runId, status.name(), jobNodeContext.nodeId());
+        }
     }
 
     /**

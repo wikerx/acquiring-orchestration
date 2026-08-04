@@ -72,6 +72,31 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
             @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**
+     * 按商户、源交易 ID 和精确分片时间读取最近一份可继承通知配置。
+     *
+     * @param merchantId 商户号
+     * @param transactionId 源平台交易 ID
+     * @param transactionDateTime 源交易分片时间
+     * @return 最近一份含配置快照的通知任务，不存在时返回 null
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_merchant_notification
+            WHERE merchant_id = #{merchantId}
+              AND transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND notify_config_snapshot_json IS NOT NULL
+              AND notify_config_snapshot_json != ''
+              AND deleted = 0
+            ORDER BY create_time DESC, id DESC
+            LIMIT 1
+            """)
+    TransactionMerchantNotificationDO selectLatestConfigByTransactionId(
+            @Param("merchantId") String merchantId,
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
      * 按生命周期和半开时间范围查询商户通知任务。
      *
      * @param operationId 平台内部生命周期关联标识
@@ -175,14 +200,20 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
      * @param transactionId 平台当前交易 ID
      * @param transactionDateTime 交易分片时间
      * @param expectedVersion 当前通知版本号
-     * @param payloadJsonMasked 脱敏后的终态通知载荷
+     * @param callbackPayloadJson 商户正式终态回调载荷，只写受保护通知快照且禁止进入日志
+     * @param payloadJsonMasked 脱敏后的终态通知审计载荷
      * @param nextRetryTime 下一次通知时间
      * @param now 当前时间
      * @return 影响行数
      */
     @Update("""
             UPDATE transaction_merchant_notification
-            SET payload_json_masked = #{payloadJsonMasked},
+            SET notify_config_snapshot_json = JSON_SET(
+                    notify_config_snapshot_json,
+                    '$.payloadJson',
+                    #{callbackPayloadJson}
+                ),
+                payload_json_masked = #{payloadJsonMasked},
                 next_retry_time = #{nextRetryTime},
                 version = version + 1,
                 update_time = #{now}
@@ -196,6 +227,7 @@ public interface TransactionMerchantNotificationMapper extends BaseMapper<Transa
     int activateByTransactionId(@Param("transactionId") String transactionId,
                                 @Param("transactionDateTime") LocalDateTime transactionDateTime,
                                 @Param("expectedVersion") Integer expectedVersion,
+                                @Param("callbackPayloadJson") String callbackPayloadJson,
                                 @Param("payloadJsonMasked") String payloadJsonMasked,
                                 @Param("nextRetryTime") LocalDateTime nextRetryTime,
                                 @Param("now") LocalDateTime now);

@@ -216,6 +216,11 @@ public enum ApiResultEnum implements IResult {
     QUERY_RESULT_NOT_FOUND("F512", "The search result set is invalid/does not exist"),
 
     /**
+     * 查询时间范围包含尚未完成物理表校验和规则发布的交易季度。
+     */
+    TRANSACTION_DATA_UNAVAILABLE("F513", "Transaction data is unavailable for the requested time range"),
+
+    /**
      * 商户交易号重复。
      */
     TRANSACTION_ID_DUPLICATED("F515", "transactionId repeat"),

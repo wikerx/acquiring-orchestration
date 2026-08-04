@@ -29,7 +29,21 @@ class RiskEvaluationConfigTests {
                     context.getBean(RiskEvaluationProperties.class);
             assertThat(properties.getFrequencyMaxWindowSeconds()).isEqualTo(86_400);
             assertThat(properties.getFrequencyMaxThresholdCount()).isEqualTo(1_000);
+            assertThat(properties.getRuleSnapshotCapacityBypassTtlSeconds()).isEqualTo(30);
         });
+    }
+
+    @Test
+    void shouldRejectSnapshotCapacityBypassTtlAboveAbsoluteMaximum() {
+        log.info("测试快照容量旁路 TTL 上限，关键输入: 301 秒超过短期旁路绝对上限");
+        contextRunner
+                .withPropertyValues("risk.evaluation.rule-snapshot-capacity-bypass-ttl-seconds=301")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasMessageContaining("rule-snapshot-capacity-bypass-ttl-seconds");
+                });
+        log.info("快照容量旁路 TTL 上限测试完成，结果: 启动门禁拒绝长期旁路配置");
     }
 
     @Test

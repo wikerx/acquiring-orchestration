@@ -5,6 +5,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
+import com.scott.payment.component.mq.message.MerchantNotificationRetryMessage;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +32,8 @@ import org.springframework.util.StringUtils;
         topic = MqTopic.PAYMENT_EVENT,
         consumerGroup = DataMqConsumerGroups.MERCHANT_NOTIFICATION,
         selectorExpression = MqTag.TRANSACTION_CALLBACK_PROCESSED
-                + " || " + MqTag.TRANSACTION_STATUS_CHANGED,
+                + " || " + MqTag.TRANSACTION_STATUS_CHANGED
+                + " || " + MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED,
         messageModel = MessageModel.CLUSTERING
 )
 public class TransactionMerchantNotificationConsumer implements RocketMQListener<String> {
@@ -59,6 +61,10 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
     @Override
     public void onMessage(String payload) {
         long startNanos = System.nanoTime();
+        if (isManualRetryPayload(payload)) {
+            consumeManualRetry(payload, startNanos);
+            return;
+        }
         PaymentTransactionEventMessage message = parseMessage(payload);
         if (message == null
                 || message.getTransactionDateTime() == null
@@ -87,6 +93,62 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
                     message.getNotifyId(),
                     successCount,
                     elapsedMillis(startNanos));
+        } finally {
+            TraceContext.clear();
+        }
+    }
+
+    /**
+     * 识别后台人工重发事件；只读取非敏感 eventType 字段，不记录消息原文。
+     *
+     * @param payload RocketMQ JSON 消息体
+     * @return true 表示人工重发事件
+     */
+    private boolean isManualRetryPayload(String payload) {
+        if (!StringUtils.hasText(payload)) {
+            return false;
+        }
+        try {
+            MerchantNotificationRetryMessage message = JsonUtils.parseObject(
+                    payload, MerchantNotificationRetryMessage.class);
+            return message != null
+                    && MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED.equals(message.getEventType());
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 消费管理后台人工重发事件，使用消息号固定本次回调 eventId。
+     *
+     * @param payload RocketMQ JSON 消息体
+     * @param startNanos 消费开始单调时钟
+     */
+    private void consumeManualRetry(String payload, long startNanos) {
+        MerchantNotificationRetryMessage message;
+        try {
+            message = JsonUtils.parseObject(payload, MerchantNotificationRetryMessage.class);
+        } catch (RuntimeException exception) {
+            log.warn("event: DATA_MERCHANT_NOTIFY_RETRY_PARSE_FAILED traceId: {} payloadLength: {} exceptionType: {}",
+                    TraceContext.getTraceId(), payload == null ? 0 : payload.length(),
+                    exception.getClass().getSimpleName());
+            return;
+        }
+        if (message == null
+                || !StringUtils.hasText(message.getMessageId())
+                || !StringUtils.hasText(message.getTransactionId())
+                || message.getTransactionDateTime() == null) {
+            log.warn("event: DATA_MERCHANT_NOTIFY_RETRY_SKIPPED traceId: {} reason=messageInvalid payloadLength: {} durationMs: {}",
+                    TraceContext.getTraceId(), payload == null ? 0 : payload.length(), elapsedMillis(startNanos));
+            return;
+        }
+        TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
+        try {
+            boolean notified = deliveryService.retryTransaction(
+                    message.getTransactionDateTime(), message.getTransactionId(), message.getMessageId());
+            log.info("event: DATA_MERCHANT_NOTIFY_RETRY_CONSUMED traceId: {} messageId: {} requestId: {} transactionId: {} requestedBy: {} notified: {} durationMs: {}",
+                    TraceContext.getTraceId(), message.getMessageId(), message.getRequestId(),
+                    message.getTransactionId(), message.getRequestedBy(), notified, elapsedMillis(startNanos));
         } finally {
             TraceContext.clear();
         }

@@ -113,6 +113,8 @@ public interface JobTaskService {
      *
      * @param taskId         任务主键
      * @param lastRunStatus  最终运行状态
+     * @param nodeId         当前锁持有节点
+     * @return true 表示当前节点成功释放任务锁
      */
-    void finishTaskRun(Long taskId, JobRunStatusEnum lastRunStatus);
+    boolean finishTaskRun(Long taskId, JobRunStatusEnum lastRunStatus, String nodeId);
 }

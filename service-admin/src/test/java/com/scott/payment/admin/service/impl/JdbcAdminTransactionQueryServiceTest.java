@@ -7,6 +7,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionP
 import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.sharding.TransactionLogicalReadExecutor;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
+import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import com.scott.payment.admin.service.AdminRiskTimelineQueryService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -115,6 +116,74 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(paramsCaptor.getValue().hasValue("transactionDateTimeEnd")).isFalse();
     }
 
+    /** 人工重发资格查询必须同时限定真实分片时间、交易终态和通知可重发状态。 */
+    @Test
+    void callbackRetryEligibilityShouldUseExactShardAndTerminalStatus() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 4, 12, 30, 0, 125_000_000);
+        when(jdbcTemplate.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Boolean.class)))
+                .thenReturn(Boolean.TRUE);
+        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
+                jdbcTemplate, mock(AdminRiskTimelineQueryService.class));
+
+        assertThat(service.existsRetryableTerminalMerchantNotification("transaction-a", transactionTime)).isTrue();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate).queryForObject(
+                sqlCaptor.capture(), paramsCaptor.capture(), eq(Boolean.class));
+        assertThat(sqlCaptor.getValue())
+                .contains("FROM transaction_operation operation_record")
+                .contains("JOIN transaction_merchant_notification notification")
+                .contains("operation_record.transaction_date_time = :transactionDateTime")
+                .contains("notification.transaction_date_time = operation_record.transaction_date_time")
+                .contains("operation_record.transaction_status IN ('SUCCESS', 'FAILED')")
+                .contains("notification.notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')")
+                .doesNotContain("${");
+        assertThat(paramsCaptor.getValue().getValue("transactionDateTime")).isEqualTo(transactionTime);
+    }
+
+    /** 详情附属日志触及未登记季度时必须明确失败，禁止伪装为空日志列表。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void detailShouldPropagateMissingQuarterFromOptionalInteractionLog() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 7, 21, 19, 53, 50, 233_000_000);
+        TransactionOperationResponse operation = operation("operation-a", "transaction-a", transactionTime);
+        TransactionOrderResponse order = order("operation-a", transactionTime);
+        when(jdbcTemplate.query(anyString(), any(MapSqlParameterSource.class), any(RowMapper.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    if (sql.contains("FROM transaction_operation") && sql.contains("transaction_id = :transactionId")) {
+                        return List.of(operation);
+                    }
+                    if (sql.contains("FROM transaction_order")) {
+                        return List.of(order);
+                    }
+                    if (sql.contains("FROM transaction_operation")) {
+                        return List.of(operation);
+                    }
+                    return Collections.emptyList();
+                });
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
+                .thenAnswer(invocation -> {
+                    String sql = invocation.getArgument(0, String.class);
+                    if (sql.contains("FROM transaction_merchant_api_interaction_log")) {
+                        throw new TransactionDataUnavailableException(
+                                "transaction_merchant_api_interaction_log", "2026-Q2", "test-001");
+                    }
+                    return Collections.emptyList();
+                });
+        AdminRiskTimelineQueryService riskTimelineQueryService = mock(AdminRiskTimelineQueryService.class);
+        when(riskTimelineQueryService.findRiskEvents(anyString())).thenReturn(Collections.emptyList());
+        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
+                jdbcTemplate, riskTimelineQueryService);
+
+        assertThatThrownBy(() -> service.detail("transaction-a", transactionTime, transactionTime))
+                .isInstanceOf(TransactionDataUnavailableException.class)
+                .hasMessageContaining("transaction_merchant_api_interaction_log");
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     void operationPageShouldBatchLoadLifecycleWithoutUnshardedOrderJoin() {
@@ -220,6 +289,51 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(rows.get(0)).containsEntry("requestBodyJsonMasked", "{\"apiOperation\":\"PAY\"}");
         assertThat(rows.get(0)).containsEntry("responseBodyJsonMasked", "{\"result\":\"ERROR\"}");
         assertThat(rows.get(0)).doesNotContainKeys("interaction_log_id", "transaction_id", "request_body_json_masked", "response_body_json_masked");
+    }
+
+    /**
+     * JDBC 的 BIGINT 主键必须在 JSON 序列化前转为字符串，避免浏览器按 IEEE-754 number 解析后丢失尾数。
+     */
+    @Test
+    void selectMapsByOperationIdShouldReturnNumericIdentifiersAsStrings() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", 202603000000000825L);
+        row.put("account_id", 42L);
+        row.put("duration_millis", 123L);
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
+
+        List<Map<String, Object>> rows = invokeSelectMapsByOperationId(
+                service, "transaction_merchant_notification_log");
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0)).containsEntry("id", "202603000000000825");
+        assertThat(rows.get(0)).containsEntry("accountId", "42");
+        assertThat(rows.get(0)).containsEntry("durationMillis", 123L);
+    }
+
+    /** 管理端通知详情只能返回脱敏 URL，完整通知配置快照不得进入查询结果或 JSON 响应。 */
+    @Test
+    void merchantNotificationDetailShouldExcludeSensitiveConfigSnapshot() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("notify_id", "notify-a");
+        row.put("notify_config_snapshot_json", "{\"callbackUrl\":\"https://merchant.example/callback?token=secret\"}");
+        row.put("target_url_masked", "https://merchant.example/callback?***");
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
+
+        List<Map<String, Object>> rows = invokeSelectMapsByOperationId(
+                service, "transaction_merchant_notification");
+
+        String sql = captureQuerySql(jdbcTemplate);
+        assertThat(sql).contains("target_url_masked");
+        assertThat(sql).doesNotContain("notify_config_snapshot_json");
+        assertThat(rows).singleElement().satisfies(result -> {
+            assertThat(result).containsEntry("targetUrlMasked", "https://merchant.example/callback?***");
+            assertThat(result).doesNotContainKey("notifyConfigSnapshotJson");
+        });
     }
 
     private JdbcAdminTransactionQueryService buildService(NamedParameterJdbcTemplate jdbcTemplate) {

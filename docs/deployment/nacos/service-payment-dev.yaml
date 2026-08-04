@@ -48,6 +48,10 @@ payment:
       # 参数说明：控制 Redisson TCP_NODELAY，开启可降低小命令交互延迟。
       tcp-no-delay: true
   transaction:
+    merchant-notification:
+      # 新建通知任务最多投递 10 次；已有任务继续使用各自落库快照，不在应用启动时批量改写。
+      # 环境说明：环境变量 PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT；允许范围 1-100。
+      max-retry-count: ${PAYMENT_TRANSACTION_MERCHANT_NOTIFICATION_MAX_RETRY_COUNT:10}
     outbox:
       # 持续投递 transaction_event_outbox；风险预占终态依赖该事件链路。
       # 环境说明：环境变量：PAYMENT_TRANSACTION_OUTBOX_RELAY_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。

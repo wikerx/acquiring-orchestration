@@ -102,7 +102,7 @@ class PaymentTransactionLogicalMapperPocTest {
             assertThat(orderMapper.selectByOperationIdForUpdate("poc-operation-q3", q3Time)).isNotNull();
             assertThat(operationMapper.selectByTransactionId("poc-transaction-q3", q3Time)).isNotNull();
             assertThat(notificationMapper.activateByTransactionId(
-                    "poc-transaction-q3", q3Time, 0, "{}", q3Time.plusMinutes(1), q3Time)).isEqualTo(1);
+                    "poc-transaction-q3", q3Time, 0, "{}", "{}", q3Time.plusMinutes(1), q3Time)).isEqualTo(1);
             session.commit();
         }
 

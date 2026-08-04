@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockingDetails;
 import static org.mockito.Mockito.when;
@@ -109,17 +110,25 @@ class DefaultTransactionQueryServiceTests {
                 org.mockito.ArgumentMatchers.eq(operation.getOperationId()),
                 org.mockito.ArgumentMatchers.eq(rootTransactionDateTime),
                 any(LocalDateTime.class))).thenReturn(new ArrayList<>(List.of(operation)));
-        DefaultTransactionQueryService service = queryService(orderMapper, operationMapper);
+        TransactionShardingKeyParser shardingKeyParser = mock(TransactionShardingKeyParser.class);
+        DefaultTransactionQueryService service = queryService(orderMapper, operationMapper, shardingKeyParser);
 
         service.detail(
                 operation.getTransactionId(), transactionDateTime, rootTransactionDateTime);
 
         verify(orderMapper).selectByOperationId(
                 operation.getOperationId(), rootTransactionDateTime);
+        verifyNoInteractions(shardingKeyParser);
     }
 
     private DefaultTransactionQueryService queryService(TransactionOrderMapper orderMapper,
                                                          TransactionOperationMapper operationMapper) {
+        return queryService(orderMapper, operationMapper, new TransactionShardingKeyParser());
+    }
+
+    private DefaultTransactionQueryService queryService(TransactionOrderMapper orderMapper,
+                                                         TransactionOperationMapper operationMapper,
+                                                         TransactionShardingKeyParser shardingKeyParser) {
         return new DefaultTransactionQueryService(
                 orderMapper,
                 operationMapper,
@@ -134,7 +143,7 @@ class DefaultTransactionQueryServiceTests {
                 mock(TransactionMerchantNotificationLogMapper.class),
                 mock(TransactionMerchantApiInteractionLogMapper.class),
                 mock(TransactionPaymentMethodInfoMapper.class),
-                new TransactionShardingKeyParser());
+                shardingKeyParser);
     }
 
     private TransactionPageQuery query() {

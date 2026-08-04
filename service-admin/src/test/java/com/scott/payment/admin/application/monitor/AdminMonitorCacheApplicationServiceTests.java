@@ -11,6 +11,8 @@ import org.springframework.data.redis.connection.RedisClusterCommands;
 import org.springframework.data.redis.connection.RedisClusterConnection;
 import org.springframework.data.redis.connection.RedisClusterNode;
 import org.springframework.data.redis.connection.RedisClusterServerCommands;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.ScanOptions;
@@ -136,14 +138,112 @@ class AdminMonitorCacheApplicationServiceTests {
 
         assertThat(result)
                 .containsEntry("connected", true)
+                .containsEntry("deploymentMode", "cluster")
                 .containsEntry("masterCount", 2);
-        assertThat((Map<String, Map<String, String>>) result.get("info"))
+        assertThat((Map<String, String>) result.get("info"))
+                .containsEntry("redis_version", "6.2.23");
+        assertThat((Map<String, Map<String, String>>) result.get("nodes"))
                 .containsEntry("127.0.0.1:7001", Map.of("redis_version", "6.2.23"))
                 .containsEntry("127.0.0.1:7002", Map.of("role", "master"));
         verify(serverCommands).info(fixture.masterNodes().get(0));
         verify(serverCommands).info(fixture.masterNodes().get(1));
         verify(serverCommands, never()).info(fixture.replicaNode());
         log.info("Redis Cluster INFO 聚合测试完成，结果: 仅遍历两个 Master");
+    }
+
+    /**
+     * dev 单节点 Redis 必须返回真实连接状态和 INFO 摘要，不能误报为 Cluster 连接失败。
+     */
+    @Test
+    void shouldReadInfoFromStandaloneRedis() {
+        log.info("测试单节点 Redis INFO，关键输入: 非 Cluster RedisConnection");
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        RedisConnection connection = mock(RedisConnection.class);
+        RedisServerCommands serverCommands = mock(RedisServerCommands.class);
+        Properties info = new Properties();
+        info.setProperty("redis_mode", "standalone");
+        info.setProperty("redis_version", "6.2.23");
+        when(connection.serverCommands()).thenReturn(serverCommands);
+        when(serverCommands.info()).thenReturn(info);
+        when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
+                .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
+        AdminMonitorCacheApplicationService service = service(template);
+
+        Map<String, Object> result = service.info();
+
+        assertThat(result)
+                .containsEntry("connected", true)
+                .containsEntry("deploymentMode", "standalone")
+                .containsEntry("masterCount", 1)
+                .containsEntry("info", Map.of("redis_mode", "standalone", "redis_version", "6.2.23"));
+        assertThat((Map<?, ?>) result.get("nodes")).hasSize(1);
+        log.info("单节点 Redis INFO 测试完成，结果: 连接状态、摘要和节点详情均可用");
+    }
+
+    /**
+     * Lettuce 可能通过普通 RedisConnection 返回带节点前缀的 Cluster INFO，监控必须恢复节点结构。
+     */
+    @Test
+    void shouldNormalizeAggregatedClusterInfoFromDefaultConnection() {
+        log.info("测试聚合 Cluster INFO，关键输入: 普通 RedisConnection 返回两个带节点前缀的 Master 属性");
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        RedisConnection connection = mock(RedisConnection.class);
+        RedisServerCommands serverCommands = mock(RedisServerCommands.class);
+        Properties info = new Properties();
+        info.setProperty("node-a.redis_mode", "cluster");
+        info.setProperty("node-a.redis_version", "6.2.23");
+        info.setProperty("node-b.redis_mode", "cluster");
+        info.setProperty("node-b.role", "master");
+        when(connection.serverCommands()).thenReturn(serverCommands);
+        when(serverCommands.info()).thenReturn(info);
+        when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
+                .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
+        AdminMonitorCacheApplicationService service = service(template);
+
+        Map<String, Object> result = service.info();
+
+        assertThat(result)
+                .containsEntry("connected", true)
+                .containsEntry("deploymentMode", "cluster")
+                .containsEntry("masterCount", 2)
+                .containsEntry("info", Map.of("redis_mode", "cluster", "redis_version", "6.2.23"));
+        assertThat((Map<String, Map<String, String>>) result.get("nodes"))
+                .containsEntry("node-a", Map.of("redis_mode", "cluster", "redis_version", "6.2.23"))
+                .containsEntry("node-b", Map.of("redis_mode", "cluster", "role", "master"));
+        log.info("聚合 Cluster INFO 测试完成，结果: 节点前缀已拆分为摘要和逐节点结构");
+    }
+
+    /**
+     * dev 单节点 Redis 的 Key 列表仍必须使用有界 SCAN 和公开配置白名单。
+     */
+    @Test
+    void shouldScanManagedKeysFromStandaloneRedis() {
+        log.info("测试单节点 Redis SCAN，关键输入: 公开配置 Key、pending Key 与未登记 Key");
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        RedisConnection connection = mock(RedisConnection.class);
+        Cursor<byte[]> cursor = cursor(List.of(
+                MANAGED_PREFIX + "platform.gateway.base-url",
+                MANAGED_PREFIX + "pending:platform.gateway.base-url",
+                MANAGED_PREFIX + "unregistered"
+        ));
+        when(connection.scan(any(ScanOptions.class))).thenReturn(cursor);
+        when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
+                .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
+        when(template.type(anyString())).thenReturn(DataType.STRING);
+        when(template.getExpire(anyString())).thenReturn(300L);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(template.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.size(anyString())).thenReturn(12L);
+        AdminMonitorCacheApplicationService service = service(template);
+
+        Map<String, Object> result = service.keys(null, 1, 10);
+
+        assertThat(result).containsEntry("total", 1).containsEntry("truncated", false);
+        verify(connection).scan(any(ScanOptions.class));
+        verify(template, never()).keys(anyString());
+        verify(cursor).close();
+        log.info("单节点 Redis SCAN 测试完成，结果: 仅返回登记的公开配置 Key");
     }
 
     /**

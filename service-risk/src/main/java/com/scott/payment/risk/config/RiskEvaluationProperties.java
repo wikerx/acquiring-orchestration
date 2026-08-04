@@ -47,6 +47,11 @@ public class RiskEvaluationProperties {
     private int ruleSnapshotMaxCharacters = 5 * 1024 * 1024;
 
     /**
+     * 快照容量越界后跳过重复完整加载的秒数；旁路标记绑定规则 generation，期间仍执行数据库精确查询。
+     */
+    private long ruleSnapshotCapacityBypassTtlSeconds = 30;
+
+    /**
      * 单条频率规则允许的最大窗口秒数，超过后进入 REVIEW 而不执行 Redis 脚本。
      */
     private int frequencyMaxWindowSeconds = 86_400;

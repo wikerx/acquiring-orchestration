@@ -2,12 +2,12 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 文档版本 | `v2.0.1` |
+| 文档版本 | `v2.1.0` |
 | API 版本 | `v1` |
-| 更新日期 | `2026-08-01` |
+| 更新日期 | `2026-08-04` |
 | 适用对象 | 商户服务端开发、测试、运维和安全人员 |
 
-本文档说明商户服务端如何接入支付平台 OpenAPI，包括身份认证、请求加密、响应解密、幂等和重试规则，以及当前 13 个正式开放接口的请求和响应契约。
+本文档说明商户服务端如何接入支付平台 OpenAPI，包括身份认证、请求加密、响应解密、幂等、终态回调和重试规则，以及当前 13 个正式开放接口的请求和响应契约。
 
 除 4.7 节明确列出的 Sandbox 测试卡外，本文档中的商户号、密钥、卡号、账户号和交易号均为格式示例，不能用于真实交易。各环境的商户凭据、平台公钥和商户响应私钥以商户系统或开户邮件提供的材料为准。
 
@@ -1454,6 +1454,169 @@ POST /api/rest/payment/v1/query
 
 每次轮询查询都必须生成新的 JWT `jti` 和新的查询 `orderInfo.orderId`。轮询间隔和最大频率以平台环境接入材料为准。
 
+### 7.13 商户交易终态回调
+
+商户在首次支付、授权或预授权请求的 `transactionInfo.callbackUrl` 中提供 HTTPS 服务端地址。平台只在交易进入 `SUCCESS` 或 `FAILED` 终态后激活通知任务；`PROCESSING`、`PENDING` 等非终态不会作为最终结果通知。
+
+#### 7.13.1 HTTP 协议
+
+平台使用 `POST` 请求，Header 如下：
+
+| Header | 必填 | 规则 |
+| --- | --- | --- |
+| `Authorization` | M | `Bearer {JWT}`，平台使用该商户的 `merchantKey` 按 HS256 签发 |
+| `Content-Type` | M | 固定为 `application/json; charset=UTF-8` |
+| `X-Callback-Version` | M | 当前固定为 `v1` |
+| `X-Callback-Times` | M | 当前通知任务的第几次投递，从 `1` 开始 |
+| `X-Callback-Event-Id` | M | 本次回调事件 ID，必须与 JWT `eventId`、`jti` 一致 |
+| `X-OPGS-Notify-Id` | M | 通知任务 ID；自动重试和人工重发仍对应同一通知任务 |
+| `X-OPGS-Transaction-Id` | M | 平台交易 ID，必须与 JWT `transactionId` 一致 |
+
+回调 JWT 必须满足：
+
+| Claim | 规则 |
+| --- | --- |
+| `alg` / `typ` | `HS256` / `JWT` |
+| `iss` | `platform` |
+| `aud` | 包含 `merchant-callback` |
+| `merchantId` | 必须等于商户自己的配置商户号 |
+| `eventId` / `jti` | 二者相等，并与 `X-Callback-Event-Id` 一致 |
+| `notifyId` | 与 `X-OPGS-Notify-Id` 一致 |
+| `transactionId` | 与 `X-OPGS-Transaction-Id` 一致 |
+| `payloadSha256` | RequestBody `data` 密文的 SHA-256 小写十六进制摘要，用于阻止 JWT 与密文正文被互换 |
+| `callbackTimes` | 与 `X-Callback-Times` 一致 |
+| `iat` / `exp` | 有效短时窗口；商户必须校验签名、过期时间和服务器时钟 |
+
+RequestBody 仍使用平台响应加密方案，外层只有 `data`：
+
+```json
+{
+  "data": "<RSA-OAEP-256 + AES-256-GCM compact ciphertext>"
+}
+```
+
+商户使用自己的响应私钥解密 `data`。明文结构与支付 API 的 `PaymentCreateResponse` 基本一致，至少包含商户号、商户订单标识、平台交易 ID、交易类型和终态：
+
+```json
+{
+  "merchantInfo": {
+    "merchantId": "<merchant-id>"
+  },
+  "orderInfo": {
+    "orderNo": "ORDER-20260804-001",
+    "orderId": "REQUEST-20260804-001",
+    "amount": 10.00,
+    "currency": "USD"
+  },
+  "transactionInfo": {
+    "code": "T200",
+    "message": "success",
+    "transactionId": "<platform-transaction-id>",
+    "transactionType": "PAYMENT",
+    "transactionStatus": "SUCCESS",
+    "transactionDateTime": "2026-08-04T14:30:00.123+08:00"
+  },
+  "billingInfo": {
+    "labelAmount": 10.00,
+    "labelCurrency": "USD",
+    "transactionAmount": 10.00,
+    "transactionCurrency": "USD"
+  }
+}
+```
+
+#### 7.13.2 成功确认和重试
+
+商户只有在本地业务事务已经成功提交后，才返回：
+
+```text
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=UTF-8
+
+succeed
+```
+
+平台同时要求 HTTP 状态码精确为 `200`，响应正文去除首尾空白后精确等于小写 `succeed`。其他 2xx、3xx、4xx、5xx、超时、网络异常或其他正文均视为失败并进入重试。
+
+平台自动重试同一个通知任务时，`X-Callback-Event-Id` 固定为该任务的 `notifyId`；RocketMQ 重投同一人工重发消息时也保持原事件 ID。管理系统每次重新点击“重发回调”会生成新的事件 ID，但 `notifyId` 不变。商户必须按 `eventId` 持久化幂等，并用 `notifyId` 关联同一通知任务的多次投递和人工操作审计，不能只使用进程内缓存。已处理事件再次到达时，不重复更新订单，直接返回 `200 + succeed`；同一事件仍在处理中时返回非 2xx，使平台稍后重试。
+
+平台在创建通知任务时冻结正式回调载荷，并在交易进入终态时以事务内状态同步更新该快照。审计字段 `payloadJsonMasked` 只用于管理端展示和日志脱敏，绝不会作为商户回调密文的明文来源。
+
+推荐事件表至少包含：
+
+```sql
+CREATE TABLE merchant_callback_event (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    event_id VARCHAR(96) NOT NULL,
+    notify_id VARCHAR(64) NOT NULL,
+    transaction_id VARCHAR(64) NOT NULL,
+    merchant_id VARCHAR(32) NOT NULL,
+    callback_times INT NOT NULL,
+    process_status VARCHAR(16) NOT NULL,
+    processed_at DATETIME(3) NULL,
+    create_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    update_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_merchant_callback_event_id (event_id),
+    KEY idx_merchant_callback_transaction (merchant_id, transaction_id)
+) ENGINE=InnoDB;
+```
+
+该 SQL 是商户侧示例，商户应按自己的数据库规范评审后执行。业务处理建议在一个本地事务中完成“占用 eventId、校验交易号和商户订单号、按允许状态推进商户订单、标记 PROCESSED”；业务失败时不得返回 `succeed`。
+
+#### 7.13.3 Java SDK 接收方式
+
+Java SDK 提供 `MerchantCallbackProcessor`，负责 Header/JWT 一致性校验、密文解密和事件幂等编排。Controller 必须使用 `POST`，并且只在处理器返回后响应 `200 + succeed`：
+
+```java
+@PostMapping(
+        value = "/openapi/payment/callback",
+        consumes = MediaType.APPLICATION_JSON_VALUE,
+        produces = MediaType.TEXT_PLAIN_VALUE)
+public ResponseEntity<String> callback(
+        @RequestHeader HttpHeaders headers,
+        @RequestBody String encryptedBody) {
+    String acknowledgement = callbackApplicationService.handle(
+            headers.toSingleValueMap(), encryptedBody);
+    return ResponseEntity.ok()
+            .contentType(new MediaType("text", "plain", StandardCharsets.UTF_8))
+            .body(acknowledgement);
+}
+```
+
+ApplicationService 必须使用商户本地数据库事务包裹整个处理器调用：
+
+```java
+@Service
+public class CallbackApplicationService {
+    private final MerchantCallbackProcessor callbackProcessor;
+    private final PaymentCallbackService paymentCallbackService;
+
+    @Transactional(rollbackFor = Exception.class)
+    public String handle(Map<String, String> headers, String encryptedBody) {
+        return callbackProcessor.process(
+                headers,
+                encryptedBody,
+                PaymentCreateResponse.class,
+                (context, payload) -> paymentCallbackService.handle(context, payload));
+    }
+}
+```
+
+`MerchantCallbackEventStore` 的生产实现必须依赖数据库 `event_id` 唯一键，并与商户订单仓储使用同一个事务管理器和默认事务传播：`acquire` 插入或 CAS 占用事件，`markProcessed` 在业务成功后标记完成，`release` 在业务事务失败后释放本次占用。Controller 不应自行解析 JWT、记录密文/明文或在返回 `succeed` 后再异步处理业务。
+
+#### 7.13.4 商户订单重试规则
+
+平台当前首次交易规则如下：
+
+- 请求幂等键为 `merchantId + orderInfo.orderId + transactionType`；网络重试必须复用同一 `orderId`，平台返回原交易。
+- 支付流守卫键为 `merchantId + orderInfo.orderNo`，`PAYMENT`、`AUTHORIZATION`、`PRE_AUTHORIZATION` 共用。
+- 同一支付流处于 `PROCESSING` 或已经 `SUCCESS` 时，新的 `orderId` 会被拒绝，避免同一商户订单成功多笔。
+- 上一笔明确进入 `FAILED` 后，付款人可继续支付；商户或 Hosted Checkout 使用新的 `orderId` 发起新尝试，原失败交易仍完整保留用于审计。
+- 渠道结果未知、超时或仍为 `PROCESSING` 不等于失败，不能换 `orderId` 重发资金请求，应使用原交易 ID 查询。
+
+因此，同一个 `merchantId + orderNo` 可以保留多笔失败尝试，但最多只能有一笔活跃或成功的首次交易，商户不需要为每次付款失败创建新的业务订单号。
+
 ## 8. Hosted Checkout
 
 ### 8.1 创建收银台会话
@@ -2047,6 +2210,9 @@ String responsePlainJson = OpenApiCrypto.decryptResponse(
 - [ ] 代付金额按币种字典换算，不固定乘以 100。
 - [ ] 请款、退款、撤销和增量授权已按源交易状态及剩余金额控制。
 - [ ] Hosted Checkout 的 `returnUrl` 不作为资金成功依据。
+- [ ] 回调 Controller 只接受 POST，并校验 JWT、全部必填 Header、密文和 `eventId` 唯一键。
+- [ ] 本地业务事务提交成功后才返回精确的 `HTTP 200 + succeed`。
+- [ ] 同一 `eventId` 重复投递不会重复更新商户订单，不同人工重发事件可独立审计。
 
 **联调**
 
@@ -2061,5 +2227,6 @@ String responsePlainJson = OpenApiCrypto.decryptResponse(
 
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
+| `v2.1.0` | 2026-08-04 | 增加商户终态回调协议、JWT/Header/密文、SDK 接收、事件幂等、人工重发和商户订单失败重试规则 |
 | `v2.0.1` | 2026-08-01 | 增加 Sandbox 地址、密钥材料获取方式、测试卡数据和 Java SDK 参考 |
 | `v2.0.0` | 2026-08-01 | 重构为商户交付版；统一安全协议、公共规则、13 个逐接口契约、错误码、重试和排查附录 |

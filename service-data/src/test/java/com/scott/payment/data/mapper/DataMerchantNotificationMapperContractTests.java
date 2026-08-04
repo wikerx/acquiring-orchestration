@@ -90,6 +90,34 @@ class DataMerchantNotificationMapperContractTests {
         assertCas(failedSql, "notify_status = 'PROCESSING'");
     }
 
+    /** 人工重发必须显式排除 PROCESSING，并保持精确分片、版本 CAS 和有界补偿预算。 */
+    @Test
+    void manualRetryShouldUseExactShardAndControlledStates() throws NoSuchMethodException {
+        String retryableSql = selectSql(DataMerchantNotificationMapper.class.getMethod(
+                "selectRetryableByTransactionId",
+                String.class,
+                LocalDateTime.class));
+        String claimSql = updateSql(DataMerchantNotificationMapper.class.getMethod(
+                "markProcessingForManualRetry",
+                Long.class,
+                LocalDateTime.class,
+                Integer.class,
+                LocalDateTime.class));
+
+        assertThat(retryableSql)
+                .contains("transaction_id = #{transactionId}")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .contains("notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')")
+                .contains("notify_status = 'INIT' AND next_retry_time IS NOT NULL")
+                .doesNotContain("notify_status = 'PROCESSING'")
+                .doesNotContain("${");
+        assertCas(claimSql, "notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')");
+        assertThat(claimSql)
+                .contains("notify_status = 'INIT' AND next_retry_time IS NOT NULL")
+                .contains("max_retry_count = GREATEST")
+                .doesNotContain("AND notify_status = 'PROCESSING'");
+    }
+
     private static String selectSql(Method method) {
         Select annotation = method.getAnnotation(Select.class);
         assertThat(annotation).isNotNull();

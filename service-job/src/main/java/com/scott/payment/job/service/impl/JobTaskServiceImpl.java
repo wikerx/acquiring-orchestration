@@ -180,10 +180,15 @@ public class JobTaskServiceImpl implements JobTaskService {
     public SysJobTaskDO changeStatus(Long taskId, String status, String operator) {
         SysJobTaskDO task = getRequiredTask(taskId);
         task.setStatus(JobStatusEnum.valueOf(status).name());
+        LocalDateTime now = LocalDateTime.now();
         task.setUpdateBy(operator);
-        task.setUpdateTime(LocalDateTime.now());
-        task.setNextTriggerTime(jobTaskTimingService.calculateNextTriggerTime(task, LocalDateTime.now()));
-        sysJobTaskMapper.updateById(task);
+        task.setUpdateTime(now);
+        task.setNextTriggerTime(jobTaskTimingService.calculateNextTriggerTime(task, now));
+        int updated = sysJobTaskMapper.updateStatus(
+                task.getId(), task.getStatus(), task.getNextTriggerTime(), operator, now);
+        if (updated != 1) {
+            throw new ServiceException(ApiResultEnum.BAD_REQUEST.getCode(), "job task status update failed");
+        }
         return task;
     }
 
@@ -277,23 +282,20 @@ public class JobTaskServiceImpl implements JobTaskService {
     }
 
     /**
-     * 整理任务运行完成状态，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 调度任务服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param taskId task ID 输入值，参与 taskID 的查询、校验、转换、写入或日志摘要
-     * @param lastRunStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
+     * 仅由当前持锁节点写入任务终态并显式将锁字段更新为 NULL。
+     *
+     * @param taskId 任务主键
+     * @param lastRunStatus 最终运行状态
+     * @param nodeId 当前锁持有节点
+     * @return true 表示终态和锁均已更新
      */
     @Override
-    public void finishTaskRun(Long taskId, JobRunStatusEnum lastRunStatus) {
-        SysJobTaskDO task = getRequiredTask(taskId);
-        task.setLastRunStatus(lastRunStatus.name());
-        task.setLockOwner(null);
-        task.setLockUntil(null);
-        task.setUpdateTime(LocalDateTime.now());
-        sysJobTaskMapper.updateById(task);
+    public boolean finishTaskRun(Long taskId, JobRunStatusEnum lastRunStatus, String nodeId) {
+        return sysJobTaskMapper.finishTaskRun(
+                taskId,
+                nodeId,
+                lastRunStatus.name(),
+                LocalDateTime.now()) == 1;
     }
 
     /**

@@ -57,10 +57,11 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
      */
     private static final String PRE_AUTHORIZATION = "PRE_AUTHORIZATION";
 
-    /**
-     * 首次交易全局幂等分组。
-     */
-    private static final String INITIAL_FLOW_GROUP = "INITIAL";
+    /** 首次交易请求幂等范围。 */
+    private static final String TRANSACTION_OPERATION_SCOPE = "TRANSACTION_OPERATION";
+
+    /** 商户订单支付流守卫范围。 */
+    private static final String MERCHANT_ORDER_FLOW_SCOPE = "MERCHANT_ORDER_FLOW";
 
     /**
      * 交易幂等 Mapper。
@@ -90,21 +91,6 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                 normalize(merchantId),
                 normalize(merchantOrderId),
                 normalize(transactionType));
-    }
-
-    /**
-     * 构建首次交易全局幂等键。
-     *
-     * @param merchantId      商户号
-     * @param merchantOrderNo 商户订单号
-     * @return 首次交易幂等键
-     */
-    @Override
-    public String buildInitialTransactionKey(String merchantId, String merchantOrderNo) {
-        return String.join(":",
-                normalize(merchantId),
-                normalize(merchantOrderNo),
-                INITIAL_FLOW_GROUP);
     }
 
     /**
@@ -156,6 +142,71 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
     }
 
     /**
+     * 只允许 FAILED 流守卫按当前版本重新进入 PROCESSING，并清除上一笔交易的结果引用。
+     */
+    @Override
+    public boolean tryRestartFailedFlow(TransactionIdempotencyDO existingRecord,
+                                        TransactionIdempotencyDO replacement) {
+        if (existingRecord == null
+                || replacement == null
+                || existingRecord.getId() == null
+                || existingRecord.getVersion() == null) {
+            return false;
+        }
+        int affectedRows = idempotencyMapper.update(null, Wrappers.<TransactionIdempotencyDO>lambdaUpdate()
+                .set(TransactionIdempotencyDO::getMerchantId, replacement.getMerchantId())
+                .set(TransactionIdempotencyDO::getMerchantOrderNo, replacement.getMerchantOrderNo())
+                .set(TransactionIdempotencyDO::getMerchantOrderId, replacement.getMerchantOrderId())
+                .set(TransactionIdempotencyDO::getTransactionType, replacement.getTransactionType())
+                .set(TransactionIdempotencyDO::getTransactionId, null)
+                .set(TransactionIdempotencyDO::getOperationId, null)
+                .set(TransactionIdempotencyDO::getTransactionStatus, PaymentTransactionStatusEnum.PROCESSING.getCode())
+                .set(TransactionIdempotencyDO::getRequestAmount, null)
+                .set(TransactionIdempotencyDO::getRequestCurrency, null)
+                .set(TransactionIdempotencyDO::getTransactionAmount, null)
+                .set(TransactionIdempotencyDO::getTransactionCurrency, null)
+                .set(TransactionIdempotencyDO::getTransactionDateTime, replacement.getTransactionDateTime())
+                .set(TransactionIdempotencyDO::getTransactionUtcTime, replacement.getTransactionUtcTime())
+                .set(TransactionIdempotencyDO::getTransactionTimeZone, replacement.getTransactionTimeZone())
+                .set(TransactionIdempotencyDO::getTransactionTimezoneOffset, replacement.getTransactionTimezoneOffset())
+                .set(TransactionIdempotencyDO::getRequestFingerprint, replacement.getRequestFingerprint())
+                .set(TransactionIdempotencyDO::getResultSnapshot, null)
+                .set(TransactionIdempotencyDO::getExpireTime, replacement.getExpireTime())
+                .set(TransactionIdempotencyDO::getUpdateTime, replacement.getUpdateTime())
+                .setSql("version = version + 1")
+                .eq(TransactionIdempotencyDO::getId, existingRecord.getId())
+                .eq(TransactionIdempotencyDO::getIdempotencyScope, MERCHANT_ORDER_FLOW_SCOPE)
+                .eq(TransactionIdempotencyDO::getIdempotencyKey, existingRecord.getIdempotencyKey())
+                .eq(TransactionIdempotencyDO::getTransactionStatus, PaymentTransactionStatusEnum.FAILED.getCode())
+                .eq(TransactionIdempotencyDO::getVersion, existingRecord.getVersion())
+                .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED));
+        return affectedRows == 1;
+    }
+
+    /**
+     * 渠道回调或主动查询只可把非终态首次交易幂等记录推进到终态，不能覆盖既有 SUCCESS/FAILED。
+     */
+    @Override
+    public int synchronizeInitialTransactionStatus(String transactionId, String transactionStatus) {
+        if (transactionId == null || transactionId.isBlank()
+                || (!PaymentTransactionStatusEnum.SUCCESS.getCode().equals(transactionStatus)
+                && !PaymentTransactionStatusEnum.FAILED.getCode().equals(transactionStatus))) {
+            return 0;
+        }
+        return idempotencyMapper.update(null, Wrappers.<TransactionIdempotencyDO>lambdaUpdate()
+                .set(TransactionIdempotencyDO::getTransactionStatus, transactionStatus)
+                .set(TransactionIdempotencyDO::getUpdateTime, LocalDateTime.now())
+                .setSql("version = version + 1")
+                .eq(TransactionIdempotencyDO::getTransactionId, transactionId)
+                .in(TransactionIdempotencyDO::getIdempotencyScope,
+                        TRANSACTION_OPERATION_SCOPE, MERCHANT_ORDER_FLOW_SCOPE)
+                .in(TransactionIdempotencyDO::getTransactionType, PAYMENT, AUTHORIZATION, PRE_AUTHORIZATION)
+                .notIn(TransactionIdempotencyDO::getTransactionStatus,
+                        PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentTransactionStatusEnum.FAILED.getCode())
+                .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED));
+    }
+
+    /**
      * 保存首次处理结果快照。
      *
      * @param scope                  幂等范围
@@ -176,17 +227,22 @@ public class DefaultTransactionIdempotencyService implements TransactionIdempote
                          BigDecimal transactionAmount,
                          String transactionCurrency,
                          String resultSnapshot) {
-        TransactionIdempotencyDO update = new TransactionIdempotencyDO();
-        update.setOperationId(operationId);
-        update.setTransactionId(transactionId);
-        update.setTransactionStatus(transactionStatus);
-        update.setTransactionAmount(transactionAmount);
-        update.setTransactionCurrency(transactionCurrency);
-        update.setResultSnapshot(resultSnapshot);
-        update.setUpdateTime(LocalDateTime.now());
-        idempotencyMapper.update(update, Wrappers.<TransactionIdempotencyDO>lambdaUpdate()
+        idempotencyMapper.update(null, Wrappers.<TransactionIdempotencyDO>lambdaUpdate()
+                .set(TransactionIdempotencyDO::getOperationId, operationId)
+                .set(TransactionIdempotencyDO::getTransactionId, transactionId)
+                .set(TransactionIdempotencyDO::getTransactionStatus, transactionStatus)
+                .set(TransactionIdempotencyDO::getTransactionAmount, transactionAmount)
+                .set(TransactionIdempotencyDO::getTransactionCurrency, transactionCurrency)
+                .set(TransactionIdempotencyDO::getResultSnapshot, resultSnapshot)
+                .set(TransactionIdempotencyDO::getUpdateTime, LocalDateTime.now())
+                .setSql("version = version + 1")
                 .eq(TransactionIdempotencyDO::getIdempotencyScope, scope)
                 .eq(TransactionIdempotencyDO::getIdempotencyKey, key)
+                .and(wrapper -> wrapper
+                        .notIn(TransactionIdempotencyDO::getTransactionStatus,
+                                PaymentTransactionStatusEnum.SUCCESS.getCode(), PaymentTransactionStatusEnum.FAILED.getCode())
+                        .or()
+                        .eq(TransactionIdempotencyDO::getTransactionStatus, transactionStatus))
                 .eq(TransactionIdempotencyDO::getDeleted, NOT_DELETED));
     }
 

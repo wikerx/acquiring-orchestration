@@ -1,6 +1,10 @@
 # service-job 专属配置：任务服务调用其他业务服务的内部补偿客户端参数。
 job:
   data-client:
+    # service-data 建连超时，单位毫秒。
+    connect-timeout-millis: ${JOB_DATA_CLIENT_CONNECT_TIMEOUT_MILLIS:3000}
+    # 单批最多 5 条通知，每条回调最坏耗时由 service-data 控制；读取超时必须覆盖完整有界批次。
+    read-timeout-millis: ${JOB_DATA_CLIENT_READ_TIMEOUT_MILLIS:240000}
     # 参数说明：指定内部服务调用方标识，必须与被调用方签名白名单一致。
     # 环境说明：环境变量：DATA_INTERNAL_CALLER，dev 配置默认值为 "service-job"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     internal-caller: ${DATA_INTERNAL_CALLER:service-job}

@@ -26,6 +26,9 @@ public final class DataMqConsumerGroups {
     /** OpenAPI 安全拦截审计消费组。 */
     public static final String SECURITY_INTERCEPT_AUDIT = "acquiring-data-security-intercept-audit-consumer";
 
+    /** Admin 与 Merchant 登录审计消费组。 */
+    public static final String LOGIN_AUDIT = "acquiring-data-login-audit-consumer";
+
     private DataMqConsumerGroups() {
     }
 }

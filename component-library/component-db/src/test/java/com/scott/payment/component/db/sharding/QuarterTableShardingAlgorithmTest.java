@@ -1,6 +1,7 @@
 package com.scott.payment.component.db.sharding;
 
 import com.google.common.collect.Range;
+import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import org.apache.shardingsphere.sharding.api.sharding.standard.PreciseShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.RangeShardingValue;
 import org.junit.jupiter.api.Test;
@@ -81,11 +82,15 @@ class QuarterTableShardingAlgorithmTest {
 
         assertThrows(IllegalArgumentException.class, () -> precise(algorithm, null));
         assertThrows(IllegalArgumentException.class, () -> precise(algorithm, "2026-08-01"));
-        assertThrows(IllegalStateException.class,
+        TransactionDataUnavailableException preciseFailure = assertThrows(TransactionDataUnavailableException.class,
                 () -> precise(algorithm, LocalDateTime.of(2028, 1, 1, 0, 0)));
-        assertThrows(IllegalStateException.class, () -> range(algorithm, Range.closedOpen(
+        TransactionDataUnavailableException rangeFailure = assertThrows(TransactionDataUnavailableException.class,
+                () -> range(algorithm, Range.closedOpen(
                 LocalDateTime.of(2025, 10, 1, 0, 0),
                 LocalDateTime.of(2026, 4, 1, 0, 0))));
+
+        assertEquals("2028-Q1", preciseFailure.getQuarter());
+        assertEquals("2025-Q4", rangeFailure.getQuarter());
     }
 
     private QuarterTableShardingAlgorithm algorithm() {

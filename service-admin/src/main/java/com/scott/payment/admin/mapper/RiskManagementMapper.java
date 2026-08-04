@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -1471,6 +1472,9 @@ public interface RiskManagementMapper {
      * @param merchantOrderNo 商户订单号，允许为空
      * @param paymentOrderNo  平台支付订单号，允许为空
      * @param decisionResult  决策结果，允许为空
+     * @param riskLevel 风险等级，允许为空
+     * @param evaluationStartTime 评估时间起点（包含），允许为空
+     * @param evaluationEndTimeExclusive 评估时间终点（不包含），允许为空
      * @return 风控评估记录数量
      */
     @Select("""
@@ -1482,12 +1486,18 @@ public interface RiskManagementMapper {
             <if test="merchantOrderNo != null and merchantOrderNo != ''">AND merchant_order_no = #{merchantOrderNo}</if>
             <if test="paymentOrderNo != null and paymentOrderNo != ''">AND payment_order_no = #{paymentOrderNo}</if>
             <if test="decisionResult != null and decisionResult != ''">AND decision_result = #{decisionResult}</if>
+            <if test="riskLevel != null and riskLevel != ''">AND risk_level = #{riskLevel}</if>
+            <if test="evaluationStartTime != null">AND evaluation_time &gt;= #{evaluationStartTime}</if>
+            <if test="evaluationEndTimeExclusive != null">AND evaluation_time &lt; #{evaluationEndTimeExclusive}</if>
             </script>
             """)
     long countEvaluations(@Param("merchantId") String merchantId,
                           @Param("merchantOrderNo") String merchantOrderNo,
                           @Param("paymentOrderNo") String paymentOrderNo,
-                          @Param("decisionResult") String decisionResult);
+                          @Param("decisionResult") String decisionResult,
+                          @Param("riskLevel") String riskLevel,
+                          @Param("evaluationStartTime") LocalDateTime evaluationStartTime,
+                          @Param("evaluationEndTimeExclusive") LocalDateTime evaluationEndTimeExclusive);
 
     /**
      * 分页查询风控评估记录。
@@ -1496,19 +1506,37 @@ public interface RiskManagementMapper {
      * @param merchantOrderNo 商户订单号，允许为空
      * @param paymentOrderNo  平台支付订单号，允许为空
      * @param decisionResult  决策结果，允许为空
+     * @param riskLevel       风险等级，允许为空
+     * @param evaluationStartTime 评估时间起点（包含），允许为空
+     * @param evaluationEndTimeExclusive 评估时间终点（不包含），允许为空
      * @param offset          分页偏移量
      * @param pageSize        每页记录数
      * @return 风控评估记录列表
      */
     @Select("""
             <script>
-            SELECT *
+            SELECT id,
+                   risk_record_no,
+                   merchant_id,
+                   merchant_name,
+                   merchant_order_no,
+                   payment_order_no,
+                   transaction_amount,
+                   transaction_currency,
+                   risk_level,
+                   decision_result,
+                   decision_reason,
+                   hit_count,
+                   evaluation_time
             FROM risk_evaluation_record
             WHERE 1 = 1
             <if test="merchantId != null and merchantId != ''">AND merchant_id = #{merchantId}</if>
             <if test="merchantOrderNo != null and merchantOrderNo != ''">AND merchant_order_no = #{merchantOrderNo}</if>
             <if test="paymentOrderNo != null and paymentOrderNo != ''">AND payment_order_no = #{paymentOrderNo}</if>
             <if test="decisionResult != null and decisionResult != ''">AND decision_result = #{decisionResult}</if>
+            <if test="riskLevel != null and riskLevel != ''">AND risk_level = #{riskLevel}</if>
+            <if test="evaluationStartTime != null">AND evaluation_time &gt;= #{evaluationStartTime}</if>
+            <if test="evaluationEndTimeExclusive != null">AND evaluation_time &lt; #{evaluationEndTimeExclusive}</if>
             ORDER BY evaluation_time DESC, id DESC
             LIMIT #{offset}, #{pageSize}
             </script>
@@ -1517,6 +1545,9 @@ public interface RiskManagementMapper {
                                                 @Param("merchantOrderNo") String merchantOrderNo,
                                                 @Param("paymentOrderNo") String paymentOrderNo,
                                                 @Param("decisionResult") String decisionResult,
+                                                @Param("riskLevel") String riskLevel,
+                                                @Param("evaluationStartTime") LocalDateTime evaluationStartTime,
+                                                @Param("evaluationEndTimeExclusive") LocalDateTime evaluationEndTimeExclusive,
                                                 @Param("offset") long offset,
                                                 @Param("pageSize") long pageSize);
 

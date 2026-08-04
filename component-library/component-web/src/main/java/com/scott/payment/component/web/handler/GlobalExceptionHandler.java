@@ -4,6 +4,7 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.exception.BizException;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import com.scott.payment.component.core.model.CommonResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -143,8 +144,36 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public CommonResult<Void> handleException(Exception exception) {
+        TransactionDataUnavailableException unavailable = findTransactionDataUnavailable(exception);
+        if (unavailable != null) {
+            log.warn("event: TRANSACTION_DATA_UNAVAILABLE logicalTable: {} quarter: {} ruleVersion: {} wrapperType: {}",
+                    unavailable.getLogicalTable(), unavailable.getQuarter(), unavailable.getRuleVersion(),
+                    exception.getClass().getSimpleName());
+            return CommonResult.error(ApiResultEnum.TRANSACTION_DATA_UNAVAILABLE);
+        }
         log.error("System exception", exception);
         return CommonResult.error(ApiResultEnum.INTERNAL_SERVER_ERROR);
+    }
+
+    /**
+     * 沿 JDBC 和 ShardingSphere 的异常包装链查找结构化季度节点错误。
+     *
+     * @param exception Web 层捕获的顶层异常
+     * @return 节点不可用异常；不存在时返回 null
+     */
+    private TransactionDataUnavailableException findTransactionDataUnavailable(Throwable exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof TransactionDataUnavailableException unavailable) {
+                return unavailable;
+            }
+            Throwable cause = current.getCause();
+            if (cause == current) {
+                break;
+            }
+            current = cause;
+        }
+        return null;
     }
 
     /**

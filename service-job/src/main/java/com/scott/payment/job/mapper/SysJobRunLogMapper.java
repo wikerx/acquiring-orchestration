@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -27,6 +28,7 @@ public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
      * @param resultMessage 结果摘要
      * @param errorMessage  错误摘要
      * @param durationMs    执行耗时
+     * @param endTime       应用侧完成时间，与开始时间使用同一时钟和 JDBC 时区转换
      * @return 影响行数
      */
     @Update("""
@@ -35,8 +37,8 @@ public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
                 result_message = #{resultMessage},
                 error_message = #{errorMessage},
                 duration_ms = #{durationMs},
-                end_time = NOW(),
-                update_time = NOW()
+                end_time = GREATEST(#{endTime}, start_time),
+                update_time = GREATEST(#{endTime}, start_time)
             WHERE id = #{id}
               AND run_status = 'RUNNING'
             """)
@@ -44,7 +46,8 @@ public interface SysJobRunLogMapper extends BaseMapper<SysJobRunLogDO> {
                         @Param("runStatus") String runStatus,
                         @Param("resultMessage") String resultMessage,
                         @Param("errorMessage") String errorMessage,
-                        @Param("durationMs") Long durationMs);
+                        @Param("durationMs") Long durationMs,
+                        @Param("endTime") LocalDateTime endTime);
 
     /**
      * 查询超时仍在运行的日志。

@@ -1,6 +1,8 @@
 package com.scott.payment.admin.api.transaction;
 
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
+import com.scott.payment.admin.application.transaction.AdminMerchantNotificationRetryApplicationService;
+import com.scott.payment.admin.dto.transaction.MerchantNotificationRetryRequest;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.MerchantNotificationQuery;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
@@ -10,6 +12,7 @@ import com.scott.payment.component.web.auth.annotation.RequiresPermission;
 import com.scott.payment.component.web.operation.annotation.OperationLog;
 import com.scott.payment.component.web.operation.constant.OperationTypeConstants;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,13 +45,19 @@ public class AdminTransactionMerchantNotificationController {
      */
     private final AdminTransactionApplicationService transactionApplicationService;
 
+    /** 商户终态回调人工重发应用服务，只负责可靠 MQ 入队。 */
+    private final AdminMerchantNotificationRetryApplicationService retryApplicationService;
+
     /**
      * 创建商户回调记录查询接口。
      *
      * @param transactionApplicationService 交易查询应用服务
      */
-    public AdminTransactionMerchantNotificationController(AdminTransactionApplicationService transactionApplicationService) {
+    public AdminTransactionMerchantNotificationController(
+            AdminTransactionApplicationService transactionApplicationService,
+            AdminMerchantNotificationRetryApplicationService retryApplicationService) {
         this.transactionApplicationService = transactionApplicationService;
+        this.retryApplicationService = retryApplicationService;
     }
 
     /**
@@ -75,6 +84,19 @@ public class AdminTransactionMerchantNotificationController {
     @OperationLog(moduleName = "商户回调记录", businessType = OperationTypeConstants.EXPORT, operation = "导出商户回调记录")
     public void export(@RequestBody(required = false) MerchantNotificationQuery query, HttpServletResponse response) {
         transactionApplicationService.exportMerchantNotifications(query, currentOperatorName(), response);
+    }
+
+    /**
+     * 将指定终态交易的商户回调人工重发请求写入可靠 MQ Outbox。
+     *
+     * @param request 平台交易号、页面查询得到的真实分片时间和请求号
+     * @return 已受理的稳定 MQ 事件号
+     */
+    @PostMapping("/retry")
+    @RequiresPermission("transaction:merchant-notification:retry")
+    @OperationLog(moduleName = "商户回调记录", businessType = OperationTypeConstants.UPDATE, operation = "人工重发商户终态回调")
+    public CommonResult<String> retry(@Valid @RequestBody MerchantNotificationRetryRequest request) {
+        return success(retryApplicationService.retry(request, currentOperatorName()));
     }
 
     /**

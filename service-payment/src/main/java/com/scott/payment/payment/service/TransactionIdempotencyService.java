@@ -28,20 +28,18 @@ public interface TransactionIdempotencyService {
     String buildTransactionOperationKey(String merchantId, String merchantOrderId, String transactionType);
 
     /**
-     * 构建首次交易全局幂等键。
-     * <p>
-     * Payment/Auth/PreAuth 起点动作以 merchantId + merchantOrderNo + INITIAL 作为持久化幂等维度，
-     * 不能依赖单次 API 请求号 merchantOrderId 或 Redis 锁作为最终兜底。
+     * 构建商户订单支付流守卫键。
+     * <p>Payment、Authorization 和 Pre-Authorization 共用该键；PROCESSING/SUCCESS 占用期间拒绝新请求，
+     * FAILED 后才允许新的 {@code orderInfo.orderId} 通过数据库 CAS 重新占用。</p>
      *
-     * @param merchantId       商户号
-     * @param merchantOrderNo  商户订单号
-     * @return 首次交易幂等键
+     * @param merchantId      商户号
+     * @param merchantOrderNo 商户订单号
+     * @return 商户订单支付流守卫键
      */
-    default String buildInitialTransactionKey(String merchantId, String merchantOrderNo) {
+    default String buildMerchantOrderFlowKey(String merchantId, String merchantOrderNo) {
         return String.join(":",
                 normalizeKeyPart(merchantId),
-                normalizeKeyPart(merchantOrderNo),
-                "INITIAL");
+                normalizeKeyPart(merchantOrderNo));
     }
 
     /**
@@ -84,6 +82,29 @@ public interface TransactionIdempotencyService {
      * @return true 表示首次占用成功；false 表示已存在
      */
     boolean tryBegin(TransactionIdempotencyDO record);
+
+    /**
+     * 以状态和版本 CAS 将已失败的商户订单流重新占用为新的 PROCESSING 请求。
+     *
+     * @param existingRecord 当前 FAILED 流守卫记录
+     * @param replacement    新请求的 PROCESSING 记录内容
+     * @return true 表示本次请求成功重新占用；false 表示状态或版本已被并发修改
+     */
+    default boolean tryRestartFailedFlow(TransactionIdempotencyDO existingRecord,
+                                         TransactionIdempotencyDO replacement) {
+        return false;
+    }
+
+    /**
+     * 将渠道异步确认的首次交易终态同步到请求幂等记录和商户订单流守卫。
+     *
+     * @param transactionId     平台交易 ID
+     * @param transactionStatus SUCCESS 或 FAILED
+     * @return 实际更新的幂等记录数
+     */
+    default int synchronizeInitialTransactionStatus(String transactionId, String transactionStatus) {
+        return 0;
+    }
 
     /**
      * 保存首次处理结果快照。

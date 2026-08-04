@@ -79,6 +79,36 @@ public interface DataMerchantNotificationMapper {
             @Param("now") LocalDateTime now);
 
     /**
+     * 查询一条可由后台人工重发的通知任务。
+     *
+     * <p>SUCCESS、FAILED、CLOSED 和已经设置重试时间的 INIT 可重发；PROCESSING 必须由超时恢复流程处理，
+     * 禁止人工请求绕过正在执行的 CAS 锁。</p>
+     *
+     * @param transactionId 平台交易 ID
+     * @param transactionDateTime 交易分片时间
+     * @return 可人工重发任务；不存在或正在执行时返回空
+     */
+    @Select("""
+            SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
+                   notify_config_snapshot_json, target_url_hash, target_url_masked,
+                   payload_json_masked, sign_type, last_attempt_no, max_retry_count,
+                   transaction_date_time, version
+            FROM transaction_merchant_notification
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND deleted = 0
+              AND (
+                    notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')
+                    OR (notify_status = 'INIT' AND next_retry_time IS NOT NULL)
+                  )
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+    DataMerchantNotificationTaskDO selectRetryableByTransactionId(
+            @Param("transactionId") String transactionId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
      * 使用分片时间、版本号和可执行状态抢占逻辑表通知任务。
      *
      * @param id 通知任务主键
@@ -104,6 +134,36 @@ public interface DataMerchantNotificationMapper {
                        @Param("transactionDateTime") LocalDateTime transactionDateTime,
                        @Param("expectedVersion") Integer expectedVersion,
                        @Param("now") LocalDateTime now);
+
+    /**
+     * 使用分片时间、版本和允许状态抢占后台人工重发，并为本次失败保留一次自动补偿预算。
+     *
+     * @return 1 表示抢占成功，0 表示任务状态或版本已经变化
+     */
+    @Update("""
+            UPDATE transaction_merchant_notification
+            SET notify_status = 'PROCESSING',
+                max_retry_count = GREATEST(
+                    COALESCE(max_retry_count, 0),
+                    COALESCE(last_attempt_no, 0) + 2
+                ),
+                last_attempt_no = COALESCE(last_attempt_no, 0) + 1,
+                next_retry_time = NULL,
+                version = version + 1,
+                update_time = #{now}
+            WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND deleted = 0
+              AND (
+                    notify_status IN ('SUCCESS', 'FAILED', 'CLOSED')
+                    OR (notify_status = 'INIT' AND next_retry_time IS NOT NULL)
+                  )
+            """)
+    int markProcessingForManualRetry(@Param("id") Long id,
+                                     @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                     @Param("expectedVersion") Integer expectedVersion,
+                                     @Param("now") LocalDateTime now);
 
     /**
      * 将本次抢占的逻辑表任务推进为成功终态。
