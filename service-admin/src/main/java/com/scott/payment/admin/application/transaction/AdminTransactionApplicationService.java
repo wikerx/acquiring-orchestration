@@ -23,7 +23,7 @@ import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
-import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
@@ -173,10 +173,10 @@ public class AdminTransactionApplicationService {
     public void exportOrders(TransactionPageQuery query, String operator, HttpServletResponse response) {
         runExport(operator, () -> {
             Locale locale = excelLocaleResolver.resolveCurrentLocale();
-            List<TransactionOrderExportRow> rows = loadAllOrders(query).stream()
-                    .map(this::toOrderExportRow)
-                    .toList();
-            exportExcel("excel.transaction.order.title", TransactionOrderExportRow.class, rows,
+            exportPagedExcel(
+                    "excel.transaction.order.title",
+                    TransactionOrderExportRow.class,
+                    pageNo -> loadOrderExportPage(query, pageNo),
                     querySummary(query, locale), operator, locale, response);
         });
     }
@@ -201,10 +201,10 @@ public class AdminTransactionApplicationService {
     public void exportOperations(TransactionPageQuery query, String operator, HttpServletResponse response) {
         runExport(operator, () -> {
             Locale locale = excelLocaleResolver.resolveCurrentLocale();
-            List<TransactionOperationExportRow> rows = loadAllOperations(query).stream()
-                    .map(this::toOperationExportRow)
-                    .toList();
-            exportExcel("excel.transaction.operation.title", TransactionOperationExportRow.class, rows,
+            exportPagedExcel(
+                    "excel.transaction.operation.title",
+                    TransactionOperationExportRow.class,
+                    pageNo -> loadOperationExportPage(query, pageNo),
                     querySummary(query, locale), operator, locale, response);
         });
     }
@@ -400,10 +400,10 @@ public class AdminTransactionApplicationService {
     public void exportMerchantNotifications(MerchantNotificationQuery query, String operator, HttpServletResponse response) {
         runExport(operator, () -> {
             Locale locale = excelLocaleResolver.resolveCurrentLocale();
-            List<TransactionMerchantNotificationExportRow> rows = loadAllMerchantNotifications(query).stream()
-                    .map(this::toMerchantNotificationExportRow)
-                    .toList();
-            exportExcel("excel.transaction.notification.title", TransactionMerchantNotificationExportRow.class, rows,
+            exportPagedExcel(
+                    "excel.transaction.notification.title",
+                    TransactionMerchantNotificationExportRow.class,
+                    pageNo -> loadMerchantNotificationExportPage(query, pageNo),
                     notificationQuerySummary(query, locale), operator, locale, response);
         });
     }
@@ -418,22 +418,13 @@ public class AdminTransactionApplicationService {
      * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private List<TransactionOrderResponse> loadAllOrders(TransactionPageQuery sourceQuery) {
+    private List<TransactionOrderExportRow> loadOrderExportPage(TransactionPageQuery sourceQuery, int pageNo) {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
-        query.setPageNo(1);
-        query.setPageSize(exportPageSize());
-        PageResult<TransactionOrderResponse> firstPage = transactionQueryService.pageOrders(query);
-        ensureExportSize(firstPage.getTotal());
-        List<TransactionOrderResponse> rows = new ArrayList<>(firstPage.getRecords());
-        for (int pageNo = 2; rows.size() < firstPage.getTotal(); pageNo++) {
-            query.setPageNo(pageNo);
-            PageResult<TransactionOrderResponse> page = transactionQueryService.pageOrders(query);
-            if (page.getRecords().isEmpty()) {
-                break;
-            }
-            rows.addAll(page.getRecords());
-        }
-        return rows;
+        query.setPageNo(pageNo);
+        query.setPageSize(EXPORT_PAGE_SIZE);
+        return transactionQueryService.pageOrders(query).getRecords().stream()
+                .map(this::toOrderExportRow)
+                .toList();
     }
 
     /**
@@ -446,22 +437,13 @@ public class AdminTransactionApplicationService {
      * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private List<TransactionOperationResponse> loadAllOperations(TransactionPageQuery sourceQuery) {
+    private List<TransactionOperationExportRow> loadOperationExportPage(TransactionPageQuery sourceQuery, int pageNo) {
         TransactionPageQuery query = copyTransactionQuery(sourceQuery);
-        query.setPageNo(1);
-        query.setPageSize(exportPageSize());
-        PageResult<TransactionOperationResponse> firstPage = transactionQueryService.pageOperations(query);
-        ensureExportSize(firstPage.getTotal());
-        List<TransactionOperationResponse> rows = new ArrayList<>(firstPage.getRecords());
-        for (int pageNo = 2; rows.size() < firstPage.getTotal(); pageNo++) {
-            query.setPageNo(pageNo);
-            PageResult<TransactionOperationResponse> page = transactionQueryService.pageOperations(query);
-            if (page.getRecords().isEmpty()) {
-                break;
-            }
-            rows.addAll(page.getRecords());
-        }
-        return rows;
+        query.setPageNo(pageNo);
+        query.setPageSize(EXPORT_PAGE_SIZE);
+        return transactionQueryService.pageOperations(query).getRecords().stream()
+                .map(this::toOperationExportRow)
+                .toList();
     }
 
     /**
@@ -474,44 +456,14 @@ public class AdminTransactionApplicationService {
      * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
      * @return 查询得到的业务对象、分页结果或空结果
      */
-    private List<Map<String, Object>> loadAllMerchantNotifications(MerchantNotificationQuery sourceQuery) {
+    private List<TransactionMerchantNotificationExportRow> loadMerchantNotificationExportPage(
+            MerchantNotificationQuery sourceQuery, int pageNo) {
         MerchantNotificationQuery query = copyNotificationQuery(sourceQuery);
-        query.setPageNo(1);
-        query.setPageSize(exportPageSize());
-        PageResult<Map<String, Object>> firstPage = transactionQueryService.pageMerchantNotifications(query);
-        ensureExportSize(firstPage.getTotal());
-        List<Map<String, Object>> rows = new ArrayList<>(firstPage.getRecords());
-        for (int pageNo = 2; rows.size() < firstPage.getTotal(); pageNo++) {
-            query.setPageNo(pageNo);
-            PageResult<Map<String, Object>> page = transactionQueryService.pageMerchantNotifications(query);
-            if (page.getRecords().isEmpty()) {
-                break;
-            }
-            rows.addAll(page.getRecords());
-        }
-        return rows;
-    }
-
-    /**
-     * 校验确保exportsize输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方已准备 运营后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param total total 输入值，参与 total 的查询、校验、转换、写入或日志摘要
-     */
-    private void ensureExportSize(long total) {
-        int maxRows = shardingProperties.getQueryBudget().getMaxResultRows();
-        if (total > maxRows) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                    "export result exceeds " + maxRows + " rows, please use asynchronous export");
-        }
-    }
-
-    /** @return 同步导出单次分页大小，不超过规则声明的结果行数上限 */
-    private int exportPageSize() {
-        return Math.min(EXPORT_PAGE_SIZE, shardingProperties.getQueryBudget().getMaxResultRows());
+        query.setPageNo(pageNo);
+        query.setPageSize(EXPORT_PAGE_SIZE);
+        return transactionQueryService.pageMerchantNotifications(query).getRecords().stream()
+                .map(this::toMerchantNotificationExportRow)
+                .toList();
     }
 
     /** 在同一后台账号的集群级并发预算内执行一次同步交易导出。 */
@@ -539,17 +491,17 @@ public class AdminTransactionApplicationService {
         return StringUtils.hasText(operator) ? "admin-operator:" + operator : "admin-operator:unknown";
     }
 
-    private <T> void exportExcel(String titleKey,
-                                 Class<T> rowClass,
-                                 List<T> rows,
-                                 String querySummary,
-                                 String operator,
-                                 Locale locale,
-                                 HttpServletResponse response) {
+    private <T> void exportPagedExcel(String titleKey,
+                                      Class<T> rowClass,
+                                      java.util.function.IntFunction<List<T>> pageLoader,
+                                      String querySummary,
+                                      String operator,
+                                      Locale locale,
+                                      HttpServletResponse response) {
         LocalDateTime now = LocalDateTime.now();
         String title = excelI18nMessageResolver.resolve(titleKey, locale);
-        excelExportService.export(
-                ExcelExportRequest.<T>builder()
+        excelExportService.exportPaged(
+                ExcelPagedExportRequest.<T>builder()
                         .fileName(title + "_" + EXPORT_TIME_FORMATTER.format(now))
                         .sheetName(title)
                         .titleKey(titleKey)
@@ -558,7 +510,8 @@ public class AdminTransactionApplicationService {
                         .locale(locale)
                         .querySummary(querySummary)
                         .rowClass(rowClass)
-                        .dataList(rows)
+                        .pageSize(EXPORT_PAGE_SIZE)
+                        .pageLoader(pageLoader)
                         .build(),
                 response
         );

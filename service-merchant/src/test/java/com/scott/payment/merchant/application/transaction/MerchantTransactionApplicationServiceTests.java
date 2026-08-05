@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -104,25 +106,27 @@ class MerchantTransactionApplicationServiceTests {
     }
 
     @Test
-    void exportShouldApplyConfiguredMaximumResultRows() {
+    void exportShouldIgnoreQueryResultLimitAndStreamRows() throws Exception {
         MerchantTransactionQueryService queryService = mock(MerchantTransactionQueryService.class);
         RedisConcurrencyLimiter limiter = mock(RedisConcurrencyLimiter.class);
+        HttpServletResponse httpResponse = mock(HttpServletResponse.class);
+        StringWriter body = new StringWriter();
         TransactionShardingProperties properties = new TransactionShardingProperties();
         properties.getQueryBudget().setMaxResultRows(1);
         when(limiter.execute(anyString(), anyString(), anyString(), anyInt(), any(), any()))
                 .thenAnswer(invocation -> {
                     invocation.getArgument(5, Runnable.class).run();
                     return true;
-                });
+        });
         TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
-        response.setPage(PageResult.of(2L, 1L, 1L, List.of()));
+        response.setPage(PageResult.of(2L, 1L, 500L, List.of(new TransactionOperationResponse())));
         when(queryService.searchOperations(any(TransactionPageQuery.class))).thenReturn(response);
+        when(httpResponse.getWriter()).thenReturn(new PrintWriter(body));
         MerchantTransactionApplicationService service = service(queryService, properties, limiter);
 
-        assertThatThrownBy(() -> service.exportOrders(
-                "merchant-a", new TransactionPageQuery(), "operator", mock(HttpServletResponse.class)))
-                .isInstanceOf(ApiException.class)
-                .hasMessageContaining("asynchronous export");
+        service.exportOrders("merchant-a", new TransactionPageQuery(), "operator", httpResponse);
+
+        assertThat(body.toString()).contains("系统订单号");
     }
 
     private MerchantTransactionApplicationService service(MerchantTransactionQueryService queryService,

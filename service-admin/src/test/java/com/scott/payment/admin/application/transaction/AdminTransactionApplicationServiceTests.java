@@ -10,6 +10,7 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionP
 import com.scott.payment.admin.service.AdminTransactionQueryService;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.excel.service.ExcelExportService;
+import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
 import com.scott.payment.component.excel.support.ExcelLocaleResolver;
 import com.scott.payment.component.db.sharding.TransactionShardingProperties;
@@ -22,6 +23,7 @@ import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -177,9 +180,11 @@ class AdminTransactionApplicationServiceTests {
     }
 
     @Test
-    void exportShouldApplyConfiguredMaximumResultRows() {
+    void exportShouldIgnoreQueryResultLimitAndUsePagedWriter() {
         AdminTransactionQueryService queryService = mock(AdminTransactionQueryService.class);
         RedisConcurrencyLimiter limiter = mock(RedisConcurrencyLimiter.class);
+        ExcelExportService excelExportService = mock(ExcelExportService.class);
+        ExcelLocaleResolver localeResolver = mock(ExcelLocaleResolver.class);
         TransactionShardingProperties properties = new TransactionShardingProperties();
         properties.getQueryBudget().setMaxResultRows(1);
         when(limiter.execute(anyString(), anyString(), anyString(), anyInt(), any(), any()))
@@ -189,12 +194,20 @@ class AdminTransactionApplicationServiceTests {
                 });
         when(queryService.pageOrders(any(TransactionPageQuery.class)))
                 .thenReturn(PageResult.of(2L, 1L, 1L, List.of()));
-        AdminTransactionApplicationService service = buildService(queryService, properties, limiter);
+        when(localeResolver.resolveCurrentLocale()).thenReturn(Locale.ENGLISH);
+        AdminTransactionApplicationService service = new AdminTransactionApplicationService(
+                mock(PaymentInternalClient.class), queryService, excelExportService,
+                mock(ExcelI18nMessageResolver.class), localeResolver, properties, limiter);
 
-        assertThatThrownBy(() -> service.exportOrders(
-                new TransactionPageQuery(), "operator", mock(HttpServletResponse.class)))
-                .isInstanceOf(ApiException.class)
-                .hasMessageContaining("asynchronous export");
+        service.exportOrders(new TransactionPageQuery(), "operator", mock(HttpServletResponse.class));
+
+        @SuppressWarnings("rawtypes")
+        ArgumentCaptor<ExcelPagedExportRequest> requestCaptor =
+                ArgumentCaptor.forClass(ExcelPagedExportRequest.class);
+        verify(excelExportService).exportPaged(requestCaptor.capture(), any(HttpServletResponse.class));
+        ExcelPagedExportRequest<?> request = requestCaptor.getValue();
+        assertThat(request.getPageSize()).isEqualTo(500);
+        assertThat(request.getPageLoader().apply(1)).isEmpty();
     }
 
     private AdminTransactionApplicationService buildService(PaymentInternalClient paymentInternalClient) {

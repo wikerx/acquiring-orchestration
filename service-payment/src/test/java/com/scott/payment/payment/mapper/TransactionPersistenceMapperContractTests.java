@@ -68,7 +68,7 @@ class TransactionPersistenceMapperContractTests {
             Map<String, Object> rule = (Map<String, Object>) value;
             assertThat(rule.get("logical-table")).isIn(PRODUCTION_LOGIC_TABLES.toArray());
             assertThat(rule).containsEntry("template-table", rule.get("logical-table"))
-                    .containsEntry("end-year", 2027);
+                    .containsEntry("end-year", 2099);
         });
     }
 

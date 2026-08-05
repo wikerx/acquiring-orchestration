@@ -32,7 +32,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -286,7 +285,6 @@ public class MerchantTransactionApplicationService {
      */
     public void exportOrders(String merchantId, TransactionPageQuery query, String operator, HttpServletResponse response) {
         runExport(merchantId, operator, () -> {
-            List<TransactionOperationResponse> rows = loadAllOperations(merchantId, query);
             String fileName = "merchant_transaction_operations_" + EXPORT_TIME_FORMATTER.format(LocalDateTime.now()) + ".csv";
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             response.setContentType("text/csv;charset=UTF-8");
@@ -326,7 +324,7 @@ public class MerchantTransactionApplicationService {
                     "动作时间",
                     "交易时间"
                 ));
-                rows.forEach(row -> writer.println(toOperationCsvLine(row)));
+                writeOperationPages(writer, merchantId, query);
             } catch (IOException exception) {
                 throw new ApiException(ApiResultEnum.INTERNAL_SERVER_ERROR, "export merchant transactions failed");
             }
@@ -353,55 +351,24 @@ public class MerchantTransactionApplicationService {
         return query;
     }
 
-    /**
-     * 查询全部交易动作，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 商户后台服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param merchantId 商户号，用于限定数据归属、权限范围和配置读取范围
-     * @param sourceQuery 查询条件对象，包含筛选字段、时间范围、分页参数和数据范围
-     * @return 查询得到的业务对象、分页结果或空结果
-     */
-    private List<TransactionOperationResponse> loadAllOperations(String merchantId, TransactionPageQuery sourceQuery) {
-        TransactionPageQuery query = merchantScopedQuery(merchantId, sourceQuery);
-        query.setPageNo(1);
-        query.setPageSize(exportPageSize());
-        PageResult<TransactionOperationResponse> firstPage = transactionQueryService.searchOperations(query).getPage();
-        ensureExportSize(firstPage.getTotal());
-        List<TransactionOperationResponse> rows = new ArrayList<>(firstPage.getRecords());
-        for (int pageNo = 2; rows.size() < firstPage.getTotal(); pageNo++) {
+    /** 按页读取当前商户交易并直接写入响应流，不在内存中聚合全部导出数据。 */
+    private void writeOperationPages(PrintWriter writer,
+                                     String merchantId,
+                                     TransactionPageQuery sourceQuery) {
+        for (int pageNo = 1; ; pageNo++) {
+            TransactionPageQuery query = merchantScopedQuery(merchantId, sourceQuery);
             query.setPageNo(pageNo);
-            PageResult<TransactionOperationResponse> page = transactionQueryService.searchOperations(query).getPage();
-            if (page.getRecords().isEmpty()) {
+            query.setPageSize(EXPORT_PAGE_SIZE);
+            List<TransactionOperationResponse> rows =
+                    transactionQueryService.searchOperations(query).getPage().getRecords();
+            if (rows.isEmpty()) {
                 break;
             }
-            rows.addAll(page.getRecords());
+            rows.forEach(row -> writer.println(toOperationCsvLine(row)));
+            if (rows.size() < EXPORT_PAGE_SIZE) {
+                break;
+            }
         }
-        return rows;
-    }
-
-    /**
-     * 校验确保exportsize输入，发现缺失、越权或格式错误时中断当前流程。
-     * <p>
-     * 前置条件：调用方已准备 商户后台服务 当前步骤需要的输入对象和业务标识。
-     * 该方法依据当前领域对象和方法语义完成参数校验、格式转换、查询读取、状态写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param total total 输入值，参与 total 的查询、校验、转换、写入或日志摘要
-     */
-    private void ensureExportSize(long total) {
-        int maxRows = shardingProperties.getQueryBudget().getMaxResultRows();
-        if (total > maxRows) {
-            throw new ApiException(ApiResultEnum.PARAM_INVALID,
-                    "export result exceeds " + maxRows + " rows, please use asynchronous export");
-        }
-    }
-
-    /** @return 同步导出单次分页大小，不超过规则声明的结果行数上限 */
-    private int exportPageSize() {
-        return Math.min(EXPORT_PAGE_SIZE, shardingProperties.getQueryBudget().getMaxResultRows());
     }
 
     /** 在同一商户账号的集群级并发预算内执行一次同步交易导出。 */

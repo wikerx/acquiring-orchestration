@@ -1,6 +1,7 @@
 package com.scott.payment.component.redis.concurrency;
 
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
+import com.scott.payment.component.redis.script.PaymentRedisScripts;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -17,6 +18,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -90,5 +92,35 @@ class RedisConcurrencyLimiterTests {
                 }))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("export failed");
+    }
+
+    @Test
+    void shouldRenewLeaseWhileLongRunningActionIsActive() throws InterruptedException {
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ZSetOperations<String, String> zSetOperations = mock(ZSetOperations.class);
+        when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
+        when(redisTemplate.execute(any(), any(List.class), anyString(), anyString(), anyString()))
+                .thenReturn(1L);
+        when(redisTemplate.execute(any(), any(List.class), anyString(), anyString()))
+                .thenReturn(1L);
+        RedisConcurrencyLimiter limiter = new RedisConcurrencyLimiter(
+                redisTemplate, new PaymentRedisProperties());
+
+        boolean acquired = limiter.execute(
+                "transaction", "admin-export", "account", 1,
+                Duration.ofMillis(90), () -> {
+                    try {
+                        Thread.sleep(80L);
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("test interrupted", exception);
+                    }
+                });
+
+        assertThat(acquired).isTrue();
+        verify(redisTemplate, timeout(500).atLeastOnce())
+                .execute(eq(PaymentRedisScripts.concurrencyLeaseRenewV1()),
+                        any(List.class), eq("90"), anyString());
     }
 }

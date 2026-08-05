@@ -376,9 +376,7 @@ public class AdminMonitorDatasourceApplicationService {
             item.setActualTargetType(resolveActualTargetType(rule.getActualDataSource(), runtimeDataSources, groupMembers));
             item.setActualTargetMembers(resolveActualTargetMembers(rule.getActualDataSource(), groupMembers));
 
-            List<String> physicalTables = shardingQuarterResolver.quartersInRange(rule).stream()
-                    .map(quarter -> shardingPhysicalTableNameResolver.physicalTableName(rule, quarter))
-                    .toList();
+            List<String> physicalTables = plannedPhysicalTables(rule);
             item.setPhysicalTables(physicalTables);
             item.setPhysicalTableCount(physicalTables.size());
             item.setFirstPhysicalTable(physicalTables.isEmpty() ? null : physicalTables.get(0));
@@ -387,6 +385,20 @@ public class AdminMonitorDatasourceApplicationService {
         }
         snapshot.setTables(tableRules);
         return snapshot;
+    }
+
+    /** 只展开当前季度起的有限治理窗口，长期支持上限不等于待建物理表清单。 */
+    private List<String> plannedPhysicalTables(TransactionShardingGovernanceProperties.TableRule rule) {
+        ShardingQuarter cursor = shardingQuarterResolver.currentQuarter(paymentQuarterShardingProperties);
+        int horizon = Math.max(paymentQuarterShardingProperties.getPlanningHorizonQuarters(), 1);
+        List<String> physicalTables = new ArrayList<>(horizon);
+        for (int index = 0; index < horizon; index++) {
+            if (shardingQuarterResolver.inRange(rule, cursor)) {
+                physicalTables.add(shardingPhysicalTableNameResolver.physicalTableName(rule, cursor));
+            }
+            cursor = cursor.next();
+        }
+        return physicalTables;
     }
 
     /**

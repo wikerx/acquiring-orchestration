@@ -69,6 +69,7 @@ class AdminShardingGovernanceApplicationServiceTest {
             assertThat(rule.getVerifiedPhysicalNodes()).containsExactly("202603");
             assertThat(rule.getCurrentNodeRegistered()).isTrue();
             assertThat(rule.getNextNodeRegistered()).isFalse();
+            assertThat(rule.getPhysicalTableCount()).isEqualTo(8);
         });
     }
 

@@ -87,4 +87,20 @@ class PaymentRedisScriptsTests {
                 .contains("PEXPIRE");
         assertThat(script.getSha1()).matches("[0-9a-f]{40}");
     }
+
+    /**
+     * 并发租约续期脚本必须校验 token 仍属于当前 ZSet 后才能延长有效期。
+     */
+    @Test
+    void shouldLoadVersionedConcurrencyLeaseRenewScript() {
+        var script = PaymentRedisScripts.concurrencyLeaseRenewV1();
+
+        assertThat(script.getResultType()).isEqualTo(Long.class);
+        assertThat(script.getScriptAsString())
+                .contains("ZSCORE")
+                .contains("TIME")
+                .contains("ZADD")
+                .contains("PEXPIRE");
+        assertThat(script.getSha1()).matches("[0-9a-f]{40}");
+    }
 }

@@ -37,6 +37,9 @@ public class TransactionShardingGovernanceProperties {
     /** 在规则结束前多少个季度发出续期告警。 */
     private int expiryWarningQuarters = 4;
 
+    /** Admin 治理页面从当前季度起最多展示的规划季度数，避免长期协议上限被完整展开。 */
+    private int planningHorizonQuarters = 8;
+
     /**
      * 返回规则到期前的预警窗口。
      *

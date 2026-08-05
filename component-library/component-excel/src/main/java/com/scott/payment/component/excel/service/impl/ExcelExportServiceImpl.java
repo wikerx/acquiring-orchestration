@@ -1,9 +1,12 @@
 package com.scott.payment.component.excel.service.impl;
 
 import com.alibaba.excel.EasyExcel;
+import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.write.builder.ExcelWriterSheetBuilder;
+import com.alibaba.excel.write.metadata.WriteSheet;
 import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.service.ExcelExportService;
 import com.scott.payment.component.excel.support.ExcelColumnStyleWriteHandler;
 import com.scott.payment.component.excel.support.ExcelColumnWidthWriteHandler;
@@ -130,6 +133,55 @@ public class ExcelExportServiceImpl implements ExcelExportService {
             sheetBuilder.doWrite(rows);
         } catch (IOException exception) {
             throw new IllegalStateException("excel export failed", exception);
+        }
+    }
+
+    /**
+     * 分页加载并持续写入同一个工作簿，避免大批量交易导出在业务层聚合全部记录。
+     */
+    @Override
+    public <T> void exportPaged(ExcelPagedExportRequest<T> request, HttpServletResponse response) {
+        if (request.getPageLoader() == null || request.getPageSize() <= 0) {
+            throw new IllegalArgumentException("paged excel export requires pageLoader and positive pageSize");
+        }
+        Locale locale = request.getLocale() == null ? resolveCurrentLocale() : request.getLocale();
+        List<ExcelExportColumnDefinition> columns = metadataResolver.resolveColumns(request.getRowClass());
+        List<List<String>> head = buildHead(columns, locale);
+        String fileName = normalizeFileName(request.getFileName());
+        String sheetName = normalizeSheetName(request.getSheetName());
+        String title = messageResolver.resolve(request.getTitleKey(), locale);
+        try {
+            prepareResponse(response, fileName);
+            try (ExcelWriter writer = EasyExcel.write(response.getOutputStream())
+                    .head(head)
+                    .relativeHeadRowIndex(ExcelTitleWriteHandler.HEADER_ROW_OFFSET)
+                    .registerWriteHandler(styleStrategyFactory.createDefaultStrategy())
+                    .registerWriteHandler(new ExcelColumnStyleWriteHandler(columns))
+                    .registerWriteHandler(new ExcelColumnWidthWriteHandler(columns))
+                    .registerWriteHandler(new ExcelTitleWriteHandler(
+                            title,
+                            request.getOperator(),
+                            request.getExportTime() == null ? LocalDateTime.now() : request.getExportTime(),
+                            request.getQuerySummary(),
+                            Math.max(columns.size(), 1),
+                            messageResolver,
+                            locale
+                    ))
+                    .build()) {
+                WriteSheet sheet = EasyExcel.writerSheet(sheetName).build();
+                for (int pageNo = 1; ; pageNo++) {
+                    List<T> page = request.getPageLoader().apply(pageNo);
+                    if (page == null || page.isEmpty()) {
+                        break;
+                    }
+                    writer.write(toRowData(page, columns, locale), sheet);
+                    if (page.size() < request.getPageSize()) {
+                        break;
+                    }
+                }
+            }
+        } catch (IOException exception) {
+            throw new IllegalStateException("paged excel export failed", exception);
         }
     }
 

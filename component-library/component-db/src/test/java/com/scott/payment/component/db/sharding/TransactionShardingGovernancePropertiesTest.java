@@ -24,6 +24,7 @@ class TransactionShardingGovernancePropertiesTest {
     void shouldBindGovernancePrefixWithoutConsumingLegacyRoutingRules() {
         contextRunner.withPropertyValues(
                         "transaction-sharding.governance.expiry-warning-quarters=8",
+                        "transaction-sharding.governance.planning-horizon-quarters=12",
                         "transaction-sharding.governance.tables[transaction_order].logical-table=transaction_order",
                         "transaction-sharding.governance.tables[transaction_order].template-table=transaction_order",
                         "transaction-sharding.governance.tables[transaction_order].start-year=2026",
@@ -36,6 +37,7 @@ class TransactionShardingGovernancePropertiesTest {
                     TransactionShardingGovernanceProperties properties =
                             context.getBean(TransactionShardingGovernanceProperties.class);
                     assertThat(properties.getExpiryWarningQuarters()).isEqualTo(8);
+                    assertThat(properties.getPlanningHorizonQuarters()).isEqualTo(12);
                     assertThat(properties.getTables()).containsOnlyKeys("transaction_order");
                     assertThat(properties.getTables().get("transaction_order").getShardingColumn())
                             .isEqualTo(TransactionShardingProperties.REQUIRED_SHARDING_COLUMN);

@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -391,9 +392,16 @@ public class AdminShardingGovernanceApplicationService {
      * @return 构造、转换或解析后的业务值
      */
     private List<String> resolvePhysicalTables(TransactionShardingGovernanceProperties.TableRule rule) {
-        return quarterResolver.quartersInRange(rule).stream()
-                .map(quarter -> tableNameResolver.physicalTableName(rule, quarter))
-                .toList();
+        ShardingQuarter cursor = quarterResolver.currentQuarter(shardingProperties);
+        int horizon = Math.max(shardingProperties.getPlanningHorizonQuarters(), 1);
+        List<String> physicalTables = new ArrayList<>(horizon);
+        for (int index = 0; index < horizon; index++) {
+            if (quarterResolver.inRange(rule, cursor)) {
+                physicalTables.add(tableNameResolver.physicalTableName(rule, cursor));
+            }
+            cursor = cursor.next();
+        }
+        return physicalTables;
     }
 
     /**
