@@ -24,6 +24,18 @@ risk:
     # 是否启用运行时名单库和规则库。运行时查询优先走 Redis 缓存，缓存未命中再查从库。
     # 环境说明：环境变量：RISK_RUNTIME_ENABLED，dev 配置默认值为 "true"；test/uat/prod 必须按环境安全策略显式配置，禁止无评审沿用开发开关。
     runtime-enabled: ${RISK_RUNTIME_ENABLED:true}
+    # 并发执行 AML、黑白名单和单笔限额三个无副作用只读规则组；累计限额、频控和 3DS 始终留在请求线程。
+    # 环境说明：环境变量：RISK_READ_ONLY_PARALLEL_ENABLED，dev 默认值为 "true"；其他环境启用前需完成线程池、数据库连接池和 Redis 容量压测。
+    read-only-parallel-enabled: ${RISK_READ_ONLY_PARALLEL_ENABLED:true}
+    # 只读风控专用固定线程数，必须至少为 3 且不得超过代码门禁上限。
+    # 环境说明：环境变量：RISK_READ_ONLY_PARALLELISM，dev 默认值为 "4"；其他环境按实例并发量和数据源连接池容量调整。
+    read-only-parallelism: ${RISK_READ_ONLY_PARALLELISM:4}
+    # 专用线程池有界队列容量；队列满时由请求线程执行以形成背压，禁止配置无界队列。
+    # 环境说明：环境变量：RISK_READ_ONLY_QUEUE_CAPACITY，dev 默认值为 "64"；其他环境需结合支付峰值和超时预算压测。
+    read-only-queue-capacity: ${RISK_READ_ONLY_QUEUE_CAPACITY:64}
+    # 三个只读规则组共享的等待上限，超时后抛出受控异常并由 payment 失败关闭。
+    # 环境说明：环境变量：RISK_READ_ONLY_TIMEOUT_MILLIS，dev 默认值为 "3000"；其他环境不得高于调用方总超时。
+    read-only-timeout-millis: ${RISK_READ_ONLY_TIMEOUT_MILLIS:3000}
     # 旧请求级缓存命中秒数；仅 LEGACY/SHADOW 迁移路径使用。
     # 环境说明：环境变量：RISK_CACHE_HIT_TTL_SECONDS，dev 配置默认值为 "300"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
     cache-hit-ttl-seconds: ${RISK_CACHE_HIT_TTL_SECONDS:300}

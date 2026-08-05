@@ -5,10 +5,13 @@ import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationState;
 import com.scott.payment.component.redis.generation.RedisCacheGenerationStore;
 import com.scott.payment.component.redis.string.RedisStringService;
+import com.scott.payment.component.redis.support.RedisKeyDigest;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.config.RiskBaselineMode;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
+import com.scott.payment.risk.config.RiskRuleCacheMode;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
+import com.scott.payment.risk.domain.FrequencySuccessReservationResult;
 import com.scott.payment.risk.domain.state.MerchantLimitReservationStatus;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import com.scott.payment.risk.domain.RiskListFunction;
@@ -18,6 +21,7 @@ import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
 import com.scott.payment.risk.mapper.RiskRuntimeMapper;
 import com.scott.payment.risk.observability.RiskShadowComparisonMonitor;
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
+import com.scott.payment.risk.service.FrequencySuccessReservationService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -32,7 +36,9 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
@@ -365,6 +371,49 @@ class DefaultRiskListRuntimeRepositoryTests {
             assertThat(key).startsWith("acquiring:test:risk:runtime-rule:g-test:");
             assertThat(key).doesNotContain("198.51.100.24").doesNotContain("654321");
         });
+    }
+
+    @Test
+    void shouldCacheIssuerCountryPointLookupInsteadOfLoadingOversizedSnapshot() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        RiskListMatch expected = new RiskListMatch();
+        expected.setRuleId(81L);
+        expected.setHitValueMasked("USA");
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active("g-test"));
+        when(redis.get(anyString())).thenReturn(
+                null,
+                JsonUtils.toJsonString(RiskRuntimeCacheEntry.match(expected))
+        );
+        when(mapper.selectIssuerCountryByCardBin(new BigDecimal("411111")))
+                .thenReturn(expected);
+        RiskEvaluationProperties properties = new RiskEvaluationProperties();
+        properties.setRuleCacheMode(RiskRuleCacheMode.SNAPSHOT);
+        properties.setCacheHitTtlSeconds(300);
+        properties.setCacheMissTtlSeconds(60);
+        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
+        redisProperties.setKeyPrefix("acquiring:test");
+        DefaultRiskListRuntimeRepository repository = new DefaultRiskListRuntimeRepository(
+                provider(mapper),
+                provider(redis),
+                provider(generationStore),
+                provider(redisTemplate),
+                provider(null),
+                provider(null),
+                properties,
+                redisProperties
+        );
+        RiskRuntimeLookupValue cardBinLookup = new RiskRuntimeLookupValue();
+        cardBinLookup.setNumericValue(new BigDecimal("411111"));
+
+        assertThat(repository.findIssuerCountryByCardBin(cardBinLookup)).contains("USA");
+        assertThat(repository.findIssuerCountryByCardBin(cardBinLookup)).contains("USA");
+
+        verify(mapper).selectIssuerCountryByCardBin(new BigDecimal("411111"));
+        verifyNoInteractions(redisTemplate);
     }
 
     @Test
@@ -793,6 +842,145 @@ class DefaultRiskListRuntimeRepositoryTests {
     }
 
     @Test
+    void shouldReserveConfiguredFrequencySuccessSlotBeforeAllowingTransaction() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        FrequencySuccessReservationService successReservationService =
+                mock(FrequencySuccessReservationService.class);
+        RiskListMatch frequencyRule = frequencyRule(23L, 5, 2);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("M202607290001"))
+                .thenReturn(List.of(frequencyRule));
+        when(redisTemplate.execute(any(), anyList(), anyString())).thenReturn(1L);
+        when(successReservationService.reserve(
+                "M202607290001",
+                "TXN-FREQUENCY-SUCCESS-001",
+                23L,
+                RedisKeyDigest.sha256("ip=ip-hash"),
+                2,
+                3600))
+                .thenReturn(new FrequencySuccessReservationResult(
+                        FrequencySuccessReservationResult.Outcome.RESERVED,
+                        1L));
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper, redis, redisTemplate, null, successReservationService);
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setMatchValueHash("ip-hash");
+
+        List<RiskListMatch> details = repository.evaluateFrequencyRules(
+                "M202607290001",
+                cumulativeRequest("TXN-FREQUENCY-SUCCESS-001", "10.000000"),
+                null, null, ipLookup, null, null, null, null);
+
+        assertThat(details).singleElement().satisfies(detail -> {
+            assertThat(detail.getMatchResult()).isEqualTo("PASS");
+            assertThat(detail.getCurrentCount()).isEqualTo(1L);
+        });
+        verify(successReservationService).reserve(
+                "M202607290001",
+                "TXN-FREQUENCY-SUCCESS-001",
+                23L,
+                RedisKeyDigest.sha256("ip=ip-hash"),
+                2,
+                3600);
+    }
+
+    @Test
+    void shouldBlockProjectedSuccessWhenFrequencySuccessLimitIsFull() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        FrequencySuccessReservationService successReservationService =
+                mock(FrequencySuccessReservationService.class);
+        RiskListMatch frequencyRule = frequencyRule(24L, 5, 1);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("M202607290001"))
+                .thenReturn(List.of(frequencyRule));
+        when(redisTemplate.execute(any(), anyList(), anyString())).thenReturn(2L);
+        when(successReservationService.reserve(
+                anyString(), anyString(), eq(24L), anyString(), eq(1), eq(3600)))
+                .thenReturn(new FrequencySuccessReservationResult(
+                        FrequencySuccessReservationResult.Outcome.LIMIT_EXCEEDED,
+                        1L));
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper, redis, redisTemplate, null, successReservationService);
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setMatchValueHash("ip-hash");
+
+        List<RiskListMatch> details = repository.evaluateFrequencyRules(
+                "M202607290001",
+                cumulativeRequest("TXN-FREQUENCY-SUCCESS-002", "10.000000"),
+                null, null, ipLookup, null, null, null, null);
+
+        assertThat(details).singleElement().satisfies(detail -> {
+            assertThat(detail.getMatchResult()).isEqualTo("HIT");
+            assertThat(detail.getHitElement()).isEqualTo("frequencySuccess");
+            assertThat(detail.getThresholdCount()).isEqualTo(1);
+            assertThat(detail.getCurrentCount()).isEqualTo(2L);
+            assertThat(detail.getDecisionReason()).contains("successful transaction frequency limit");
+        });
+    }
+
+    @Test
+    void shouldReviewInsteadOfAllowingWhenFrequencySuccessReservationIsUnavailable() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        FrequencySuccessReservationService successReservationService =
+                mock(FrequencySuccessReservationService.class);
+        RiskListMatch frequencyRule = frequencyRule(25L, 5, 2);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("M202607290001"))
+                .thenReturn(List.of(frequencyRule));
+        when(redisTemplate.execute(any(), anyList(), anyString())).thenReturn(1L);
+        when(successReservationService.reserve(
+                anyString(), anyString(), eq(25L), anyString(), eq(2), eq(3600)))
+                .thenReturn(FrequencySuccessReservationResult.unavailable());
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper, redis, redisTemplate, null, successReservationService);
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setMatchValueHash("ip-hash");
+
+        List<RiskListMatch> details = repository.evaluateFrequencyRules(
+                "M202607290001",
+                cumulativeRequest("TXN-FREQUENCY-SUCCESS-003", "10.000000"),
+                null, null, ipLookup, null, null, null, null);
+
+        assertThat(details).singleElement().satisfies(detail -> {
+            assertThat(detail.getMatchResult()).isEqualTo("ERROR");
+            assertThat(detail.getDecisionAction()).isEqualTo("REVIEW");
+            assertThat(detail.getDecisionReason()).contains("success reservation is unavailable");
+        });
+    }
+
+    @Test
+    void shouldNotReserveFrequencySuccessSlotWhenSuccessCountIsZero() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        FrequencySuccessReservationService successReservationService =
+                mock(FrequencySuccessReservationService.class);
+        RiskListMatch frequencyRule = frequencyRule(26L, 5, 0);
+        when(redis.get(anyString())).thenReturn(null);
+        when(mapper.selectActiveFrequencyRules("M202607290001"))
+                .thenReturn(List.of(frequencyRule));
+        when(redisTemplate.execute(any(), anyList(), anyString())).thenReturn(1L);
+        DefaultRiskListRuntimeRepository repository = repository(
+                mapper, redis, redisTemplate, null, successReservationService);
+        RiskRuntimeLookupValue ipLookup = new RiskRuntimeLookupValue();
+        ipLookup.setMatchValueHash("ip-hash");
+
+        assertThat(repository.evaluateFrequencyRules(
+                "M202607290001",
+                cumulativeRequest("TXN-FREQUENCY-SUCCESS-004", "10.000000"),
+                null, null, ipLookup, null, null, null, null))
+                .singleElement()
+                .satisfies(detail -> assertThat(detail.getMatchResult()).isEqualTo("PASS"));
+        verifyNoInteractions(successReservationService);
+    }
+
+    @Test
     void shouldRejectFrequencyRuleAboveConfiguredWindowCapBeforeRedisMutation() {
         log.info("测试频率规则窗口上限，关键输入: 86401 秒规则超过默认 86400 秒");
         RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
@@ -919,6 +1107,15 @@ class DefaultRiskListRuntimeRepositoryTests {
                                                         RedisStringService redis,
                                                         StringRedisTemplate redisTemplate,
                                                         MerchantLimitReservationStateService stateService) {
+        return repository(mapper, redis, redisTemplate, stateService, null);
+    }
+
+    private DefaultRiskListRuntimeRepository repository(
+            RiskRuntimeMapper mapper,
+            RedisStringService redis,
+            StringRedisTemplate redisTemplate,
+            MerchantLimitReservationStateService stateService,
+            FrequencySuccessReservationService frequencySuccessReservationService) {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
         properties.setRuntimeEnabled(true);
         properties.setCacheHitTtlSeconds(300);
@@ -934,9 +1131,23 @@ class DefaultRiskListRuntimeRepositoryTests {
                 provider(generationStore),
                 provider(redisTemplate),
                 provider(stateService),
+                provider(frequencySuccessReservationService),
                 provider(null),
                 properties,
                 redisProperties);
+    }
+
+    private RiskListMatch frequencyRule(long ruleId, int allowedCount, int successCount) {
+        RiskListMatch rule = new RiskListMatch();
+        rule.setRuleId(ruleId);
+        rule.setThresholdCount(allowedCount);
+        rule.setTimeWindowSeconds(3600);
+        rule.setDecisionAction("REJECT");
+        rule.setElementsJson("{\"elements\":[\"ip\"],"
+                + "\"statisticDimension\":\"ELEMENT_COMBINATION\","
+                + "\"allowedCount\":" + allowedCount + ","
+                + "\"successCount\":" + successCount + "}");
+        return rule;
     }
 
     /**

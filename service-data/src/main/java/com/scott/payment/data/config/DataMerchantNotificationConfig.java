@@ -28,11 +28,21 @@ import java.io.IOException;
 @EnableConfigurationProperties(DataMerchantNotificationProperties.class)
 public class DataMerchantNotificationConfig {
 
+    /**
+     * 提供商户回调正文加密组件。
+     *
+     * @return 无状态的 OpenAPI 载荷加密器
+     */
     @Bean
     public OpenApiPayloadCrypto dataMerchantCallbackPayloadCrypto() {
         return new OpenApiPayloadCrypto();
     }
 
+    /**
+     * 提供平台回调 JWT 签发组件。
+     *
+     * @return 不持有商户密钥的 JWT 签发器
+     */
     @Bean
     public MerchantCallbackJwtSigner merchantCallbackJwtSigner() {
         return new MerchantCallbackJwtSigner();

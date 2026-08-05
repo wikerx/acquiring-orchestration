@@ -379,6 +379,18 @@ public class AdminTransactionApplicationService {
     }
 
     /**
+     * 查询商户回调任务及每次投递尝试的脱敏审计详情。
+     *
+     * @param notifyId 通知任务号
+     * @param transactionDateTime 页面列表返回的真实交易分片时间
+     * @return 通知任务和按尝试次数排序的投递日志
+     */
+    public Map<String, Object> merchantNotificationDetail(String notifyId,
+                                                          LocalDateTime transactionDateTime) {
+        return transactionQueryService.merchantNotificationDetail(notifyId, transactionDateTime);
+    }
+
+    /**
      * 按查询条件导出商户通知任务。
      *
      * @param query 查询条件

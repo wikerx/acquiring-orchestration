@@ -68,6 +68,12 @@ public class MerchantCallbackTargetValidator {
         }
     }
 
+    /**
+     * 解析并校验回调 URL 的基础结构，拒绝相对地址和无主机地址。
+     *
+     * @param targetUrl 商户回调地址
+     * @return 结构完整的绝对 URI
+     */
     private URI parse(String targetUrl) {
         if (!StringUtils.hasText(targetUrl)) {
             throw invalid("merchant callback target is empty");
@@ -84,6 +90,11 @@ public class MerchantCallbackTargetValidator {
         }
     }
 
+    /**
+     * 解析目标主机的全部地址并拒绝任一私网或保留网段，防止 DNS 多结果绕过 SSRF 门禁。
+     *
+     * @param host 回调目标主机名
+     */
     private void validatePublicHost(String host) {
         String normalizedHost = host.toLowerCase(Locale.ROOT);
         if ("localhost".equals(normalizedHost) || normalizedHost.endsWith(".localhost")
@@ -106,6 +117,12 @@ public class MerchantCallbackTargetValidator {
         }
     }
 
+    /**
+     * 判断解析结果是否属于本机、私网、文档示例网段或其他不可出站地址。
+     *
+     * @param address DNS 解析得到的地址
+     * @return 不允许作为商户回调目标时返回 true
+     */
     private boolean isPrivateOrReserved(InetAddress address) {
         if (address == null || address.isAnyLocalAddress() || address.isLoopbackAddress()
                 || address.isLinkLocalAddress() || address.isSiteLocalAddress()
@@ -135,12 +152,25 @@ public class MerchantCallbackTargetValidator {
                 && (bytes[3] & 0xff) == 0xb8));
     }
 
+    /**
+     * 统一构造不暴露网络细节的参数异常。
+     *
+     * @param message 安全的错误描述
+     * @return 参数无效异常
+     */
     private ServiceException invalid(String message) {
         return new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), message);
     }
 
     @FunctionalInterface
     interface AddressResolver {
+        /**
+         * 解析主机的全部地址，生产实现使用系统 DNS，测试可注入确定结果。
+         *
+         * @param host 待解析主机
+         * @return 主机当前解析到的全部地址
+         * @throws UnknownHostException 主机无法解析
+         */
         InetAddress[] resolve(String host) throws UnknownHostException;
     }
 }

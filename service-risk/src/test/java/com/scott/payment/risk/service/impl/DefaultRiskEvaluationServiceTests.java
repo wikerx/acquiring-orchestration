@@ -3,6 +3,7 @@ package com.scott.payment.risk.service.impl;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.mq.message.RiskAuditHitMessage;
 import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
@@ -27,8 +28,16 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * @author : scott
@@ -50,6 +59,170 @@ class DefaultRiskEvaluationServiceTests {
      * </p>
      */
     private final DefaultRiskEvaluationService service = new DefaultRiskEvaluationService();
+
+    @Test
+    void shouldExecuteIndependentReadOnlyRiskGroupsConcurrently() {
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            ParallelProbeRiskListRuntimeRepository repository = new ParallelProbeRiskListRuntimeRepository();
+            RiskEvaluationProperties properties = runtimeProperties();
+            properties.setReadOnlyParallelEnabled(true);
+            DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                    repository,
+                    new RecordingRiskAuditRecordPublisher(),
+                    properties,
+                    executor);
+
+            RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(fullyPopulatedRequest());
+
+            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+            assertThat(repository.concurrentGroupsReached()).isTrue();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void shouldKeepAmlDecisionPriorityAfterParallelQueriesComplete() {
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                    .withListHit(RiskListFunction.AML_CARD,
+                            match("AML", "card", "CRITICAL", "REJECT"))
+                    .withListHit(RiskListFunction.WHITE_CARD_NO,
+                            match("WHITE", "cardNo", "CRITICAL", "PASS"))
+                    .withMerchantLimitRule(match("RULE", "merchantLimit", "HIGH", "REJECT"));
+            RiskEvaluationProperties properties = runtimeProperties();
+            properties.setReadOnlyParallelEnabled(true);
+            RecordingRiskAuditRecordPublisher publisher = new RecordingRiskAuditRecordPublisher();
+            DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                    repository,
+                    publisher,
+                    properties,
+                    executor);
+
+            RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(fullyPopulatedRequest());
+
+            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
+            assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.AML_HIT.getCode());
+            assertThat(publisher.messages).singleElement().satisfies(message ->
+                    assertThat(message.getHits())
+                            .extracting(RiskAuditHitMessage::getStageCode)
+                            .containsOnly("AML"));
+            assertThat(repository.merchantLimitQueryCount).isEqualTo(1);
+            assertThat(repository.cumulativeReservationCount).isZero();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void shouldFailClosedWhenReadOnlyRiskGroupTimesOut() {
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            FakeRiskListRuntimeRepository repository =
+                    new SlowMerchantLimitRiskListRuntimeRepository();
+            RiskEvaluationProperties properties = runtimeProperties();
+            properties.setReadOnlyParallelEnabled(true);
+            properties.setReadOnlyTimeoutMillis(100);
+            RecordingRiskAuditRecordPublisher publisher = new RecordingRiskAuditRecordPublisher();
+            DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                    repository,
+                    publisher,
+                    properties,
+                    executor);
+
+            assertThatThrownBy(() -> runtimeService.evaluatePayment(fullyPopulatedRequest()))
+                    .isInstanceOf(ServiceException.class)
+                    .hasMessage("risk read-only evaluation is unavailable")
+                    .hasRootCauseInstanceOf(TimeoutException.class);
+            assertThat(repository.cumulativeReservationCount).isZero();
+            assertThat(repository.frequencyEvaluationCount).isZero();
+            assertThat(publisher.messages).isEmpty();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void shouldFailClosedWhenReadOnlyRiskGroupThrows() {
+        ExecutorService executor = Executors.newFixedThreadPool(3);
+        try {
+            FakeRiskListRuntimeRepository repository =
+                    new ThrowingMerchantLimitRiskListRuntimeRepository();
+            RiskEvaluationProperties properties = runtimeProperties();
+            properties.setReadOnlyParallelEnabled(true);
+            RecordingRiskAuditRecordPublisher publisher = new RecordingRiskAuditRecordPublisher();
+            DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                    repository,
+                    publisher,
+                    properties,
+                    executor);
+
+            assertThatThrownBy(() -> runtimeService.evaluatePayment(fullyPopulatedRequest()))
+                    .isInstanceOf(ServiceException.class)
+                    .hasMessage("risk read-only evaluation is unavailable")
+                    .hasRootCauseMessage("simulated merchant limit query failure");
+            assertThat(repository.cumulativeReservationCount).isZero();
+            assertThat(repository.frequencyEvaluationCount).isZero();
+            assertThat(publisher.messages).isEmpty();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void shouldKeepStatefulRiskStagesOnRequestThread() {
+        ExecutorService executor = Executors.newFixedThreadPool(
+                3,
+                runnable -> new Thread(runnable, "risk-read-only-test"));
+        try {
+            FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository();
+            RiskEvaluationProperties properties = runtimeProperties();
+            properties.setReadOnlyParallelEnabled(true);
+            DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                    repository,
+                    new RecordingRiskAuditRecordPublisher(),
+                    properties,
+                    executor);
+            String requestThreadName = Thread.currentThread().getName();
+
+            RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(fullyPopulatedRequest());
+
+            assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.PASS.getCode());
+            assertThat(repository.readOnlyThreadNames)
+                    .isNotEmpty()
+                    .allMatch(name -> name.startsWith("risk-read-only-test"));
+            assertThat(repository.cumulativeLimitThreadName).isEqualTo(requestThreadName);
+            assertThat(repository.frequencyThreadName).isEqualTo(requestThreadName);
+            assertThat(repository.threeDsThreadName).isEqualTo(requestThreadName);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void shouldPreserveLazySerialShortCircuitWhenParallelEvaluationIsDisabled() {
+        FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withListHit(RiskListFunction.AML_CARD, match("AML", "card", "CRITICAL", "REJECT"));
+        RiskEvaluationProperties properties = runtimeProperties();
+        properties.setReadOnlyParallelEnabled(false);
+        DefaultRiskEvaluationService runtimeService = new DefaultRiskEvaluationService(
+                repository,
+                new RecordingRiskAuditRecordPublisher(),
+                properties,
+                runnable -> {
+                    throw new AssertionError("disabled parallel executor must not be used");
+                });
+        RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
+        requestDTO.setCardNo("4111111111111234");
+
+        RiskPaymentEvaluateResultDTO resultDTO = runtimeService.evaluatePayment(requestDTO);
+
+        assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
+        assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.AML_HIT.getCode());
+        assertThat(repository.merchantLimitQueryCount).isZero();
+    }
 
     @Test
     void shouldPassNormalPaymentRiskEvaluation() {
@@ -577,6 +750,7 @@ class DefaultRiskEvaluationServiceTests {
 
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REJECT.getCode());
         assertThat(repository.merchantLimitRollbackCount).isEqualTo(1);
+        assertThat(repository.frequencySuccessReleaseCount).isEqualTo(1);
     }
 
     @Test
@@ -639,7 +813,10 @@ class DefaultRiskEvaluationServiceTests {
 
     @Test
     void shouldRequireThreeDsWhenRuntimeRuleForcesThreeDsWithoutProof() {
+        RiskListMatch frequencyPass = match("RULE", "frequency", "LOW", "PASS");
+        frequencyPass.setMatchResult("PASS");
         FakeRiskListRuntimeRepository repository = new FakeRiskListRuntimeRepository()
+                .withFrequencyRule(frequencyPass)
                 .withThreeDsRule(match("RULE", "threeDs", "MEDIUM", "REQUIRE_3DS"));
         DefaultRiskEvaluationService runtimeService = runtimeService(repository, new RecordingRiskAuditRecordPublisher());
         RiskPaymentEvaluateRequestDTO requestDTO = baseRequest(new BigDecimal("12.34"));
@@ -650,6 +827,7 @@ class DefaultRiskEvaluationServiceTests {
 
         assertThat(resultDTO.getDecision()).isEqualTo(RiskDecisionEnum.REQUIRE_3DS.getCode());
         assertThat(resultDTO.getReasonCode()).isEqualTo(RiskReasonCodeEnum.THREE_DS_REQUIRED.getCode());
+        assertThat(repository.frequencySuccessReleaseCount).isEqualTo(1);
     }
 
     @Test
@@ -736,11 +914,16 @@ class DefaultRiskEvaluationServiceTests {
 
     private DefaultRiskEvaluationService runtimeService(FakeRiskListRuntimeRepository repository,
                                                         RecordingRiskAuditRecordPublisher publisher) {
+        return new DefaultRiskEvaluationService(repository, publisher, runtimeProperties());
+    }
+
+    private RiskEvaluationProperties runtimeProperties() {
         RiskEvaluationProperties properties = new RiskEvaluationProperties();
         properties.setSkeletonFallbackEnabled(true);
         properties.setRuntimeEnabled(true);
         properties.setAuditMqEnabled(true);
-        return new DefaultRiskEvaluationService(repository, publisher, properties);
+        properties.setReadOnlyParallelEnabled(false);
+        return properties;
     }
 
     private RiskListMatch match(String moduleType, String functionCode, String riskLevel, String decisionAction) {
@@ -767,13 +950,16 @@ class DefaultRiskEvaluationServiceTests {
         return match;
     }
 
-    private static final class FakeRiskListRuntimeRepository implements RiskListRuntimeRepository {
+    private static class FakeRiskListRuntimeRepository implements RiskListRuntimeRepository {
 
         /** 按名单功能预置的测试命中结果。 */
         private final Map<RiskListFunction, RiskListMatch> listHits = new EnumMap<>(RiskListFunction.class);
 
         /** 记录服务传给仓储的规范化查询值，供脱敏和路由断言使用。 */
-        private final Map<RiskListFunction, RiskRuntimeLookupValue> lookups = new EnumMap<>(RiskListFunction.class);
+        private final Map<RiskListFunction, RiskRuntimeLookupValue> lookups = new ConcurrentHashMap<>();
+
+        /** 记录只读规则查询实际使用的线程，验证并发边界不扩展到有副作用阶段。 */
+        private final java.util.Set<String> readOnlyThreadNames = ConcurrentHashMap.newKeySet();
 
         /** 在测试场景中声明已启用的名单节点。 */
         private final EnumSet<RiskListFunction> activeListRules = EnumSet.noneOf(RiskListFunction.class);
@@ -796,6 +982,15 @@ class DefaultRiskEvaluationServiceTests {
         /** 测试场景是否声明存在启用金额限额规则。 */
         private boolean activeMerchantLimitRule;
 
+        /** 记录单笔限额只读查询次数。 */
+        private int merchantLimitQueryCount;
+
+        /** 记录累计限额预占调用次数。 */
+        private int cumulativeReservationCount;
+
+        /** 记录累计限额预占所在的线程。 */
+        private String cumulativeLimitThreadName;
+
         /** 预置的累计限额明细和 Redis 预占结果。 */
         private MerchantLimitEvaluation cumulativeLimitEvaluation = MerchantLimitEvaluation.empty();
 
@@ -808,11 +1003,23 @@ class DefaultRiskEvaluationServiceTests {
         /** 测试场景是否声明存在启用频率规则。 */
         private boolean activeFrequencyRule;
 
+        /** 记录后续节点阻断时释放频控成功名额的次数。 */
+        private int frequencySuccessReleaseCount;
+
+        /** 记录频控评估调用次数。 */
+        private int frequencyEvaluationCount;
+
+        /** 记录频控评估所在的线程。 */
+        private String frequencyThreadName;
+
         /** 预置的 3DS 规则命中结果。 */
         private RiskListMatch threeDsRule;
 
         /** 按卡 BIN 预置的发卡行国家代码。 */
         private String issuerCountry;
+
+        /** 记录 3DS 查询所在的线程。 */
+        private String threeDsThreadName;
 
         private FakeRiskListRuntimeRepository withListHit(RiskListFunction function, RiskListMatch match) {
             listHits.put(function, match);
@@ -902,6 +1109,7 @@ class DefaultRiskEvaluationServiceTests {
         public Optional<RiskListMatch> findListMatch(RiskListFunction function,
                                                      String merchantId,
                                                      RiskRuntimeLookupValue lookupValue) {
+            readOnlyThreadNames.add(Thread.currentThread().getName());
             if (lookupValue != null) {
                 lookups.put(function, lookupValue);
             }
@@ -953,6 +1161,8 @@ class DefaultRiskEvaluationServiceTests {
          */
         @Override
         public Optional<RiskListMatch> findMerchantLimitRule(String merchantId, BigDecimal amount, String currency) {
+            merchantLimitQueryCount++;
+            readOnlyThreadNames.add(Thread.currentThread().getName());
             return Optional.ofNullable(merchantLimitRule);
         }
 
@@ -961,6 +1171,8 @@ class DefaultRiskEvaluationServiceTests {
          */
         @Override
         public MerchantLimitEvaluation reserveCumulativeMerchantLimits(RiskPaymentEvaluateRequestDTO requestDTO) {
+            cumulativeReservationCount++;
+            cumulativeLimitThreadName = Thread.currentThread().getName();
             return cumulativeLimitEvaluation;
         }
 
@@ -1013,7 +1225,17 @@ class DefaultRiskEvaluationServiceTests {
                                                          RiskRuntimeLookupValue phoneLookup,
                                                          RiskRuntimeLookupValue customerIdLookup,
                                                          RiskRuntimeLookupValue deviceFingerprintLookup) {
+            frequencyEvaluationCount++;
+            frequencyThreadName = Thread.currentThread().getName();
             return frequencyRules;
+        }
+
+        /**
+         * 记录服务是否在当前评估未放行时释放成功次数预占。
+         */
+        @Override
+        public void releaseFrequencySuccessReservations(String merchantId, String transactionId) {
+            frequencySuccessReleaseCount++;
         }
 
         /**
@@ -1042,7 +1264,82 @@ class DefaultRiskEvaluationServiceTests {
                                                        BigDecimal amount,
                                                        String currency,
                                                        String currentRiskLevel) {
+            threeDsThreadName = Thread.currentThread().getName();
             return Optional.ofNullable(threeDsRule);
+        }
+    }
+
+    private static final class SlowMerchantLimitRiskListRuntimeRepository
+            extends FakeRiskListRuntimeRepository {
+
+        /** 模拟单笔限额查询超过只读阶段共享超时。 */
+        @Override
+        public Optional<RiskListMatch> findMerchantLimitRule(String merchantId,
+                                                             BigDecimal amount,
+                                                             String currency) {
+            try {
+                Thread.sleep(10_000L);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+            return Optional.empty();
+        }
+    }
+
+    private static final class ThrowingMerchantLimitRiskListRuntimeRepository
+            extends FakeRiskListRuntimeRepository {
+
+        /** 模拟单笔限额查询发生基础设施异常。 */
+        @Override
+        public Optional<RiskListMatch> findMerchantLimitRule(String merchantId,
+                                                             BigDecimal amount,
+                                                             String currency) {
+            throw new IllegalStateException("simulated merchant limit query failure");
+        }
+    }
+
+    private static final class ParallelProbeRiskListRuntimeRepository extends FakeRiskListRuntimeRepository {
+
+        /** 三个只读规则组必须在超时前同时到达的测试屏障。 */
+        private final CyclicBarrier readOnlyGroupBarrier = new CyclicBarrier(3);
+
+        /** 记录三个规则组是否完成并发会合。 */
+        private volatile boolean concurrentGroupsReached;
+
+        /** 在 AML 和白名单组的首个查询处等待其他只读组。 */
+        @Override
+        public Optional<RiskListMatch> findListMatch(RiskListFunction function,
+                                                     String merchantId,
+                                                     RiskRuntimeLookupValue lookupValue) {
+            if (function == RiskListFunction.AML_CARD || function == RiskListFunction.WHITE_MERCHANT) {
+                awaitReadOnlyGroups();
+            }
+            return super.findListMatch(function, merchantId, lookupValue);
+        }
+
+        /** 在单笔限额组首个查询处等待 AML 和黑白名单组。 */
+        @Override
+        public Optional<RiskListMatch> findMerchantLimitRule(String merchantId,
+                                                             BigDecimal amount,
+                                                             String currency) {
+            awaitReadOnlyGroups();
+            return super.findMerchantLimitRule(merchantId, amount, currency);
+        }
+
+        private void awaitReadOnlyGroups() {
+            try {
+                readOnlyGroupBarrier.await(500, TimeUnit.MILLISECONDS);
+                concurrentGroupsReached = true;
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("read-only risk group probe was interrupted", exception);
+            } catch (BrokenBarrierException | TimeoutException exception) {
+                throw new IllegalStateException("read-only risk groups did not execute concurrently", exception);
+            }
+        }
+
+        private boolean concurrentGroupsReached() {
+            return concurrentGroupsReached;
         }
     }
 

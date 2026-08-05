@@ -43,6 +43,7 @@ class DefaultTransactionIdempotencyServiceTests {
                 TransactionIdempotencyDO.class);
     }
 
+    /** 交易幂等持久化替身，用于捕获状态与版本 CAS 条件。 */
     @Mock
     private TransactionIdempotencyMapper idempotencyMapper;
 

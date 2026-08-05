@@ -297,9 +297,10 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         if (!StringUtils.hasText(targetUrl)) {
             return new NotifyAttemptResult(false, null, null, "merchant callback url is empty", null, null);
         }
+        MerchantCallbackHttpRequest request = null;
         try {
             targetValidator.validate(targetUrl);
-            MerchantCallbackHttpRequest request = StringUtils.hasText(callbackEventId)
+            request = StringUtils.hasText(callbackEventId)
                     ? requestFactory.create(task, attemptNo, callbackEventId)
                     : requestFactory.create(task, attemptNo);
             ResponseEntity<String> response = restTemplate.postForEntity(
@@ -321,15 +322,17 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
                     exception.getStatusCode().value(),
                     safeMaskedResponse(exception.getResponseBodyAsString()),
                     "merchant callback http status " + exception.getStatusCode().value(),
-                    null,
-                    null);
+                    eventId(request),
+                    auditBody(request));
         } catch (RestClientException exception) {
             log.warn("event: DATA_MERCHANT_NOTIFY_HTTP_FAILED traceId: {} notifyId: {} transactionId: {} merchantId: {} callbackUrl: {} exceptionType: {} durationMs: {}",
                     TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
                     safeCallbackUrl(task.getTargetUrlMasked(), targetUrl), exception.getClass().getSimpleName(),
                     durationMillis(beginTime, LocalDateTime.now()));
             return new NotifyAttemptResult(false, null, null,
-                    "merchant callback transport error: " + exception.getClass().getSimpleName(), null, null);
+                    "merchant callback transport error: " + exception.getClass().getSimpleName(),
+                    eventId(request),
+                    auditBody(request));
         } catch (RuntimeException exception) {
             log.warn("event: DATA_MERCHANT_NOTIFY_PROTOCOL_FAILED traceId: {} notifyId: {} transactionId: {} merchantId: {} exceptionType: {} durationMs: {}",
                     TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
@@ -337,6 +340,16 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
             return new NotifyAttemptResult(false, null, null,
                     "merchant callback protocol error: " + exception.getClass().getSimpleName(), null, null);
         }
+    }
+
+    /** 返回已构造请求的事件号；协议构造前失败时不伪造审计标识。 */
+    private String eventId(MerchantCallbackHttpRequest request) {
+        return request == null ? null : request.eventId();
+    }
+
+    /** 返回允许持久化的脱敏请求摘要，禁止把实际密文或认证信息写入日志表。 */
+    private String auditBody(MerchantCallbackHttpRequest request) {
+        return request == null ? null : request.auditBody();
     }
 
     /** 区分 HTTP 状态失败和 200 响应确认词不匹配。 */

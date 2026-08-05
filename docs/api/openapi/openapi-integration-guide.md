@@ -370,7 +370,7 @@ Authorization: Bearer {jwt}
 
 ### 4.5 通知地址字段
 
-支付请求的 `transactionInfo.callbackUrl` 和 Hosted Checkout 的 `checkoutInfo.notifyUrl` 是可选通知地址。商户通知协议需要单独开通并由平台另行提供签名、载荷、ACK 和重试规范；在未完成单独开通前，商户必须使用交易查询接口确认最终支付结果，不能仅依赖浏览器跳转或通知地址。
+支付请求的 `transactionInfo.callbackUrl` 和 Hosted Checkout 的 `checkoutInfo.notifyUrl` 是可选通知地址。首次支付、授权和预授权进入终态后，平台按第 7.13 节的 JWT、密文、ACK、自动重试和人工重发协议通知该地址。商户必须同时实现回调事件幂等和交易查询兜底，不能仅依赖浏览器跳转或单次通知结果确认最终交易状态。
 
 ### 4.6 HTTP 状态和客户端超时
 

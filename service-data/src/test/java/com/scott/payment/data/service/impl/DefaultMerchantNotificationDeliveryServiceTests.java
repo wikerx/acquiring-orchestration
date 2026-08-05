@@ -13,6 +13,9 @@ import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -257,6 +260,47 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         log.info("商户通知失败测试完成，结果: 任务进入 FAILED 并生成下次重试时间");
     }
 
+    /** HTTP 错误响应仍须保留已签发的事件号和脱敏请求体，保证失败投递可审计。 */
+    @Test
+    void shouldPersistCallbackAuditContextWhenHttpRequestFails() {
+        Fixture fixture = fixture(HttpServerErrorException.create(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "merchant failure",
+                HttpHeaders.EMPTY,
+                "{\"result\":\"failed\"}".getBytes(),
+                null));
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), anyString(), any())).thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10)).isZero();
+
+        ArgumentCaptor<DataMerchantNotificationLogDO> logCaptor =
+                ArgumentCaptor.forClass(DataMerchantNotificationLogDO.class);
+        verify(fixture.logMapper()).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getRequestHeaderJsonMasked()).contains("EVENT-1");
+        assertThat(logCaptor.getValue().getRequestBodyJsonMasked()).isEqualTo("{\"data\":\"***\"}");
+        assertThat(logCaptor.getValue().getHttpStatus()).isEqualTo(500);
+    }
+
+    /** 网络异常发生在请求构造后时，也必须保留回调事件审计上下文。 */
+    @Test
+    void shouldPersistCallbackAuditContextWhenTransportFails() {
+        Fixture fixture = fixture(new ResourceAccessException("simulated timeout"));
+        when(fixture.notificationMapper().markFailed(
+                eq(1L), eq(fixture.task().getTransactionDateTime()), eq(1),
+                eq("FAILED"), any(), anyString(), any())).thenReturn(1);
+
+        assertThat(fixture.service().notifyDue(fixture.task().getTransactionDateTime(), 10)).isZero();
+
+        ArgumentCaptor<DataMerchantNotificationLogDO> logCaptor =
+                ArgumentCaptor.forClass(DataMerchantNotificationLogDO.class);
+        verify(fixture.logMapper()).insert(logCaptor.capture());
+        assertThat(logCaptor.getValue().getRequestHeaderJsonMasked()).contains("EVENT-1");
+        assertThat(logCaptor.getValue().getRequestBodyJsonMasked()).isEqualTo("{\"data\":\"***\"}");
+        assertThat(logCaptor.getValue().getHttpStatus()).isNull();
+    }
+
     /** 其它 2xx 也不能确认成功，避免商户网关吞掉正文或返回异步受理。 */
     @Test
     void shouldRetryWhenCallbackReturns204() {
@@ -329,6 +373,16 @@ class DefaultMerchantNotificationDeliveryServiceTests {
 
     /** 创建商户通知服务测试夹具。 */
     private Fixture fixture(HttpStatus status, String body) {
+        return fixture(new StubRestTemplate(status, body));
+    }
+
+    /** 创建会在 HTTP 边界抛出指定异常的商户通知服务测试夹具。 */
+    private Fixture fixture(RestClientException exception) {
+        return fixture(new StubRestTemplate(exception));
+    }
+
+    /** 使用指定 HTTP 客户端创建商户通知服务测试夹具。 */
+    private Fixture fixture(StubRestTemplate restTemplate) {
         DataMerchantNotificationMapper notificationMapper = mock(DataMerchantNotificationMapper.class);
         DataMerchantNotificationLogMapper logMapper = mock(DataMerchantNotificationLogMapper.class);
         DataMerchantNotificationTaskDO task = task();
@@ -338,7 +392,6 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 .thenReturn(1);
         when(logMapper.insert(any(DataMerchantNotificationLogDO.class))).thenReturn(1);
         DataMerchantNotificationProperties properties = new DataMerchantNotificationProperties();
-        StubRestTemplate restTemplate = new StubRestTemplate(status, body);
         MerchantCallbackRequestFactory requestFactory = mock(MerchantCallbackRequestFactory.class);
         MerchantCallbackTargetValidator targetValidator = mock(MerchantCallbackTargetValidator.class);
         HttpHeaders headers = new HttpHeaders();
@@ -406,12 +459,22 @@ class DefaultMerchantNotificationDeliveryServiceTests {
         /** 预设商户响应体。 */
         private final String body;
 
+        /** 需要模拟的 HTTP 边界异常；正常响应时为空。 */
+        private final RestClientException exception;
+
         /** 实际发起商户 HTTP 回调的次数。 */
         private int postCount;
 
         private StubRestTemplate(HttpStatus status, String body) {
             this.status = status;
             this.body = body;
+            this.exception = null;
+        }
+
+        private StubRestTemplate(RestClientException exception) {
+            this.status = null;
+            this.body = null;
+            this.exception = exception;
         }
 
         /**
@@ -425,6 +488,9 @@ class DefaultMerchantNotificationDeliveryServiceTests {
             assertThat(url).isEqualTo("https://merchant.example/callback?token=secret-token");
             assertThat(request).isInstanceOf(HttpEntity.class);
             postCount++;
+            if (exception != null) {
+                throw exception;
+            }
             return new ResponseEntity<>(responseType.cast(body), status);
         }
     }

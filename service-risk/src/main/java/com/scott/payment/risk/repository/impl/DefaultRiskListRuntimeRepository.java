@@ -16,6 +16,7 @@ import com.scott.payment.risk.config.RiskEvaluationProperties;
 import com.scott.payment.risk.config.RiskRuleCacheMode;
 import com.scott.payment.risk.domain.MerchantLimitEvaluation;
 import com.scott.payment.risk.domain.MerchantLimitReservation;
+import com.scott.payment.risk.domain.FrequencySuccessReservationResult;
 import com.scott.payment.risk.domain.RiskListFunction;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
@@ -28,6 +29,7 @@ import com.scott.payment.risk.mapper.RiskRuntimeMapper;
 import com.scott.payment.risk.observability.RiskShadowComparisonMonitor;
 import com.scott.payment.risk.repository.RiskListRuntimeRepository;
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
+import com.scott.payment.risk.service.FrequencySuccessReservationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -183,6 +185,9 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     /** 持久化累计限额预占生命周期，作为 Redis 计数的补偿事实。 */
     private final MerchantLimitReservationStateService reservationStateService;
 
+    /** 原子维护频控成功次数名额，并由支付终态确认或释放。 */
+    private final FrequencySuccessReservationService frequencySuccessReservationService;
+
     /**
      * 风控数据库基线比较汇总器；未装配时不影响生产决策。
      */
@@ -207,6 +212,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             ObjectProvider<RedisCacheGenerationStore> cacheGenerationStoreProvider,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
             ObjectProvider<MerchantLimitReservationStateService> reservationStateServiceProvider,
+            ObjectProvider<FrequencySuccessReservationService> frequencySuccessReservationServiceProvider,
             ObjectProvider<RiskShadowComparisonMonitor> shadowComparisonMonitorProvider,
             RiskEvaluationProperties properties,
             PaymentRedisProperties redisProperties,
@@ -217,6 +223,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 cacheGenerationStoreProvider,
                 stringRedisTemplateProvider,
                 reservationStateServiceProvider,
+                frequencySuccessReservationServiceProvider.getIfAvailable(),
                 shadowComparisonMonitorProvider,
                 properties,
                 redisProperties,
@@ -251,6 +258,36 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 cacheGenerationStoreProvider,
                 stringRedisTemplateProvider,
                 reservationStateServiceProvider,
+                null,
+                shadowComparisonMonitorProvider,
+                properties,
+                redisProperties,
+                RedisBusinessMetrics.noop()
+        );
+    }
+
+    /**
+     * 创建可注入频控成功名额服务的仓储，供隔离测试验证成功次数规则。
+     *
+     * @param frequencySuccessReservationServiceProvider 频控成功名额服务提供器
+     */
+    public DefaultRiskListRuntimeRepository(
+            ObjectProvider<RiskRuntimeMapper> riskRuntimeMapperProvider,
+            ObjectProvider<RedisStringService> redisStringServiceProvider,
+            ObjectProvider<RedisCacheGenerationStore> cacheGenerationStoreProvider,
+            ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
+            ObjectProvider<MerchantLimitReservationStateService> reservationStateServiceProvider,
+            ObjectProvider<FrequencySuccessReservationService> frequencySuccessReservationServiceProvider,
+            ObjectProvider<RiskShadowComparisonMonitor> shadowComparisonMonitorProvider,
+            RiskEvaluationProperties properties,
+            PaymentRedisProperties redisProperties) {
+        this(
+                riskRuntimeMapperProvider,
+                redisStringServiceProvider,
+                cacheGenerationStoreProvider,
+                stringRedisTemplateProvider,
+                reservationStateServiceProvider,
+                frequencySuccessReservationServiceProvider.getIfAvailable(),
                 shadowComparisonMonitorProvider,
                 properties,
                 redisProperties,
@@ -269,6 +306,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @param cacheGenerationStoreProvider 协调规则缓存 generation 的存储提供器
      * @param stringRedisTemplateProvider 执行风控 Lua 的字符串模板提供器
      * @param reservationStateServiceProvider 持久化累计限额预占生命周期的服务提供器
+     * @param frequencySuccessReservationService 可空的频控成功名额生命周期服务
      * @param shadowComparisonMonitorProvider 汇总新旧路径比较结果的监控器提供器
      * @param properties 风控运行、迁移模式、TTL 和容量配置
      * @param redisProperties Redis 环境前缀和业务 Key 构造配置
@@ -280,6 +318,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             ObjectProvider<RedisCacheGenerationStore> cacheGenerationStoreProvider,
             ObjectProvider<StringRedisTemplate> stringRedisTemplateProvider,
             ObjectProvider<MerchantLimitReservationStateService> reservationStateServiceProvider,
+            FrequencySuccessReservationService frequencySuccessReservationService,
             ObjectProvider<RiskShadowComparisonMonitor> shadowComparisonMonitorProvider,
             RiskEvaluationProperties properties,
             PaymentRedisProperties redisProperties,
@@ -289,6 +328,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         this.cacheGenerationStore = cacheGenerationStoreProvider.getIfAvailable();
         this.stringRedisTemplate = stringRedisTemplateProvider.getIfAvailable();
         this.reservationStateService = reservationStateServiceProvider.getIfAvailable();
+        this.frequencySuccessReservationService = frequencySuccessReservationService;
         this.shadowComparisonMonitor = shadowComparisonMonitorProvider.getIfAvailable();
         this.properties = properties;
         this.redisProperties = redisProperties;
@@ -968,6 +1008,19 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void releaseFrequencySuccessReservations(String merchantId, String transactionId) {
+        if (frequencySuccessReservationService == null
+                || !StringUtils.hasText(merchantId)
+                || !StringUtils.hasText(transactionId)) {
+            return;
+        }
+        frequencySuccessReservationService.release(merchantId.trim(), transactionId.trim());
+    }
+
+    /**
      * 判断当前商户是否存在至少一条可执行频率规则。
      *
      * @param merchantId 当前商户号
@@ -984,6 +1037,9 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     /**
      * 根据规范化卡 BIN 区间值解析发卡行国家或地区代码。
      *
+     * <p>BIN 公共字典规模远高于通用风控规则快照上限，禁止尝试全量加载；
+     * 该查询始终使用带规则 generation 的按 BIN Cache-Aside，未命中时才执行数据库区间点查。</p>
+     *
      * @return Mapper 命中的 ISO 代码；输入或运行时不可用时返回空
      */
     @Override
@@ -996,36 +1052,12 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 () -> Optional.ofNullable(riskRuntimeMapper.selectIssuerCountryByCardBin(
                         cardBinLookup.getNumericValue()
                 ));
-        if (ruleCacheMode() == RiskRuleCacheMode.LEGACY) {
-            return ruleCache(
-                    legacyLoader,
-                    "card-bin",
-                    "issuer-country",
-                    RedisKeyDigest.sha256(cardBinLookup.getNumericValue().toPlainString())
-            ).map(RiskListMatch::getHitValueMasked).filter(StringUtils::hasText);
-        }
-        SnapshotRows snapshot = issuerCountryBinSnapshot();
-        Optional<RiskListMatch> snapshotMatch = snapshot.available()
-                ? snapshot.rows().stream()
-                .filter(row -> withinRange(
-                        cardBinLookup.getNumericValue(),
-                        row.getMatchValueStartNumber(),
-                        row.getMatchValueEndNumber()
-                ))
-                .map(row -> (RiskListMatch) row)
-                .findFirst()
-                : Optional.empty();
-        if (ruleCacheMode() == RiskRuleCacheMode.SHADOW) {
-            Optional<RiskListMatch> legacyResult = ruleCache(
-                    legacyLoader,
-                    "card-bin",
-                    "issuer-country",
-                    RedisKeyDigest.sha256(cardBinLookup.getNumericValue().toPlainString())
-            );
-            recordSnapshotShadowDifference("bin-country", legacyResult, snapshotMatch, snapshot.available());
-            return legacyResult.map(RiskListMatch::getHitValueMasked).filter(StringUtils::hasText);
-        }
-        return (snapshot.available() ? snapshotMatch : legacyLoader.get())
+        return ruleCache(
+                legacyLoader,
+                "card-bin",
+                "issuer-country",
+                RedisKeyDigest.sha256(cardBinLookup.getNumericValue().toPlainString())
+        )
                 .map(RiskListMatch::getHitValueMasked)
                 .filter(StringUtils::hasText);
     }
@@ -1747,18 +1779,6 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
     }
 
     /**
-     * 读取全局 BIN 发卡国家区间快照。
-     *
-     * @return acquiring:{env}:risk:bin-country 对应的完整集合
-     */
-    private SnapshotRows issuerCountryBinSnapshot() {
-        return datasetRowsSnapshot(
-                redisProperties.businessKey("risk", "bin-country"),
-                () -> riskRuntimeMapper.selectActiveIssuerCountryBinSnapshotRows(snapshotQueryLimit())
-        );
-    }
-
-    /**
      * 使用当前 generation 读取或重建指定条件规则数据集。
      *
      * @param cacheKey 稳定短 Key
@@ -2114,10 +2134,11 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         Map<String, String> elementValues = frequencyElementValues(
                 cardNoLookup, cardFingerprintLookup, ipLookup, emailLookup, phoneLookup,
                 customerIdLookup, deviceFingerprintLookup);
+        List<String> counterIdentities = policy.counterIdentities(elementValues);
         List<String> keys = policy.counterKeys(
                 rule,
                 merchantId,
-                elementValues,
+                counterIdentities,
                 redisProperties
         );
         if (keys.isEmpty()) {
@@ -2137,6 +2158,18 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             highestCurrentCount = Math.max(highestCurrentCount, currentCount.get());
             if (currentCount.get() > policy.allowedCount()) {
                 exceeded = true;
+            }
+        }
+        if (!exceeded && policy.successCount() > 0) {
+            RiskListMatch successReservationResult = reserveFrequencySuccessSlots(
+                    rule,
+                    merchantId,
+                    requestDTO,
+                    policy,
+                    counterIdentities,
+                    elementValues);
+            if (successReservationResult != null) {
+                return successReservationResult;
             }
         }
         RiskListMatch detail = copyRule(rule);
@@ -2162,6 +2195,61 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                 0L
         );
         return detail;
+    }
+
+    /**
+     * 为全部适用维度预占成功次数名额；任一维度达到上限即阻断当前交易。
+     *
+     * @return 达到成功次数上限或基础设施不可用时返回阻断明细，全部预占成功返回 null
+     */
+    private RiskListMatch reserveFrequencySuccessSlots(RiskListMatch rule,
+                                                       String merchantId,
+                                                       RiskPaymentEvaluateRequestDTO requestDTO,
+                                                       FrequencyPolicy policy,
+                                                       List<String> counterIdentities,
+                                                       Map<String, String> elementValues) {
+        if (frequencySuccessReservationService == null
+                || rule == null
+                || rule.getRuleId() == null
+                || requestDTO == null
+                || !StringUtils.hasText(requestDTO.getTransactionId())) {
+            return frequencyRuleUnavailable(
+                    rule,
+                    "transaction frequency success reservation is unavailable");
+        }
+        for (String counterIdentity : counterIdentities) {
+            FrequencySuccessReservationResult result = frequencySuccessReservationService.reserve(
+                    merchantId.trim(),
+                    requestDTO.getTransactionId().trim(),
+                    rule.getRuleId(),
+                    counterIdentity,
+                    policy.successCount(),
+                    policy.windowSeconds());
+            if (result.outcome() == FrequencySuccessReservationResult.Outcome.UNAVAILABLE
+                    || result.outcome() == FrequencySuccessReservationResult.Outcome.CLOSED) {
+                return frequencyRuleUnavailable(
+                        rule,
+                        "transaction frequency success reservation is unavailable");
+            }
+            if (result.outcome() == FrequencySuccessReservationResult.Outcome.LIMIT_EXCEEDED) {
+                RiskListMatch detail = copyRule(rule);
+                detail.setHitElement("frequencySuccess");
+                detail.setHitValueMasked(policy.maskedHitValue(elementValues));
+                detail.setThresholdCount(policy.successCount());
+                detail.setCurrentCount(result.currentCount() + 1L);
+                detail.setMatchResult("HIT");
+                detail.setDecisionReason(StringUtils.hasText(rule.getDecisionReason())
+                        ? rule.getDecisionReason()
+                        : "successful transaction frequency limit hit");
+                metrics.recordOperation(
+                        RedisBusinessMetrics.Feature.RISK_FREQUENCY,
+                        RedisBusinessMetrics.Operation.EVALUATE,
+                        RedisBusinessMetrics.Outcome.HIT,
+                        0L);
+                return detail;
+            }
+        }
+        return null;
     }
 
     /**
@@ -3200,12 +3288,14 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
      * @param dimension     组合统计或任一元素统计
      * @param windowSeconds 固定窗口秒数
      * @param allowedCount  窗口允许的最大交易数
+     * @param successCount  窗口允许的最大成功交易数，0 表示不启用
      * @param valid         JSON、窗口、阈值和维度是否通过基础校验
      */
     private record FrequencyPolicy(List<String> elements,
                                    String dimension,
                                    int windowSeconds,
                                    int allowedCount,
+                                   int successCount,
                                    boolean valid) {
 
         /**
@@ -3218,6 +3308,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             List<String> elements = new ArrayList<>();
             String dimension = FREQUENCY_DIMENSION_ANY;
             Integer allowedCount = rule == null ? null : rule.getThresholdCount();
+            Integer successCount = 0;
             Integer windowSeconds = rule == null ? null : rule.getTimeWindowSeconds();
             boolean valid = rule != null;
             if (rule != null && StringUtils.hasText(rule.getElementsJson())) {
@@ -3240,6 +3331,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                         }
                     }
                     allowedCount = intValue(policy == null ? null : policy.get("allowedCount"), allowedCount);
+                    successCount = intValue(policy == null ? null : policy.get("successCount"), successCount);
                     windowSeconds = intValue(policy == null ? null : policy.get("timeWindowSeconds"), windowSeconds);
                 } catch (RuntimeException exception) {
                     valid = false;
@@ -3251,12 +3343,18 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             }
             int normalizedWindowSeconds = windowSeconds == null ? 3_600 : windowSeconds;
             int normalizedAllowedCount = allowedCount == null ? 1 : allowedCount;
+            int normalizedSuccessCount = successCount == null ? 0 : successCount;
             return new FrequencyPolicy(
                     elements.stream().distinct().sorted().toList(),
                     FREQUENCY_DIMENSION_COMBINATION.equals(dimension) ? FREQUENCY_DIMENSION_COMBINATION : FREQUENCY_DIMENSION_ANY,
                     normalizedWindowSeconds,
                     normalizedAllowedCount,
-                    valid && normalizedWindowSeconds > 0 && normalizedAllowedCount > 0
+                    normalizedSuccessCount,
+                    valid
+                            && normalizedWindowSeconds > 0
+                            && normalizedAllowedCount > 0
+                            && normalizedSuccessCount >= 0
+                            && normalizedSuccessCount <= normalizedAllowedCount
             );
         }
 
@@ -3271,14 +3369,21 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     && properties != null
                     && windowSeconds <= properties.getFrequencyMaxWindowSeconds()
                     && allowedCount <= properties.getFrequencyMaxThresholdCount()
+                    && successCount <= properties.getFrequencyMaxThresholdCount()
                     && !elements.isEmpty()
                     && SUPPORTED_FREQUENCY_ELEMENTS.containsAll(elements);
         }
 
         private List<String> counterKeys(RiskListMatch rule,
                                          String merchantId,
-                                         Map<String, String> elementValues,
+                                         List<String> counterIdentities,
                                          PaymentRedisProperties redisProperties) {
+            return counterIdentities.stream()
+                    .map(identity -> counterKey(rule, merchantId, identity, redisProperties))
+                    .toList();
+        }
+
+        private List<String> counterIdentities(Map<String, String> elementValues) {
             if (FREQUENCY_DIMENSION_COMBINATION.equals(dimension)) {
                 List<String> parts = new ArrayList<>();
                 for (String element : elements) {
@@ -3288,15 +3393,13 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                     }
                     parts.add(element + "=" + value);
                 }
-                return List.of(counterKey(
-                        rule, merchantId, String.join("&", parts), redisProperties));
+                return List.of(RedisKeyDigest.sha256(String.join("&", parts)));
             }
             List<String> keys = new ArrayList<>();
             for (String element : elements) {
                 String value = elementValues.get(element);
                 if (StringUtils.hasText(value)) {
-                    keys.add(counterKey(
-                            rule, merchantId, element + "=" + value, redisProperties));
+                    keys.add(RedisKeyDigest.sha256(element + "=" + value));
                 }
             }
             return keys;
@@ -3315,8 +3418,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
                                   PaymentRedisProperties redisProperties) {
             long ruleId = rule == null || rule.getRuleId() == null ? 0L : rule.getRuleId();
             String merchantSegment = safeMerchantSegment(merchantId);
-            String elementDigest = RedisKeyDigest.sha256(elementKey);
-            String slotIdentity = ruleId + ":" + merchantSegment + ":" + elementDigest;
+            String slotIdentity = ruleId + ":" + merchantSegment + ":" + elementKey;
             return redisProperties.coLocatedBusinessKey(
                     "risk",
                     "frequency",

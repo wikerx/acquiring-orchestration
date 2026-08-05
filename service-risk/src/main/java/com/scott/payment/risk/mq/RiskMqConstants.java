@@ -23,6 +23,10 @@ public final class RiskMqConstants {
     public static final String MERCHANT_LIMIT_LIFECYCLE_CONSUMER_GROUP =
             "acquiring-risk-merchant-limit-lifecycle-consumer";
 
+    /** 频控成功名额生命周期使用独立消费进度，避免与金额限额相互阻塞。 */
+    public static final String FREQUENCY_SUCCESS_LIFECYCLE_CONSUMER_GROUP =
+            "acquiring-risk-frequency-success-lifecycle-consumer";
+
     private RiskMqConstants() {
     }
 }

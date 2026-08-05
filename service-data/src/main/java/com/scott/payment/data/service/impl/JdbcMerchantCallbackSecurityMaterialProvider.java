@@ -21,18 +21,34 @@ import java.time.LocalDateTime;
 @DS(DataSourceName.MASTER)
 public class JdbcMerchantCallbackSecurityMaterialProvider implements MerchantCallbackSecurityMaterialProvider {
 
+    /** 启用状态值。 */
     private static final int ENABLED = 1;
+    /** 未删除状态值。 */
     private static final int NOT_DELETED = 0;
 
+    /** 商户 JWT 密钥数据访问器，只查询当前有效密钥。 */
     private final BaseMerchantJwtKeyMapper jwtKeyMapper;
+    /** 商户响应公钥数据访问器，只查询当前启用公钥。 */
     private final BaseMerchantResponseKeyMapper responseKeyMapper;
 
+    /**
+     * 创建安全材料提供器。
+     *
+     * @param jwtKeyMapper 商户 JWT 密钥数据访问器
+     * @param responseKeyMapper 商户响应公钥数据访问器
+     */
     public JdbcMerchantCallbackSecurityMaterialProvider(BaseMerchantJwtKeyMapper jwtKeyMapper,
                                                          BaseMerchantResponseKeyMapper responseKeyMapper) {
         this.jwtKeyMapper = jwtKeyMapper;
         this.responseKeyMapper = responseKeyMapper;
     }
 
+    /**
+     * 从主库加载商户当前有效密钥；结果仅限当前回调请求使用。
+     *
+     * @param merchantId 商户号
+     * @return 商户回调 JWT 密钥和响应公钥
+     */
     @Override
     public MerchantCallbackSecurityMaterial load(String merchantId) {
         LocalDateTime now = LocalDateTime.now();

@@ -143,6 +143,54 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(paramsCaptor.getValue().getValue("transactionDateTime")).isEqualTo(transactionTime);
     }
 
+    /** 商户回调详情必须按通知号和页面传入的真实分片时间查询任务及每次投递日志。 */
+    @Test
+    void merchantNotificationDetailShouldUseExactShardAndReturnAttemptLogs() {
+        NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 4, 18, 29, 44, 988_000_000);
+        Map<String, Object> notification = new LinkedHashMap<>();
+        notification.put("notifyId", "notification-a");
+        LocalDateTime firstResponseTime = transactionTime.plusSeconds(2);
+        LocalDateTime secondResponseTime = transactionTime.plusSeconds(4);
+        Map<String, Object> firstAttempt = new LinkedHashMap<>();
+        firstAttempt.put("attemptNo", 1);
+        firstAttempt.put("create_time", firstResponseTime);
+        Map<String, Object> secondAttempt = new LinkedHashMap<>();
+        secondAttempt.put("attemptNo", 2);
+        secondAttempt.put("create_time", secondResponseTime);
+        when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, String.class)
+                        .contains("transaction_merchant_notification_log")
+                        ? List.of(firstAttempt, secondAttempt)
+                        : List.of(notification));
+        JdbcAdminTransactionQueryService service = new JdbcAdminTransactionQueryService(
+                jdbcTemplate, mock(AdminRiskTimelineQueryService.class));
+
+        Map<String, Object> detail = service.merchantNotificationDetail("notification-a", transactionTime);
+
+        assertThat(detail.get("notification")).isEqualTo(notification);
+        assertThat((List<Map<String, Object>>) detail.get("deliveryLogs"))
+                .extracting(row -> row.get("attemptNo"), row -> row.get("httpMethod"), row -> row.get("responseTime"))
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(1, "POST", firstResponseTime),
+                        org.assertj.core.groups.Tuple.tuple(2, "POST", secondResponseTime));
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> paramsCaptor = ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbcTemplate, org.mockito.Mockito.times(2))
+                .queryForList(sqlCaptor.capture(), paramsCaptor.capture());
+        assertThat(sqlCaptor.getAllValues()).allSatisfy(sql -> {
+            assertThat(sql).contains("notify_id = :notifyId");
+            assertThat(sql).contains("transaction_date_time = :transactionDateTime");
+            assertThat(sql).doesNotContain("${");
+            assertThat(sql).doesNotContain("transaction_merchant_notification_2026");
+        });
+        assertThat(sqlCaptor.getAllValues().get(1)).contains("ORDER BY attempt_no ASC");
+        assertThat(paramsCaptor.getAllValues()).allSatisfy(params -> {
+            assertThat(params.getValue("notifyId")).isEqualTo("notification-a");
+            assertThat(params.getValue("transactionDateTime")).isEqualTo(transactionTime);
+        });
+    }
+
     /** 详情附属日志触及未登记季度时必须明确失败，禁止伪装为空日志列表。 */
     @Test
     @SuppressWarnings("unchecked")
@@ -299,9 +347,11 @@ class JdbcAdminTransactionQueryServiceTest {
         NamedParameterJdbcTemplate jdbcTemplate = mock(NamedParameterJdbcTemplate.class);
         JdbcAdminTransactionQueryService service = buildService(jdbcTemplate);
         Map<String, Object> row = new LinkedHashMap<>();
+        LocalDateTime responseTime = LocalDateTime.of(2026, 3, 1, 12, 0, 0, 123_000_000);
         row.put("id", 202603000000000825L);
         row.put("account_id", 42L);
         row.put("duration_millis", 123L);
+        row.put("create_time", responseTime);
         when(jdbcTemplate.queryForList(anyString(), any(MapSqlParameterSource.class))).thenReturn(List.of(row));
 
         List<Map<String, Object>> rows = invokeSelectMapsByOperationId(
@@ -311,6 +361,8 @@ class JdbcAdminTransactionQueryServiceTest {
         assertThat(rows.get(0)).containsEntry("id", "202603000000000825");
         assertThat(rows.get(0)).containsEntry("accountId", "42");
         assertThat(rows.get(0)).containsEntry("durationMillis", 123L);
+        assertThat(rows.get(0)).containsEntry("httpMethod", "POST");
+        assertThat(rows.get(0)).containsEntry("responseTime", responseTime);
     }
 
     /** 管理端通知详情只能返回脱敏 URL，完整通知配置快照不得进入查询结果或 JSON 响应。 */

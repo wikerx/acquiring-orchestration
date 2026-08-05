@@ -1,11 +1,13 @@
 package com.scott.payment.admin.api.transaction;
 
 import com.scott.payment.admin.application.transaction.AdminTransactionApplicationService;
+import com.scott.payment.admin.application.transaction.AdminMerchantNotificationRetryApplicationService;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionDetailResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -49,5 +51,22 @@ class AdminTransactionDetailControllerTests {
 
         verify(applicationService, times(2)).detail(
                 TRANSACTION_ID, TRANSACTION_DATE_TIME, ROOT_TRANSACTION_DATE_TIME);
+    }
+
+    @Test
+    void merchantNotificationDetailShouldAcceptListTransactionDateTime() throws Exception {
+        AdminTransactionApplicationService applicationService = mock(AdminTransactionApplicationService.class);
+        AdminMerchantNotificationRetryApplicationService retryApplicationService =
+                mock(AdminMerchantNotificationRetryApplicationService.class);
+        when(applicationService.merchantNotificationDetail("notification-a", TRANSACTION_DATE_TIME))
+                .thenReturn(Map.of("notification", Map.of("notifyId", "notification-a"), "deliveryLogs", java.util.List.of()));
+        MockMvc mockMvc = standaloneSetup(new AdminTransactionMerchantNotificationController(
+                applicationService, retryApplicationService)).build();
+
+        mockMvc.perform(get("/admin/transactions/merchant-notifications/{notifyId}", "notification-a")
+                        .param("transactionDateTime", "2026-07-14 12:30:45.233"))
+                .andExpect(status().isOk());
+
+        verify(applicationService).merchantNotificationDetail("notification-a", TRANSACTION_DATE_TIME);
     }
 }

@@ -444,6 +444,50 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
     }
 
     /**
+     * 按通知任务号和精确分片时间读取通知任务与投递日志。
+     *
+     * @param notifyId 通知任务号
+     * @param transactionDateTime 页面列表返回的真实交易分片时间
+     * @return 包含脱敏任务快照和按尝试次数排序日志的详情视图
+     */
+    @Override
+    public Map<String, Object> merchantNotificationDetail(String notifyId,
+                                                          LocalDateTime transactionDateTime) {
+        if (!StringUtils.hasText(notifyId) || transactionDateTime == null) {
+            throw new ApiException(ApiResultEnum.PARAM_INVALID);
+        }
+        return executeRead(true, () -> {
+            MapSqlParameterSource params = new MapSqlParameterSource()
+                    .addValue("notifyId", notifyId.trim())
+                    .addValue("transactionDateTime", transactionDateTime);
+            List<Map<String, Object>> notifications = toCamelCaseRows(jdbcTemplate.queryForList("""
+                    SELECT %s
+                    FROM transaction_merchant_notification
+                    WHERE notify_id = :notifyId
+                      AND transaction_date_time = :transactionDateTime
+                      AND deleted = 0
+                    LIMIT 1
+                    """.formatted(TRANSACTION_MERCHANT_NOTIFICATION_ADMIN_PROJECTION), params));
+            if (notifications.isEmpty()) {
+                throw new ApiException(ApiResultEnum.ORDER_NOT_FOUND);
+            }
+            List<Map<String, Object>> deliveryLogs = toCamelCaseRows(jdbcTemplate.queryForList("""
+                    SELECT *
+                    FROM transaction_merchant_notification_log
+                    WHERE notify_id = :notifyId
+                      AND transaction_date_time = :transactionDateTime
+                    ORDER BY attempt_no ASC, id ASC
+                    LIMIT 100
+                    """, params));
+            decorateMerchantNotificationLogRows(deliveryLogs);
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("notification", notifications.get(0));
+            detail.put("deliveryLogs", deliveryLogs);
+            return detail;
+        });
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -1642,8 +1686,19 @@ public class JdbcAdminTransactionQueryService implements AdminTransactionQuerySe
                     params));
         if (TRANSACTION_MERCHANT_NOTIFICATION_TABLE.equals(logicalTable)) {
             rows.forEach(row -> row.remove("notifyConfigSnapshotJson"));
+        } else if (TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE.equals(logicalTable)) {
+            decorateMerchantNotificationLogRows(rows);
         }
         return rows;
+    }
+
+    /** 补齐商户通知投递日志的固定协议字段和 HTTP 响应完成时间。 */
+    private void decorateMerchantNotificationLogRows(List<Map<String, Object>> rows) {
+        rows.forEach(row -> {
+            row.put("httpMethod", "POST");
+            // 投递日志在 HTTP 完成后落库，create_time 即本次请求的响应完成时间。
+            row.putIfAbsent("responseTime", row.get("createTime"));
+        });
     }
 
     /** 返回管理端详情允许读取的字段投影。 */

@@ -112,6 +112,16 @@ public interface AdminTransactionQueryService {
     PageResult<Map<String, Object>> pageMerchantNotifications(MerchantNotificationQuery query);
 
     /**
+     * 查询单个商户通知任务及其全部投递尝试日志。
+     *
+     * @param notifyId 通知任务号
+     * @param transactionDateTime 页面列表返回的真实交易分片时间
+     * @return 包含 notification 和 deliveryLogs 的详情视图
+     */
+    Map<String, Object> merchantNotificationDetail(String notifyId,
+                                                   LocalDateTime transactionDateTime);
+
+    /**
      * 判断精确交易分片中是否存在允许人工重发的终态商户通知。
      *
      * @param transactionId 平台交易号

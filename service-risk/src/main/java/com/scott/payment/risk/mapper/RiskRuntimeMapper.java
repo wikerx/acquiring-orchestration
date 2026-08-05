@@ -1054,39 +1054,6 @@ public interface RiskRuntimeMapper {
     RiskListMatch selectIssuerCountryByCardBin(@Param("numericValue") BigDecimal numericValue);
 
     /**
-     * 加载全部有效 BIN 发卡国家区间。
-     *
-     * @param maxRows 查询硬上限
-     * @return BIN 长度和数据源优先级从高到低的区间行
-     */
-    @Select("""
-            SELECT id AS ruleId,
-                   'SYSTEM' AS moduleType,
-                   'issuerCountry' AS functionCode,
-                   '发卡行国家/地区解析' AS functionName,
-                   'issuerCountry' AS hitElement,
-                   issuer_country_alpha3 AS hitValueMasked,
-                   'LOW' AS riskLevel,
-                   'PASS' AS decisionAction,
-                   'issuer country resolved by card bin' AS decisionReason,
-                   card_bin_start AS matchValueStartNumber,
-                   card_bin_end AS matchValueEndNumber,
-                   bin_length AS binLength,
-                   source_priority AS sourcePriority,
-                   issuer_country_alpha3 AS issuerCountryAlpha3
-            FROM base_card_bin_range
-            WHERE deleted = 0
-              AND status = 1
-              AND issuer_country_alpha3 IS NOT NULL
-              AND issuer_country_alpha3 <> ''
-              AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
-              AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
-            ORDER BY bin_length DESC, source_priority DESC, update_time DESC, id DESC
-            LIMIT #{maxRows}
-            """)
-    List<RiskRuleSnapshotRow> selectActiveIssuerCountryBinSnapshotRows(@Param("maxRows") int maxRows);
-
-    /**
      * 查询适用于交易维度、金额区间和当前风险等级的最高优先级 3DS 规则。
      *
      * @return 商户级优先的强制或跳过 3DS 规则；无适用规则时返回 {@code null}

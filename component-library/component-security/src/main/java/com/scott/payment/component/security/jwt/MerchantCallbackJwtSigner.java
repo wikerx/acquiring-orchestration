@@ -17,11 +17,16 @@ import java.util.regex.Pattern;
 /** 签发平台到商户的短时 HS256 回调 JWT，不记录或返回任何密钥摘要。 */
 public class MerchantCallbackJwtSigner {
 
+    /** 平台回调 JWT 签发者。 */
     private static final String ISSUER = "platform";
+    /** 商户回调 JWT 固定受众。 */
     private static final String AUDIENCE = "merchant-callback";
+    /** HS256 密钥最小字节数。 */
     private static final int MIN_SECRET_BYTES = 32;
+    /** 回调密文 SHA-256 十六进制摘要格式。 */
     private static final Pattern SHA256_HEX_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
+    /** 无状态 HMAC-SHA256 签名器，不保存商户密钥。 */
     private final HmacSha256Signer signer = new HmacSha256Signer();
 
     /**
@@ -57,6 +62,19 @@ public class MerchantCallbackJwtSigner {
         return signingInput + "." + signer.signBase64Url(signingInput, merchantSecret);
     }
 
+    /**
+     * 校验 JWT claims、安全摘要、尝试次数、有效期和密钥强度。
+     *
+     * @param merchantId 商户号
+     * @param merchantSecret 商户回调 HMAC 密钥
+     * @param eventId 本次回调事件号
+     * @param notifyId 通知任务号
+     * @param transactionId 平台交易号
+     * @param payloadSha256 回调密文 SHA-256 摘要
+     * @param callbackTimes 当前回调尝试次数
+     * @param issuedAt JWT 签发时刻
+     * @param ttlSeconds JWT 有效秒数
+     */
     private void validate(String merchantId,
                           String merchantSecret,
                           String eventId,
@@ -85,6 +103,12 @@ public class MerchantCallbackJwtSigner {
         }
     }
 
+    /**
+     * 将 JWT JSON 片段编码为无填充 Base64URL。
+     *
+     * @param value JWT Header 或 Payload JSON
+     * @return Base64URL 编码结果
+     */
     private String base64Url(String value) {
         return Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(value.getBytes(StandardCharsets.UTF_8));

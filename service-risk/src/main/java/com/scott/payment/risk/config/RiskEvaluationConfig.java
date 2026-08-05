@@ -3,6 +3,9 @@ package com.scott.payment.risk.config;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * @author : scott
@@ -36,6 +39,18 @@ public class RiskEvaluationConfig {
     /** 超容量快照旁路允许的绝对最大秒数，避免误配置长期跳过容量重新探测。 */
     private static final int ABSOLUTE_MAX_RULE_SNAPSHOT_CAPACITY_BYPASS_TTL_SECONDS = 300;
 
+    /** 只读风控线程池允许的最大固定线程数。 */
+    private static final int ABSOLUTE_MAX_READ_ONLY_PARALLELISM = 16;
+
+    /** 只读风控线程池允许的最大等待队列容量。 */
+    private static final int ABSOLUTE_MAX_READ_ONLY_QUEUE_CAPACITY = 10_000;
+
+    /** 只读规则组允许的最小共享超时毫秒数。 */
+    private static final long MIN_READ_ONLY_TIMEOUT_MILLIS = 100L;
+
+    /** 只读规则组允许的最大共享超时毫秒数。 */
+    private static final long MAX_READ_ONLY_TIMEOUT_MILLIS = 30_000L;
+
     /**
      * 校验数据库基线切换门禁及规则快照、固定频率窗口容量边界。
      *
@@ -52,7 +67,32 @@ public class RiskEvaluationConfig {
         }
         validateRuleSnapshotCapacity(properties);
         validateFrequencyCapacity(properties);
+        validateReadOnlyParallelCapacity(properties);
         return new RiskEvaluationGuard();
+    }
+
+    /**
+     * 创建风控只读规则专用的固定有界线程池。
+     *
+     * <p>队列满时由请求线程执行任务以提供背压，不把任务提交到公共线程池；任务装饰器负责
+     * 在工作线程恢复并清理链路上下文。累计限额、频控和 3DS 不得使用该执行器。</p>
+     *
+     * @param properties 风控并发容量配置
+     * @return 只执行无副作用风控查询的专用执行器
+     */
+    @Bean(name = "riskReadOnlyEvaluationExecutor")
+    ThreadPoolTaskExecutor riskReadOnlyEvaluationExecutor(RiskEvaluationProperties properties) {
+        validateReadOnlyParallelCapacity(properties);
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(properties.getReadOnlyParallelism());
+        executor.setMaxPoolSize(properties.getReadOnlyParallelism());
+        executor.setQueueCapacity(properties.getReadOnlyQueueCapacity());
+        executor.setThreadNamePrefix("risk-read-only-");
+        executor.setTaskDecorator(new RiskTraceContextTaskDecorator());
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(10);
+        return executor;
     }
 
     /**
@@ -103,6 +143,33 @@ public class RiskEvaluationConfig {
             throw new IllegalStateException(
                     "risk.evaluation.frequency-max-threshold-count must be between 1 and "
                             + ABSOLUTE_MAX_FREQUENCY_THRESHOLD_COUNT);
+        }
+    }
+
+    /**
+     * 校验只读规则并发度、队列容量和共享超时，防止配置退化为伪并发或无界等待。
+     *
+     * @param properties 风控运行时配置
+     * @throws IllegalStateException 并发配置超出受控范围时抛出
+     */
+    private void validateReadOnlyParallelCapacity(RiskEvaluationProperties properties) {
+        if (properties.getReadOnlyParallelism() < 3
+                || properties.getReadOnlyParallelism() > ABSOLUTE_MAX_READ_ONLY_PARALLELISM) {
+            throw new IllegalStateException(
+                    "risk.evaluation.read-only-parallelism must be between 3 and "
+                            + ABSOLUTE_MAX_READ_ONLY_PARALLELISM);
+        }
+        if (properties.getReadOnlyQueueCapacity() <= 0
+                || properties.getReadOnlyQueueCapacity() > ABSOLUTE_MAX_READ_ONLY_QUEUE_CAPACITY) {
+            throw new IllegalStateException(
+                    "risk.evaluation.read-only-queue-capacity must be between 1 and "
+                            + ABSOLUTE_MAX_READ_ONLY_QUEUE_CAPACITY);
+        }
+        if (properties.getReadOnlyTimeoutMillis() < MIN_READ_ONLY_TIMEOUT_MILLIS
+                || properties.getReadOnlyTimeoutMillis() > MAX_READ_ONLY_TIMEOUT_MILLIS) {
+            throw new IllegalStateException(
+                    "risk.evaluation.read-only-timeout-millis must be between "
+                            + MIN_READ_ONLY_TIMEOUT_MILLIS + " and " + MAX_READ_ONLY_TIMEOUT_MILLIS);
         }
     }
 

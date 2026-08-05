@@ -22,6 +22,26 @@ public class RiskEvaluationProperties {
     private boolean runtimeEnabled = true;
 
     /**
+     * 是否并发执行 AML、黑白名单和单笔限额三个无副作用只读规则组。
+     */
+    private boolean readOnlyParallelEnabled = true;
+
+    /**
+     * 只读风控专用线程池固定线程数，至少覆盖三个独立规则组。
+     */
+    private int readOnlyParallelism = 4;
+
+    /**
+     * 只读风控专用线程池等待队列容量；队列满时由提交线程执行以形成背压。
+     */
+    private int readOnlyQueueCapacity = 64;
+
+    /**
+     * 三个只读规则组共享的最大等待毫秒数，超时后按风控不可用失败关闭。
+     */
+    private long readOnlyTimeoutMillis = 3_000;
+
+    /**
      * Redis 命中缓存秒数。
      */
     private long cacheHitTtlSeconds = 300;

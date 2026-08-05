@@ -1,8 +1,15 @@
 package com.scott.payment.risk.config;
 
+import com.scott.payment.component.core.trace.TraceContext;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,6 +28,12 @@ class RiskEvaluationConfigTests {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(RiskEvaluationConfig.class);
 
+    @AfterEach
+    void tearDown() {
+        TraceContext.clear();
+        MDC.clear();
+    }
+
     @Test
     void shouldUseClusterSafeFixedWindowDefaultsWithoutMigrationSwitches() {
         contextRunner.run(context -> {
@@ -30,7 +43,85 @@ class RiskEvaluationConfigTests {
             assertThat(properties.getFrequencyMaxWindowSeconds()).isEqualTo(86_400);
             assertThat(properties.getFrequencyMaxThresholdCount()).isEqualTo(1_000);
             assertThat(properties.getRuleSnapshotCapacityBypassTtlSeconds()).isEqualTo(30);
+            assertThat(properties.isReadOnlyParallelEnabled()).isTrue();
+            assertThat(properties.getReadOnlyParallelism()).isEqualTo(4);
+            assertThat(properties.getReadOnlyQueueCapacity()).isEqualTo(64);
+            assertThat(properties.getReadOnlyTimeoutMillis()).isEqualTo(3_000);
         });
+    }
+
+    @Test
+    void shouldPropagateAndClearTraceContextInReadOnlyExecutor() {
+        contextRunner.run(context -> {
+            assertThat(context).hasNotFailed();
+            ThreadPoolTaskExecutor executor = context.getBean(
+                    "riskReadOnlyEvaluationExecutor",
+                    ThreadPoolTaskExecutor.class);
+            TraceContext.setTraceId("risk-parallel-trace-001");
+            MDC.put("riskTestContext", "merchant-scope-001");
+            Future<String> propagated = executor.submit(
+                    () -> TraceContext.getTraceId() + ":" + MDC.get("riskTestContext"));
+
+            assertThat(propagated.get(1, TimeUnit.SECONDS))
+                    .isEqualTo("risk-parallel-trace-001:merchant-scope-001");
+
+            TraceContext.clear();
+            MDC.clear();
+            Future<String> cleared = executor.submit(
+                    () -> String.valueOf(TraceContext.getTraceId()) + ":" + MDC.get("riskTestContext"));
+            assertThat(cleared.get(1, TimeUnit.SECONDS)).isEqualTo("null:null");
+        });
+    }
+
+    @Test
+    void shouldRestoreWorkerContextAfterDecoratedTaskCompletes() {
+        RiskTraceContextTaskDecorator decorator = new RiskTraceContextTaskDecorator();
+        TraceContext.setTraceId("submit-risk-trace");
+        MDC.put("riskTestContext", "submit-scope");
+        Runnable decorated = decorator.decorate(() -> {
+            assertThat(TraceContext.getTraceId()).isEqualTo("submit-risk-trace");
+            assertThat(MDC.get("riskTestContext")).isEqualTo("submit-scope");
+        });
+
+        TraceContext.setTraceId("worker-previous-trace");
+        MDC.put("riskTestContext", "worker-previous-scope");
+        decorated.run();
+
+        assertThat(TraceContext.getTraceId()).isEqualTo("worker-previous-trace");
+        assertThat(MDC.get("riskTestContext")).isEqualTo("worker-previous-scope");
+    }
+
+    @Test
+    void shouldRejectReadOnlyParallelismBelowThreeGroups() {
+        contextRunner
+                .withPropertyValues("risk.evaluation.read-only-parallelism=2")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasMessageContaining("read-only-parallelism");
+                });
+    }
+
+    @Test
+    void shouldRejectNonPositiveReadOnlyQueueCapacity() {
+        contextRunner
+                .withPropertyValues("risk.evaluation.read-only-queue-capacity=0")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasMessageContaining("read-only-queue-capacity");
+                });
+    }
+
+    @Test
+    void shouldRejectReadOnlyTimeoutBelowSafetyFloor() {
+        contextRunner
+                .withPropertyValues("risk.evaluation.read-only-timeout-millis=99")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasMessageContaining("read-only-timeout-millis");
+                });
     }
 
     @Test

@@ -26,19 +26,38 @@ import java.util.Map;
 @Component
 public class MerchantCallbackRequestFactory {
 
+    /** 当前商户回调协议版本。 */
     public static final String CALLBACK_VERSION = "v1";
+    /** 回调协议版本请求头。 */
     public static final String HEADER_CALLBACK_VERSION = "X-Callback-Version";
+    /** 当前回调尝试次数请求头。 */
     public static final String HEADER_CALLBACK_TIMES = "X-Callback-Times";
+    /** 本次回调事件号请求头，必须与 JWT 的 eventId 和 jti 一致。 */
     public static final String HEADER_CALLBACK_EVENT_ID = "X-Callback-Event-Id";
+    /** 平台通知任务号请求头。 */
     public static final String HEADER_NOTIFY_ID = "X-OPGS-Notify-Id";
+    /** 平台交易号请求头。 */
     public static final String HEADER_TRANSACTION_ID = "X-OPGS-Transaction-Id";
 
+    /** 商户回调安全材料提供器。 */
     private final MerchantCallbackSecurityMaterialProvider materialProvider;
+    /** 回调正文加密器。 */
     private final OpenApiPayloadCrypto payloadCrypto;
+    /** 平台回调 JWT 签发器。 */
     private final MerchantCallbackJwtSigner jwtSigner;
+    /** 回调 JWT 有效期等协议配置。 */
     private final DataMerchantNotificationProperties properties;
+    /** JWT 签发时钟，测试使用固定时钟验证 claims。 */
     private final Clock clock;
 
+    /**
+     * 创建使用 UTC 系统时钟的回调请求工厂。
+     *
+     * @param materialProvider 商户安全材料提供器
+     * @param payloadCrypto 回调正文加密器
+     * @param jwtSigner 回调 JWT 签发器
+     * @param properties 回调协议配置
+     */
     @Autowired
     public MerchantCallbackRequestFactory(MerchantCallbackSecurityMaterialProvider materialProvider,
                                           OpenApiPayloadCrypto payloadCrypto,
@@ -59,6 +78,13 @@ public class MerchantCallbackRequestFactory {
         this.clock = clock;
     }
 
+    /**
+     * 以通知任务号作为稳定事件号构造自动投递请求。
+     *
+     * @param task 商户通知任务
+     * @param callbackTimes 当前通知尝试次数
+     * @return 已完成 JWT、Header 和正文加密的 HTTP 请求
+     */
     public MerchantCallbackHttpRequest create(DataMerchantNotificationTaskDO task, int callbackTimes) {
         if (task == null || !StringUtils.hasText(task.getNotifyId())) {
             throw new IllegalArgumentException("merchant callback notify id can not be blank");
