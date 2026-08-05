@@ -768,7 +768,8 @@ public class AdminEmailServiceImpl implements AdminEmailService {
                 .eq(StringUtils.hasText(query.getLocale()), EmailTemplateDO::getLocale, trim(query.getLocale()))
                 .eq(query.getStatus() != null, EmailTemplateDO::getStatus, query.getStatus())
                 .eq(query.getSystemBuiltin() != null, EmailTemplateDO::getSystemBuiltin, query.getSystemBuiltin())
-                .orderByDesc(EmailTemplateDO::getUpdateTime);
+                .orderByDesc(EmailTemplateDO::getUpdateTime)
+                .orderByDesc(EmailTemplateDO::getId);
     }
 
     /**

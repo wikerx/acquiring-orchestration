@@ -42,6 +42,8 @@ import com.scott.payment.component.db.iso.mapper.IsoCurrencyMapper;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.MerchantJwtKey;
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.RsaKeyMaterial;
+import com.scott.payment.component.security.openapi.OpenApiKeyType;
+import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -263,6 +265,15 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
     /** 密钥元数据永久缓存的事务型可靠失效协调器。 */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
+    /** 管理端新增商户后的主账号、管理员角色与开户通知服务。 */
+    private final AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService;
+
+    /** OpenAPI 密钥统一启停规则。 */
+    private final OpenApiMerchantKeyMaterialService openApiKeyMaterialService;
+
+    /** 商户密钥生命周期邮件通知。 */
+    private final AdminMerchantSecurityNotificationService securityNotificationService;
+
     /**
      * 创建管理后台商户信息服务实现。
      *
@@ -278,6 +289,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
      * @param keyMaterialFactory        密钥材料工厂
      * @param merchantRuntimeProfileCacheService 完整商户资料共享缓存
      * @param cacheInvalidationCoordinator 密钥元数据永久缓存可靠失效协调器
+     * @param primaryAccountProvisioningService 商户主账号开通服务
+     * @param openApiKeyMaterialService OpenAPI 密钥统一领域服务
+     * @param securityNotificationService 密钥生命周期通知服务
      */
     public AdminMerchantInfoServiceImpl(BaseMerchantInfoMapper merchantInfoMapper,
                                         BaseMerchantJwtKeyMapper jwtKeyMapper,
@@ -290,7 +304,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                                         IsoCurrencyMapper isoCurrencyMapper,
                                         OpenApiKeyMaterialFactory keyMaterialFactory,
                                         MerchantRuntimeProfileCacheService merchantRuntimeProfileCacheService,
-                                        ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+                                        ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
+                                        AdminMerchantPrimaryAccountProvisioningService primaryAccountProvisioningService,
+                                        OpenApiMerchantKeyMaterialService openApiKeyMaterialService,
+                                        AdminMerchantSecurityNotificationService securityNotificationService) {
         this.merchantInfoMapper = merchantInfoMapper;
         this.jwtKeyMapper = jwtKeyMapper;
         this.platformPayloadKeyMapper = platformPayloadKeyMapper;
@@ -303,6 +320,9 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         this.keyMaterialFactory = keyMaterialFactory;
         this.merchantRuntimeProfileCacheService = merchantRuntimeProfileCacheService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
+        this.primaryAccountProvisioningService = primaryAccountProvisioningService;
+        this.openApiKeyMaterialService = openApiKeyMaterialService;
+        this.securityNotificationService = securityNotificationService;
     }
 
     /**
@@ -407,6 +427,7 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         prepareRuntimeProfileInvalidation(merchantId);
         merchantInfoMapper.insert(row);
         merchantRuntimeProfileCacheService.putRuntimeProfile(toRuntimeProfile(row));
+        primaryAccountProvisioningService.provision(row);
         return toDTO(row);
     }
 
@@ -518,6 +539,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setMerchantResponsePublicKeyX509Base64(responseKey.publicKeyX509Base64());
         dto.setMerchantResponsePrivateKeyPkcs8Base64(responseKey.privateKeyPkcs8Base64());
         dto.setOneTimeSecret(true);
+        securityNotificationService.sendAfterCommit(merchant,
+                AdminMerchantSecurityNotificationService.TEMPLATE_CREATED,
+                "OpenAPI 接入密钥套件",
+                jwtKey.merchantKey());
         return dto;
     }
 
@@ -572,6 +597,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setJwtAlgorithm(jwtKey.algorithm());
         dto.setJwtExpiresSeconds(jwtKey.expiresSeconds());
         dto.setOneTimeSecret(true);
+        securityNotificationService.sendAfterCommit(merchant,
+                AdminMerchantSecurityNotificationService.TEMPLATE_RESET,
+                "JWT 签名密钥",
+                jwtKey.merchantKey());
         return dto;
     }
 
@@ -591,6 +620,10 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         AdminMerchantSecurityMaterialDTO dto = baseMaterial(merchant);
         dto.setPlatformPublicKeyX509Base64(platformKey.publicKeyX509Base64());
         dto.setOneTimeSecret(false);
+        securityNotificationService.sendAfterCommit(merchant,
+                AdminMerchantSecurityNotificationService.TEMPLATE_RESET,
+                "平台请求体密钥",
+                platformKey.publicKeyX509Base64());
         return dto;
     }
 
@@ -611,7 +644,35 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
         dto.setMerchantResponsePublicKeyX509Base64(responseKey.publicKeyX509Base64());
         dto.setMerchantResponsePrivateKeyPkcs8Base64(responseKey.privateKeyPkcs8Base64());
         dto.setOneTimeSecret(true);
+        securityNotificationService.sendAfterCommit(merchant,
+                AdminMerchantSecurityNotificationService.TEMPLATE_RESET,
+                "商户响应密钥",
+                responseKey.publicKeyX509Base64());
         return dto;
+    }
+
+    /**
+     * 启用或停用当前 OpenAPI 密钥材料，登记缓存失效并在提交后发送安全通知。
+     *
+     * @param merchantId 商户号
+     * @param keyType 密钥类型
+     * @param enabled true 启用，false 停用
+     */
+    @Override
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void setOpenApiKeyEnabled(String merchantId, OpenApiKeyType keyType, boolean enabled) {
+        BaseMerchantInfoDO merchant = requireMerchantByMerchantId(merchantId);
+        prepareKeyMetadataInvalidation(merchant.getMerchantId());
+        openApiKeyMaterialService.setEnabled(merchant.getMerchantId(), keyType, enabled);
+        securityNotificationService.sendAfterCommit(
+                merchant,
+                enabled
+                        ? AdminMerchantSecurityNotificationService.TEMPLATE_ENABLED
+                        : AdminMerchantSecurityNotificationService.TEMPLATE_DISABLED,
+                keyDisplayName(keyType),
+                keyFingerprintSource(merchant.getMerchantId(), keyType)
+        );
     }
 
     /**
@@ -1316,6 +1377,46 @@ public class AdminMerchantInfoServiceImpl implements AdminMerchantInfoService {
                 .eq(BaseMerchantJwtKeyDO::getEnabled, ENABLED)
                 .orderByDesc(BaseMerchantJwtKeyDO::getEffectiveTime)
                 .last("LIMIT 1"));
+    }
+
+    /** 查询最新 JWT 记录，包括已停用记录，供安全通知生成不可逆指纹。 */
+    private BaseMerchantJwtKeyDO selectLatestJwtKey(String merchantId) {
+        return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
+                .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
+                .eq(BaseMerchantJwtKeyDO::getDeleted, NOT_DELETED)
+                .orderByDesc(BaseMerchantJwtKeyDO::getEffectiveTime)
+                .orderByDesc(BaseMerchantJwtKeyDO::getId)
+                .last("LIMIT 1"));
+    }
+
+    /** 返回邮件中可展示的密钥材料名称。 */
+    private String keyDisplayName(OpenApiKeyType keyType) {
+        if (keyType == OpenApiKeyType.JWT_KEY) {
+            return "JWT 签名密钥";
+        }
+        if (keyType == OpenApiKeyType.PLATFORM_PUBLIC_KEY || keyType == OpenApiKeyType.PLATFORM_PAYLOAD_KEY) {
+            return "平台请求体密钥";
+        }
+        if (keyType == OpenApiKeyType.MERCHANT_RESPONSE_PUBLIC_KEY
+                || keyType == OpenApiKeyType.MERCHANT_RESPONSE_PRIVATE_KEY
+                || keyType == OpenApiKeyType.MERCHANT_RESPONSE_KEY) {
+            return "商户响应密钥";
+        }
+        throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "keyType 不支持启停");
+    }
+
+    /** 返回仅用于计算通知指纹的材料，原文不会离开当前进程或写入日志。 */
+    private String keyFingerprintSource(String merchantId, OpenApiKeyType keyType) {
+        if (keyType == OpenApiKeyType.JWT_KEY) {
+            BaseMerchantJwtKeyDO row = selectLatestJwtKey(merchantId);
+            return row == null ? null : row.getMerchantKey();
+        }
+        if (keyType == OpenApiKeyType.PLATFORM_PUBLIC_KEY || keyType == OpenApiKeyType.PLATFORM_PAYLOAD_KEY) {
+            BasePlatformPayloadKeyDO row = selectPlatformKey(merchantId);
+            return row == null ? null : row.getPublicKeyX509Base64();
+        }
+        BaseMerchantResponseKeyDO row = selectResponseKey(merchantId);
+        return row == null ? null : row.getPublicKeyX509Base64();
     }
 
     /**

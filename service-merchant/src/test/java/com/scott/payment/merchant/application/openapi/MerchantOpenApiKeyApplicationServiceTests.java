@@ -7,6 +7,7 @@ import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.security.openapi.OpenApiKeyType;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialVO;
+import com.scott.payment.merchant.service.impl.MerchantOpenApiKeyNotificationService;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +36,11 @@ class MerchantOpenApiKeyApplicationServiceTests {
         OpenApiMerchantKeyMaterialService keyMaterialService = mock(OpenApiMerchantKeyMaterialService.class);
         ManagedCacheInvalidationCoordinator coordinator = mock(ManagedCacheInvalidationCoordinator.class);
         MerchantOpenApiKeyApplicationService service =
-                new MerchantOpenApiKeyApplicationService(keyMaterialService, coordinator);
+                new MerchantOpenApiKeyApplicationService(
+                        keyMaterialService,
+                        coordinator,
+                        mock(MerchantOpenApiKeyNotificationService.class)
+                );
         OpenApiMerchantKeyMaterialVO expected = new OpenApiMerchantKeyMaterialVO();
         when(keyMaterialService.rotate("200045", OpenApiKeyType.JWT_KEY)).thenReturn(expected);
 
@@ -63,5 +68,33 @@ class MerchantOpenApiKeyApplicationServiceTests {
         assertThat(dataSource.value()).isEqualTo(DataSourceName.MASTER);
         assertThat(transactional).isNotNull();
         assertThat(transactional.rollbackFor()).contains(Exception.class);
+    }
+
+    /** 验证启停先登记缓存失效，再更新密钥状态并安排对应通知。 */
+    @Test
+    void shouldPrepareInvalidationBeforeDisablingAndNotifyWithFingerprintSnapshot() {
+        OpenApiMerchantKeyMaterialService keyMaterialService = mock(OpenApiMerchantKeyMaterialService.class);
+        ManagedCacheInvalidationCoordinator coordinator = mock(ManagedCacheInvalidationCoordinator.class);
+        MerchantOpenApiKeyNotificationService notificationService = mock(MerchantOpenApiKeyNotificationService.class);
+        MerchantOpenApiKeyApplicationService service = new MerchantOpenApiKeyApplicationService(
+                keyMaterialService,
+                coordinator,
+                notificationService
+        );
+        OpenApiMerchantKeyMaterialVO snapshot = new OpenApiMerchantKeyMaterialVO();
+        when(keyMaterialService.queryMaterial("200045")).thenReturn(snapshot);
+
+        service.setEnabled("200045", OpenApiKeyType.JWT_KEY, false);
+
+        InOrder order = inOrder(keyMaterialService, coordinator, notificationService);
+        order.verify(keyMaterialService).queryMaterial("200045");
+        order.verify(coordinator).prepare(PaymentCacheNames.MERCHANT_KEY_METADATA, "200045");
+        order.verify(keyMaterialService).setEnabled("200045", OpenApiKeyType.JWT_KEY, false);
+        order.verify(notificationService).sendAfterCommit(
+                "200045",
+                MerchantOpenApiKeyNotificationService.TEMPLATE_DISABLED,
+                OpenApiKeyType.JWT_KEY,
+                snapshot
+        );
     }
 }

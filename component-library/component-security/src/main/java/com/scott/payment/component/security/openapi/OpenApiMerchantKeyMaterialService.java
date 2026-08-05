@@ -312,6 +312,55 @@ public class OpenApiMerchantKeyMaterialService {
     }
 
     /**
+     * 启用或停用当前 OpenAPI 密钥材料，不删除、不轮换且不返回任何密钥明文。
+     *
+     * @param merchantId 商户号
+     * @param keyType 密钥类型
+     * @param enabled true 启用，false 停用
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void setEnabled(String merchantId, OpenApiKeyType keyType, boolean enabled) {
+        BaseMerchantInfoDO merchant = selectMerchant(merchantId);
+        LocalDateTime now = LocalDateTime.now();
+        int targetStatus = enabled ? ENABLED : 0;
+        if (keyType == OpenApiKeyType.JWT_KEY) {
+            BaseMerchantJwtKeyDO row = selectLatestJwtKey(merchant.getMerchantId());
+            if (row == null) {
+                throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "JWT 密钥未配置");
+            }
+            row.setEnabled(targetStatus);
+            row.setEffectiveTime(enabled ? now : row.getEffectiveTime());
+            row.setExpireTime(enabled ? null : now);
+            row.setGmtModified(now);
+            jwtKeyMapper.updateById(row);
+            return;
+        }
+        if (keyType == OpenApiKeyType.PLATFORM_PUBLIC_KEY || keyType == OpenApiKeyType.PLATFORM_PAYLOAD_KEY) {
+            BasePlatformPayloadKeyDO row = selectPlatformKey(merchant.getMerchantId());
+            if (row == null) {
+                throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "平台请求体密钥未配置");
+            }
+            row.setEnabled(targetStatus);
+            row.setGmtModified(now);
+            platformPayloadKeyMapper.updateById(row);
+            return;
+        }
+        if (keyType == OpenApiKeyType.MERCHANT_RESPONSE_PUBLIC_KEY
+                || keyType == OpenApiKeyType.MERCHANT_RESPONSE_PRIVATE_KEY
+                || keyType == OpenApiKeyType.MERCHANT_RESPONSE_KEY) {
+            BaseMerchantResponseKeyDO row = selectResponseKey(merchant.getMerchantId());
+            if (row == null) {
+                throw new ServiceException(ApiResultEnum.NOT_FOUND.getCode(), "商户响应密钥未配置");
+            }
+            row.setEnabled(targetStatus);
+            row.setGmtModified(now);
+            responseKeyMapper.updateById(row);
+            return;
+        }
+        throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "keyType 不支持启停");
+    }
+
+    /**
      * 当前商户响应私钥缺失时，生成新的响应密钥对并保留 JWT 与平台请求密钥不变。
      * <p>
      * 该方法用于修复历史只保存响应公钥、未保存响应私钥的数据；若私钥已存在则不做轮换。
@@ -681,6 +730,16 @@ public class OpenApiMerchantKeyMaterialService {
                 .eq(BaseMerchantJwtKeyDO::getDeleted, NOT_DELETED)
                 .eq(BaseMerchantJwtKeyDO::getEnabled, ENABLED)
                 .orderByDesc(BaseMerchantJwtKeyDO::getEffectiveTime)
+                .last("LIMIT 1"));
+    }
+
+    /** 查询最新 JWT 记录，包括已停用记录，供显式启停操作使用。 */
+    private BaseMerchantJwtKeyDO selectLatestJwtKey(String merchantId) {
+        return jwtKeyMapper.selectOne(Wrappers.<BaseMerchantJwtKeyDO>lambdaQuery()
+                .eq(BaseMerchantJwtKeyDO::getMerchantId, merchantId)
+                .eq(BaseMerchantJwtKeyDO::getDeleted, NOT_DELETED)
+                .orderByDesc(BaseMerchantJwtKeyDO::getEffectiveTime)
+                .orderByDesc(BaseMerchantJwtKeyDO::getId)
                 .last("LIMIT 1"));
     }
 

@@ -93,7 +93,10 @@ class AdminMerchantKeyMetadataInvalidationTests {
                 mock(IsoCurrencyMapper.class),
                 keyMaterialFactory,
                 mock(MerchantRuntimeProfileCacheService.class),
-                cacheInvalidationCoordinator
+                cacheInvalidationCoordinator,
+                mock(AdminMerchantPrimaryAccountProvisioningService.class),
+                mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
+                mock(AdminMerchantSecurityNotificationService.class)
         );
         when(merchantInfoMapper.selectOne(any())).thenReturn(merchant());
     }

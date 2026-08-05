@@ -12,6 +12,9 @@ import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
+import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
+import com.scott.payment.component.db.auth.entity.BaseMerchantResponseKeyDO;
+import com.scott.payment.component.db.auth.entity.BasePlatformPayloadKeyDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
@@ -40,6 +43,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -157,6 +161,9 @@ class AdminMerchantInfoServiceImplTest {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
         assistant.setCurrentNamespace(getClass().getName());
         TableInfoHelper.initTableInfo(assistant, BaseMerchantInfoDO.class);
+        TableInfoHelper.initTableInfo(assistant, BaseMerchantJwtKeyDO.class);
+        TableInfoHelper.initTableInfo(assistant, BasePlatformPayloadKeyDO.class);
+        TableInfoHelper.initTableInfo(assistant, BaseMerchantResponseKeyDO.class);
         service = new AdminMerchantInfoServiceImpl(
                 merchantInfoMapper,
                 jwtKeyMapper,
@@ -169,7 +176,10 @@ class AdminMerchantInfoServiceImplTest {
                 isoCurrencyMapper,
                 keyMaterialFactory,
                 merchantRuntimeProfileCacheService,
-                cacheInvalidationCoordinator
+                cacheInvalidationCoordinator,
+                mock(AdminMerchantPrimaryAccountProvisioningService.class),
+                mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
+                mock(AdminMerchantSecurityNotificationService.class)
         );
     }
 

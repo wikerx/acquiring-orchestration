@@ -14,11 +14,15 @@ import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.OpenAp
 import com.scott.payment.component.security.key.OpenApiKeyMaterialFactory.RsaKeyMaterial;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
@@ -56,6 +60,10 @@ class OpenApiMerchantKeyMaterialServiceTest {
      * 商户 OpenAPI敏感或密钥相关字段，日志和接口展示必须脱敏，必要时仅保存密文。
      */
     private BaseMerchantResponseKeyMapper responseKeyMapper;
+    /** JWT 密钥持久化依赖，用于验证启停不轮换材料。 */
+    private BaseMerchantJwtKeyMapper jwtKeyMapper;
+    /** 平台请求体密钥持久化依赖。 */
+    private BasePlatformPayloadKeyMapper platformPayloadKeyMapper;
     /**
      * material Service 依赖，用于 Open API Merchant Key Material Service Test 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
@@ -81,8 +89,8 @@ class OpenApiMerchantKeyMaterialServiceTest {
         material = keyMaterialFactory.generateDemoOnboardingMaterial(MERCHANT_ID);
 
         BaseMerchantInfoMapper merchantInfoMapper = mock(BaseMerchantInfoMapper.class);
-        BaseMerchantJwtKeyMapper jwtKeyMapper = mock(BaseMerchantJwtKeyMapper.class);
-        BasePlatformPayloadKeyMapper platformPayloadKeyMapper = mock(BasePlatformPayloadKeyMapper.class);
+        jwtKeyMapper = mock(BaseMerchantJwtKeyMapper.class);
+        platformPayloadKeyMapper = mock(BasePlatformPayloadKeyMapper.class);
         responseKeyMapper = mock(BaseMerchantResponseKeyMapper.class);
 
         when(merchantInfoMapper.selectOne(any())).thenReturn(merchant());
@@ -105,6 +113,69 @@ class OpenApiMerchantKeyMaterialServiceTest {
                 exportService,
                 exportProperties
         );
+    }
+
+    /** 停用当前 JWT 只切换状态，不删除、轮换或替换密钥材料。 */
+    @Test
+    void shouldDisableJwtKeyWithoutRotatingMaterial() {
+        String originalSecret = jwtKey().getMerchantKey();
+
+        materialService.setEnabled(MERCHANT_ID, OpenApiKeyType.JWT_KEY, false);
+
+        ArgumentCaptor<BaseMerchantJwtKeyDO> captor = ArgumentCaptor.forClass(BaseMerchantJwtKeyDO.class);
+        verify(jwtKeyMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getEnabled()).isZero();
+        assertThat(captor.getValue().getMerchantKey()).isEqualTo(originalSecret);
+        assertThat(captor.getValue().getDeleted()).isZero();
+    }
+
+    /** 重新启用 JWT 时复用原密钥并恢复新的生效窗口。 */
+    @Test
+    void shouldEnableExistingJwtKeyWithoutReplacingSecret() {
+        BaseMerchantJwtKeyDO disabled = jwtKey();
+        disabled.setEnabled(0);
+        disabled.setExpireTime(LocalDateTime.now().minusMinutes(1));
+        String originalSecret = disabled.getMerchantKey();
+        when(jwtKeyMapper.selectOne(any())).thenReturn(disabled);
+
+        materialService.setEnabled(MERCHANT_ID, OpenApiKeyType.JWT_KEY, true);
+
+        ArgumentCaptor<BaseMerchantJwtKeyDO> captor = ArgumentCaptor.forClass(BaseMerchantJwtKeyDO.class);
+        verify(jwtKeyMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getEnabled()).isOne();
+        assertThat(captor.getValue().getMerchantKey()).isEqualTo(originalSecret);
+        assertThat(captor.getValue().getEffectiveTime()).isNotNull();
+        assertThat(captor.getValue().getExpireTime()).isNull();
+    }
+
+    /** 停用平台请求体密钥时保留原 RSA 公私钥材料。 */
+    @Test
+    void shouldDisablePlatformPayloadKeyWithoutReplacingMaterial() {
+        BasePlatformPayloadKeyDO original = platformKey();
+        when(platformPayloadKeyMapper.selectOne(any())).thenReturn(original);
+
+        materialService.setEnabled(MERCHANT_ID, OpenApiKeyType.PLATFORM_PAYLOAD_KEY, false);
+
+        ArgumentCaptor<BasePlatformPayloadKeyDO> captor = ArgumentCaptor.forClass(BasePlatformPayloadKeyDO.class);
+        verify(platformPayloadKeyMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getEnabled()).isZero();
+        assertThat(captor.getValue().getPublicKeyX509Base64()).isEqualTo(original.getPublicKeyX509Base64());
+        assertThat(captor.getValue().getPrivateKeyPkcs8Base64()).isEqualTo(original.getPrivateKeyPkcs8Base64());
+    }
+
+    /** 停用商户响应密钥时保留原 RSA 公私钥材料。 */
+    @Test
+    void shouldDisableMerchantResponseKeyWithoutReplacingMaterial() {
+        BaseMerchantResponseKeyDO original = responseKey(true);
+        when(responseKeyMapper.selectOne(any())).thenReturn(original);
+
+        materialService.setEnabled(MERCHANT_ID, OpenApiKeyType.MERCHANT_RESPONSE_PRIVATE_KEY, false);
+
+        ArgumentCaptor<BaseMerchantResponseKeyDO> captor = ArgumentCaptor.forClass(BaseMerchantResponseKeyDO.class);
+        verify(responseKeyMapper).updateById(captor.capture());
+        assertThat(captor.getValue().getEnabled()).isZero();
+        assertThat(captor.getValue().getPublicKeyX509Base64()).isEqualTo(original.getPublicKeyX509Base64());
+        assertThat(captor.getValue().getPrivateKeyPkcs8Base64()).isEqualTo(original.getPrivateKeyPkcs8Base64());
     }
 
     /**

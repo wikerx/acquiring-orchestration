@@ -11,6 +11,7 @@ import com.scott.payment.component.security.openapi.OpenApiKeyExportRequest;
 import com.scott.payment.component.security.openapi.OpenApiKeyType;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService;
 import com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialVO;
+import com.scott.payment.merchant.service.impl.MerchantOpenApiKeyNotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +33,9 @@ public class MerchantOpenApiKeyApplicationService {
     /** Admin 与 Merchant Portal 共用的事务缓存失效协调器。 */
     private final ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator;
 
+    /** 密钥生命周期邮件通知。 */
+    private final MerchantOpenApiKeyNotificationService notificationService;
+
     /**
      * 创建商户 OpenAPI 密钥用例编排服务。
      *
@@ -40,9 +44,11 @@ public class MerchantOpenApiKeyApplicationService {
      */
     public MerchantOpenApiKeyApplicationService(
             OpenApiMerchantKeyMaterialService keyMaterialService,
-            ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator) {
+            ManagedCacheInvalidationCoordinator cacheInvalidationCoordinator,
+            MerchantOpenApiKeyNotificationService notificationService) {
         this.keyMaterialService = keyMaterialService;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -103,6 +109,36 @@ public class MerchantOpenApiKeyApplicationService {
                 PaymentCacheNames.MERCHANT_KEY_METADATA,
                 merchantId
         );
-        return keyMaterialService.rotate(merchantId, keyType);
+        OpenApiMerchantKeyMaterialVO material = keyMaterialService.rotate(merchantId, keyType);
+        notificationService.sendAfterCommit(
+                merchantId,
+                MerchantOpenApiKeyNotificationService.TEMPLATE_RESET,
+                keyType,
+                material
+        );
+        return material;
+    }
+
+    /**
+     * 启用或停用当前商户的一类 OpenAPI 密钥，并登记缓存失效与提交后通知。
+     *
+     * @param merchantId 当前认证商户号
+     * @param keyType 密钥类型
+     * @param enabled true 启用，false 停用
+     */
+    @DS(DataSourceName.MASTER)
+    @Transactional(rollbackFor = Exception.class)
+    public void setEnabled(String merchantId, OpenApiKeyType keyType, boolean enabled) {
+        OpenApiMerchantKeyMaterialVO before = keyMaterialService.queryMaterial(merchantId);
+        cacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_KEY_METADATA, merchantId);
+        keyMaterialService.setEnabled(merchantId, keyType, enabled);
+        notificationService.sendAfterCommit(
+                merchantId,
+                enabled
+                        ? MerchantOpenApiKeyNotificationService.TEMPLATE_ENABLED
+                        : MerchantOpenApiKeyNotificationService.TEMPLATE_DISABLED,
+                keyType,
+                before
+        );
     }
 }
