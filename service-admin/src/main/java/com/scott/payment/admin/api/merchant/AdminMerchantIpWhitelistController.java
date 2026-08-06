@@ -2,6 +2,7 @@ package com.scott.payment.admin.api.merchant;
 
 import com.scott.payment.admin.application.merchant.AdminMerchantIpWhitelistApplicationService;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
+import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistQuery;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistResponse;
@@ -140,6 +141,21 @@ public class AdminMerchantIpWhitelistController {
     public CommonResult<MerchantIpWhitelistResponse> updateWhitelistStatus(@PathVariable("id") Long id,
                                                                            @Valid @RequestBody MerchantIpWhitelistStatusRequest request) {
         return success(whitelistApplicationService.updateWhitelistStatus(id, request.getStatus()));
+    }
+
+    /**
+     * 审批商户提交的 IP 白名单记录。
+     *
+     * @param id      白名单记录 ID
+     * @param request 审批请求
+     * @return 审批后的记录
+     */
+    @PutMapping("/{id}/approval")
+    @RequiresPermission("merchant:ip-whitelist:approve")
+    @OperationLog(moduleName = "商户IP白名单管理", businessType = OperationTypeConstants.UPDATE, operation = "审批商户IP白名单")
+    public CommonResult<MerchantIpWhitelistResponse> approveWhitelist(@PathVariable("id") Long id,
+                                                                       @Valid @RequestBody MerchantIpWhitelistApprovalRequest request) {
+        return success(whitelistApplicationService.approveWhitelist(id, request));
     }
 
     /**

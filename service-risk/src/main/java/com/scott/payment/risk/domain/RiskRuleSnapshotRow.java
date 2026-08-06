@@ -53,6 +53,9 @@ public class RiskRuleSnapshotRow extends RiskListMatch {
     /** 规范化来源主机名，不包含协议、路径、查询参数或凭据。 */
     private String sourceHost;
 
+    /** 运行时是否允许命中；来源网址快照中仅审核通过且交易状态允许的记录为 true。 */
+    private Boolean runtimeAllowed;
+
     /** 限额类型：SINGLE_MIN、SINGLE_MAX、DAILY、WEEKLY 或 MONTHLY。 */
     private String limitType;
 

@@ -122,6 +122,22 @@ public class AdminRiskRuleController {
     }
 
     /**
+     * 审批商户提交的来源网址。
+     *
+     * @param id      来源网址记录 ID
+     * @param request 审批请求
+     * @return 审批后的来源网址记录
+     */
+    @PutMapping("/rule/sourceUrl/{id}/approval")
+    @RequiresPermission("risk:access")
+    @OperationLog(moduleName = "收单风控-规则管理", businessType = OperationTypeConstants.UPDATE, operation = "审批商户来源网址")
+    public CommonResult<RiskDTOs.RiskRecordResponse> approveSourceUrl(
+            @PathVariable("id") Long id,
+            @RequestBody RiskDTOs.MerchantAccessApprovalRequest request) {
+        return success(riskManagementApplicationService.approveSourceUrl(id, request));
+    }
+
+    /**
      * 修改内风控规则。
      *
      * @param functionCode 功能编码

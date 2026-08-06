@@ -730,7 +730,10 @@ VALUES
     (503, 2, 500, 'merchant_system_account_v1', '员工账号', 'MENU', '/system/account', 'system/account', 'merchant:system:account:list', 'User', 1, 93, 1, 0),
     (504, 2, 500, 'merchant_system_role_v1', '角色管理', 'MENU', '/system/role', 'system/role', 'merchant:system:role:list', 'Lock', 1, 94, 1, 0),
     (505, 2, 500, 'merchant_system_role_auth_v1', '角色授权', 'MENU', '/system/role-auth', 'system/role-auth', 'merchant:system:role:grantMenu', 'Unlock', 1, 95, 1, 0),
-    (506, 2, 0, 'merchant_openapi_keys_v1', '商户密钥管理', 'MENU', '/merchant-info/openapi-keys', 'merchant-info/openapi-keys', 'merchant:openapi:key:view', 'Key', 1, 80, 1, 0);
+    (506, 2, 0, 'merchant_openapi_keys_v1', '商户密钥管理', 'MENU', '/merchant-info/openapi-keys', 'merchant-info/openapi-keys', 'merchant:openapi:key:view', 'Key', 1, 80, 1, 0),
+    (507, 2, 0, 'merchant_access_config_catalog_v1', '访问配置', 'CATALOG', '/access-config', NULL, NULL, 'Lock', 1, 81, 1, 0),
+    (508, 2, 507, 'merchant_source_url_v1', '商户来源网址', 'MENU', '/access-config/source-url', 'access-config/source-url', 'merchant:access-config:view', 'Link', 1, 82, 1, 0),
+    (509, 2, 507, 'merchant_ip_whitelist_v1', 'IP白名单', 'MENU', '/access-config/ip-whitelist', 'access-config/ip-whitelist', 'merchant:access-config:view', 'Connection', 1, 83, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -764,6 +767,8 @@ VALUES
     (523, 2, 506, 'merchant:openapi:key:download-private', '商户OpenAPI敏感材料导出', 'BUTTON', '*', '/merchant/openapi/keys/*', 1, 0),
     (524, 2, 506, 'merchant:openapi:key:rotate-jwt', '商户OpenAPI JWT密钥轮换', 'BUTTON', 'POST', '/merchant/openapi/keys/rotate', 1, 0),
     (525, 2, 506, 'merchant:openapi:key:rotate-response', '商户OpenAPI响应密钥轮换', 'BUTTON', 'POST', '/merchant/openapi/keys/rotate', 1, 0),
+    (526, 2, 508, 'merchant:access-config:view', '商户访问配置查询', 'MENU', 'GET', '/merchant/access-config/*', 1, 0),
+    (527, 2, 508, 'merchant:access-config:submit', '商户访问配置提交', 'BUTTON', 'POST', '/merchant/access-config/*', 1, 0),
     (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'POST', '/admin/system/users/search', 1, 0),
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),
@@ -990,7 +995,8 @@ JOIN sys_menu m ON m.app_id = r.app_id AND m.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_OPERATOR\_%'
-  AND m.menu_code IN ('merchant_openapi_keys_v1', 'merchant_system_catalog_v1',
+  AND m.menu_code IN ('merchant_openapi_keys_v1', 'merchant_access_config_catalog_v1',
+                      'merchant_source_url_v1', 'merchant_ip_whitelist_v1', 'merchant_system_catalog_v1',
                       'merchant_system_dept_v1', 'merchant_system_post_v1',
                       'merchant_system_account_v1', 'merchant_system_role_v1',
                       'merchant_system_role_auth_v1');
@@ -1002,9 +1008,10 @@ JOIN sys_menu m ON m.app_id = r.app_id AND m.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_VIEWER\_%'
-  AND m.permission_code IN ('merchant:openapi:key:view', 'merchant:system:dept:list',
+  AND (m.menu_code = 'merchant_access_config_catalog_v1'
+       OR m.permission_code IN ('merchant:access-config:view', 'merchant:openapi:key:view', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
-                            'merchant:system:role:list');
+                            'merchant:system:role:list'));
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT app_id, 1, id, 0 FROM sys_permission WHERE app_id = 1 AND status = 1 AND permission_code <> '*:*:*' AND deleted = 0;
@@ -1033,7 +1040,8 @@ JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_OPERATOR\_%'
-  AND p.permission_code IN ('merchant:openapi:key:view', 'merchant:openapi:key:copy',
+  AND p.permission_code IN ('merchant:access-config:view', 'merchant:access-config:submit',
+                            'merchant:openapi:key:view', 'merchant:openapi:key:copy',
                             'merchant:openapi:key:download', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
                             'merchant:system:role:list');
@@ -1045,7 +1053,7 @@ JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_VIEWER\_%'
-  AND p.permission_code IN ('merchant:openapi:key:view', 'merchant:system:dept:list',
+  AND p.permission_code IN ('merchant:access-config:view', 'merchant:openapi:key:view', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
                             'merchant:system:role:list');
 
@@ -3272,3 +3280,52 @@ SET status = CASE
 END
 WHERE batch_no = @card_bin_batch_no
   AND @card_bin_legacy_exists > 0;
+
+-- ===================== 商户访问配置审批邮件 =====================
+INSERT INTO sys_dict_data (
+    dict_type, dict_label, dict_value, locale, dict_sort, list_class, is_default, status, deleted
+)
+VALUES
+    ('email_scene_code', '商户访问配置审批', 'MERCHANT_ACCESS_CONFIG_APPROVAL', 'zh-CN', 11, 'warning', 0, 1, 0),
+    ('email_scene_code', 'Merchant Access Configuration Approval', 'MERCHANT_ACCESS_CONFIG_APPROVAL', 'en-US', 11, 'warning', 0, 1, 0)
+ON DUPLICATE KEY UPDATE dict_label = VALUES(dict_label), status = 1, deleted = 0;
+
+INSERT INTO msg_email_template (
+    template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
+    content_template, variable_schema, sensitive_variable_names, status, system_builtin, version_no,
+    remark, create_by, update_by, deleted
+)
+SELECT item.template_code, item.template_name, 'MERCHANT', 'MERCHANT_ACCESS_CONFIG_APPROVAL', item.locale,
+       item.subject_template, 'HTML', item.content_template,
+       '{"systemName":"Vexra Merchant","merchantName":"Example Merchant","merchantId":"M10000001","configValue":"https://shop.example.com","transactionStatusText":"Allowed","reviewTime":"2026-08-06 10:00:00","rejectReason":"The submitted value could not be verified."}',
+       '[]', 1, 1, 1, '系统内置模板：商户访问配置审批结果通知', 'system', 'system', 0
+FROM (
+    SELECT 'MERCHANT_SOURCE_URL_APPROVED' template_code, '商户来源网址审核通过通知' template_name, 'zh-CN' locale,
+           '【${systemName}】商户来源网址审核通过' subject_template,
+           '<h2>商户来源网址审核通过</h2><p>您好，${merchantName}：</p><p>来源网址 <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p>' content_template
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', '商户来源网址审核拒绝通知', 'zh-CN',
+           '【${systemName}】商户来源网址审核未通过',
+           '<h2>商户来源网址审核未通过</h2><p>您好，${merchantName}：</p><p>来源网址 <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_IP_WHITELIST_APPROVED', '商户 IP 白名单审核通过通知', 'zh-CN',
+           '【${systemName}】商户 IP 白名单审核通过',
+           '<h2>商户 IP 白名单审核通过</h2><p>您好，${merchantName}：</p><p>IP <strong>${configValue}</strong> 已审核通过。</p><p>当前交易状态：<strong>${transactionStatusText}</strong></p><p>审核时间：${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_IP_WHITELIST_REJECTED', '商户 IP 白名单审核拒绝通知', 'zh-CN',
+           '【${systemName}】商户 IP 白名单审核未通过',
+           '<h2>商户 IP 白名单审核未通过</h2><p>您好，${merchantName}：</p><p>IP <strong>${configValue}</strong> 未通过审核，当前禁止交易。</p><p>拒绝原因：<strong>${rejectReason}</strong></p><p>审核时间：${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_APPROVED', 'Merchant Source URL Approved', 'en-US',
+           '[${systemName}] Source URL approved',
+           '<h2>Source URL approved</h2><p>Hello ${merchantName},</p><p>Your source URL <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_SOURCE_URL_REJECTED', 'Merchant Source URL Rejected', 'en-US',
+           '[${systemName}] Source URL rejected',
+           '<h2>Source URL rejected</h2><p>Hello ${merchantName},</p><p>Your source URL <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_IP_WHITELIST_APPROVED', 'Merchant IP Whitelist Approved', 'en-US',
+           '[${systemName}] IP whitelist entry approved',
+           '<h2>IP whitelist entry approved</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> has been approved.</p><p>Current transaction status: <strong>${transactionStatusText}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+    UNION ALL SELECT 'MERCHANT_IP_WHITELIST_REJECTED', 'Merchant IP Whitelist Rejected', 'en-US',
+           '[${systemName}] IP whitelist entry rejected',
+           '<h2>IP whitelist entry rejected</h2><p>Hello ${merchantName},</p><p>Your IP <strong>${configValue}</strong> was rejected and remains prohibited.</p><p>Reason: <strong>${rejectReason}</strong></p><p>Reviewed at: ${reviewTime}</p>'
+) item
+ON DUPLICATE KEY UPDATE
+    template_name = VALUES(template_name), subject_template = VALUES(subject_template),
+    content_template = VALUES(content_template), variable_schema = VALUES(variable_schema),
+    status = 1, system_builtin = 1, update_by = 'system', deleted = 0;

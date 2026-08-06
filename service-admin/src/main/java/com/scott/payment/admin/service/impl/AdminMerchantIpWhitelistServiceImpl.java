@@ -5,12 +5,17 @@ import com.scott.payment.admin.application.risk.cache.RiskRuleCacheInvalidationC
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
+import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistItem;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistQuery;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistResponse;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistUpdateRequest;
+import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistSubmissionRequest;
 import com.scott.payment.admin.service.AdminMerchantIpWhitelistService;
+import com.scott.payment.admin.service.MerchantAccessApprovalNotificationService;
+import com.scott.payment.admin.support.approval.MerchantAccessApprovalStatus;
+import com.scott.payment.admin.support.approval.MerchantAccessSubmitSource;
 import com.scott.payment.component.core.auth.InternalAuthAccount;
 import com.scott.payment.component.core.auth.InternalAuthContextHolder;
 import com.scott.payment.component.core.cache.PaymentCacheNames;
@@ -116,6 +121,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
      */
     private final ManagedCacheInvalidationCoordinator securityCacheInvalidationCoordinator;
 
+    /** 审批结果邮件通知服务。 */
+    private final MerchantAccessApprovalNotificationService approvalNotificationService;
+
     /**
      * 创建商户 IP 白名单服务实现。
      *
@@ -130,12 +138,14 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                                                BaseMerchantInfoMapper merchantInfoMapper,
                                                RiskRuleCacheInvalidationCoordinator cacheInvalidationCoordinator,
                                                ManagedCacheInvalidationCoordinator
-                                                       securityCacheInvalidationCoordinator) {
+                                                       securityCacheInvalidationCoordinator,
+                                               MerchantAccessApprovalNotificationService approvalNotificationService) {
         this.whitelistMapper = whitelistMapper;
         this.accessConfigMapper = accessConfigMapper;
         this.merchantInfoMapper = merchantInfoMapper;
         this.cacheInvalidationCoordinator = cacheInvalidationCoordinator;
         this.securityCacheInvalidationCoordinator = securityCacheInvalidationCoordinator;
+        this.approvalNotificationService = approvalNotificationService;
     }
 
     /**
@@ -209,6 +219,9 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
                 .in(merchantIds != null && !merchantIds.isEmpty(), MerchantIpWhitelistDO::getMerchantId, merchantIds)
                 .eq(StringUtils.hasText(ipType), MerchantIpWhitelistDO::getIpType, ipType)
                 .eq(condition.getStatus() != null, MerchantIpWhitelistDO::getStatus, normalizeStatus(condition.getStatus()))
+                .eq(condition.getApprovalStatus() != null, MerchantIpWhitelistDO::getApprovalStatus, condition.getApprovalStatus())
+                .eq(StringUtils.hasText(condition.getSubmitSource()), MerchantIpWhitelistDO::getSubmitSource,
+                        condition.getSubmitSource() == null ? null : condition.getSubmitSource().trim().toUpperCase())
                 .like(StringUtils.hasText(ipValue), MerchantIpWhitelistDO::getIpValue, ipValue)
                 .orderByDesc(MerchantIpWhitelistDO::getGmtModified)
                 .orderByDesc(MerchantIpWhitelistDO::getId);
@@ -287,7 +300,7 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         );
         existing.setIpType(ip.ipType());
         existing.setIpValue(ip.ipValue());
-        existing.setStatus(normalizeStatus(request.getStatus()));
+        existing.setStatus(isApproved(existing) ? normalizeStatus(request.getStatus()) : DISABLED);
         existing.setRemark(trimToNull(request.getRemark()));
         existing.setUpdateBy(currentOperatorName());
         existing.setGmtModified(LocalDateTime.now());
@@ -310,6 +323,7 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
     @Transactional(rollbackFor = Exception.class)
     public MerchantIpWhitelistResponse updateWhitelistStatus(Long id, Integer status) {
         MerchantIpWhitelistDO row = requireWhitelist(id);
+        requireApproved(row);
         cacheInvalidationCoordinator.prepare();
         securityCacheInvalidationCoordinator.prepare(
                 PaymentCacheNames.MERCHANT_OPENAPI_ACCESS,
@@ -320,6 +334,130 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         row.setGmtModified(LocalDateTime.now());
         whitelistMapper.updateById(row);
         return getWhitelist(id);
+    }
+
+    /**
+     * 审批商户提交的 IP 白名单记录，使用待审核状态作为 CAS 条件防止重复审批。
+     *
+     * @param id      白名单记录 ID
+     * @param request 审批请求
+     * @return 审批后的记录
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MerchantIpWhitelistResponse approveWhitelist(Long id, MerchantIpWhitelistApprovalRequest request) {
+        if (request == null) {
+            throw badRequest("审批请求不能为空");
+        }
+        MerchantAccessApprovalStatus approvalStatus;
+        try {
+            approvalStatus = MerchantAccessApprovalStatus.fromCode(request.getApprovalStatus());
+        } catch (IllegalArgumentException exception) {
+            throw badRequest(exception.getMessage());
+        }
+        if (approvalStatus == MerchantAccessApprovalStatus.PENDING) {
+            throw badRequest("审批结果只能是审核通过或审核拒绝");
+        }
+        String approvalRemark = trimToNull(request.getApprovalRemark());
+        if (approvalStatus == MerchantAccessApprovalStatus.REJECTED && !StringUtils.hasText(approvalRemark)) {
+            throw badRequest("审核拒绝时必须填写拒绝原因");
+        }
+        MerchantIpWhitelistDO row = requireWhitelist(id);
+        if (row.getApprovalStatus() == null
+                || row.getApprovalStatus() != MerchantAccessApprovalStatus.PENDING.code()) {
+            throw badRequest("仅待审核记录允许审批");
+        }
+        int transactionStatus;
+        try {
+            transactionStatus = approvalStatus.transactionStatus(request.getStatus());
+        } catch (IllegalArgumentException exception) {
+            throw badRequest(exception.getMessage());
+        }
+        String operator = currentOperatorName();
+        LocalDateTime reviewTime = LocalDateTime.now();
+        cacheInvalidationCoordinator.prepare();
+        securityCacheInvalidationCoordinator.prepare(PaymentCacheNames.MERCHANT_OPENAPI_ACCESS, row.getMerchantId());
+        int updated = whitelistMapper.update(null, Wrappers.<MerchantIpWhitelistDO>lambdaUpdate()
+                .set(MerchantIpWhitelistDO::getApprovalStatus, approvalStatus.code())
+                .set(MerchantIpWhitelistDO::getApprovalRemark, approvalRemark)
+                .set(MerchantIpWhitelistDO::getStatus, transactionStatus)
+                .set(MerchantIpWhitelistDO::getReviewBy, operator)
+                .set(MerchantIpWhitelistDO::getReviewTime, reviewTime)
+                .set(MerchantIpWhitelistDO::getUpdateBy, operator)
+                .set(MerchantIpWhitelistDO::getGmtModified, reviewTime)
+                .eq(MerchantIpWhitelistDO::getId, id)
+                .eq(MerchantIpWhitelistDO::getDeleted, NOT_DELETED)
+                .eq(MerchantIpWhitelistDO::getApprovalStatus, MerchantAccessApprovalStatus.PENDING.code()));
+        if (updated != 1) {
+            throw badRequest("记录已被其他操作员审批，请刷新后重试");
+        }
+        BaseMerchantInfoDO merchant = requireMerchant(row.getMerchantId());
+        approvalNotificationService.sendAfterCommit(
+                merchant,
+                MerchantAccessApprovalNotificationService.TYPE_IP_WHITELIST,
+                row.getIpValue(),
+                approvalStatus,
+                transactionStatus,
+                approvalRemark,
+                reviewTime
+        );
+        return getWhitelist(id);
+    }
+
+    /**
+     * 查询指定商户自己的全部 IP 白名单记录。
+     *
+     * @param merchantId 已认证商户号
+     * @return 未删除记录列表
+     */
+    @Override
+    public List<MerchantIpWhitelistResponse> listMerchantWhitelists(String merchantId) {
+        BaseMerchantInfoDO merchant = requireMerchant(merchantId);
+        MerchantOpenApiAccessConfigDO config = findConfig(merchant.getMerchantId());
+        return whitelistMapper.selectList(Wrappers.<MerchantIpWhitelistDO>lambdaQuery()
+                        .eq(MerchantIpWhitelistDO::getMerchantId, merchant.getMerchantId())
+                        .eq(MerchantIpWhitelistDO::getDeleted, NOT_DELETED)
+                        .orderByDesc(MerchantIpWhitelistDO::getGmtModified)
+                        .orderByDesc(MerchantIpWhitelistDO::getId))
+                .stream()
+                .map(row -> toResponse(row, merchant, config))
+                .toList();
+    }
+
+    /**
+     * 新增商户提交的待审核 IP 白名单，交易状态固定为禁止。
+     *
+     * @param merchantId 已认证商户号
+     * @param request    IP 列表和提交说明
+     * @return 新增待审核记录
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<MerchantIpWhitelistResponse> submitMerchantWhitelists(
+            String merchantId, MerchantIpWhitelistSubmissionRequest request) {
+        if (request == null) {
+            throw badRequest("白名单请求不能为空");
+        }
+        BaseMerchantInfoDO merchant = requireMerchant(merchantId);
+        List<NormalizedIp> normalizedIps = normalizeIpList(request.getIpValues());
+        String operator = MerchantAccessSubmitSource.MERCHANT.name() + ":" + merchant.getMerchantId();
+        LocalDateTime now = LocalDateTime.now();
+        List<MerchantIpWhitelistDO> created = normalizedIps.stream().map(ip -> {
+            MerchantIpWhitelistDO row = buildWhitelist(
+                    merchant.getMerchantId(), ip, DISABLED, request.getRemark(), operator, now);
+            row.setApprovalStatus(MerchantAccessApprovalStatus.PENDING.code());
+            row.setSubmitSource(MerchantAccessSubmitSource.MERCHANT.name());
+            row.setReviewBy(null);
+            row.setReviewTime(null);
+            return row;
+        }).toList();
+        try {
+            created.forEach(whitelistMapper::insert);
+        } catch (DuplicateKeyException exception) {
+            throw badRequest("同一商户下 IP 白名单不能重复");
+        }
+        MerchantOpenApiAccessConfigDO config = findConfig(merchant.getMerchantId());
+        return created.stream().map(row -> toResponse(row, merchant, config)).toList();
     }
 
     /**
@@ -544,6 +682,11 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         row.setIpType(ip.ipType());
         row.setIpValue(ip.ipValue());
         row.setStatus(status);
+        row.setApprovalStatus(MerchantAccessApprovalStatus.APPROVED.code());
+        row.setApprovalRemark(null);
+        row.setSubmitSource(MerchantAccessSubmitSource.ADMIN.name());
+        row.setReviewBy(operator);
+        row.setReviewTime(now);
         row.setRemark(trimToNull(remark));
         row.setCreateBy(operator);
         row.setUpdateBy(operator);
@@ -767,6 +910,11 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
             response.setIpType(row.getIpType());
             response.setIpValue(row.getIpValue());
             response.setStatus(row.getStatus());
+            response.setApprovalStatus(row.getApprovalStatus());
+            response.setApprovalRemark(row.getApprovalRemark());
+            response.setSubmitSource(row.getSubmitSource());
+            response.setReviewBy(row.getReviewBy());
+            response.setReviewTime(row.getReviewTime());
             response.setRemark(row.getRemark());
             response.setCreateBy(row.getCreateBy());
             response.setUpdateBy(row.getUpdateBy());
@@ -823,6 +971,11 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
         item.setIpType(row.getIpType());
         item.setIpValue(row.getIpValue());
         item.setStatus(row.getStatus());
+        item.setApprovalStatus(row.getApprovalStatus());
+        item.setApprovalRemark(row.getApprovalRemark());
+        item.setSubmitSource(row.getSubmitSource());
+        item.setReviewBy(row.getReviewBy());
+        item.setReviewTime(row.getReviewTime());
         item.setRemark(row.getRemark());
         item.setUpdateBy(row.getUpdateBy());
         item.setGmtModified(row.getGmtModified());
@@ -841,6 +994,17 @@ public class AdminMerchantIpWhitelistServiceImpl implements AdminMerchantIpWhite
      */
     private int normalizeStatus(Integer status) {
         return status != null && status == ENABLED ? ENABLED : DISABLED;
+    }
+
+    private boolean isApproved(MerchantIpWhitelistDO row) {
+        return row != null && row.getApprovalStatus() != null
+                && row.getApprovalStatus() == MerchantAccessApprovalStatus.APPROVED.code();
+    }
+
+    private void requireApproved(MerchantIpWhitelistDO row) {
+        if (!isApproved(row)) {
+            throw badRequest("仅审核通过的记录允许修改交易状态");
+        }
     }
 
     /**

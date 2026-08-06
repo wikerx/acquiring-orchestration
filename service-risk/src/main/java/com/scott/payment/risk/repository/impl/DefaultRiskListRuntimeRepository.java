@@ -478,6 +478,7 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         SnapshotRows snapshot = sourceUrlSnapshot(merchantId.trim());
         Optional<RiskListMatch> snapshotResult = snapshot.available()
                 ? snapshot.rows().stream()
+                .filter(this::isSourceUrlRuntimeAllowed)
                 .filter(row -> equalsIgnoreCase(row.getSourceHost(), lookupValue.getSourceHost()))
                 .map(row -> {
                     row.setRiskLevel("LOW");
@@ -548,7 +549,8 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
         if (snapshot.available()
                 && !snapshot.rows().isEmpty()
                 && (!StringUtils.hasText(sourceHost)
-                || snapshot.rows().stream().noneMatch(row -> equalsIgnoreCase(row.getSourceHost(), sourceHost)))) {
+                || snapshot.rows().stream().noneMatch(row -> isSourceUrlRuntimeAllowed(row)
+                && equalsIgnoreCase(row.getSourceHost(), sourceHost)))) {
             snapshotResult = Optional.of(RiskListMatch.system(
                     "sourceUrl",
                     "商户来源网址限定",
@@ -572,6 +574,16 @@ public class DefaultRiskListRuntimeRepository implements RiskListRuntimeReposito
             return legacyResult;
         }
         return snapshot.available() ? snapshotResult : legacyLoader.get();
+    }
+
+    /**
+     * 判断来源网址快照行能否参与交易匹配。
+     *
+     * <p>旧版本 Redis 快照没有 {@code runtimeAllowed} 字段，但当时只缓存已启用记录，
+     * 因此 {@code null} 必须按允许处理；新快照会为待审、拒绝或交易禁止记录显式写入 {@code false}。</p>
+     */
+    private boolean isSourceUrlRuntimeAllowed(RiskRuleSnapshotRow row) {
+        return row != null && !Boolean.FALSE.equals(row.getRuntimeAllowed());
     }
 
     /**

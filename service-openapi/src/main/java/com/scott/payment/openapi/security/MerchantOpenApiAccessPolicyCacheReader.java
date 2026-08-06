@@ -102,6 +102,7 @@ public class MerchantOpenApiAccessPolicyCacheReader {
                         Wrappers.<MerchantIpWhitelistDO>lambdaQuery()
                                 .select(MerchantIpWhitelistDO::getIpValue)
                                 .eq(MerchantIpWhitelistDO::getDeleted, NOT_DELETED)
+                                .eq(MerchantIpWhitelistDO::getApprovalStatus, ENABLED)
                                 .eq(MerchantIpWhitelistDO::getStatus, ENABLED)
                                 .eq(MerchantIpWhitelistDO::getMerchantId, merchantId)
                 )
