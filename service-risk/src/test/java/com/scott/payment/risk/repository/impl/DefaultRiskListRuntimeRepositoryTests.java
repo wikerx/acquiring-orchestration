@@ -18,6 +18,7 @@ import com.scott.payment.risk.domain.RiskListFunction;
 import com.scott.payment.risk.domain.RiskListMatch;
 import com.scott.payment.risk.domain.RiskRuntimeCacheEntry;
 import com.scott.payment.risk.domain.RiskRuntimeLookupValue;
+import com.scott.payment.risk.domain.RiskRuleSnapshotRow;
 import com.scott.payment.risk.mapper.RiskRuntimeMapper;
 import com.scott.payment.risk.observability.RiskShadowComparisonMonitor;
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
@@ -28,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -328,6 +330,43 @@ class DefaultRiskListRuntimeRepositoryTests {
                     assertThat(match.getDecisionAction()).isEqualTo("PASS");
                     assertThat(match.getDecisionReason()).isEqualTo("merchant source url is allowed");
                 });
+    }
+
+    @Test
+    void shouldRejectPendingSourceUrlWhileAllowingApprovedAndLegacySnapshotHosts() {
+        RiskRuntimeMapper mapper = mock(RiskRuntimeMapper.class);
+        RedisStringService redis = mock(RedisStringService.class);
+        when(redis.get(anyString())).thenReturn(null);
+        RiskRuleSnapshotRow pending = sourceUrlSnapshotRow(42L, "pending.merchant.example", false);
+        RiskRuleSnapshotRow approved = sourceUrlSnapshotRow(43L, "approved.merchant.example", true);
+        RiskRuleSnapshotRow legacy = sourceUrlSnapshotRow(44L, "legacy.merchant.example", null);
+        when(mapper.selectActiveSourceUrlSnapshotRows(eq("M202607290001"), any(Integer.class)))
+                .thenReturn(List.of(pending, approved, legacy));
+        DefaultRiskListRuntimeRepository repository = snapshotRepository(mapper, redis);
+
+        RiskRuntimeLookupValue pendingLookup = new RiskRuntimeLookupValue();
+        pendingLookup.setSourceHost("pending.merchant.example");
+        pendingLookup.setMatchValueHash("pending-source-digest");
+        assertThat(repository.findSourceUrlRule("M202607290001", pendingLookup)).isEmpty();
+        assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", pendingLookup))
+                .get()
+                .satisfies(match -> assertThat(match.getDecisionAction()).isEqualTo("REJECT"));
+
+        RiskRuntimeLookupValue approvedLookup = new RiskRuntimeLookupValue();
+        approvedLookup.setSourceHost("approved.merchant.example");
+        approvedLookup.setMatchValueHash("approved-source-digest");
+        assertThat(repository.findSourceUrlRule("M202607290001", approvedLookup))
+                .get()
+                .satisfies(match -> assertThat(match.getDecisionAction()).isEqualTo("PASS"));
+
+        RiskRuntimeLookupValue legacyLookup = new RiskRuntimeLookupValue();
+        legacyLookup.setSourceHost("legacy.merchant.example");
+        legacyLookup.setMatchValueHash("legacy-source-digest");
+        assertThat(repository.findSourceUrlRule("M202607290001", legacyLookup))
+                .get()
+                .satisfies(match -> assertThat(match.getDecisionAction()).isEqualTo("PASS"));
+        assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", approvedLookup)).isEmpty();
+        assertThat(repository.findSourceUrlRestrictionMiss("M202607290001", legacyLookup)).isEmpty();
     }
 
     @Test
@@ -1082,6 +1121,37 @@ class DefaultRiskListRuntimeRepositoryTests {
         when(generationStore.current("risk-runtime-rule"))
                 .thenReturn(RedisCacheGenerationState.active("g-test"));
         return repository(mapper, redis, generationStore);
+    }
+
+    private DefaultRiskListRuntimeRepository snapshotRepository(RiskRuntimeMapper mapper,
+                                                                RedisStringService redis) {
+        RiskEvaluationProperties properties = new RiskEvaluationProperties();
+        properties.setRuntimeEnabled(true);
+        properties.setRuleCacheMode(RiskRuleCacheMode.SNAPSHOT);
+        PaymentRedisProperties redisProperties = new PaymentRedisProperties();
+        redisProperties.setKeyPrefix("acquiring:test");
+        RedisCacheGenerationStore generationStore = mock(RedisCacheGenerationStore.class);
+        StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(generationStore.current("risk-runtime-rule"))
+                .thenReturn(RedisCacheGenerationState.active("g-test"));
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.get(anyString())).thenReturn(null);
+        return new DefaultRiskListRuntimeRepository(
+                provider(mapper), provider(redis), provider(generationStore), provider(redisTemplate),
+                provider(null), provider(null), properties, redisProperties);
+    }
+
+    private RiskRuleSnapshotRow sourceUrlSnapshotRow(long ruleId, String sourceHost, Boolean runtimeAllowed) {
+        RiskRuleSnapshotRow row = new RiskRuleSnapshotRow();
+        row.setRuleId(ruleId);
+        row.setFunctionCode("sourceUrl");
+        row.setFunctionName("商户来源网址限定");
+        row.setHitElement("sourceUrl");
+        row.setSourceHost(sourceHost);
+        row.setRuntimeAllowed(runtimeAllowed);
+        return row;
     }
 
     private DefaultRiskListRuntimeRepository repository(RiskRuntimeMapper mapper,

@@ -1087,7 +1087,12 @@ CREATE TABLE IF NOT EXISTS risk_rule_source_url (
     decision_action VARCHAR(32) NOT NULL DEFAULT 'REVIEW' COMMENT '命中动作：REJECT、REVIEW、PASS',
     effective_time DATETIME(3) NULL COMMENT '生效时间',
     expire_time DATETIME(3) NULL COMMENT '失效时间',
-    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0停用，1启用',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '交易状态：0禁止交易，1允许交易',
+    approval_status TINYINT NOT NULL DEFAULT 1 COMMENT '审核状态：0待审核，1审核通过，2审核拒绝',
+    approval_remark VARCHAR(500) NULL COMMENT '审批说明，审核拒绝时必填',
+    submit_source VARCHAR(16) NOT NULL DEFAULT 'ADMIN' COMMENT '提交来源：ADMIN、MERCHANT',
+    review_by VARCHAR(64) NULL COMMENT '审核人账号或姓名',
+    review_time DATETIME(3) NULL COMMENT '审核时间',
     remark VARCHAR(500) NULL COMMENT '备注',
     create_by VARCHAR(64) NULL COMMENT '创建人',
     update_by VARCHAR(64) NULL COMMENT '更新人',
@@ -1096,9 +1101,10 @@ CREATE TABLE IF NOT EXISTS risk_rule_source_url (
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
     PRIMARY KEY (id),
     UNIQUE KEY uk_rule_source_url_merchant_host_deleted (merchant_id, source_host, deleted),
-    KEY idx_rule_source_url_trade_lookup (merchant_id, source_host, status, deleted, effective_time, expire_time),
+    KEY idx_rule_source_url_trade_lookup (merchant_id, source_host, approval_status, status, deleted, effective_time, expire_time),
     KEY idx_rule_source_url_merchant_time (merchant_id, update_time, id),
-    KEY idx_rule_source_url_time (update_time, id)
+    KEY idx_rule_source_url_time (update_time, id),
+    KEY idx_rule_source_url_approval (approval_status, submit_source, create_time, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='商户来源网址限定表';
 
 CREATE TABLE IF NOT EXISTS risk_rule_template (

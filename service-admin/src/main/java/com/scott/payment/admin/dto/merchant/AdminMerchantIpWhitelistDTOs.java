@@ -53,6 +53,14 @@ public final class AdminMerchantIpWhitelistDTOs {
          */
         private Integer status;
         /**
+         * 审核状态，0 待审核、1 审核通过、2 审核拒绝。
+         */
+        private Integer approvalStatus;
+        /**
+         * 提交来源，ADMIN 或 MERCHANT。
+         */
+        private String submitSource;
+        /**
          * 商户维度白名单开关，1 启用，0 关闭。
          */
         private Integer ipWhitelistEnabled;
@@ -115,6 +123,41 @@ public final class AdminMerchantIpWhitelistDTOs {
     }
 
     /**
+     * 商户端 IP 白名单提交请求，商户号由认证上下文传递，不接受页面输入。
+     */
+    @Data
+    public static class MerchantIpWhitelistSubmissionRequest {
+        /**
+         * 精确 IP 地址集合；每个地址落一条待审核记录。
+         */
+        private List<String> ipValues = new ArrayList<>();
+        /**
+         * 商户提交说明。
+         */
+        private String remark;
+    }
+
+    /**
+     * IP 白名单审批请求。
+     */
+    @Data
+    public static class MerchantIpWhitelistApprovalRequest {
+        /**
+         * 审核结果，仅允许 1 审核通过或 2 审核拒绝。
+         */
+        @NotNull(message = "approvalStatus is required")
+        private Integer approvalStatus;
+        /**
+         * 审批说明；审核拒绝时必须填写拒绝原因。
+         */
+        private String approvalRemark;
+        /**
+         * 审核通过后的交易状态，1 允许、0 禁止；为空默认允许。
+         */
+        private Integer status;
+    }
+
+    /**
      * 商户维度 IP 白名单开关请求。
      */
     @Data
@@ -169,6 +212,26 @@ public final class AdminMerchantIpWhitelistDTOs {
          * IP 记录状态，1 启用，0 停用。
          */
         private Integer status;
+        /**
+         * 审核状态，0 待审核、1 审核通过、2 审核拒绝。
+         */
+        private Integer approvalStatus;
+        /**
+         * 审批说明，审核拒绝时包含拒绝原因。
+         */
+        private String approvalRemark;
+        /**
+         * 提交来源，ADMIN 或 MERCHANT。
+         */
+        private String submitSource;
+        /**
+         * 审核人账号或姓名。
+         */
+        private String reviewBy;
+        /**
+         * 审核时间。
+         */
+        private LocalDateTime reviewTime;
         /**
          * 商户维度白名单开关，1 启用，0 关闭。
          */
@@ -225,6 +288,26 @@ public final class AdminMerchantIpWhitelistDTOs {
          * IP 记录状态，1 启用，0 停用。
          */
         private Integer status;
+        /**
+         * 审核状态，0 待审核、1 审核通过、2 审核拒绝。
+         */
+        private Integer approvalStatus;
+        /**
+         * 审批说明，审核拒绝时包含拒绝原因。
+         */
+        private String approvalRemark;
+        /**
+         * 提交来源，ADMIN 或 MERCHANT。
+         */
+        private String submitSource;
+        /**
+         * 审核人账号或姓名。
+         */
+        private String reviewBy;
+        /**
+         * 审核时间。
+         */
+        private LocalDateTime reviewTime;
         /**
          * IP 记录备注。
          */

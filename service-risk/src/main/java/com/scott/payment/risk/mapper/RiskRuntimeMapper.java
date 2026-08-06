@@ -576,6 +576,7 @@ public interface RiskRuntimeMapper {
                    COALESCE(remark, '商户来源网址限定') AS decisionReason
             FROM risk_rule_source_url
             WHERE deleted = 0
+              AND approval_status = 1
               AND status = 1
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
@@ -588,10 +589,13 @@ public interface RiskRuntimeMapper {
                                       @Param("sourceHost") String sourceHost);
 
     /**
-     * 加载当前商户全部有效来源网址允许规则。
+     * 加载当前商户全部有效期内的来源网址配置。
      *
      * @param merchantId 当前商户号
      * @param maxRows    查询硬上限
+     * <p>待审核、审核拒绝或交易禁止的记录仍进入快照，用于表达商户已经启用来源网址限制；
+     * 只有 {@code runtimeAllowed=true} 的记录能够作为允许项命中。</p>
+     *
      * @return 按更新时间倒序的来源主机快照行
      */
     @Select("""
@@ -606,10 +610,10 @@ public interface RiskRuntimeMapper {
                    COALESCE(remark, '商户来源网址限定') AS decisionReason,
                    'MERCHANT' AS merchantScope,
                    merchant_id AS merchantId,
-                   source_host AS sourceHost
+                   source_host AS sourceHost,
+                   CASE WHEN approval_status = 1 AND status = 1 THEN 1 ELSE 0 END AS runtimeAllowed
             FROM risk_rule_source_url
             WHERE deleted = 0
-              AND status = 1
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
@@ -630,7 +634,6 @@ public interface RiskRuntimeMapper {
             SELECT COUNT(1)
             FROM risk_rule_source_url
             WHERE deleted = 0
-              AND status = 1
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
               AND merchant_id = #{merchantId}
@@ -648,6 +651,7 @@ public interface RiskRuntimeMapper {
             SELECT COUNT(1)
             FROM risk_rule_source_url
             WHERE deleted = 0
+              AND approval_status = 1
               AND status = 1
               AND (effective_time IS NULL OR effective_time <= CURRENT_TIMESTAMP(3))
               AND (expire_time IS NULL OR expire_time > CURRENT_TIMESTAMP(3))
@@ -683,6 +687,7 @@ public interface RiskRuntimeMapper {
             SELECT COUNT(1)
             FROM merchant_ip_whitelist
             WHERE deleted = 0
+              AND approval_status = 1
               AND status = 1
               AND merchant_id = #{merchantId}
             """)
@@ -699,6 +704,7 @@ public interface RiskRuntimeMapper {
             SELECT COUNT(1)
             FROM merchant_ip_whitelist
             WHERE deleted = 0
+              AND approval_status = 1
               AND status = 1
               AND merchant_id = #{merchantId}
               AND ip_value = #{ipValue}

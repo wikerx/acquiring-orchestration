@@ -1,6 +1,7 @@
 package com.scott.payment.admin.application.merchant;
 
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistConfigRequest;
+import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistApprovalRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistCreateRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistItem;
 import com.scott.payment.admin.dto.merchant.AdminMerchantIpWhitelistDTOs.MerchantIpWhitelistQuery;
@@ -181,6 +182,17 @@ public class AdminMerchantIpWhitelistApplicationService {
      */
     public MerchantIpWhitelistResponse updateWhitelistStatus(Long id, Integer status) {
         return whitelistService.updateWhitelistStatus(id, status);
+    }
+
+    /**
+     * 审批商户提交的 IP 白名单记录。
+     *
+     * @param id      白名单记录 ID
+     * @param request 审批请求
+     * @return 审批后的记录
+     */
+    public MerchantIpWhitelistResponse approveWhitelist(Long id, MerchantIpWhitelistApprovalRequest request) {
+        return whitelistService.approveWhitelist(id, request);
     }
 
     /**
