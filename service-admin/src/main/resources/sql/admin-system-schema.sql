@@ -731,9 +731,9 @@ VALUES
     (504, 2, 500, 'merchant_system_role_v1', '角色管理', 'MENU', '/system/role', 'system/role', 'merchant:system:role:list', 'Lock', 1, 94, 1, 0),
     (505, 2, 500, 'merchant_system_role_auth_v1', '角色授权', 'MENU', '/system/role-auth', 'system/role-auth', 'merchant:system:role:grantMenu', 'Unlock', 1, 95, 1, 0),
     (506, 2, 0, 'merchant_openapi_keys_v1', '商户密钥管理', 'MENU', '/merchant-info/openapi-keys', 'merchant-info/openapi-keys', 'merchant:openapi:key:view', 'Key', 1, 80, 1, 0),
-    (507, 2, 0, 'merchant_access_config_catalog_v1', '访问配置', 'CATALOG', '/access-config', NULL, NULL, 'Lock', 1, 81, 1, 0),
-    (508, 2, 507, 'merchant_source_url_v1', '商户来源网址', 'MENU', '/access-config/source-url', 'access-config/source-url', 'merchant:access-config:view', 'Link', 1, 82, 1, 0),
-    (509, 2, 507, 'merchant_ip_whitelist_v1', 'IP白名单', 'MENU', '/access-config/ip-whitelist', 'access-config/ip-whitelist', 'merchant:access-config:view', 'Connection', 1, 83, 1, 0);
+    (507, 2, 0, 'merchant_access_config_catalog_v1', '交易配置管理', 'CATALOG', '/access-config', NULL, NULL, 'Lock', 1, 81, 1, 0),
+    (508, 2, 507, 'merchant_source_url_v1', '商户来源网址', 'MENU', '/access-config/source-url', 'access-config/source-url', 'merchant:access-config:source-url:list', 'Link', 1, 82, 1, 0),
+    (509, 2, 507, 'merchant_ip_whitelist_v1', '商户IP白名单', 'MENU', '/access-config/ip-whitelist', 'access-config/ip-whitelist', 'merchant:access-config:ip-whitelist:list', 'Connection', 1, 83, 1, 0);
 
 INSERT IGNORE INTO sys_permission (id, app_id, menu_id, permission_code, permission_name, permission_type, resource_method, resource_path, status, deleted)
 VALUES
@@ -767,8 +767,12 @@ VALUES
     (523, 2, 506, 'merchant:openapi:key:download-private', '商户OpenAPI敏感材料导出', 'BUTTON', '*', '/merchant/openapi/keys/*', 1, 0),
     (524, 2, 506, 'merchant:openapi:key:rotate-jwt', '商户OpenAPI JWT密钥轮换', 'BUTTON', 'POST', '/merchant/openapi/keys/rotate', 1, 0),
     (525, 2, 506, 'merchant:openapi:key:rotate-response', '商户OpenAPI响应密钥轮换', 'BUTTON', 'POST', '/merchant/openapi/keys/rotate', 1, 0),
-    (526, 2, 508, 'merchant:access-config:view', '商户访问配置查询', 'MENU', 'GET', '/merchant/access-config/*', 1, 0),
-    (527, 2, 508, 'merchant:access-config:submit', '商户访问配置提交', 'BUTTON', 'POST', '/merchant/access-config/*', 1, 0),
+    (526, 2, 508, 'merchant:access-config:source-url:list', '商户来源网址查询', 'MENU', 'GET', '/merchant/access-config/source-urls', 1, 0),
+    (527, 2, 508, 'merchant:access-config:source-url:detail', '商户来源网址详情', 'BUTTON', 'GET', '/merchant/access-config/source-urls', 1, 0),
+    (528, 2, 508, 'merchant:access-config:source-url:submit', '商户来源网址提交', 'BUTTON', 'POST', '/merchant/access-config/source-urls', 1, 0),
+    (529, 2, 509, 'merchant:access-config:ip-whitelist:list', '商户IP白名单查询', 'MENU', 'GET', '/merchant/access-config/ip-whitelists', 1, 0),
+    (530, 2, 509, 'merchant:access-config:ip-whitelist:detail', '商户IP白名单详情', 'BUTTON', 'GET', '/merchant/access-config/ip-whitelists', 1, 0),
+    (531, 2, 509, 'merchant:access-config:ip-whitelist:submit', '商户IP白名单提交', 'BUTTON', 'POST', '/merchant/access-config/ip-whitelists', 1, 0),
     (211, 1, 211, 'system:user:list', '用户管理查询', 'MENU', 'POST', '/admin/system/users/search', 1, 0),
     (212, 1, 211, 'system:user:add', '用户新增', 'BUTTON', 'POST', '/admin/system/users/create', 1, 0),
     (213, 1, 211, 'system:user:edit', '用户编辑', 'BUTTON', '*', '/admin/system/users/**', 1, 0),
@@ -1009,7 +1013,8 @@ WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_VIEWER\_%'
   AND (m.menu_code = 'merchant_access_config_catalog_v1'
-       OR m.permission_code IN ('merchant:access-config:view', 'merchant:openapi:key:view', 'merchant:system:dept:list',
+       OR m.permission_code IN ('merchant:access-config:source-url:list', 'merchant:access-config:ip-whitelist:list',
+                            'merchant:openapi:key:view', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
                             'merchant:system:role:list'));
 
@@ -1040,7 +1045,9 @@ JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_OPERATOR\_%'
-  AND p.permission_code IN ('merchant:access-config:view', 'merchant:access-config:submit',
+  AND p.permission_code IN ('merchant:access-config:source-url:list', 'merchant:access-config:source-url:detail',
+                            'merchant:access-config:source-url:submit', 'merchant:access-config:ip-whitelist:list',
+                            'merchant:access-config:ip-whitelist:detail', 'merchant:access-config:ip-whitelist:submit',
                             'merchant:openapi:key:view', 'merchant:openapi:key:copy',
                             'merchant:openapi:key:download', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
@@ -1053,7 +1060,9 @@ JOIN sys_permission p ON p.app_id = r.app_id AND p.deleted = 0
 WHERE r.app_id = 2
   AND r.deleted = 0
   AND r.role_code LIKE 'MERCHANT_VIEWER\_%'
-  AND p.permission_code IN ('merchant:access-config:view', 'merchant:openapi:key:view', 'merchant:system:dept:list',
+  AND p.permission_code IN ('merchant:access-config:source-url:list', 'merchant:access-config:source-url:detail',
+                            'merchant:access-config:ip-whitelist:list', 'merchant:access-config:ip-whitelist:detail',
+                            'merchant:openapi:key:view', 'merchant:system:dept:list',
                             'merchant:system:post:list', 'merchant:system:account:list',
                             'merchant:system:role:list');
 
