@@ -353,6 +353,33 @@ public interface TransactionRecordService {
     }
 
     /**
+     * 在渠道请求发出前终结被拒绝或过期的退款动作。
+     * <p>
+     * 该操作只让非终态退款动作退出隐式额度占用，不回加原主单可退金额；同时复用既有通知任务和
+     * 商户可见载荷激活逻辑，确保回调协议保持不变。
+     *
+     * @param operationDO 待终结退款动作
+     * @param reasonCode 平台失败原因码
+     * @param reasonMessage 商户可见原因摘要
+     * @param triggerType 状态流转触发类型
+     * @param triggerId 审批单号
+     * @param operatorType 操作主体类型
+     * @param operatorId 操作主体稳定标识
+     * @param now 当前业务时间
+     * @return true 表示本次实际推进到 FAILED
+     */
+    default boolean terminateRefundBeforeChannel(TransactionOperationDO operationDO,
+                                                 String reasonCode,
+                                                 String reasonMessage,
+                                                 String triggerType,
+                                                 String triggerId,
+                                                 String operatorType,
+                                                 String operatorId,
+                                                 LocalDateTime now) {
+        return false;
+    }
+
+    /**
      * 在独立结果事务中保存 Void 渠道同步结果。
      * <p>
      * Void 明确失败只终结本次撤销动作；成功结果才通过源主单 CAS 标记可请款金额为 0。

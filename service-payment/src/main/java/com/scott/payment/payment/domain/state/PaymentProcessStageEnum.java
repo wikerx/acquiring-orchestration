@@ -50,6 +50,16 @@ public enum PaymentProcessStageEnum {
     WAITING_RISK_REVIEW("WAITING_RISK_REVIEW"),
 
     /**
+     * 退款申请等待运营审批，尚未向渠道发起请求。
+     */
+    WAITING_APPROVAL("WAITING_APPROVAL"),
+
+    /**
+     * 退款审批已通过，等待 MQ 消费者抢占并执行固定渠道请求。
+     */
+    WAITING_EXECUTION("WAITING_EXECUTION"),
+
+    /**
      * 等待渠道异步回调。
      */
     WAITING_CALLBACK("WAITING_CALLBACK"),

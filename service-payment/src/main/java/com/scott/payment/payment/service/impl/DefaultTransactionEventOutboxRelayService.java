@@ -5,6 +5,7 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.BaseMqMessage;
 import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
+import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
@@ -208,6 +209,14 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                 throw new IllegalStateException("merchant notification retry outbox payload is invalid");
             }
             return retryMessage;
+        }
+        if (MqTag.REFUND_EXECUTION_REQUESTED.equals(eventDO.getTag())) {
+            RefundExecutionMessage executionMessage = JsonUtils.parseObject(
+                    eventDO.getPayloadJson(), RefundExecutionMessage.class);
+            if (executionMessage == null) {
+                throw new IllegalStateException("refund execution outbox payload is invalid");
+            }
+            return executionMessage;
         }
         TransactionEventMessage message = JsonUtils.parseObject(eventDO.getPayloadJson(), TransactionEventMessage.class);
         return message == null ? new TransactionEventMessage() : message;

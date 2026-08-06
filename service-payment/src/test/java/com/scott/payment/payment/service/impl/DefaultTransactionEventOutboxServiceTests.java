@@ -68,6 +68,24 @@ class DefaultTransactionEventOutboxServiceTests {
         assertThat(service.markFailed(eventDO, retryTime, "timeout", sentTime)).isTrue();
     }
 
+    @Test
+    void recoveryShouldReuseExistingStableEventNumber() {
+        TransactionEventOutboxMapper mapper = mock(TransactionEventOutboxMapper.class);
+        DefaultTransactionEventOutboxService service = new DefaultTransactionEventOutboxService(mapper);
+        LocalDateTime transactionTime = LocalDateTime.of(2026, 8, 6, 10, 0);
+        LocalDateTime now = transactionTime.plusMinutes(10);
+        TransactionEventOutboxDO existing = event(transactionTime);
+        existing.setEventNo("refund-event-1");
+        existing.setEventStatus("SENT");
+        when(mapper.selectByEventNoLogical("refund-event-1", transactionTime)).thenReturn(existing);
+
+        assertThat(service.recoverForRedelivery(
+                "refund-event-1", transactionTime, "REFUND_EXECUTION_REQUESTED", now)).isTrue();
+
+        verify(mapper).rearmForRedeliveryLogical(
+                "refund-event-1", transactionTime, "REFUND_EXECUTION_REQUESTED", now);
+    }
+
     private TransactionEventOutboxDO event(LocalDateTime transactionTime) {
         TransactionEventOutboxDO eventDO = new TransactionEventOutboxDO();
         eventDO.setEventNo("event-1");

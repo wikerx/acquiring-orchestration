@@ -23,6 +23,32 @@ import java.util.List;
 public interface TransactionOrderMapper extends BaseMapper<TransactionOrderDO> {
 
     /**
+     * 在已发布分片时间范围内批量定位生命周期主单，供退款列表补充真实根分片时间。
+     *
+     * @param operationIds 生命周期标识集合
+     * @param beginTime 最早已发布季度起点
+     * @param endTimeExclusive 查询结束时间
+     * @return 生命周期主单
+     */
+    @Select("""
+            <script>
+            SELECT *
+            FROM transaction_order
+            WHERE operation_id IN
+            <foreach collection="operationIds" item="operationId" open="(" separator="," close=")">
+              #{operationId}
+            </foreach>
+              AND transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt; #{endTimeExclusive}
+              AND deleted = 0
+            </script>
+            """)
+    List<TransactionOrderDO> selectByOperationIds(
+            @Param("operationIds") List<String> operationIds,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
+
+    /**
      * 通过交易分片时间在逻辑表中查询生命周期主单。
      *
      * @param operationId 平台内部生命周期关联标识

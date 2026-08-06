@@ -23,6 +23,84 @@ import java.util.List;
 public interface TransactionOperationMapper extends BaseMapper<TransactionOperationDO> {
 
     /**
+     * 审批通过后将退款动作推进到等待 MQ 执行阶段。
+     *
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_operation
+            SET process_stage = 'WAITING_EXECUTION',
+                version = version + 1,
+                update_time = #{now}
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND transaction_type = 'REFUND'
+              AND transaction_status = 'PENDING'
+              AND process_stage = 'WAITING_APPROVAL'
+              AND deleted = 0
+            """)
+    int approveRefundExecution(@Param("transactionId") String transactionId,
+                               @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                               @Param("expectedVersion") Integer expectedVersion,
+                               @Param("now") LocalDateTime now);
+
+    /**
+     * MQ 消费者抢占已批准退款，重复消息只有一个消费者能进入渠道执行。
+     *
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_operation
+            SET transaction_status = 'PROCESSING',
+                process_stage = 'CHANNEL_REQUESTING',
+                version = version + 1,
+                update_time = #{now}
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND transaction_type = 'REFUND'
+              AND transaction_status = 'PENDING'
+              AND process_stage = 'WAITING_EXECUTION'
+              AND deleted = 0
+            """)
+    int claimApprovedRefundExecution(@Param("transactionId") String transactionId,
+                                     @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                     @Param("expectedVersion") Integer expectedVersion,
+                                     @Param("now") LocalDateTime now);
+
+    /**
+     * 审批拒绝或过期时终结退款动作；不修改主单可退金额。
+     *
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_operation
+            SET transaction_status = 'FAILED',
+                process_stage = 'FINISHED',
+                fail_reason_code = #{reasonCode},
+                fail_reason_message = #{reasonMessage},
+                channel_match_status = 'NOT_REQUIRED',
+                next_channel_match_time = NULL,
+                complete_time = #{now},
+                version = version + 1,
+                update_time = #{now}
+            WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND transaction_type = 'REFUND'
+              AND transaction_status = 'PENDING'
+              AND process_stage = 'WAITING_APPROVAL'
+              AND deleted = 0
+            """)
+    int terminatePendingRefundApproval(@Param("transactionId") String transactionId,
+                                       @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                       @Param("expectedVersion") Integer expectedVersion,
+                                       @Param("reasonCode") String reasonCode,
+                                       @Param("reasonMessage") String reasonMessage,
+                                       @Param("now") LocalDateTime now);
+
+    /**
      * 通过交易分片时间在逻辑表中查询动作单。
      *
      * @param transactionId 平台当前交易唯一标识
@@ -208,7 +286,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             WHERE id = #{id}
               AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
-              AND channel_match_status = 'PENDING'
+              AND channel_match_status IN ('PENDING', 'REVIEW_REQUIRED')
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND deleted = 0
             """)

@@ -9,6 +9,9 @@ import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.merchant.client.payment.dto.PaymentTransactionActionClientRequestDTO;
 import com.scott.payment.merchant.config.PaymentInternalClientProperties;
 import com.scott.payment.merchant.dto.transaction.MerchantTransactionDTOs.TransactionActionResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundDetailResponse;
+import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundQuery;
+import com.scott.payment.merchant.dto.transaction.MerchantRefundDTOs.RefundSearchResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
@@ -19,8 +22,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -71,6 +76,10 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     /** 商户发起撤销时调用的支付核心内部接口。 */
     private static final String VOID_PATH = "/internal/payment/void";
 
+    private static final String REFUND_SEARCH_PATH = "/internal/payment/refunds/search";
+
+    private static final String REFUND_DETAIL_PATH = "/internal/payment/refunds";
+
     /**
      * direct Rest Template，用于定位邮件、通知或渠道参数模板。
      * <p>
@@ -114,6 +123,31 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         this.directRestTemplate = directRestTemplate;
         this.loadBalancedRestTemplate = loadBalancedRestTemplate;
         this.properties = properties;
+    }
+
+    /** 查询当前商户退款分页和统计。 */
+    @Override
+    public RefundSearchResponse searchRefunds(RefundQuery query) {
+        CommonResult<RefundSearchResponse> result = post(
+                servicePaymentUrl(REFUND_SEARCH_PATH), query,
+                new TypeReference<CommonResult<RefundSearchResponse>>() {
+                });
+        return unwrapData(result);
+    }
+
+    /** 查询当前商户退款详情，merchantId 同时在 Payment 查询条件中强制校验。 */
+    @Override
+    public RefundDetailResponse refundDetail(String transactionId,
+                                             LocalDateTime transactionDateTime,
+                                             String merchantId) {
+        String url = UriComponentsBuilder.fromUriString(servicePaymentUrl(REFUND_DETAIL_PATH) + "/" + transactionId)
+                .queryParam("transactionDateTime", transactionDateTime)
+                .queryParam("merchantId", merchantId)
+                .build().encode().toUriString();
+        CommonResult<RefundDetailResponse> result = get(
+                url, new TypeReference<CommonResult<RefundDetailResponse>>() {
+                });
+        return unwrapData(result);
     }
 
     /**
@@ -175,6 +209,20 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         } catch (RestClientException exception) {
             log.warn("service-payment post call failed, targetUri: {}", uri, exception);
             throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment post call failed");
+        }
+    }
+
+    private <T> T get(String url, TypeReference<T> typeReference) {
+        URI uri = URI.create(url);
+        try {
+            String responseBody = chooseRestTemplate(uri).exchange(uri, HttpMethod.GET,
+                    buildSignedEntity(uri, HttpMethod.GET, null), String.class).getBody();
+            return JsonUtils.parseObject(responseBody, typeReference);
+        } catch (HttpStatusCodeException exception) {
+            throw translateHttpException(HttpMethod.GET, uri, exception);
+        } catch (RestClientException exception) {
+            log.warn("service-payment get call failed, targetUri: {}", uri, exception);
+            throw new ApiException(ApiResultEnum.BAD_GATEWAY, "service-payment get call failed");
         }
     }
 

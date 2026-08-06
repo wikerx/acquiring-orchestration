@@ -575,8 +575,11 @@ public class PaymentServiceImpl implements PaymentService {
         }
         clientRequestDTO.setTransactionDateTime(LocalDateTime.now());
         clientRequestDTO.setRequestId(resolveMerchantOrderId(requestDTO));
+        clientRequestDTO.setRequestSource("OPENAPI");
+        clientRequestDTO.setApplicantId(requestContext.getRequiredMerchantId());
         if (requestDTO.getTransactionInfo() != null) {
             clientRequestDTO.setCallbackUrl(requestDTO.getTransactionInfo().getCallbackUrl());
+            clientRequestDTO.setRequestReason(requestDTO.getTransactionInfo().getDescription());
         }
         clientRequestDTO.setRequestFingerprint(keyMaterialFactory.fingerprint(encryptedData));
         clientRequestDTO.setOpenApiRequestPath(resolveRequestPath());

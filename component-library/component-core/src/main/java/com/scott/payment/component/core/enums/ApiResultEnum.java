@@ -227,6 +227,31 @@ public enum ApiResultEnum implements IResult {
     TRANSACTION_ID_DUPLICATED("F515", "transactionId repeat"),
 
     /**
+     * 退款金额超过当前可退额度。
+     */
+    REFUND_AMOUNT_EXCEEDS_AVAILABLE("F516", "Refund amount exceeds available amount"),
+
+    /**
+     * 退款审批已被其他操作处理或版本不一致。
+     */
+    REFUND_APPROVAL_STATE_CONFLICT("F517", "Refund approval state conflict"),
+
+    /**
+     * 当前原交易状态或类型不允许执行退款动作。
+     */
+    REFUND_ACTION_NOT_ALLOWED("F518", "Refund action is not allowed"),
+
+    /**
+     * 勾兑异常案件不存在。
+     */
+    ABNORMAL_CASE_NOT_FOUND("F519", "Channel match abnormal case does not exist"),
+
+    /**
+     * 勾兑异常案件状态或版本冲突。
+     */
+    ABNORMAL_CASE_STATE_CONFLICT("F520", "Channel match abnormal case state conflict"),
+
+    /**
      * 请求报文解析失败。
      */
     REQUEST_PARSE_ERROR("Z605", "Request parse error"),

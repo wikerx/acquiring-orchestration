@@ -41,6 +41,9 @@ public final class MqTag {
     /** 自动商户通知重试到期标签。 */
     public static final String MERCHANT_NOTIFICATION_RETRY_DUE = "MERCHANT_NOTIFICATION_RETRY_DUE";
 
+    /** 退款审批通过后的渠道执行请求标签。 */
+    public static final String REFUND_EXECUTION_REQUESTED = "REFUND_EXECUTION_REQUESTED";
+
     private MqTag() {
     }
 }

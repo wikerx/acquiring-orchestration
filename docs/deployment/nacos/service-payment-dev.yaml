@@ -1,5 +1,23 @@
 # service-payment 专属配置：收单交易核心、幂等、消息事件等参数。
 payment:
+  refund:
+    management:
+      # 退款管理字段与查询开关；数据库迁移完成前保持关闭。
+      enabled: ${PAYMENT_REFUND_MANAGEMENT_ENABLED:false}
+      approval-enabled: ${PAYMENT_REFUND_APPROVAL_ENABLED:false}
+      approval-policy: ${PAYMENT_REFUND_APPROVAL_POLICY:NONE}
+      approval-expire-minutes: ${PAYMENT_REFUND_APPROVAL_EXPIRE_MINUTES:1440}
+      execution-mq-enabled: ${PAYMENT_REFUND_EXECUTION_MQ_ENABLED:false}
+      recovery-enabled: ${PAYMENT_REFUND_RECOVERY_ENABLED:false}
+      expiration-batch-size: ${PAYMENT_REFUND_EXPIRATION_BATCH_SIZE:100}
+      execution-recovery-batch-size: ${PAYMENT_REFUND_EXECUTION_RECOVERY_BATCH_SIZE:100}
+      execution-recovery-stale-seconds: ${PAYMENT_REFUND_EXECUTION_RECOVERY_STALE_SECONDS:300}
+  channel-match:
+    abnormal:
+      # 自动升级和建案开关；异常表迁移、Admin 权限和监控就绪前保持关闭。
+      enabled: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_ENABLED:false}
+      review-required-threshold: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_THRESHOLD:12}
+      default-level: ${PAYMENT_CHANNEL_MATCH_ABNORMAL_DEFAULT_LEVEL:HIGH}
   redis:
     redisson:
       # 支付准备阶段显式启用全局唯一 Redisson Cluster 客户端和统一分布式锁服务。

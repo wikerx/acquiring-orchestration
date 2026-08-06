@@ -53,4 +53,24 @@ public interface TransactionChannelMatchResultTransactionService {
                                LocalDateTime matchTime,
                                LocalDateTime nextMatchTime,
                                String failReason);
+
+    /**
+     * 保存待恢复或已升级人工复核的勾兑摘要。
+     *
+     * <p>默认实现兼容既有测试桩；生产实现应使用传入的受控状态更新动作单。</p>
+     *
+     * @param matchStatus PENDING 或 REVIEW_REQUIRED
+     * @return true 表示 CAS 更新成功
+     */
+    default boolean markPendingByQuery(TransactionOperationDO operationDO,
+                                       TransactionChannelRequestDO originalRequestDO,
+                                       PaymentChannelInvokeResultDTO invokeResultDTO,
+                                       String matchStatus,
+                                       String matchResult,
+                                       LocalDateTime matchTime,
+                                       LocalDateTime nextMatchTime,
+                                       String failReason) {
+        return markPendingByQuery(operationDO, originalRequestDO, invokeResultDTO,
+                matchResult, matchTime, nextMatchTime, failReason);
+    }
 }

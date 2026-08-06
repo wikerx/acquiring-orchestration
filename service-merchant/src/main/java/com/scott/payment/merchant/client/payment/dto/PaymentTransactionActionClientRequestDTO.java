@@ -72,6 +72,18 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
      */
     private String requestId;
 
+    /** 内部动作来源，商户后台固定为 MERCHANT_PORTAL。 */
+    private String requestSource;
+
+    /** 当前认证商户账号 ID。 */
+    private String applicantId;
+
+    /** 当前认证商户账号显示名快照。 */
+    private String applicantName;
+
+    /** 商户填写的退款或撤销原因。 */
+    private String requestReason;
+
     /**
      * 交易扩展信息。
      */

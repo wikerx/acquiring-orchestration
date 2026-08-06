@@ -22,9 +22,10 @@ class MerchantNotificationRetryJobMigrationContractTests {
         assertThat(migration).contains(
                 "'MERCHANT_NOTIFICATION_RETRY'",
                 "'merchantNotificationRetry'",
-                "'0 */1 * * * ?'",
+                "'0 */5 * * * ?'",
                 "'DISTRIBUTED', 'CRON', 'SYNC', 'LOCAL', 'FIRE_ONCE'",
-                "300, 1, 60, 0, JSON_OBJECT('limit', 5), 'ENABLED'",
+                "300, 1, 60, 0, JSON_OBJECT('limit', 5, 'mode', 'MQ'), 'ENABLED'",
+                "DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 5 MINUTE)",
                 "ON DUPLICATE KEY UPDATE",
                 "next_trigger_time = CASE",
                 "WHEN status = 'ENABLED' AND next_trigger_time IS NULL"

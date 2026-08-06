@@ -54,6 +54,15 @@ public class PaymentCreateClientRequestDTO implements Serializable {
      */
     private String requestId;
 
+    /** 支付核心内部使用的来源标识，不改变商户 OpenAPI 报文。 */
+    private String requestSource;
+
+    /** OpenAPI 申请主体稳定标识，当前使用已认证商户号。 */
+    private String applicantId;
+
+    /** 商户上送的退款原因摘要，仅在退款动作中使用。 */
+    private String requestReason;
+
     /**
      * 订单金额，主币种单位。
      */
