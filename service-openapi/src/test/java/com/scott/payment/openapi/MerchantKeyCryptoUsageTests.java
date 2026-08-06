@@ -13,7 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 import org.springframework.test.context.jdbc.Sql;
 
@@ -31,8 +30,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @status : create
  */
 @Slf4j
-@ActiveProfiles("mysql-test")
-@SpringBootTest(classes = OpenApiApplication.class)
+@SpringBootTest(
+        classes = OpenApiApplication.class,
+        properties = "spring.cloud.nacos.discovery.enabled=false"
+)
 @Sql(scripts = "/sql/openapi-merchant-security-schema.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class MerchantKeyCryptoUsageTests {

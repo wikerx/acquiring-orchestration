@@ -26,6 +26,18 @@ public final class MqTag {
     /** OpenAPI 安全拦截审计消息标签。 */
     public static final String SECURITY_INTERCEPT_AUDIT = "security-intercept-audit";
 
+    /** 登录成功与失败审计消息标签。 */
+    public static final String LOGIN_AUDIT = "login-audit";
+
+    /** Admin 业务邮件投递标签。 */
+    public static final String ADMIN_EMAIL_DELIVERY = "admin-email-delivery";
+
+    /** Merchant 业务邮件投递标签。 */
+    public static final String MERCHANT_EMAIL_DELIVERY = "merchant-email-delivery";
+
+    /** 管理后台人工重发商户终态回调标签。 */
+    public static final String MERCHANT_NOTIFICATION_RETRY_REQUESTED = "MERCHANT_NOTIFICATION_RETRY_REQUESTED";
+
     private MqTag() {
     }
 }

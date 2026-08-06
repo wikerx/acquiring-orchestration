@@ -6,6 +6,7 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
+import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
 import com.scott.payment.payment.entity.TransactionChannelRequestDO;
 import com.scott.payment.payment.entity.TransactionOperationDO;
 import com.scott.payment.payment.service.ChannelTransactionStatusResolver;
@@ -133,25 +134,6 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
     }
 
     /**
-     * 兼容旧测试和手工构造场景的构造器。
-     *
-     * @param transactionRecordService 交易事实记录服务
-     * @param paymentChannelInvokeService 渠道调用服务
-     * @param paymentChannelRouteService 渠道路由服务
-     * @param channelStatusResolver 渠道状态解析服务
-     */
-    public DefaultTransactionChannelMatchService(TransactionRecordService transactionRecordService,
-                                                PaymentChannelInvokeService paymentChannelInvokeService,
-                                                PaymentChannelRouteService paymentChannelRouteService,
-                                                ChannelTransactionStatusResolver channelStatusResolver) {
-        this(transactionRecordService,
-                paymentChannelInvokeService,
-                new DefaultTransactionChannelMatchResultTransactionService(transactionRecordService),
-                paymentChannelRouteService,
-                channelStatusResolver);
-    }
-
-    /**
      * 处理待渠道查询确认的交易动作。
      *
      * @param commandDTO 查询勾兑命令
@@ -215,7 +197,8 @@ public class DefaultTransactionChannelMatchService implements TransactionChannel
                 resultDTO.setPendingCount(resultDTO.getPendingCount() + 1);
                 return;
             }
-            if ("SUCCESS".equals(resolution.getTargetStatus()) || "FAILED".equals(resolution.getTargetStatus())) {
+            if (PaymentTransactionStatusEnum.SUCCESS.getCode().equals(resolution.getTargetStatus())
+                    || PaymentTransactionStatusEnum.FAILED.getCode().equals(resolution.getTargetStatus())) {
                 if (complete(operationDO, originalRequestDO, invokeResultDTO, resolution, now)) {
                     resultDTO.setMatchedCount(resultDTO.getMatchedCount() + 1);
                     return;

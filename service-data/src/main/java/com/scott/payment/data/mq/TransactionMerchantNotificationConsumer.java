@@ -4,8 +4,9 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
+import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
+import com.scott.payment.component.mq.message.MerchantNotificationRetryMessage;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
-import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.spring.annotation.MessageModel;
@@ -21,7 +22,7 @@ import org.springframework.util.StringUtils;
  * @classname : TransactionMerchantNotificationConsumer
  * @date : 2026-08-01 16:00
  * @email : scott_x@163.com
- * @description : service-data 交易终态事件消费者，按交易分表精确触发商户通知并在单笔未命中时执行有界补偿扫描
+ * @description : service-data 交易终态事件消费者，只按消息携带的真实交易时间和交易号精确触发对应商户通知
  * @status : create
  */
 @Slf4j
@@ -30,9 +31,9 @@ import org.springframework.util.StringUtils;
 @RocketMQMessageListener(
         topic = MqTopic.PAYMENT_EVENT,
         consumerGroup = DataMqConsumerGroups.MERCHANT_NOTIFICATION,
-        selectorExpression = MqTag.TRANSACTION_CREATED
-                + " || " + MqTag.TRANSACTION_CALLBACK_PROCESSED
-                + " || " + MqTag.TRANSACTION_STATUS_CHANGED,
+        selectorExpression = MqTag.TRANSACTION_CALLBACK_PROCESSED
+                + " || " + MqTag.TRANSACTION_STATUS_CHANGED
+                + " || " + MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED,
         messageModel = MessageModel.CLUSTERING
 )
 public class TransactionMerchantNotificationConsumer implements RocketMQListener<String> {
@@ -40,19 +41,13 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
     /** 商户通知投递服务，数据库版本 CAS 提供最终重复消费保护。 */
     private final MerchantNotificationDeliveryService deliveryService;
 
-    /** 事件未命中单笔任务时的有界补偿批量配置。 */
-    private final DataMerchantNotificationProperties properties;
-
     /**
      * 创建交易终态商户通知消费者。
      *
      * @param deliveryService 商户通知投递服务
-     * @param properties 商户通知执行参数
      */
-    public TransactionMerchantNotificationConsumer(MerchantNotificationDeliveryService deliveryService,
-                                                   DataMerchantNotificationProperties properties) {
+    public TransactionMerchantNotificationConsumer(MerchantNotificationDeliveryService deliveryService) {
         this.deliveryService = deliveryService;
-        this.properties = properties;
     }
 
     /**
@@ -66,10 +61,16 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
     @Override
     public void onMessage(String payload) {
         long startNanos = System.nanoTime();
+        if (isManualRetryPayload(payload)) {
+            consumeManualRetry(payload, startNanos);
+            return;
+        }
         PaymentTransactionEventMessage message = parseMessage(payload);
         if (message == null
                 || message.getTransactionDateTime() == null
-                || !StringUtils.hasText(message.getTransactionId())) {
+                || !StringUtils.hasText(message.getTransactionId())
+                || !isTerminalEvent(message.getEventType())
+                || !PaymentTransactionEventStatus.isTerminal(message.getTransactionStatus())) {
             log.warn("event: DATA_PAYMENT_EVENT_SKIPPED traceId: {} reason=messageInvalid payloadLength: {} durationMs: {}",
                     TraceContext.getTraceId(), payload == null ? 0 : payload.length(), elapsedMillis(startNanos));
             return;
@@ -78,10 +79,7 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         try {
             boolean notified = deliveryService.notifyTransaction(
                     message.getTransactionDateTime(), message.getTransactionId());
-            int successCount = notified
-                    ? 1
-                    : deliveryService.notifyDue(
-                            message.getTransactionDateTime(), properties.getEventFallbackBatchLimit());
+            int successCount = notified ? 1 : 0;
             log.info("event: DATA_PAYMENT_EVENT_CONSUMED traceId: {} messageId: {} retryCount: {} transactionId: {} operationId: {} merchantId: {} merchantOrderNo: {} transactionType: {} eventType: {} notifyId: {} successCount: {} durationMs: {}",
                     TraceContext.getTraceId(),
                     message.getMessageId(),
@@ -98,6 +96,73 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
         } finally {
             TraceContext.clear();
         }
+    }
+
+    /**
+     * 识别后台人工重发事件；只读取非敏感 eventType 字段，不记录消息原文。
+     *
+     * @param payload RocketMQ JSON 消息体
+     * @return true 表示人工重发事件
+     */
+    private boolean isManualRetryPayload(String payload) {
+        if (!StringUtils.hasText(payload)) {
+            return false;
+        }
+        try {
+            MerchantNotificationRetryMessage message = JsonUtils.parseObject(
+                    payload, MerchantNotificationRetryMessage.class);
+            return message != null
+                    && MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED.equals(message.getEventType());
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    /**
+     * 消费管理后台人工重发事件，使用消息号固定本次回调 eventId。
+     *
+     * @param payload RocketMQ JSON 消息体
+     * @param startNanos 消费开始单调时钟
+     */
+    private void consumeManualRetry(String payload, long startNanos) {
+        MerchantNotificationRetryMessage message;
+        try {
+            message = JsonUtils.parseObject(payload, MerchantNotificationRetryMessage.class);
+        } catch (RuntimeException exception) {
+            log.warn("event: DATA_MERCHANT_NOTIFY_RETRY_PARSE_FAILED traceId: {} payloadLength: {} exceptionType: {}",
+                    TraceContext.getTraceId(), payload == null ? 0 : payload.length(),
+                    exception.getClass().getSimpleName());
+            return;
+        }
+        if (message == null
+                || !StringUtils.hasText(message.getMessageId())
+                || !StringUtils.hasText(message.getTransactionId())
+                || message.getTransactionDateTime() == null) {
+            log.warn("event: DATA_MERCHANT_NOTIFY_RETRY_SKIPPED traceId: {} reason=messageInvalid payloadLength: {} durationMs: {}",
+                    TraceContext.getTraceId(), payload == null ? 0 : payload.length(), elapsedMillis(startNanos));
+            return;
+        }
+        TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
+        try {
+            boolean notified = deliveryService.retryTransaction(
+                    message.getTransactionDateTime(), message.getTransactionId(), message.getMessageId());
+            log.info("event: DATA_MERCHANT_NOTIFY_RETRY_CONSUMED traceId: {} messageId: {} requestId: {} transactionId: {} requestedBy: {} notified: {} durationMs: {}",
+                    TraceContext.getTraceId(), message.getMessageId(), message.getRequestId(),
+                    message.getTransactionId(), message.getRequestedBy(), notified, elapsedMillis(startNanos));
+        } finally {
+            TraceContext.clear();
+        }
+    }
+
+    /**
+     * 只接受已经在 Payment 终态事务内写入的事件，创建事件不能驱动商户通知。
+     *
+     * @param eventType MQ Tag 对应的事件类型
+     * @return true 表示通知任务在事件提交前已经完成激活
+     */
+    private boolean isTerminalEvent(String eventType) {
+        return MqTag.TRANSACTION_CALLBACK_PROCESSED.equals(eventType)
+                || MqTag.TRANSACTION_STATUS_CHANGED.equals(eventType);
     }
 
     /**

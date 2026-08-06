@@ -2,6 +2,8 @@ package com.scott.payment.data.config;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.component.security.crypto.OpenApiPayloadCrypto;
+import com.scott.payment.component.security.jwt.MerchantCallbackJwtSigner;
 import com.scott.payment.component.web.trace.TraceIdRestTemplateCustomizer;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -10,6 +12,8 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
 import java.net.Proxy;
+import java.net.HttpURLConnection;
+import java.io.IOException;
 
 /**
  * @author : scott
@@ -25,6 +29,26 @@ import java.net.Proxy;
 public class DataMerchantNotificationConfig {
 
     /**
+     * 提供商户回调正文加密组件。
+     *
+     * @return 无状态的 OpenAPI 载荷加密器
+     */
+    @Bean
+    public OpenApiPayloadCrypto dataMerchantCallbackPayloadCrypto() {
+        return new OpenApiPayloadCrypto();
+    }
+
+    /**
+     * 提供平台回调 JWT 签发组件。
+     *
+     * @return 不持有商户密钥的 JWT 签发器
+     */
+    @Bean
+    public MerchantCallbackJwtSigner merchantCallbackJwtSigner() {
+        return new MerchantCallbackJwtSigner();
+    }
+
+    /**
      * 注册商户通知 HTTP 客户端。
      *
      * @param properties 商户通知执行参数
@@ -35,7 +59,13 @@ public class DataMerchantNotificationConfig {
     public RestTemplate dataMerchantNotificationRestTemplate(DataMerchantNotificationProperties properties,
                                                               TraceIdRestTemplateCustomizer traceCustomizer) {
         validateTimeouts(properties);
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(HttpURLConnection connection, String httpMethod) throws IOException {
+                super.prepareConnection(connection, httpMethod);
+                connection.setInstanceFollowRedirects(false);
+            }
+        };
         requestFactory.setProxy(Proxy.NO_PROXY);
         requestFactory.setConnectTimeout(properties.getConnectTimeoutMillis());
         requestFactory.setReadTimeout(properties.getReadTimeoutMillis());
@@ -59,9 +89,13 @@ public class DataMerchantNotificationConfig {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
                     "merchant notification processing timeout must exceed HTTP timeout");
         }
-        if (properties.getEventFallbackBatchLimit() <= 0) {
+        if (properties.getRecoveryBatchLimit() <= 0 || properties.getRecoveryBatchLimit() > 500) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
-                    "merchant notification event fallback batch limit must be greater than zero");
+                    "merchant notification recovery batch limit must be between 1 and 500");
+        }
+        if (properties.getCallbackJwtTtlSeconds() <= 0 || properties.getCallbackJwtTtlSeconds() > 300) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "merchant callback JWT TTL must be between 1 and 300 seconds");
         }
     }
 }

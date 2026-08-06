@@ -1,11 +1,15 @@
 package com.scott.payment.channel.payment.mpgs;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.scott.payment.channel.payment.dto.request.ChannelPaymentRequest;
 import com.scott.payment.channel.payment.dto.request.ChannelQueryRequest;
 import com.scott.payment.channel.payment.dto.response.ChannelPaymentResponse;
 import com.scott.payment.channel.payment.enums.ChannelCapability;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -116,6 +120,43 @@ class MpgsApiClientMaskingTests {
         assertThat(response.getChannelResponseCode()).isEqualTo("00");
         assertThat(httpClient.authorizationHeader()).startsWith("Basic ");
         assertThat(httpClient.decodedAuthorization()).isEqualTo("merchant.TESTDEVMER031:metadata-password");
+    }
+
+    /**
+     * 渠道应用日志只能记录不可逆摘要和长度，完整请求响应结构仅允许进入脱敏审计字段。
+     */
+    @Test
+    void shouldLogOnlyChannelPayloadMetadata() {
+        CapturingHttpClient httpClient = new CapturingHttpClient();
+        MpgsChannelProperties properties = new MpgsChannelProperties();
+        properties.setReadTimeoutMillis(30000);
+        properties.setConnectTimeoutMillis(10000);
+        MpgsApiClient client = new MpgsApiClient(properties, new MpgsRequestMapper(), new MpgsResponseMapper(), httpClient);
+        ChannelPaymentRequest request = paymentRequest();
+        request.getExtension().put("requestUrl", "https://test-gateway.mastercard.com/api/rest");
+        request.getExtension().put("mid.version", "100");
+        request.getExtension().put("mid.merchantId", "TESTDEVMER031");
+        request.getExtension().put("mid.password", "metadata-password");
+        Logger logger = (Logger) LoggerFactory.getLogger(MpgsApiClient.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            client.execute(request);
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .anySatisfy(message -> assertThat(message)
+                        .contains("event: CHANNEL_REQUEST_START", "payloadLength:", "payloadDigest:"))
+                .anySatisfy(message -> assertThat(message)
+                        .contains("event: CHANNEL_RESPONSE_END", "payloadLength:", "payloadDigest:"))
+                .allSatisfy(message -> assertThat(message)
+                        .doesNotContain("\"sourceOfFunds\"", "\"card\"", "\"result\"", "\"response\""));
     }
 
     /**

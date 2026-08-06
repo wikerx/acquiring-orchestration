@@ -12,6 +12,9 @@ import com.scott.payment.admin.mapper.BaseMccCodeMapper;
 import com.scott.payment.admin.mapper.BaseMccLevel1Mapper;
 import com.scott.payment.admin.mapper.BaseMccLevel2Mapper;
 import com.scott.payment.component.db.auth.entity.BaseMerchantInfoDO;
+import com.scott.payment.component.db.auth.entity.BaseMerchantJwtKeyDO;
+import com.scott.payment.component.db.auth.entity.BaseMerchantResponseKeyDO;
+import com.scott.payment.component.db.auth.entity.BasePlatformPayloadKeyDO;
 import com.scott.payment.component.db.auth.mapper.BaseMerchantInfoMapper;
 import com.scott.payment.component.db.auth.service.MerchantRuntimeProfileCacheService;
 import com.scott.payment.component.db.cache.service.ManagedCacheInvalidationCoordinator;
@@ -36,10 +39,12 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -157,6 +162,9 @@ class AdminMerchantInfoServiceImplTest {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
         assistant.setCurrentNamespace(getClass().getName());
         TableInfoHelper.initTableInfo(assistant, BaseMerchantInfoDO.class);
+        TableInfoHelper.initTableInfo(assistant, BaseMerchantJwtKeyDO.class);
+        TableInfoHelper.initTableInfo(assistant, BasePlatformPayloadKeyDO.class);
+        TableInfoHelper.initTableInfo(assistant, BaseMerchantResponseKeyDO.class);
         service = new AdminMerchantInfoServiceImpl(
                 merchantInfoMapper,
                 jwtKeyMapper,
@@ -169,7 +177,11 @@ class AdminMerchantInfoServiceImplTest {
                 isoCurrencyMapper,
                 keyMaterialFactory,
                 merchantRuntimeProfileCacheService,
-                cacheInvalidationCoordinator
+                cacheInvalidationCoordinator,
+                mock(AdminMerchantPrimaryAccountProvisioningService.class),
+                mock(com.scott.payment.component.security.openapi.OpenApiMerchantKeyMaterialService.class),
+                mock(AdminMerchantSecurityNotificationService.class),
+                mock(AdminMerchantStatusLifecycleService.class)
         );
     }
 
@@ -286,6 +298,20 @@ class AdminMerchantInfoServiceImplTest {
         order.verify(merchantRuntimeProfileCacheService).putRuntimeProfile(argThat(profile ->
                 profile != null && Integer.valueOf(2).equals(profile.getMerchantStatus())));
         log.info("管理端商户状态缓存一致性完成，结果: 旧启用状态受门禁保护");
+    }
+
+    @Test
+    void shouldRejectRepeatedOrClosedMerchantStatusTransitions() {
+        when(merchantInfoMapper.selectOne(any())).thenReturn(existingMerchant());
+
+        assertThatThrownBy(() -> service.updateStatus(1L, 1))
+                .hasMessageContaining("状态");
+
+        BaseMerchantInfoDO closed = existingMerchant();
+        closed.setMerchantStatus(3);
+        when(merchantInfoMapper.selectOne(any())).thenReturn(closed);
+        assertThatThrownBy(() -> service.updateStatus(1L, 2))
+                .hasMessageContaining("状态");
     }
 
     /** 删除商户应同时登记资料、密钥和路由三类永久缓存失效。 */

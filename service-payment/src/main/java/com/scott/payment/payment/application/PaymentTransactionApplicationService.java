@@ -24,6 +24,8 @@ import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.Tr
 import com.scott.payment.payment.service.dto.transaction.TransactionQueryDTOs.TransactionPageQuery;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -226,10 +228,15 @@ public class PaymentTransactionApplicationService {
      * 查询交易详情聚合数据。
      *
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表返回的当前动作真实分片时间
+     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
      * @return 交易详情
      */
-    public TransactionDetailResponse detail(String transactionId) {
-        return transactionQueryService.detail(transactionId);
+    public TransactionDetailResponse detail(String transactionId,
+                                            LocalDateTime transactionDateTime,
+                                            LocalDateTime rootTransactionDateTime) {
+        return transactionQueryService.detail(
+                transactionId, transactionDateTime, rootTransactionDateTime);
     }
 
     /**

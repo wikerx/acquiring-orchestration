@@ -1,9 +1,11 @@
 package com.scott.payment.risk.service.impl;
 
+import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.mq.message.RiskAuditHitMessage;
 import com.scott.payment.component.mq.message.RiskEvaluationAuditMessage;
-import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateRequestDTO;
 import com.scott.payment.risk.api.internal.dto.RiskPaymentEvaluateResultDTO;
 import com.scott.payment.risk.config.RiskEvaluationProperties;
@@ -20,6 +22,7 @@ import com.scott.payment.risk.service.RiskEvaluationService;
 import com.scott.payment.risk.service.RiskRuntimeValueNormalizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -32,6 +35,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * @author : scott
@@ -143,6 +151,9 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     /** 控制运行时规则和仅限兼容测试的骨架降级开关。 */
     private final RiskEvaluationProperties properties;
 
+    /** 执行无状态只读规则组的专用执行器；累计限额和频控预占不得提交到该执行器。 */
+    private final Executor readOnlyEvaluationExecutor;
+
     /**
      * 创建由 Spring 管理的实时风控评估服务。
      *
@@ -158,11 +169,13 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     public DefaultRiskEvaluationService(ObjectProvider<RiskListRuntimeRepository> riskListRuntimeRepositoryProvider,
                                         ObjectProvider<RiskRuntimeValueNormalizer> valueNormalizerProvider,
                                         ObjectProvider<RiskAuditRecordPublisher> auditRecordPublisherProvider,
-                                        RiskEvaluationProperties properties) {
+                                        RiskEvaluationProperties properties,
+                                        @Qualifier("riskReadOnlyEvaluationExecutor") Executor readOnlyEvaluationExecutor) {
         this.riskListRuntimeRepository = riskListRuntimeRepositoryProvider.getIfAvailable();
         this.valueNormalizer = valueNormalizerProvider.getIfAvailable(RiskRuntimeValueNormalizer::new);
         this.auditRecordPublisher = auditRecordPublisherProvider.getIfAvailable();
         this.properties = properties;
+        this.readOnlyEvaluationExecutor = readOnlyEvaluationExecutor;
     }
 
     /**
@@ -176,15 +189,24 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
         this.valueNormalizer = new RiskRuntimeValueNormalizer();
         this.auditRecordPublisher = null;
         this.properties = new RiskEvaluationProperties();
+        this.readOnlyEvaluationExecutor = Runnable::run;
     }
 
     DefaultRiskEvaluationService(RiskListRuntimeRepository riskListRuntimeRepository,
                                  RiskAuditRecordPublisher auditRecordPublisher,
                                  RiskEvaluationProperties properties) {
+        this(riskListRuntimeRepository, auditRecordPublisher, properties, Runnable::run);
+    }
+
+    DefaultRiskEvaluationService(RiskListRuntimeRepository riskListRuntimeRepository,
+                                 RiskAuditRecordPublisher auditRecordPublisher,
+                                 RiskEvaluationProperties properties,
+                                 Executor readOnlyEvaluationExecutor) {
         this.riskListRuntimeRepository = riskListRuntimeRepository;
         this.valueNormalizer = new RiskRuntimeValueNormalizer();
         this.auditRecordPublisher = auditRecordPublisher;
         this.properties = properties == null ? new RiskEvaluationProperties() : properties;
+        this.readOnlyEvaluationExecutor = readOnlyEvaluationExecutor == null ? Runnable::run : readOnlyEvaluationExecutor;
     }
 
     /**
@@ -285,7 +307,12 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                             RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
                     details);
         }
-        List<RiskListMatch> amlDetails = evaluateAmlChecks(requestDTO, context);
+        ReadOnlyEvaluation readOnlyEvaluation = properties.isReadOnlyParallelEnabled()
+                ? evaluateReadOnlyGroups(requestDTO, context)
+                : null;
+        List<RiskListMatch> amlDetails = readOnlyEvaluation == null
+                ? evaluateAmlChecks(requestDTO, context)
+                : readOnlyEvaluation.amlDetails();
         details.addAll(amlDetails);
         Optional<RiskListMatch> amlBlockingDetail = firstBlockingDetail(amlDetails);
         if (amlBlockingDetail.isPresent()) {
@@ -294,14 +321,20 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                             RiskReasonCodeEnum.AML_HIT, riskRecordNo),
                     details);
         }
-        Optional<RiskListMatch> listBlockHit = evaluateBlackWhiteArbitration(requestDTO, context, details);
+        BlackWhiteEvaluation blackWhiteEvaluation = readOnlyEvaluation == null
+                ? evaluateBlackWhiteChecks(requestDTO, context)
+                : readOnlyEvaluation.blackWhiteEvaluation();
+        Optional<RiskListMatch> listBlockHit = evaluateBlackWhiteArbitration(blackWhiteEvaluation, details);
         if (listBlockHit.isPresent()) {
             return RiskEvaluationOutcome.of(
                     buildResult(resolveDecision(listBlockHit.get(), RiskDecisionEnum.REJECT),
                             RiskReasonCodeEnum.BLACKLIST_HIT, riskRecordNo),
                     details);
         }
-        Optional<RiskListMatch> limitHit = findMerchantLimitRule(requestDTO);
+        MerchantLimitReadOnlyEvaluation merchantLimitEvaluation = readOnlyEvaluation == null
+                ? evaluateMerchantLimitReadOnly(requestDTO)
+                : readOnlyEvaluation.merchantLimitEvaluation();
+        Optional<RiskListMatch> limitHit = merchantLimitEvaluation.limitHit();
         limitHit.ifPresent(match -> details.add(stage(match, STAGE_MERCHANT_LIMIT, MATCH_HIT)));
         if (limitHit.isPresent() && !RiskDecisionEnum.PASS.getCode().equalsIgnoreCase(limitHit.get().getDecisionAction())) {
             return RiskEvaluationOutcome.of(
@@ -323,9 +356,11 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                             RiskReasonCodeEnum.RULE_HIT, riskRecordNo),
                     details);
         }
-        if (limitHit.isEmpty() && cumulativeLimitDetails.isEmpty() && hasActiveMerchantLimitRule(requestDTO)) {
+        if (limitHit.isEmpty() && cumulativeLimitDetails.isEmpty()
+                && merchantLimitEvaluation.activeMerchantLimitRule()) {
             details.add(checkpoint(STAGE_MERCHANT_LIMIT, MATCH_PASS, RiskDecisionEnum.PASS, "本笔交易未触发商户交易限额，放行"));
         }
+        boolean retainFrequencySuccessReservations = false;
         try {
             List<RiskListMatch> frequencyDetails = evaluateFrequencyRules(requestDTO, context).stream()
                     .map(match -> stage(
@@ -357,9 +392,14 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                         buildResult(RiskDecisionEnum.REQUIRE_3DS, RiskReasonCodeEnum.THREE_DS_REQUIRED, riskRecordNo),
                         details);
             }
+            retainFrequencySuccessReservations = true;
         } catch (RuntimeException exception) {
             rollbackMerchantLimitReservations(cumulativeLimitEvaluation);
             throw exception;
+        } finally {
+            if (!retainFrequencySuccessReservations) {
+                releaseFrequencySuccessReservations(requestDTO);
+            }
         }
         if (details.isEmpty()) {
             Optional<RiskEvaluationOutcome> skeletonOutcome = evaluateSkeletonFallback(requestDTO, riskRecordNo);
@@ -375,6 +415,20 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                 cumulativeLimitEvaluation.lifecycleManaged()
                         && !cumulativeLimitEvaluation.reservations().isEmpty());
         return RiskEvaluationOutcome.of(resultDTO, details);
+    }
+
+    /**
+     * 释放本次评估已预占但不再可能进入支付成功终态的频控成功名额。
+     *
+     * @param requestDTO 当前风控请求；身份不完整时仓储实现安全忽略
+     */
+    private void releaseFrequencySuccessReservations(RiskPaymentEvaluateRequestDTO requestDTO) {
+        if (requestDTO == null) {
+            return;
+        }
+        riskListRuntimeRepository.releaseFrequencySuccessReservations(
+                requestDTO.getMerchantId(),
+                requestDTO.getTransactionId());
     }
 
     /**
@@ -511,18 +565,32 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
     }
 
     /**
+     * 查询完整黑白名单明细，但不在工作线程内执行最终仲裁或修改主线程审计集合。
+     *
+     * @param requestDTO 当前支付风控请求
+     * @param context 已归一化的只读查询上下文
+     * @return 可由请求线程按固定阶段顺序仲裁的不可变查询结果
+     */
+    private BlackWhiteEvaluation evaluateBlackWhiteChecks(RiskPaymentEvaluateRequestDTO requestDTO,
+                                                           LookupContext context) {
+        return new BlackWhiteEvaluation(
+                List.copyOf(evaluateWhitelistChecks(requestDTO, context)),
+                List.copyOf(evaluateBlacklistChecks(requestDTO, context)));
+    }
+
+    /**
      * 按风险等级在白名单放行与黑名单阻断之间进行确定性仲裁。
      *
      * <p>每个等级均先判断白名单，再判断同等级黑名单；强等级先于优先和弱等级。</p>
      *
+     * @param evaluation 已完成查询的黑白名单只读结果
      * @param details 接收全部黑白名单节点审计明细
      * @return 仲裁后的首条阻断黑名单；白名单优先或均未阻断时返回空
      */
-    private Optional<RiskListMatch> evaluateBlackWhiteArbitration(RiskPaymentEvaluateRequestDTO requestDTO,
-                                                                  LookupContext context,
+    private Optional<RiskListMatch> evaluateBlackWhiteArbitration(BlackWhiteEvaluation evaluation,
                                                                   List<RiskListMatch> details) {
-        List<RiskListMatch> whitelistDetails = evaluateWhitelistChecks(requestDTO, context);
-        List<RiskListMatch> blacklistDetails = evaluateBlacklistChecks(requestDTO, context);
+        List<RiskListMatch> whitelistDetails = evaluation.whitelistDetails();
+        List<RiskListMatch> blacklistDetails = evaluation.blacklistDetails();
         details.addAll(whitelistDetails);
         details.addAll(blacklistDetails);
         List<RiskListMatch> whitelistMatches = whitelistDetails.stream()
@@ -599,6 +667,103 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
             return Optional.empty();
         }
         return riskListRuntimeRepository.findMerchantLimitRule(requestDTO.getMerchantId(), requestDTO.getAmount(), requestDTO.getCurrency());
+    }
+
+    /**
+     * 查询单笔限额命中和启用状态，不执行累计限额预占。
+     *
+     * @param requestDTO 当前支付风控请求
+     * @return 单笔规则命中及启用状态快照
+     */
+    private MerchantLimitReadOnlyEvaluation evaluateMerchantLimitReadOnly(
+            RiskPaymentEvaluateRequestDTO requestDTO) {
+        return new MerchantLimitReadOnlyEvaluation(
+                findMerchantLimitRule(requestDTO),
+                hasActiveMerchantLimitRule(requestDTO));
+    }
+
+    /**
+     * 并发执行三个相互独立且无业务副作用的只读风控组。
+     *
+     * <p>三个任务共享同一超时边界；任一任务超时、异常或提交失败均取消其余结果并抛出
+     * 受控服务异常，由支付调用方按风控不可用拒绝交易。最终风险优先级仍在请求线程仲裁。</p>
+     *
+     * @param requestDTO 当前支付风控请求
+     * @param context 已归一化的只读查询上下文
+     * @return 三个只读规则组的不可变结果快照
+     */
+    private ReadOnlyEvaluation evaluateReadOnlyGroups(RiskPaymentEvaluateRequestDTO requestDTO,
+                                                       LookupContext context) {
+        List<CompletableFuture<?>> futures = new ArrayList<>(3);
+        long deadlineNanos = System.nanoTime()
+                + TimeUnit.MILLISECONDS.toNanos(properties.getReadOnlyTimeoutMillis());
+        try {
+            CompletableFuture<List<RiskListMatch>> amlFuture = CompletableFuture.supplyAsync(
+                    () -> List.copyOf(evaluateAmlChecks(requestDTO, context)),
+                    readOnlyEvaluationExecutor);
+            futures.add(amlFuture);
+            CompletableFuture<BlackWhiteEvaluation> blackWhiteFuture = CompletableFuture.supplyAsync(
+                    () -> evaluateBlackWhiteChecks(requestDTO, context),
+                    readOnlyEvaluationExecutor);
+            futures.add(blackWhiteFuture);
+            CompletableFuture<MerchantLimitReadOnlyEvaluation> merchantLimitFuture = CompletableFuture.supplyAsync(
+                    () -> evaluateMerchantLimitReadOnly(requestDTO),
+                    readOnlyEvaluationExecutor);
+            futures.add(merchantLimitFuture);
+
+            long remainingNanos = deadlineNanos - System.nanoTime();
+            if (remainingNanos <= 0) {
+                throw new TimeoutException("read-only risk task submission exceeded the shared timeout");
+            }
+            CompletableFuture.allOf(amlFuture, blackWhiteFuture, merchantLimitFuture)
+                    .get(remainingNanos, TimeUnit.NANOSECONDS);
+            return new ReadOnlyEvaluation(
+                    amlFuture.get(),
+                    blackWhiteFuture.get(),
+                    merchantLimitFuture.get());
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            cancelReadOnlyFutures(futures);
+            throw readOnlyEvaluationUnavailable("INTERRUPTED", exception);
+        } catch (TimeoutException exception) {
+            cancelReadOnlyFutures(futures);
+            throw readOnlyEvaluationUnavailable("TIMEOUT", exception);
+        } catch (ExecutionException exception) {
+            cancelReadOnlyFutures(futures);
+            Throwable cause = exception.getCause() == null ? exception : exception.getCause();
+            throw readOnlyEvaluationUnavailable("EXECUTION_ERROR", cause);
+        } catch (RuntimeException exception) {
+            cancelReadOnlyFutures(futures);
+            throw readOnlyEvaluationUnavailable("SUBMISSION_ERROR", exception);
+        }
+    }
+
+    /**
+     * 尽力取消尚未完成的只读任务；任务只允许读缓存和数据库，不包含预占或状态更新。
+     *
+     * @param futures 本次评估已成功提交的任务
+     */
+    private void cancelReadOnlyFutures(List<CompletableFuture<?>> futures) {
+        futures.forEach(future -> future.cancel(true));
+    }
+
+    /**
+     * 记录不含敏感输入的失败摘要并构建统一服务异常。
+     *
+     * @param failureType 受控失败分类
+     * @param cause 原始失败原因
+     * @return 交给内部接口异常处理器的失败关闭异常
+     */
+    private ServiceException readOnlyEvaluationUnavailable(String failureType, Throwable cause) {
+        log.error("event: RISK_READ_ONLY_EVALUATION_FAILED stage=READ_ONLY_PARALLEL traceId: {} failureType: {} exceptionType: {} timeoutMillis: {}",
+                TraceContext.getTraceId(),
+                failureType,
+                cause == null ? "Unknown" : cause.getClass().getSimpleName(),
+                properties.getReadOnlyTimeoutMillis());
+        return new ServiceException(
+                ApiResultEnum.INTERNAL_SERVER_ERROR.getCode(),
+                "risk read-only evaluation is unavailable",
+                cause);
     }
 
     /**
@@ -1339,6 +1504,22 @@ public class DefaultRiskEvaluationService implements RiskEvaluationService {
                                  RiskRuntimeLookupValue shippingCountryLookup,
                                  RiskRuntimeLookupValue customerIdLookup,
                                  RiskRuntimeLookupValue deviceFingerprintLookup) {
+    }
+
+    /** 三个独立只读规则组完成后交给请求线程确定性汇总的结果。 */
+    private record ReadOnlyEvaluation(List<RiskListMatch> amlDetails,
+                                      BlackWhiteEvaluation blackWhiteEvaluation,
+                                      MerchantLimitReadOnlyEvaluation merchantLimitEvaluation) {
+    }
+
+    /** 白名单与黑名单查询明细，列表顺序与规则声明顺序一致。 */
+    private record BlackWhiteEvaluation(List<RiskListMatch> whitelistDetails,
+                                        List<RiskListMatch> blacklistDetails) {
+    }
+
+    /** 单笔限额命中和启用状态，不包含累计限额预占结果。 */
+    private record MerchantLimitReadOnlyEvaluation(Optional<RiskListMatch> limitHit,
+                                                   boolean activeMerchantLimitRule) {
     }
 
     private record Stage(String code, String name, int order) {

@@ -7,7 +7,7 @@ import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.message.SecurityInterceptAuditMessage;
-import com.scott.payment.component.mq.producer.MqProducer;
+import com.scott.payment.component.mq.publisher.IndependentReliableMqPublisher;
 import com.scott.payment.component.mq.properties.SecurityAuditMqProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -74,7 +74,7 @@ public class SecurityInterceptEventRecorder {
             DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
 
     /** MQ 消息发布器。 */
-    private final MqProducer mqProducer;
+    private final IndependentReliableMqPublisher mqPublisher;
 
     /** 安全审计 MQ 开关与消费参数。 */
     private final SecurityAuditMqProperties properties;
@@ -82,12 +82,12 @@ public class SecurityInterceptEventRecorder {
     /**
      * 创建安全拦截审计生产端。
      *
-     * @param mqProducer MQ 消息发布器
+     * @param mqPublisher 独立事务可靠消息发布器
      * @param properties 安全审计 MQ 配置
      */
-    public SecurityInterceptEventRecorder(MqProducer mqProducer,
+    public SecurityInterceptEventRecorder(IndependentReliableMqPublisher mqPublisher,
                                           SecurityAuditMqProperties properties) {
-        this.mqProducer = mqProducer;
+        this.mqPublisher = mqPublisher;
         this.properties = properties;
     }
 
@@ -119,7 +119,7 @@ public class SecurityInterceptEventRecorder {
             return;
         }
         try {
-            mqProducer.send(
+            mqPublisher.publish(
                     MqTopic.SECURITY_INTERCEPT_AUDIT,
                     MqTag.SECURITY_INTERCEPT_AUDIT,
                     buildMessage(request, sourceLayer, eventType, riskLevel,

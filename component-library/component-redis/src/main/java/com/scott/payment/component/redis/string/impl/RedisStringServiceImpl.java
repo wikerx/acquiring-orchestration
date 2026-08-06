@@ -7,7 +7,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -167,23 +166,6 @@ public class RedisStringServiceImpl implements RedisStringService {
     @Override
     public boolean delete(String key) {
         return RedisKeySupport.hasKey(key) && Boolean.TRUE.equals(redisTemplate.delete(key));
-    }
-
-    /**
-     * 批量删除 Key。
-     *
-     * @param keys Redis Key 集合
-     * @return 删除数量
-     */
-    @Override
-    public long delete(Collection<String> keys) {
-        if (keys == null || keys.isEmpty()) {
-            return 0L;
-        }
-        Long deleted = redisTemplate.delete(keys.stream()
-                .filter(RedisKeySupport::hasKey)
-                .toList());
-        return deleted == null ? 0L : deleted;
     }
 
     /**

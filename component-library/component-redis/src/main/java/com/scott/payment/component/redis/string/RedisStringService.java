@@ -1,7 +1,6 @@
 package com.scott.payment.component.redis.string;
 
 import java.time.Duration;
-import java.util.Collection;
 
 /**
  * @author : scott
@@ -91,14 +90,6 @@ public interface RedisStringService {
      * @return 是否删除成功
      */
     boolean delete(String key);
-
-    /**
-     * 批量删除 Key。
-     *
-     * @param keys Redis Key 集合
-     * @return 删除数量
-     */
-    long delete(Collection<String> keys);
 
     /**
      * 按增量递增数值。

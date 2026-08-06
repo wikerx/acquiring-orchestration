@@ -1,11 +1,7 @@
 package com.scott.payment.payment.service.impl;
 
-import com.scott.payment.component.db.sharding.PaymentQuarterShardingProperties;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingPhysicalTableNameResolver;
-import com.scott.payment.component.db.sharding.ShardingQuarterResolver;
-import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
+import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.channel.payment.api.PaymentChannelCallbackHandler;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
@@ -28,6 +24,7 @@ import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -35,11 +32,13 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -55,16 +54,144 @@ import static org.mockito.Mockito.when;
 class DefaultTransactionCallbackServiceTests {
 
     /**
+     * ShardingSphere 模式必须在同一交易数据源事务中只使用逻辑表，并以分片时间、版本和当前状态完成回调 CAS。
+     */
+    @Test
+    void shouldUseLogicalCallbackTableFamilyInShardingSphereMode() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 14, 10, 0);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(1);
+        when(recordService.findOperationByChannelTransaction(
+                "202607141000000000001", "CH202607141000000000001")).thenReturn(operation());
+        when(recordService.findOrder(transactionDateTime, "OP202607141000000000001")).thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"))).thenReturn(true);
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                new DefaultChannelTransactionStatusResolver());
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(callbackCommand());
+
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("PROCESSED");
+        verify(callbackLogMapper).insertLogical(any());
+        verify(callbackMapper).selectByIdempotency(
+                eq("MPGS"), anyString(), eq(transactionDateTime));
+        verify(callbackMapper).insertLogical(any());
+        verify(callbackMapper).updateProcessResultLogical(
+                anyString(),
+                eq(transactionDateTime),
+                eq(0),
+                eq(List.of("RECEIVED", "FAILED")),
+                eq("PROCESSED"),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                eq(PaymentTransactionStatusEnum.PROCESSING.getCode()),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()),
+                eq("STATUS_CHANGED"),
+                any(),
+                any(LocalDateTime.class));
+    }
+
+    /**
+     * 并发请求在先查后插窗口命中唯一键时，应回查并返回已存在的回调，不得重复推进交易状态。
+     */
+    @Test
+    void shouldRecoverConcurrentDuplicateByReloadingExistingCallback() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 14, 10, 0);
+        TransactionChannelCallbackDO existed = existingCallback();
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.selectByIdempotency(eq("MPGS"), anyString(), eq(transactionDateTime)))
+                .thenReturn(null, existed);
+        when(callbackMapper.insertLogical(any()))
+                .thenThrow(new DuplicateKeyException("callback idempotency key conflict"));
+        when(recordService.findOperationByChannelTransaction(
+                "202607141000000000001", "CH202607141000000000001")).thenReturn(operation());
+        when(recordService.findOrder(transactionDateTime, "OP202607141000000000001")).thenReturn(order());
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                new DefaultChannelTransactionStatusResolver());
+
+        TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(callbackCommand());
+
+        assertThat(resultDTO.getCallbackId()).isEqualTo("CCB202607141000000000001");
+        assertThat(resultDTO.getCallbackStatus()).isEqualTo("PROCESSED");
+        assertThat(resultDTO.getProcessResult()).isEqualTo("DUPLICATE");
+        verify(callbackMapper, times(2)).selectByIdempotency(eq("MPGS"), anyString(), eq(transactionDateTime));
+        verify(recordService, never()).completeByChannelCallback(any(), any(), anyString(),
+                anyString(), any(), any(), any(), any(), any());
+        verify(callbackMapper, never()).updateProcessResultLogical(
+                anyString(), any(), any(), any(), anyString(), any(), any(), any(), anyString(), any(), any());
+    }
+
+    /**
+     * 回调处理结果 CAS 冲突必须抛出异常，让外层事务回滚交易状态、Outbox 和回调记录。
+     */
+    @Test
+    void shouldFailTransactionWhenLogicalCallbackCasConflicts() {
+        TransactionChannelCallbackLogMapper callbackLogMapper = mock(TransactionChannelCallbackLogMapper.class);
+        TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
+        TransactionRecordService recordService = mock(TransactionRecordService.class);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 7, 14, 10, 0);
+        when(callbackLogMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.insertLogical(any())).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any())).thenReturn(0);
+        when(recordService.findOperationByChannelTransaction(
+                "202607141000000000001", "CH202607141000000000001")).thenReturn(operation());
+        when(recordService.findOrder(transactionDateTime, "OP202607141000000000001")).thenReturn(order());
+        when(recordService.completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"))).thenReturn(true);
+        DefaultTransactionCallbackService callbackService = new DefaultTransactionCallbackService(
+                callbackLogMapper,
+                callbackMapper,
+                recordService,
+                new CapturingEventOutboxService(),
+                new TransactionShardingKeyParser(),
+                Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
+                        Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))),
+                new DefaultChannelTransactionStatusResolver());
+
+        assertThatThrownBy(() -> callbackService.recordChannelCallback(callbackCommand()))
+                .isInstanceOf(ServiceException.class)
+                .hasMessage("callback process state has changed");
+        verify(recordService).completeByChannelCallback(any(), any(), anyString(),
+                eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
+                eq("AUTHORIZED"), eq("00"), eq("Approved"));
+    }
+
+    /**
      * MPGS 成功回调应通过 order.id 和 transaction.id 定位动作单，并调用交易记录服务推进成功终态。
      */
     @Test
     void shouldProcessMpgsApprovedCallbackByChannelOrderAndTransactionId() {
         TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
         TransactionRecordService recordService = mock(TransactionRecordService.class);
-        when(callbackMapper.insertPhysical(anyString(), any(TransactionChannelCallbackDO.class))).thenReturn(1);
-        when(callbackMapper.updateProcessResultPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any()))
+        when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any()))
                 .thenReturn(1);
-        when(recordService.findOperationByChannelTransaction("TX202607141000000000001", "CH202607141000000000001"))
+        when(recordService.findOperationByChannelTransaction("202607141000000000001", "CH202607141000000000001"))
                 .thenReturn(operation());
         when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
                 .thenReturn(order());
@@ -76,7 +203,6 @@ class DefaultTransactionCallbackServiceTests {
                 callbackMapper,
                 recordService,
                 eventOutboxService,
-                shardingDataTemplate(),
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
                         Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
@@ -85,14 +211,14 @@ class DefaultTransactionCallbackServiceTests {
 
         assertThat(resultDTO.getCallbackStatus()).isEqualTo("PROCESSED");
         assertThat(resultDTO.getProcessResult()).isEqualTo("STATUS_CHANGED");
-        assertThat(resultDTO.getTransactionId()).isEqualTo("TX202607141000000000001");
+        assertThat(resultDTO.getTransactionId()).isEqualTo("202607141000000000001");
         verify(recordService).completeByChannelCallback(any(), any(), anyString(),
                 eq(PaymentTransactionStatusEnum.SUCCESS.getCode()), any(), any(),
                 eq("AUTHORIZED"), eq("00"), eq("Approved"));
         assertThat(eventOutboxService.eventDO).isNotNull();
         assertThat(eventOutboxService.eventDO.getEventType())
                 .isEqualTo(TransactionMqConstants.TRANSACTION_CALLBACK_PROCESSED_TAG);
-        assertThat(eventOutboxService.eventDO.getTransactionId()).isEqualTo("TX202607141000000000001");
+        assertThat(eventOutboxService.eventDO.getTransactionId()).isEqualTo("202607141000000000001");
     }
 
     /**
@@ -102,12 +228,13 @@ class DefaultTransactionCallbackServiceTests {
     void shouldNotTreatWorldPayCapturedAsDuplicateAfterAuthorisedCallback() {
         TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
         TransactionRecordService recordService = mock(TransactionRecordService.class);
-        when(callbackMapper.insertPhysical(anyString(), any(TransactionChannelCallbackDO.class))).thenReturn(1);
-        when(callbackMapper.updateProcessResultPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any()))
+        when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any()))
                 .thenReturn(1);
         TransactionOperationDO operationDO = operation();
         operationDO.setTransactionType(PaymentTransactionTypeEnum.PAYMENT.getCode());
-        when(recordService.findOperationByChannelTransaction("TX202607141000000000001", "CH202607141000000000001"))
+        when(recordService.findOperationByChannelTransaction("202607141000000000001", "CH202607141000000000001"))
                 .thenReturn(operationDO);
         when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
                 .thenReturn(order());
@@ -118,7 +245,6 @@ class DefaultTransactionCallbackServiceTests {
                 callbackMapper,
                 recordService,
                 new CapturingEventOutboxService(),
-                shardingDataTemplate(),
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
                         Optional.of(List.of(new FixedWorldPayCallbackHandler()))))));
@@ -150,10 +276,11 @@ class DefaultTransactionCallbackServiceTests {
     void shouldRejectUnsafeCallbackWithoutChangingTransactionStatus() {
         TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
         TransactionRecordService recordService = mock(TransactionRecordService.class);
-        when(callbackMapper.insertPhysical(anyString(), any(TransactionChannelCallbackDO.class))).thenReturn(1);
-        when(callbackMapper.updateProcessResultPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any()))
+        when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any()))
                 .thenReturn(1);
-        when(recordService.findOperationByChannelTransaction("TX202607141000000000001", "CH202607141000000000001"))
+        when(recordService.findOperationByChannelTransaction("202607141000000000001", "CH202607141000000000001"))
                 .thenReturn(operation());
         when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
                 .thenReturn(order());
@@ -163,7 +290,6 @@ class DefaultTransactionCallbackServiceTests {
                 callbackMapper,
                 recordService,
                 eventOutboxService,
-                shardingDataTemplate(),
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
                         Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
@@ -187,10 +313,11 @@ class DefaultTransactionCallbackServiceTests {
     void shouldRecordMpgsThreeDsCallbackWithoutChangingTransactionStatus() {
         TransactionChannelCallbackMapper callbackMapper = mock(TransactionChannelCallbackMapper.class);
         TransactionRecordService recordService = mock(TransactionRecordService.class);
-        when(callbackMapper.insertPhysical(anyString(), any(TransactionChannelCallbackDO.class))).thenReturn(1);
-        when(callbackMapper.updateProcessResultPhysical(anyString(), anyString(), anyString(), any(), any(), any(), any(), any(), any()))
+        when(callbackMapper.insertLogical(any(TransactionChannelCallbackDO.class))).thenReturn(1);
+        when(callbackMapper.updateProcessResultLogical(anyString(), any(), any(), any(), anyString(),
+                any(), any(), any(), anyString(), any(), any()))
                 .thenReturn(1);
-        when(recordService.findSourceOperationByTransactionId("TX202607141000000000001"))
+        when(recordService.findSourceOperationByTransactionId("202607141000000000001"))
                 .thenReturn(operation());
         when(recordService.findOrder(LocalDateTime.of(2026, 7, 14, 10, 0), "OP202607141000000000001"))
                 .thenReturn(order());
@@ -200,7 +327,6 @@ class DefaultTransactionCallbackServiceTests {
                 callbackMapper,
                 recordService,
                 eventOutboxService,
-                shardingDataTemplate(),
                 new TransactionShardingKeyParser(),
                 Optional.of(new PaymentChannelCallbackExecutor(new PaymentChannelCallbackRegistry(
                         Optional.of(List.of(new MpgsPaymentChannelCallbackHandler()))))));
@@ -210,7 +336,7 @@ class DefaultTransactionCallbackServiceTests {
         commandDTO.setRequestUri("/channel/v1/callbacks/MPGS/3ds");
         commandDTO.setRequestBody("threeDSServerTransID=7f880d1d-6d8d-4d7a-83af-7465d3f0c1b8"
                 + "&threeDSSessionData=encrypted-session-data"
-                + "&orderId=TX202607141000000000001");
+                + "&orderId=202607141000000000001");
 
         TransactionChannelCallbackResultDTO resultDTO = callbackService.recordChannelCallback(commandDTO);
 
@@ -233,7 +359,7 @@ class DefaultTransactionCallbackServiceTests {
         commandDTO.setRequestBody("""
                 {
                   "result": "SUCCESS",
-                  "order": {"id": "TX202607141000000000001", "status": "AUTHORIZED"},
+                  "order": {"id": "202607141000000000001", "status": "AUTHORIZED"},
                   "transaction": {"id": "CH202607141000000000001", "type": "AUTHORIZATION"},
                   "response": {"gatewayCode": "APPROVED", "acquirerCode": "00", "acquirerMessage": "Approved"}
                 }
@@ -245,8 +371,8 @@ class DefaultTransactionCallbackServiceTests {
         TransactionOperationDO operationDO = new TransactionOperationDO();
         operationDO.setId(1L);
         operationDO.setOperationId("OP202607141000000000001");
-        operationDO.setTransactionId("TX202607141000000000001");
-        operationDO.setChannelOrderNo("TX202607141000000000001");
+        operationDO.setTransactionId("202607141000000000001");
+        operationDO.setChannelOrderNo("202607141000000000001");
         operationDO.setChannelTransactionId("CH202607141000000000001");
         operationDO.setMerchantId("200001");
         operationDO.setMerchantOrderNo("M202607140001");
@@ -264,8 +390,8 @@ class DefaultTransactionCallbackServiceTests {
     private TransactionOrderDO order() {
         TransactionOrderDO orderDO = new TransactionOrderDO();
         orderDO.setOperationId("OP202607141000000000001");
-        orderDO.setRootTransactionId("TX202607141000000000001");
-        orderDO.setLatestTransactionId("TX202607141000000000001");
+        orderDO.setRootTransactionId("202607141000000000001");
+        orderDO.setLatestTransactionId("202607141000000000001");
         orderDO.setTransactionType(PaymentTransactionTypeEnum.AUTHORIZATION.getCode());
         orderDO.setTransactionStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
         orderDO.setTransactionCurrency("USD");
@@ -276,32 +402,16 @@ class DefaultTransactionCallbackServiceTests {
         return orderDO;
     }
 
-    private PaymentQuarterShardingProperties shardingProperties() {
-        PaymentQuarterShardingProperties properties = new PaymentQuarterShardingProperties();
-        properties.getTables().put("transaction_channel_callback", tableRule("transaction_channel_callback"));
-        properties.getTables().put("transaction_channel_callback_log", tableRule("transaction_channel_callback_log"));
-        return properties;
-    }
-
-    private ShardingDataTemplate shardingDataTemplate() {
-        PaymentQuarterShardingProperties properties = shardingProperties();
-        ShardingTableRangeResolver rangeResolver = new ShardingTableRangeResolver(
-                properties,
-                new ShardingQuarterResolver(),
-                new ShardingPhysicalTableNameResolver());
-        return new ShardingDataTemplate(rangeResolver);
-    }
-
-    private PaymentQuarterShardingProperties.TableRule tableRule(String logicalTable) {
-        PaymentQuarterShardingProperties.TableRule tableRule = new PaymentQuarterShardingProperties.TableRule();
-        tableRule.setLogicalTable(logicalTable);
-        tableRule.setTemplateTable(logicalTable);
-        tableRule.setStartYear(2026);
-        tableRule.setStartQuarter(1);
-        tableRule.setEndYear(2035);
-        tableRule.setEndQuarter(4);
-        tableRule.setTableNameFormat("%s_%d%02d");
-        return tableRule;
+    private TransactionChannelCallbackDO existingCallback() {
+        TransactionChannelCallbackDO callbackDO = new TransactionChannelCallbackDO();
+        callbackDO.setCallbackId("CCB202607141000000000001");
+        callbackDO.setTransactionId("202607141000000000001");
+        callbackDO.setOperationId("OP202607141000000000001");
+        callbackDO.setChannelCode("MPGS");
+        callbackDO.setChannelOrderNo("202607141000000000001");
+        callbackDO.setChannelTransactionId("CH202607141000000000001");
+        callbackDO.setCallbackStatus("PROCESSED");
+        return callbackDO;
     }
 
     private static class CapturingEventOutboxService implements TransactionEventOutboxService {
@@ -369,7 +479,7 @@ class DefaultTransactionCallbackServiceTests {
         public ChannelCallbackResult handle(ChannelCallbackRequest request) {
             ChannelCallbackResult result = new ChannelCallbackResult();
             result.setChannelCode("WPGXML");
-            result.setChannelOrderNo("TX202607141000000000001");
+            result.setChannelOrderNo("202607141000000000001");
             result.setChannelTransactionId("CH202607141000000000001");
             result.setRawChannelStatus(request.getBody());
             result.setChannelTradeStatus(ChannelTradeStatus.SUCCESS.getCode());

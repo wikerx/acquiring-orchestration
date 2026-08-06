@@ -5,6 +5,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.component.job.model.JobExecuteResult;
 import com.scott.payment.job.client.data.DataInternalClient;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.dto.transaction.MerchantNotificationRetryRequest;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 /**
@@ -57,7 +59,42 @@ class MerchantNotificationRetryJobTest {
         assertThat(captor.getAllValues()).extracting(DataMerchantNotificationNotifyDueClientRequestDTO::getTransactionDateTime)
                 .containsExactly(firstTime, secondTime);
         assertThat(captor.getAllValues()).extracting(DataMerchantNotificationNotifyDueClientRequestDTO::getLimit)
-                .containsExactly(20, 20);
+                .containsExactly(5, 5);
+    }
+
+    /** 单笔人工补偿必须同时透传交易号和明确分片时间。 */
+    @Test
+    void executeShouldNotifySingleTransactionWithExplicitTransactionTime() {
+        DataInternalClient dataInternalClient = mock(DataInternalClient.class);
+        when(dataInternalClient.notifyMerchantNotification(org.mockito.ArgumentMatchers.any())).thenReturn(false);
+        MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(dataInternalClient);
+        LocalDateTime transactionDateTime = LocalDateTime.of(2026, 8, 3, 3, 17, 58);
+        MerchantNotificationRetryRequest request = new MerchantNotificationRetryRequest();
+        request.setTransactionId("202608030317582640931");
+        request.setTransactionDateTime(transactionDateTime);
+
+        JobExecuteResult result = job.execute(context(request));
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getMessage()).contains("successCount=0");
+        ArgumentCaptor<DataMerchantNotificationNotifyClientRequestDTO> captor =
+                ArgumentCaptor.forClass(DataMerchantNotificationNotifyClientRequestDTO.class);
+        verify(dataInternalClient).notifyMerchantNotification(captor.capture());
+        assertThat(captor.getValue().getTransactionId()).isEqualTo("202608030317582640931");
+        assertThat(captor.getValue().getTransactionDateTime()).isEqualTo(transactionDateTime);
+        verify(dataInternalClient, never()).notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any());
+    }
+
+    /** 单笔人工补偿禁止从交易号推算时间。 */
+    @Test
+    void executeShouldRequireExplicitTransactionTimeForSingleRetry() {
+        MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(mock(DataInternalClient.class));
+        MerchantNotificationRetryRequest request = new MerchantNotificationRetryRequest();
+        request.setTransactionId("202608030317582640931");
+
+        assertThatThrownBy(() -> job.execute(context(request)))
+                .isInstanceOf(ServiceException.class)
+                .hasMessageContaining("transactionDateTime is required");
     }
 
     /**

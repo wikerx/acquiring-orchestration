@@ -195,6 +195,24 @@ public class AdminOpenApiMerchantKeyController {
     }
 
     /**
+     * 启用或停用商户当前 OpenAPI 密钥材料。
+     *
+     * @param merchantId 商户号
+     * @param keyType 密钥类型
+     * @param enabled true 启用，false 停用
+     * @return 空成功结果
+     */
+    @PostMapping("/{merchantId}/status")
+    @RequiresPermission("merchant:key:rotate")
+    @OperationLog(moduleName = "OpenAPI对接材料", businessType = OperationTypeConstants.UPDATE, operation = "启停商户OpenAPI密钥")
+    public CommonResult<Void> updateStatus(@PathVariable("merchantId") String merchantId,
+                                           @RequestParam("keyType") OpenApiKeyType keyType,
+                                           @RequestParam("enabled") boolean enabled) {
+        merchantInfoApplicationService.setOpenApiKeyEnabled(merchantId, keyType, enabled);
+        return success();
+    }
+
+    /**
      * 查询管理端商户 OpenAPI 密钥操作记录。仅返回脱敏审计字段，不返回请求或响应正文。
      *
      * @param merchantId 商户号

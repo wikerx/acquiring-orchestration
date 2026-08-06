@@ -61,9 +61,11 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
         when(counterService.markerState(preparing))
                 .thenReturn(RedisReservationMarkerState.PRESENT);
         when(stateService.markReserved(preparing)).thenReturn(true);
-        when(statusRepository.findStatus("TX-ABSENT"))
+        when(statusRepository.findStatus(
+                "TX-ABSENT", absent.getPeriodBeginTime(), absent.getPeriodEndTime()))
                 .thenReturn(PaymentTransactionLookupResult.absent());
-        when(statusRepository.findStatus("TX-PENDING"))
+        when(statusRepository.findStatus(
+                "TX-PENDING", pending.getPeriodBeginTime(), pending.getPeriodEndTime()))
                 .thenReturn(PaymentTransactionLookupResult.found("PENDING"));
         when(coordinator.cancel("TX-ABSENT", "payment record absent after grace period"))
                 .thenReturn(new MerchantLimitReservationTransitionSummary(1, 0, 0));
@@ -157,7 +159,8 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
                 now.minusMinutes(10));
         when(stateService.findStaleNonTerminal(now.minusSeconds(60), 100))
                 .thenReturn(List.of(first, second));
-        when(statusRepository.findStatus("TX-DUPLICATE-RULES"))
+        when(statusRepository.findStatus(
+                "TX-DUPLICATE-RULES", first.getPeriodBeginTime(), first.getPeriodEndTime()))
                 .thenReturn(PaymentTransactionLookupResult.found("SUCCESS"));
         when(coordinator.applyPaymentStatus(
                 "TX-DUPLICATE-RULES",
@@ -174,7 +177,8 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
         var summary = service.reconcile(now, 100);
 
         assertThat(summary.confirmed()).isEqualTo(2);
-        verify(statusRepository, times(1)).findStatus("TX-DUPLICATE-RULES");
+        verify(statusRepository, times(1)).findStatus(
+                "TX-DUPLICATE-RULES", first.getPeriodBeginTime(), first.getPeriodEndTime());
         verify(coordinator, times(1)).applyPaymentStatus(
                 "TX-DUPLICATE-RULES",
                 "SUCCESS",
@@ -224,6 +228,9 @@ class DefaultMerchantLimitReservationReconciliationServiceTests {
         reservation.setReservationStatus(status.name());
         reservation.setVersion(0);
         reservation.setCreateTime(createTime);
+        reservation.setPeriodBeginTime(createTime.withDayOfMonth(1).toLocalDate().atStartOfDay());
+        reservation.setPeriodEndTime(
+                createTime.withDayOfMonth(1).plusMonths(1).toLocalDate().atStartOfDay());
         return reservation;
     }
 }

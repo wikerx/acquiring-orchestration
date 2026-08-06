@@ -2,6 +2,7 @@ package com.scott.payment.data.application;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
+import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyCommandDTO;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyDueCommandDTO;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import org.springframework.stereotype.Service;
@@ -19,10 +20,10 @@ import org.springframework.stereotype.Service;
 public class MerchantNotificationApplicationService {
 
     /** 未显式指定时的单分表补偿批量。 */
-    private static final int DEFAULT_LIMIT = 100;
+    private static final int DEFAULT_LIMIT = 5;
 
     /** 单次内部补偿允许处理的最大任务数。 */
-    private static final int MAX_LIMIT = 500;
+    private static final int MAX_LIMIT = 5;
 
     /** 商户通知投递服务。 */
     private final MerchantNotificationDeliveryService deliveryService;
@@ -48,6 +49,22 @@ public class MerchantNotificationApplicationService {
         }
         int limit = normalizeLimit(commandDTO.getLimit());
         return deliveryService.notifyDue(commandDTO.getTransactionDateTime(), limit);
+    }
+
+    /**
+     * 按平台交易号和上游传入的交易时间精确重试一条通知。
+     *
+     * @param commandDTO 单笔通知补偿命令
+     * @return true 表示本次回调成功，false 表示任务未到期、不存在或回调失败
+     */
+    public boolean notifyTransaction(MerchantNotificationNotifyCommandDTO commandDTO) {
+        if (commandDTO == null || commandDTO.getTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time is required");
+        }
+        if (commandDTO.getTransactionId() == null || commandDTO.getTransactionId().isBlank()) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_id is required");
+        }
+        return deliveryService.notifyTransaction(commandDTO.getTransactionDateTime(), commandDTO.getTransactionId());
     }
 
     /** 校验并限制单次补偿批量。 */

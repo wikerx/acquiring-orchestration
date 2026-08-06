@@ -74,10 +74,14 @@ public class FastJsonWebMvcConfig implements WebMvcConfigurer {
     /**
      * 创建 Web 层统一 fastjson2 配置。
      *
-     * @return 启用字段读写并保留 null 字段的转换配置
+     * 日期读取使用 fastjson2 的自动识别能力，兼容管理端现有的本地时间和 ISO-8601 请求；
+     * 日期写出保留对象实际精度，确保交易分片时间的毫秒不会在 JSON 往返时丢失。
+     *
+     * @return 启用字段读写、保留 null 字段并自动识别日期格式的转换配置
      */
     private FastJsonConfig fastJsonConfig() {
         FastJsonConfig config = new FastJsonConfig();
+        config.setDateFormat(null);
         config.setReaderFeatures(JSONReader.Feature.FieldBased);
         config.setWriterFeatures(JSONWriter.Feature.WriteMapNullValue);
         return config;

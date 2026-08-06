@@ -7,6 +7,7 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantQueryRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantResponseKeyRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
+import com.scott.payment.component.security.openapi.OpenApiKeyType;
 import com.scott.payment.component.core.model.PageResult;
 
 /**
@@ -117,6 +118,15 @@ public interface AdminMerchantInfoService {
      * @return 最新安全材料
      */
     AdminMerchantSecurityMaterialDTO rotateMerchantResponseKey(String merchantId);
+
+    /**
+     * 启用或停用商户当前 OpenAPI 密钥材料。
+     *
+     * @param merchantId 商户号
+     * @param keyType 密钥类型
+     * @param enabled true 启用，false 停用
+     */
+    void setOpenApiKeyEnabled(String merchantId, OpenApiKeyType keyType, boolean enabled);
 
     /**
      * 更新商户响应公钥。

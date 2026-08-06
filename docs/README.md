@@ -7,7 +7,7 @@
 * [支付收单平台系统架构说明](architecture/system-architecture.md)：后端与前端双仓库边界、整体服务关系、OpenAPI 授权链路、退款/授权/回调目标链路、状态机目标和当前风险。
 * [支付收单系统工程约束](architecture/payment-engineering.md)：资金安全、模块边界、状态机、幂等、金额币种、OpenAPI、渠道回调、内部接口和前端限制。
 * [Hosted Checkout V1 数据库与状态机设计草案](architecture/hosted-checkout-v1-database-design.md)：自建收银台的会话表、token、支付尝试、事件、安全事件和 MPGS 3DS 状态机设计。
-* [ShardingSphere 交易季度分表全量升级方案](architecture/shardingsphere-full-migration-plan.md)：全系统接入范围、分片规则、CRUD、事务、查询治理、灰度、回滚和测试门禁。
+* [ShardingSphere SQL 兼容矩阵](architecture/shardingsphere-sql-compatibility-matrix.md)：动态 Mapper、分片键 SQL、事务、分页、治理和回归证据基线。
 * [企业级重构路线图](architecture/refactor-roadmap.md)：后续分阶段重构顺序和重点。
 * [操作日志后续规划](architecture/operation-log-roadmap.md)：操作日志链路的后续演进方向。
 
@@ -37,6 +37,7 @@
 ## 4. 部署配置
 
 * [Nacos 配置说明](deployment/nacos/README.md)
+* [ShardingSphere 发布、灰度与回滚手册](deployment/shardingsphere-rollout-rollback-runbook.md)
 * [Redis 监控与告警处置手册](deployment/prometheus/redis-monitoring-runbook.md)
 
 Nacos 配置样例位于 `docs/deployment/nacos/`，Prometheus 规则位于
@@ -65,8 +66,8 @@ Nacos 配置样例位于 `docs/deployment/nacos/`，Prometheus 规则位于
 
 ## 6. SQL 脚本
 
-* [基础 ISO 字典建表脚本](sql/base-iso-dictionary-schema.sql)
-* [Hosted Checkout V1 dev/test 表结构脚本](sql/checkout-session-ddl-dev.sql)
+* [ShardingSphere 测试分表退役草案](sql/shardingsphere-test-table-retirement-20260802.sql)
+* [ShardingSphere 季度号段修复草案](sql/shardingsphere-auto-increment-repair-20260802.sql)
 
 SQL 参考脚本统一放在 `docs/sql/`。
 

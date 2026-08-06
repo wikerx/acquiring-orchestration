@@ -33,6 +33,9 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.math.BigDecimal;
 import java.lang.reflect.Method;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -141,6 +144,10 @@ class PaymentServiceImplTests {
         ApiMerchantPaymentRequestDTO requestDTO = buildRequest();
         requestDTO.getTransactionInfo().setSourceTransactionId(null);
         requestDTO.getTransactionInfo().setTransactionId("202607120001000001");
+        requestDTO.getTransactionInfo().setSourceTransactionDateTime(
+                OffsetDateTime.of(2026, 7, 12, 2, 30, 0, 123_000_000, ZoneOffset.UTC));
+        requestDTO.getTransactionInfo().setRootTransactionDateTime(
+                OffsetDateTime.of(2026, 7, 11, 16, 15, 0, 456_000_000, ZoneOffset.UTC));
         bindRequestContext();
 
         PaymentQueryVO responseVO = paymentService.queryTransaction("encrypted-body", requestDTO);
@@ -152,8 +159,14 @@ class PaymentServiceImplTests {
         assertThat(paymentInternalClient.requestDTO.getRequestId()).isEqualTo("REQ202607120001");
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionId()).isNull();
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getTransactionId()).isEqualTo("202607120001000001");
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 10, 30, 0, 123_000_000));
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getRootTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 7, 12, 0, 15, 0, 456_000_000));
         assertThat(responseVO.getTransactionInfo()).hasSize(1);
         assertThat(responseVO.getTransactionInfo().get(0).getTransactionId()).isEqualTo("202607120001000001");
+        assertThat(responseVO.getTransactionInfo().get(0).getRootTransactionDateTime())
+                .isEqualTo(OffsetDateTime.of(2026, 7, 12, 0, 15, 0, 456_000_000, ZoneOffset.ofHours(8)));
     }
 
     @Test
@@ -336,6 +349,10 @@ class PaymentServiceImplTests {
         requestDTO.setBillingCardHolderInfo(null);
         requestDTO.setCardInfo(null);
         requestDTO.setThreeDsInfo(null);
+        requestDTO.getTransactionInfo().setSourceTransactionDateTime(
+                OffsetDateTime.of(2026, 8, 2, 4, 15, 30, 123_000_000, ZoneOffset.UTC));
+        requestDTO.getTransactionInfo().setRootTransactionDateTime(
+                OffsetDateTime.of(2026, 8, 1, 2, 30, 0, 456_000_000, ZoneOffset.UTC));
         requestDTO.getTransactionInfo().setDescription("merchant refund note");
         bindRequestContext();
 
@@ -345,6 +362,10 @@ class PaymentServiceImplTests {
         assertThat(paymentInternalClient.requestDTO.getMerchantOrderNo()).isNull();
         assertThat(paymentInternalClient.requestDTO.getCurrency()).isNull();
         assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionId()).isEqualTo("source-001");
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getSourceTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 8, 2, 12, 15, 30, 123_000_000));
+        assertThat(paymentInternalClient.requestDTO.getTransactionInfo().getRootTransactionDateTime())
+                .isEqualTo(LocalDateTime.of(2026, 8, 1, 10, 30, 0, 456_000_000));
         assertThat(responseJson).contains("\"merchantInfo\":{\"merchantId\":\"200001\"");
         assertThat(responseJson).contains("\"orderId\":\"REQ202607120001\"");
         assertThat(responseJson).contains("\"amount\":12.34");
@@ -665,6 +686,7 @@ class PaymentServiceImplTests {
             transactionInfoDTO.setMessage(createResponseDTO.getMerchantResponseMessage());
             transactionInfoDTO.setTransactionType(createResponseDTO.getTransactionType());
             transactionInfoDTO.setTransactionDateTime(createResponseDTO.getTransactionDateTime());
+            transactionInfoDTO.setRootTransactionDateTime(requestDTO.getTransactionInfo().getRootTransactionDateTime());
             transactionInfoDTO.setPaymentMethod(createResponseDTO.getPaymentMethod());
             transactionInfoDTO.setCardBrand(createResponseDTO.getPaymentBrand());
             transactionInfoDTO.setCardBin(createResponseDTO.getCardBin());
@@ -787,6 +809,9 @@ class PaymentServiceImplTests {
             responseDTO.setTransactionCurrency(requestDTO.getCurrency());
             responseDTO.setTransactionRate(new BigDecimal("1.00000000"));
             responseDTO.setTransactionDateTime(requestDTO.getTransactionDateTime());
+            responseDTO.setRootTransactionDateTime(requestDTO.getTransactionInfo() == null
+                    ? requestDTO.getTransactionDateTime()
+                    : requestDTO.getTransactionInfo().getRootTransactionDateTime());
             responseDTO.setTransactionTimeZone("Asia/Shanghai");
             responseDTO.setPaymentMethod(requestDTO.getPaymentMethod());
             responseDTO.setPaymentBrand("MASTERCARD");

@@ -37,6 +37,24 @@ public class ShardingTablePreCreateResult {
      */
     private String currentQuarter;
 
+    /** 待评审的下一版 ShardingSphere 规则版本。 */
+    private String candidateRuleVersion;
+
+    /** 去除秘密后的候选规则 SHA-256 checksum。 */
+    private String candidateRuleChecksum;
+
+    /** 候选 actualDataNodes，仅包含已发布节点和本轮全表校验通过的季度。 */
+    private List<String> verifiedPhysicalNodes = new ArrayList<>();
+
+    /** 是否允许进入人工 Nacos 发布和滚动重启步骤。 */
+    private Boolean publicationReady = Boolean.FALSE;
+
+    /** 阻止新季度节点发布的原因。 */
+    private List<String> publicationBlockers = new ArrayList<>();
+
+    /** 下一步受控操作提示，不会自动发布 Nacos。 */
+    private String nextAction;
+
     /**
      * 目标季度。
      */

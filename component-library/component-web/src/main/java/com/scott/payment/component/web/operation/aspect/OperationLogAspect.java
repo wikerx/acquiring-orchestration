@@ -185,7 +185,8 @@ public class OperationLogAspect {
             publisher.publish(record);
             logStructuredOperation(record);
         } catch (RuntimeException exception) {
-            log.warn("管理类系统操作日志采集失败，方法：{}，原因：{}", methodName(point), exception.getMessage());
+            log.warn("管理类系统操作日志采集失败，方法：{}，异常类型：{}",
+                    methodName(point), exception.getClass().getSimpleName());
         }
     }
 

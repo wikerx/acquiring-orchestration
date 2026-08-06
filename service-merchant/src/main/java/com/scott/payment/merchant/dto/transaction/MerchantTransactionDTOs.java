@@ -1,5 +1,6 @@
 package com.scott.payment.merchant.dto.transaction;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.scott.payment.component.core.model.PageRequest;
 import com.scott.payment.component.core.model.PageResult;
 import lombok.Data;
@@ -143,6 +144,16 @@ public final class MerchantTransactionDTOs {
          * 商户操作原因，写入交易描述和操作审计。
          */
         private String reason;
+
+        /**
+         * 被操作交易的真实分片时间，必须来自当前商户交易列表结果。
+         */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime transactionDateTime;
+
+        /** 被操作交易所属生命周期根主单的真实分片时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
     }
 
     /**
@@ -690,7 +701,12 @@ public final class MerchantTransactionDTOs {
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
+
+        /** 生命周期根主单的真实分片时间，动作详情必须与 transactionDateTime 一并传入。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * transaction Time Zone，用于保存 Transaction Order Response 中与 交易timezone 相关的业务属性。
@@ -1119,7 +1135,12 @@ public final class MerchantTransactionDTOs {
          * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
          * </p>
          */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
         private LocalDateTime transactionDateTime;
+
+        /** 生命周期根主单的真实分片时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * operation Time，用于保存 Transaction Operation Response 中与 动作time 相关的业务属性。

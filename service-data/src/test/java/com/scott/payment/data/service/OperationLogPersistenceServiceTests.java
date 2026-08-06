@@ -64,6 +64,25 @@ class OperationLogPersistenceServiceTests {
         log.info("操作日志数据库最终幂等完成，结果: 重复消息被唯一索引安全吸收");
     }
 
+    /** 超长错误摘要必须在消费持久化边界收敛到数据库列长度。 */
+    @Test
+    void shouldTruncateErrorMessageToDatabaseColumnLength() {
+        log.info("测试操作日志错误摘要长度保护，关键输入: 8192 字符错误摘要");
+        DataOperationLogMapper mapper = mock(DataOperationLogMapper.class);
+        OperationLogPersistenceService service = new OperationLogPersistenceService(mapper);
+        OperationLogMessage message = message();
+        message.setErrorMessage("E".repeat(8192));
+
+        service.persist(message, "ADMIN-LOG-LONG-ERROR");
+
+        ArgumentCaptor<DataOperationLogDO> captor = ArgumentCaptor.forClass(DataOperationLogDO.class);
+        verify(mapper).insert(captor.capture());
+        assertThat(captor.getValue().getErrorMsg())
+                .hasSize(1000)
+                .isEqualTo("E".repeat(1000));
+        log.info("操作日志错误摘要长度保护完成，结果: 持久化字段长度为 1000");
+    }
+
     /** 创建不包含敏感内容的操作日志消息。 */
     private OperationLogMessage message() {
         OperationLogMessage message = new OperationLogMessage();

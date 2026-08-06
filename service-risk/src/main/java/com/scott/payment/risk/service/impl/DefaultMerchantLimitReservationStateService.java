@@ -124,13 +124,16 @@ public class DefaultMerchantLimitReservationStateService implements MerchantLimi
     }
 
     /**
-     * 在独立事务中确认指定交易的全部 RESERVED 记录，CONFIRMED 终态不可逆。
+     * 在生命周期编排事务中确认指定交易的全部 RESERVED 记录，CONFIRMED 终态不可逆。
+     *
+     * <p>存在外层事务时必须复用同一连接，避免小连接池下多个成功事件同时以
+     * REQUIRES_NEW 等待额外连接形成池级死锁；独立调用时 REQUIRED 仍会创建事务。</p>
      *
      * @param transactionId 平台交易号
      * @return 实际迁移、幂等命中和冲突数量汇总
      */
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
     public MerchantLimitReservationTransitionSummary confirm(String transactionId) {
         return transitionAll(findByTransactionId(transactionId), MerchantLimitReservationStatus.CONFIRMED, null);
     }

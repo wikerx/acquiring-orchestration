@@ -3,6 +3,7 @@ package com.scott.payment.component.excel.service.impl;
 import com.scott.payment.component.excel.annotation.ExcelExportColumn;
 import com.scott.payment.component.excel.model.ExcelDynamicExportRequest;
 import com.scott.payment.component.excel.model.ExcelExportRequest;
+import com.scott.payment.component.excel.model.ExcelPagedExportRequest;
 import com.scott.payment.component.excel.support.ExcelDynamicColumnDefinition;
 import com.scott.payment.component.excel.support.ExcelExportMetadataResolver;
 import com.scott.payment.component.excel.support.ExcelI18nMessageResolver;
@@ -79,6 +80,38 @@ class ExcelExportServiceImplTest {
             Assertions.assertNotNull(dataRow, "数据行不能为空");
             Assertions.assertEquals("alice", dataRow.getCell(0).getStringCellValue());
             Assertions.assertEquals("启用", dataRow.getCell(1).getStringCellValue());
+        }
+    }
+
+    /** 验证分页导出会连续拉取并写入多个批次，且不要求业务层聚合全部数据。 */
+    @Test
+    void shouldWriteRowsFromMultiplePages() throws IOException {
+        ExcelExportServiceImpl service = createService();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        service.exportPaged(
+                ExcelPagedExportRequest.<DemoExportRow>builder()
+                        .fileName("paged-demo")
+                        .sheetName("paged-demo")
+                        .titleKey("excel.user.title")
+                        .operator("tester")
+                        .exportTime(LocalDateTime.of(2026, 8, 5, 0, 0, 0))
+                        .locale(Locale.SIMPLIFIED_CHINESE)
+                        .querySummary("全部")
+                        .rowClass(DemoExportRow.class)
+                        .pageSize(1)
+                        .pageLoader(pageNo -> switch (pageNo) {
+                            case 1 -> List.of(new DemoExportRow("alice", "启用"));
+                            case 2 -> List.of(new DemoExportRow("bob", "停用"));
+                            default -> List.of();
+                        })
+                        .build(),
+                response);
+
+        try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(response.body.toByteArray()))) {
+            var sheet = workbook.getSheetAt(0);
+            Assertions.assertEquals("alice", sheet.getRow(3).getCell(0).getStringCellValue());
+            Assertions.assertEquals("bob", sheet.getRow(4).getCell(0).getStringCellValue());
         }
     }
 

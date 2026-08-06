@@ -3,6 +3,7 @@ xxl:
   job:
     admin:
       # 调度中心地址，dev 默认本机。
+      # 环境说明：环境变量：XXL_JOB_ADMIN（dev 配置默认 "http://127.0.0.1:8088/xxl-job-admin"）；test/uat/prod 必须指向本环境可达的基础设施，禁止跨环境连接。
       addresses: ${XXL_JOB_ADMIN:http://127.0.0.1:8088/xxl-job-admin}
     executor:
       # 执行器名称，默认使用当前服务名。

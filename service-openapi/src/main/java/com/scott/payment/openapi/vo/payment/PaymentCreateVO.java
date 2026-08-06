@@ -363,6 +363,9 @@ public class PaymentCreateVO implements Serializable {
          */
         private OffsetDateTime transactionDateTime;
 
+        /** 生命周期根主单时间，必须与后续动作请求一并回传。 */
+        private OffsetDateTime rootTransactionDateTime;
+
         /**
          * 支付方式，如 BANK_CARD。
          */

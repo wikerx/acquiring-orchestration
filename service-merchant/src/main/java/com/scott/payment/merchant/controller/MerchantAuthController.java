@@ -145,12 +145,15 @@ public class MerchantAuthController {
 
     /**
      * 查询当前商户登录账号、菜单和权限。
+     * <p>
+     * 该接口只依赖统一登录态拦截，不绑定具体业务菜单权限，否则无首页权限的合法账号
+     * 无法恢复自己的会话与权限集合。
+     * </p>
      *
      * @param authorization Authorization 请求头
      * @return 当前登录账号、菜单和权限
-     */
+    */
     @GetMapping("/me")
-    @RequiresPermission("merchant:dashboard:view")
     public CommonResult<AuthLoginResponse> me(@RequestHeader("Authorization") String authorization) {
         return success(merchantAuthApplicationService.currentUser(authorization));
     }
@@ -188,12 +191,14 @@ public class MerchantAuthController {
 
     /**
      * 退出登录。
+     * <p>
+     * 任意有效商户登录态都必须能够主动退出，不依赖首页或其他业务权限。
+     * </p>
      *
      * @param authorization Authorization 请求头
      * @return 空响应
-     */
+    */
     @PostMapping("/logout")
-    @RequiresPermission("merchant:dashboard:view")
     @OperationLog(moduleName = "商户登录权限", businessType = OperationTypeConstants.UPDATE,
             operation = "商户系统账号退出登录", recordRequest = false, recordResponse = false)
     public CommonResult<Void> logout(@RequestHeader("Authorization") String authorization) {

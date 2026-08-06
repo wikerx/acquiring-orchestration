@@ -2,7 +2,7 @@ package com.scott.payment.job.handler.transaction;
 
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
-import com.scott.payment.component.db.sharding.ShardingTableRangeResolver;
+import com.scott.payment.component.db.sharding.TransactionShardingProperties;
 import com.scott.payment.component.job.executor.JobExecuteContext;
 import com.scott.payment.job.client.payment.PaymentInternalClient;
 import com.scott.payment.job.client.payment.dto.PaymentChannelMatchClientRequestDTO;
@@ -16,7 +16,6 @@ import java.time.LocalDateTime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -30,11 +29,10 @@ class ChannelTransactionMatchJobTest {
     @Test
     void executeShouldScanConfiguredLookbackQuarters() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        ShardingTableRangeResolver tableRangeResolver = mock(ShardingTableRangeResolver.class);
-        when(tableRangeResolver.isWithinConfiguredRange(eq("transaction_operation"), any()))
-                .thenReturn(true);
         when(paymentInternalClient.matchDueChannelTransactions(any())).thenReturn(new PaymentChannelMatchClientResultDTO());
-        ChannelTransactionMatchJob job = new ChannelTransactionMatchJob(paymentInternalClient, tableRangeResolver);
+        ChannelTransactionMatchJob job = new ChannelTransactionMatchJob(
+                paymentInternalClient,
+                shardingProperties("202601", "202602", "202603", "202604"));
         ChannelTransactionMatchRequest request = new ChannelTransactionMatchRequest();
         request.setLookbackQuarters(3);
         request.setLimit(20);
@@ -59,7 +57,7 @@ class ChannelTransactionMatchJobTest {
     void executeShouldRejectInvalidLookbackQuarters() {
         ChannelTransactionMatchJob job = new ChannelTransactionMatchJob(
                 mock(PaymentInternalClient.class),
-                mock(ShardingTableRangeResolver.class));
+                shardingProperties("202603"));
         ChannelTransactionMatchRequest request = new ChannelTransactionMatchRequest();
         request.setLookbackQuarters(0);
 
@@ -73,15 +71,11 @@ class ChannelTransactionMatchJobTest {
     @Test
     void executeShouldSkipAutomaticLookbackOutsideConfiguredRange() {
         PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
-        ShardingTableRangeResolver tableRangeResolver = mock(ShardingTableRangeResolver.class);
         when(paymentInternalClient.matchDueChannelTransactions(any()))
                 .thenReturn(new PaymentChannelMatchClientResultDTO());
-        when(tableRangeResolver.isWithinConfiguredRange(
-                "transaction_operation",
-                LocalDateTime.of(2026, 7, 1, 0, 0))).thenReturn(true);
         ChannelTransactionMatchJob job = new ChannelTransactionMatchJob(
                 paymentInternalClient,
-                tableRangeResolver);
+                shardingProperties("202603", "202604"));
         ChannelTransactionMatchRequest request = new ChannelTransactionMatchRequest();
         request.setLookbackQuarters(4);
 
@@ -92,6 +86,29 @@ class ChannelTransactionMatchJobTest {
         verify(paymentInternalClient).matchDueChannelTransactions(captor.capture());
         assertThat(captor.getValue().getTransactionDateTime())
                 .isEqualTo(LocalDateTime.of(2026, 7, 1, 0, 0));
+    }
+
+    @Test
+    void executeShouldNotApplyLegacyFixedQuarterCap() {
+        PaymentInternalClient paymentInternalClient = mock(PaymentInternalClient.class);
+        when(paymentInternalClient.matchDueChannelTransactions(any()))
+                .thenReturn(new PaymentChannelMatchClientResultDTO());
+        ChannelTransactionMatchJob job = new ChannelTransactionMatchJob(
+                paymentInternalClient,
+                shardingProperties("202501", "202502", "202503", "202504",
+                        "202601", "202602", "202603"));
+        ChannelTransactionMatchRequest request = new ChannelTransactionMatchRequest();
+        request.setLookbackQuarters(20);
+
+        job.execute(context(request, LocalDateTime.of(2026, 7, 29, 12, 0)));
+
+        verify(paymentInternalClient, times(7)).matchDueChannelTransactions(any());
+    }
+
+    private TransactionShardingProperties shardingProperties(String... physicalNodes) {
+        TransactionShardingProperties properties = new TransactionShardingProperties();
+        properties.setPhysicalNodes(java.util.List.of(physicalNodes));
+        return properties;
     }
 
     private JobExecuteContext context(ChannelTransactionMatchRequest request, LocalDateTime triggerTime) {

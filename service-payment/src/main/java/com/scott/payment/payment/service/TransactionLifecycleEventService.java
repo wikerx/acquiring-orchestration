@@ -3,7 +3,13 @@ package com.scott.payment.payment.service;
 import java.time.LocalDateTime;
 
 /**
- * 交易终态生命周期 Outbox 事件服务。
+ * @author : scott
+ * @version : v1.0.0
+ * @classname : TransactionLifecycleEventService
+ * @date : 2026-08-02 20:00
+ * @email : scott_x@163.com
+ * @description : 交易终态生命周期事件契约，要求调用方在状态 CAS 和通知激活所在事务内写入可重试 Outbox
+ * @status : create
  */
 public interface TransactionLifecycleEventService {
 

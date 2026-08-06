@@ -56,6 +56,8 @@ docs/sql/*
 !docs/sql/bug-001-06b-sharding-registry-rollback.sql
 !docs/sql/checkout-session-ddl-draft.sql
 !docs/sql/checkout-session-ddl-dev.sql
+!docs/sql/shardingsphere-test-table-retirement-20260802.sql
+!docs/sql/shardingsphere-auto-increment-repair-20260802.sql
 !docs/archive/reports/
 docs/archive/reports/*
 !docs/archive/reports/system-base-menu-audit.md

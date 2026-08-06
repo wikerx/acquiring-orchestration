@@ -1,5 +1,6 @@
 package com.scott.payment.openapi.client.payout.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -46,6 +47,7 @@ public class PayoutCreateClientRequestDTO implements Serializable {
     /**
      * 业务时间。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 
     /**

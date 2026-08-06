@@ -1,5 +1,6 @@
 package com.scott.payment.admin.client.payment.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -63,6 +64,7 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
     /**
      * 后台动作交易时间，对应分表字段 transaction_date_time。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 
     /**
@@ -93,6 +95,14 @@ public class PaymentTransactionActionClientRequestDTO implements Serializable {
          * 原平台交易 ID，支付核心会据此定位原交易分表。
          */
         private String sourceTransactionId;
+
+        /** 源动作真实分片时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime sourceTransactionDateTime;
+
+        /** 生命周期根主单真实分片时间。 */
+        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+        private LocalDateTime rootTransactionDateTime;
 
         /**
          * 后台操作原因，进入交易描述和审计上下文。

@@ -1,6 +1,7 @@
 package com.scott.payment.component.web.handler;
 
 import com.scott.payment.component.core.enums.ApiResultEnum;
+import com.scott.payment.component.core.exception.TransactionDataUnavailableException;
 import com.scott.payment.component.core.model.CommonResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -19,6 +20,29 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @status : create
  */
 class GlobalExceptionHandlerTest {
+
+    /** ShardingSphere 包装路由异常后，Web 边界仍应返回明确的季度数据不可用错误。 */
+    @Test
+    void shouldReturnTransactionDataUnavailableForWrappedMissingNodeFailure() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+        RuntimeException wrapped = new RuntimeException("jdbc wrapper",
+                new TransactionDataUnavailableException("transaction_operation", "2026-Q2", "test-001"));
+
+        CommonResult<Void> result = handler.handleException(wrapped);
+
+        assertThat(result.getCode()).isEqualTo(ApiResultEnum.TRANSACTION_DATA_UNAVAILABLE.getCode());
+        assertThat(result.getMessage()).isEqualTo(ApiResultEnum.TRANSACTION_DATA_UNAVAILABLE.getMessage());
+    }
+
+    /** 普通未捕获异常仍由 F500 兜底，避免错误扩大为所有数据库故障。 */
+    @Test
+    void shouldKeepGenericFailureForUnrelatedException() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler();
+
+        CommonResult<Void> result = handler.handleException(new IllegalStateException("unrelated"));
+
+        assertThat(result.getCode()).isEqualTo(ApiResultEnum.INTERNAL_SERVER_ERROR.getCode());
+    }
 
     /**
      * Spring Boot 3 将未命中的浏览器请求包装为 NoResourceFoundException 时，开放 API 未带授权头应返回认证缺失。

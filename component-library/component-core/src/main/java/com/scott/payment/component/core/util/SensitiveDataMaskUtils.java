@@ -2,6 +2,7 @@ package com.scott.payment.component.core.util;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.function.UnaryOperator;
 
 
 /**
@@ -48,7 +49,7 @@ public final class SensitiveDataMaskUtils {
      * 银行账号、IBAN、Swift/BIC 保留少量定位信息，避免完整账号或银行路由信息进入日志。
      */
     private static final Pattern ACCOUNT_FIELD_PATTERN = Pattern.compile(
-            "(\"(?:bankAccount|accountNumber|iban|swiftCode|bic)\"\\s*:\\s*\")([A-Za-z0-9]{4})([A-Za-z0-9\\s-]*)([A-Za-z0-9]{4})(\")",
+            "(\"(?:bankAccount|accountNumber|receiverAccountNo|iban|swiftCode|bic)\"\\s*:\\s*\")([A-Za-z0-9]{4})([A-Za-z0-9\\s-]*)([A-Za-z0-9]{4})(\")",
             Pattern.CASE_INSENSITIVE
     );
 
@@ -137,8 +138,19 @@ public final class SensitiveDataMaskUtils {
      * @return 脱敏文本或固定失败占位符
      */
     public static String maskJsonSafely(String json) {
+        return maskJsonSafely(json, SensitiveDataMaskUtils::maskJson);
+    }
+
+    /**
+     * 使用指定脱敏函数执行安全包装，供同包测试验证脱敏异常不会泄露原文。
+     *
+     * @param json 原始 JSON 文本
+     * @param masker 实际脱敏函数
+     * @return 脱敏文本或固定失败占位符
+     */
+    static String maskJsonSafely(String json, UnaryOperator<String> masker) {
         try {
-            return maskJson(json);
+            return masker.apply(json);
         } catch (RuntimeException exception) {
             return MASK_FAILED_PLACEHOLDER;
         }

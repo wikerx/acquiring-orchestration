@@ -61,6 +61,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -94,6 +95,12 @@ public class AdminUserServiceImpl implements AdminUserService {
      * 系统超级权限编码。
      */
     private static final String SUPER_PERMISSION = "*:*:*";
+    /** 管理员重置后台账号密码后的安全通知模板。 */
+    private static final String PASSWORD_CHANGED_TEMPLATE = "ADMIN_PASSWORD_CHANGED_BY_ADMIN";
+    /** 密码被管理员修改通知场景。 */
+    private static final String PASSWORD_CHANGED_SCENE = "PASSWORD_CHANGED";
+    /** 邮件中统一展示到秒的操作时间。 */
+    private static final DateTimeFormatter EMAIL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /**
      * 应用数据访问接口。
@@ -456,6 +463,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         account.setUpdatedAt(now);
         sysAccountMapper.updateById(account);
         logoutSessions(app.getId(), account.getId(), now);
+        sendPasswordChangedNoticeAfterCommit(account, getUser(account.getUserId()), request.getPassword(), now);
     }
 
     /**
@@ -1252,8 +1260,72 @@ public class AdminUserServiceImpl implements AdminUserService {
             request.setVariables(variables);
             adminEmailService.sendByTemplate(request);
         } catch (RuntimeException exception) {
-            log.warn("admin account created notice send failed, accountId: {}", account.getId(), exception);
+            log.warn("admin account created notice send failed, accountId: {}, exceptionType: {}",
+                    account.getId(), exception.getClass().getSimpleName());
         }
+    }
+
+    /** 事务提交后发送管理员重置密码通知，避免数据库回滚后误发。 */
+    private void sendPasswordChangedNoticeAfterCommit(SysAccountDO account,
+                                                      SysUserDO user,
+                                                      String temporaryPassword,
+                                                      LocalDateTime operationTime) {
+        Runnable task = () -> sendPasswordChangedNotice(account, user, temporaryPassword, operationTime);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
+    }
+
+    /** 发送管理员重置后台账号密码通知，发送失败不回滚已完成的密码更新。 */
+    private void sendPasswordChangedNotice(SysAccountDO account,
+                                           SysUserDO user,
+                                           String temporaryPassword,
+                                           LocalDateTime operationTime) {
+        if (!StringUtils.hasText(account.getEmail())) {
+            return;
+        }
+        try {
+            EmailSendRequest request = new EmailSendRequest();
+            request.setAppCode(AuthConstants.APP_ADMIN);
+            request.setTemplateCode(PASSWORD_CHANGED_TEMPLATE);
+            request.setSceneCode(PASSWORD_CHANGED_SCENE);
+            request.setLocale("zh-CN");
+            request.setToEmails(List.of(account.getEmail()));
+            request.setBizType(PASSWORD_CHANGED_SCENE);
+            request.setBizNo(String.valueOf(account.getId()));
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("systemName", "Vexra Admin");
+            variables.put("userName", StringUtils.hasText(user.getRealName()) ? user.getRealName() : account.getLoginAccount());
+            variables.put("loginAccount", account.getLoginAccount());
+            variables.put("temporaryPassword", temporaryPassword);
+            variables.put("operatorName", currentOperatorName());
+            variables.put("operationTime", EMAIL_TIME_FORMATTER.format(operationTime));
+            variables.put("loginUrl", adminLoginUrl());
+            request.setVariables(variables);
+            adminEmailService.sendByTemplate(request);
+        } catch (RuntimeException exception) {
+            log.warn("admin password changed notice send failed, accountId: {}, exceptionType: {}",
+                    account.getId(), exception.getClass().getSimpleName());
+        }
+    }
+
+    /** 返回当前后台操作人的可展示名称，不在通知中暴露内部身份上下文。 */
+    private String currentOperatorName() {
+        InternalAuthAccount operator = InternalAuthContextHolder.get();
+        if (operator == null) {
+            return "System Administrator";
+        }
+        if (StringUtils.hasText(operator.getRealName())) {
+            return operator.getRealName();
+        }
+        return StringUtils.hasText(operator.getLoginAccount()) ? operator.getLoginAccount() : "System Administrator";
     }
 
     /**

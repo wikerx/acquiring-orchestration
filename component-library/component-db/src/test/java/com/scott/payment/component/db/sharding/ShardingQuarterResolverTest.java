@@ -50,7 +50,7 @@ class ShardingQuarterResolverTest {
     @Test
     void shouldListQuartersInRange() {
         ShardingQuarterResolver resolver = new ShardingQuarterResolver();
-        PaymentQuarterShardingProperties.TableRule rule = new PaymentQuarterShardingProperties.TableRule();
+        TransactionShardingGovernanceProperties.TableRule rule = new TransactionShardingGovernanceProperties.TableRule();
         rule.setStartYear(2026);
         rule.setStartQuarter(3);
         rule.setEndYear(2027);

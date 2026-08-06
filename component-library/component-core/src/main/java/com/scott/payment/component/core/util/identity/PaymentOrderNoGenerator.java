@@ -61,8 +61,8 @@ public final class PaymentOrderNoGenerator {
     /**
      * 按指定业务时间生成支付平台内部订单号。
      * <p>
-     * 交易分表场景会从平台交易号解析时间片定位物理表，因此传入时间必须与落库的
-     * transaction_date_time 保持一致。
+     * 时间片用于排序、审计和缺少显式上下文的内部恢复；在线查询仍必须显式传递
+     * transaction_date_time，不以编号解析代替分片键。
      *
      * @param businessPrefix   业务前缀，例如 OP 表示内部交易关联动作
      * @param businessDateTime 业务时间，对应交易表 transaction_date_time
@@ -79,7 +79,7 @@ public final class PaymentOrderNoGenerator {
      * 按指定业务时间生成无业务前缀的平台交易 ID。
      * <p>
      * 对外可见的收单 transactionId 不携带 TX 等内部前缀，但仍保留
-     * yyyyMMddHHmmssSSS 时间片，供交易分表按 transaction_date_time 定位历史物理表。
+     * yyyyMMddHHmmssSSS 时间片，供排序、审计和内部异常恢复使用。
      *
      * @param businessDateTime 业务时间，对应交易表 transaction_date_time
      * @return 无前缀平台交易 ID

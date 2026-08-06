@@ -559,6 +559,10 @@ public final class MerchantEmailEntities {
          * </p>
          */
         private String contentSnapshot;
+        /** 加密保存的实际投递正文，仅在消费者发送成功前保留。 */
+        private String deliveryContentCipher;
+        /** 实际投递正文类型，取值为 HTML 或 TEXT。 */
+        private String contentType;
         /**
          * variables Snapshot，用于保存 Merchant Email Send Record DO 中与 variablessnapshot 相关的业务属性。
          * <p>
@@ -613,6 +617,8 @@ public final class MerchantEmailEntities {
          * </p>
          */
         private Integer maxRetryCount;
+        /** 下一次允许重试的业务时间。 */
+        private LocalDateTime nextRetryTime;
         /**
          * send Start Time，用于保存 Merchant Email Send Record DO 中与 sendstarttime 相关的业务属性。
          * <p>

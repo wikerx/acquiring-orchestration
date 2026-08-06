@@ -8,10 +8,12 @@ import com.scott.payment.component.job.executor.JobHandler;
 import com.scott.payment.component.job.executor.JobHandlerDescriptor;
 import com.scott.payment.component.job.model.JobExecuteResult;
 import com.scott.payment.job.client.data.DataInternalClient;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
 import com.scott.payment.job.dto.transaction.MerchantNotificationRetryRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -41,25 +43,11 @@ public class MerchantNotificationRetryJob implements JobHandler {
      */
     public static final String HANDLER_CODE = "merchantNotificationRetry";
 
-    /**
-     * DEFAULT LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
-    private static final int DEFAULT_LIMIT = 100;
+    /** 单次季度扫描默认最多处理 5 条通知，限制补偿任务的外发影响范围。 */
+    private static final int DEFAULT_LIMIT = 5;
 
-    /**
-     * MAX LIMIT，用于控制分页查询、批量扫描或任务单次处理规模。
-     * <p>
-     * 单位：由关联 currency 字段决定；格式：decimal 金额字符串或 BigDecimal；不允许为空；非敏感字段。
-     * 取值范围：金额不得为负，交易金额通常必须大于 0；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与查询条件和时间范围共同控制分页或扫描窗口。
-     * </p>
-     */
-    private static final int MAX_LIMIT = 500;
+    /** 单次季度扫描硬上限，避免误配置对积压通知进行大批量外发。 */
+    private static final int MAX_LIMIT = 5;
 
     /**
      * service-data 内部客户端，仅用于触发到期商户通知的扫描与补偿投递。
@@ -119,13 +107,9 @@ public class MerchantNotificationRetryJob implements JobHandler {
         int totalSuccessCount = 0;
         int failCount = 0;
         for (LocalDateTime transactionDateTime : transactionDateTimes) {
-            DataMerchantNotificationNotifyDueClientRequestDTO clientRequestDTO =
-                    new DataMerchantNotificationNotifyDueClientRequestDTO();
-            clientRequestDTO.setTransactionDateTime(transactionDateTime);
-            clientRequestDTO.setLimit(limit);
             Integer successCount;
             try {
-                successCount = dataInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
+                successCount = notify(transactionDateTime, request, limit);
             } catch (RuntimeException exception) {
                 failCount++;
                 log.warn("event: JOB_HANDLER_SCAN_ITEM_FAILED traceId: {} jobId: {} handler: {} runId: {} scanRange: {} failureReason: {}",
@@ -158,6 +142,24 @@ public class MerchantNotificationRetryJob implements JobHandler {
         return JobExecuteResult.success("merchant notification retry finished, successCount=" + totalSuccessCount, result);
     }
 
+    /** 按请求类型执行单笔精确补偿或季度有界扫描。 */
+    private Integer notify(LocalDateTime transactionDateTime,
+                           MerchantNotificationRetryRequest request,
+                           int limit) {
+        if (StringUtils.hasText(request.getTransactionId())) {
+            DataMerchantNotificationNotifyClientRequestDTO clientRequestDTO =
+                    new DataMerchantNotificationNotifyClientRequestDTO();
+            clientRequestDTO.setTransactionId(request.getTransactionId().trim());
+            clientRequestDTO.setTransactionDateTime(transactionDateTime);
+            return Boolean.TRUE.equals(dataInternalClient.notifyMerchantNotification(clientRequestDTO)) ? 1 : 0;
+        }
+        DataMerchantNotificationNotifyDueClientRequestDTO clientRequestDTO =
+                new DataMerchantNotificationNotifyDueClientRequestDTO();
+        clientRequestDTO.setTransactionDateTime(transactionDateTime);
+        clientRequestDTO.setLimit(limit);
+        return dataInternalClient.notifyDueMerchantNotifications(clientRequestDTO);
+    }
+
     /**
      * 计算商户通知重试任务已运行时间。
      *
@@ -179,6 +181,17 @@ public class MerchantNotificationRetryJob implements JobHandler {
      * @return 交易分表路由时间列表
      */
     private List<LocalDateTime> resolveTransactionDateTimes(MerchantNotificationRetryRequest request) {
+        if (StringUtils.hasText(request.getTransactionId())) {
+            if (request.getTransactionDateTime() == null) {
+                throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(),
+                        "transactionDateTime is required when transactionId is provided");
+            }
+            if (request.getTransactionDateTimes() != null && !request.getTransactionDateTimes().isEmpty()) {
+                throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                        "transactionDateTimes is not allowed for a single transaction retry");
+            }
+            return List.of(request.getTransactionDateTime());
+        }
         if (request.getTransactionDateTimes() != null && !request.getTransactionDateTimes().isEmpty()) {
             return request.getTransactionDateTimes();
         }

@@ -7,7 +7,6 @@ import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestConstructor;
 
 import java.math.BigDecimal;
@@ -25,8 +24,10 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @status : create
  */
 @Slf4j
-@ActiveProfiles("mysql-test")
-@SpringBootTest(classes = OpenApiApplication.class)
+@SpringBootTest(
+        classes = OpenApiApplication.class,
+        properties = "spring.cloud.nacos.discovery.enabled=false"
+)
 @TestConstructor(autowireMode = TestConstructor.AutowireMode.ALL)
 class IsoDictionaryServiceTests {
 

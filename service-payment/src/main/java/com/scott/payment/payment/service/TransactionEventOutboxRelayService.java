@@ -16,7 +16,7 @@ public interface TransactionEventOutboxRelayService {
     /**
      * 投递指定事件时间所在季度分表中的到期事件。
      *
-     * @param eventTime 事件时间，用于定位物理分表
+     * @param eventTime 事件时间，用于 ShardingSphere 精确定位季度
      * @param limit     最大投递条数
      * @return 本次成功投递数量
      */

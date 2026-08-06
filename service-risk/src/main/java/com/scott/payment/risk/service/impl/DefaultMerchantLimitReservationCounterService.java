@@ -2,7 +2,6 @@ package com.scott.payment.risk.service.impl;
 
 import com.scott.payment.component.redis.config.PaymentRedisProperties;
 import com.scott.payment.component.redis.support.RedisKeyDigest;
-import com.scott.payment.risk.config.RiskCounterMode;
 import com.scott.payment.risk.domain.RedisReservationMarkerState;
 import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import com.scott.payment.risk.service.MerchantLimitReservationCounterService;
@@ -13,7 +12,6 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -24,6 +22,8 @@ import java.util.Locale;
 @Service
 public class DefaultMerchantLimitReservationCounterService
         implements MerchantLimitReservationCounterService {
+
+    private static final String CLUSTER_SAFE_COUNTER_MODE = "CLUSTER_SAFE";
 
     private static final String SCRIPT_BASE_PATH = "META-INF/payment/redis/scripts/v1/";
 
@@ -99,37 +99,11 @@ public class DefaultMerchantLimitReservationCounterService
         if (!valid(reservation)) {
             return List.of();
         }
-        RiskCounterMode counterMode;
-        try {
-            counterMode = RiskCounterMode.valueOf(reservation.getCounterMode().trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException exception) {
+        if (!CLUSTER_SAFE_COUNTER_MODE.equals(
+                reservation.getCounterMode().trim().toUpperCase(Locale.ROOT))) {
             return List.of();
         }
-        List<CounterProjection> projections = new ArrayList<>(2);
-        if (counterMode == RiskCounterMode.LEGACY || counterMode == RiskCounterMode.SHADOW) {
-            projections.add(legacyProjection(reservation));
-        }
-        if (counterMode == RiskCounterMode.CLUSTER_SAFE || counterMode == RiskCounterMode.SHADOW) {
-            projections.add(clusterSafeProjection(reservation));
-        }
-        return projections;
-    }
-
-    private CounterProjection legacyProjection(MerchantLimitReservationDO reservation) {
-        String aggregateKey = redisProperties.key(
-                "risk",
-                "runtime",
-                "merchant-limit",
-                reservation.getLimitType().trim().toLowerCase(Locale.ROOT),
-                String.valueOf(reservation.getRuleId()),
-                reservation.getMerchantId().trim(),
-                reservation.getCurrency().trim().toUpperCase(Locale.ROOT),
-                reservation.getPeriodBucket().trim());
-        return new CounterProjection(
-                aggregateKey,
-                aggregateKey + ":reservation:"
-                        + RedisKeyDigest.sha256(reservation.getTransactionId().trim()),
-                "legacy");
+        return List.of(clusterSafeProjection(reservation));
     }
 
     private CounterProjection clusterSafeProjection(MerchantLimitReservationDO reservation) {

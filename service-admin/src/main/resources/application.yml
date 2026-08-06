@@ -1,19 +1,28 @@
 # 本地基础配置：只保留服务端口、服务名、激活环境和 Spring Boot 基础开关。
 # Redis、MQ、数据库、分表、Seata、XXL-JOB 等配置统一从 Nacos yaml DataId 读取。
 server:
+  # 参数说明：配置服务监听端口，有效范围 1-65535；同一主机上的服务端口不得冲突。
   port: 8001
+  # 参数说明：配置 Spring Boot 停机方式；graceful 会等待在途请求完成后退出。
   shutdown: graceful
 
 spring:
   application:
+    # 参数说明：指定当前微服务在 Nacos、日志和监控中的稳定服务名；不同环境保持同名并通过 namespace 隔离。
     name: service-admin
   profiles:
+    # 参数说明：指定 Maven 过滤后激活的 Spring Profile，必须与部署环境名称一致。
     active: @profiles.active@
   main:
+    # 参数说明：控制同名 Spring Bean 是否允许覆盖；开启时需防止配置顺序掩盖错误实现。
     allow-bean-definition-overriding: true
 
 acquiring:
   openapi:
     merchant-key-export:
+      # 参数说明：声明对外提供的 OpenAPI SDK 版本，仅用于下载/展示时必须与发布产物一致。
+      # 环境说明：环境变量：OPENAPI_JAVA_SDK_VERSION，基础配置默认值为 "0.9.0"；test/uat/prod 应按容量、超时和业务策略分别覆盖并完成压测验证。
       sdk-version: ${OPENAPI_JAVA_SDK_VERSION:0.9.0}
+      # 参数说明：声明 OpenAPI SDK 使用的签名与加密套件，仅可选择双方已实现并完成安全评审的模式。
+      # 环境说明：环境变量：OPENAPI_CRYPTO_MODE，基础配置默认值为 "JWT + RSA-OAEP-256 + A256GCM"；test/uat/prod 必须选择已完成该环境验证的模式，切换时保留回退方案。
       crypto-mode: ${OPENAPI_CRYPTO_MODE:JWT + RSA-OAEP-256 + A256GCM}

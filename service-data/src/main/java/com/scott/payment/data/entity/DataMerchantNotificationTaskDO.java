@@ -35,7 +35,7 @@ public class DataMerchantNotificationTaskDO {
     private String merchantOrderNo;
 
     /**
-     * 通知配置快照 JSON，包含实际回调 URL，属于敏感配置，只允许用于 HTTP 投递且禁止写入日志或 Redis。
+     * 通知执行快照 JSON，包含实际回调 URL 和正式商户载荷，只允许用于 HTTP 投递且禁止写入日志或 Redis。
      */
     private String notifyConfigSnapshotJson;
 

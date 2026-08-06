@@ -9,6 +9,7 @@ import com.scott.payment.admin.dto.merchant.AdminMerchantSaveRequest;
 import com.scott.payment.admin.dto.merchant.AdminMerchantSecurityMaterialDTO;
 import com.scott.payment.admin.service.AdminMerchantInfoService;
 import com.scott.payment.component.core.model.PageResult;
+import com.scott.payment.component.security.openapi.OpenApiKeyType;
 import org.springframework.stereotype.Service;
 
 /**
@@ -158,6 +159,17 @@ public class AdminMerchantInfoApplicationService {
      */
     public AdminMerchantSecurityMaterialDTO rotateMerchantResponseKey(String merchantId) {
         return adminMerchantInfoService.rotateMerchantResponseKey(merchantId);
+    }
+
+    /**
+     * 编排管理端商户密钥启停用例。
+     *
+     * @param merchantId 商户号
+     * @param keyType 密钥类型
+     * @param enabled true 启用，false 停用
+     */
+    public void setOpenApiKeyEnabled(String merchantId, OpenApiKeyType keyType, boolean enabled) {
+        adminMerchantInfoService.setOpenApiKeyEnabled(merchantId, keyType, enabled);
     }
 
     /**

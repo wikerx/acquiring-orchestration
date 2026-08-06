@@ -6,6 +6,7 @@ import com.scott.payment.risk.entity.MerchantLimitReservationDO;
 import com.scott.payment.risk.service.MerchantLimitReservationCounterService;
 import com.scott.payment.risk.service.MerchantLimitReservationStateService;
 import org.junit.jupiter.api.Test;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -30,6 +31,16 @@ class DefaultMerchantLimitReservationLifecycleCoordinatorTests {
                 .getAnnotation(Transactional.class);
 
         assertThat(transactional).isNotNull();
+    }
+
+    @Test
+    void shouldJoinLifecycleTransactionWhenConfirmingReservation() throws NoSuchMethodException {
+        Transactional transactional = DefaultMerchantLimitReservationStateService.class
+                .getMethod("confirm", String.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.propagation()).isEqualTo(Propagation.REQUIRED);
     }
 
     @Test

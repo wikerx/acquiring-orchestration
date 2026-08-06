@@ -87,4 +87,54 @@ public interface SysJobTaskMapper extends BaseMapper<SysJobTaskDO> {
     int extendLock(@Param("taskId") Long taskId,
                    @Param("nodeId") String nodeId,
                    @Param("lockUntil") LocalDateTime lockUntil);
+
+    /**
+     * 更新任务启停状态和下一触发时间；禁用时显式将 next_trigger_time 写为 NULL。
+     *
+     * @param taskId 任务主键
+     * @param status 目标状态
+     * @param nextTriggerTime 下一触发时间，禁用时为空
+     * @param operator 操作人
+     * @param now 更新时间
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE sys_job_task
+            SET status = #{status},
+                next_trigger_time = #{nextTriggerTime},
+                update_by = #{operator},
+                update_time = #{now}
+            WHERE id = #{taskId}
+              AND deleted = 0
+            """)
+    int updateStatus(@Param("taskId") Long taskId,
+                     @Param("status") String status,
+                     @Param("nextTriggerTime") LocalDateTime nextTriggerTime,
+                     @Param("operator") String operator,
+                     @Param("now") LocalDateTime now);
+
+    /**
+     * 仅由当前锁持有节点写入运行终态并显式释放租约。
+     *
+     * @param taskId 任务主键
+     * @param nodeId 当前锁持有节点
+     * @param lastRunStatus 最终运行状态
+     * @param now 完成时间
+     * @return 1 表示终态和锁已更新，0 表示锁已转移或任务不存在
+     */
+    @Update("""
+            UPDATE sys_job_task
+            SET last_run_status = #{lastRunStatus},
+                lock_owner = NULL,
+                lock_until = NULL,
+                version = version + 1,
+                update_time = #{now}
+            WHERE id = #{taskId}
+              AND deleted = 0
+              AND lock_owner = #{nodeId}
+            """)
+    int finishTaskRun(@Param("taskId") Long taskId,
+                      @Param("nodeId") String nodeId,
+                      @Param("lastRunStatus") String lastRunStatus,
+                      @Param("now") LocalDateTime now);
 }

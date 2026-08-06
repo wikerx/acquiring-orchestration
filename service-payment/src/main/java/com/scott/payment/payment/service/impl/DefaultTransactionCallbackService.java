@@ -1,5 +1,6 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackRequest;
 import com.scott.payment.channel.payment.dto.callback.ChannelCallbackResult;
 import com.scott.payment.channel.payment.executor.PaymentChannelCallbackExecutor;
@@ -11,8 +12,6 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelCallbackCommandDTO;
@@ -33,6 +32,7 @@ import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionRecordService;
 import com.scott.payment.payment.service.dto.ChannelTransactionStatusResolution;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +41,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -56,6 +57,7 @@ import java.util.Optional;
  */
 @Service
 @Slf4j
+@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionCallbackService implements TransactionCallbackService {
 
     /**
@@ -164,6 +166,12 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     private static final int NOT_DELETED = 0;
 
     /**
+     * 新逻辑表路径允许完成处理的初始回调状态。
+     */
+    private static final List<String> CALLBACK_PROCESSABLE_STATUSES = List.of(
+            CALLBACK_STATUS_RECEIVED, CALLBACK_STATUS_FAILED);
+
+    /**
      * callback Log Mapper 依赖，用于 Default Transaction Callback Service 调用对应的数据访问、远程调用或领域服务能力。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
@@ -204,16 +212,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     private final TransactionEventOutboxService transactionEventOutboxService;
 
     /**
-     * sharding Data Template，用于定位邮件、通知或渠道参数模板。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final ShardingDataTemplate shardingDataTemplate;
-
-    /**
      * transaction Sharding Key Parser，用于保存 Default Transaction Callback Service 中与 交易sharding密钥parser 相关的业务属性。
      * <p>
      * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
@@ -245,22 +243,20 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * @param callbackMapper 渠道回调业务 Mapper
      * @param transactionRecordService 交易事实记录服务
      * @param transactionEventOutboxService 交易本地事件服务
-     * @param shardingDataTemplate 分表数据访问统一入口
      * @param transactionShardingKeyParser 交易分表键解析器
      * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
      */
+    @Autowired
     public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
                                              TransactionChannelCallbackMapper callbackMapper,
                                              TransactionRecordService transactionRecordService,
                                              TransactionEventOutboxService transactionEventOutboxService,
-                                             ShardingDataTemplate shardingDataTemplate,
                                              TransactionShardingKeyParser transactionShardingKeyParser,
                                              Optional<PaymentChannelCallbackExecutor> callbackExecutor) {
         this(callbackLogMapper,
                 callbackMapper,
                 transactionRecordService,
                 transactionEventOutboxService,
-                shardingDataTemplate,
                 transactionShardingKeyParser,
                 callbackExecutor,
                 new DefaultChannelTransactionStatusResolver());
@@ -273,17 +269,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * @param callbackMapper 渠道回调业务 Mapper
      * @param transactionRecordService 交易事实记录服务
      * @param transactionEventOutboxService 交易本地事件服务
-     * @param shardingDataTemplate 分表数据访问统一入口
      * @param transactionShardingKeyParser 交易分表键解析器
      * @param callbackExecutor 渠道回调执行器，可为空以兼容尚未接入回调 SPI 的测试场景
      * @param channelStatusResolver 渠道状态解析服务
      */
-    @Autowired
     public DefaultTransactionCallbackService(TransactionChannelCallbackLogMapper callbackLogMapper,
                                              TransactionChannelCallbackMapper callbackMapper,
                                              TransactionRecordService transactionRecordService,
                                              TransactionEventOutboxService transactionEventOutboxService,
-                                             ShardingDataTemplate shardingDataTemplate,
                                              TransactionShardingKeyParser transactionShardingKeyParser,
                                              Optional<PaymentChannelCallbackExecutor> callbackExecutor,
                                              ChannelTransactionStatusResolver channelStatusResolver) {
@@ -291,7 +284,6 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         this.callbackMapper = callbackMapper;
         this.transactionRecordService = transactionRecordService;
         this.transactionEventOutboxService = transactionEventOutboxService;
-        this.shardingDataTemplate = shardingDataTemplate;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
         this.callbackExecutor = callbackExecutor == null ? Optional.empty() : callbackExecutor;
         this.channelStatusResolver = channelStatusResolver == null
@@ -325,11 +317,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
         CallbackContext context = resolveContext(commandDTO, channelCallbackResult);
         String callbackLogId = PaymentOrderNoGenerator.nextOrderNo(CALLBACK_LOG_PREFIX, context.transactionDateTime());
         String callbackId = PaymentOrderNoGenerator.nextOrderNo(CALLBACK_PREFIX, context.transactionDateTime());
-        String callbackTable = physicalTable(TRANSACTION_CHANNEL_CALLBACK_TABLE, context.transactionDateTime());
-        String callbackLogTable = physicalTable(TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, context.transactionDateTime());
-        int callbackLogRows = callbackLogMapper.insertPhysical(
-                callbackLogTable,
-                buildCallbackLog(commandDTO, context, callbackLogId, receivedTime, now));
+        String callbackTable = tableForLog(TRANSACTION_CHANNEL_CALLBACK_TABLE, context.transactionDateTime());
+        String callbackLogTable = tableForLog(TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, context.transactionDateTime());
+        TransactionChannelCallbackLogDO callbackLogDO = buildCallbackLog(
+                commandDTO, context, callbackLogId, receivedTime, now);
+        int callbackLogRows = callbackLogMapper.insertLogical(callbackLogDO);
         log.info("event: PAYMENT_CHANNEL_CALLBACK_LOG_SAVED stage=CALLBACK traceId: {} channelCode: {} callbackLogId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} signatureValid: {} ipAllowed: {} logicalTable: {} physicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
@@ -344,25 +336,24 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 callbackLogTable,
                 callbackLogRows);
         String idempotencyKey = buildIdempotencyKey(commandDTO, channelCallbackResult, context);
-        TransactionChannelCallbackDO existed = callbackMapper.selectByIdempotencyPhysical(
-                callbackTable, normalizeChannelCode(commandDTO.getChannelCode()), idempotencyKey);
+        TransactionChannelCallbackDO existed = findByIdempotency(
+                callbackTable, commandDTO.getChannelCode(), idempotencyKey, context.transactionDateTime());
         if (existed != null) {
-            log.info("event: PAYMENT_CHANNEL_CALLBACK_DUPLICATE stage=CALLBACK_IDEMPOTENCY traceId: {} channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} idempotencyKey: {} callbackStatus: {} duplicated=true durationMs: {}",
-                    TraceContext.getTraceId(),
-                    normalizeChannelCode(commandDTO.getChannelCode()),
-                    callbackLogId,
-                    existed.getCallbackId(),
-                    existed.getTransactionId(),
-                    existed.getOperationId(),
-                    existed.getChannelOrderNo(),
-                    existed.getChannelTransactionId(),
-                    idempotencyKey,
-                    existed.getCallbackStatus(),
-                    elapsedMillis(startNanos));
-            return duplicateResult(callbackLogId, existed);
+            return duplicateResult(callbackLogId, idempotencyKey, startNanos, existed);
         }
-        int callbackRows = callbackMapper.insertPhysical(callbackTable,
-                buildCallback(commandDTO, context, callbackLogId, callbackId, idempotencyKey, receivedTime, now));
+        TransactionChannelCallbackDO callbackDO = buildCallback(
+                commandDTO, context, callbackLogId, callbackId, idempotencyKey, receivedTime, now);
+        int callbackRows;
+        try {
+            callbackRows = callbackMapper.insertLogical(callbackDO);
+        } catch (DuplicateKeyException exception) {
+            TransactionChannelCallbackDO concurrentlyCreated = findByIdempotency(
+                    callbackTable, commandDTO.getChannelCode(), idempotencyKey, context.transactionDateTime());
+            if (concurrentlyCreated == null) {
+                throw exception;
+            }
+            return duplicateResult(callbackLogId, idempotencyKey, startNanos, concurrentlyCreated);
+        }
         log.info("event: PAYMENT_CHANNEL_CALLBACK_IDEMPOTENCY_SAVED stage=CALLBACK_IDEMPOTENCY traceId: {} channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} idempotencyKey: {} duplicated=false logicalTable: {} physicalTable: {} affectedRows: {}",
                 TraceContext.getTraceId(),
                 normalizeChannelCode(commandDTO.getChannelCode()),
@@ -520,6 +511,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     commandDTO.getIpAllowed(),
                     securityFailReason);
             return updateCallbackProcessResult(callbackTable,
+                    context.transactionDateTime(),
                     callbackId,
                     CALLBACK_STATUS_FAILED,
                     null,
@@ -536,7 +528,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     context.transactionId(),
                     context.channelOrderNo(),
                     context.channelTransactionId());
-            return updateCallbackProcessResult(callbackTable, callbackId, CALLBACK_STATUS_FAILED, null, null,
+            return updateCallbackProcessResult(callbackTable, context.transactionDateTime(), callbackId,
+                    CALLBACK_STATUS_FAILED, null, null,
                     null, null, "transaction_id can not be resolved from callback", now);
         }
         ParsedCallbackStatus parsedStatus = parseCallbackStatus(commandDTO, channelCallbackResult, context.operationDO().getTransactionType());
@@ -549,7 +542,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     context.operationDO().getOperationId(),
                     channelCallbackResult == null ? null : channelCallbackResult.getRawChannelStatus(),
                     channelCallbackResult == null ? null : channelCallbackResult.getChannelTradeStatus());
-            return updateCallbackProcessResult(callbackTable, callbackId, CALLBACK_STATUS_RECEIVED,
+            return updateCallbackProcessResult(callbackTable, context.transactionDateTime(), callbackId,
+                    CALLBACK_STATUS_RECEIVED,
                     parsedStatus.targetStatus(),
                     context.operationDO().getTransactionStatus(),
                     parsedStatus.targetStatus(),
@@ -566,7 +560,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     context.operationDO().getOperationId(),
                     channelCallbackResult == null ? null : channelCallbackResult.getRawChannelStatus(),
                     channelCallbackResult == null ? null : channelCallbackResult.getChannelTradeStatus());
-            return updateCallbackProcessResult(callbackTable, callbackId, CALLBACK_STATUS_RECEIVED, null,
+            return updateCallbackProcessResult(callbackTable, context.transactionDateTime(), callbackId,
+                    CALLBACK_STATUS_RECEIVED, null,
                     context.operationDO().getTransactionStatus(), null, PROCESS_RESULT_PENDING,
                     "callback status can not be mapped yet", now);
         }
@@ -580,7 +575,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                     context.operationDO().getTransactionStatus(),
                     parsedStatus.targetStatus(),
                     parsedStatus.channelStatus());
-            return updateCallbackProcessResult(callbackTable, callbackId, CALLBACK_STATUS_RECEIVED,
+            return updateCallbackProcessResult(callbackTable, context.transactionDateTime(), callbackId,
+                    CALLBACK_STATUS_RECEIVED,
                     parsedStatus.targetStatus(),
                     context.operationDO().getTransactionStatus(),
                     parsedStatus.targetStatus(),
@@ -613,6 +609,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
             saveCallbackProcessedEvent(context, parsedStatus, callbackId, now);
         }
         return updateCallbackProcessResult(callbackTable,
+                context.transactionDateTime(),
                 callbackId,
                 changed ? CALLBACK_STATUS_PROCESSED : CALLBACK_STATUS_IGNORED,
                 parsedStatus.targetStatus(),
@@ -663,7 +660,8 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
  * </p>
  * @param context context 输入值，参与 context 的查询、校验、转换、写入或日志摘要
  * @param parsedStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
- * @param callbackId callback ID 输入值，参与 回调ID 的查询、校验、转换、写入或日志摘要
+     * @param transactionDateTime 交易分片时间
+     * @param callbackId callback ID 输入值，参与 回调ID 的查询、校验、转换、写入或日志摘要
  * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
  */
     private void saveCallbackProcessedEvent(CallbackContext context,
@@ -736,6 +734,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
  * 异常边界：状态冲突、版本冲突或持久化失败按当前模块异常规范返回。
  * </p>
  * @param callbackTable callback Table 输入值，参与 回调table 的查询、校验、转换、写入或日志摘要
+ * @param transactionDateTime 交易分片时间
  * @param callbackId callback ID 输入值，参与 回调ID 的查询、校验、转换、写入或日志摘要
  * @param callbackStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
  * @param parsedTransactionStatus 状态编码，取值必须来自对应枚举、字典或渠道协议
@@ -747,6 +746,7 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
  * @return 写入、更新或删除后的处理结果
  */
     private CallbackProcessOutcome updateCallbackProcessResult(String callbackTable,
+                                                               LocalDateTime transactionDateTime,
                                                                String callbackId,
                                                                String callbackStatus,
                                                                String parsedTransactionStatus,
@@ -755,8 +755,11 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                                                                String processResult,
                                                                String failReason,
                                                                LocalDateTime processedTime) {
-        int affectedRows = callbackMapper.updateProcessResultPhysical(callbackTable,
+        int affectedRows = callbackMapper.updateProcessResultLogical(
                 callbackId,
+                transactionDateTime,
+                INITIAL_VERSION,
+                CALLBACK_PROCESSABLE_STATUSES,
                 callbackStatus,
                 parsedTransactionStatus,
                 previousTransactionStatus,
@@ -774,7 +777,29 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
                 TRANSACTION_CHANNEL_CALLBACK_TABLE,
                 callbackTable,
                 affectedRows);
+        if (affectedRows != 1) {
+            log.warn("event: PAYMENT_CALLBACK_CAS_CONFLICT stage=CALLBACK_PROCESS traceId: {} callbackId: {} transactionDateTime: {} expectedVersion: {} expectedStatuses: {} affectedRows: {}",
+                    TraceContext.getTraceId(),
+                    callbackId,
+                    transactionDateTime,
+                    INITIAL_VERSION,
+                    CALLBACK_PROCESSABLE_STATUSES,
+                    affectedRows);
+            throw new ServiceException(
+                    ApiResultEnum.NETWORK_BUSY.getCode(), "callback process state has changed");
+        }
         return new CallbackProcessOutcome(callbackStatus, processResult, failReason);
+    }
+
+    /**
+     * 按渠道、幂等键和交易分片时间查询已存在的回调业务记录。
+     */
+    private TransactionChannelCallbackDO findByIdempotency(String callbackTable,
+                                                           String channelCode,
+                                                           String idempotencyKey,
+                                                           LocalDateTime transactionDateTime) {
+        return callbackMapper.selectByIdempotency(
+                normalizeChannelCode(channelCode), idempotencyKey, transactionDateTime);
     }
 
     /**
@@ -788,7 +813,22 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
      * @param existed existed 输入值，参与 existed 的查询、校验、转换、写入或日志摘要
      * @return 方法执行后的业务结果、更新行数、转换对象或空结果
      */
-    private TransactionChannelCallbackResultDTO duplicateResult(String callbackLogId, TransactionChannelCallbackDO existed) {
+    private TransactionChannelCallbackResultDTO duplicateResult(String callbackLogId,
+                                                                String idempotencyKey,
+                                                                long startNanos,
+                                                                TransactionChannelCallbackDO existed) {
+        log.info("event: PAYMENT_CHANNEL_CALLBACK_DUPLICATE stage=CALLBACK_IDEMPOTENCY traceId: {} channelCode: {} callbackLogId: {} callbackId: {} transactionId: {} operationId: {} channelOrderNo: {} channelTransactionId: {} idempotencyKey: {} callbackStatus: {} duplicated=true durationMs: {}",
+                TraceContext.getTraceId(),
+                existed.getChannelCode(),
+                callbackLogId,
+                existed.getCallbackId(),
+                existed.getTransactionId(),
+                existed.getOperationId(),
+                existed.getChannelOrderNo(),
+                existed.getChannelTransactionId(),
+                idempotencyKey,
+                existed.getCallbackStatus(),
+                elapsedMillis(startNanos));
         TransactionChannelCallbackResultDTO resultDTO = new TransactionChannelCallbackResultDTO();
         resultDTO.setCallbackLogId(callbackLogId);
         resultDTO.setCallbackId(existed.getCallbackId());
@@ -1098,19 +1138,14 @@ public class DefaultTransactionCallbackService implements TransactionCallbackSer
     }
 
     /**
-     * 整理物理表，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
-     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 返回当前模式下用于审计日志的表标识，不参与 SQL 拼接。
+     *
+     * @param logicalTable 逻辑表名
+     * @param transactionDateTime 交易分片时间
+     * @return 逻辑表名
      */
-    private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
-        return shardingDataTemplate.resolvePhysicalTable(
-                ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.MASTER));
+    private String tableForLog(String logicalTable, LocalDateTime transactionDateTime) {
+        return logicalTable;
     }
 
     /**

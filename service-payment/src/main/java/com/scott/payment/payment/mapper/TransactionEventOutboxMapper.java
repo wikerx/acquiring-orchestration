@@ -22,14 +22,13 @@ import java.util.List;
 public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEventOutboxDO> {
 
     /**
-     * 写入交易本地消息物理分表。
+     * 写入交易本地消息逻辑表。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param eventDO           交易本地消息记录
+     * @param eventDO 交易本地消息记录
      * @return 影响行数
      */
     @Insert("""
-            INSERT INTO ${physicalTableName}
+            INSERT INTO transaction_event_outbox
             (
               event_no, aggregate_type, aggregate_no, transaction_id, operation_id,
               merchant_id, merchant_order_no, transaction_type, event_type, event_status,
@@ -45,74 +44,80 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
               #{eventDO.eventStatus}, #{eventDO.topic}, #{eventDO.tag}, #{eventDO.messageKey},
               #{eventDO.messageGroup}, #{eventDO.payloadJson}, #{eventDO.retryCount}, #{eventDO.maxRetryCount},
               #{eventDO.nextRetryTime}, #{eventDO.sentTime}, #{eventDO.failReason},
-              #{eventDO.eventTime}, #{eventDO.transactionDateTime}, #{eventDO.transactionUtcTime}, #{eventDO.transactionTimeZone},
-              #{eventDO.version}, #{eventDO.deleted}, #{eventDO.createTime}, #{eventDO.updateTime}
+              #{eventDO.eventTime}, #{eventDO.transactionDateTime}, #{eventDO.transactionUtcTime},
+              #{eventDO.transactionTimeZone}, #{eventDO.version}, #{eventDO.deleted},
+              #{eventDO.createTime}, #{eventDO.updateTime}
             )
             """)
-    int insertPhysical(@Param("physicalTableName") String physicalTableName,
-                       @Param("eventDO") TransactionEventOutboxDO eventDO);
+    int insertLogical(@Param("eventDO") TransactionEventOutboxDO eventDO);
 
     /**
-     * 查询待投递的交易本地消息。
+     * 在单季度半开范围内查询待投递事件。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param now               当前时间
-     * @param limit             最大返回条数
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @param now 当前时间
+     * @param limit 最大返回条数
      * @return 待投递事件列表
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
-            WHERE deleted = 0
+            FROM transaction_event_outbox
+            WHERE transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
+              AND deleted = 0
               AND event_status IN ('INIT', 'FAILED')
               AND retry_count < max_retry_count
               AND (next_retry_time IS NULL OR next_retry_time <= #{now})
             ORDER BY transaction_date_time ASC, event_time ASC, id ASC
             LIMIT #{limit}
             """)
-    List<TransactionEventOutboxDO> selectDueForPublish(@Param("physicalTableName") String physicalTableName,
-                                                       @Param("now") LocalDateTime now,
-                                                       @Param("limit") int limit);
+    List<TransactionEventOutboxDO> selectDueForPublishLogical(
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
+            @Param("now") LocalDateTime now,
+            @Param("limit") int limit);
 
     /**
-     * CAS 标记交易本地消息已投递。
+     * 使用分片时间和版本 CAS 标记逻辑表事件已投递。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param id                主键 ID
-     * @param version           当前版本号
-     * @param sentTime          投递成功时间
+     * @param id 主键 ID
+     * @param transactionDateTime 交易分片时间
+     * @param version 当前版本号
+     * @param sentTime 投递成功时间
      * @return 影响行数
      */
     @Update("""
-            UPDATE ${physicalTableName}
+            UPDATE transaction_event_outbox
             SET event_status = 'SENT',
                 sent_time = #{sentTime},
                 fail_reason = NULL,
                 version = version + 1,
                 update_time = #{sentTime}
             WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
               AND version = #{version}
               AND deleted = 0
               AND event_status IN ('INIT', 'FAILED')
             """)
-    int markSent(@Param("physicalTableName") String physicalTableName,
-                 @Param("id") Long id,
-                 @Param("version") Integer version,
-                 @Param("sentTime") LocalDateTime sentTime);
+    int markSentLogical(@Param("id") Long id,
+                        @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                        @Param("version") Integer version,
+                        @Param("sentTime") LocalDateTime sentTime);
 
     /**
-     * CAS 标记交易本地消息投递失败并安排下次重试。
+     * 使用分片时间和版本 CAS 标记逻辑表事件失败。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param id                主键 ID
-     * @param version           当前版本号
-     * @param nextRetryTime     下次重试时间
-     * @param failReason        失败原因摘要
-     * @param now               当前时间
+     * @param id 主键 ID
+     * @param transactionDateTime 交易分片时间
+     * @param version 当前版本号
+     * @param nextRetryTime 下次重试时间
+     * @param failReason 失败原因摘要
+     * @param now 当前时间
      * @return 影响行数
      */
     @Update("""
-            UPDATE ${physicalTableName}
+            UPDATE transaction_event_outbox
             SET event_status = 'FAILED',
                 retry_count = retry_count + 1,
                 next_retry_time = #{nextRetryTime},
@@ -120,15 +125,16 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
                 version = version + 1,
                 update_time = #{now}
             WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
               AND version = #{version}
               AND deleted = 0
               AND event_status IN ('INIT', 'FAILED')
               AND retry_count < max_retry_count
             """)
-    int markFailed(@Param("physicalTableName") String physicalTableName,
-                   @Param("id") Long id,
-                   @Param("version") Integer version,
-                   @Param("nextRetryTime") LocalDateTime nextRetryTime,
-                   @Param("failReason") String failReason,
-                   @Param("now") LocalDateTime now);
+    int markFailedLogical(@Param("id") Long id,
+                          @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                          @Param("version") Integer version,
+                          @Param("nextRetryTime") LocalDateTime nextRetryTime,
+                          @Param("failReason") String failReason,
+                          @Param("now") LocalDateTime now);
 }

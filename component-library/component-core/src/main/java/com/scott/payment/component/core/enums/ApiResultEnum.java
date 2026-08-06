@@ -124,6 +124,7 @@ public enum ApiResultEnum implements IResult {
      * 商户号不存在、状态不可用或与请求不匹配。
      */
     MERCHANT_INVALID("F401009", "Merchant is invalid or unavailable"),
+    MERCHANT_FROZEN("F401010", "当前商户已经被冻结，请联系您的专属管家"),
 
     /**
      * 请求参数值不合法。
@@ -214,6 +215,11 @@ public enum ApiResultEnum implements IResult {
      * 查询结果不存在。
      */
     QUERY_RESULT_NOT_FOUND("F512", "The search result set is invalid/does not exist"),
+
+    /**
+     * 查询时间范围包含尚未完成物理表校验和规则发布的交易季度。
+     */
+    TRANSACTION_DATA_UNAVAILABLE("F513", "Transaction data is unavailable for the requested time range"),
 
     /**
      * 商户交易号重复。

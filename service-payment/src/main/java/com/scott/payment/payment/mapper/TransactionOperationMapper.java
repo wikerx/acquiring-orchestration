@@ -17,123 +17,62 @@ import java.util.List;
  * @classname : TransactionOperationMapper
  * @date : 2026-07-14 17:40
  * @email : scott_x@163.com
- * @description : 交易动作单 Mapper，位于 service-payment 数据访问层，仅负责 transaction_operation 逻辑表及物理分表访问。
+ * @description : 交易动作单 Mapper，位于 service-payment 数据访问层，仅访问 transaction_operation 逻辑表并显式携带交易分片时间。
  * @status : create
  */
 public interface TransactionOperationMapper extends BaseMapper<TransactionOperationDO> {
 
     /**
-     * 写入交易动作单物理分表。
+     * 通过交易分片时间在逻辑表中查询动作单。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param operationDO       交易动作单
-     * @return 影响行数
-     */
-    @Insert("""
-            INSERT INTO ${physicalTableName}
-            (
-              operation_id, transaction_id, source_transaction_id, source_operation_id, merchant_id,
-              merchant_order_no, merchant_operation_no, operation_sequence, transaction_type, transaction_status,
-              process_stage, pending_reason_code, fail_reason_code, fail_reason_message, label_currency, label_amount,
-              transaction_currency, transaction_amount, approved_currency, approved_amount,
-              channel_request_currency, channel_request_amount, settlement_currency, settlement_amount,
-              currency_exponent, dcc_enabled, edc_enabled, transaction_rate, channel_id, channel_code,
-              channel_mid_config_id, channel_terminal_id, channel_order_no,
-              channel_transaction_id, channel_status, channel_response_code, channel_response_message,
-              auth_code, rrn, acquirer_reference_no, settlement_status, reconciliation_status, accounting_status,
-              channel_match_status, channel_match_result, channel_match_count, last_channel_match_request_id,
-              last_channel_match_time, next_channel_match_time, channel_match_fail_reason, transaction_date_time,
-              transaction_utc_time, transaction_time_zone, operation_time, complete_time, version, deleted,
-              create_time, update_time
-            )
-            VALUES
-            (
-              #{operationDO.operationId}, #{operationDO.transactionId}, #{operationDO.sourceTransactionId},
-              #{operationDO.sourceOperationId}, #{operationDO.merchantId}, #{operationDO.merchantOrderNo},
-              #{operationDO.merchantOperationNo},
-              #{operationDO.operationSequence}, #{operationDO.transactionType},
-              #{operationDO.transactionStatus}, #{operationDO.processStage}, #{operationDO.pendingReasonCode},
-              #{operationDO.failReasonCode}, #{operationDO.failReasonMessage}, #{operationDO.labelCurrency}, #{operationDO.labelAmount},
-              #{operationDO.transactionCurrency}, #{operationDO.transactionAmount}, #{operationDO.approvedCurrency},
-              #{operationDO.approvedAmount}, #{operationDO.channelRequestCurrency}, #{operationDO.channelRequestAmount},
-              #{operationDO.settlementCurrency}, #{operationDO.settlementAmount}, #{operationDO.currencyExponent},
-              #{operationDO.dccEnabled}, #{operationDO.edcEnabled}, #{operationDO.transactionRate},
-              #{operationDO.channelId}, #{operationDO.channelCode}, #{operationDO.channelMidConfigId},
-              #{operationDO.channelTerminalId}, #{operationDO.channelOrderNo}, #{operationDO.channelTransactionId},
-              #{operationDO.channelStatus}, #{operationDO.channelResponseCode}, #{operationDO.channelResponseMessage},
-              #{operationDO.authCode}, #{operationDO.rrn}, #{operationDO.acquirerReferenceNo},
-              #{operationDO.settlementStatus}, #{operationDO.reconciliationStatus}, #{operationDO.accountingStatus},
-              #{operationDO.channelMatchStatus}, #{operationDO.channelMatchResult}, #{operationDO.channelMatchCount},
-              #{operationDO.lastChannelMatchRequestId}, #{operationDO.lastChannelMatchTime},
-              #{operationDO.nextChannelMatchTime}, #{operationDO.channelMatchFailReason},
-              #{operationDO.transactionDateTime}, #{operationDO.transactionUtcTime}, #{operationDO.transactionTimeZone},
-              #{operationDO.operationTime}, #{operationDO.completeTime}, #{operationDO.version}, #{operationDO.deleted},
-              #{operationDO.createTime}, #{operationDO.updateTime}
-            )
-            """)
-    int insertPhysical(@Param("physicalTableName") String physicalTableName,
-                       @Param("operationDO") TransactionOperationDO operationDO);
-
-    /**
-     * 按平台当前交易 ID 查询动作单。
-     *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param transactionId     平台当前交易唯一标识
+     * @param transactionId 平台当前交易唯一标识
+     * @param transactionDateTime 交易分片时间
      * @return 交易动作单，不存在时返回 null
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE transaction_id = #{transactionId}
+              AND transaction_date_time = #{transactionDateTime}
               AND deleted = 0
             LIMIT 1
             """)
-    TransactionOperationDO selectByTransactionIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                         @Param("transactionId") String transactionId);
+    TransactionOperationDO selectByTransactionId(@Param("transactionId") String transactionId,
+                                                 @Param("transactionDateTime") LocalDateTime transactionDateTime);
 
     /**
-     * 按渠道订单号和渠道交易 ID 查询动作单。
+     * 在受控半开时间范围内按渠道身份查询动作单。
      *
-     * @param physicalTableName    经分表规则解析器校验后的物理表名
-     * @param channelOrderNo       渠道订单号
+     * @param channelOrderNo 渠道订单号
      * @param channelTransactionId 渠道交易 ID
-     * @return 交易动作单，不存在时返回 null
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 动作单，不存在时返回 null
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE channel_order_no = #{channelOrderNo}
               AND channel_transaction_id = #{channelTransactionId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND deleted = 0
+            ORDER BY transaction_date_time DESC, id DESC
             LIMIT 1
             """)
-    TransactionOperationDO selectByChannelTransactionPhysical(@Param("physicalTableName") String physicalTableName,
-                                                              @Param("channelOrderNo") String channelOrderNo,
-                                                              @Param("channelTransactionId") String channelTransactionId);
+    TransactionOperationDO selectByChannelTransaction(
+            @Param("channelOrderNo") String channelOrderNo,
+            @Param("channelTransactionId") String channelTransactionId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * CAS 推进动作单终态。
-     * <p>
-     * 渠道回调和渠道查询确认只能推进非终态动作，避免重复回调或延迟失败结果覆盖已成功交易。
+     * 使用分片时间和版本 CAS 将非终态动作推进到目标终态。
      *
-     * @param physicalTableName     经分表规则解析器校验后的物理表名
-     * @param id                    动作单物理主键
-     * @param expectedVersion       读取动作单时的版本号
-     * @param transactionStatus     目标交易状态
-     * @param processStage          目标处理阶段
-     * @param failReasonCode        失败原因码
-     * @param failReasonMessage     后台可见失败原因
-     * @param channelStatus         渠道原始状态
-     * @param channelResponseCode   渠道响应码
-     * @param channelResponseMessage 渠道响应描述
-     * @param authCode              授权码
-     * @param rrn                   检索参考号或渠道回单号
-     * @param acquirerReferenceNo   收单机构参考号
-     * @param channelMatchStatus    渠道勾兑状态；同步终态为 NOT_REQUIRED，回调/主动查询确认为 MATCHED
-     * @return 影响行数，1 表示状态推进成功
+     * @return 影响行数
      */
     @Update("""
-            UPDATE ${physicalTableName}
+            UPDATE transaction_operation
             SET transaction_status = #{transactionStatus},
                 process_stage = #{processStage},
                 fail_reason_code = #{failReasonCode},
@@ -152,48 +91,33 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                 version = version + 1,
                 update_time = CURRENT_TIMESTAMP(3)
             WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND deleted = 0
             """)
-    int completeStatusPhysical(@Param("physicalTableName") String physicalTableName,
-                               @Param("id") Long id,
-                               @Param("expectedVersion") Integer expectedVersion,
-                               @Param("transactionStatus") String transactionStatus,
-                               @Param("processStage") String processStage,
-                               @Param("failReasonCode") String failReasonCode,
-                               @Param("failReasonMessage") String failReasonMessage,
-                               @Param("channelStatus") String channelStatus,
-                               @Param("channelResponseCode") String channelResponseCode,
-                               @Param("channelResponseMessage") String channelResponseMessage,
-                               @Param("authCode") String authCode,
-                               @Param("rrn") String rrn,
-                               @Param("acquirerReferenceNo") String acquirerReferenceNo,
-                               @Param("channelMatchStatus") String channelMatchStatus);
+    int completeStatus(@Param("id") Long id,
+                       @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                       @Param("expectedVersion") Integer expectedVersion,
+                       @Param("transactionStatus") String transactionStatus,
+                       @Param("processStage") String processStage,
+                       @Param("failReasonCode") String failReasonCode,
+                       @Param("failReasonMessage") String failReasonMessage,
+                       @Param("channelStatus") String channelStatus,
+                       @Param("channelResponseCode") String channelResponseCode,
+                       @Param("channelResponseMessage") String channelResponseMessage,
+                       @Param("authCode") String authCode,
+                       @Param("rrn") String rrn,
+                       @Param("acquirerReferenceNo") String acquirerReferenceNo,
+                       @Param("channelMatchStatus") String channelMatchStatus);
 
     /**
-     * CAS 记录渠道同步非终态结果。
-     * <p>
-     * 非终态结果只更新渠道摘要、处理阶段和勾兑入口，不写 complete_time，也不把勾兑状态标记为 MATCHED，
-     * 便于后续主动查询或回调继续推进终态。
+     * 使用分片时间和版本 CAS 记录同步渠道非终态结果。
      *
-     * @param physicalTableName     经分表规则解析器校验后的物理表名
-     * @param id                    动作单物理主键
-     * @param expectedVersion       读取动作单时的版本号
-     * @param transactionStatus     目标非终态交易状态
-     * @param processStage          目标处理阶段
-     * @param pendingReasonCode     挂起原因码
-     * @param failReasonCode        失败原因码
-     * @param failReasonMessage     后台可见失败原因
-     * @param channelStatus         渠道原始状态
-     * @param channelResponseCode   渠道响应码
-     * @param channelResponseMessage 渠道响应描述
-     * @param requestId             原渠道请求 ID
-     * @param matchTime             本次记录时间
-     * @return 影响行数，1 表示状态记录成功
+     * @return 影响行数
      */
     @Update("""
-            UPDATE ${physicalTableName}
+            UPDATE transaction_operation
             SET transaction_status = #{transactionStatus},
                 process_stage = #{processStage},
                 pending_reason_code = #{pendingReasonCode},
@@ -211,38 +135,42 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                 version = version + 1,
                 update_time = #{matchTime}
             WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND deleted = 0
             """)
-    int updateNonTerminalChannelResultPhysical(@Param("physicalTableName") String physicalTableName,
-                                               @Param("id") Long id,
-                                               @Param("expectedVersion") Integer expectedVersion,
-                                               @Param("transactionStatus") String transactionStatus,
-                                               @Param("processStage") String processStage,
-                                               @Param("pendingReasonCode") String pendingReasonCode,
-                                               @Param("failReasonCode") String failReasonCode,
-                                               @Param("failReasonMessage") String failReasonMessage,
-                                               @Param("channelStatus") String channelStatus,
-                                               @Param("channelResponseCode") String channelResponseCode,
-                                               @Param("channelResponseMessage") String channelResponseMessage,
-                                               @Param("requestId") String requestId,
-                                               @Param("matchTime") LocalDateTime matchTime);
+    int updateNonTerminalChannelResult(@Param("id") Long id,
+                                       @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                       @Param("expectedVersion") Integer expectedVersion,
+                                       @Param("transactionStatus") String transactionStatus,
+                                       @Param("processStage") String processStage,
+                                       @Param("pendingReasonCode") String pendingReasonCode,
+                                       @Param("failReasonCode") String failReasonCode,
+                                       @Param("failReasonMessage") String failReasonMessage,
+                                       @Param("channelStatus") String channelStatus,
+                                       @Param("channelResponseCode") String channelResponseCode,
+                                       @Param("channelResponseMessage") String channelResponseMessage,
+                                       @Param("requestId") String requestId,
+                                       @Param("matchTime") LocalDateTime matchTime);
 
     /**
-     * 查询待渠道勾兑的动作单。
+     * 在单季度半开范围内查询待渠道勾兑动作。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param channelCode       渠道编码，可为空
-     * @param now               当前时间，用于判断 next_channel_match_time
-     * @param limit             最大查询数量
+     * @param channelCode 渠道编码，可为空
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @param now 当前时间
+     * @param limit 最大查询数量
      * @return 待勾兑动作单
      */
     @Select("""
             <script>
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE deleted = 0
+              AND transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt; #{endTimeExclusive}
               AND channel_match_status = 'PENDING'
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND channel_code IS NOT NULL
@@ -254,27 +182,20 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             LIMIT #{limit}
             </script>
             """)
-    List<TransactionOperationDO> selectPendingChannelMatchPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                   @Param("channelCode") String channelCode,
-                                                                   @Param("now") LocalDateTime now,
-                                                                   @Param("limit") int limit);
+    List<TransactionOperationDO> selectPendingChannelMatch(
+            @Param("channelCode") String channelCode,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
+            @Param("now") LocalDateTime now,
+            @Param("limit") int limit);
 
     /**
-     * 标记本次渠道勾兑结果。
+     * 使用分片时间和版本 CAS 标记渠道勾兑结果。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param id                动作单物理主键
-     * @param expectedVersion   读取动作单时的版本号
-     * @param matchStatus       勾兑状态
-     * @param matchResult       勾兑结果摘要
-     * @param requestId         最近一次渠道查询请求 ID
-     * @param matchTime         最近一次渠道查询时间
-     * @param nextMatchTime     下一次渠道查询时间
-     * @param failReason        勾兑失败原因
      * @return 影响行数
      */
     @Update("""
-            UPDATE ${physicalTableName}
+            UPDATE transaction_operation
             SET channel_match_status = #{matchStatus},
                 channel_match_result = #{matchResult},
                 channel_match_count = COALESCE(channel_match_count, 0) + 1,
@@ -285,68 +206,81 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                 version = version + 1,
                 update_time = #{matchTime}
             WHERE id = #{id}
+              AND transaction_date_time = #{transactionDateTime}
               AND version = #{expectedVersion}
+              AND channel_match_status = 'PENDING'
               AND transaction_status NOT IN ('SUCCESS', 'FAILED')
               AND deleted = 0
             """)
-    int updateChannelMatchPhysical(@Param("physicalTableName") String physicalTableName,
-                                   @Param("id") Long id,
-                                   @Param("expectedVersion") Integer expectedVersion,
-                                   @Param("matchStatus") String matchStatus,
-                                   @Param("matchResult") String matchResult,
-                                   @Param("requestId") String requestId,
-                                   @Param("matchTime") LocalDateTime matchTime,
-                                   @Param("nextMatchTime") LocalDateTime nextMatchTime,
-                                   @Param("failReason") String failReason);
+    int updateChannelMatch(@Param("id") Long id,
+                           @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                           @Param("expectedVersion") Integer expectedVersion,
+                           @Param("matchStatus") String matchStatus,
+                           @Param("matchResult") String matchResult,
+                           @Param("requestId") String requestId,
+                           @Param("matchTime") LocalDateTime matchTime,
+                           @Param("nextMatchTime") LocalDateTime nextMatchTime,
+                           @Param("failReason") String failReason);
 
     /**
-     * 查询同一交易生命周期下已有动作数量，用于生成动作序号。
+     * 统计半开时间范围内同一生命周期的动作数。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param operationId       平台内部生命周期关联标识
-     * @return 已有动作数量
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 动作数量
      */
     @Select("""
             SELECT COUNT(1)
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND deleted = 0
             """)
-    int countByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                   @Param("operationId") String operationId);
+    int countByOperationId(@Param("operationId") String operationId,
+                           @Param("beginTime") LocalDateTime beginTime,
+                           @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 查询同一交易生命周期下的所有动作单。
+     * 查询半开时间范围内同一生命周期的全部动作。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param operationId       平台内部生命周期关联标识
+     * @param operationId 平台内部生命周期关联标识
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
      * @return 动作单列表
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND deleted = 0
             ORDER BY operation_sequence ASC, operation_time ASC
             """)
-    List<TransactionOperationDO> selectByOperationIdPhysical(@Param("physicalTableName") String physicalTableName,
-                                                             @Param("operationId") String operationId);
+    List<TransactionOperationDO> selectByOperationId(@Param("operationId") String operationId,
+                                                     @Param("beginTime") LocalDateTime beginTime,
+                                                     @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 按商户订单号查询交易动作单。
+     * 按商户订单号和半开时间范围查询动作单。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param merchantId        平台商户号
-     * @param merchantOrderNo   商户订单号
-     * @param transactionId     平台交易 ID，可为空；传入时精确过滤单笔动作
-     * @return 交易动作单列表
+     * @param merchantId 平台商户号
+     * @param merchantOrderNo 商户订单号
+     * @param transactionId 平台交易 ID，可为空
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 动作单列表
      */
     @Select("""
             <script>
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND merchant_order_no = #{merchantOrderNo}
+              AND transaction_date_time &gt;= #{beginTime}
+              AND transaction_date_time &lt; #{endTimeExclusive}
               AND deleted = 0
               <if test="transactionId != null and transactionId != ''">
                 AND transaction_id = #{transactionId}
@@ -354,170 +288,145 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             ORDER BY operation_sequence ASC, operation_time ASC
             </script>
             """)
-    List<TransactionOperationDO> selectByMerchantOrderPhysical(@Param("physicalTableName") String physicalTableName,
-                                                               @Param("merchantId") String merchantId,
-                                                               @Param("merchantOrderNo") String merchantOrderNo,
-                                                               @Param("transactionId") String transactionId);
+    List<TransactionOperationDO> selectByMerchantOrder(
+            @Param("merchantId") String merchantId,
+            @Param("merchantOrderNo") String merchantOrderNo,
+            @Param("transactionId") String transactionId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 按商户订单号查询首次起点动作单。
-     * <p>
-     * 同一商户订单号下 PAYMENT 与 AUTHORIZATION/PRE_AUTHORIZATION 两条支付语义互斥；支付核心创建首次类交易前
-     * 通过该查询判断是否已经存在有效起点流程。
+     * 按商户订单号和半开时间范围查询首次起点动作。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param merchantId        平台商户号
-     * @param merchantOrderNo   商户订单号
-     * @return 首次起点动作单列表
+     * @param merchantId 平台商户号
+     * @param merchantOrderNo 商户订单号
+     * @param beginTime 查询开始时间
+     * @param endTimeExclusive 查询结束时间，不包含
+     * @return 首次起点动作列表
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND merchant_order_no = #{merchantOrderNo}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND transaction_type IN ('PAYMENT', 'AUTHORIZATION', 'PRE_AUTHORIZATION')
               AND deleted = 0
             ORDER BY transaction_date_time ASC, id ASC
             """)
-    List<TransactionOperationDO> selectInitialByMerchantOrderPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                      @Param("merchantId") String merchantId,
-                                                                      @Param("merchantOrderNo") String merchantOrderNo);
+    List<TransactionOperationDO> selectInitialByMerchantOrder(
+            @Param("merchantId") String merchantId,
+            @Param("merchantOrderNo") String merchantOrderNo,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 查询同一生命周期下未终态 Capture 动作。
-     * <p>
-     * 该查询只读取真实动作事实，不按商户订单号推断 Capture 动作号，避免把原 Payment/Auth 订单号误作多次请款标识。
+     * 查询半开时间范围内未终态的 Capture 动作。
      *
-     * @param physicalTableName   经分表规则解析器校验后的物理表名
-     * @param merchantId          平台商户号
-     * @param operationId         平台内部生命周期关联标识
-     * @param sourceTransactionId 原授权或预授权平台交易 ID
      * @return 未终态 Capture 动作列表
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}
               AND source_transaction_id = #{sourceTransactionId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND transaction_type IN ('CAPTURE', 'PRE_AUTH_COMPLETION')
               AND transaction_status IN ('PROCESSING', 'PENDING')
               AND deleted = 0
             ORDER BY transaction_date_time ASC, id ASC
             """)
-    List<TransactionOperationDO> selectNonTerminalCapturesPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                   @Param("merchantId") String merchantId,
-                                                                   @Param("operationId") String operationId,
-                                                                   @Param("sourceTransactionId") String sourceTransactionId);
+    List<TransactionOperationDO> selectNonTerminalCaptures(
+            @Param("merchantId") String merchantId,
+            @Param("operationId") String operationId,
+            @Param("sourceTransactionId") String sourceTransactionId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 查询同一生命周期下未终态 Refund 动作。
-     * <p>
-     * Refund 额度按生命周期共享，PROCESSING/PENDING 动作恢复为 SUCCESS/FAILED 前必须纳入占用。
+     * 查询半开时间范围内未终态的 Refund 动作。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param merchantId        平台商户号
-     * @param operationId       平台内部生命周期关联标识
      * @return 未终态 Refund 动作列表
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND transaction_type = 'REFUND'
               AND transaction_status IN ('PROCESSING', 'PENDING')
               AND deleted = 0
             ORDER BY transaction_date_time ASC, id ASC
             """)
-    List<TransactionOperationDO> selectNonTerminalRefundsPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                  @Param("merchantId") String merchantId,
-                                                                  @Param("operationId") String operationId);
+    List<TransactionOperationDO> selectNonTerminalRefunds(
+            @Param("merchantId") String merchantId,
+            @Param("operationId") String operationId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 查询同一生命周期下未终态 Void 动作。
-     * <p>
-     * Void / Authorization Cancel 恢复为明确终态前必须阻断 Capture、Refund 和新的 Void，避免重复释放授权或重复返还资金。
+     * 查询半开时间范围内未终态的 Void 动作。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param merchantId        平台商户号
-     * @param operationId       平台内部生命周期关联标识
      * @return 未终态 Void 动作列表
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND transaction_type = 'VOID'
               AND transaction_status IN ('PROCESSING', 'PENDING')
               AND deleted = 0
             ORDER BY transaction_date_time ASC, id ASC
             """)
-    List<TransactionOperationDO> selectNonTerminalVoidsPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                @Param("merchantId") String merchantId,
-                                                                @Param("operationId") String operationId);
+    List<TransactionOperationDO> selectNonTerminalVoids(
+            @Param("merchantId") String merchantId,
+            @Param("operationId") String operationId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 查询同一授权生命周期下未终态 Incremental Authorization 动作。
-     * <p>
-     * PROCESSING/PENDING 动作恢复为明确终态前必须阻断新的增量授权，避免 timeout/unknown 重发渠道请求后重复加授权金额。
+     * 查询半开时间范围内未终态的增量授权动作。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param merchantId        平台商户号
-     * @param operationId       平台内部生命周期关联标识
      * @return 未终态 Incremental Authorization 动作列表
      */
     @Select("""
             SELECT *
-            FROM ${physicalTableName}
+            FROM transaction_operation
             WHERE merchant_id = #{merchantId}
               AND operation_id = #{operationId}
+              AND transaction_date_time >= #{beginTime}
+              AND transaction_date_time < #{endTimeExclusive}
               AND transaction_type = 'INCREMENTAL_AUTHORIZATION'
               AND transaction_status IN ('PROCESSING', 'PENDING')
               AND deleted = 0
             ORDER BY transaction_date_time ASC, id ASC
             """)
-    List<TransactionOperationDO> selectNonTerminalIncrementalAuthorizationsPhysical(
-            @Param("physicalTableName") String physicalTableName,
+    List<TransactionOperationDO> selectNonTerminalIncrementalAuthorizations(
             @Param("merchantId") String merchantId,
-            @Param("operationId") String operationId);
+            @Param("operationId") String operationId,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 按交易时间范围查询动作单列表。
+     * 在逻辑表上按半开交易时间范围执行全局动作分页查询。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param paymentPhysicalTableName 支付工具摘要物理表名
-     * @param merchantId        平台商户号，可为空
-     * @param merchantOrderNo   商户订单号，可为空
-     * @param transactionId     平台交易 ID，可为空
-     * @param sourceTransactionId 原平台交易 ID，可为空
-     * @param transactionType   交易类型，可为空
-     * @param transactionStatus 交易状态，可为空
-     * @param channelCode       渠道编码，可为空
-     * @param channelOrderNo    渠道订单号，可为空
-     * @param channelResponseCode 渠道响应码，可为空
-     * @param authCode          授权码，可为空
-     * @param acquirerReferenceNo ARN，可为空
-     * @param channelMatchStatus 渠道勾兑状态，可为空
-     * @param reconciliationStatus 对账状态，可为空
-     * @param settlementStatus  结算状态，可为空
-     * @param paymentMethod     支付方式，可为空
-     * @param paymentBrand      卡品牌或支付品牌，可为空
-     * @param cardBin           卡 BIN，可为空
-     * @param beginTime         查询开始时间
-     * @param endTime           查询结束时间
-     * @param offset            分页偏移
-     * @param limit             分页大小
-     * @return 动作单列表
+     * @return 已由 ShardingSphere 全局归并排序的动作单列表
      */
     @Select("""
             <script>
             SELECT o.*
-            FROM ${physicalTableName} o
+            FROM transaction_operation o
             WHERE o.deleted = 0
               AND o.transaction_date_time &gt;= #{beginTime}
-              AND o.transaction_date_time &lt;= #{endTime}
+              AND o.transaction_date_time &lt; #{endTimeExclusive}
               <if test="merchantId != null and merchantId != ''">
                 AND o.merchant_id = #{merchantId}
               </if>
@@ -562,7 +471,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="paymentMethod != null and paymentMethod != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.payment_method = #{paymentMethod}
@@ -570,7 +479,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="paymentBrand != null and paymentBrand != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.payment_brand = #{paymentBrand}
@@ -578,7 +487,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="cardBin != null and cardBin != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.card_bin LIKE CONCAT(#{cardBin}, '%')
@@ -588,63 +497,41 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             LIMIT #{offset}, #{limit}
             </script>
             """)
-    List<TransactionOperationDO> selectPagePhysical(@Param("physicalTableName") String physicalTableName,
-                                                    @Param("paymentPhysicalTableName") String paymentPhysicalTableName,
-                                                    @Param("merchantId") String merchantId,
-                                                    @Param("merchantOrderNo") String merchantOrderNo,
-                                                    @Param("transactionId") String transactionId,
-                                                    @Param("sourceTransactionId") String sourceTransactionId,
-                                                    @Param("transactionType") String transactionType,
-                                                    @Param("transactionStatus") String transactionStatus,
-                                                    @Param("channelCode") String channelCode,
-                                                    @Param("channelOrderNo") String channelOrderNo,
-                                                    @Param("channelResponseCode") String channelResponseCode,
-                                                    @Param("authCode") String authCode,
-                                                    @Param("acquirerReferenceNo") String acquirerReferenceNo,
-                                                    @Param("channelMatchStatus") String channelMatchStatus,
-                                                    @Param("reconciliationStatus") String reconciliationStatus,
-                                                    @Param("settlementStatus") String settlementStatus,
-                                                    @Param("paymentMethod") String paymentMethod,
-                                                    @Param("paymentBrand") String paymentBrand,
-                                                    @Param("cardBin") String cardBin,
-                                                    @Param("beginTime") LocalDateTime beginTime,
-                                                    @Param("endTime") LocalDateTime endTime,
-                                                    @Param("offset") long offset,
-                                                    @Param("limit") long limit);
+    List<TransactionOperationDO> selectPageLogical(
+            @Param("merchantId") String merchantId,
+            @Param("merchantOrderNo") String merchantOrderNo,
+            @Param("transactionId") String transactionId,
+            @Param("sourceTransactionId") String sourceTransactionId,
+            @Param("transactionType") String transactionType,
+            @Param("transactionStatus") String transactionStatus,
+            @Param("channelCode") String channelCode,
+            @Param("channelOrderNo") String channelOrderNo,
+            @Param("channelResponseCode") String channelResponseCode,
+            @Param("authCode") String authCode,
+            @Param("acquirerReferenceNo") String acquirerReferenceNo,
+            @Param("channelMatchStatus") String channelMatchStatus,
+            @Param("reconciliationStatus") String reconciliationStatus,
+            @Param("settlementStatus") String settlementStatus,
+            @Param("paymentMethod") String paymentMethod,
+            @Param("paymentBrand") String paymentBrand,
+            @Param("cardBin") String cardBin,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive,
+            @Param("offset") long offset,
+            @Param("limit") long limit);
 
     /**
-     * 统计交易时间范围内的动作单数量。
+     * 统计逻辑表半开时间范围内与动作分页完全相同过滤条件的记录数。
      *
-     * @param physicalTableName 经分表规则解析器校验后的物理表名
-     * @param paymentPhysicalTableName 支付工具摘要物理表名
-     * @param merchantId        平台商户号，可为空
-     * @param merchantOrderNo   商户订单号，可为空
-     * @param transactionId     平台交易 ID，可为空
-     * @param sourceTransactionId 原平台交易 ID，可为空
-     * @param transactionType   交易类型，可为空
-     * @param transactionStatus 交易状态，可为空
-     * @param channelCode       渠道编码，可为空
-     * @param channelOrderNo    渠道订单号，可为空
-     * @param channelResponseCode 渠道响应码，可为空
-     * @param authCode          授权码，可为空
-     * @param acquirerReferenceNo ARN，可为空
-     * @param channelMatchStatus 渠道勾兑状态，可为空
-     * @param reconciliationStatus 对账状态，可为空
-     * @param settlementStatus  结算状态，可为空
-     * @param paymentMethod     支付方式，可为空
-     * @param paymentBrand      卡品牌或支付品牌，可为空
-     * @param cardBin           卡 BIN，可为空
-     * @param beginTime         查询开始时间
-     * @param endTime           查询结束时间
      * @return 命中记录数
      */
     @Select("""
             <script>
             SELECT COUNT(1)
-            FROM ${physicalTableName} o
+            FROM transaction_operation o
             WHERE o.deleted = 0
               AND o.transaction_date_time &gt;= #{beginTime}
-              AND o.transaction_date_time &lt;= #{endTime}
+              AND o.transaction_date_time &lt; #{endTimeExclusive}
               <if test="merchantId != null and merchantId != ''">
                 AND o.merchant_id = #{merchantId}
               </if>
@@ -689,7 +576,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="paymentMethod != null and paymentMethod != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.payment_method = #{paymentMethod}
@@ -697,7 +584,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="paymentBrand != null and paymentBrand != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.payment_brand = #{paymentBrand}
@@ -705,7 +592,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="cardBin != null and cardBin != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.card_bin LIKE CONCAT(#{cardBin}, '%')
@@ -713,53 +600,31 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
             </script>
             """)
-    long countPagePhysical(@Param("physicalTableName") String physicalTableName,
-                           @Param("paymentPhysicalTableName") String paymentPhysicalTableName,
-                           @Param("merchantId") String merchantId,
-                           @Param("merchantOrderNo") String merchantOrderNo,
-                           @Param("transactionId") String transactionId,
-                           @Param("sourceTransactionId") String sourceTransactionId,
-                           @Param("transactionType") String transactionType,
-                           @Param("transactionStatus") String transactionStatus,
-                           @Param("channelCode") String channelCode,
-                           @Param("channelOrderNo") String channelOrderNo,
-                           @Param("channelResponseCode") String channelResponseCode,
-                           @Param("authCode") String authCode,
-                           @Param("acquirerReferenceNo") String acquirerReferenceNo,
-                           @Param("channelMatchStatus") String channelMatchStatus,
-                           @Param("reconciliationStatus") String reconciliationStatus,
-                           @Param("settlementStatus") String settlementStatus,
-                           @Param("paymentMethod") String paymentMethod,
-                           @Param("paymentBrand") String paymentBrand,
-                           @Param("cardBin") String cardBin,
-                           @Param("beginTime") LocalDateTime beginTime,
-                           @Param("endTime") LocalDateTime endTime);
+    long countPageLogical(
+            @Param("merchantId") String merchantId,
+            @Param("merchantOrderNo") String merchantOrderNo,
+            @Param("transactionId") String transactionId,
+            @Param("sourceTransactionId") String sourceTransactionId,
+            @Param("transactionType") String transactionType,
+            @Param("transactionStatus") String transactionStatus,
+            @Param("channelCode") String channelCode,
+            @Param("channelOrderNo") String channelOrderNo,
+            @Param("channelResponseCode") String channelResponseCode,
+            @Param("authCode") String authCode,
+            @Param("acquirerReferenceNo") String acquirerReferenceNo,
+            @Param("channelMatchStatus") String channelMatchStatus,
+            @Param("reconciliationStatus") String reconciliationStatus,
+            @Param("settlementStatus") String settlementStatus,
+            @Param("paymentMethod") String paymentMethod,
+            @Param("paymentBrand") String paymentBrand,
+            @Param("cardBin") String cardBin,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 按交易状态和币种聚合当前查询条件下的动作单金额。
+     * 按交易状态和币种聚合逻辑动作表金额。
      *
-     * @param physicalTableName        经分表规则解析器校验后的动作单物理表名
-     * @param paymentPhysicalTableName 支付工具摘要物理表名
-     * @param merchantId               平台商户号，可为空
-     * @param merchantOrderNo          商户订单号，可为空
-     * @param transactionId            平台交易 ID，可为空
-     * @param sourceTransactionId      原平台交易 ID，可为空
-     * @param transactionType          交易类型，可为空
-     * @param transactionStatus        交易状态，可为空
-     * @param channelCode              渠道编码，可为空
-     * @param channelOrderNo           渠道订单号，可为空
-     * @param channelResponseCode      渠道响应码，可为空
-     * @param authCode                 授权码，可为空
-     * @param acquirerReferenceNo      ARN，可为空
-     * @param channelMatchStatus       渠道勾兑状态，可为空
-     * @param reconciliationStatus     对账状态，可为空
-     * @param settlementStatus         结算状态，可为空
-     * @param paymentMethod            支付方式，可为空
-     * @param paymentBrand             卡品牌或支付品牌，可为空
-     * @param cardBin                  卡 BIN，可为空
-     * @param beginTime                查询开始时间
-     * @param endTime                  查询结束时间
-     * @return 状态与币种聚合行
+     * @return 状态与币种聚合行；不同币种不会相加
      */
     @Select("""
             <script>
@@ -769,10 +634,10 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               o.currency_exponent AS currencyExponent,
               COUNT(1) AS count,
               COALESCE(SUM(COALESCE(o.transaction_amount, 0)), 0) AS amount
-            FROM ${physicalTableName} o
+            FROM transaction_operation o
             WHERE o.deleted = 0
               AND o.transaction_date_time &gt;= #{beginTime}
-              AND o.transaction_date_time &lt;= #{endTime}
+              AND o.transaction_date_time &lt; #{endTimeExclusive}
               <if test="merchantId != null and merchantId != ''">
                 AND o.merchant_id = #{merchantId}
               </if>
@@ -817,7 +682,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="paymentMethod != null and paymentMethod != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.payment_method = #{paymentMethod}
@@ -825,7 +690,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="paymentBrand != null and paymentBrand != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.payment_brand = #{paymentBrand}
@@ -833,7 +698,7 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               </if>
               <if test="cardBin != null and cardBin != ''">
                 AND EXISTS (
-                  SELECT 1 FROM ${paymentPhysicalTableName} p
+                  SELECT 1 FROM transaction_payment_method_info p
                   WHERE p.transaction_id = o.transaction_id
                     AND p.transaction_date_time = o.transaction_date_time
                     AND p.card_bin LIKE CONCAT(#{cardBin}, '%')
@@ -842,53 +707,31 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
             GROUP BY o.transaction_status, COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
             </script>
             """)
-    List<TransactionOperationSummaryRow> selectAmountSummaryPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                     @Param("paymentPhysicalTableName") String paymentPhysicalTableName,
-                                                                     @Param("merchantId") String merchantId,
-                                                                     @Param("merchantOrderNo") String merchantOrderNo,
-                                                                     @Param("transactionId") String transactionId,
-                                                                     @Param("sourceTransactionId") String sourceTransactionId,
-                                                                     @Param("transactionType") String transactionType,
-                                                                     @Param("transactionStatus") String transactionStatus,
-                                                                     @Param("channelCode") String channelCode,
-                                                                     @Param("channelOrderNo") String channelOrderNo,
-                                                                     @Param("channelResponseCode") String channelResponseCode,
-                                                                     @Param("authCode") String authCode,
-                                                                     @Param("acquirerReferenceNo") String acquirerReferenceNo,
-                                                                     @Param("channelMatchStatus") String channelMatchStatus,
-                                                                     @Param("reconciliationStatus") String reconciliationStatus,
-                                                                     @Param("settlementStatus") String settlementStatus,
-                                                                     @Param("paymentMethod") String paymentMethod,
-                                                                     @Param("paymentBrand") String paymentBrand,
-                                                                     @Param("cardBin") String cardBin,
-                                                                     @Param("beginTime") LocalDateTime beginTime,
-                                                                     @Param("endTime") LocalDateTime endTime);
+    List<TransactionOperationSummaryRow> selectAmountSummaryLogical(
+            @Param("merchantId") String merchantId,
+            @Param("merchantOrderNo") String merchantOrderNo,
+            @Param("transactionId") String transactionId,
+            @Param("sourceTransactionId") String sourceTransactionId,
+            @Param("transactionType") String transactionType,
+            @Param("transactionStatus") String transactionStatus,
+            @Param("channelCode") String channelCode,
+            @Param("channelOrderNo") String channelOrderNo,
+            @Param("channelResponseCode") String channelResponseCode,
+            @Param("authCode") String authCode,
+            @Param("acquirerReferenceNo") String acquirerReferenceNo,
+            @Param("channelMatchStatus") String channelMatchStatus,
+            @Param("reconciliationStatus") String reconciliationStatus,
+            @Param("settlementStatus") String settlementStatus,
+            @Param("paymentMethod") String paymentMethod,
+            @Param("paymentBrand") String paymentBrand,
+            @Param("cardBin") String cardBin,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 
     /**
-     * 按支付方式、卡品牌和币种聚合当前查询条件下的动作单金额。
+     * 按支付方式、品牌和币种聚合逻辑动作表金额。
      *
-     * @param physicalTableName        经分表规则解析器校验后的动作单物理表名
-     * @param paymentPhysicalTableName 支付工具摘要物理表名
-     * @param merchantId               平台商户号，可为空
-     * @param merchantOrderNo          商户订单号，可为空
-     * @param transactionId            平台交易 ID，可为空
-     * @param sourceTransactionId      原平台交易 ID，可为空
-     * @param transactionType          交易类型，可为空
-     * @param transactionStatus        交易状态，可为空
-     * @param channelCode              渠道编码，可为空
-     * @param channelOrderNo           渠道订单号，可为空
-     * @param channelResponseCode      渠道响应码，可为空
-     * @param authCode                 授权码，可为空
-     * @param acquirerReferenceNo      ARN，可为空
-     * @param channelMatchStatus       渠道勾兑状态，可为空
-     * @param reconciliationStatus     对账状态，可为空
-     * @param settlementStatus         结算状态，可为空
-     * @param paymentMethod            支付方式，可为空
-     * @param paymentBrand             卡品牌或支付品牌，可为空
-     * @param cardBin                  卡 BIN，可为空
-     * @param beginTime                查询开始时间
-     * @param endTime                  查询结束时间
-     * @return 支付方式、卡品牌与币种聚合行
+     * @return 支付方式、品牌与币种聚合行；不同币种不会相加
      */
     @Select("""
             <script>
@@ -899,13 +742,13 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
               o.currency_exponent AS currencyExponent,
               COUNT(1) AS count,
               COALESCE(SUM(COALESCE(o.transaction_amount, 0)), 0) AS amount
-            FROM ${physicalTableName} o
-            LEFT JOIN ${paymentPhysicalTableName} p
+            FROM transaction_operation o
+            LEFT JOIN transaction_payment_method_info p
               ON p.transaction_id = o.transaction_id
              AND p.transaction_date_time = o.transaction_date_time
             WHERE o.deleted = 0
               AND o.transaction_date_time &gt;= #{beginTime}
-              AND o.transaction_date_time &lt;= #{endTime}
+              AND o.transaction_date_time &lt; #{endTimeExclusive}
               <if test="merchantId != null and merchantId != ''">
                 AND o.merchant_id = #{merchantId}
               </if>
@@ -961,25 +804,24 @@ public interface TransactionOperationMapper extends BaseMapper<TransactionOperat
                      COALESCE(o.transaction_currency, 'UNKNOWN'), o.currency_exponent
             </script>
             """)
-    List<TransactionOperationSummaryRow> selectPaymentMethodSummaryPhysical(@Param("physicalTableName") String physicalTableName,
-                                                                            @Param("paymentPhysicalTableName") String paymentPhysicalTableName,
-                                                                            @Param("merchantId") String merchantId,
-                                                                            @Param("merchantOrderNo") String merchantOrderNo,
-                                                                            @Param("transactionId") String transactionId,
-                                                                            @Param("sourceTransactionId") String sourceTransactionId,
-                                                                            @Param("transactionType") String transactionType,
-                                                                            @Param("transactionStatus") String transactionStatus,
-                                                                            @Param("channelCode") String channelCode,
-                                                                            @Param("channelOrderNo") String channelOrderNo,
-                                                                            @Param("channelResponseCode") String channelResponseCode,
-                                                                            @Param("authCode") String authCode,
-                                                                            @Param("acquirerReferenceNo") String acquirerReferenceNo,
-                                                                            @Param("channelMatchStatus") String channelMatchStatus,
-                                                                            @Param("reconciliationStatus") String reconciliationStatus,
-                                                                            @Param("settlementStatus") String settlementStatus,
-                                                                            @Param("paymentMethod") String paymentMethod,
-                                                                            @Param("paymentBrand") String paymentBrand,
-                                                                            @Param("cardBin") String cardBin,
-                                                                            @Param("beginTime") LocalDateTime beginTime,
-                                                                            @Param("endTime") LocalDateTime endTime);
+    List<TransactionOperationSummaryRow> selectPaymentMethodSummaryLogical(
+            @Param("merchantId") String merchantId,
+            @Param("merchantOrderNo") String merchantOrderNo,
+            @Param("transactionId") String transactionId,
+            @Param("sourceTransactionId") String sourceTransactionId,
+            @Param("transactionType") String transactionType,
+            @Param("transactionStatus") String transactionStatus,
+            @Param("channelCode") String channelCode,
+            @Param("channelOrderNo") String channelOrderNo,
+            @Param("channelResponseCode") String channelResponseCode,
+            @Param("authCode") String authCode,
+            @Param("acquirerReferenceNo") String acquirerReferenceNo,
+            @Param("channelMatchStatus") String channelMatchStatus,
+            @Param("reconciliationStatus") String reconciliationStatus,
+            @Param("settlementStatus") String settlementStatus,
+            @Param("paymentMethod") String paymentMethod,
+            @Param("paymentBrand") String paymentBrand,
+            @Param("cardBin") String cardBin,
+            @Param("beginTime") LocalDateTime beginTime,
+            @Param("endTimeExclusive") LocalDateTime endTimeExclusive);
 }

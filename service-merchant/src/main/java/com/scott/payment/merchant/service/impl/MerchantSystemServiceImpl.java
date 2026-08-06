@@ -95,6 +95,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -224,6 +225,12 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
      * 账号开户通知邮件场景编码。
      */
     private static final String ACCOUNT_CREATED_SCENE = "ACCOUNT_CREATED";
+    /** 商户管理员重置员工密码后的通知模板。 */
+    private static final String TEMPLATE_PASSWORD_CHANGED_NOTICE = "MERCHANT_PASSWORD_CHANGED_BY_ADMIN";
+    /** 密码被管理员修改通知场景。 */
+    private static final String PASSWORD_CHANGED_SCENE = "PASSWORD_CHANGED";
+    /** 邮件操作时间格式。 */
+    private static final DateTimeFormatter EMAIL_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     /**
      * 参数管理中维护的商户系统前端地址。
      */
@@ -913,9 +920,10 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         }
         SysAccountDO account = getAccount(app.getId(), merchantId, id);
         LocalDateTime now = LocalDateTime.now();
+        String temporaryPassword = required(request.getPassword(), "password");
         String salt = PasswordHashUtils.generateSalt();
         account.setPasswordSalt(salt);
-        account.setPasswordHash(PasswordHashUtils.hashPassword(required(request.getPassword(), "password"), salt));
+        account.setPasswordHash(PasswordHashUtils.hashPassword(temporaryPassword, salt));
         account.setPasswordAlgo(PasswordHashUtils.ALGORITHM);
         account.setPasswordExpired(AuthConstants.DISABLED);
         account.setPasswordUpdatedAt(now);
@@ -927,6 +935,7 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         account.setUpdatedBy(currentAccountId());
         sysAccountMapper.updateById(account);
         logoutSessions(app.getId(), account.getId(), now);
+        sendPasswordChangedNoticeAfterCommit(app, account, temporaryPassword, now);
     }
 
     /**
@@ -2020,14 +2029,15 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                     merchantName(account.getMerchantId()),
                     templateCode,
                     MERCHANT_MFA_SCENE,
-                    "zh-CN",
+                    merchantLocale(account.getMerchantId()),
                     List.of(account.getEmail()),
                     mfaEmailVariables(account, reason, exemptUntil),
                     MERCHANT_MFA_SCENE,
                     String.valueOf(account.getId())
             ));
         } catch (RuntimeException exception) {
-            log.warn("merchant mfa notice send failed, accountId: {}, templateCode: {}", account.getId(), templateCode, exception);
+            log.warn("merchant mfa notice send failed, accountId: {}, templateCode: {}, exceptionType: {}",
+                    account.getId(), templateCode, exception.getClass().getSimpleName());
             SysAccountMfaDO mfa = ensureMfa(app, account, LocalDateTime.now());
             recordMfaLog(app, account, mfa, "SEND_NOTICE", MFA_RESULT_FAILED, exception.getMessage(),
                     mfa.getMfaPolicy(), mfa.getMfaStatus(), currentOperator(), null);
@@ -2074,14 +2084,15 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
                     merchantName(account.getMerchantId()),
                     TEMPLATE_ACCOUNT_CREATED_NOTICE,
                     ACCOUNT_CREATED_SCENE,
-                    "zh-CN",
+                    merchantLocale(account.getMerchantId()),
                     List.of(account.getEmail()),
                     accountCreatedEmailVariables(account, initialPassword),
                     ACCOUNT_CREATED_SCENE,
                     String.valueOf(account.getId())
             ));
         } catch (RuntimeException exception) {
-            log.warn("merchant account created notice send failed, accountId: {}", account.getId(), exception);
+            log.warn("merchant account created notice send failed, accountId: {}, exceptionType: {}",
+                    account.getId(), exception.getClass().getSimpleName());
         }
     }
 
@@ -2105,6 +2116,76 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
         variables.put("merchantSystemBaseUrl", merchantSystemBaseUrl);
         variables.put("mfaGuide", "首次登录时请按页面提示完成多因素认证（MFA）绑定。绑定二维码和手动密钥只会在登录页身份校验通过后展示，邮件不会包含 MFA 密钥。");
         variables.put("verifyCodeGuide", "登录页会自动加载图形验证码，请输入图片中的验证码后继续登录。");
+        return variables;
+    }
+
+    /** 事务提交后发送商户管理员重置员工密码通知。 */
+    private void sendPasswordChangedNoticeAfterCommit(SysAppDO app,
+                                                      SysAccountDO account,
+                                                      String temporaryPassword,
+                                                      LocalDateTime operationTime) {
+        Runnable task = () -> sendPasswordChangedNotice(app, account, temporaryPassword, operationTime);
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
+    }
+
+    /** 发送商户员工密码被管理员修改通知，发送失败不影响密码更新。 */
+    private void sendPasswordChangedNotice(SysAppDO app,
+                                           SysAccountDO account,
+                                           String temporaryPassword,
+                                           LocalDateTime operationTime) {
+        if (!StringUtils.hasText(account.getEmail())) {
+            return;
+        }
+        try {
+            String baseUrl = merchantSystemBaseUrl();
+            merchantTemplateEmailService.sendByTemplate(new MerchantEmailSendCommand(
+                    app.getAppCode(),
+                    account.getMerchantId(),
+                    account.getMerchantId(),
+                    merchantName(account.getMerchantId()),
+                    TEMPLATE_PASSWORD_CHANGED_NOTICE,
+                    PASSWORD_CHANGED_SCENE,
+                    merchantLocale(account.getMerchantId()),
+                    List.of(account.getEmail()),
+                    passwordChangedEmailVariables(account, temporaryPassword, operationTime, baseUrl),
+                    PASSWORD_CHANGED_SCENE,
+                    String.valueOf(account.getId())
+            ));
+        } catch (RuntimeException exception) {
+            log.warn("merchant password changed notice send failed, accountId: {}, exceptionType: {}",
+                    account.getId(), exception.getClass().getSimpleName());
+        }
+    }
+
+    /** 构建商户员工密码被管理员修改通知变量。 */
+    private Map<String, Object> passwordChangedEmailVariables(SysAccountDO account,
+                                                              String temporaryPassword,
+                                                              LocalDateTime operationTime,
+                                                              String baseUrl) {
+        Map<String, Object> variables = new LinkedHashMap<>();
+        InternalAuthAccount operator = currentOperator();
+        variables.put("systemName", "Vexra Merchant");
+        variables.put("userName", displayLoginAccount(account));
+        variables.put("merchantId", account.getMerchantId());
+        variables.put("merchantName", merchantName(account.getMerchantId()));
+        variables.put("loginAccount", displayLoginAccount(account));
+        variables.put("temporaryPassword", temporaryPassword);
+        variables.put("operatorName", operator != null && StringUtils.hasText(operator.getRealName())
+                ? operator.getRealName()
+                : operator != null && StringUtils.hasText(operator.getLoginAccount())
+                ? operator.getLoginAccount()
+                : "Merchant Administrator");
+        variables.put("operationTime", EMAIL_TIME_FORMATTER.format(operationTime));
+        variables.put("loginUrl", merchantLoginUrl(baseUrl));
         return variables;
     }
 
@@ -2209,6 +2290,18 @@ public class MerchantSystemServiceImpl implements MerchantSystemService {
             return merchantId;
         }
         return merchant.getMerchantName();
+    }
+
+    private String merchantLocale(String merchantId) {
+        if (!StringUtils.hasText(merchantId)) {
+            return com.scott.payment.component.db.auth.support.MerchantLocaleSupport.CHINESE;
+        }
+        BaseMerchantInfoDO merchant = baseMerchantInfoMapper.selectOne(Wrappers.<BaseMerchantInfoDO>lambdaQuery()
+                .eq(BaseMerchantInfoDO::getMerchantId, merchantId)
+                .eq(BaseMerchantInfoDO::getDeleted, 0)
+                .last("LIMIT 1"));
+        return com.scott.payment.component.db.auth.support.MerchantLocaleSupport.normalize(
+                merchant == null ? null : merchant.getDefaultLocale());
     }
 
     /**

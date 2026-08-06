@@ -84,6 +84,41 @@ public class RocketMqProducer implements MqProducer {
     }
 
     /**
+     * 发送 Outbox 冻结的 JSON 快照；生产者不可用时抛出异常，使记录保留在待重试状态。
+     *
+     * @param topic RocketMQ Topic
+     * @param tag RocketMQ Tag，可为空
+     * @param messageId 消息唯一编号
+     * @param traceId 链路追踪号，可为空
+     * @param retryCount Outbox 投递重试次数
+     * @param payloadJson 已脱敏 JSON 消息快照
+     */
+    @Override
+    public void sendSerialized(String topic,
+                               String tag,
+                               String messageId,
+                               String traceId,
+                               int retryCount,
+                               String payloadJson) {
+        if (!StringUtils.hasText(topic) || !StringUtils.hasText(messageId)
+                || !StringUtils.hasText(payloadJson)) {
+            throw new IllegalArgumentException("serialized mq delivery metadata can not be blank");
+        }
+        RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
+        if (rocketMQTemplate == null) {
+            throw new IllegalStateException("RocketMQTemplate is not ready");
+        }
+        String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;
+        MessageBuilder<String> builder = MessageBuilder.withPayload(payloadJson)
+                .setHeader(RETRY_COUNT_HEADER, Math.max(retryCount, 0))
+                .setHeader(MESSAGE_ID_HEADER, messageId);
+        if (StringUtils.hasText(traceId)) {
+            builder.setHeader(TraceContext.TRACE_ID_HEADER, traceId);
+        }
+        rocketMQTemplate.syncSend(destination, builder.build());
+    }
+
+    /**
      * 补齐消息元数据。
      *
      * @param message 基础消息体

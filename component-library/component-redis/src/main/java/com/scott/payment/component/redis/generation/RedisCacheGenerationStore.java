@@ -9,10 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -88,14 +85,11 @@ public class RedisCacheGenerationStore {
     public RedisCacheGenerationState current(String namespace) {
         long startNanos = System.nanoTime();
         try {
-            PaymentRedisProperties.KeyMigrationMode mode = redisProperties.getKeyMigrationMode();
-            KeyFamily preferredFamily = preferredFamily(mode);
-            RedisCacheGenerationState preferred = readGenerationState(
+            RedisCacheGenerationState state = readGenerationState(
                     namespace,
-                    preferredFamily,
                     "g-" + UUID.randomUUID()
             );
-            if (!preferred.cacheReadable()) {
+            if (!state.cacheReadable()) {
                 record(
                         RedisBusinessMetrics.Operation.READ,
                         RedisBusinessMetrics.Outcome.PENDING,
@@ -103,30 +97,12 @@ public class RedisCacheGenerationStore {
                 );
                 return RedisCacheGenerationState.pending();
             }
-
-            if (mode.mirroredGenerationRequired()) {
-                // 次选 Key 不存在时必须用首选 generation 初始化，禁止双写阶段产生两套缓存代际。
-                RedisCacheGenerationState secondary = readGenerationState(
-                        namespace,
-                        opposite(preferredFamily),
-                        preferred.generation()
-                );
-                if (!secondary.cacheReadable()
-                        || !Objects.equals(preferred.generation(), secondary.generation())) {
-                    record(
-                            RedisBusinessMetrics.Operation.READ,
-                            RedisBusinessMetrics.Outcome.PENDING,
-                            startNanos
-                    );
-                    return RedisCacheGenerationState.pending();
-                }
-            }
             record(
                     RedisBusinessMetrics.Operation.READ,
                     RedisBusinessMetrics.Outcome.SUCCESS,
                     startNanos
             );
-            return preferred;
+            return state;
         } catch (RuntimeException exception) {
             record(
                     RedisBusinessMetrics.Operation.READ,
@@ -157,21 +133,17 @@ public class RedisCacheGenerationStore {
         }
         String token = "t-" + UUID.randomUUID();
         String generation = "g-" + UUID.randomUUID();
-        List<KeyFamily> acquiredFamilies = new ArrayList<>();
         long startNanos = System.nanoTime();
         try {
-            for (KeyFamily family : publicationFamilies(redisProperties.getKeyMigrationMode())) {
-                Long acquired = redisTemplate.execute(
-                        PaymentRedisScripts.cacheGenerationBeginV1(),
-                        List.of(publicationKey(namespace, family)),
-                        token,
-                        String.valueOf(gateTtl.toMillis())
-                );
-                if (!Long.valueOf(1L).equals(acquired)) {
-                    throw new IllegalStateException(
-                            "Redis cache generation publication is already in progress");
-                }
-                acquiredFamilies.add(family);
+            Long acquired = redisTemplate.execute(
+                    PaymentRedisScripts.cacheGenerationBeginV1(),
+                    List.of(publicationKey(namespace)),
+                    token,
+                    String.valueOf(gateTtl.toMillis())
+            );
+            if (!Long.valueOf(1L).equals(acquired)) {
+                throw new IllegalStateException(
+                        "Redis cache generation publication is already in progress");
             }
             record(
                     RedisBusinessMetrics.Operation.ACQUIRE,
@@ -180,7 +152,6 @@ public class RedisCacheGenerationStore {
             );
             return new RedisCachePublication(namespace, token, generation);
         } catch (RuntimeException exception) {
-            releaseAcquiredGates(namespace, token, acquiredFamilies, exception);
             if (StringUtils.hasText(exception.getMessage())
                     && exception.getMessage().contains("already in progress")) {
                 record(
@@ -215,24 +186,22 @@ public class RedisCacheGenerationStore {
         }
         long startNanos = System.nanoTime();
         try {
-            for (KeyFamily family : commitFamilies(redisProperties.getKeyMigrationMode())) {
-                Long committed = redisTemplate.execute(
-                        PaymentRedisScripts.cacheGenerationCommitV1(),
-                        List.of(
-                                generationKey(publication.namespace(), family),
-                                publicationKey(publication.namespace(), family)
-                        ),
-                        publication.token(),
-                        publication.generation()
+            Long committed = redisTemplate.execute(
+                    PaymentRedisScripts.cacheGenerationCommitV1(),
+                    List.of(
+                            generationKey(publication.namespace()),
+                            publicationKey(publication.namespace())
+                    ),
+                    publication.token(),
+                    publication.generation()
+            );
+            if (!Long.valueOf(1L).equals(committed)) {
+                record(
+                        RedisBusinessMetrics.Operation.WRITE,
+                        RedisBusinessMetrics.Outcome.CONTENDED,
+                        startNanos
                 );
-                if (!Long.valueOf(1L).equals(committed)) {
-                    record(
-                            RedisBusinessMetrics.Operation.WRITE,
-                            RedisBusinessMetrics.Outcome.CONTENDED,
-                            startNanos
-                    );
-                    return false;
-                }
+                return false;
             }
             record(
                     RedisBusinessMetrics.Operation.WRITE,
@@ -266,26 +235,10 @@ public class RedisCacheGenerationStore {
         }
         long startNanos = System.nanoTime();
         try {
-            boolean success = true;
-            RuntimeException releaseFailure = null;
-            for (KeyFamily family : publicationFamilies(redisProperties.getKeyMigrationMode())) {
-                try {
-                    success = releasePublicationGate(
-                            publication.namespace(),
-                            publication.token(),
-                            family
-                    ) && success;
-                } catch (RuntimeException exception) {
-                    if (releaseFailure == null) {
-                        releaseFailure = exception;
-                    } else {
-                        releaseFailure.addSuppressed(exception);
-                    }
-                }
-            }
-            if (releaseFailure != null) {
-                throw releaseFailure;
-            }
+            boolean success = releasePublicationGate(
+                    publication.namespace(),
+                    publication.token()
+            );
             record(
                     RedisBusinessMetrics.Operation.RELEASE,
                     success
@@ -301,7 +254,7 @@ public class RedisCacheGenerationStore {
                     startNanos
             );
             metrics.recordLuaFailure(
-                    RedisBusinessMetrics.Script.LOCK_RELEASE,
+                    RedisBusinessMetrics.Script.TOKEN_LEASE_RELEASE,
                     metrics.classifyFailure(exception)
             );
             throw exception;
@@ -327,19 +280,17 @@ public class RedisCacheGenerationStore {
     }
 
     /**
-     * 读取指定 Key 家族的代际；不存在时使用调用方给出的 generation 原子初始化。
+     * 读取当前代际；不存在时使用调用方给出的 generation 原子初始化。
      *
      * @param namespace 已登记的缓存命名空间
-     * @param family Key 家族
      * @param initialGeneration Key 不存在时写入的初始 generation
      * @return 可读代际或发布中的不可读状态
      */
     private RedisCacheGenerationState readGenerationState(String namespace,
-                                                          KeyFamily family,
                                                           String initialGeneration) {
         String result = redisTemplate.execute(
                 PaymentRedisScripts.cacheGenerationReadV1(),
-                List.of(generationKey(namespace, family), publicationKey(namespace, family)),
+                List.of(generationKey(namespace), publicationKey(namespace)),
                 initialGeneration
         );
         if (PENDING.equals(result)) {
@@ -357,132 +308,40 @@ public class RedisCacheGenerationStore {
     }
 
     /**
-     * 双门禁获取失败时按逆序释放已取得的门禁，并把补偿异常附加到原异常。
+     * 仅允许当前 token 持有者释放发布门禁。
      *
      * @param namespace 缓存命名空间
      * @param token 发布持有者 token
-     * @param acquiredFamilies 已成功取得门禁的 Key 家族
-     * @param originalFailure 触发补偿的原异常
-     */
-    private void releaseAcquiredGates(String namespace,
-                                      String token,
-                                      List<KeyFamily> acquiredFamilies,
-                                      RuntimeException originalFailure) {
-        List<KeyFamily> reverseOrder = new ArrayList<>(acquiredFamilies);
-        Collections.reverse(reverseOrder);
-        for (KeyFamily family : reverseOrder) {
-            try {
-                releasePublicationGate(namespace, token, family);
-            } catch (RuntimeException compensationFailure) {
-                originalFailure.addSuppressed(compensationFailure);
-            }
-        }
-    }
-
-    /**
-     * 仅允许当前 token 持有者释放指定 Key 家族的发布门禁。
-     *
-     * @param namespace 缓存命名空间
-     * @param token 发布持有者 token
-     * @param family Key 家族
      * @return 当前持有者成功释放时为 true
      */
-    private boolean releasePublicationGate(String namespace, String token, KeyFamily family) {
+    private boolean releasePublicationGate(String namespace, String token) {
         Long released = redisTemplate.execute(
-                PaymentRedisScripts.lockReleaseV1(),
-                List.of(publicationKey(namespace, family)),
+                PaymentRedisScripts.tokenLeaseReleaseV1(),
+                List.of(publicationKey(namespace)),
                 token
         );
         return Long.valueOf(1L).equals(released);
     }
 
     /**
-     * 返回发布门禁的获取顺序；双写阶段先锁定首选家族，失败时补偿释放。
-     *
-     * @param mode Key 迁移模式
-     * @return 一个或两个 Key 家族
-     */
-    private List<KeyFamily> publicationFamilies(PaymentRedisProperties.KeyMigrationMode mode) {
-        KeyFamily preferred = preferredFamily(mode);
-        return mode.mirroredGenerationRequired()
-                ? List.of(preferred, opposite(preferred))
-                : List.of(preferred);
-    }
-
-    /**
-     * 返回 generation 提交顺序；双写阶段先提交次选家族，最后切换首选家族。
-     *
-     * <p>首选提交失败时其门禁仍保留，后续读取会绕过缓存；重试依靠 Lua 的 generation
-     * 幂等判断继续完成，避免出现首选已切换而次选仍为旧代际。</p>
-     *
-     * @param mode Key 迁移模式
-     * @return generation 提交顺序
-     */
-    private List<KeyFamily> commitFamilies(PaymentRedisProperties.KeyMigrationMode mode) {
-        KeyFamily preferred = preferredFamily(mode);
-        return mode.mirroredGenerationRequired()
-                ? List.of(opposite(preferred), preferred)
-                : List.of(preferred);
-    }
-
-    /**
-     * 根据迁移模式确定代际读取和最终提交的首选 Key 家族。
-     *
-     * @param mode Key 迁移模式
-     * @return 历史或精简 Key 家族
-     */
-    private KeyFamily preferredFamily(PaymentRedisProperties.KeyMigrationMode mode) {
-        return mode.legacyReadPreferred() ? KeyFamily.LEGACY : KeyFamily.COMPACT;
-    }
-
-    /**
-     * 返回另一个 Key 家族。
-     *
-     * @param family 当前 Key 家族
-     * @return 与当前家族相反的 Key 家族
-     */
-    private KeyFamily opposite(KeyFamily family) {
-        return family == KeyFamily.LEGACY ? KeyFamily.COMPACT : KeyFamily.LEGACY;
-    }
-
-    /**
-     * 构造指定家族的缓存当前 generation Key。
+     * 构造缓存当前 generation Key，与发布门禁使用相同 Hash Tag。
      *
      * @param namespace 已登记的缓存命名空间
-     * @param family Key 家族
      * @return 当前 generation 物理 Key
      */
-    private String generationKey(String namespace, KeyFamily family) {
-        if (family == KeyFamily.COMPACT) {
-            return redisProperties.businessKey("cache", "generation", namespace, "current");
-        }
-        return redisProperties.versionedKey(
-                "component-redis", "cache", "generation", 1, namespace, "current");
+    private String generationKey(String namespace) {
+        return redisProperties.coLocatedBusinessKey(
+                "cache", "generation", namespace, "current");
     }
 
     /**
-     * 构造指定家族的 generation 发布门禁 Key。
+     * 构造 generation 发布门禁 Key，与当前代际使用相同 Hash Tag。
      *
      * @param namespace 已登记的缓存命名空间
-     * @param family Key 家族
      * @return 发布门禁物理 Key
      */
-    private String publicationKey(String namespace, KeyFamily family) {
-        if (family == KeyFamily.COMPACT) {
-            return redisProperties.businessKey("cache", "generation", namespace, "publication");
-        }
-        return redisProperties.versionedKey(
-                "component-redis", "cache", "generation", 1, namespace, "publication");
-    }
-
-    /**
-     * Redis Key 命名家族，区分迁移前的长 Key 与治理后的精简 Key。
-     */
-    private enum KeyFamily {
-        /** 包含 service 和版本片段的历史长 Key。 */
-        LEGACY,
-
-        /** 符合 acquiring、环境、领域和业务层级的精简 Key。 */
-        COMPACT
+    private String publicationKey(String namespace) {
+        return redisProperties.coLocatedBusinessKey(
+                "cache", "generation", namespace, "publication");
     }
 }

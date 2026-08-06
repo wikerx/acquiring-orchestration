@@ -41,6 +41,16 @@ public final class MqTopic {
      */
     public static final String SECURITY_INTERCEPT_AUDIT = "acquiring_security_intercept_audit_topic";
 
+    /**
+     * Admin 与 Merchant 登录审计 Topic。
+     */
+    public static final String LOGIN_AUDIT = "acquiring_login_audit_topic";
+
+    /**
+     * Admin 与 Merchant 业务邮件异步投递 Topic。
+     */
+    public static final String EMAIL_DELIVERY = "acquiring_email_delivery_topic";
+
     private MqTopic() {
     }
 }

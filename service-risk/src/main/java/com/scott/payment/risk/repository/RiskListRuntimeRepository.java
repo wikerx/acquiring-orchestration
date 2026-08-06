@@ -180,6 +180,15 @@ public interface RiskListRuntimeRepository {
     }
 
     /**
+     * 后续风控节点阻断当前交易时释放频控成功名额预占。
+     *
+     * @param merchantId 当前交易商户号
+     * @param transactionId 平台交易号
+     */
+    default void releaseFrequencySuccessReservations(String merchantId, String transactionId) {
+    }
+
+    /**
      * 判断当前商户是否存在启用的交易频率规则。
      *
      * @param merchantId 当前商户号

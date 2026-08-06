@@ -1,4 +1,5 @@
 com.scott.payment.component.redis.config.PaymentRedisEnvironmentGuardAutoConfiguration
+com.scott.payment.component.redis.config.PaymentRedisClusterAutoConfiguration
 com.scott.payment.component.redis.id.RedisGlobalIdAutoConfiguration
 com.scott.payment.component.redis.cache.PaymentRedisCacheAutoConfiguration
 com.scott.payment.component.redis.observability.RedisObservabilityAutoConfiguration

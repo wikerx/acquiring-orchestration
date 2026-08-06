@@ -8,7 +8,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
+import org.springframework.data.redis.connection.RedisClusterConfiguration;
+import org.springframework.data.redis.connection.RedisPassword;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -57,15 +58,24 @@ class RedisGlobalIdIntegrationTests {
 
     @BeforeEach
     void setUp() {
-        RedisStandaloneConfiguration configuration = new RedisStandaloneConfiguration(
-                System.getProperty("global-id.redis.host", "127.0.0.1"),
-                Integer.parseInt(System.getProperty("global-id.redis.port", "6379"))
+        String configuredNodes = System.getProperty(
+                "global-id.redis.cluster.nodes",
+                "127.0.0.1:7001,127.0.0.1:7002,127.0.0.1:7003,"
+                        + "127.0.0.1:7004,127.0.0.1:7005,127.0.0.1:7006"
         );
-        configuration.setDatabase(Integer.parseInt(System.getProperty("global-id.redis.database", "0")));
-        String password = System.getProperty("global-id.redis.password", "");
-        if (!password.isBlank()) {
-            configuration.setPassword(password);
+        String password = System.getProperty("global-id.redis.cluster.password");
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException(
+                    "global-id.redis.cluster.password is required for Cluster integration tests");
         }
+        RedisClusterConfiguration configuration = new RedisClusterConfiguration(
+                Arrays.stream(configuredNodes.split(","))
+                        .map(String::trim)
+                        .filter(node -> !node.isEmpty())
+                        .toList()
+        );
+        configuration.setMaxRedirects(5);
+        configuration.setPassword(RedisPassword.of(password));
         connectionFactory = new LettuceConnectionFactory(configuration);
         connectionFactory.afterPropertiesSet();
         connectionFactory.start();
@@ -136,7 +146,7 @@ class RedisGlobalIdIntegrationTests {
         assertThat(ids).hasSize(measuredCount);
         log.info(
                 "真实 Redis 连续发号测试完成，结果: {} 个编号全部唯一 throughputOpsPerSecond: {} "
-                        + "p95Micros: {} p99Micros: {}；仅代表本机临时容器顺序调用",
+                        + "p95Micros: {} p99Micros: {}；仅代表本机开发 Cluster 顺序调用",
                 measuredCount,
                 throughputPerSecond(measuredCount, elapsedNanos),
                 percentileMicros(latencyNanos, 0.95D),

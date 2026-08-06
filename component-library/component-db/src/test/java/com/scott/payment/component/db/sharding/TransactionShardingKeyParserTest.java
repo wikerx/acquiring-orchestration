@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * @classname : TransactionShardingKeyParserTest
  * @date : 2026-07-21 00:00
  * @email : scott_x@163.com
- * @description : 交易分表键时间片解析测试，覆盖无前缀交易号、历史 TX 交易号和 OP 生命周期号。
+ * @description : 交易分表键时间片解析测试，覆盖第一版无前缀交易号、OP 生命周期号和旧前缀拒绝规则。
  * @status : create
  */
 class TransactionShardingKeyParserTest {
@@ -30,15 +30,15 @@ class TransactionShardingKeyParserTest {
     }
 
     /**
-     * 验证历史 TX 交易号可以解析交易业务时间。
+     * 第一版不兼容旧 TX 前缀，避免内部调用继续依赖历史编号协议。
      */
     @Test
-    void shouldParseLegacyTxTransactionId() {
+    void shouldRejectLegacyTxTransactionId() {
         TransactionShardingKeyParser parser = new TransactionShardingKeyParser();
 
         LocalDateTime parsed = parser.parseTransactionDateTime("TX202607151512134560001");
 
-        assertThat(parsed).isEqualTo(LocalDateTime.of(2026, 7, 15, 15, 12, 13, 456_000_000));
+        assertThat(parsed).isNull();
     }
 
     /**

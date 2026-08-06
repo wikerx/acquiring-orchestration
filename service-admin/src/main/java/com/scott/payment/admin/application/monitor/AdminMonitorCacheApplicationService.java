@@ -10,7 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.connection.DataType;
-import org.springframework.data.redis.connection.RedisKeyCommands;
+import org.springframework.data.redis.connection.RedisClusterConnection;
+import org.springframework.data.redis.connection.RedisClusterNode;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.ScanOptions;
@@ -25,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 /**
  * @author : scott
@@ -70,7 +73,7 @@ public class AdminMonitorCacheApplicationService {
     /**
      * 查询 Redis 运行信息。
      *
-     * @return Redis 连接状态与运行信息
+     * @return Redis 连接状态、部署模式、页面摘要与各节点运行信息
      */
     public Map<String, Object> info() {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -80,10 +83,23 @@ public class AdminMonitorCacheApplicationService {
             return result;
         }
         try {
-            Properties properties = stringRedisTemplate.execute(
-                    (RedisCallback<Properties>) connection -> connection.serverCommands().info());
-            result.put("connected", true);
-            result.put("info", toMap(properties));
+            RedisInfoResult redisInfo = stringRedisTemplate.execute(
+                    (RedisCallback<RedisInfoResult>) this::readInfo);
+            if (redisInfo == null) {
+                result.put("connected", false);
+                result.put("message", "Redis INFO unavailable");
+                return result;
+            }
+            Map<String, String> summary = firstAvailableInfo(redisInfo.nodeInfo());
+            result.put("connected", redisInfo.failedNodes().isEmpty() && !summary.isEmpty());
+            result.put("deploymentMode", redisInfo.deploymentMode());
+            result.put("masterCount", redisInfo.nodeInfo().size() + redisInfo.failedNodes().size());
+            result.put("info", summary);
+            result.put("nodes", redisInfo.nodeInfo());
+            if (!redisInfo.failedNodes().isEmpty()) {
+                result.put("failedNodes", redisInfo.failedNodes());
+                result.put("message", "Redis INFO unavailable for one or more nodes");
+            }
             return result;
         } catch (RuntimeException exception) {
             result.put("connected", false);
@@ -153,7 +169,7 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
-     * 使用有界 SCAN 读取受管缓存 Key，最多返回 {@link #MAX_SCAN_KEYS} 条，禁止退化为阻塞式 KEYS。
+     * 使用有界 SCAN 遍历单节点 Redis 或全部 Cluster Master，最多检查 {@link #MAX_SCAN_KEYS} 条物理 Key。
      *
      * @param pattern 已限定到平台配置命名空间的匹配模式
      * @return 按字典序排列的已登记公开配置 Key 和扫描截断状态
@@ -162,30 +178,8 @@ public class AdminMonitorCacheApplicationService {
         if (stringRedisTemplate == null) {
             return new ScanResult(List.of(), false);
         }
-        ScanResult result = stringRedisTemplate.execute((RedisCallback<ScanResult>) connection -> {
-            RedisKeyCommands keyCommands = connection.keyCommands();
-            ScanOptions options = ScanOptions.scanOptions()
-                    .match(pattern)
-                    .count(SCAN_COUNT)
-                    .build();
-            List<String> scannedKeys = new ArrayList<>(Math.min(SCAN_COUNT, MAX_SCAN_KEYS));
-            int inspectedCount = 0;
-            boolean truncated = false;
-            try (Cursor<byte[]> cursor = keyCommands.scan(options)) {
-                while (cursor.hasNext()) {
-                    if (inspectedCount >= MAX_SCAN_KEYS) {
-                        truncated = true;
-                        break;
-                    }
-                    inspectedCount++;
-                    String key = new String(cursor.next(), StandardCharsets.UTF_8);
-                    if (isManagedDataKey(key)) {
-                        scannedKeys.add(key);
-                    }
-                }
-            }
-            return new ScanResult(scannedKeys, truncated);
-        });
+        ScanResult result = stringRedisTemplate.execute(
+                (RedisCallback<ScanResult>) connection -> scanConnection(connection, pattern));
         if (result == null || result.keys().isEmpty()) {
             return new ScanResult(List.of(), result != null && result.truncated());
         }
@@ -193,6 +187,146 @@ public class AdminMonitorCacheApplicationService {
                 result.keys().stream().distinct().sorted(Comparator.naturalOrder()).toList(),
                 result.truncated()
         );
+    }
+
+    /**
+     * 按连接类型执行有界 SCAN；Cluster 遍历 Master，单节点只扫描当前连接。
+     *
+     * @param connection Spring Data Redis 连接
+     * @param pattern    已限定到公开配置缓存命名空间的模式
+     * @return 经过业务白名单过滤的物理 Key 和截断状态
+     */
+    private ScanResult scanConnection(RedisConnection connection, String pattern) {
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(pattern)
+                .count(SCAN_COUNT)
+                .build();
+        List<String> scannedKeys = new ArrayList<>(Math.min(SCAN_COUNT, MAX_SCAN_KEYS));
+        if (!(connection instanceof RedisClusterConnection clusterConnection)) {
+            try (Cursor<byte[]> cursor = connection.scan(options)) {
+                return collectScannedKeys(cursor, scannedKeys);
+            }
+        }
+        int inspectedCount = 0;
+        boolean truncated = false;
+        for (RedisClusterNode masterNode : masterNodes(clusterConnection)) {
+            if (inspectedCount >= MAX_SCAN_KEYS) {
+                truncated = true;
+                break;
+            }
+            try (Cursor<byte[]> cursor = clusterConnection.scan(masterNode, options)) {
+                while (cursor.hasNext()) {
+                    if (inspectedCount >= MAX_SCAN_KEYS) {
+                        truncated = true;
+                        break;
+                    }
+                    inspectedCount++;
+                    addManagedKey(scannedKeys, cursor.next());
+                }
+            }
+            if (truncated) {
+                break;
+            }
+        }
+        return new ScanResult(scannedKeys, truncated);
+    }
+
+    /**
+     * 消费单节点 SCAN 游标并执行统一的检查上限与公开配置白名单。
+     *
+     * @param cursor      Redis SCAN 游标
+     * @param scannedKeys 已收集的公开配置 Key
+     * @return 单节点扫描结果
+     */
+    private ScanResult collectScannedKeys(Cursor<byte[]> cursor, List<String> scannedKeys) {
+        int inspectedCount = 0;
+        while (cursor.hasNext()) {
+            if (inspectedCount >= MAX_SCAN_KEYS) {
+                return new ScanResult(scannedKeys, true);
+            }
+            inspectedCount++;
+            addManagedKey(scannedKeys, cursor.next());
+        }
+        return new ScanResult(scannedKeys, false);
+    }
+
+    /**
+     * 将 SCAN 返回的物理 Key 转换为字符串，并且只保留已登记的公开配置 Key。
+     *
+     * @param scannedKeys 收集结果
+     * @param physicalKey Redis 返回的物理 Key 字节
+     */
+    private void addManagedKey(List<String> scannedKeys, byte[] physicalKey) {
+        String key = new String(physicalKey, StandardCharsets.UTF_8);
+        if (isManagedDataKey(key)) {
+            scannedKeys.add(key);
+        }
+    }
+
+    /**
+     * 读取单节点或 Cluster Redis INFO；Cluster 中单节点失败不阻断其余 Master 的采集。
+     *
+     * @param connection Spring Data Redis 当前连接
+     * @return 部署模式、节点 INFO 与失败节点摘要
+     */
+    private RedisInfoResult readInfo(RedisConnection connection) {
+        if (!(connection instanceof RedisClusterConnection clusterConnection)) {
+            Map<String, String> rawInfo = toMap(connection.serverCommands().info());
+            Map<String, Map<String, String>> aggregatedClusterInfo = aggregatedClusterInfo(rawInfo);
+            if (!aggregatedClusterInfo.isEmpty()) {
+                return new RedisInfoResult("cluster", aggregatedClusterInfo, List.of());
+            }
+            Map<String, Map<String, String>> nodeInfo = new LinkedHashMap<>();
+            nodeInfo.put("standalone", rawInfo);
+            return new RedisInfoResult("standalone", nodeInfo, List.of());
+        }
+        Map<String, Map<String, String>> nodeInfo = new LinkedHashMap<>();
+        List<String> failedNodes = new ArrayList<>();
+        for (RedisClusterNode masterNode : masterNodes(clusterConnection)) {
+            String nodeName = nodeName(masterNode);
+            try {
+                nodeInfo.put(nodeName, toMap(clusterConnection.serverCommands().info(masterNode)));
+            } catch (RuntimeException exception) {
+                failedNodes.add(nodeName);
+                log.warn("event: ADMIN_REDIS_CLUSTER_INFO_FAILED node: {}", nodeName, exception);
+            }
+        }
+        return new RedisInfoResult("cluster", nodeInfo, failedNodes);
+    }
+
+    /**
+     * 获取当前拓扑中未标记故障的 Master，并按地址排序以稳定管理端输出和测试结果。
+     *
+     * @param connection Redis Cluster 连接
+     * @return 活跃 Master 节点
+     */
+    private List<RedisClusterNode> masterNodes(RedisClusterConnection connection) {
+        Iterable<RedisClusterNode> clusterNodes = connection.clusterCommands().clusterGetNodes();
+        if (clusterNodes == null) {
+            throw new IllegalStateException("Redis Cluster topology unavailable");
+        }
+        List<RedisClusterNode> masterNodes = new ArrayList<>();
+        for (RedisClusterNode node : clusterNodes) {
+            Set<RedisClusterNode.Flag> flags = node.getFlags();
+            if (flags.contains(RedisClusterNode.Flag.MASTER) && !node.isMarkedAsFail()) {
+                masterNodes.add(node);
+            }
+        }
+        if (masterNodes.isEmpty()) {
+            throw new IllegalStateException("Redis Cluster has no available master nodes");
+        }
+        masterNodes.sort(Comparator.comparing(this::nodeName));
+        return masterNodes;
+    }
+
+    /**
+     * 生成不含凭据的稳定节点标识。
+     *
+     * @param node Redis Cluster 节点
+     * @return host:port
+     */
+    private String nodeName(RedisClusterNode node) {
+        return node.getHost() + ":" + node.getPort();
     }
 
     /**
@@ -334,6 +468,55 @@ public class AdminMonitorCacheApplicationService {
     }
 
     /**
+     * 将 Lettuce 普通连接返回的“节点.属性”Cluster INFO 拆成逐节点结构。
+     *
+     * <p>节点标识可能包含 IPv4 或 IPv6 分隔符，因此以 {@code .redis_mode=cluster}
+     * 的完整后缀识别节点前缀，不能按首个句点截断。</p>
+     *
+     * @param rawInfo 带节点前缀的扁平 INFO
+     * @return 逐节点 INFO；不是聚合 Cluster 格式时返回空映射
+     */
+    private Map<String, Map<String, String>> aggregatedClusterInfo(Map<String, String> rawInfo) {
+        String modeSuffix = ".redis_mode";
+        List<String> nodeNames = rawInfo.entrySet().stream()
+                .filter(entry -> entry.getKey().endsWith(modeSuffix))
+                .filter(entry -> "cluster".equalsIgnoreCase(entry.getValue()))
+                .map(entry -> entry.getKey().substring(0, entry.getKey().length() - modeSuffix.length()))
+                .distinct()
+                .sorted()
+                .toList();
+        if (nodeNames.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Map<String, String>> nodeInfo = new LinkedHashMap<>();
+        for (String nodeName : nodeNames) {
+            String propertyPrefix = nodeName + ".";
+            Map<String, String> properties = new LinkedHashMap<>();
+            rawInfo.forEach((name, value) -> {
+                if (name.startsWith(propertyPrefix)) {
+                    properties.put(name.substring(propertyPrefix.length()), value);
+                }
+            });
+            nodeInfo.put(nodeName, properties);
+        }
+        return nodeInfo;
+    }
+
+    /**
+     * 选择首个成功节点的 INFO 作为管理页面摘要；完整节点信息仍保留在 nodes 字段。
+     *
+     * @param nodeInfo 按稳定节点顺序排列的 INFO
+     * @return 页面可直接展示的扁平 INFO
+     */
+    private Map<String, String> firstAvailableInfo(Map<String, Map<String, String>> nodeInfo) {
+        return nodeInfo.values().stream()
+                .filter(info -> info != null && !info.isEmpty())
+                .findFirst()
+                .map(LinkedHashMap::new)
+                .orElseGet(LinkedHashMap::new);
+    }
+
+    /**
      * 将 Redis 客户端可能返回的 null 大小转换为 0。
      *
      * @param value Redis 大小结果
@@ -350,5 +533,17 @@ public class AdminMonitorCacheApplicationService {
      * @param truncated 是否达到单次最多检查 1000 个物理 Key 的边界
      */
     private record ScanResult(List<String> keys, boolean truncated) {
+    }
+
+    /**
+     * Redis INFO 聚合结果。
+     *
+     * @param deploymentMode standalone 或 cluster
+     * @param nodeInfo    成功读取的节点 INFO
+     * @param failedNodes 读取失败的节点标识
+     */
+    private record RedisInfoResult(String deploymentMode,
+                                   Map<String, Map<String, String>> nodeInfo,
+                                   List<String> failedNodes) {
     }
 }

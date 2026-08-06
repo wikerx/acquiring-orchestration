@@ -7,9 +7,6 @@ import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.model.PageResult;
 import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingRangeTableContext;
-import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
 import com.scott.payment.component.db.sharding.TransactionShardingKeyParser;
 import com.scott.payment.payment.domain.state.PaymentTransactionTypeEnum;
 import com.scott.payment.payment.entity.TransactionChannelInteractionLogDO;
@@ -78,6 +75,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
+@DS(DataSourceName.TRANSACTION)
 public class DefaultTransactionQueryService implements TransactionQueryService {
 
     /**
@@ -324,20 +322,10 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      */
     private final TransactionPaymentMethodInfoMapper paymentMethodInfoMapper;
     /**
-     * sharding Data Template，用于定位邮件、通知或渠道参数模板。
+     * 交易分片键解析器，仅用于列表组装时恢复生命周期根主单所在季度。
      * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；非敏感字段。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：Spring 容器构造器注入。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
-     * </p>
-     */
-    private final ShardingDataTemplate shardingDataTemplate;
-    /**
-     * transaction Sharding Key Parser，用于保存 Default Transaction Query Service 中与 交易sharding密钥parser 相关的业务属性。
-     * <p>
-     * 单位：无；格式：字符串、对象引用或集合结构；是否允许为空由接口校验、数据库约束或调用契约决定；敏感安全字段，日志只允许记录长度、摘要或掩码。
-     * 取值范围：取值范围受数据库字段长度、Bean Validation、接口协议或配置枚举约束；数据来源：当前业务流程上游模型、配置项或数据库查询结果。
-     * 字段关系：与同记录的主键、业务编号、状态和审计时间一起用于查询、展示或排障。
+     * 列表返回后必须携带数据库记录中的 transactionDateTime 与 rootTransactionDateTime；
+     * Admin、Merchant 详情查询直接回传这两个时间，禁止再次从平台编号推导。
      * </p>
      */
     private final TransactionShardingKeyParser transactionShardingKeyParser;
@@ -357,7 +345,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @param notificationLogMapper 商户通知日志 Mapper
      * @param merchantApiInteractionLogMapper 商户 OpenAPI 交互日志 Mapper
      * @param paymentMethodInfoMapper 支付工具摘要 Mapper
-     * @param shardingDataTemplate 分表数据访问统一入口
      * @param transactionShardingKeyParser 交易分表键解析器
      */
     public DefaultTransactionQueryService(TransactionOrderMapper orderMapper,
@@ -373,7 +360,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                                           TransactionMerchantNotificationLogMapper notificationLogMapper,
                                           TransactionMerchantApiInteractionLogMapper merchantApiInteractionLogMapper,
                                           TransactionPaymentMethodInfoMapper paymentMethodInfoMapper,
-                                          ShardingDataTemplate shardingDataTemplate,
                                           TransactionShardingKeyParser transactionShardingKeyParser) {
         this.orderMapper = orderMapper;
         this.operationMapper = operationMapper;
@@ -388,7 +374,6 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         this.notificationLogMapper = notificationLogMapper;
         this.merchantApiInteractionLogMapper = merchantApiInteractionLogMapper;
         this.paymentMethodInfoMapper = paymentMethodInfoMapper;
-        this.shardingDataTemplate = shardingDataTemplate;
         this.transactionShardingKeyParser = transactionShardingKeyParser;
     }
 
@@ -397,29 +382,20 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      *
      * @param query 查询条件
      * @return 主单分页结果
-     */
+    */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOrderResponse> pageOrders(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
-        long total = 0L;
-        List<TransactionOrderDO> rows = new ArrayList<>();
-        long offset = offset(safeQuery);
-        long limit = safeQuery.safePageSize();
-        for (String table : physicalTablesInRange(TRANSACTION_ORDER_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            long count = orderMapper.countPagePhysical(table, safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(),
-                    safeQuery.getTransactionId(), safeQuery.getTransactionStatus(), safeQuery.getBeginTime(), safeQuery.getEndTime());
-            total += count;
-            if (rows.size() < limit && offset < count) {
-                rows.addAll(orderMapper.selectPagePhysical(table, safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(),
-                        safeQuery.getTransactionId(), safeQuery.getTransactionStatus(), safeQuery.getBeginTime(), safeQuery.getEndTime(),
-                        offset, limit - rows.size()));
-                offset = 0;
-            } else {
-                offset = Math.max(0, offset - count);
-            }
-        }
-        return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows.stream().map(this::toOrderResponse).toList());
+        LocalDateTime endTimeExclusive = exclusiveEnd(safeQuery.getEndTime());
+        long total = orderMapper.countPageLogical(
+                safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(), safeQuery.getTransactionId(),
+                safeQuery.getTransactionStatus(), safeQuery.getBeginTime(), endTimeExclusive);
+        List<TransactionOrderDO> rows = orderMapper.selectPageLogical(
+                safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(), safeQuery.getTransactionId(),
+                safeQuery.getTransactionStatus(), safeQuery.getBeginTime(), endTimeExclusive,
+                offset(safeQuery), safeQuery.safePageSize());
+        return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(),
+                rows.stream().map(this::toOrderResponse).toList());
     }
 
     /**
@@ -427,9 +403,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      *
      * @param query 查询条件
      * @return 动作单分页结果
-     */
+    */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<TransactionOperationResponse> pageOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
         return pageOperationsNormalized(safeQuery);
@@ -440,9 +415,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      *
      * @param query 查询条件
      * @return 动作单分页与统计响应
-     */
+    */
     @Override
-    @DS(DataSourceName.SLAVE)
     public TransactionOperationSearchResponse searchOperations(TransactionPageQuery query) {
         TransactionPageQuery safeQuery = normalize(query);
         TransactionOperationSearchResponse response = new TransactionOperationSearchResponse();
@@ -452,41 +426,37 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 跨季度物理分表执行已归一化的交易动作分页查询。
-     *
-     * <p>按时间顺序逐表扣减全局偏移量，并批量补充支付工具、订单和通知状态，避免逐行 N+1 查询。</p>
+     * 使用交易逻辑表执行已归一化的交易动作分页查询。
      *
      * @param safeQuery 已填充时间范围和规范状态条件的查询
      * @return 跨分表合并后的分页结果
      */
     private PageResult<TransactionOperationResponse> pageOperationsNormalized(TransactionPageQuery safeQuery) {
-        long total = 0L;
-        List<TransactionOperationDO> rows = new ArrayList<>();
-        long offset = offset(safeQuery);
-        long limit = safeQuery.safePageSize();
-        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            String paymentInfoTable = paymentInfoTableForOperationTable(table);
-            long count = operationMapper.countPagePhysical(table, paymentInfoTable, safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(),
-                    safeQuery.getTransactionId(), safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(),
-                    safeQuery.getTransactionStatus(), safeQuery.getChannelCode(), safeQuery.getChannelOrderNo(),
-                    safeQuery.getChannelResponseCode(), safeQuery.getAuthCode(), safeQuery.getAcquirerReferenceNo(),
-                    safeQuery.getChannelMatchStatus(), safeQuery.getReconciliationStatus(), safeQuery.getSettlementStatus(),
-                    safeQuery.getPaymentMethod(), safeQuery.getPaymentBrand(), safeQuery.getCardBin(),
-                    safeQuery.getBeginTime(), safeQuery.getEndTime());
-            total += count;
-            if (rows.size() < limit && offset < count) {
-                rows.addAll(operationMapper.selectPagePhysical(table, paymentInfoTable, safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(),
-                        safeQuery.getTransactionId(), safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(),
-                        safeQuery.getTransactionStatus(), safeQuery.getChannelCode(), safeQuery.getChannelOrderNo(),
-                        safeQuery.getChannelResponseCode(), safeQuery.getAuthCode(), safeQuery.getAcquirerReferenceNo(),
-                        safeQuery.getChannelMatchStatus(), safeQuery.getReconciliationStatus(), safeQuery.getSettlementStatus(),
-                        safeQuery.getPaymentMethod(), safeQuery.getPaymentBrand(), safeQuery.getCardBin(),
-                        safeQuery.getBeginTime(), safeQuery.getEndTime(), offset, limit - rows.size()));
-                offset = 0;
-            } else {
-                offset = Math.max(0, offset - count);
-            }
-        }
+        LocalDateTime endTimeExclusive = exclusiveEnd(safeQuery.getEndTime());
+        long total = operationMapper.countPageLogical(
+                safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(), safeQuery.getTransactionId(),
+                safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(), safeQuery.getTransactionStatus(),
+                safeQuery.getChannelCode(), safeQuery.getChannelOrderNo(), safeQuery.getChannelResponseCode(),
+                safeQuery.getAuthCode(), safeQuery.getAcquirerReferenceNo(), safeQuery.getChannelMatchStatus(),
+                safeQuery.getReconciliationStatus(), safeQuery.getSettlementStatus(), safeQuery.getPaymentMethod(),
+                safeQuery.getPaymentBrand(), safeQuery.getCardBin(), safeQuery.getBeginTime(), endTimeExclusive);
+        List<TransactionOperationDO> rows = operationMapper.selectPageLogical(
+                safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(), safeQuery.getTransactionId(),
+                safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(), safeQuery.getTransactionStatus(),
+                safeQuery.getChannelCode(), safeQuery.getChannelOrderNo(), safeQuery.getChannelResponseCode(),
+                safeQuery.getAuthCode(), safeQuery.getAcquirerReferenceNo(), safeQuery.getChannelMatchStatus(),
+                safeQuery.getReconciliationStatus(), safeQuery.getSettlementStatus(), safeQuery.getPaymentMethod(),
+                safeQuery.getPaymentBrand(), safeQuery.getCardBin(), safeQuery.getBeginTime(), endTimeExclusive,
+                offset(safeQuery), safeQuery.safePageSize());
+        return operationPageResult(safeQuery, total, rows);
+    }
+
+    /**
+     * 批量补充动作分页的支付工具、主单和商户通知信息。
+     */
+    private PageResult<TransactionOperationResponse> operationPageResult(TransactionPageQuery safeQuery,
+                                                                         long total,
+                                                                         List<TransactionOperationDO> rows) {
         Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap = paymentInfoMap(rows);
         Map<String, TransactionOrderDO> orderMap = orderMap(rows);
         Map<String, String> merchantNotificationStatusMap = merchantNotificationStatusMap(rows);
@@ -508,28 +478,23 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      */
     private TransactionOperationSummaryResponse operationSummary(TransactionPageQuery safeQuery) {
         TransactionOperationSummaryAccumulator accumulator = new TransactionOperationSummaryAccumulator();
-        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE,
-                safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            String paymentInfoTable = paymentInfoTableForOperationTable(table);
-            List<TransactionOperationSummaryRow> amountRows = operationMapper.selectAmountSummaryPhysical(
-                    table, paymentInfoTable, safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(),
-                    safeQuery.getTransactionId(), safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(),
-                    safeQuery.getTransactionStatus(), safeQuery.getChannelCode(), safeQuery.getChannelOrderNo(),
-                    safeQuery.getChannelResponseCode(), safeQuery.getAuthCode(), safeQuery.getAcquirerReferenceNo(),
-                    safeQuery.getChannelMatchStatus(), safeQuery.getReconciliationStatus(), safeQuery.getSettlementStatus(),
-                    safeQuery.getPaymentMethod(), safeQuery.getPaymentBrand(), safeQuery.getCardBin(),
-                    safeQuery.getBeginTime(), safeQuery.getEndTime());
-            amountRows.forEach(accumulator::addAmountRow);
-            List<TransactionOperationSummaryRow> paymentMethodRows = operationMapper.selectPaymentMethodSummaryPhysical(
-                    table, paymentInfoTable, safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(),
-                    safeQuery.getTransactionId(), safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(),
-                    safeQuery.getTransactionStatus(), safeQuery.getChannelCode(), safeQuery.getChannelOrderNo(),
-                    safeQuery.getChannelResponseCode(), safeQuery.getAuthCode(), safeQuery.getAcquirerReferenceNo(),
-                    safeQuery.getChannelMatchStatus(), safeQuery.getReconciliationStatus(), safeQuery.getSettlementStatus(),
-                    safeQuery.getPaymentMethod(), safeQuery.getPaymentBrand(), safeQuery.getCardBin(),
-                    safeQuery.getBeginTime(), safeQuery.getEndTime());
-            paymentMethodRows.forEach(accumulator::addPaymentMethodRow);
-        }
+        LocalDateTime endTimeExclusive = exclusiveEnd(safeQuery.getEndTime());
+        operationMapper.selectAmountSummaryLogical(
+                        safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(), safeQuery.getTransactionId(),
+                        safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(), safeQuery.getTransactionStatus(),
+                        safeQuery.getChannelCode(), safeQuery.getChannelOrderNo(), safeQuery.getChannelResponseCode(),
+                        safeQuery.getAuthCode(), safeQuery.getAcquirerReferenceNo(), safeQuery.getChannelMatchStatus(),
+                        safeQuery.getReconciliationStatus(), safeQuery.getSettlementStatus(), safeQuery.getPaymentMethod(),
+                        safeQuery.getPaymentBrand(), safeQuery.getCardBin(), safeQuery.getBeginTime(), endTimeExclusive)
+                .forEach(accumulator::addAmountRow);
+        operationMapper.selectPaymentMethodSummaryLogical(
+                        safeQuery.getMerchantId(), safeQuery.getMerchantOrderNo(), safeQuery.getTransactionId(),
+                        safeQuery.getSourceTransactionId(), safeQuery.getTransactionType(), safeQuery.getTransactionStatus(),
+                        safeQuery.getChannelCode(), safeQuery.getChannelOrderNo(), safeQuery.getChannelResponseCode(),
+                        safeQuery.getAuthCode(), safeQuery.getAcquirerReferenceNo(), safeQuery.getChannelMatchStatus(),
+                        safeQuery.getReconciliationStatus(), safeQuery.getSettlementStatus(), safeQuery.getPaymentMethod(),
+                        safeQuery.getPaymentBrand(), safeQuery.getCardBin(), safeQuery.getBeginTime(), endTimeExclusive)
+                .forEach(accumulator::addPaymentMethodRow);
         return accumulator.toResponse();
     }
 
@@ -537,29 +502,25 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * 查询交易详情聚合数据。
      *
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表返回的当前动作真实分片时间
+     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
      * @return 交易详情
-     */
+    */
     @Override
-    @DS(DataSourceName.SLAVE)
-    public TransactionDetailResponse detail(String transactionId) {
-        if (!StringUtils.hasText(transactionId)) {
+    public TransactionDetailResponse detail(String transactionId,
+                                            LocalDateTime transactionDateTime,
+                                            LocalDateTime rootTransactionDateTime) {
+        if (!StringUtils.hasText(transactionId)
+                || transactionDateTime == null
+                || rootTransactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID);
         }
-        LocalDateTime transactionDateTime = parseTransactionDateTime(transactionId);
-        if (transactionDateTime == null) {
-            throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
-        }
-        String operationTable = physicalTable(TRANSACTION_OPERATION_TABLE, transactionDateTime);
-        TransactionOperationDO sourceOperation = operationMapper.selectByTransactionIdPhysical(operationTable, transactionId);
+        TransactionOperationDO sourceOperation = operationMapper.selectByTransactionId(transactionId, transactionDateTime);
         if (sourceOperation == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
-        LocalDateTime orderTransactionDateTime = parseOperationDateTime(sourceOperation.getOperationId());
-        if (orderTransactionDateTime == null) {
-            orderTransactionDateTime = sourceOperation.getTransactionDateTime();
-        }
-        String orderTable = physicalTable(TRANSACTION_ORDER_TABLE, orderTransactionDateTime);
-        TransactionOrderDO order = orderMapper.selectByOperationIdPhysical(orderTable, sourceOperation.getOperationId());
+        TransactionOrderDO order = orderMapper.selectByOperationId(
+                sourceOperation.getOperationId(), rootTransactionDateTime);
         if (order == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -576,7 +537,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                         Comparator.nullsLast(LocalDateTime::compareTo)));
         TransactionDetailResponse detail = new TransactionDetailResponse();
         detail.setOrder(toOrderResponse(order));
-        Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap = paymentInfoMap(operations);
+        Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap = paymentInfoMap(operations, detailBeginTime);
         detail.setOperations(operations.stream()
                 .map(operation -> toOperationResponse(operation, paymentInfoMap.get(operation.getTransactionId()), order))
                 .toList());
@@ -585,36 +546,33 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                 .filter(operation -> StringUtils.hasText(operation.getTransactionType()))
                 .collect(Collectors.toMap(TransactionOperationDO::getTransactionId,
                         TransactionOperationDO::getTransactionType, (left, right) -> left));
-        detail.setStatusHistory(selectByOperationIdAcrossTables(TRANSACTION_STATUS_HISTORY_TABLE, detailBeginTime, detailEndTime,
-                table -> statusHistoryMapper.selectByOperationIdPhysical(table, order.getOperationId())));
-        detail.setFlowEvents(selectByOperationIdAcrossTables(TRANSACTION_FLOW_EVENT_TABLE, detailBeginTime, detailEndTime,
-                table -> flowEventMapper.selectByOperationIdPhysical(table, order.getOperationId())));
-        detail.setAmountChanges(selectByOperationIdAcrossTables(TRANSACTION_AMOUNT_CHANGE_LOG_TABLE, detailBeginTime, detailEndTime,
-                table -> amountChangeLogMapper.selectByOperationIdPhysical(table, order.getOperationId())));
-        List<TransactionChannelRequestDO> channelRequests = selectByOperationIdAcrossTables(
-                TRANSACTION_CHANNEL_REQUEST_TABLE,
-                detailBeginTime,
-                detailEndTime,
-                table -> channelRequestMapper.selectByOperationIdPhysical(table, order.getOperationId()));
+        List<TransactionChannelRequestDO> channelRequests;
+        List<TransactionChannelInteractionLogDO> interactionLogs;
+        LocalDateTime detailEndTimeExclusive = exclusiveEnd(detailEndTime);
+        detail.setStatusHistory(statusHistoryMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive));
+        detail.setFlowEvents(flowEventMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive));
+        detail.setAmountChanges(amountChangeLogMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive));
+        channelRequests = channelRequestMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive);
+        interactionLogs = interactionLogMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive);
+        detail.setChannelCallbacks(callbackMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive));
+        detail.setChannelCallbackLogs(callbackLogMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive));
+        detail.setMerchantNotifications(notificationMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive));
+        detail.setMerchantNotificationLogs(notificationLogMapper.selectByOperationId(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive));
+        detail.setMerchantApiInteractionLogs(merchantApiInteractionLogMapper.selectByOperationIdLogical(
+                order.getOperationId(), detailBeginTime, detailEndTimeExclusive));
         detail.setChannelRequests(channelRequests);
-        List<TransactionChannelInteractionLogDO> interactionLogs = selectByOperationIdAcrossTables(
-                TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE,
-                detailBeginTime,
-                detailEndTime,
-                table -> interactionLogMapper.selectByOperationIdPhysical(table, order.getOperationId()));
         Map<String, TransactionChannelRequestDO> channelRequestMap = channelRequestMap(channelRequests);
         detail.setChannelInteractionLogs(enrichChannelInteractionTransactionTypes(
                 mergeChannelInteractionLogs(interactionLogs, channelRequestMap), operationTypeMap));
-        detail.setChannelCallbacks(selectByOperationIdAcrossTables(TRANSACTION_CHANNEL_CALLBACK_TABLE, detailBeginTime, detailEndTime,
-                table -> callbackMapper.selectByOperationIdPhysical(table, order.getOperationId())));
-        detail.setChannelCallbackLogs(selectByOperationIdAcrossTables(TRANSACTION_CHANNEL_CALLBACK_LOG_TABLE, detailBeginTime, detailEndTime,
-                table -> callbackLogMapper.selectByOperationIdPhysical(table, order.getOperationId())));
-        detail.setMerchantNotifications(selectByOperationIdAcrossTables(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, detailBeginTime, detailEndTime,
-                table -> notificationMapper.selectByOperationIdPhysical(table, order.getOperationId())));
-        detail.setMerchantNotificationLogs(selectByOperationIdAcrossTables(TRANSACTION_MERCHANT_NOTIFICATION_LOG_TABLE, detailBeginTime, detailEndTime,
-                table -> notificationLogMapper.selectByOperationIdPhysical(table, order.getOperationId())));
-        detail.setMerchantApiInteractionLogs(selectOptionalByOperationIdAcrossTables(TRANSACTION_MERCHANT_API_INTERACTION_LOG_TABLE, detailBeginTime, detailEndTime,
-                table -> merchantApiInteractionLogMapper.selectByOperationIdPhysical(table, order.getOperationId())));
         return detail;
     }
 
@@ -623,27 +581,17 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      *
      * @param query 查询条件
      * @return 渠道交互日志分页结果
-     */
+    */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<?> pageChannelLogs(ChannelLogQuery query) {
         ChannelLogQuery safeQuery = normalize(query);
-        long total = 0L;
-        List<TransactionChannelInteractionLogDO> rawRows = new ArrayList<>();
-        long offset = offset(safeQuery);
-        long limit = safeQuery.safePageSize();
-        for (String table : physicalTablesInRange(TRANSACTION_CHANNEL_INTERACTION_LOG_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            long count = interactionLogMapper.countPagePhysical(table, safeQuery.getChannelCode(), safeQuery.getTransactionId(),
-                    safeQuery.getInteractionType(), safeQuery.getBeginTime(), safeQuery.getEndTime());
-            total += count;
-            if (rawRows.size() < limit && offset < count) {
-                rawRows.addAll(interactionLogMapper.selectPagePhysical(table, safeQuery.getChannelCode(), safeQuery.getTransactionId(),
-                        safeQuery.getInteractionType(), safeQuery.getBeginTime(), safeQuery.getEndTime(), offset, limit - rawRows.size()));
-                offset = 0;
-            } else {
-                offset = Math.max(0, offset - count);
-            }
-        }
+        LocalDateTime endTimeExclusive = exclusiveEnd(safeQuery.getEndTime());
+        long total = interactionLogMapper.countPageLogical(
+                safeQuery.getChannelCode(), safeQuery.getTransactionId(), safeQuery.getInteractionType(),
+                safeQuery.getBeginTime(), endTimeExclusive);
+        List<TransactionChannelInteractionLogDO> rawRows = interactionLogMapper.selectPageLogical(
+                safeQuery.getChannelCode(), safeQuery.getTransactionId(), safeQuery.getInteractionType(),
+                safeQuery.getBeginTime(), endTimeExclusive, offset(safeQuery), safeQuery.safePageSize());
         Map<String, TransactionChannelRequestDO> channelRequestMap = channelRequestMap(rawRows, safeQuery);
         return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(),
                 enrichChannelInteractionTransactionTypes(mergeChannelInteractionLogs(rawRows, channelRequestMap)));
@@ -654,31 +602,20 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      *
      * @param query 查询条件
      * @return 渠道回调业务记录分页结果
-     */
+    */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<?> pageChannelCallbacks(ChannelCallbackQuery query) {
         ChannelCallbackQuery safeQuery = normalize(query);
-        long total = 0L;
-        List<Object> rows = new ArrayList<>();
-        long offset = offset(safeQuery);
-        long limit = safeQuery.safePageSize();
-        for (String table : physicalTablesInRange(TRANSACTION_CHANNEL_CALLBACK_TABLE,
-                safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            long count = callbackMapper.countPagePhysical(table, safeQuery.getChannelCode(), safeQuery.getTransactionId(),
-                    safeQuery.getChannelOrderNo(), safeQuery.getChannelTransactionId(), safeQuery.getCallbackStatus(),
-                    safeQuery.getBeginTime(), safeQuery.getEndTime());
-            total += count;
-            if (rows.size() < limit && offset < count) {
-                rows.addAll(callbackMapper.selectPagePhysical(table, safeQuery.getChannelCode(), safeQuery.getTransactionId(),
-                        safeQuery.getChannelOrderNo(), safeQuery.getChannelTransactionId(), safeQuery.getCallbackStatus(),
-                        safeQuery.getBeginTime(), safeQuery.getEndTime(), offset, limit - rows.size()));
-                offset = 0;
-            } else {
-                offset = Math.max(0, offset - count);
-            }
-        }
-        return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
+        LocalDateTime endTimeExclusive = exclusiveEnd(safeQuery.getEndTime());
+        long total = callbackMapper.countPageLogical(
+                safeQuery.getChannelCode(), safeQuery.getTransactionId(), safeQuery.getChannelOrderNo(),
+                safeQuery.getChannelTransactionId(), safeQuery.getCallbackStatus(),
+                safeQuery.getBeginTime(), endTimeExclusive);
+        return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(),
+                callbackMapper.selectPageLogical(
+                        safeQuery.getChannelCode(), safeQuery.getTransactionId(), safeQuery.getChannelOrderNo(),
+                        safeQuery.getChannelTransactionId(), safeQuery.getCallbackStatus(),
+                        safeQuery.getBeginTime(), endTimeExclusive, offset(safeQuery), safeQuery.safePageSize()));
     }
 
     /**
@@ -686,28 +623,18 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      *
      * @param query 查询条件
      * @return 商户通知任务分页结果
-     */
+    */
     @Override
-    @DS(DataSourceName.SLAVE)
     public PageResult<?> pageMerchantNotifications(MerchantNotificationQuery query) {
         MerchantNotificationQuery safeQuery = normalize(query);
-        long total = 0L;
-        List<Object> rows = new ArrayList<>();
-        long offset = offset(safeQuery);
-        long limit = safeQuery.safePageSize();
-        for (String table : physicalTablesInRange(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            long count = notificationMapper.countPagePhysical(table, safeQuery.getMerchantId(), safeQuery.getTransactionId(),
-                    safeQuery.getNotifyStatus(), safeQuery.getBeginTime(), safeQuery.getEndTime());
-            total += count;
-            if (rows.size() < limit && offset < count) {
-                rows.addAll(notificationMapper.selectPagePhysical(table, safeQuery.getMerchantId(), safeQuery.getTransactionId(),
-                        safeQuery.getNotifyStatus(), safeQuery.getBeginTime(), safeQuery.getEndTime(), offset, limit - rows.size()));
-                offset = 0;
-            } else {
-                offset = Math.max(0, offset - count);
-            }
-        }
-        return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(), rows);
+        LocalDateTime endTimeExclusive = exclusiveEnd(safeQuery.getEndTime());
+        long total = notificationMapper.countPageLogical(
+                safeQuery.getMerchantId(), safeQuery.getTransactionId(), safeQuery.getNotifyStatus(),
+                safeQuery.getBeginTime(), endTimeExclusive);
+        return PageResult.of(total, safeQuery.safePageNo(), safeQuery.safePageSize(),
+                notificationMapper.selectPageLogical(
+                        safeQuery.getMerchantId(), safeQuery.getTransactionId(), safeQuery.getNotifyStatus(),
+                        safeQuery.getBeginTime(), endTimeExclusive, offset(safeQuery), safeQuery.safePageSize()));
     }
 
     /**
@@ -906,6 +833,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         response.setChannelCode(row.getChannelCode());
         response.setChannelOrderNo(row.getChannelOrderNo());
         response.setTransactionDateTime(row.getTransactionDateTime());
+        response.setRootTransactionDateTime(row.getTransactionDateTime());
         response.setTransactionTimeZone(row.getTransactionTimeZone());
         return response;
     }
@@ -1115,6 +1043,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         response.setAccountingStatus(row.getAccountingStatus());
         response.setChannelMatchStatus(row.getChannelMatchStatus());
         response.setTransactionDateTime(row.getTransactionDateTime());
+        response.setRootTransactionDateTime(orderDO == null ? null : orderDO.getTransactionDateTime());
         response.setOperationTime(row.getOperationTime());
         return response;
     }
@@ -1240,12 +1169,8 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         if (requestIds.isEmpty()) {
             return Map.of();
         }
-        List<TransactionChannelRequestDO> requestRows = new ArrayList<>();
-        for (String table : physicalTablesInRange(TRANSACTION_CHANNEL_REQUEST_TABLE,
-                safeQuery.getBeginTime(), safeQuery.getEndTime())) {
-            requestRows.addAll(channelRequestMapper.selectByRequestIdsPhysical(table, requestIds));
-        }
-        return channelRequestMap(requestRows);
+        return channelRequestMap(channelRequestMapper.selectByRequestIds(
+                requestIds, safeQuery.getBeginTime(), exclusiveEnd(safeQuery.getEndTime())));
     }
 
     /**
@@ -1409,13 +1334,11 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         if (!StringUtils.hasText(transactionId)) {
             return null;
         }
-        LocalDateTime shardTime = transactionDateTime == null ? parseTransactionDateTime(transactionId) : transactionDateTime;
-        if (shardTime == null) {
+        if (transactionDateTime == null) {
             return null;
         }
         try {
-            String table = physicalTable(TRANSACTION_OPERATION_TABLE, shardTime);
-            TransactionOperationDO operation = operationMapper.selectByTransactionIdPhysical(table, transactionId);
+            TransactionOperationDO operation = operationMapper.selectByTransactionId(transactionId, transactionDateTime);
             return operation == null ? null : operation.getTransactionType();
         } catch (DataAccessException | ServiceException exception) {
             log.warn("查询渠道交互日志交易类型失败，transactionId: {}", transactionId, exception);
@@ -1771,27 +1694,48 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
      * @return 以交易号为键的支付工具信息；不包含完整 PAN 或 CVV
      */
     private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap(List<TransactionOperationDO> rows) {
+        return paymentInfoMap(rows, null);
+    }
+
+    /**
+     * 按动作记录中的真实分片时间批量加载支付工具摘要。
+     *
+     * @param rows 动作记录
+     * @param lifecycleBeginTime 已知的生命周期根主单时间；列表查询未知时允许为空
+     * @return 以交易号为键的支付工具信息
+     */
+    private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMap(
+            List<TransactionOperationDO> rows,
+            LocalDateTime lifecycleBeginTime) {
         if (rows == null || rows.isEmpty()) {
             return Map.of();
         }
-        Map<String, TransactionPaymentMethodInfoDO> byTransactionId = rows.stream()
+        Map<String, TransactionPaymentMethodInfoDO> byTransactionId;
+        List<TransactionOperationDO> routableRows = rows.stream()
                 .filter(row -> row.getTransactionDateTime() != null && StringUtils.hasText(row.getTransactionId()))
-                .collect(Collectors.groupingBy(TransactionOperationDO::getTransactionDateTime))
-                .entrySet()
-                .stream()
-                .flatMap(entry -> {
-                    List<String> transactionIds = entry.getValue().stream()
-                            .map(TransactionOperationDO::getTransactionId)
-                            .distinct()
-                            .toList();
-                    if (transactionIds.isEmpty()) {
-                        return List.<TransactionPaymentMethodInfoDO>of().stream();
-                    }
-                    String table = physicalTable(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, entry.getKey());
-                    return paymentMethodInfoMapper.selectByTransactionIdsPhysical(table, transactionIds).stream();
-                })
-                .collect(Collectors.toMap(TransactionPaymentMethodInfoDO::getTransactionId, Function.identity(), (left, right) -> left));
-        Map<String, TransactionPaymentMethodInfoDO> byOperationId = paymentInfoMapByOperationId(rows);
+                .toList();
+        if (routableRows.isEmpty()) {
+            byTransactionId = Map.of();
+        } else {
+            LocalDateTime beginTime = routableRows.stream()
+                    .map(TransactionOperationDO::getTransactionDateTime)
+                    .min(LocalDateTime::compareTo)
+                    .orElseThrow();
+            LocalDateTime endTime = routableRows.stream()
+                    .map(TransactionOperationDO::getTransactionDateTime)
+                    .max(LocalDateTime::compareTo)
+                    .orElseThrow();
+            List<String> transactionIds = routableRows.stream()
+                    .map(TransactionOperationDO::getTransactionId)
+                    .distinct()
+                    .toList();
+            byTransactionId = paymentMethodInfoMapper.selectByTransactionIds(
+                            transactionIds, beginTime, exclusiveEnd(endTime)).stream()
+                    .collect(Collectors.toMap(TransactionPaymentMethodInfoDO::getTransactionId,
+                            Function.identity(), (left, right) -> left));
+        }
+        Map<String, TransactionPaymentMethodInfoDO> byOperationId = paymentInfoMapByOperationId(
+                rows, lifecycleBeginTime);
         Map<String, TransactionPaymentMethodInfoDO> result = new HashMap<>();
         rows.stream()
                 .filter(row -> StringUtils.hasText(row.getTransactionId()))
@@ -1806,18 +1750,22 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 按操作号补查无法通过交易号直接命中的支付工具记录。
+     * 按操作号补查支付工具记录；详情查询优先使用调用方已查询到的根主单时间。
      *
-     * @param rows 交易动作列表
+     * @param rows 动作记录
+     * @param lifecycleBeginTime 已知的生命周期起点；列表查询未知时允许为空
      * @return 以操作号为键的支付工具信息
      */
-    private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMapByOperationId(List<TransactionOperationDO> rows) {
+    private Map<String, TransactionPaymentMethodInfoDO> paymentInfoMapByOperationId(
+            List<TransactionOperationDO> rows,
+            LocalDateTime lifecycleBeginTime) {
         Map<String, List<TransactionOperationDO>> operationRows = rows.stream()
                 .filter(row -> StringUtils.hasText(row.getOperationId()) && row.getTransactionDateTime() != null)
                 .collect(Collectors.groupingBy(TransactionOperationDO::getOperationId));
         Map<String, TransactionPaymentMethodInfoDO> result = new java.util.HashMap<>();
         operationRows.forEach((operationId, operationList) -> {
-            TransactionPaymentMethodInfoDO infoDO = findPaymentInfoByOperationId(operationId, operationList);
+            TransactionPaymentMethodInfoDO infoDO = findPaymentInfoByOperationId(
+                    operationId, operationList, lifecycleBeginTime);
             if (infoDO != null) {
                 result.put(operationId, infoDO);
             }
@@ -1826,24 +1774,26 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 查询paymentinfoby动作ID，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 支付核心服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
-     * @param rows 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 补查同一生命周期内按操作号关联的支付工具摘要。
+     *
+     * @param operationId 生命周期操作号
+     * @param rows 当前动作记录
+     * @param lifecycleBeginTime 已查询到的根主单时间；为空时仅列表路径可受控解析
+     * @return 优先包含卡片摘要的支付工具记录，不存在时返回 {@code null}
      */
-    private TransactionPaymentMethodInfoDO findPaymentInfoByOperationId(String operationId, List<TransactionOperationDO> rows) {
+    private TransactionPaymentMethodInfoDO findPaymentInfoByOperationId(
+            String operationId,
+            List<TransactionOperationDO> rows,
+            LocalDateTime lifecycleBeginTime) {
         LocalDateTime rowBeginTime = rows.stream()
                 .map(TransactionOperationDO::getTransactionDateTime)
                 .filter(Objects::nonNull)
                 .min(LocalDateTime::compareTo)
                 .orElse(null);
-        LocalDateTime rootBeginTime = parseOperationDateTime(operationId);
-        LocalDateTime beginTime = rootBeginTime == null ? rowBeginTime : rootBeginTime;
+        LocalDateTime rootBeginTime = lifecycleBeginTime == null
+                ? parseOperationDateTime(operationId)
+                : lifecycleBeginTime;
+        LocalDateTime beginTime = earliest(rowBeginTime, rootBeginTime);
         LocalDateTime endTime = rows.stream()
                 .map(TransactionOperationDO::getTransactionDateTime)
                 .filter(Objects::nonNull)
@@ -1852,20 +1802,23 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         if (beginTime == null || endTime == null) {
             return null;
         }
-        for (String table : physicalTablesInRange(TRANSACTION_PAYMENT_METHOD_INFO_TABLE, beginTime, endTime)) {
-            List<TransactionPaymentMethodInfoDO> infos = paymentMethodInfoMapper.selectByOperationIdPhysical(table, operationId);
-            if (infos == null || infos.isEmpty()) {
-                continue;
-            }
-            TransactionPaymentMethodInfoDO info = infos.stream()
-                    .filter(this::hasCardSummary)
-                    .findFirst()
-                    .orElse(infos.get(0));
-            if (info != null) {
-                return info;
-            }
+        List<TransactionPaymentMethodInfoDO> infos = paymentMethodInfoMapper.selectByOperationId(
+                operationId, beginTime, exclusiveEnd(endTime));
+        if (infos == null || infos.isEmpty()) {
+            return null;
         }
-        return null;
+        return infos.stream().filter(this::hasCardSummary).findFirst().orElse(infos.get(0));
+    }
+
+    /** 返回两个可空时间中的较早值。 */
+    private LocalDateTime earliest(LocalDateTime first, LocalDateTime second) {
+        if (first == null) {
+            return second;
+        }
+        if (second == null) {
+            return first;
+        }
+        return first.isBefore(second) ? first : second;
     }
 
 /**
@@ -1930,14 +1883,12 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     }
 
     /**
-     * 查询订单for动作，按调用方提供的过滤条件返回对应业务视图。
-     * <p>
-     * 前置条件：调用方已按 支付核心服务 的权限和数据范围传入查询条件。
-     * 该方法通常不修改数据库状态；分页、时间范围和空结果处理由入参和返回类型共同表达。
-     * 异常边界：底层查询或远程读取失败时按当前模块统一异常规则向上抛出或降级为空结果。
-     * </p>
-     * @param row 源对象、目标对象或查询结果行，用于字段映射、补充展示信息或汇总统计
-     * @return 查询得到的业务对象、分页结果或空结果
+     * 为动作列表补充生命周期根主单及其真实分片时间。
+     *
+     * <p>这里的编号解析只负责单季度定位；详情点击必须回传查询所得的根主单时间，不得重复解析编号。</p>
+     *
+     * @param row 动作列表记录
+     * @return 生命周期根主单，不存在或无法路由时返回 {@code null}
      */
     private TransactionOrderDO findOrderForOperation(TransactionOperationDO row) {
         LocalDateTime orderTransactionDateTime = parseOperationDateTime(row.getOperationId());
@@ -1947,8 +1898,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         if (orderTransactionDateTime == null) {
             return null;
         }
-        String table = physicalTable(TRANSACTION_ORDER_TABLE, orderTransactionDateTime);
-        return orderMapper.selectByOperationIdPhysical(table, row.getOperationId());
+        return orderMapper.selectByOperationId(row.getOperationId(), orderTransactionDateTime);
     }
 
     /**
@@ -1970,35 +1920,18 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
                 .filter(row -> row.getTransactionDateTime() != null && StringUtils.hasText(row.getTransactionId()))
                 .collect(Collectors.groupingBy(TransactionOperationDO::getTransactionDateTime))
                 .forEach((transactionDateTime, operationRows) -> {
-                    String table = physicalTable(TRANSACTION_MERCHANT_NOTIFICATION_TABLE, transactionDateTime);
                     operationRows.stream()
                             .map(TransactionOperationDO::getTransactionId)
                             .distinct()
                             .forEach(transactionId -> {
-                                List<TransactionMerchantNotificationDO> notifications = notificationMapper.selectByTransactionIdPhysical(table, transactionId);
+                                List<TransactionMerchantNotificationDO> notifications =
+                                        notificationMapper.selectByTransactionId(transactionId, transactionDateTime);
                                 if (notifications != null && !notifications.isEmpty() && StringUtils.hasText(notifications.get(0).getNotifyStatus())) {
                                     result.put(transactionId, notifications.get(0).getNotifyStatus());
                                 }
                             });
                 });
         return result;
-    }
-
-    /**
-     * 整理动作单对应的支付工具分表，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param operationPhysicalTable operation Physical Table 输入值，参与 动作物理表 的查询、校验、转换、写入或日志摘要
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private String paymentInfoTableForOperationTable(String operationPhysicalTable) {
-        if (!StringUtils.hasText(operationPhysicalTable)) {
-            return TRANSACTION_PAYMENT_METHOD_INFO_TABLE;
-        }
-        return operationPhysicalTable.replaceFirst("^" + TRANSACTION_OPERATION_TABLE, TRANSACTION_PAYMENT_METHOD_INFO_TABLE);
     }
 
 /**
@@ -2016,104 +1949,25 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     private List<TransactionOperationDO> selectOperationsByOperationId(String operationId,
                                                                        LocalDateTime beginTime,
                                                                        LocalDateTime endTime) {
-        List<TransactionOperationDO> rows = new ArrayList<>();
-        for (String table : physicalTablesInRange(TRANSACTION_OPERATION_TABLE, beginTime, endTime)) {
-            rows.addAll(operationMapper.selectByOperationIdPhysical(table, operationId));
-        }
-        return rows;
-    }
-
-    private <T> List<T> selectByOperationIdAcrossTables(String logicalTable,
-                                                        LocalDateTime beginTime,
-                                                        LocalDateTime endTime,
-                                                        PhysicalTableSelector<T> selector) {
-        List<T> rows = new ArrayList<>();
-        for (String table : physicalTablesInRange(logicalTable, beginTime, endTime)) {
-            rows.addAll(selector.select(table));
-        }
-        return rows;
-    }
-
-    private <T> List<T> selectOptionalByOperationIdAcrossTables(String logicalTable,
-                                                                LocalDateTime beginTime,
-                                                                LocalDateTime endTime,
-                                                                PhysicalTableSelector<T> selector) {
-        List<T> rows = new ArrayList<>();
-        List<String> physicalTables;
-        try {
-            physicalTables = physicalTablesInRange(logicalTable, beginTime, endTime);
-        } catch (ServiceException exception) {
-            log.warn("交易详情附属日志分表规则不可用，logicalTable：{}，beginTime：{}，endTime：{}",
-                    logicalTable, beginTime, endTime, exception);
-            return rows;
-        }
-        for (String table : physicalTables) {
-            try {
-                rows.addAll(selector.select(table));
-            } catch (DataAccessException exception) {
-                log.warn("交易详情附属日志查询失败，logicalTable：{}，physicalTable：{}，beginTime：{}，endTime：{}",
-                        logicalTable, table, beginTime, endTime, exception);
-            }
-        }
-        return rows;
+        return operationMapper.selectByOperationId(operationId, beginTime, exclusiveEnd(endTime));
     }
 
     /**
-     * 整理物理表，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
-     * @param transactionDateTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
+     * 将现有包含式结束时间转换为 DATETIME(3) 半开区间上界。
+     *
+     * @param endTime 现有查询结束时间
+     * @return 不包含的结束时间
      */
-    private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
-        return shardingDataTemplate.resolvePhysicalTable(
-                ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.SLAVE));
+    private LocalDateTime exclusiveEnd(LocalDateTime endTime) {
+        LocalDateTime actualEnd = endTime == null ? LocalDateTime.now() : endTime;
+        return actualEnd.plusNanos(1_000_000L);
     }
 
     /**
-     * 整理物理表in范围，返回当前业务步骤需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已准备 支付核心服务 当前步骤需要的输入对象和业务标识。
-     * 该方法按所属类的业务边界执行必要的校验、转换、查询、写入或协作调用。
-     * 异常边界：参数缺失、状态冲突、远程调用失败或持久化失败按当前模块约定处理。
-     * </p>
-     * @param logicalTable 逻辑表名，用于按交易时间解析真实物理分表
-     * @param beginTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @param endTime 时间值，使用系统约定时区或调用方传入的业务时区解释
-     * @return 方法执行后的业务结果、更新行数、转换对象或空结果
-     */
-    private List<String> physicalTablesInRange(String logicalTable, LocalDateTime beginTime, LocalDateTime endTime) {
-        return shardingDataTemplate.resolvePhysicalTables(
-                ShardingRangeTableContext.of(logicalTable, beginTime, endTime, DataSourceName.SLAVE));
-    }
-
-    /**
-     * 解析parse交易date时间，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param transactionId 平台交易号，用于定位主单、动作单、渠道请求和回调记录
-     * @return 构造、转换或解析后的业务值
-     */
-    private LocalDateTime parseTransactionDateTime(String transactionId) {
-        return transactionShardingKeyParser.parseTransactionDateTime(transactionId);
-    }
-
-    /**
-     * 解析parse动作date时间，将原始输入转换为当前调用链需要的规范化结果。
-     * <p>
-     * 前置条件：调用方已传入 支付核心服务 中需要标准化的原始值。
-     * 该方法完成金额、币种、时间、状态、路径或协议字段的规范化，不直接提交交易状态。
-     * 异常边界：格式非法、精度不满足或枚举不支持时抛出当前模块约定异常。
-     * </p>
-     * @param operationId 平台操作号，用于定位单次授权、请款、退款、撤销或通知动作
-     * @return 构造、转换或解析后的业务值
+     * 从第一版生命周期操作号恢复根主单季度，仅供列表补充查询使用。
+     *
+     * @param operationId 生命周期操作号
+     * @return 根主单分片时间，格式不符合第一版编号规则时返回 {@code null}
      */
     private LocalDateTime parseOperationDateTime(String operationId) {
         return transactionShardingKeyParser.parseOperationDateTime(operationId);
@@ -2125,7 +1979,7 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
     /**
      * 交易动作统计累加器。
      * <p>
-     * 每个物理分表先在数据库内完成分组汇总，服务层只负责跨分表合并同币种、
+     * 每个 ShardingSphere 路由分片先在数据库内完成分组汇总，服务层只负责合并同币种、
      * 同状态和同支付方式的结果，避免把明细全量拉回内存。
      */
     private static final class TransactionOperationSummaryAccumulator {
@@ -2428,15 +2282,4 @@ public class DefaultTransactionQueryService implements TransactionQueryService {
         }
     }
 
-    @FunctionalInterface
-    private interface PhysicalTableSelector<T> {
-
-        /**
-         * 查询指定受控物理分表。
-         *
-         * @param table 已由分片组件生成并校验的物理表名
-         * @return 当前分表查询结果
-         */
-        List<T> select(String table);
-    }
 }

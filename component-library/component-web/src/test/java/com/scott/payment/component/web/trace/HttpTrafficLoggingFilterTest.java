@@ -50,7 +50,14 @@ class HttpTrafficLoggingFilterTest {
             request.setContentType("application/json");
             request.setCharacterEncoding("UTF-8");
             request.setContent("""
-                    {"data":"abcdefghijklmnopqrstuvwxyz","authorization":"Bearer secret-token","cardNo":"5387380678556554","securityCode":"123"}
+                    {
+                      "data":"abcdefghijklmnopqrstuvwxyz",
+                      "authorization":"Bearer secret-token",
+                      "captchaImage":"data:image/png;base64,request-captcha-secret",
+                      "cardNo":"5387380678556554",
+                      "securityCode":"123",
+                      "contact":{"name":"Request Person","address":"Request Street"}
+                    }
                     """.getBytes());
             MockHttpServletResponse response = new MockHttpServletResponse();
             MockFilterChain chain = new MockFilterChain(new HttpServlet() {
@@ -59,7 +66,14 @@ class HttpTrafficLoggingFilterTest {
                     servletRequest.getInputStream().readAllBytes();
                     servletResponse.setContentType("application/json");
                     servletResponse.getWriter().write("""
-                            {"code":"T200","data":"encrypted-response","cardNo":"5387380678556554","securityCode":"123"}
+                            {
+                              "code":"T200",
+                              "data":"encrypted-response",
+                              "captchaImage":"data:image/png;base64,response-captcha-secret",
+                              "cardNo":"5387380678556554",
+                              "securityCode":"123",
+                              "merchant":{"name":"Response Person","address":"Response Street"}
+                            }
                             """);
                 }
             });
@@ -73,13 +87,15 @@ class HttpTrafficLoggingFilterTest {
             assertThat(logs).contains("event: HTTP_TRAFFIC_SUMMARY");
             assertThat(logs).contains("traceId: trace-test-001");
             assertThat(logs).contains("requestDigest:");
-            assertThat(logs).contains("requestSummary:");
-            assertThat(logs).contains("538738******6554");
-            assertThat(logs).contains("securityCode\":\"***");
+            assertThat(logs).contains("requestSummary: [BODY_OMITTED]");
+            assertThat(logs).contains("responseSummary: [BODY_OMITTED]");
             assertThat(logs).doesNotContain("5387380678556554");
             assertThat(logs).doesNotContain("secret-token");
             assertThat(logs).doesNotContain("abcdefghijklmnopqrstuvwxyz");
             assertThat(logs).doesNotContain("encrypted-response");
+            assertThat(logs).doesNotContain("request-captcha-secret", "response-captcha-secret");
+            assertThat(logs).doesNotContain("Request Person", "Request Street");
+            assertThat(logs).doesNotContain("Response Person", "Response Street");
         } finally {
             logger.detachAppender(appender);
             logger.setLevel(originalLevel);

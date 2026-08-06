@@ -2,6 +2,7 @@
 spring:
   config:
     activate:
+      # 参数说明：限制当前文档只在指定 Spring Profile 下生效。
       on-profile: "dev & live-regression"
 
 payment:

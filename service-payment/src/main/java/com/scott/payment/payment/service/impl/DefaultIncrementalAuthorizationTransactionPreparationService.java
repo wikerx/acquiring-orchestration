@@ -1,10 +1,12 @@
 package com.scott.payment.payment.service.impl;
 
+import com.baomidou.dynamic.datasource.annotation.DS;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.component.core.iso.IsoCurrencyInfo;
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
+import com.scott.payment.component.db.constant.DataSourceName;
 import com.scott.payment.component.db.iso.service.IsoDictionaryService;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.payment.api.internal.dto.PaymentCreateCommandDTO;
@@ -54,6 +56,7 @@ import java.util.Objects;
  * @status : create
  */
 @Service
+@DS(DataSourceName.TRANSACTION)
 public class DefaultIncrementalAuthorizationTransactionPreparationService implements IncrementalAuthorizationTransactionPreparationService {
 
     /**
@@ -295,7 +298,8 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
                     .orElseThrow(() -> new ServiceException(ApiResultEnum.ORDER_ALREADY_EXISTS));
         }
         TransactionOperationDO sourceOperationDO = transactionRecordService.findSourceOperationByTransactionId(
-                commandDTO.getTransactionInfo().getSourceTransactionId());
+                commandDTO.getTransactionInfo().getSourceTransactionId(),
+                commandDTO.getTransactionInfo().getSourceTransactionDateTime());
         normalizeIncrementalAuthorizationCommand(commandDTO, sourceOrderDO, sourceOperationDO);
         String transactionId = PaymentOrderNoGenerator.nextTransactionId(commandDTO.getTransactionDateTime());
         PaymentCreateResultDTO resultDTO = buildIncrementalAuthorizationResult(commandDTO, sourceOrderDO, transactionId);
@@ -337,7 +341,10 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
     private TransactionOrderDO resolveSourceOrder(PaymentCreateCommandDTO commandDTO) {
         PaymentCreateCommandDTO.TransactionInfoDTO transactionInfoDTO = commandDTO.getTransactionInfo();
         String sourceTransactionId = transactionInfoDTO.getSourceTransactionId();
-        TransactionOrderDO sourceOrderDO = transactionRecordService.findSourceOrderByTransactionId(sourceTransactionId);
+        TransactionOrderDO sourceOrderDO = transactionRecordService.findSourceOrderByTransactionId(
+                sourceTransactionId,
+                transactionInfoDTO.getSourceTransactionDateTime(),
+                transactionInfoDTO.getRootTransactionDateTime());
         if (sourceOrderDO == null) {
             throw new ServiceException(ApiResultEnum.ORDER_NOT_FOUND);
         }
@@ -845,6 +852,7 @@ public class DefaultIncrementalAuthorizationTransactionPreparationService implem
         resultDTO.setRateSource(commandDTO.getRateSource());
         resultDTO.setRateTime(commandDTO.getRateTime());
         resultDTO.setTransactionDateTime(commandDTO.getTransactionDateTime());
+        resultDTO.setRootTransactionDateTime(sourceOrderDO.getTransactionDateTime());
         resultDTO.setTransactionTimeZone(DEFAULT_TIME_ZONE);
         resultDTO.setPaymentMethod(sourceOrderDO.getPaymentMethod());
         resultDTO.setPaymentBrand(sourceOrderDO.getPaymentBrand());

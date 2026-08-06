@@ -9,19 +9,18 @@ import com.scott.payment.component.core.trace.TraceContext;
 import com.scott.payment.component.core.util.SensitiveDataMaskUtils;
 import com.scott.payment.component.core.util.identity.PaymentOrderNoGenerator;
 import com.scott.payment.component.db.constant.DataSourceName;
-import com.scott.payment.component.db.sharding.ShardingDataTemplate;
-import com.scott.payment.component.db.sharding.ShardingSingleTableContext;
+import com.scott.payment.component.db.sharding.TransactionPrimaryRouteScope;
 import com.scott.payment.data.config.DataMerchantNotificationProperties;
 import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
 import com.scott.payment.data.mapper.DataMerchantNotificationLogMapper;
 import com.scott.payment.data.mapper.DataMerchantNotificationMapper;
+import com.scott.payment.data.model.MerchantCallbackHttpRequest;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -43,19 +42,16 @@ import java.util.Map;
  * @classname : DefaultMerchantNotificationDeliveryService
  * @date : 2026-08-01 16:00
  * @email : scott_x@163.com
- * @description : service-data 商户通知默认实现，以主库版本 CAS 保证多实例抢占，执行有界 HTTP 回调并持久化每次尝试和重试状态
+ * @description : service-data 商户通知默认实现，以交易逻辑数据源和带分片时间的 CAS 保证多实例抢占。
  * @status : create
  */
 @Slf4j
 @Service
-@DS(DataSourceName.MASTER)
+@DS(DataSourceName.TRANSACTION)
 public class DefaultMerchantNotificationDeliveryService implements MerchantNotificationDeliveryService {
 
     /** 商户通知任务逻辑表。 */
     private static final String NOTIFICATION_TABLE = "transaction_merchant_notification";
-
-    /** 商户通知尝试日志逻辑表。 */
-    private static final String NOTIFICATION_LOG_TABLE = "transaction_merchant_notification_log";
 
     /** 通知日志业务 ID 前缀。 */
     private static final String NOTIFICATION_LOG_PREFIX = "TNL";
@@ -84,35 +80,40 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     /** 商户通知尝试日志数据访问入口。 */
     private final DataMerchantNotificationLogMapper notificationLogMapper;
 
-    /** 物理分表解析入口。 */
-    private final ShardingDataTemplate shardingDataTemplate;
-
     /** 具备有界超时的商户通知 HTTP 客户端。 */
     private final RestTemplate restTemplate;
 
     /** 商户通知执行和恢复参数。 */
     private final DataMerchantNotificationProperties properties;
 
+    /** v1 回调 JWT、Header 和加密正文构造器。 */
+    private final MerchantCallbackRequestFactory requestFactory;
+
+    /** 回调出站协议和网络边界校验器。 */
+    private final MerchantCallbackTargetValidator targetValidator;
+
     /**
      * 创建商户通知投递服务。
      *
      * @param notificationMapper 通知任务 Mapper
      * @param notificationLogMapper 通知日志 Mapper
-     * @param shardingDataTemplate 分表解析入口
      * @param restTemplate 商户通知 HTTP 客户端
      * @param properties 商户通知执行参数
      */
+    @Autowired
     public DefaultMerchantNotificationDeliveryService(
             DataMerchantNotificationMapper notificationMapper,
             DataMerchantNotificationLogMapper notificationLogMapper,
-            ShardingDataTemplate shardingDataTemplate,
             @Qualifier("dataMerchantNotificationRestTemplate") RestTemplate restTemplate,
-            DataMerchantNotificationProperties properties) {
+            DataMerchantNotificationProperties properties,
+            MerchantCallbackRequestFactory requestFactory,
+            MerchantCallbackTargetValidator targetValidator) {
         this.notificationMapper = notificationMapper;
         this.notificationLogMapper = notificationLogMapper;
-        this.shardingDataTemplate = shardingDataTemplate;
         this.restTemplate = restTemplate;
         this.properties = properties;
+        this.requestFactory = requestFactory;
+        this.targetValidator = targetValidator;
     }
 
     /**
@@ -125,18 +126,21 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "limit must be greater than zero");
         }
         long startNanos = System.nanoTime();
-        String table = physicalTable(NOTIFICATION_TABLE, transactionDateTime);
         LocalDateTime now = LocalDateTime.now();
-        recoverStaleProcessing(table, now);
-        List<DataMerchantNotificationTaskDO> tasks = notificationMapper.selectDueForNotify(table, now, limit);
+        LocalDateTime beginTime = quarterBegin(transactionDateTime);
+        List<DataMerchantNotificationTaskDO> tasks;
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            recoverStaleProcessing(beginTime, now);
+            tasks = notificationMapper.selectDueForNotify(beginTime, beginTime.plusMonths(3), now, limit);
+        }
         int successCount = 0;
         for (DataMerchantNotificationTaskDO task : tasks) {
-            if (notifySingle(table, task)) {
+            if (notifySingle(task)) {
                 successCount++;
             }
         }
-        log.info("event: DATA_MERCHANT_NOTIFY_DUE_END traceId: {} physicalTable: {} taskCount: {} successCount: {} durationMs: {}",
-                TraceContext.getTraceId(), table, tasks.size(), successCount, elapsedMillis(startNanos));
+        log.info("event: DATA_MERCHANT_NOTIFY_DUE_END traceId: {} routeTable: {} taskCount: {} successCount: {} durationMs: {}",
+                TraceContext.getTraceId(), NOTIFICATION_TABLE, tasks.size(), successCount, elapsedMillis(startNanos));
         return successCount;
     }
 
@@ -149,13 +153,38 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         if (!StringUtils.hasText(transactionId)) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_id is required");
         }
-        String table = physicalTable(NOTIFICATION_TABLE, transactionDateTime);
         LocalDateTime now = LocalDateTime.now();
-        recoverStaleProcessing(table, now);
-        DataMerchantNotificationTaskDO task = notificationMapper.selectReadyByTransactionId(table, transactionId, now);
-        boolean notified = task != null && notifySingle(table, task);
-        log.info("event: DATA_MERCHANT_NOTIFY_TRANSACTION_END traceId: {} transactionId: {} taskFound: {} notified: {} physicalTable: {}",
-                TraceContext.getTraceId(), transactionId, task != null, notified, table);
+        DataMerchantNotificationTaskDO task;
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            task = notificationMapper.selectReadyByTransactionId(transactionId, transactionDateTime, now);
+        }
+        boolean notified = task != null && notifySingle(task);
+        log.info("event: DATA_MERCHANT_NOTIFY_TRANSACTION_END traceId: {} transactionId: {} taskFound: {} notified: {} routeTable: {}",
+                TraceContext.getTraceId(), transactionId, task != null, notified, NOTIFICATION_TABLE);
+        return notified;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean retryTransaction(LocalDateTime transactionDateTime,
+                                    String transactionId,
+                                    String callbackEventId) {
+        validateTransactionDateTime(transactionDateTime);
+        if (!StringUtils.hasText(transactionId)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_id is required");
+        }
+        if (!StringUtils.hasText(callbackEventId)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "callback_event_id is required");
+        }
+        DataMerchantNotificationTaskDO task;
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            task = notificationMapper.selectRetryableByTransactionId(transactionId, transactionDateTime);
+        }
+        boolean notified = task != null && notifySingle(task, callbackEventId, true);
+        log.info("event: DATA_MERCHANT_NOTIFY_MANUAL_RETRY_END traceId: {} callbackEventId: {} transactionId: {} taskFound: {} notified: {} routeTable: {}",
+                TraceContext.getTraceId(), callbackEventId, transactionId, task != null, notified, NOTIFICATION_TABLE);
         return notified;
     }
 
@@ -165,15 +194,38 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
      * <p>HTTP 调用不持有数据库事务。进程在抢占后异常退出时，由过期 PROCESSING 回收机制恢复；
      * 因而投递语义是至少一次，商户必须使用固定 notifyId 去重。</p>
      *
-     * @param notificationTable 通知任务物理分表
      * @param task 待执行任务
-     * @return true 表示 HTTP 2xx 且任务成功推进为 SUCCESS
+     * @return true 表示 HTTP 200、正文为 succeed 且任务成功推进为 SUCCESS
      */
-    private boolean notifySingle(String notificationTable, DataMerchantNotificationTaskDO task) {
+    private boolean notifySingle(DataMerchantNotificationTaskDO task) {
+        return notifySingle(task, null, false);
+    }
+
+    /**
+     * 执行普通通知或后台人工重发；人工重发使用独立 CAS 和稳定事件号。
+     *
+     * @param task 待执行通知任务
+     * @param callbackEventId 人工重发的固定回调事件号；普通通知为空
+     * @param manualRetry 是否为后台人工重发
+     * @return true 表示商户确认成功且通知状态推进为 SUCCESS
+     */
+    private boolean notifySingle(DataMerchantNotificationTaskDO task,
+                                 String callbackEventId,
+                                 boolean manualRetry) {
+        validateTaskTransactionDateTime(task);
         LocalDateTime beginTime = LocalDateTime.now();
-        if (notificationMapper.markProcessing(notificationTable, task.getId(), task.getVersion(), beginTime) != 1) {
-            log.info("event: DATA_MERCHANT_NOTIFY_SKIP traceId: {} notifyId: {} transactionId: {} reason=processingLockMiss",
-                    TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId());
+        int claimed = manualRetry
+                ? notificationMapper.markProcessingForManualRetry(
+                        task.getId(), task.getTransactionDateTime(), task.getVersion(), beginTime)
+                : notificationMapper.markProcessing(
+                        task.getId(), task.getTransactionDateTime(), task.getVersion(), beginTime);
+        if (claimed != 1) {
+            log.info("event: DATA_MERCHANT_NOTIFY_SKIP traceId: {} notifyId: {} transactionId: {} manualRetry: {} reason=processingLockMiss",
+                    TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), manualRetry);
+            if (manualRetry) {
+                // 人工重发是一条独立业务指令；抢占冲突必须让 MQ 重投，不能静默丢失用户操作。
+                throw new IllegalStateException("merchant notification manual retry claim conflict");
+            }
             return false;
         }
         int processingVersion = task.getVersion() == null ? 1 : task.getVersion() + 1;
@@ -192,12 +244,14 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
                 task.getPayloadJsonMasked() == null ? 0 : task.getPayloadJsonMasked().length(),
                 task.getSignType());
 
-        NotifyAttemptResult result = executeHttpNotify(task, beginTime);
+        NotifyAttemptResult result = executeHttpNotify(task, attemptNo, callbackEventId, beginTime);
         LocalDateTime finishedTime = LocalDateTime.now();
         insertNotifyLog(task, attemptNo, result, beginTime, finishedTime);
         if (result.success()) {
+            int affectedRows = notificationMapper.markSuccess(
+                    task.getId(), task.getTransactionDateTime(), processingVersion, finishedTime);
             requireSingleStateUpdate(
-                    notificationMapper.markSuccess(notificationTable, task.getId(), processingVersion, finishedTime),
+                    affectedRows,
                     task,
                     "SUCCESS");
             log.info("event: DATA_MERCHANT_NOTIFY_ATTEMPT_END traceId: {} notifyId: {} transactionId: {} merchantId: {} attemptNo: {} httpStatus: {} success: true responseSummary: {} durationMs: {}",
@@ -207,18 +261,22 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
             return true;
         }
 
-        boolean exhausted = attemptNo >= safeMaxRetry(task);
+        int effectiveMaxRetry = manualRetry
+                ? Math.max(safeMaxRetry(task), attemptNo + 1)
+                : safeMaxRetry(task);
+        boolean exhausted = attemptNo >= effectiveMaxRetry;
         String nextStatus = exhausted ? STATUS_CLOSED : STATUS_FAILED;
         LocalDateTime nextRetryTime = exhausted ? null : nextRetryTime(finishedTime, attemptNo);
+        int affectedRows = notificationMapper.markFailed(
+                task.getId(),
+                task.getTransactionDateTime(),
+                processingVersion,
+                nextStatus,
+                nextRetryTime,
+                safeLength(result.errorMessage(), MAX_FAIL_REASON_LENGTH),
+                finishedTime);
         requireSingleStateUpdate(
-                notificationMapper.markFailed(
-                        notificationTable,
-                        task.getId(),
-                        processingVersion,
-                        nextStatus,
-                        nextRetryTime,
-                        safeLength(result.errorMessage(), MAX_FAIL_REASON_LENGTH),
-                        finishedTime),
+                affectedRows,
                 task,
                 nextStatus);
         log.warn("event: DATA_MERCHANT_NOTIFY_ATTEMPT_END traceId: {} notifyId: {} transactionId: {} merchantId: {} attemptNo: {} httpStatus: {} success: false nextStatus: {} exhausted: {} nextRetryTime: {} failureReason: {} durationMs: {}",
@@ -229,57 +287,80 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     }
 
     /**
-     * 执行单次 HTTP 回调；非 2xx、网络异常和超时都转换为可记录的失败结果。
-     *
-     * @param task 已抢占通知任务
-     * @param beginTime 本次尝试开始时间
-     * @return 不包含原始 URL 和敏感异常文本的投递结果
+     * 执行单次 HTTP 回调；仅 HTTP 200 且正文精确为 succeed（忽略首尾空白）才成功。
      */
-    private NotifyAttemptResult executeHttpNotify(DataMerchantNotificationTaskDO task, LocalDateTime beginTime) {
+    private NotifyAttemptResult executeHttpNotify(DataMerchantNotificationTaskDO task,
+                                                   int attemptNo,
+                                                   String callbackEventId,
+                                                   LocalDateTime beginTime) {
         String targetUrl = resolveTargetUrl(task);
         if (!StringUtils.hasText(targetUrl)) {
-            return new NotifyAttemptResult(false, null, null, "merchant callback url is empty");
+            return new NotifyAttemptResult(false, null, null, "merchant callback url is empty", null, null);
         }
+        MerchantCallbackHttpRequest request = null;
         try {
+            targetValidator.validate(targetUrl);
+            request = StringUtils.hasText(callbackEventId)
+                    ? requestFactory.create(task, attemptNo, callbackEventId)
+                    : requestFactory.create(task, attemptNo);
             ResponseEntity<String> response = restTemplate.postForEntity(
                     targetUrl,
-                    new HttpEntity<>(task.getPayloadJsonMasked(), requestHeaders(task)),
+                    new HttpEntity<>(request.encryptedBody(), request.headers()),
                     String.class);
+            boolean success = response.getStatusCode().value() == 200
+                    && "succeed".equals(response.getBody() == null ? null : response.getBody().trim());
             return new NotifyAttemptResult(
-                    response.getStatusCode().is2xxSuccessful(),
+                    success,
                     response.getStatusCode().value(),
                     safeMaskedResponse(response.getBody()),
-                    response.getStatusCode().is2xxSuccessful()
-                            ? null
-                            : "merchant callback http status " + response.getStatusCode().value());
+                    callbackFailureReason(response, success),
+                    request.eventId(),
+                    request.auditBody());
         } catch (HttpStatusCodeException exception) {
             return new NotifyAttemptResult(
                     false,
                     exception.getStatusCode().value(),
                     safeMaskedResponse(exception.getResponseBodyAsString()),
-                    "merchant callback http status " + exception.getStatusCode().value());
+                    "merchant callback http status " + exception.getStatusCode().value(),
+                    eventId(request),
+                    auditBody(request));
         } catch (RestClientException exception) {
             log.warn("event: DATA_MERCHANT_NOTIFY_HTTP_FAILED traceId: {} notifyId: {} transactionId: {} merchantId: {} callbackUrl: {} exceptionType: {} durationMs: {}",
                     TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
                     safeCallbackUrl(task.getTargetUrlMasked(), targetUrl), exception.getClass().getSimpleName(),
                     durationMillis(beginTime, LocalDateTime.now()));
             return new NotifyAttemptResult(false, null, null,
-                    "merchant callback transport error: " + exception.getClass().getSimpleName());
+                    "merchant callback transport error: " + exception.getClass().getSimpleName(),
+                    eventId(request),
+                    auditBody(request));
+        } catch (RuntimeException exception) {
+            log.warn("event: DATA_MERCHANT_NOTIFY_PROTOCOL_FAILED traceId: {} notifyId: {} transactionId: {} merchantId: {} exceptionType: {} durationMs: {}",
+                    TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
+                    exception.getClass().getSimpleName(), durationMillis(beginTime, LocalDateTime.now()));
+            return new NotifyAttemptResult(false, null, null,
+                    "merchant callback protocol error: " + exception.getClass().getSimpleName(), null, null);
         }
     }
 
-    /**
-     * 构造商户回调请求头；固定 notifyId 是商户侧去重依据，不包含平台密钥或认证原文。
-     *
-     * @param task 商户通知任务
-     * @return HTTP 请求头
-     */
-    private HttpHeaders requestHeaders(DataMerchantNotificationTaskDO task) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-OPGS-Notify-Id", task.getNotifyId());
-        headers.set("X-OPGS-Transaction-Id", task.getTransactionId());
-        return headers;
+    /** 返回已构造请求的事件号；协议构造前失败时不伪造审计标识。 */
+    private String eventId(MerchantCallbackHttpRequest request) {
+        return request == null ? null : request.eventId();
+    }
+
+    /** 返回允许持久化的脱敏请求摘要，禁止把实际密文或认证信息写入日志表。 */
+    private String auditBody(MerchantCallbackHttpRequest request) {
+        return request == null ? null : request.auditBody();
+    }
+
+    /** 区分 HTTP 状态失败和 200 响应确认词不匹配。 */
+    private String callbackFailureReason(ResponseEntity<String> response, boolean success) {
+        if (success) {
+            return null;
+        }
+        if (response.getStatusCode().value() != 200) {
+            return "merchant callback http status " + response.getStatusCode().value();
+        }
+        return "merchant callback acknowledgement must be succeed";
     }
 
     /**
@@ -299,8 +380,8 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         logDO.setAttemptNo(attemptNo);
         logDO.setTargetUrlHash(task.getTargetUrlHash());
         logDO.setHttpStatus(result.httpStatus());
-        logDO.setRequestHeaderJsonMasked(JsonUtils.toJsonString(auditHeaders(task)));
-        logDO.setRequestBodyJsonMasked(SensitiveDataMaskUtils.maskJsonSafely(task.getPayloadJsonMasked()));
+        logDO.setRequestHeaderJsonMasked(JsonUtils.toJsonString(auditHeaders(task, attemptNo, result.eventId())));
+        logDO.setRequestBodyJsonMasked(result.auditRequestBody());
         logDO.setResponseBodyJsonMasked(result.responseBody());
         logDO.setSuccess(result.success() ? 1 : 0);
         logDO.setErrorMessage(safeLength(result.errorMessage(), 1_024));
@@ -308,8 +389,7 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         logDO.setDurationMillis(durationMillis(beginTime, finishedTime));
         fillTransactionTime(logDO, task.getTransactionDateTime());
         logDO.setCreateTime(finishedTime);
-        String physicalTable = physicalTable(NOTIFICATION_LOG_TABLE, task.getTransactionDateTime());
-        int affectedRows = notificationLogMapper.insertPhysical(physicalTable, logDO);
+        int affectedRows = notificationLogMapper.insert(logDO);
         if (affectedRows != 1) {
             throw new IllegalStateException("merchant notification attempt log was not inserted");
         }
@@ -318,23 +398,42 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     /**
      * 构造允许写入审计表的请求头摘要。
      */
-    private Map<String, String> auditHeaders(DataMerchantNotificationTaskDO task) {
+    private Map<String, String> auditHeaders(DataMerchantNotificationTaskDO task,
+                                             int attemptNo,
+                                             String eventId) {
         Map<String, String> headers = new LinkedHashMap<>();
-        headers.put("Content-Type", MediaType.APPLICATION_JSON_VALUE);
-        headers.put("X-OPGS-Notify-Id", task.getNotifyId());
-        headers.put("X-OPGS-Transaction-Id", task.getTransactionId());
+        headers.put("Authorization", "Bearer ***");
+        headers.put("Content-Type", "application/json; charset=UTF-8");
+        headers.put(MerchantCallbackRequestFactory.HEADER_CALLBACK_VERSION,
+                MerchantCallbackRequestFactory.CALLBACK_VERSION);
+        headers.put(MerchantCallbackRequestFactory.HEADER_CALLBACK_TIMES, String.valueOf(attemptNo));
+        headers.put(MerchantCallbackRequestFactory.HEADER_CALLBACK_EVENT_ID, eventId);
+        headers.put(MerchantCallbackRequestFactory.HEADER_NOTIFY_ID, task.getNotifyId());
+        headers.put(MerchantCallbackRequestFactory.HEADER_TRANSACTION_ID, task.getTransactionId());
         return headers;
     }
 
-    /**
-     * 回收进程中断留下的超时 PROCESSING 任务，使定时补偿能够再次抢占。
-     */
-    private void recoverStaleProcessing(String physicalTable, LocalDateTime now) {
+    /** 先查询单季度有界候选，再逐条 CAS 回收超时 PROCESSING 任务。 */
+    private void recoverStaleProcessing(LocalDateTime beginTime, LocalDateTime now) {
         LocalDateTime staleBefore = now.minusSeconds(properties.getProcessingTimeoutSeconds());
-        int recovered = notificationMapper.recoverStaleProcessing(physicalTable, staleBefore, now);
+        List<DataMerchantNotificationTaskDO> candidates = notificationMapper.selectStaleProcessing(
+                beginTime,
+                beginTime.plusMonths(3),
+                staleBefore,
+                properties.getRecoveryBatchLimit());
+        int recovered = 0;
+        for (DataMerchantNotificationTaskDO candidate : candidates) {
+            validateTaskTransactionDateTime(candidate);
+            recovered += notificationMapper.recoverStaleProcessingCas(
+                    candidate.getId(),
+                    candidate.getTransactionDateTime(),
+                    candidate.getVersion(),
+                    staleBefore,
+                    now);
+        }
         if (recovered > 0) {
-            log.warn("event: DATA_MERCHANT_NOTIFY_PROCESSING_RECOVERED traceId: {} physicalTable: {} staleBefore: {} recoveredCount: {}",
-                    TraceContext.getTraceId(), physicalTable, staleBefore, recovered);
+            log.warn("event: DATA_MERCHANT_NOTIFY_PROCESSING_RECOVERED traceId: {} quarterBegin: {} staleBefore: {} recoveredCount: {}",
+                    TraceContext.getTraceId(), beginTime, staleBefore, recovered);
         }
     }
 
@@ -419,16 +518,26 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         target.setTransactionTimeZone(DEFAULT_TIME_ZONE);
     }
 
-    /** 解析并校验交易时间对应的通知物理分表。 */
-    private String physicalTable(String logicalTable, LocalDateTime transactionDateTime) {
-        return shardingDataTemplate.resolvePhysicalTable(
-                ShardingSingleTableContext.of(logicalTable, transactionDateTime, DataSourceName.MASTER));
+    /** 返回交易时间所在季度的半开区间起点。 */
+    private LocalDateTime quarterBegin(LocalDateTime transactionDateTime) {
+        int firstMonth = ((transactionDateTime.getMonthValue() - 1) / 3) * 3 + 1;
+        return LocalDateTime.of(transactionDateTime.getYear(), firstMonth, 1, 0, 0);
     }
 
     /** 校验交易分表时间。 */
     private void validateTransactionDateTime(LocalDateTime transactionDateTime) {
         if (transactionDateTime == null) {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_date_time is required");
+        }
+    }
+
+    /** 校验数据库任务携带可精确路由的交易分片时间，并在任何状态更新前失败。 */
+    private void validateTaskTransactionDateTime(DataMerchantNotificationTaskDO task) {
+        if (task == null || task.getTransactionDateTime() == null) {
+            throw new IllegalStateException("merchant notification task transaction_date_time is required");
+        }
+        if (task.getId() == null || task.getVersion() == null) {
+            throw new IllegalStateException("merchant notification task id and version are required for CAS");
         }
     }
 
@@ -455,6 +564,8 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     private record NotifyAttemptResult(boolean success,
                                        Integer httpStatus,
                                        String responseBody,
-                                       String errorMessage) {
+                                       String errorMessage,
+                                       String eventId,
+                                       String auditRequestBody) {
     }
 }

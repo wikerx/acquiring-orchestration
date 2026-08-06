@@ -11,7 +11,12 @@ public interface RiskPaymentTransactionStatusRepository {
      * 从支付事实表读取交易状态，并区分 FOUND、ABSENT 与查询失败 UNKNOWN。
      *
      * @param transactionId 平台交易号
+     * @param beginTime 交易所属业务周期开始时间，包含
+     * @param endTimeExclusive 交易所属业务周期结束时间，不包含
      * @return 三态查询结果
      */
-    PaymentTransactionLookupResult findStatus(String transactionId);
+    PaymentTransactionLookupResult findStatus(
+            String transactionId,
+            java.time.LocalDateTime beginTime,
+            java.time.LocalDateTime endTimeExclusive);
 }

@@ -17,7 +17,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.time.LocalDateTime;
 
 import static com.scott.payment.component.core.model.CommonResult.success;
 
@@ -83,13 +87,21 @@ public class AdminTransactionOrderController {
      * 查询交易聚合详情。
      *
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表返回的真实交易分片时间
+     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
      * @return 交易聚合详情
      */
     @GetMapping("/{transactionId}")
     @RequiresPermission("transaction:order:detail")
     @OperationLog(moduleName = "交易主单管理", businessType = OperationTypeConstants.QUERY, operation = "查询交易主单详情")
-    public CommonResult<TransactionDetailResponse> detail(@PathVariable("transactionId") String transactionId) {
-        return success(transactionApplicationService.detail(transactionId));
+    public CommonResult<TransactionDetailResponse> detail(
+            @PathVariable("transactionId") String transactionId,
+            @RequestParam("transactionDateTime")
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime transactionDateTime,
+            @RequestParam("rootTransactionDateTime")
+            @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS") LocalDateTime rootTransactionDateTime) {
+        return success(transactionApplicationService.detail(
+                transactionId, transactionDateTime, rootTransactionDateTime));
     }
 
     /**

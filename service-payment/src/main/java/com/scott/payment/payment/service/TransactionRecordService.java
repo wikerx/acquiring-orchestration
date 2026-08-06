@@ -20,7 +20,7 @@ import java.util.List;
  * @classname : TransactionRecordService
  * @date : 2026-07-14 17:45
  * @email : scott_x@163.com
- * @description : 交易事实记录服务，位于 service-payment 服务层，负责把交易主单、动作单和状态历史写入 transaction_date_time 对应物理分表。
+ * @description : 交易事实记录服务，位于 service-payment 服务层，负责冻结 transaction_date_time 并通过交易逻辑表持久化主单、动作单和状态历史。
  * @status : create
  */
 public interface TransactionRecordService {
@@ -96,15 +96,28 @@ public interface TransactionRecordService {
     TransactionOrderDO findOrder(LocalDateTime transactionDateTime, String operationId);
 
     /**
-     * 按平台当前交易 ID 定位所属生命周期主单。
+     * 为不携带业务时间的外部渠道回调受控恢复生命周期主单。
      * <p>
-     * 商户后续动作只需要传 sourceTransactionId；支付核心先用平台交易号中的业务时间定位动作分表，
-     * 再通过动作单的 operation_id 读取生命周期主单。
+     * 商户同步查询、SDK 后续动作和管理端页面不得调用该方法，必须使用同时携带动作时间和根主单时间的重载。
      *
-     * @param sourceTransactionId 原平台交易 ID
+     * @param sourceTransactionId 渠道回调中可验证的平台交易 ID
      * @return 原交易生命周期主单
      */
     TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId);
+
+    /**
+     * 使用动作分片时间和根主单分片时间定位交易生命周期。
+     *
+     * @param sourceTransactionId       源平台交易 ID
+     * @param sourceTransactionDateTime 源动作单分片时间
+     * @param rootTransactionDateTime   生命周期根主单分片时间
+     * @return 原交易生命周期主单
+     */
+    default TransactionOrderDO findSourceOrderByTransactionId(String sourceTransactionId,
+                                                              LocalDateTime sourceTransactionDateTime,
+                                                              LocalDateTime rootTransactionDateTime) {
+        return findSourceOrderByTransactionId(sourceTransactionId);
+    }
 
     /**
      * 按原交易业务时间和 operation_id 锁定生命周期主单。
@@ -118,27 +131,45 @@ public interface TransactionRecordService {
     TransactionOrderDO lockOrder(LocalDateTime transactionDateTime, String operationId);
 
     /**
-     * 按平台当前交易 ID 定位原交易动作单。
+     * 为不携带业务时间的外部渠道回调受控恢复原交易动作单。
      * <p>
-     * 后续动作需要原动作的渠道交易 ID，例如 MPGS VOID 的 targetTransactionId 必须使用原动作的 channel_transaction_id。
+     * 同步业务调用必须使用携带 {@code sourceTransactionDateTime} 的重载，避免依赖业务编号编码规则。
      *
-     * @param sourceTransactionId 原平台交易 ID
+     * @param sourceTransactionId 渠道回调中可验证的平台交易 ID
      * @return 原交易动作单
      */
     TransactionOperationDO findSourceOperationByTransactionId(String sourceTransactionId);
 
     /**
+     * 按调用链传递的原始交易时间定位动作单，避免从交易号恢复时间时丢失数据库时间精度。
+     *
+     * @param sourceTransactionId       平台交易 ID
+     * @param sourceTransactionDateTime 原始交易分片时间
+     * @return 原交易动作单
+     */
+    default TransactionOperationDO findSourceOperationByTransactionId(
+            String sourceTransactionId,
+            LocalDateTime sourceTransactionDateTime) {
+        return findSourceOperationByTransactionId(sourceTransactionId);
+    }
+
+    /**
      * 按商户订单号查询同一订单下的交易动作。
      * <p>
-     * 商户查询接口不要求传原交易时间；支付核心按分表规则从最小可查表扫描到当前表，并通过 merchantId + merchantOrderNo
-     * 控制数据归属，transactionId 仅作为可选精确过滤条件。
+     * 查询必须携带动作时间和根主单时间。指定 transactionId 时只路由动作所在季度；未指定时从根主单季度扫描到当前季度。
      *
      * @param merchantId      平台商户号
      * @param merchantOrderNo 商户订单号
      * @param transactionId   平台交易 ID，可为空
+     * @param transactionDateTime 目标动作分片时间
+     * @param rootTransactionDateTime 生命周期根主单分片时间
      * @return 交易动作列表
      */
-    List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId, String merchantOrderNo, String transactionId);
+    List<TransactionOperationDO> findOperationsByMerchantOrder(String merchantId,
+                                                               String merchantOrderNo,
+                                                               String transactionId,
+                                                               LocalDateTime transactionDateTime,
+                                                               LocalDateTime rootTransactionDateTime);
 
     /**
      * 按商户订单号查询同一订单下的首次起点交易动作。
@@ -241,7 +272,7 @@ public interface TransactionRecordService {
     /**
      * 查询待渠道查询确认的动作单。
      *
-     * @param transactionDateTime 交易业务时间，用于定位物理分表
+     * @param transactionDateTime 交易业务时间，用于 ShardingSphere 精确定位季度
      * @param channelCode 渠道编码，可为空
      * @param now 当前时间
      * @param limit 最大查询数量

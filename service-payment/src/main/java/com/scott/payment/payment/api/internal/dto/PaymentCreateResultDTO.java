@@ -1,5 +1,6 @@
 package com.scott.payment.payment.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -191,7 +192,14 @@ public class PaymentCreateResultDTO implements Serializable {
     /**
      * 交易发生时间。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
+
+    /**
+     * 生命周期根主单的分片时间。首次交易与 transactionDateTime 相同，后续动作沿用原主单时间。
+     */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
+    private LocalDateTime rootTransactionDateTime;
 
     /**
      * 交易发生时区。

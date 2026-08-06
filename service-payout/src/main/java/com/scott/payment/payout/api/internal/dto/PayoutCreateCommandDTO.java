@@ -1,5 +1,6 @@
 package com.scott.payment.payout.api.internal.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -48,5 +49,6 @@ public class PayoutCreateCommandDTO {
     /**
      * 请求时间。
      */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS")
     private LocalDateTime transactionDateTime;
 }

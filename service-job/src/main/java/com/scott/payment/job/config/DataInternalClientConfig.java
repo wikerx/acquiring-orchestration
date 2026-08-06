@@ -26,12 +26,6 @@ import java.time.Duration;
 @EnableConfigurationProperties(DataInternalClientProperties.class)
 public class DataInternalClientConfig {
 
-    /** service-data 内部调用建连超时，单位毫秒。 */
-    private static final int CONNECT_TIMEOUT_MILLIS = 3_000;
-
-    /** service-data 内部调用读取超时，单位毫秒。 */
-    private static final int READ_TIMEOUT_MILLIS = 30_000;
-
     /**
      * 注册 service-data 直连客户端。
      *
@@ -39,11 +33,13 @@ public class DataInternalClientConfig {
      * @return 禁用系统代理的直连 RestTemplate
      */
     @Bean("jobDataInternalRestTemplate")
-    public RestTemplate jobDataInternalRestTemplate(TraceIdRestTemplateCustomizer traceCustomizer) {
+    public RestTemplate jobDataInternalRestTemplate(TraceIdRestTemplateCustomizer traceCustomizer,
+                                                    DataInternalClientProperties properties) {
+        validateTimeouts(properties);
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setProxy(Proxy.NO_PROXY);
-        requestFactory.setConnectTimeout(CONNECT_TIMEOUT_MILLIS);
-        requestFactory.setReadTimeout(READ_TIMEOUT_MILLIS);
+        requestFactory.setConnectTimeout(properties.getConnectTimeoutMillis());
+        requestFactory.setReadTimeout(properties.getReadTimeoutMillis());
         return traceCustomizer.customize(new RestTemplate(requestFactory));
     }
 
@@ -57,11 +53,20 @@ public class DataInternalClientConfig {
     @Bean("jobDataInternalLoadBalancedRestTemplate")
     @LoadBalanced
     public RestTemplate jobDataInternalLoadBalancedRestTemplate(RestTemplateBuilder restTemplateBuilder,
-                                                                TraceIdRestTemplateInterceptor traceInterceptor) {
+                                                                TraceIdRestTemplateInterceptor traceInterceptor,
+                                                                DataInternalClientProperties properties) {
+        validateTimeouts(properties);
         return restTemplateBuilder
-                .setConnectTimeout(Duration.ofMillis(CONNECT_TIMEOUT_MILLIS))
-                .setReadTimeout(Duration.ofMillis(READ_TIMEOUT_MILLIS))
+                .setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMillis()))
+                .setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMillis()))
                 .additionalInterceptors(traceInterceptor)
                 .build();
+    }
+
+    /** 拒绝无界或立即超时的内部客户端配置。 */
+    private void validateTimeouts(DataInternalClientProperties properties) {
+        if (properties.getConnectTimeoutMillis() <= 0 || properties.getReadTimeoutMillis() <= 0) {
+            throw new IllegalArgumentException("job data-client timeouts must be greater than zero");
+        }
     }
 }

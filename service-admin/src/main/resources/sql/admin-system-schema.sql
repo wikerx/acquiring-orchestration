@@ -245,6 +245,7 @@ CREATE TABLE IF NOT EXISTS sys_role (
     app_id BIGINT NOT NULL COMMENT '系统应用ID',
     role_code VARCHAR(80) NOT NULL COMMENT '角色编码',
     role_name VARCHAR(100) NOT NULL COMMENT '角色名称',
+    merchant_id VARCHAR(32) NULL COMMENT '商户号，商户系统角色必须绑定当前商户',
     role_type VARCHAR(30) NOT NULL DEFAULT 'CUSTOM' COMMENT '角色类型：SYSTEM系统内置，CUSTOM自定义',
     data_scope VARCHAR(30) NOT NULL DEFAULT 'SELF' COMMENT '数据范围：ALL全部，SELF本人，CUSTOM自定义',
     description VARCHAR(500) NULL COMMENT '角色说明',
@@ -257,7 +258,8 @@ CREATE TABLE IF NOT EXISTS sys_role (
     deleted BIGINT NOT NULL DEFAULT 0 COMMENT '删除标识：0未删除，大于0为删除记录ID',
     PRIMARY KEY (id),
     UNIQUE KEY uk_sys_role_app_code_deleted (app_id, role_code, deleted),
-    KEY idx_sys_role_app_status (app_id, status, deleted)
+    KEY idx_sys_role_app_status (app_id, status, deleted),
+    KEY idx_sys_role_merchant (merchant_id, status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色表';
 
 CREATE TABLE IF NOT EXISTS sys_menu (
@@ -802,7 +804,7 @@ VALUES
     (301, 1, 231, 'merchant:info:list', '商户信息查询', 'MENU', 'GET', '/merchant/info', 1, 0),
     (302, 1, 231, 'merchant:info:detail', '商户详情', 'BUTTON', '*', '/admin/merchants/**', 1, 0),
     (303, 1, 231, 'merchant:info:edit', '商户编辑', 'BUTTON', '*', '/admin/merchants/**', 1, 0),
-    (304, 1, 231, 'merchant:info:disable', '商户停用', 'BUTTON', '*', '/admin/merchants/**/disable', 1, 0),
+    (304, 1, 231, 'merchant:info:changeStatus', '商户冻结/解冻', 'BUTTON', 'PUT', '/admin/merchants/**/status', 1, 0),
     (311, 1, 231, 'merchant:account:list', '商户账号查询', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),
     (312, 1, 231, 'merchant:account:add', '商户账号新增', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),
     (313, 1, 231, 'merchant:account:edit', '商户账号编辑', 'BUTTON', '*', '/admin/merchant-accounts/**', 1, 0),
@@ -909,10 +911,11 @@ WHERE role_permission.app_id = 1
   AND permission.id < 200
   AND role_permission.deleted = 0;
 
-INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, merchant_id, role_type, data_scope, description, status, sort_no, deleted)
 SELECT 2,
        CONCAT('MERCHANT_ADMIN_', merchant_id),
        CONCAT(merchant_name, ' 商户管理员'),
+       merchant_id,
        'SYSTEM',
        'SELF',
        CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认拥有商户端全部菜单和权限'),
@@ -922,10 +925,11 @@ SELECT 2,
 FROM base_merchant_info
 WHERE merchant_status = 1 AND deleted = 0;
 
-INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, merchant_id, role_type, data_scope, description, status, sort_no, deleted)
 SELECT 2,
        CONCAT('MERCHANT_OPERATOR_', merchant_id),
        CONCAT(merchant_name, ' 商户操作员'),
+       merchant_id,
        'SYSTEM',
        'SELF',
        CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认拥有商户端业务操作权限'),
@@ -935,10 +939,11 @@ SELECT 2,
 FROM base_merchant_info
 WHERE merchant_status = 1 AND deleted = 0;
 
-INSERT IGNORE INTO sys_role (app_id, role_code, role_name, role_type, data_scope, description, status, sort_no, deleted)
+INSERT IGNORE INTO sys_role (app_id, role_code, role_name, merchant_id, role_type, data_scope, description, status, sort_no, deleted)
 SELECT 2,
        CONCAT('MERCHANT_VIEWER_', merchant_id),
        CONCAT(merchant_name, ' 商户查看员'),
+       merchant_id,
        'SYSTEM',
        'SELF',
        CONCAT('绑定商户ID=', id, '，商户号=', merchant_id, '，默认仅拥有商户端查询权限'),
@@ -1950,10 +1955,12 @@ CREATE TABLE IF NOT EXISTS msg_email_send_record (
     bcc_emails TEXT NULL COMMENT '密送邮箱JSON数组',
     subject VARCHAR(500) NOT NULL COMMENT '邮件标题',
     content_snapshot LONGTEXT NULL COMMENT '邮件正文快照，敏感内容需脱敏',
+    delivery_content_cipher LONGTEXT NULL COMMENT '实际投递正文 AES-GCM 密文，发送成功后清空',
+    content_type VARCHAR(16) NULL COMMENT '实际投递正文类型：HTML、TEXT',
     variables_snapshot JSON NULL COMMENT '模板变量快照，敏感变量需脱敏',
     biz_type VARCHAR(64) NULL COMMENT '业务类型',
     biz_no VARCHAR(100) NULL COMMENT '业务单号',
-    send_status TINYINT NOT NULL DEFAULT 0 COMMENT '发送状态：0待发送，1发送中，2发送成功，3发送失败，4重试中，5已取消',
+    send_status TINYINT NOT NULL DEFAULT 0 COMMENT '发送状态：0待发送，1发送中，2发送成功，3已关闭，4等待重试，5已取消',
     retry_count INT NOT NULL DEFAULT 0 COMMENT '已重试次数',
     max_retry_count INT NOT NULL DEFAULT 0 COMMENT '最大重试次数',
     next_retry_time DATETIME(3) NULL COMMENT '下次重试时间',
@@ -1977,7 +1984,9 @@ CREATE TABLE IF NOT EXISTS msg_email_send_record (
     KEY idx_email_record_template (template_code),
     KEY idx_email_record_biz (biz_type, biz_no),
     KEY idx_email_record_create_time (create_time),
-    KEY idx_email_record_send_time (send_success_time)
+    KEY idx_email_record_send_time (send_success_time),
+    KEY idx_email_record_retry (app_code, send_status, next_retry_time, deleted),
+    KEY idx_email_record_recovery (app_code, send_status, send_start_time, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮件发送记录表';
 
 INSERT INTO sys_dict_type (id, dict_name, dict_type, biz_domain, system_builtin, editable, status, deleted)
@@ -2012,6 +2021,7 @@ VALUES
 (5025, 'email_scene_code', '密钥变更通知', 'API_KEY_CHANGED', 'zh-CN', 6, 'danger', 0, 1, 0),
 (5026, 'email_scene_code', '管理系统 MFA 安全通知', 'ADMIN_MFA', 'zh-CN', 7, 'danger', 0, 1, 0),
 (5027, 'email_scene_code', '商户 MFA 安全通知', 'MERCHANT_MFA', 'zh-CN', 8, 'danger', 0, 1, 0),
+(5028, 'email_scene_code', '密码变更通知', 'PASSWORD_CHANGED', 'zh-CN', 9, 'warning', 0, 1, 0),
 (5030, 'email_provider_type', 'SMTP', 'SMTP', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5040, 'email_encryption_type', 'SSL', 'SSL', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5041, 'email_encryption_type', 'TLS', 'TLS', 'zh-CN', 2, 'primary', 0, 1, 0),
@@ -2023,8 +2033,8 @@ VALUES
 (5060, 'email_send_status', '待发送', '0', 'zh-CN', 1, 'info', 1, 1, 0),
 (5061, 'email_send_status', '发送中', '1', 'zh-CN', 2, 'warning', 0, 1, 0),
 (5062, 'email_send_status', '发送成功', '2', 'zh-CN', 3, 'success', 0, 1, 0),
-(5063, 'email_send_status', '发送失败', '3', 'zh-CN', 4, 'danger', 0, 1, 0),
-(5064, 'email_send_status', '重试中', '4', 'zh-CN', 5, 'warning', 0, 1, 0),
+(5063, 'email_send_status', '已关闭', '3', 'zh-CN', 4, 'danger', 0, 1, 0),
+(5064, 'email_send_status', '等待重试', '4', 'zh-CN', 5, 'warning', 0, 1, 0),
 (5065, 'email_send_status', '已取消', '5', 'zh-CN', 6, 'info', 0, 1, 0),
 (5070, 'email_content_type', 'HTML', 'HTML', 'zh-CN', 1, 'primary', 1, 1, 0),
 (5071, 'email_content_type', '纯文本', 'TEXT', 'zh-CN', 2, 'info', 0, 1, 0),
@@ -2041,6 +2051,7 @@ VALUES
 (15025, 'email_scene_code', 'API Key Changed', 'API_KEY_CHANGED', 'en-US', 6, 'danger', 0, 1, 0),
 (15026, 'email_scene_code', 'Admin MFA Security', 'ADMIN_MFA', 'en-US', 7, 'danger', 0, 1, 0),
 (15027, 'email_scene_code', 'Merchant MFA Security', 'MERCHANT_MFA', 'en-US', 8, 'danger', 0, 1, 0),
+(15028, 'email_scene_code', 'Password Changed', 'PASSWORD_CHANGED', 'en-US', 9, 'warning', 0, 1, 0),
 (15030, 'email_provider_type', 'SMTP', 'SMTP', 'en-US', 1, 'primary', 1, 1, 0),
 (15040, 'email_encryption_type', 'SSL', 'SSL', 'en-US', 1, 'primary', 1, 1, 0),
 (15041, 'email_encryption_type', 'TLS', 'TLS', 'en-US', 2, 'primary', 0, 1, 0),
@@ -2052,8 +2063,8 @@ VALUES
 (15060, 'email_send_status', 'Pending', '0', 'en-US', 1, 'info', 1, 1, 0),
 (15061, 'email_send_status', 'Sending', '1', 'en-US', 2, 'warning', 0, 1, 0),
 (15062, 'email_send_status', 'Success', '2', 'en-US', 3, 'success', 0, 1, 0),
-(15063, 'email_send_status', 'Failed', '3', 'en-US', 4, 'danger', 0, 1, 0),
-(15064, 'email_send_status', 'Retrying', '4', 'en-US', 5, 'warning', 0, 1, 0),
+(15063, 'email_send_status', 'Closed', '3', 'en-US', 4, 'danger', 0, 1, 0),
+(15064, 'email_send_status', 'Retry Wait', '4', 'en-US', 5, 'warning', 0, 1, 0),
 (15065, 'email_send_status', 'Cancelled', '5', 'en-US', 6, 'info', 0, 1, 0),
 (15070, 'email_content_type', 'HTML', 'HTML', 'en-US', 1, 'primary', 1, 1, 0),
 (15071, 'email_content_type', 'Text', 'TEXT', 'en-US', 2, 'info', 0, 1, 0);
@@ -2137,18 +2148,18 @@ WHERE NOT EXISTS (
 
 UPDATE msg_email_template
 SET content_template = CASE template_code
-    WHEN 'ADMIN_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如果本次操作不是您本人发起，请立即联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如非本人操作，请及时修改密码或联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'ADMIN_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748b;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0f172a;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#eef3f8;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#1f2937;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #dbe5ef;border-radius:10px;overflow:hidden;"><div style="padding:26px 30px;background:#0f172a;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#cbd5e1;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#f8fafc;border:1px solid #dbe5ef;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#eef8f7;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#172033;"><div style="max-width:660px;margin:0 auto;background:#ffffff;border:1px solid #cde7e3;border-radius:10px;overflow:hidden;"><div style="padding:26px 30px;background:#0f766e;color:#ffffff;"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#b7f4ea;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">商户账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#f0fdfa;border:1px solid #99f6e4;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantId}</strong></p><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#0f766e;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ONBOARDING_APPROVED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#065f46;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请已审核通过。</p><div style="margin:20px 0;padding:18px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0;">审核时间：${reviewTime}</p></div><p style="margin:0 0 12px;">您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563eb;text-decoration:none;">${loginUrl}</a></p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'MERCHANT_ONBOARDING_REJECTED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核未通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请暂未通过审核。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">审核时间：${reviewTime}</p><p style="margin:0;">未通过原因：${rejectReason}</p></div><p style="margin:0;">请根据提示补充或修改资料后重新提交。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_CREATED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#0f172a;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥生成通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已生成。</p><div style="margin:20px 0;padding:18px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_RESET' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#7c2d12;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥重置通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已被重置。</p><div style="margin:20px 0;padding:18px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">新密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">请确认该操作是否由授权人员发起。如非本人或授权人员操作，请立即联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_ENABLED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#065f46;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥启用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已启用。</p><div style="margin:20px 0;padding:18px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
-    WHEN 'API_KEY_DISABLED' THEN '<div style="margin:0;padding:32px;background:#f4f7fb;font-family:Arial,sans-serif;color:#1f2937;"><div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#ffffff;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥停用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已停用。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">如果该操作不是您或授权人员发起，请及时联系平台客服。</p></div><div style="padding:16px 28px;background:#f8fafc;color:#64748b;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如果本次操作不是您本人发起，请立即联系系统管理员。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_LOGIN_OTP' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">登录验证码</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在登录 ${systemName}，本次登录验证码为：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请勿将验证码泄露给他人。</p><p style="margin:0;color:#b45309;">如非本人操作，请及时修改密码或联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件并及时联系系统管理员。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_PASSWORD_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">找回密码验证</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${userName}：</p><p style="margin:0 0 16px;">您正在进行 ${systemName} 找回密码操作。请使用以下验证码完成身份验证：</p><div style="margin:20px 0;padding:20px 24px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;text-align:center;"><div style="font-size:13px;color:#64748B;">找回密码验证码</div><div style="margin-top:6px;font-size:32px;letter-spacing:4px;font-weight:700;color:#0F172A;">${verifyCode}</div></div><p style="margin:0 0 12px;">验证码有效期为 ${expireMinutes} 分钟，请在有效期内完成密码重置。</p><p style="margin:0;color:#b45309;">如果不是您本人操作，请忽略本邮件。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'ADMIN_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:660px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:26px 30px;background:#2563EB;color:#FFFFFF;"><div style="font-size:12px;letter-spacing:0;text-transform:uppercase;color:#DBEAFE;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ACCOUNT_CREATED' THEN '<div style="margin:0;padding:34px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:660px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:26px 30px;background:#2563EB;color:#FFFFFF;"><div style="font-size:12px;letter-spacing:0;text-transform:uppercase;color:#DBEAFE;">${systemName}</div><div style="margin-top:8px;font-size:24px;font-weight:700;">商户账号已开通</div></div><div style="padding:30px;line-height:1.8;font-size:14px;"><p style="margin:0 0 14px;">您好，${userName}：</p><p style="margin:0 0 14px;">您的 ${systemName} 账号已创建成功，请使用以下信息登录。</p><div style="margin:22px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantId}</strong></p><p style="margin:0 0 8px;">商户名称：<strong>${merchantName}</strong></p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">初始密码：<strong>${initialPassword}</strong></p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><p style="margin:0 0 10px;">${verifyCodeGuide}</p><p style="margin:0 0 10px;">${mfaGuide}</p><p style="margin:0;color:#9a3412;">邮件不会包含 MFA 密钥、二维码或 MFA 验证码。首次登录后请立即修改密码。</p></div><div style="padding:16px 30px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ONBOARDING_APPROVED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请已审核通过。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0;">审核时间：${reviewTime}</p></div><p style="margin:0 0 12px;">您可以登录商户系统查看商户资料、配置 API 密钥并进行后续对接。</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;text-decoration:none;">${loginUrl}</a></p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'MERCHANT_ONBOARDING_REJECTED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">商户开户审核未通过</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户开户申请暂未通过审核。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">审核时间：${reviewTime}</p><p style="margin:0;">未通过原因：${rejectReason}</p></div><p style="margin:0;">请根据提示补充或修改资料后重新提交。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_CREATED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥生成通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已生成。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">为保障账户安全，邮件中不会展示完整密钥内容。请登录商户系统查看或下载相关密钥信息。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_RESET' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#7c2d12;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥重置通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已被重置。</p><div style="margin:20px 0;padding:18px 20px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">新密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">请确认该操作是否由授权人员发起。如非本人或授权人员操作，请立即联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_ENABLED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥启用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已启用。</p><div style="margin:20px 0;padding:18px 20px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
+    WHEN 'API_KEY_DISABLED' THEN '<div style="margin:0;padding:32px;background:#F3F7FF;font-family:Arial,sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:22px 28px;background:#991b1b;color:#FFFFFF;"><div style="font-size:13px;opacity:.78;">${systemName}</div><div style="margin-top:4px;font-size:20px;font-weight:700;">API 密钥停用通知</div></div><div style="padding:28px;line-height:1.8;font-size:14px;"><p style="margin:0 0 16px;">您好，${merchantName}：</p><p style="margin:0 0 16px;">您的商户 API 密钥已停用。</p><div style="margin:20px 0;padding:18px 20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;"><p style="margin:0 0 8px;">商户号：<strong>${merchantNo}</strong></p><p style="margin:0 0 8px;">密钥名称：${keyName}</p><p style="margin:0 0 8px;">密钥尾号：<strong>${keyLast4}</strong></p><p style="margin:0 0 8px;">操作人：${operatorName}</p><p style="margin:0;">操作时间：${operationTime}</p></div><p style="margin:0;color:#b45309;">如果该操作不是您或授权人员发起，请及时联系平台客服。</p></div><div style="padding:16px 28px;background:#F3F7FF;color:#64748B;font-size:12px;">此邮件由 ${systemName} 自动发送，请勿直接回复。</div></div></div>'
     ELSE content_template
 END,
 update_by = 'system',
@@ -2184,6 +2195,49 @@ WHERE system_builtin = 1
   AND locale = 'zh-CN'
   AND template_code IN ('ADMIN_ACCOUNT_CREATED', 'MERCHANT_ACCOUNT_CREATED')
   AND deleted = 0;
+
+INSERT INTO msg_email_template (
+    template_code, template_name, app_code, scene_code, locale, subject_template, content_type,
+    content_template, variable_schema, sensitive_variable_names, status, system_builtin, version_no,
+    remark, create_by, update_by, deleted
+)
+SELECT item.template_code, item.template_name, item.app_code, 'PASSWORD_CHANGED', 'zh-CN',
+       item.subject_template, 'HTML', item.content_template, item.variable_schema,
+       '["temporaryPassword"]', 1, 1, 2, item.remark, 'system', 'system', 0
+FROM (
+    SELECT 'ADMIN_PASSWORD_CHANGED_BY_ADMIN' template_code,
+           '管理系统密码变更通知' template_name,
+           'ADMIN' app_code,
+           '【${systemName}】密码已由管理员修改' subject_template,
+           '<div style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Admin</div><div style="margin-top:6px;font-size:22px;font-weight:700;">管理系统密码已修改</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 14px;font-size:20px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 16px;color:#64748B;">您的管理系统密码已由 ${operatorName} 修改。</p><div style="margin:18px 0;padding:18px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:6px;"><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">临时密码：<strong>${temporaryPassword}</strong></p><p style="margin:0 0 8px;">操作时间：${operationTime}</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;word-break:break-all;">${loginUrl}</a></p></div><div style="padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">请登录后立即修改密码。如非本人授权，请立即联系系统管理员。</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由系统自动发送，请勿直接回复或转发敏感信息。</div></div></div>' content_template,
+           '{"systemName":"Vexra Admin","userName":"张三","loginAccount":"admin@example.com","temporaryPassword":"******","operatorName":"系统管理员","operationTime":"2026-07-29 10:00:00","loginUrl":"https://admin.example.com/login"}' variable_schema,
+           '系统内置模板：管理员修改管理系统账号密码通知' remark
+    UNION ALL SELECT 'MERCHANT_PASSWORD_CHANGED_BY_ADMIN',
+           '商户系统密码变更通知',
+           'MERCHANT',
+           '【${systemName}】密码已由管理员修改',
+           '<div style="margin:0;padding:32px 16px;background:#F3F7FF;font-family:Arial,''Microsoft YaHei'',sans-serif;color:#0F172A;"><div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #DBEAFE;border-radius:8px;overflow:hidden;"><div style="padding:24px 28px;background:#2563EB;color:#FFFFFF;"><div style="font-size:13px;color:#DBEAFE;">Vexra Merchant</div><div style="margin-top:6px;font-size:22px;font-weight:700;">商户系统密码已修改</div></div><div style="padding:28px;line-height:1.7;font-size:14px;"><p style="margin:0 0 14px;font-size:20px;font-weight:700;">您好，${userName}</p><p style="margin:0 0 16px;color:#64748B;">您的商户系统密码已由 ${operatorName} 修改。</p><div style="margin:18px 0;padding:18px;background:#F3F7FF;border:1px solid #DBEAFE;border-radius:6px;"><p style="margin:0 0 8px;">商户：<strong>${merchantName}</strong>（${merchantId}）</p><p style="margin:0 0 8px;">登录账号：<strong>${loginAccount}</strong></p><p style="margin:0 0 8px;">临时密码：<strong>${temporaryPassword}</strong></p><p style="margin:0 0 8px;">操作时间：${operationTime}</p><p style="margin:0;">登录地址：<a href="${loginUrl}" style="color:#2563EB;word-break:break-all;">${loginUrl}</a></p></div><div style="padding:12px 14px;background:#FEF2F2;border-left:4px solid #DC2626;color:#991B1B;">请登录后立即修改密码。如非本人授权，请立即联系商户管理员。</div></div><div style="padding:16px 28px;background:#F3F7FF;border-top:1px solid #DBEAFE;color:#64748B;font-size:12px;">此邮件由系统自动发送，请勿直接回复或转发敏感信息。</div></div></div>',
+           '{"systemName":"Vexra Merchant","userName":"张三","merchantId":"M10000001","merchantName":"示例商户","loginAccount":"merchant@example.com","temporaryPassword":"******","operatorName":"商户管理员","operationTime":"2026-07-29 10:00:00","loginUrl":"https://merchant.example.com/login"}',
+           '系统内置模板：商户管理员修改员工密码通知'
+) item
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM msg_email_template existing
+    WHERE existing.template_code = item.template_code
+      AND existing.locale = 'zh-CN'
+      AND existing.deleted = 0
+);
+
+DELETE FROM msg_email_template
+WHERE template_code IN (
+    'ADMIN_LOGIN_OTP',
+    'MERCHANT_LOGIN_OTP',
+    'ADMIN_PASSWORD_RESET',
+    'MERCHANT_PASSWORD_RESET',
+    'MERCHANT_ONBOARDING_APPROVED',
+    'MERCHANT_ONBOARDING_REJECTED',
+    'MERCHANT_MFA_EXEMPT_NOTICE_COPY_1785241605402'
+);
 
 INSERT IGNORE INTO sys_menu (id, app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 VALUES
@@ -2287,7 +2341,8 @@ VALUES
 (1072, 1, 1045, 'transaction:merchant-notification:detail', '商户回调记录详情', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/search', 1, 0),
 (1073, 1, 1041, 'transaction:order:export', '交易主单导出', 'BUTTON', 'POST', '/admin/transactions/orders/export', 1, 0),
 (1074, 1, 1042, 'transaction:operation:export', '交易动作导出', 'BUTTON', 'POST', '/admin/transactions/operations/export', 1, 0),
-(1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0);
+(1075, 1, 1045, 'transaction:merchant-notification:export', '商户回调记录导出', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/export', 1, 0),
+(1077, 1, 1045, 'transaction:merchant-notification:retry', '商户终态回调重发', 'BUTTON', 'POST', '/admin/transactions/merchant-notifications/retry', 1, 0);
 
 INSERT INTO sys_menu (app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path, permission_code, icon, visible, sort_no, status, deleted)
 SELECT 1, parent.id, button.menu_code, button.menu_name, 'BUTTON', NULL, NULL, button.permission_code, NULL, 0, button.sort_no, 1, 0
@@ -2304,6 +2359,7 @@ JOIN (
     UNION ALL SELECT 'admin_transaction_channel_callback_v1', 'admin_transaction_channel_callback_detail_v1', '渠道回调记录详情', 'transaction:channel-callback:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_detail_v1', '商户回调记录详情', 'transaction:merchant-notification:detail', 1
     UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_export_v1', '商户回调记录导出', 'transaction:merchant-notification:export', 2
+    UNION ALL SELECT 'admin_transaction_merchant_notification_v1', 'admin_transaction_merchant_notification_retry_v1', '商户终态回调重发', 'transaction:merchant-notification:retry', 3
 ) button ON button.parent_code = parent.menu_code
 WHERE parent.app_id = 1
   AND parent.deleted = 0

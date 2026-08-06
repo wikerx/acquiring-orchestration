@@ -49,9 +49,13 @@ public interface TransactionQueryService {
      * 查询交易详情聚合数据。
      *
      * @param transactionId 平台交易 ID
+     * @param transactionDateTime 列表返回的当前动作真实分片时间
+     * @param rootTransactionDateTime 列表返回的生命周期根主单真实分片时间
      * @return 交易详情
      */
-    TransactionDetailResponse detail(String transactionId);
+    TransactionDetailResponse detail(String transactionId,
+                                     java.time.LocalDateTime transactionDateTime,
+                                     java.time.LocalDateTime rootTransactionDateTime);
 
     /**
      * 分页查询渠道交互日志。

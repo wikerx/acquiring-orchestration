@@ -7,8 +7,12 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.connection.DataType;
+import org.springframework.data.redis.connection.RedisClusterCommands;
+import org.springframework.data.redis.connection.RedisClusterConnection;
+import org.springframework.data.redis.connection.RedisClusterNode;
+import org.springframework.data.redis.connection.RedisClusterServerCommands;
 import org.springframework.data.redis.connection.RedisConnection;
-import org.springframework.data.redis.connection.RedisKeyCommands;
+import org.springframework.data.redis.connection.RedisServerCommands;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.ScanOptions;
@@ -19,12 +23,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -59,8 +66,8 @@ class AdminMonitorCacheApplicationServiceTests {
     void shouldScanOnlyManagedPlatformConfigurationKeys() {
         log.info("测试平台公开配置缓存扫描，关键输入: acquiring:test:config:public 命名空间");
         ScanFixture fixture = scanFixture(List.of(
-                MANAGED_PREFIX + "platform.gateway.base-url",
-                MANAGED_PREFIX + "platform.checkout.frontend-base-url"
+                List.of(MANAGED_PREFIX + "platform.gateway.base-url"),
+                List.of(MANAGED_PREFIX + "platform.checkout.frontend-base-url")
         ));
         AdminMonitorCacheApplicationService service = service(fixture.template());
 
@@ -70,12 +77,16 @@ class AdminMonitorCacheApplicationServiceTests {
         assertThat(result.get("truncated")).isEqualTo(false);
         assertThat((List<?>) result.get("records")).hasSize(2);
         ArgumentCaptor<ScanOptions> optionsCaptor = ArgumentCaptor.forClass(ScanOptions.class);
-        verify(fixture.keyCommands()).scan(optionsCaptor.capture());
-        assertThat(optionsCaptor.getValue().getPattern()).isEqualTo(MANAGED_PREFIX + "*");
-        assertThat(optionsCaptor.getValue().getCount()).isEqualTo(100L);
+        verify(fixture.clusterConnection()).scan(eq(fixture.masterNodes().get(0)), optionsCaptor.capture());
+        verify(fixture.clusterConnection()).scan(eq(fixture.masterNodes().get(1)), optionsCaptor.capture());
+        assertThat(optionsCaptor.getAllValues())
+                .allSatisfy(options -> {
+                    assertThat(options.getPattern()).isEqualTo(MANAGED_PREFIX + "*");
+                    assertThat(options.getCount()).isEqualTo(100L);
+                });
         verify(fixture.template(), never()).keys(anyString());
-        verify(fixture.cursor()).close();
-        log.info("平台公开配置缓存扫描测试完成，结果: 仅使用有界 SCAN 且命名空间正确");
+        fixture.cursors().forEach(cursor -> verify(cursor).close());
+        log.info("平台公开配置缓存扫描测试完成，结果: 逐 Master 使用有界 SCAN 且命名空间正确");
     }
 
     /**
@@ -92,7 +103,9 @@ class AdminMonitorCacheApplicationServiceTests {
         for (int index = 4; index < 1100; index++) {
             keys.add(MANAGED_PREFIX + "unregistered-" + String.format("%04d", index));
         }
-        ScanFixture fixture = scanFixture(keys);
+        ScanFixture fixture = scanFixture(List.of(keys, List.of(
+                MANAGED_PREFIX + "platform.gateway.base-url"
+        )));
         AdminMonitorCacheApplicationService service = service(fixture.template());
 
         Map<String, Object> result = service.keys("*", 1, 500);
@@ -100,7 +113,137 @@ class AdminMonitorCacheApplicationServiceTests {
         assertThat(result.get("total")).isEqualTo(4);
         assertThat(result.get("truncated")).isEqualTo(true);
         assertThat((List<?>) result.get("records")).hasSize(4);
+        verify(fixture.clusterConnection(), never()).scan(eq(fixture.masterNodes().get(1)), any(ScanOptions.class));
         log.info("缓存监控扫描边界测试完成，结果: 检查上限生效且仅返回 4 个公开配置 Key");
+    }
+
+    /**
+     * INFO 必须聚合全部 Master，并跳过 Replica，避免把单节点信息误报为整个 Cluster 状态。
+     */
+    @Test
+    void shouldReadInfoFromEveryClusterMaster() {
+        log.info("测试 Redis Cluster INFO 聚合，关键输入: 2 Master + 1 Replica");
+        ScanFixture fixture = scanFixture(List.of(List.of(), List.of()));
+        RedisClusterServerCommands serverCommands = mock(RedisClusterServerCommands.class);
+        when(fixture.clusterConnection().serverCommands()).thenReturn(serverCommands);
+        Properties firstInfo = new Properties();
+        firstInfo.setProperty("redis_version", "6.2.23");
+        Properties secondInfo = new Properties();
+        secondInfo.setProperty("role", "master");
+        when(serverCommands.info(fixture.masterNodes().get(0))).thenReturn(firstInfo);
+        when(serverCommands.info(fixture.masterNodes().get(1))).thenReturn(secondInfo);
+        AdminMonitorCacheApplicationService service = service(fixture.template());
+
+        Map<String, Object> result = service.info();
+
+        assertThat(result)
+                .containsEntry("connected", true)
+                .containsEntry("deploymentMode", "cluster")
+                .containsEntry("masterCount", 2);
+        assertThat((Map<String, String>) result.get("info"))
+                .containsEntry("redis_version", "6.2.23");
+        assertThat((Map<String, Map<String, String>>) result.get("nodes"))
+                .containsEntry("127.0.0.1:7001", Map.of("redis_version", "6.2.23"))
+                .containsEntry("127.0.0.1:7002", Map.of("role", "master"));
+        verify(serverCommands).info(fixture.masterNodes().get(0));
+        verify(serverCommands).info(fixture.masterNodes().get(1));
+        verify(serverCommands, never()).info(fixture.replicaNode());
+        log.info("Redis Cluster INFO 聚合测试完成，结果: 仅遍历两个 Master");
+    }
+
+    /**
+     * dev 单节点 Redis 必须返回真实连接状态和 INFO 摘要，不能误报为 Cluster 连接失败。
+     */
+    @Test
+    void shouldReadInfoFromStandaloneRedis() {
+        log.info("测试单节点 Redis INFO，关键输入: 非 Cluster RedisConnection");
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        RedisConnection connection = mock(RedisConnection.class);
+        RedisServerCommands serverCommands = mock(RedisServerCommands.class);
+        Properties info = new Properties();
+        info.setProperty("redis_mode", "standalone");
+        info.setProperty("redis_version", "6.2.23");
+        when(connection.serverCommands()).thenReturn(serverCommands);
+        when(serverCommands.info()).thenReturn(info);
+        when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
+                .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
+        AdminMonitorCacheApplicationService service = service(template);
+
+        Map<String, Object> result = service.info();
+
+        assertThat(result)
+                .containsEntry("connected", true)
+                .containsEntry("deploymentMode", "standalone")
+                .containsEntry("masterCount", 1)
+                .containsEntry("info", Map.of("redis_mode", "standalone", "redis_version", "6.2.23"));
+        assertThat((Map<?, ?>) result.get("nodes")).hasSize(1);
+        log.info("单节点 Redis INFO 测试完成，结果: 连接状态、摘要和节点详情均可用");
+    }
+
+    /**
+     * Lettuce 可能通过普通 RedisConnection 返回带节点前缀的 Cluster INFO，监控必须恢复节点结构。
+     */
+    @Test
+    void shouldNormalizeAggregatedClusterInfoFromDefaultConnection() {
+        log.info("测试聚合 Cluster INFO，关键输入: 普通 RedisConnection 返回两个带节点前缀的 Master 属性");
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        RedisConnection connection = mock(RedisConnection.class);
+        RedisServerCommands serverCommands = mock(RedisServerCommands.class);
+        Properties info = new Properties();
+        info.setProperty("node-a.redis_mode", "cluster");
+        info.setProperty("node-a.redis_version", "6.2.23");
+        info.setProperty("node-b.redis_mode", "cluster");
+        info.setProperty("node-b.role", "master");
+        when(connection.serverCommands()).thenReturn(serverCommands);
+        when(serverCommands.info()).thenReturn(info);
+        when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
+                .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
+        AdminMonitorCacheApplicationService service = service(template);
+
+        Map<String, Object> result = service.info();
+
+        assertThat(result)
+                .containsEntry("connected", true)
+                .containsEntry("deploymentMode", "cluster")
+                .containsEntry("masterCount", 2)
+                .containsEntry("info", Map.of("redis_mode", "cluster", "redis_version", "6.2.23"));
+        assertThat((Map<String, Map<String, String>>) result.get("nodes"))
+                .containsEntry("node-a", Map.of("redis_mode", "cluster", "redis_version", "6.2.23"))
+                .containsEntry("node-b", Map.of("redis_mode", "cluster", "role", "master"));
+        log.info("聚合 Cluster INFO 测试完成，结果: 节点前缀已拆分为摘要和逐节点结构");
+    }
+
+    /**
+     * dev 单节点 Redis 的 Key 列表仍必须使用有界 SCAN 和公开配置白名单。
+     */
+    @Test
+    void shouldScanManagedKeysFromStandaloneRedis() {
+        log.info("测试单节点 Redis SCAN，关键输入: 公开配置 Key、pending Key 与未登记 Key");
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        RedisConnection connection = mock(RedisConnection.class);
+        Cursor<byte[]> cursor = cursor(List.of(
+                MANAGED_PREFIX + "platform.gateway.base-url",
+                MANAGED_PREFIX + "pending:platform.gateway.base-url",
+                MANAGED_PREFIX + "unregistered"
+        ));
+        when(connection.scan(any(ScanOptions.class))).thenReturn(cursor);
+        when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
+                .thenAnswer(invocation -> invocation.<RedisCallback<?>>getArgument(0).doInRedis(connection));
+        when(template.type(anyString())).thenReturn(DataType.STRING);
+        when(template.getExpire(anyString())).thenReturn(300L);
+        @SuppressWarnings("unchecked")
+        ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
+        when(template.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.size(anyString())).thenReturn(12L);
+        AdminMonitorCacheApplicationService service = service(template);
+
+        Map<String, Object> result = service.keys(null, 1, 10);
+
+        assertThat(result).containsEntry("total", 1).containsEntry("truncated", false);
+        verify(connection).scan(any(ScanOptions.class));
+        verify(template, never()).keys(anyString());
+        verify(cursor).close();
+        log.info("单节点 Redis SCAN 测试完成，结果: 仅返回登记的公开配置 Key");
     }
 
     /**
@@ -163,7 +306,7 @@ class AdminMonitorCacheApplicationServiceTests {
         String validKey = MANAGED_PREFIX + "platform.gateway.base-url";
         String pendingKey = MANAGED_PREFIX + "pending:platform.gateway.base-url";
         String unregisteredKey = MANAGED_PREFIX + "system.name";
-        ScanFixture fixture = scanFixture(List.of(validKey, pendingKey, unregisteredKey));
+        ScanFixture fixture = scanFixture(List.of(List.of(validKey, pendingKey), List.of(unregisteredKey)));
         AdminMonitorCacheApplicationService service = service(fixture.template());
 
         Map<String, Object> result = service.keys("*", 1, 10);
@@ -211,25 +354,32 @@ class AdminMonitorCacheApplicationServiceTests {
     /**
      * 创建指定物理 Key 列表的 SCAN 测试夹具。
      *
-     * @param physicalKeys Cursor 按顺序返回的完整 Redis Key
-     * @return Redis 模板、KeyCommands 和 Cursor
+     * @param masterPhysicalKeys 每个 Master Cursor 按顺序返回的完整 Redis Key
+     * @return Redis 模板、Cluster 连接、Master 节点和 Cursor
      */
-    private ScanFixture scanFixture(List<String> physicalKeys) {
+    private ScanFixture scanFixture(List<List<String>> masterPhysicalKeys) {
         StringRedisTemplate template = mock(StringRedisTemplate.class);
-        RedisConnection connection = mock(RedisConnection.class);
-        RedisKeyCommands keyCommands = mock(RedisKeyCommands.class);
-        @SuppressWarnings("unchecked")
-        Cursor<byte[]> cursor = mock(Cursor.class);
+        RedisClusterConnection connection = mock(RedisClusterConnection.class);
+        RedisClusterCommands clusterCommands = mock(RedisClusterCommands.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
-        List<byte[]> keys = physicalKeys.stream()
-                .map(key -> key.getBytes(StandardCharsets.UTF_8))
-                .toList();
-        AtomicInteger index = new AtomicInteger();
-        when(cursor.hasNext()).thenAnswer(invocation -> index.get() < keys.size());
-        when(cursor.next()).thenAnswer(invocation -> keys.get(index.getAndIncrement()));
-        when(connection.keyCommands()).thenReturn(keyCommands);
-        when(keyCommands.scan(any(ScanOptions.class))).thenReturn(cursor);
+        List<RedisClusterNode> masterNodes = List.of(
+                clusterNode("127.0.0.1", 7001, RedisClusterNode.Flag.MASTER),
+                clusterNode("127.0.0.1", 7002, RedisClusterNode.Flag.MASTER)
+        );
+        RedisClusterNode replicaNode = clusterNode("127.0.0.1", 7004, RedisClusterNode.Flag.REPLICA);
+        when(connection.clusterCommands()).thenReturn(clusterCommands);
+        when(clusterCommands.clusterGetNodes()).thenReturn(List.of(
+                masterNodes.get(1), replicaNode, masterNodes.get(0)));
+        List<Cursor<byte[]>> cursors = new ArrayList<>();
+        for (int index = 0; index < masterNodes.size(); index++) {
+            List<String> physicalKeys = index < masterPhysicalKeys.size()
+                    ? masterPhysicalKeys.get(index)
+                    : List.of();
+            Cursor<byte[]> cursor = cursor(physicalKeys);
+            cursors.add(cursor);
+            when(connection.scan(eq(masterNodes.get(index)), any(ScanOptions.class))).thenReturn(cursor);
+        }
         when(template.execute(org.mockito.ArgumentMatchers.<RedisCallback<?>>any()))
                 .thenAnswer(invocation -> {
                     RedisCallback<?> callback = invocation.getArgument(0);
@@ -239,11 +389,38 @@ class AdminMonitorCacheApplicationServiceTests {
         when(template.getExpire(anyString())).thenReturn(300L);
         when(template.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.size(anyString())).thenReturn(12L);
-        return new ScanFixture(template, keyCommands, cursor);
+        return new ScanFixture(template, connection, masterNodes, replicaNode, cursors);
+    }
+
+    /**
+     * 创建带角色标记的 Cluster 节点。
+     */
+    private RedisClusterNode clusterNode(String host, int port, RedisClusterNode.Flag flag) {
+        return RedisClusterNode.newRedisClusterNode()
+                .listeningAt(host, port)
+                .withFlags(Set.of(flag))
+                .build();
+    }
+
+    /**
+     * 创建指定物理 Key 序列的 Cursor。
+     */
+    private Cursor<byte[]> cursor(List<String> physicalKeys) {
+        @SuppressWarnings("unchecked")
+        Cursor<byte[]> cursor = mock(Cursor.class);
+        List<byte[]> keys = physicalKeys.stream()
+                .map(key -> key.getBytes(StandardCharsets.UTF_8))
+                .toList();
+        AtomicInteger index = new AtomicInteger();
+        when(cursor.hasNext()).thenAnswer(invocation -> index.get() < keys.size());
+        when(cursor.next()).thenAnswer(invocation -> keys.get(index.getAndIncrement()));
+        return cursor;
     }
 
     private record ScanFixture(StringRedisTemplate template,
-                               RedisKeyCommands keyCommands,
-                               Cursor<byte[]> cursor) {
+                               RedisClusterConnection clusterConnection,
+                               List<RedisClusterNode> masterNodes,
+                               RedisClusterNode replicaNode,
+                               List<Cursor<byte[]>> cursors) {
     }
 }

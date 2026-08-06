@@ -28,8 +28,14 @@ public final class PaymentRedisScripts {
     private static final DefaultRedisScript<Long> MQ_DEDUP_ACQUIRE_V1 =
             load("v1/mq-dedup-acquire.lua", Long.class);
 
-    private static final DefaultRedisScript<Long> LOCK_RELEASE_V1 =
-            load("v1/lock-release.lua", Long.class);
+    private static final DefaultRedisScript<Long> TOKEN_LEASE_RELEASE_V1 =
+            load("v1/token-lease-release.lua", Long.class);
+
+    private static final DefaultRedisScript<Long> CONCURRENCY_LEASE_ACQUIRE_V1 =
+            load("v1/concurrency-lease-acquire.lua", Long.class);
+
+    private static final DefaultRedisScript<Long> CONCURRENCY_LEASE_RENEW_V1 =
+            load("v1/concurrency-lease-renew.lua", Long.class);
 
     private static final DefaultRedisScript<String> CACHE_GENERATION_READ_V1 =
             load("v1/cache-generation-read.lua", String.class);
@@ -62,12 +68,30 @@ public final class PaymentRedisScripts {
     }
 
     /**
-     * 获取锁持有者安全释放 v1 脚本。
+     * 获取 token 租约持有者安全释放 v1 脚本。
      *
      * @return 返回删除数量的脚本
      */
-    public static RedisScript<Long> lockReleaseV1() {
-        return LOCK_RELEASE_V1;
+    public static RedisScript<Long> tokenLeaseReleaseV1() {
+        return TOKEN_LEASE_RELEASE_V1;
+    }
+
+    /**
+     * 获取有界并发租约 v1 脚本。
+     *
+     * @return 清理过期持有者后原子判断容量并写入新 token 的脚本
+     */
+    public static RedisScript<Long> concurrencyLeaseAcquireV1() {
+        return CONCURRENCY_LEASE_ACQUIRE_V1;
+    }
+
+    /**
+     * 获取有界并发租约续期 v1 脚本。
+     *
+     * @return 仅在 token 仍持有租约时使用 Redis 服务端时间延长有效期的脚本
+     */
+    public static RedisScript<Long> concurrencyLeaseRenewV1() {
+        return CONCURRENCY_LEASE_RENEW_V1;
     }
 
     /**

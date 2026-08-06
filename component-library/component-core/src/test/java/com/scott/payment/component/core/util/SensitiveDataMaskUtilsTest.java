@@ -3,7 +3,6 @@ package com.scott.payment.component.core.util;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mockStatic;
 
 
 /**
@@ -50,6 +49,7 @@ class SensitiveDataMaskUtilsTest {
                   "shippingAddress":"2 Shipping Street",
                   "idCard":"110101199001011234",
                   "bankAccount":"6222021234567890123",
+                  "receiverAccountNo":"6222021234567890123",
                   "iban":"GB82WEST12345698765432"
                 }
                 """;
@@ -82,6 +82,7 @@ class SensitiveDataMaskUtilsTest {
         assertThat(masked).contains("\"shippingAddress\":\"***\"");
         assertThat(masked).contains("\"idCard\":\"***\"");
         assertThat(masked).contains("\"bankAccount\":\"6222******0123\"");
+        assertThat(masked).contains("\"receiverAccountNo\":\"6222******0123\"");
         assertThat(masked).contains("\"iban\":\"GB82******5432\"");
         assertThat(masked).doesNotContain("plain", "Bearer abc.def", "mpgs-password",
                 "mid-password", "mid-password-alias", "merchant-key", "three-ds-token", "pem", "1234567890123",
@@ -116,16 +117,11 @@ class SensitiveDataMaskUtilsTest {
     void shouldMaskJsonSafelyWithoutLeakingOriginalTextWhenMaskingFails() {
         String rawJson = "{\"cardNo\":\"4111111111111111\",\"securityCode\":\"123\"}";
 
-        try (var mocked = mockStatic(SensitiveDataMaskUtils.class, invocation -> {
-            if ("maskJson".equals(invocation.getMethod().getName())) {
-                throw new IllegalStateException("mask failed");
-            }
-            return invocation.callRealMethod();
-        })) {
-            String masked = SensitiveDataMaskUtils.maskJsonSafely(rawJson);
+        String masked = SensitiveDataMaskUtils.maskJsonSafely(rawJson, value -> {
+            throw new IllegalStateException("mask failed");
+        });
 
-            assertThat(masked).isEqualTo("***MASK_FAILED***");
-            assertThat(masked).doesNotContain("4111111111111111", "123");
-        }
+        assertThat(masked).isEqualTo("***MASK_FAILED***");
+        assertThat(masked).doesNotContain("4111111111111111", "123");
     }
 }
