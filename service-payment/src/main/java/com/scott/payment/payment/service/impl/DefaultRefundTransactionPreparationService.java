@@ -22,6 +22,9 @@ import com.scott.payment.payment.entity.TransactionOrderDO;
 import com.scott.payment.payment.mq.TransactionMqConstants;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.PaymentChannelRouteService;
+import com.scott.payment.payment.service.RefundApprovalPolicyService;
+import com.scott.payment.payment.service.RefundApprovalWorkflowService;
+import com.scott.payment.payment.service.RefundScopeService;
 import com.scott.payment.payment.service.RefundTransactionPreparationService;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import com.scott.payment.payment.service.TransactionIdempotencyService;
@@ -32,6 +35,7 @@ import com.scott.payment.payment.service.dto.PaymentRouteResultDTO;
 import com.scott.payment.payment.service.dto.RefundPreparationResultDTO;
 import com.scott.payment.payment.service.dto.TransactionFollowUpRecordDTO;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -209,6 +213,15 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
      */
     private final TransactionStateMachineService transactionStateMachineService;
 
+    /** 退款范围金额规则，严格区分原始本金全退和退完当前剩余额度。 */
+    private final RefundScopeService refundScopeService;
+
+    /** 退款审批策略解释服务，默认 NONE 保持现有同步行为。 */
+    private final RefundApprovalPolicyService refundApprovalPolicyService;
+
+    /** 退款审批工作流；只有策略命中时才创建普通审批表记录。 */
+    private final RefundApprovalWorkflowService refundApprovalWorkflowService;
+
 /**
  * 整理默认refund交易preparationservice，返回后续查询、通知或响应组装可直接使用的标准值。
  * <p>
@@ -223,18 +236,41 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
  * @param transactionRecordService transaction Record Service 输入值，参与 交易记录service 的查询、校验、转换、写入或日志摘要
  * @param transactionStateMachineService transaction State Machine Service 输入值，参与 交易状态machineservice 的查询、校验、转换、写入或日志摘要
  */
+    @Autowired
     public DefaultRefundTransactionPreparationService(IsoDictionaryService isoDictionaryService,
                                                       PaymentChannelRouteService paymentChannelRouteService,
                                                       TransactionIdempotencyService transactionIdempotencyService,
                                                       TransactionEventOutboxService transactionEventOutboxService,
                                                       TransactionRecordService transactionRecordService,
-                                                      TransactionStateMachineService transactionStateMachineService) {
+                                                      TransactionStateMachineService transactionStateMachineService,
+                                                      RefundScopeService refundScopeService,
+                                                      RefundApprovalPolicyService refundApprovalPolicyService,
+                                                      RefundApprovalWorkflowService refundApprovalWorkflowService) {
         this.isoDictionaryService = isoDictionaryService;
         this.paymentChannelRouteService = paymentChannelRouteService;
         this.transactionIdempotencyService = transactionIdempotencyService;
         this.transactionEventOutboxService = transactionEventOutboxService;
         this.transactionRecordService = transactionRecordService;
         this.transactionStateMachineService = transactionStateMachineService;
+        this.refundScopeService = refundScopeService;
+        this.refundApprovalPolicyService = refundApprovalPolicyService;
+        this.refundApprovalWorkflowService = refundApprovalWorkflowService;
+    }
+
+    /**
+     * 兼容现有单元测试和早期手工装配；默认审批关闭，不改变原同步退款行为。
+     */
+    public DefaultRefundTransactionPreparationService(IsoDictionaryService isoDictionaryService,
+                                                       PaymentChannelRouteService paymentChannelRouteService,
+                                                       TransactionIdempotencyService transactionIdempotencyService,
+                                                       TransactionEventOutboxService transactionEventOutboxService,
+                                                       TransactionRecordService transactionRecordService,
+                                                       TransactionStateMachineService transactionStateMachineService) {
+        this(isoDictionaryService, paymentChannelRouteService, transactionIdempotencyService,
+                transactionEventOutboxService, transactionRecordService, transactionStateMachineService,
+                new RefundScopeService(),
+                new RefundApprovalPolicyService(new com.scott.payment.payment.config.RefundManagementProperties()),
+                null);
     }
 
     /**
@@ -274,8 +310,10 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         }
         transactionStateMachineService.validateFollowUpAction(
                 sourceOrderDO, PaymentTransactionTypeEnum.REFUND, commandDTO.getAmount(), commandDTO.getCurrency());
-        validateRefundCapacity(commandDTO, sourceOrderDO, LocalDateTime.now());
+        BigDecimal pendingRefundAmount = validateRefundCapacity(commandDTO, sourceOrderDO, LocalDateTime.now());
         validateNoNonTerminalVoid(commandDTO, sourceOrderDO, LocalDateTime.now());
+        commandDTO.setRefundScope(refundScopeService.resolve(
+                sourceOrderDO, commandDTO.getAmount(), pendingRefundAmount));
         LocalDateTime now = LocalDateTime.now();
         TransactionIdempotencyDO beginRecord = transactionIdempotencyService.newProcessingRecord(
                 TRANSACTION_OPERATION_SCOPE,
@@ -301,18 +339,35 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
         PaymentCreateResultDTO resultDTO = buildRefundResult(commandDTO, sourceOrderDO, transactionId);
         int currencyExponent = resolveCurrencyExponent(sourceOrderDO.getTransactionCurrency());
         PaymentRouteResultDTO routeResultDTO = paymentChannelRouteService.route(commandDTO);
-        resultDTO.setStatus(PaymentTransactionStatusEnum.PROCESSING.getCode());
-        resultDTO.setProcessStage(PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
+        boolean approvalRequired = refundApprovalPolicyService.requiresApproval(commandDTO.getRefundScope());
+        resultDTO.setStatus(approvalRequired
+                ? PaymentTransactionStatusEnum.PENDING.getCode()
+                : PaymentTransactionStatusEnum.PROCESSING.getCode());
+        resultDTO.setProcessStage(approvalRequired
+                ? PaymentProcessStageEnum.WAITING_APPROVAL.getCode()
+                : PaymentProcessStageEnum.CHANNEL_REQUESTING.getCode());
         enrichRefundResult(commandDTO, sourceOrderDO, routeResultDTO, null, resultDTO);
         PaymentPreparedChannelRequestDTO preparedChannelRequestDTO = prepareChannelRequest(commandDTO, sourceOrderDO);
         PaymentChannelInvokeResultDTO preparedInvokeResultDTO = buildPreparedInvokeResult(
                 commandDTO, routeResultDTO, sourceOrderDO.getOperationId(), transactionId, preparedChannelRequestDTO);
         recordRefundPreparedFact(commandDTO, sourceOrderDO, routeResultDTO, preparedInvokeResultDTO, resultDTO, currencyExponent);
+        if (approvalRequired) {
+            if (refundApprovalWorkflowService == null) {
+                throw new IllegalStateException("refund approval workflow is not configured");
+            }
+            refundApprovalWorkflowService.createPendingApproval(
+                    commandDTO,
+                    sourceOrderDO,
+                    resultDTO,
+                    refundApprovalPolicyService.currentPolicyCode(),
+                    refundApprovalPolicyService.approvalExpireMinutes(),
+                    now);
+        }
         saveTransactionCreatedEvent(commandDTO, resultDTO);
         completeIdempotency(idempotencyKey, commandDTO, resultDTO);
 
         RefundPreparationResultDTO target = new RefundPreparationResultDTO();
-        target.setCallChannel(true);
+        target.setCallChannel(!approvalRequired);
         target.setIdempotencyKey(idempotencyKey);
         target.setCommandDTO(commandDTO);
         target.setSourceOrderDO(sourceOrderDO);
@@ -376,16 +431,17 @@ public class DefaultRefundTransactionPreparationService implements RefundTransac
  * @param sourceOrderDO source Order DO 输入值，参与 来源订单do 的查询、校验、转换、写入或日志摘要
  * @param now now 输入值，参与 now 的查询、校验、转换、写入或日志摘要
  */
-    private void validateRefundCapacity(PaymentCreateCommandDTO commandDTO,
-                                        TransactionOrderDO sourceOrderDO,
-                                        LocalDateTime now) {
+    private BigDecimal validateRefundCapacity(PaymentCreateCommandDTO commandDTO,
+                                              TransactionOrderDO sourceOrderDO,
+                                              LocalDateTime now) {
         BigDecimal requestAmount = commandDTO.getAmount();
         BigDecimal availableRefundAmount = sourceOrderDO.getAvailableRefundAmount() == null
                 ? BigDecimal.ZERO : sourceOrderDO.getAvailableRefundAmount();
         BigDecimal pendingRefundAmount = sumNonTerminalRefundAmount(commandDTO, sourceOrderDO, now);
         if (availableRefundAmount.subtract(pendingRefundAmount).compareTo(requestAmount) < 0) {
-            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "REFUND amount exceeds available amount");
+            throw new ServiceException(ApiResultEnum.REFUND_AMOUNT_EXCEEDS_AVAILABLE);
         }
+        return pendingRefundAmount;
     }
 
 /**

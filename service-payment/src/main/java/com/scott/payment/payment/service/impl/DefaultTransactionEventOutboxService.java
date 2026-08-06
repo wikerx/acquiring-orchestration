@@ -125,6 +125,37 @@ public class DefaultTransactionEventOutboxService implements TransactionEventOut
     }
 
     /**
+     * 恢复稳定执行事件，确保补偿仍使用原事件号和消息业务键。
+     *
+     * @param eventNo 稳定事件号
+     * @param transactionDateTime 退款动作分片时间
+     * @param eventType 退款执行事件类型
+     * @param now 恢复时间
+     * @return false 表示事件不存在；true 表示事件已可由 relay 投递或已处于待投递状态
+     */
+    @Override
+    public boolean recoverForRedelivery(String eventNo,
+                                        LocalDateTime transactionDateTime,
+                                        String eventType,
+                                        LocalDateTime now) {
+        if (!StringUtils.hasText(eventNo)
+                || transactionDateTime == null
+                || !StringUtils.hasText(eventType)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        TransactionEventOutboxDO existing = eventOutboxMapper.selectByEventNoLogical(eventNo, transactionDateTime);
+        if (existing == null) {
+            return false;
+        }
+        if ("INIT".equals(existing.getEventStatus())) {
+            return true;
+        }
+        eventOutboxMapper.rearmForRedeliveryLogical(
+                eventNo, transactionDateTime, eventType, now == null ? LocalDateTime.now() : now);
+        return true;
+    }
+
+    /**
      * 校验新 Outbox 事件的业务身份、路由和分片时间。
      *
      * @param eventDO 待持久化事件

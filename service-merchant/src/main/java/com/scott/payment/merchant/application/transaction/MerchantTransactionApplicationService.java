@@ -505,6 +505,12 @@ public class MerchantTransactionApplicationService {
         requestDTO.setMerchantOrderNo(sourceOperation.getMerchantOrderNo());
         requestDTO.setMerchantOrderId(merchantOrderId);
         requestDTO.setRequestId(merchantOrderId);
+        InternalAuthAccount applicant = InternalAuthContextHolder.get();
+        requestDTO.setRequestSource("MERCHANT_PORTAL");
+        requestDTO.setApplicantId(applicant == null || applicant.getAccountId() == null
+                ? merchantId : applicant.getAccountId().toString());
+        requestDTO.setApplicantName(resolveApplicantName(applicant, merchantId));
+        requestDTO.setRequestReason(request == null ? null : request.getReason());
         requestDTO.setAmount(transactionAmount);
         requestDTO.setCurrency(sourceOperation.getTransactionCurrency());
         requestDTO.setLabelAmount(labelAmount);
@@ -518,6 +524,17 @@ public class MerchantTransactionApplicationService {
         transactionInfoDTO.setDescription(request == null ? null : request.getReason());
         requestDTO.setTransactionInfo(transactionInfoDTO);
         return requestDTO;
+    }
+
+    /** 返回审批审计使用的稳定商户申请人显示名。 */
+    private String resolveApplicantName(InternalAuthAccount account, String fallback) {
+        if (account == null) {
+            return fallback;
+        }
+        if (StringUtils.hasText(account.getRealName())) {
+            return account.getRealName();
+        }
+        return StringUtils.hasText(account.getLoginAccount()) ? account.getLoginAccount() : fallback;
     }
 
     /**

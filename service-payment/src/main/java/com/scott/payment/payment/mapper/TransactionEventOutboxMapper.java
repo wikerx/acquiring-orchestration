@@ -22,6 +22,25 @@ import java.util.List;
 public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEventOutboxDO> {
 
     /**
+     * 使用事件号和交易分片时间查询唯一执行事件。
+     *
+     * @param eventNo 稳定事件号
+     * @param transactionDateTime 交易分片时间
+     * @return 交易 Outbox 事件
+     */
+    @Select("""
+            SELECT *
+            FROM transaction_event_outbox
+            WHERE event_no = #{eventNo}
+              AND transaction_date_time = #{transactionDateTime}
+              AND deleted = 0
+            LIMIT 1
+            """)
+    TransactionEventOutboxDO selectByEventNoLogical(
+            @Param("eventNo") String eventNo,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime);
+
+    /**
      * 写入交易本地消息逻辑表。
      *
      * @param eventDO 交易本地消息记录
@@ -137,4 +156,35 @@ public interface TransactionEventOutboxMapper extends BaseMapper<TransactionEven
                           @Param("nextRetryTime") LocalDateTime nextRetryTime,
                           @Param("failReason") String failReason,
                           @Param("now") LocalDateTime now);
+
+    /**
+     * 将已投递或耗尽重试的稳定退款执行事件恢复为待投递状态。
+     *
+     * <p>恢复沿用原 event_no 和消息业务键；调用方必须先确认退款动作仍处于 WAITING_EXECUTION。</p>
+     *
+     * @param eventNo 稳定执行事件号
+     * @param transactionDateTime 退款动作分片时间
+     * @param eventType 退款执行事件类型
+     * @param now 恢复时间
+     * @return 影响行数
+     */
+    @Update("""
+            UPDATE transaction_event_outbox
+            SET event_status = 'INIT',
+                retry_count = 0,
+                next_retry_time = #{now},
+                sent_time = NULL,
+                fail_reason = NULL,
+                version = version + 1,
+                update_time = #{now}
+            WHERE event_no = #{eventNo}
+              AND transaction_date_time = #{transactionDateTime}
+              AND event_type = #{eventType}
+              AND event_status IN ('SENT', 'FAILED')
+              AND deleted = 0
+            """)
+    int rearmForRedeliveryLogical(@Param("eventNo") String eventNo,
+                                  @Param("transactionDateTime") LocalDateTime transactionDateTime,
+                                  @Param("eventType") String eventType,
+                                  @Param("now") LocalDateTime now);
 }

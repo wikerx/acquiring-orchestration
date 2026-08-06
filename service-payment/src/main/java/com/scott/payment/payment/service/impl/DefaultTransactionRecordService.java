@@ -12,6 +12,7 @@ import com.scott.payment.payment.api.internal.dto.PaymentCreateResultDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionMerchantApiResponseLogUpdateCommandDTO;
 import com.scott.payment.payment.config.MerchantNotificationProperties;
 import com.scott.payment.payment.domain.state.PaymentFailureReasonEnum;
+import com.scott.payment.payment.domain.refund.RefundRequestSourceEnum;
 import com.scott.payment.payment.domain.state.PaymentProcessStageEnum;
 import com.scott.payment.payment.domain.state.PaymentRiskDecisionEnum;
 import com.scott.payment.payment.domain.state.PaymentTransactionStatusEnum;
@@ -307,6 +308,9 @@ public class DefaultTransactionRecordService implements TransactionRecordService
      * 渠道回调触发状态变化。
      */
     private static final String TRIGGER_TYPE_CHANNEL_CALLBACK = "CHANNEL_CALLBACK";
+
+    /** 退款审批拒绝或过期触发类型。 */
+    private static final String TRIGGER_TYPE_REFUND_APPROVAL = "REFUND_APPROVAL";
 
     /**
      * 状态流转成功。
@@ -1070,6 +1074,67 @@ public class DefaultTransactionRecordService implements TransactionRecordService
     }
 
     /**
+     * 在渠道请求发出前终结被拒绝或过期的退款动作。
+     *
+     * <p>动作从 PENDING/WAITING_APPROVAL 原子推进到 FAILED/FINISHED 后，其金额自然不再参与
+     * 非终态退款求和；该方法禁止修改原主单的 refunded_amount 或 available_refund_amount。</p>
+     *
+     * @return true 表示动作终态 CAS 成功
+     */
+    @Override
+    public boolean terminateRefundBeforeChannel(TransactionOperationDO operationDO,
+                                                String reasonCode,
+                                                String reasonMessage,
+                                                String triggerType,
+                                                String triggerId,
+                                                String operatorType,
+                                                String operatorId,
+                                                LocalDateTime now) {
+        if (operationDO == null || operationDO.getVersion() == null
+                || operationDO.getTransactionDateTime() == null) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID);
+        }
+        LocalDateTime actualNow = now == null ? LocalDateTime.now() : now;
+        int updated = transactionOperationMapper.terminatePendingRefundApproval(
+                operationDO.getTransactionId(), operationDO.getTransactionDateTime(), operationDO.getVersion(),
+                safeLength(reasonCode, 64), safeLength(reasonMessage, 512), actualNow);
+        if (updated != 1) {
+            return false;
+        }
+        TransactionStatusHistoryDO historyDO = new TransactionStatusHistoryDO();
+        historyDO.setStatusHistoryId(PaymentOrderNoGenerator.nextOrderNo(
+                STATUS_HISTORY_PREFIX, operationDO.getTransactionDateTime()));
+        historyDO.setTransactionId(operationDO.getTransactionId());
+        historyDO.setOperationId(operationDO.getOperationId());
+        historyDO.setStatusObject(STATUS_OBJECT_OPERATION);
+        historyDO.setFromStatus(operationDO.getTransactionStatus());
+        historyDO.setToStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+        historyDO.setTriggerType(StringUtils.hasText(triggerType) ? triggerType : TRIGGER_TYPE_REFUND_APPROVAL);
+        historyDO.setTriggerId(triggerId);
+        historyDO.setTransitionResult(TRANSITION_SUCCESS);
+        historyDO.setFailReason(safeLength(reasonMessage, 512));
+        historyDO.setVersionBefore(operationDO.getVersion());
+        historyDO.setVersionAfter(operationDO.getVersion() + 1);
+        historyDO.setStatusTime(actualNow);
+        fillTransactionTime(historyDO, operationDO.getTransactionDateTime());
+        historyDO.setCreateTime(actualNow);
+        transactionStatusHistoryMapper.insertLogical(historyDO);
+
+        operationDO.setTransactionStatus(PaymentTransactionStatusEnum.FAILED.getCode());
+        operationDO.setProcessStage(PaymentProcessStageEnum.FINISHED.getCode());
+        operationDO.setFailReasonCode(reasonCode);
+        operationDO.setFailReasonMessage(reasonMessage);
+        operationDO.setCompleteTime(actualNow);
+        operationDO.setVersion(operationDO.getVersion() + 1);
+        activateMerchantNotification(operationDO, PaymentTransactionStatusEnum.FAILED.getCode(),
+                reasonCode, reasonMessage, actualNow);
+        log.info("event: REFUND_APPROVAL_TERMINATED stage=REFUND_APPROVAL traceId: {} transactionId: {} operationId: {} merchantId: {} triggerId: {} operatorType: {} operatorId: {} affectedRows: {}",
+                TraceContext.getTraceId(), operationDO.getTransactionId(), operationDO.getOperationId(),
+                operationDO.getMerchantId(), triggerId, operatorType, operatorId, updated);
+        return true;
+    }
+
+    /**
      * 持久化撤销渠道结果并按 CAS 更新原订单状态及累计字段。
      *
      * @return true 表示撤销动作状态成功推进；false 表示终态或并发冲突
@@ -1469,6 +1534,15 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setMerchantOrderNo(sourceOrderDO.getMerchantOrderNo());
         operationDO.setMerchantOrderId(commandDTO.getMerchantOrderId());
         operationDO.setMerchantOperationNo(commandDTO.getMerchantOrderId());
+        RefundRequestSourceEnum requestSource = RefundRequestSourceEnum.from(commandDTO.getRequestSource());
+        operationDO.setRequestSource(requestSource.getCode());
+        operationDO.setRefundScope(commandDTO.getRefundScope());
+        operationDO.setRequestReason(commandDTO.getRequestReason());
+        operationDO.setApplicantType(requestSource.getApplicantType());
+        operationDO.setApplicantId(commandDTO.getApplicantId());
+        operationDO.setApplicantName(commandDTO.getApplicantName());
+        operationDO.setExecutionMode(PaymentTransactionTypeEnum.REFUND.getCode().equals(resultDTO.getTransactionType())
+                || PaymentTransactionTypeEnum.VOID.getCode().equals(resultDTO.getTransactionType()) ? "CHANNEL" : null);
         operationDO.setOperationSequence(operationSequence);
         operationDO.setTransactionType(resultDTO.getTransactionType());
         operationDO.setTransactionStatus(resultDTO.getStatus());
@@ -1484,7 +1558,8 @@ public class DefaultTransactionRecordService implements TransactionRecordService
         operationDO.setSettlementStatus(NOT_SETTLED);
         operationDO.setReconciliationStatus(NOT_RECONCILED);
         operationDO.setAccountingStatus(NOT_ACCOUNTED);
-        operationDO.setChannelMatchStatus(resolveChannelMatchStatus(resultDTO));
+        operationDO.setChannelMatchStatus(PaymentProcessStageEnum.WAITING_APPROVAL.getCode().equals(resultDTO.getProcessStage())
+                ? CHANNEL_MATCH_NOT_REQUIRED : resolveChannelMatchStatus(resultDTO));
         operationDO.setChannelMatchCount(0);
         operationDO.setTransactionDateTime(commandDTO.getTransactionDateTime());
         operationDO.setTransactionUtcTime(toUtcTime(commandDTO.getTransactionDateTime(), DEFAULT_TIME_ZONE));

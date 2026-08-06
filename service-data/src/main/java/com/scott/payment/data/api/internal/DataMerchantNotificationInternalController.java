@@ -3,6 +3,7 @@ package com.scott.payment.data.api.internal;
 import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyCommandDTO;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyDueCommandDTO;
+import com.scott.payment.data.api.internal.dto.MerchantNotificationReconcileCommandDTO;
 import com.scott.payment.data.application.MerchantNotificationApplicationService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -56,5 +57,17 @@ public class DataMerchantNotificationInternalController {
     @PostMapping("/notify-transaction")
     public CommonResult<Boolean> notifyTransaction(@RequestBody MerchantNotificationNotifyCommandDTO commandDTO) {
         return success(applicationService.notifyTransaction(commandDTO));
+    }
+
+    /**
+     * 对全部已发布季度执行低频到期任务 MQ 对账。
+     *
+     * @param commandDTO 对账批量和可选季度列表
+     * @return 可靠入队事件数量
+     */
+    @PostMapping("/reconcile-due")
+    public CommonResult<Integer> reconcileDue(
+            @RequestBody(required = false) MerchantNotificationReconcileCommandDTO commandDTO) {
+        return success(applicationService.reconcileDue(commandDTO));
     }
 }

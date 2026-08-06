@@ -92,6 +92,9 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
     /** 回调出站协议和网络边界校验器。 */
     private final MerchantCallbackTargetValidator targetValidator;
 
+    /** 失败状态与自动重试 Outbox 的同事务持久化边界。 */
+    private final MerchantNotificationRetryStateService retryStateService;
+
     /**
      * 创建商户通知投递服务。
      *
@@ -107,13 +110,15 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
             @Qualifier("dataMerchantNotificationRestTemplate") RestTemplate restTemplate,
             DataMerchantNotificationProperties properties,
             MerchantCallbackRequestFactory requestFactory,
-            MerchantCallbackTargetValidator targetValidator) {
+            MerchantCallbackTargetValidator targetValidator,
+            MerchantNotificationRetryStateService retryStateService) {
         this.notificationMapper = notificationMapper;
         this.notificationLogMapper = notificationLogMapper;
         this.restTemplate = restTemplate;
         this.properties = properties;
         this.requestFactory = requestFactory;
         this.targetValidator = targetValidator;
+        this.retryStateService = retryStateService;
     }
 
     /**
@@ -185,6 +190,39 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         boolean notified = task != null && notifySingle(task, callbackEventId, true);
         log.info("event: DATA_MERCHANT_NOTIFY_MANUAL_RETRY_END traceId: {} callbackEventId: {} transactionId: {} taskFound: {} notified: {} routeTable: {}",
                 TraceContext.getTraceId(), callbackEventId, transactionId, task != null, notified, NOTIFICATION_TABLE);
+        return notified;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean retryDue(LocalDateTime transactionDateTime,
+                            String transactionId,
+                            String notifyId,
+                            int expectedVersion,
+                            int attemptNo) {
+        validateTransactionDateTime(transactionDateTime);
+        if (!StringUtils.hasText(transactionId) || !StringUtils.hasText(notifyId)) {
+            throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(),
+                    "transaction_id and notify_id are required");
+        }
+        if (expectedVersion < 0 || attemptNo <= 0) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "retry version and attempt number are invalid");
+        }
+        DataMerchantNotificationTaskDO task;
+        try (TransactionPrimaryRouteScope ignored = TransactionPrimaryRouteScope.open()) {
+            task = notificationMapper.selectReadyByRetryEvent(
+                    transactionId, notifyId, transactionDateTime, expectedVersion, LocalDateTime.now());
+        }
+        int expectedAttempt = task == null || task.getLastAttemptNo() == null
+                ? 1
+                : task.getLastAttemptNo() + 1;
+        boolean notified = task != null && expectedAttempt == attemptNo && notifySingle(task);
+        log.info("event: DATA_MERCHANT_NOTIFY_RETRY_DUE_END traceId: {} messageVersion: {} attemptNo: {} notifyId: {} transactionId: {} taskFound: {} notified: {}",
+                TraceContext.getTraceId(), expectedVersion, attemptNo, notifyId, transactionId,
+                task != null, notified);
         return notified;
     }
 
@@ -267,18 +305,14 @@ public class DefaultMerchantNotificationDeliveryService implements MerchantNotif
         boolean exhausted = attemptNo >= effectiveMaxRetry;
         String nextStatus = exhausted ? STATUS_CLOSED : STATUS_FAILED;
         LocalDateTime nextRetryTime = exhausted ? null : nextRetryTime(finishedTime, attemptNo);
-        int affectedRows = notificationMapper.markFailed(
-                task.getId(),
-                task.getTransactionDateTime(),
+        retryStateService.recordFailure(
+                task,
                 processingVersion,
                 nextStatus,
                 nextRetryTime,
                 safeLength(result.errorMessage(), MAX_FAIL_REASON_LENGTH),
-                finishedTime);
-        requireSingleStateUpdate(
-                affectedRows,
-                task,
-                nextStatus);
+                finishedTime,
+                attemptNo);
         log.warn("event: DATA_MERCHANT_NOTIFY_ATTEMPT_END traceId: {} notifyId: {} transactionId: {} merchantId: {} attemptNo: {} httpStatus: {} success: false nextStatus: {} exhausted: {} nextRetryTime: {} failureReason: {} durationMs: {}",
                 TraceContext.getTraceId(), task.getNotifyId(), task.getTransactionId(), task.getMerchantId(),
                 attemptNo, result.httpStatus(), nextStatus, exhausted, nextRetryTime,

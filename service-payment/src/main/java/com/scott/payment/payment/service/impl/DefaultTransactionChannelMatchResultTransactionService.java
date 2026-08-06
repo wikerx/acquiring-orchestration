@@ -125,6 +125,21 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                                       LocalDateTime matchTime,
                                       LocalDateTime nextMatchTime,
                                       String failReason) {
+        return markPendingByQuery(operationDO, originalRequestDO, invokeResultDTO,
+                "PENDING", matchResult, matchTime, nextMatchTime, failReason);
+    }
+
+    /** 保存 PENDING 或 REVIEW_REQUIRED 勾兑摘要。 */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public boolean markPendingByQuery(TransactionOperationDO operationDO,
+                                      TransactionChannelRequestDO originalRequestDO,
+                                      PaymentChannelInvokeResultDTO invokeResultDTO,
+                                      String matchStatus,
+                                      String matchResult,
+                                      LocalDateTime matchTime,
+                                      LocalDateTime nextMatchTime,
+                                      String failReason) {
         transactionRecordService.updateOriginalChannelRequestByQuery(
                 operationDO,
                 originalRequestDO,
@@ -133,7 +148,7 @@ public class DefaultTransactionChannelMatchResultTransactionService implements T
                 failReason);
         return transactionRecordService.updateChannelMatch(
                 operationDO,
-                "PENDING",
+                matchStatus,
                 matchResult,
                 originalRequestDO == null ? null : originalRequestDO.getRequestId(),
                 matchTime,

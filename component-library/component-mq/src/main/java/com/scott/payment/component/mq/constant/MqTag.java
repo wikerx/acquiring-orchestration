@@ -38,6 +38,12 @@ public final class MqTag {
     /** 管理后台人工重发商户终态回调标签。 */
     public static final String MERCHANT_NOTIFICATION_RETRY_REQUESTED = "MERCHANT_NOTIFICATION_RETRY_REQUESTED";
 
+    /** 自动商户通知重试到期标签。 */
+    public static final String MERCHANT_NOTIFICATION_RETRY_DUE = "MERCHANT_NOTIFICATION_RETRY_DUE";
+
+    /** 退款审批通过后的渠道执行请求标签。 */
+    public static final String REFUND_EXECUTION_REQUESTED = "REFUND_EXECUTION_REQUESTED";
+
     private MqTag() {
     }
 }

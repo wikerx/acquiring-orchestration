@@ -5,6 +5,7 @@ import com.scott.payment.data.entity.DataMerchantNotificationLogDO;
 import com.scott.payment.data.entity.DataMerchantNotificationTaskDO;
 import com.scott.payment.data.mapper.DataMerchantNotificationLogMapper;
 import com.scott.payment.data.mapper.DataMerchantNotificationMapper;
+import com.scott.payment.data.mapper.DataMerchantNotificationRetryOutboxMapper;
 import com.scott.payment.data.model.MerchantCallbackHttpRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
@@ -73,6 +74,26 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 ArgumentCaptor.forClass(DataMerchantNotificationLogDO.class);
         verify(fixture.logMapper()).insert(logCaptor.capture());
         assertThat(logCaptor.getValue().getTransactionDateTime()).isEqualTo(transactionDateTime);
+    }
+
+    /** 自动 MQ 重试必须继续使用普通请求工厂，保持 notifyId、Header 和 Body 协议不变。 */
+    @Test
+    void retryDueShouldUseExistingAutomaticCallbackContract() {
+        Fixture fixture = fixture(HttpStatus.OK, "succeed");
+        DataMerchantNotificationTaskDO task = fixture.task();
+        when(fixture.notificationMapper().selectReadyByRetryEvent(
+                eq(task.getTransactionId()), eq(task.getNotifyId()), eq(task.getTransactionDateTime()),
+                eq(0), any())).thenReturn(task);
+        when(fixture.notificationMapper().markSuccess(
+                eq(task.getId()), eq(task.getTransactionDateTime()), eq(1), any())).thenReturn(1);
+
+        boolean notified = fixture.service().retryDue(
+                task.getTransactionDateTime(), task.getTransactionId(), task.getNotifyId(), 0, 1);
+
+        assertThat(notified).isTrue();
+        verify(fixture.requestFactory()).create(task, 1);
+        verify(fixture.requestFactory(), never()).create(
+                any(DataMerchantNotificationTaskDO.class), anyInt(), anyString());
     }
 
     /** 失败重试 CAS 必须携带任务交易分片时间。 */
@@ -385,12 +406,15 @@ class DefaultMerchantNotificationDeliveryServiceTests {
     private Fixture fixture(StubRestTemplate restTemplate) {
         DataMerchantNotificationMapper notificationMapper = mock(DataMerchantNotificationMapper.class);
         DataMerchantNotificationLogMapper logMapper = mock(DataMerchantNotificationLogMapper.class);
+        DataMerchantNotificationRetryOutboxMapper outboxMapper =
+                mock(DataMerchantNotificationRetryOutboxMapper.class);
         DataMerchantNotificationTaskDO task = task();
         when(notificationMapper.selectDueForNotify(any(), any(), any(), anyInt())).thenReturn(List.of(task));
         when(notificationMapper.selectStaleProcessing(any(), any(), any(), anyInt())).thenReturn(List.of());
         when(notificationMapper.markProcessing(eq(1L), eq(task.getTransactionDateTime()), eq(0), any()))
                 .thenReturn(1);
         when(logMapper.insert(any(DataMerchantNotificationLogDO.class))).thenReturn(1);
+        when(outboxMapper.insert(any())).thenReturn(1);
         DataMerchantNotificationProperties properties = new DataMerchantNotificationProperties();
         MerchantCallbackRequestFactory requestFactory = mock(MerchantCallbackRequestFactory.class);
         MerchantCallbackTargetValidator targetValidator = mock(MerchantCallbackTargetValidator.class);
@@ -405,7 +429,8 @@ class DefaultMerchantNotificationDeliveryServiceTests {
                 restTemplate,
                 properties,
                 requestFactory,
-                targetValidator);
+                targetValidator,
+                new MerchantNotificationRetryStateService(notificationMapper, outboxMapper));
         return new Fixture(service, notificationMapper, logMapper, task, restTemplate, requestFactory);
     }
 

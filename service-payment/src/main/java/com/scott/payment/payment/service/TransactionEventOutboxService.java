@@ -52,4 +52,20 @@ public interface TransactionEventOutboxService {
      * @return true 表示更新成功
      */
     boolean markFailed(TransactionEventOutboxDO eventDO, LocalDateTime nextRetryTime, String failReason, LocalDateTime now);
+
+    /**
+     * 恢复稳定退款执行事件的投递；不存在时返回 false，由上层按原事件号补建。
+     *
+     * @param eventNo 稳定事件号
+     * @param transactionDateTime 退款动作分片时间
+     * @param eventType 退款执行事件类型
+     * @param now 恢复时间
+     * @return true 表示事件已存在；已处于 INIT 时同样返回 true
+     */
+    default boolean recoverForRedelivery(String eventNo,
+                                         LocalDateTime transactionDateTime,
+                                         String eventType,
+                                         LocalDateTime now) {
+        return false;
+    }
 }

@@ -8,6 +8,7 @@ import com.scott.payment.component.core.model.CommonResult;
 import com.scott.payment.component.web.internal.InternalServiceSignature;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationReconcileClientRequestDTO;
 import com.scott.payment.job.config.DataInternalClientProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -49,6 +50,9 @@ public class DataInternalRestClient implements DataInternalClient {
     /** 单笔商户通知精确补偿内部接口路径。 */
     private static final String NOTIFY_TRANSACTION_PATH = "/internal/data/merchant-notifications/notify-transaction";
 
+    /** 商户通知 MQ 对账内部接口路径。 */
+    private static final String RECONCILE_DUE_PATH = "/internal/data/merchant-notifications/reconcile-due";
+
     /** 直连 HTTP 客户端。 */
     private final RestTemplate directRestTemplate;
 
@@ -80,6 +84,13 @@ public class DataInternalRestClient implements DataInternalClient {
     @Override
     public Integer notifyDueMerchantNotifications(DataMerchantNotificationNotifyDueClientRequestDTO requestDTO) {
         return post(NOTIFY_DUE_PATH, requestDTO, new TypeReference<CommonResult<Integer>>() {
+        });
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public Integer reconcileDueMerchantNotifications(DataMerchantNotificationReconcileClientRequestDTO requestDTO) {
+        return post(RECONCILE_DUE_PATH, requestDTO, new TypeReference<CommonResult<Integer>>() {
         });
     }
 

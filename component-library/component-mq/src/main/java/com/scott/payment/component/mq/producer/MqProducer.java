@@ -2,6 +2,8 @@ package com.scott.payment.component.mq.producer;
 
 import com.scott.payment.component.mq.message.BaseMqMessage;
 
+import java.time.Instant;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -21,6 +23,18 @@ public interface MqProducer {
      * @param message 基础消息体
      */
     void send(String topic, String tag, BaseMqMessage message);
+
+    /**
+     * 按绝对时间发送 RocketMQ 5.x 定时消息。
+     *
+     * @param topic RocketMQ Topic
+     * @param tag RocketMQ Tag，可为空
+     * @param message 不含敏感明文的消息体
+     * @param deliverAt 最早投递时间
+     */
+    default void sendAt(String topic, String tag, BaseMqMessage message, Instant deliverAt) {
+        throw new UnsupportedOperationException("scheduled mq delivery is not supported");
+    }
 
     /**
      * 发送 Outbox 中已经冻结的 JSON 消息快照。

@@ -70,6 +70,32 @@ public class PaymentCreateCommandDTO implements Serializable {
     private String requestId;
 
     /**
+     * 内部动作来源，例如 OPENAPI、ADMIN_PORTAL、MERCHANT_PORTAL 或 SYSTEM。
+     * 该字段不属于商户 OpenAPI 外部协议。
+     */
+    private String requestSource;
+
+    /**
+     * 申请主体稳定标识；OpenAPI 使用商户号，后台使用认证账号 ID。
+     */
+    private String applicantId;
+
+    /**
+     * 申请时的显示名称快照。
+     */
+    private String applicantName;
+
+    /**
+     * 退款或撤销申请原因，不允许包含卡号、CVV、密钥或完整渠道报文。
+     */
+    private String requestReason;
+
+    /**
+     * 支付核心在校验历史成功和未终态退款后确定的退款范围。
+     */
+    private String refundScope;
+
+    /**
      * 订单金额，主币种单位，例如 123.45 USD。
      * <p>
      * 该字段保留商户上送的标签金额；渠道不支持标签币种时，支付核心会在内部交易金额字段中保存 EDC 换汇后的金额。

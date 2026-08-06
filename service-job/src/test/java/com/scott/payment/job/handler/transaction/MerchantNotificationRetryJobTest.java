@@ -7,6 +7,7 @@ import com.scott.payment.component.job.model.JobExecuteResult;
 import com.scott.payment.job.client.data.DataInternalClient;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationReconcileClientRequestDTO;
 import com.scott.payment.job.dto.transaction.MerchantNotificationRetryRequest;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -17,7 +18,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
@@ -37,11 +37,10 @@ class MerchantNotificationRetryJobTest {
      * 多个交易时间点应分别触发补偿请求，并汇总成功通知数量。
      */
     @Test
-    void executeShouldNotifyDueForEachTransactionDateTime() {
+    void executeShouldRequeueDueRetriesThroughMqForAllRequestedQuarters() {
         DataInternalClient dataInternalClient = mock(DataInternalClient.class);
-        when(dataInternalClient.notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(2)
-                .thenReturn(3);
+        when(dataInternalClient.reconcileDueMerchantNotifications(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(5);
         MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(dataInternalClient);
         LocalDateTime firstTime = LocalDateTime.of(2026, 7, 15, 0, 0, 0);
         LocalDateTime secondTime = LocalDateTime.of(2026, 4, 1, 0, 0, 0);
@@ -53,13 +52,12 @@ class MerchantNotificationRetryJobTest {
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getMessage()).contains("successCount=5");
-        ArgumentCaptor<DataMerchantNotificationNotifyDueClientRequestDTO> captor =
-                ArgumentCaptor.forClass(DataMerchantNotificationNotifyDueClientRequestDTO.class);
-        verify(dataInternalClient, times(2)).notifyDueMerchantNotifications(captor.capture());
-        assertThat(captor.getAllValues()).extracting(DataMerchantNotificationNotifyDueClientRequestDTO::getTransactionDateTime)
-                .containsExactly(firstTime, secondTime);
-        assertThat(captor.getAllValues()).extracting(DataMerchantNotificationNotifyDueClientRequestDTO::getLimit)
-                .containsExactly(5, 5);
+        ArgumentCaptor<DataMerchantNotificationReconcileClientRequestDTO> captor =
+                ArgumentCaptor.forClass(DataMerchantNotificationReconcileClientRequestDTO.class);
+        verify(dataInternalClient).reconcileDueMerchantNotifications(captor.capture());
+        assertThat(captor.getValue().getTransactionDateTimes()).containsExactly(firstTime, secondTime);
+        assertThat(captor.getValue().getLimit()).isEqualTo(5);
+        verify(dataInternalClient, never()).notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any());
     }
 
     /** 单笔人工补偿必须同时透传交易号和明确分片时间。 */
@@ -108,6 +106,23 @@ class MerchantNotificationRetryJobTest {
 
         assertThatThrownBy(() -> job.execute(context(request)))
                 .isInstanceOf(ServiceException.class);
+    }
+
+    /** JOB 模式保留旧的直接 HTTP 扫描，作为 MQ 改造的紧急回退开关。 */
+    @Test
+    void executeShouldUseDirectDeliveryOnlyInJobMode() {
+        DataInternalClient dataInternalClient = mock(DataInternalClient.class);
+        when(dataInternalClient.notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any())).thenReturn(1);
+        MerchantNotificationRetryJob job = new MerchantNotificationRetryJob(dataInternalClient);
+        MerchantNotificationRetryRequest request = new MerchantNotificationRetryRequest();
+        request.setMode("JOB");
+        request.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 0, 0));
+
+        JobExecuteResult result = job.execute(context(request));
+
+        assertThat(result.isSuccess()).isTrue();
+        verify(dataInternalClient).notifyDueMerchantNotifications(org.mockito.ArgumentMatchers.any());
+        verify(dataInternalClient, never()).reconcileDueMerchantNotifications(org.mockito.ArgumentMatchers.any());
     }
 
     private JobExecuteContext context(MerchantNotificationRetryRequest request) {

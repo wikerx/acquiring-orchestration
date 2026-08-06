@@ -2,7 +2,10 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.core.trace.TraceContext;
+import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.message.BaseMqMessage;
+import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
+import com.scott.payment.component.mq.message.RefundExecutionMessage;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 /**
@@ -37,6 +41,9 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      * 失败原因最大长度，必须与 transaction_event_outbox.fail_reason 保持一致。
      */
     private static final int FAIL_REASON_MAX_LENGTH = 512;
+
+    /** 商户通知重试时间按平台交易时区转换为 RocketMQ 绝对时间戳。 */
+    private static final ZoneId PLATFORM_ZONE_ID = ZoneId.of("Asia/Shanghai");
 
     /**
      * 交易本地消息服务。
@@ -117,7 +124,7 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
                     eventDO.getMerchantOrderNo(),
                     eventDO.getTransactionType(),
                     eventDO.getTransactionDateTime());
-            mqProducer.send(eventDO.getTopic(), eventDO.getTag(), message);
+            sendMessage(eventDO, message);
             boolean updated = eventOutboxService.markSent(eventDO, LocalDateTime.now());
             if (!updated) {
                 log.warn("event: TRANSACTION_OUTBOX_MARK_SENT_CAS_FAILED stage=MQ traceId: {} eventNo: {} messageId: {} messageKey: {} transactionId: {} operationId: {} durationMs: {}",
@@ -158,6 +165,22 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
         }
     }
 
+    /** 自动重试事件使用绝对定时投递，其它交易事件保持普通发送。 */
+    private void sendMessage(TransactionEventOutboxDO eventDO, BaseMqMessage message) {
+        if (message instanceof MerchantNotificationRetryDueMessage retryMessage) {
+            if (retryMessage.getDeliverAt() == null) {
+                throw new IllegalStateException("merchant notification retry deliver time is required");
+            }
+            mqProducer.sendAt(
+                    eventDO.getTopic(),
+                    eventDO.getTag(),
+                    retryMessage,
+                    retryMessage.getDeliverAt().atZone(PLATFORM_ZONE_ID).toInstant());
+            return;
+        }
+        mqProducer.send(eventDO.getTopic(), eventDO.getTag(), message);
+    }
+
     /**
      * 计算本地消息投递耗时。
      *
@@ -179,6 +202,22 @@ public class DefaultTransactionEventOutboxRelayService implements TransactionEve
      * @return 可交给 MQ 生产者发送的基础消息
      */
     private BaseMqMessage buildMessage(TransactionEventOutboxDO eventDO) {
+        if (MqTag.MERCHANT_NOTIFICATION_RETRY_DUE.equals(eventDO.getTag())) {
+            MerchantNotificationRetryDueMessage retryMessage = JsonUtils.parseObject(
+                    eventDO.getPayloadJson(), MerchantNotificationRetryDueMessage.class);
+            if (retryMessage == null) {
+                throw new IllegalStateException("merchant notification retry outbox payload is invalid");
+            }
+            return retryMessage;
+        }
+        if (MqTag.REFUND_EXECUTION_REQUESTED.equals(eventDO.getTag())) {
+            RefundExecutionMessage executionMessage = JsonUtils.parseObject(
+                    eventDO.getPayloadJson(), RefundExecutionMessage.class);
+            if (executionMessage == null) {
+                throw new IllegalStateException("refund execution outbox payload is invalid");
+            }
+            return executionMessage;
+        }
         TransactionEventMessage message = JsonUtils.parseObject(eventDO.getPayloadJson(), TransactionEventMessage.class);
         return message == null ? new TransactionEventMessage() : message;
     }

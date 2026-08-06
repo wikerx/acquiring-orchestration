@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.messaging.Message;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -66,5 +68,25 @@ class RocketMqProducerTest {
         assertThat(rocketMessage.getHeaders().get(TraceContext.TRACE_ID_HEADER)).isEqualTo("trace-from-body");
         assertThat(rocketMessage.getHeaders().get("retryCount")).isEqualTo(2);
         assertThat(rocketMessage.getHeaders().get("messageId")).isEqualTo("message-001");
+    }
+
+    /** 未来投递时间必须使用 RocketMQ 5.x 绝对定时消息能力。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSendMessageAtAbsoluteDeliveryTime() {
+        ObjectProvider<RocketMQTemplate> provider = mock(ObjectProvider.class);
+        RocketMQTemplate rocketMQTemplate = mock(RocketMQTemplate.class);
+        when(provider.getIfAvailable()).thenReturn(rocketMQTemplate);
+        RocketMqProducer producer = new RocketMqProducer(provider);
+        BaseMqMessage message = new BaseMqMessage();
+        message.setMessageId("message-delayed-001");
+        Instant deliverAt = Instant.now().plusSeconds(300);
+
+        producer.sendAt("payment-event", "retry-due", message, deliverAt);
+
+        org.mockito.ArgumentCaptor<Message<String>> captor = org.mockito.ArgumentCaptor.forClass(Message.class);
+        verify(rocketMQTemplate).syncSendDeliverTimeMills(
+                eq("payment-event:retry-due"), captor.capture(), eq(deliverAt.toEpochMilli()));
+        assertThat(captor.getValue().getHeaders().get("messageId")).isEqualTo("message-delayed-001");
     }
 }

@@ -3,6 +3,8 @@ package com.scott.payment.payment.service;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchCommandDTO;
 import com.scott.payment.payment.api.internal.dto.TransactionChannelMatchResultDTO;
 
+import java.time.LocalDateTime;
+
 /**
  * @author : scott
  * @version : v1.0.0
@@ -21,4 +23,16 @@ public interface TransactionChannelMatchService {
      * @return 本次处理结果
      */
     TransactionChannelMatchResultDTO matchDue(TransactionChannelMatchCommandDTO commandDTO);
+
+    /**
+     * 使用真实分片时间主动查询单笔交易。
+     *
+     * @param transactionId 平台交易号
+     * @param transactionDateTime 动作真实分片时间
+     * @return 单笔勾兑处理结果
+     */
+    default TransactionChannelMatchResultDTO matchOne(String transactionId,
+                                                       LocalDateTime transactionDateTime) {
+        return new TransactionChannelMatchResultDTO();
+    }
 }

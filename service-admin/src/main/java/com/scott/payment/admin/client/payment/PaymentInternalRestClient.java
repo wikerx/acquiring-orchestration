@@ -12,6 +12,11 @@ import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionO
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOperationResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionOrderResponse;
 import com.scott.payment.admin.dto.transaction.AdminTransactionDTOs.TransactionPageQuery;
+import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalClientRequest;
+import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.ApprovalResult;
+import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundDetailResponse;
+import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundQuery;
+import com.scott.payment.admin.dto.transaction.AdminRefundDTOs.RefundSearchResponse;
 import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ApiException;
 import com.scott.payment.component.core.json.JsonUtils;
@@ -104,6 +109,15 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
     private static final String MERCHANT_NOTIFICATION_SEARCH_PATH =
             "/internal/payment/transactions/merchant-notifications/search";
 
+    private static final String REFUND_SEARCH_PATH = "/internal/payment/refunds/search";
+
+    private static final String REFUND_DETAIL_PATH = "/internal/payment/refunds";
+
+    private static final String REFUND_APPROVAL_PATH = "/internal/payment/refund-approvals";
+
+    private static final String CHANNEL_MATCH_ABNORMAL_PATH =
+            "/internal/payment/channel-match/abnormalities";
+
     /**
      * direct Rest Template，用于定位邮件、通知或渠道参数模板。
      * <p>
@@ -147,6 +161,128 @@ public class PaymentInternalRestClient implements PaymentInternalClient {
         this.directRestTemplate = directRestTemplate;
         this.loadBalancedRestTemplate = loadBalancedRestTemplate;
         this.properties = properties;
+    }
+
+    /** 查询退款分页和统计。 */
+    @Override
+    public RefundSearchResponse searchRefunds(RefundQuery query) {
+        CommonResult<RefundSearchResponse> result = post(
+                servicePaymentUrl(REFUND_SEARCH_PATH), query,
+                new TypeReference<CommonResult<RefundSearchResponse>>() {
+                });
+        return unwrapData(result);
+    }
+
+    /** 查询退款详情。 */
+    @Override
+    public RefundDetailResponse refundDetail(String transactionId, LocalDateTime transactionDateTime) {
+        String url = UriComponentsBuilder.fromUriString(servicePaymentUrl(REFUND_DETAIL_PATH) + "/" + transactionId)
+                .queryParam("transactionDateTime", transactionDateTime)
+                .build().encode().toUriString();
+        CommonResult<RefundDetailResponse> result = get(
+                url, new TypeReference<CommonResult<RefundDetailResponse>>() {
+                });
+        return unwrapData(result);
+    }
+
+    /** 审批通过退款。 */
+    @Override
+    public ApprovalResult approveRefund(String approvalId, ApprovalClientRequest request) {
+        return decideRefund(approvalId, "approve", request);
+    }
+
+    /** 拒绝退款审批。 */
+    @Override
+    public ApprovalResult rejectRefund(String approvalId, ApprovalClientRequest request) {
+        return decideRefund(approvalId, "reject", request);
+    }
+
+    /** 查询勾兑异常分页和统计。 */
+    @Override
+    public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse
+    searchChannelMatchAbnormalities(
+            com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalQuery query) {
+        CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse> result =
+                post(servicePaymentUrl(CHANNEL_MATCH_ABNORMAL_PATH + "/search"), query,
+                        new TypeReference<CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalSearchResponse>>() {
+                        });
+        return unwrapData(result);
+    }
+
+    /** 查询勾兑异常详情。 */
+    @Override
+    public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalDetailResponse
+    channelMatchAbnormalityDetail(String eventId, LocalDateTime transactionDateTime) {
+        String url = UriComponentsBuilder.fromUriString(servicePaymentUrl(CHANNEL_MATCH_ABNORMAL_PATH) + "/" + eventId)
+                .queryParam("transactionDateTime", transactionDateTime)
+                .build().encode().toUriString();
+        CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalDetailResponse> result =
+                get(url, new TypeReference<CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalDetailResponse>>() {
+                });
+        return unwrapData(result);
+    }
+
+    /** 领取或转派勾兑异常案件。 */
+    @Override
+    public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord
+    assignChannelMatchAbnormality(String eventId,
+            com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AssignClientCommand command) {
+        return postAbnormalAction(eventId, "claim", command,
+                new TypeReference<CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord>>() {
+                });
+    }
+
+    /** 单笔重新勾兑。 */
+    @Override
+    public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord
+    requeryChannelMatchAbnormality(String eventId,
+            com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.RequeryCommand command) {
+        return postAbnormalAction(eventId, "requery", command,
+                new TypeReference<CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord>>() {
+                });
+    }
+
+    /** 批量重新勾兑。 */
+    @Override
+    public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.BatchRequeryResult
+    batchRequeryChannelMatchAbnormalities(
+            com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.BatchRequeryCommand command) {
+        CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.BatchRequeryResult> result =
+                post(servicePaymentUrl(CHANNEL_MATCH_ABNORMAL_PATH + "/batch-requery"), command,
+                        new TypeReference<CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.BatchRequeryResult>>() {
+                        });
+        return unwrapData(result);
+    }
+
+    /** 关闭或忽略勾兑异常案件。 */
+    @Override
+    public com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord
+    resolveChannelMatchAbnormality(String eventId,
+            com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.ResolveCommand command) {
+        return postAbnormalAction(eventId, "resolve", command,
+                new TypeReference<CommonResult<com.scott.payment.admin.dto.transaction.AdminChannelMatchAbnormalDTOs.AbnormalRecord>>() {
+                });
+    }
+
+    private <T> T postAbnormalAction(String eventId,
+                                     String action,
+                                     Object command,
+                                     TypeReference<CommonResult<T>> typeReference) {
+        CommonResult<T> result = post(
+                servicePaymentUrl(CHANNEL_MATCH_ABNORMAL_PATH + "/" + eventId + "/" + action),
+                command, typeReference);
+        return unwrapData(result);
+    }
+
+    private ApprovalResult decideRefund(String approvalId,
+                                        String action,
+                                        ApprovalClientRequest request) {
+        CommonResult<ApprovalResult> result = post(
+                servicePaymentUrl(REFUND_APPROVAL_PATH + "/" + approvalId + "/" + action),
+                request,
+                new TypeReference<CommonResult<ApprovalResult>>() {
+                });
+        return unwrapData(result);
     }
 
     /**
