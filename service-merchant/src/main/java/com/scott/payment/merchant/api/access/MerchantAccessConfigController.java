@@ -54,7 +54,7 @@ public class MerchantAccessConfigController {
      * @return 商户全部来源网址记录
      */
     @GetMapping("/source-urls")
-    @RequiresPermission("merchant:access-config:view")
+    @RequiresPermission("merchant:access-config:source-url:list")
     public CommonResult<List<SourceUrlItem>> sourceUrls() {
         return success(applicationService.listSourceUrls(currentMerchantId()));
     }
@@ -66,8 +66,8 @@ public class MerchantAccessConfigController {
      * @return 新增待审核记录
      */
     @PostMapping("/source-urls")
-    @RequiresPermission("merchant:access-config:submit")
-    @OperationLog(moduleName = "商户访问配置", businessType = OperationTypeConstants.CREATE,
+    @RequiresPermission("merchant:access-config:source-url:submit")
+    @OperationLog(moduleName = "交易配置管理", businessType = OperationTypeConstants.CREATE,
             operation = "提交商户来源网址", operatorType = OperatorTypeConstants.MERCHANT_USER)
     public CommonResult<List<SourceUrlItem>> submitSourceUrls(@RequestBody SourceUrlSubmitRequest request) {
         return success(applicationService.submitSourceUrls(currentMerchantId(), request));
@@ -79,7 +79,7 @@ public class MerchantAccessConfigController {
      * @return 商户全部 IP 白名单记录
      */
     @GetMapping("/ip-whitelists")
-    @RequiresPermission("merchant:access-config:view")
+    @RequiresPermission("merchant:access-config:ip-whitelist:list")
     public CommonResult<List<IpWhitelistItem>> ipWhitelists() {
         return success(applicationService.listIpWhitelists(currentMerchantId()));
     }
@@ -91,8 +91,8 @@ public class MerchantAccessConfigController {
      * @return 新增待审核记录
      */
     @PostMapping("/ip-whitelists")
-    @RequiresPermission("merchant:access-config:submit")
-    @OperationLog(moduleName = "商户访问配置", businessType = OperationTypeConstants.CREATE,
+    @RequiresPermission("merchant:access-config:ip-whitelist:submit")
+    @OperationLog(moduleName = "交易配置管理", businessType = OperationTypeConstants.CREATE,
             operation = "提交商户IP白名单", operatorType = OperatorTypeConstants.MERCHANT_USER)
     public CommonResult<List<IpWhitelistItem>> submitIpWhitelists(@RequestBody IpWhitelistSubmitRequest request) {
         return success(applicationService.submitIpWhitelists(currentMerchantId(), request));

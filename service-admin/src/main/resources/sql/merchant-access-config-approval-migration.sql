@@ -158,11 +158,15 @@ INSERT INTO sys_menu (
     app_id, parent_id, menu_code, menu_name, menu_type, route_path, component_path,
     permission_code, icon, visible, sort_no, status, deleted
 )
-SELECT 2, 0, 'merchant_access_config_catalog_v1', '访问配置', 'CATALOG', '/access-config', NULL,
+SELECT 2, 0, 'merchant_access_config_catalog_v1', '交易配置管理', 'CATALOG', '/access-config', NULL,
        NULL, 'Lock', 1, 81, 1, 0
 WHERE NOT EXISTS (
     SELECT 1 FROM sys_menu WHERE app_id = 2 AND menu_code = 'merchant_access_config_catalog_v1' AND deleted = 0
 );
+
+UPDATE sys_menu
+SET menu_name = '交易配置管理', status = 1
+WHERE app_id = 2 AND menu_code = 'merchant_access_config_catalog_v1' AND deleted = 0;
 
 SET @merchant_access_catalog_id = (
     SELECT MIN(id) FROM sys_menu WHERE app_id = 2 AND menu_code = 'merchant_access_config_catalog_v1' AND deleted = 0
@@ -173,36 +177,66 @@ INSERT INTO sys_menu (
     permission_code, icon, visible, sort_no, status, deleted
 )
 SELECT 2, @merchant_access_catalog_id, item.menu_code, item.menu_name, 'MENU', item.route_path,
-       item.component_path, 'merchant:access-config:view', item.icon, 1, item.sort_no, 1, 0
+       item.component_path, item.permission_code, item.icon, 1, item.sort_no, 1, 0
 FROM (
     SELECT 'merchant_source_url_v1' menu_code, '商户来源网址' menu_name,
-           '/access-config/source-url' route_path, 'access-config/source-url' component_path, 'Link' icon, 82 sort_no
-    UNION ALL SELECT 'merchant_ip_whitelist_v1', 'IP白名单',
-           '/access-config/ip-whitelist', 'access-config/ip-whitelist', 'Connection', 83
+           '/access-config/source-url' route_path, 'access-config/source-url' component_path,
+           'merchant:access-config:source-url:list' permission_code, 'Link' icon, 82 sort_no
+    UNION ALL SELECT 'merchant_ip_whitelist_v1', '商户IP白名单',
+           '/access-config/ip-whitelist', 'access-config/ip-whitelist',
+           'merchant:access-config:ip-whitelist:list', 'Connection', 83
 ) item
 WHERE NOT EXISTS (
     SELECT 1 FROM sys_menu existing
     WHERE existing.app_id = 2 AND existing.menu_code = item.menu_code AND existing.deleted = 0
 );
 
+UPDATE sys_menu
+SET parent_id = @merchant_access_catalog_id,
+    permission_code = CASE menu_code
+        WHEN 'merchant_source_url_v1' THEN 'merchant:access-config:source-url:list'
+        WHEN 'merchant_ip_whitelist_v1' THEN 'merchant:access-config:ip-whitelist:list'
+    END,
+    menu_name = CASE menu_code
+        WHEN 'merchant_source_url_v1' THEN '商户来源网址'
+        WHEN 'merchant_ip_whitelist_v1' THEN '商户IP白名单'
+    END,
+    status = 1
+WHERE app_id = 2
+  AND menu_code IN ('merchant_source_url_v1', 'merchant_ip_whitelist_v1')
+  AND deleted = 0;
+
 INSERT INTO sys_permission (
     app_id, menu_id, permission_code, permission_name, permission_type,
     resource_method, resource_path, status, deleted
 )
-SELECT 2, MIN(menu.id), item.permission_code, item.permission_name, item.permission_type,
-       item.resource_method, '/merchant/access-config/*', 1, 0
-FROM sys_menu menu
-JOIN (
-    SELECT 'merchant:access-config:view' permission_code, '商户访问配置查询' permission_name,
-           'MENU' permission_type, 'GET' resource_method
-    UNION ALL SELECT 'merchant:access-config:submit', '商户访问配置提交', 'BUTTON', 'POST'
-) item ON 1 = 1
-WHERE menu.app_id = 2 AND menu.menu_code = 'merchant_source_url_v1' AND menu.deleted = 0
-  AND NOT EXISTS (
-      SELECT 1 FROM sys_permission existing
-      WHERE existing.app_id = 2 AND existing.permission_code = item.permission_code AND existing.deleted = 0
-  )
-GROUP BY item.permission_code, item.permission_name, item.permission_type, item.resource_method;
+SELECT 2, menu.id, item.permission_code, item.permission_name, item.permission_type,
+       item.resource_method, item.resource_path, 1, 0
+FROM (
+    SELECT 'merchant_source_url_v1' menu_code,
+           'merchant:access-config:source-url:list' permission_code,
+           '商户来源网址查询' permission_name, 'MENU' permission_type,
+           'GET' resource_method, '/merchant/access-config/source-urls' resource_path
+    UNION ALL SELECT 'merchant_source_url_v1', 'merchant:access-config:source-url:detail',
+           '商户来源网址详情', 'BUTTON', 'GET', '/merchant/access-config/source-urls'
+    UNION ALL SELECT 'merchant_source_url_v1', 'merchant:access-config:source-url:submit',
+           '商户来源网址提交', 'BUTTON', 'POST', '/merchant/access-config/source-urls'
+    UNION ALL SELECT 'merchant_ip_whitelist_v1', 'merchant:access-config:ip-whitelist:list',
+           '商户IP白名单查询', 'MENU', 'GET', '/merchant/access-config/ip-whitelists'
+    UNION ALL SELECT 'merchant_ip_whitelist_v1', 'merchant:access-config:ip-whitelist:detail',
+           '商户IP白名单详情', 'BUTTON', 'GET', '/merchant/access-config/ip-whitelists'
+    UNION ALL SELECT 'merchant_ip_whitelist_v1', 'merchant:access-config:ip-whitelist:submit',
+           '商户IP白名单提交', 'BUTTON', 'POST', '/merchant/access-config/ip-whitelists'
+) item
+JOIN sys_menu menu ON menu.app_id = 2 AND menu.menu_code = item.menu_code AND menu.deleted = 0
+ON DUPLICATE KEY UPDATE
+    menu_id = VALUES(menu_id),
+    permission_name = VALUES(permission_name),
+    permission_type = VALUES(permission_type),
+    resource_method = VALUES(resource_method),
+    resource_path = VALUES(resource_path),
+    status = 1,
+    deleted = 0;
 
 INSERT IGNORE INTO sys_role_menu (app_id, role_id, menu_id, deleted)
 SELECT 2, role.id, menu.id, 0
@@ -218,7 +252,12 @@ FROM sys_role role
 JOIN sys_permission permission ON permission.app_id = role.app_id AND permission.deleted = 0
 WHERE role.app_id = 2 AND role.deleted = 0
   AND role.role_code LIKE 'MERCHANT\_%'
-  AND permission.permission_code = 'merchant:access-config:view';
+  AND permission.permission_code IN (
+      'merchant:access-config:source-url:list',
+      'merchant:access-config:source-url:detail',
+      'merchant:access-config:ip-whitelist:list',
+      'merchant:access-config:ip-whitelist:detail'
+  );
 
 INSERT IGNORE INTO sys_role_permission (app_id, role_id, permission_id, deleted)
 SELECT 2, role.id, permission.id, 0
@@ -226,4 +265,7 @@ FROM sys_role role
 JOIN sys_permission permission ON permission.app_id = role.app_id AND permission.deleted = 0
 WHERE role.app_id = 2 AND role.deleted = 0
   AND (role.role_code LIKE 'MERCHANT_ADMIN\_%' OR role.role_code LIKE 'MERCHANT_OPERATOR\_%')
-  AND permission.permission_code = 'merchant:access-config:submit';
+  AND permission.permission_code IN (
+      'merchant:access-config:source-url:submit',
+      'merchant:access-config:ip-whitelist:submit'
+  );
