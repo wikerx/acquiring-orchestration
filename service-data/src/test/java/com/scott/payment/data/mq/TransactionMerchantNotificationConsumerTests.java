@@ -4,6 +4,7 @@ import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
 import com.scott.payment.component.mq.message.MerchantNotificationRetryMessage;
+import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
@@ -140,6 +141,30 @@ class TransactionMerchantNotificationConsumerTests {
         log.info("后台人工重发商户回调测试完成，结果: MQ 消息号和真实分片时间均已透传");
     }
 
+    /** 自动重试消息只传递数据库 CAS 定位信息，商户 eventId 仍由普通投递路径使用 notifyId。 */
+    @Test
+    void shouldConsumeAutomaticRetryWithExpectedTaskVersion() {
+        InMemoryDeliveryService deliveryService = new InMemoryDeliveryService(true);
+        TransactionMerchantNotificationConsumer consumer = consumer(deliveryService);
+        MerchantNotificationRetryDueMessage retryMessage = new MerchantNotificationRetryDueMessage();
+        retryMessage.setMessageId("MNR-DUE-0001");
+        retryMessage.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE);
+        retryMessage.setNotifyId("NOTIFY-0001");
+        retryMessage.setTransactionId("TX202608011600000000001");
+        retryMessage.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 16, 0, 0, 255_000_000));
+        retryMessage.setExpectedVersion(3);
+        retryMessage.setAttemptNo(2);
+        retryMessage.setDeliverAt(LocalDateTime.of(2026, 8, 1, 16, 1));
+
+        consumer.onMessage(JsonUtils.toJsonString(retryMessage));
+
+        assertThat(deliveryService.retryDueCalled).isTrue();
+        assertThat(deliveryService.notifyId).isEqualTo("NOTIFY-0001");
+        assertThat(deliveryService.expectedVersion).isEqualTo(3);
+        assertThat(deliveryService.attemptNo).isEqualTo(2);
+        assertThat(deliveryService.retryTransactionCalled).isFalse();
+    }
+
     /** 创建仅处理消息对应交易的消费者。 */
     private TransactionMerchantNotificationConsumer consumer(InMemoryDeliveryService deliveryService) {
         return new TransactionMerchantNotificationConsumer(deliveryService);
@@ -171,6 +196,9 @@ class TransactionMerchantNotificationConsumerTests {
         /** 是否调用过后台人工重发。 */
         private boolean retryTransactionCalled;
 
+        /** 是否调用过自动重试到期投递。 */
+        private boolean retryDueCalled;
+
         /** 消费者传入的平台交易 ID。 */
         private String transactionId;
 
@@ -182,6 +210,15 @@ class TransactionMerchantNotificationConsumerTests {
 
         /** 人工重发使用的稳定回调事件 ID。 */
         private String callbackEventId;
+
+        /** 自动重试通知号。 */
+        private String notifyId;
+
+        /** 自动重试预期任务版本。 */
+        private int expectedVersion;
+
+        /** 自动重试预期 attempt。 */
+        private int attemptNo;
 
         private InMemoryDeliveryService(boolean transactionResult) {
             this.transactionResult = transactionResult;
@@ -214,6 +251,22 @@ class TransactionMerchantNotificationConsumerTests {
             this.transactionDateTime = transactionDateTime;
             this.transactionId = transactionId;
             this.callbackEventId = callbackEventId;
+            return transactionResult;
+        }
+
+        /** 记录自动重试的精确 CAS 参数。 */
+        @Override
+        public boolean retryDue(LocalDateTime transactionDateTime,
+                                String transactionId,
+                                String notifyId,
+                                int expectedVersion,
+                                int attemptNo) {
+            this.retryDueCalled = true;
+            this.transactionDateTime = transactionDateTime;
+            this.transactionId = transactionId;
+            this.notifyId = notifyId;
+            this.expectedVersion = expectedVersion;
+            this.attemptNo = attemptNo;
             return transactionResult;
         }
     }

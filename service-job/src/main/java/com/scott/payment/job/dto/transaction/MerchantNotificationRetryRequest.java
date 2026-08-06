@@ -38,4 +38,7 @@ public class MerchantNotificationRetryRequest implements Serializable {
      * 单个分表本次最多处理数量。
      */
     private Integer limit;
+
+    /** 自动补偿模式：MQ 为默认主链路，JOB 为紧急直接回调模式。 */
+    private String mode;
 }

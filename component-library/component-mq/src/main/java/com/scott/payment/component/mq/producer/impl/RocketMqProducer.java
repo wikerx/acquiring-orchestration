@@ -11,6 +11,7 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
@@ -81,6 +82,41 @@ public class RocketMqProducer implements MqProducer {
                 .setHeader(RETRY_COUNT_HEADER, message.getRetryCount())
                 .setHeader(MESSAGE_ID_HEADER, message.getMessageId())
                 .build());
+    }
+
+    /**
+     * 使用 RocketMQ 5.x 绝对时间投递消息；已到期消息立即发送。
+     *
+     * @param topic RocketMQ Topic，不能为空
+     * @param tag RocketMQ Tag，可为空
+     * @param message 基础消息体
+     * @param deliverAt 最早投递时间，不能为空
+     */
+    @Override
+    public void sendAt(String topic, String tag, BaseMqMessage message, Instant deliverAt) {
+        Objects.requireNonNull(message, "mq message can not be null");
+        Objects.requireNonNull(deliverAt, "mq deliver time can not be null");
+        if (!StringUtils.hasText(topic)) {
+            throw new IllegalArgumentException("rocketmq topic can not be blank");
+        }
+        fillMessageMetadata(message);
+        RocketMQTemplate rocketMQTemplate = rocketMQTemplateProvider.getIfAvailable();
+        if (rocketMQTemplate == null) {
+            throw new IllegalStateException("RocketMQTemplate is not ready");
+        }
+        String destination = StringUtils.hasText(tag) ? topic + ":" + tag : topic;
+        org.springframework.messaging.Message<String> rocketMessage = MessageBuilder
+                .withPayload(JsonUtils.toJsonString(message))
+                .setHeader(TraceContext.TRACE_ID_HEADER, message.getTraceId())
+                .setHeader(RETRY_COUNT_HEADER, message.getRetryCount())
+                .setHeader(MESSAGE_ID_HEADER, message.getMessageId())
+                .build();
+        long deliverTimestamp = deliverAt.toEpochMilli();
+        if (deliverTimestamp <= System.currentTimeMillis()) {
+            rocketMQTemplate.syncSend(destination, rocketMessage);
+            return;
+        }
+        rocketMQTemplate.syncSendDeliverTimeMills(destination, rocketMessage, deliverTimestamp);
     }
 
     /**

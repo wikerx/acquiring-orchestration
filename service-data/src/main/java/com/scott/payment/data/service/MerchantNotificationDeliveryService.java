@@ -42,4 +42,20 @@ public interface MerchantNotificationDeliveryService {
     boolean retryTransaction(LocalDateTime transactionDateTime,
                              String transactionId,
                              String callbackEventId);
+
+    /**
+     * 按自动重试事件携带的任务版本和 attempt 精确投递，重复或过期消息不执行 HTTP。
+     *
+     * @param transactionDateTime 交易业务时间
+     * @param transactionId 平台交易号
+     * @param notifyId 平台通知任务号
+     * @param expectedVersion 失败状态提交后的任务版本
+     * @param attemptNo 本消息计划触发的尝试序号
+     * @return true 表示商户确认成功，false 表示消息已过期、抢占冲突或回调失败
+     */
+    boolean retryDue(LocalDateTime transactionDateTime,
+                     String transactionId,
+                     String notifyId,
+                     int expectedVersion,
+                     int attemptNo);
 }

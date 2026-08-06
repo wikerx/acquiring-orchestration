@@ -78,6 +78,31 @@ public interface DataMerchantNotificationMapper {
             @Param("transactionDateTime") LocalDateTime transactionDateTime,
             @Param("now") LocalDateTime now);
 
+    /** 查询与自动重试消息版本完全一致且已到期的通知任务。 */
+    @Select("""
+            SELECT id, notify_id, transaction_id, operation_id, merchant_id, merchant_order_no,
+                   notify_config_snapshot_json, target_url_hash, target_url_masked,
+                   payload_json_masked, sign_type, last_attempt_no, max_retry_count,
+                   transaction_date_time, version
+            FROM transaction_merchant_notification
+            WHERE transaction_id = #{transactionId}
+              AND notify_id = #{notifyId}
+              AND transaction_date_time = #{transactionDateTime}
+              AND version = #{expectedVersion}
+              AND deleted = 0
+              AND notify_status = 'FAILED'
+              AND next_retry_time IS NOT NULL
+              AND next_retry_time <= #{now}
+              AND last_attempt_no < max_retry_count
+            LIMIT 1
+            """)
+    DataMerchantNotificationTaskDO selectReadyByRetryEvent(
+            @Param("transactionId") String transactionId,
+            @Param("notifyId") String notifyId,
+            @Param("transactionDateTime") LocalDateTime transactionDateTime,
+            @Param("expectedVersion") Integer expectedVersion,
+            @Param("now") LocalDateTime now);
+
     /**
      * 查询一条可由后台人工重发的通知任务。
      *
@@ -243,7 +268,6 @@ public interface DataMerchantNotificationMapper {
               AND deleted = 0
               AND notify_status = 'PROCESSING'
               AND update_time < #{staleBefore}
-              AND last_attempt_no < max_retry_count
             ORDER BY update_time ASC, id ASC
             LIMIT #{limit}
             """)
@@ -261,6 +285,7 @@ public interface DataMerchantNotificationMapper {
     @Update("""
             UPDATE transaction_merchant_notification
             SET notify_status = 'FAILED',
+                last_attempt_no = GREATEST(last_attempt_no - 1, 0),
                 next_retry_time = #{now},
                 fail_reason = 'processing timeout recovered',
                 version = version + 1,
@@ -271,7 +296,6 @@ public interface DataMerchantNotificationMapper {
               AND deleted = 0
               AND notify_status = 'PROCESSING'
               AND update_time < #{staleBefore}
-              AND last_attempt_no < max_retry_count
             """)
     int recoverStaleProcessingCas(@Param("id") Long id,
                                   @Param("transactionDateTime") LocalDateTime transactionDateTime,

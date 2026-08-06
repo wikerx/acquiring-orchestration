@@ -48,7 +48,8 @@ class DataMerchantNotificationMapperContractTests {
         assertCas(recoverySql, "notify_status = 'PROCESSING'");
         assertThat(recoverySql)
                 .contains("update_time < #{staleBefore}")
-                .contains("last_attempt_no < max_retry_count");
+                .contains("last_attempt_no = GREATEST(last_attempt_no - 1, 0)")
+                .doesNotContain("last_attempt_no < max_retry_count");
     }
 
     @Test
@@ -79,6 +80,13 @@ class DataMerchantNotificationMapperContractTests {
                 LocalDateTime.class,
                 String.class,
                 LocalDateTime.class));
+        String retryDueSql = selectSql(DataMerchantNotificationMapper.class.getMethod(
+                "selectReadyByRetryEvent",
+                String.class,
+                String.class,
+                LocalDateTime.class,
+                Integer.class,
+                LocalDateTime.class));
 
         assertThat(readySql)
                 .contains("FROM transaction_merchant_notification")
@@ -88,6 +96,14 @@ class DataMerchantNotificationMapperContractTests {
         assertCas(processingSql, "notify_status IN ('INIT', 'FAILED')");
         assertCas(successSql, "notify_status = 'PROCESSING'");
         assertCas(failedSql, "notify_status = 'PROCESSING'");
+        assertThat(retryDueSql)
+                .contains("transaction_id = #{transactionId}")
+                .contains("notify_id = #{notifyId}")
+                .contains("transaction_date_time = #{transactionDateTime}")
+                .contains("version = #{expectedVersion}")
+                .contains("notify_status = 'FAILED'")
+                .contains("next_retry_time <= #{now}")
+                .doesNotContain("${");
     }
 
     /** 人工重发必须显式排除 PROCESSING，并保持精确分片、版本 CAS 和有界补偿预算。 */

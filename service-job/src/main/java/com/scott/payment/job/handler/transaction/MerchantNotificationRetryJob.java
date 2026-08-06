@@ -10,6 +10,7 @@ import com.scott.payment.component.job.model.JobExecuteResult;
 import com.scott.payment.job.client.data.DataInternalClient;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationReconcileClientRequestDTO;
 import com.scott.payment.job.dto.transaction.MerchantNotificationRetryRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -26,7 +27,7 @@ import java.util.Map;
  * @classname : MerchantNotificationRetryJob
  * @date : 2026-07-15 00:00
  * @email : scott_x@163.com
- * @description : 商户通知补偿任务，位于 service-job 任务处理层，按 transaction_date_time 定位分表并触发 service-data 重试到期商户通知。
+ * @description : 商户通知低频对账任务，默认驱动 service-data 将到期任务重新可靠入 MQ，并保留直接投递回退模式。
  * @status : create
  */
 @Component
@@ -48,6 +49,13 @@ public class MerchantNotificationRetryJob implements JobHandler {
 
     /** 单次季度扫描硬上限，避免误配置对积压通知进行大批量外发。 */
     private static final int MAX_LIMIT = 5;
+
+    /** 延迟 MQ 主链路模式。 */
+    private static final String MODE_MQ = "MQ";
+    /** 原 Job 直接投递紧急回退模式。 */
+    private static final String MODE_JOB = "JOB";
+    /** 灰度期同时补发 MQ 并保留直接扫描的模式。 */
+    private static final String MODE_HYBRID = "HYBRID";
 
     /**
      * service-data 内部客户端，仅用于触发到期商户通知的扫描与补偿投递。
@@ -74,7 +82,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 HANDLER_CODE,
                 "商户通知补偿重试",
                 "transaction",
-                "扫描到期商户通知任务并调用异步数据服务执行补偿重试"
+                "低频对账全部已发布季度并将到期商户通知重新可靠入 MQ"
         );
     }
 
@@ -91,6 +99,23 @@ public class MerchantNotificationRetryJob implements JobHandler {
             request = new MerchantNotificationRetryRequest();
         }
         int limit = normalizeLimit(request.getLimit());
+        String mode = normalizeMode(request.getMode());
+        int mqQueuedCount = 0;
+        Map<String, Integer> result = new LinkedHashMap<>();
+        if (!StringUtils.hasText(request.getTransactionId()) && !MODE_JOB.equals(mode)) {
+            DataMerchantNotificationReconcileClientRequestDTO reconcileRequest =
+                    new DataMerchantNotificationReconcileClientRequestDTO();
+            reconcileRequest.setLimit(limit);
+            reconcileRequest.setTransactionDateTimes(requestedReconcileTimes(request));
+            Integer queued = dataInternalClient.reconcileDueMerchantNotifications(reconcileRequest);
+            mqQueuedCount = queued == null ? 0 : queued;
+            result.put("mqQueued", mqQueuedCount);
+            if (MODE_MQ.equals(mode)) {
+                return JobExecuteResult.success(
+                        "merchant notification retry finished, successCount=" + mqQueuedCount,
+                        result);
+            }
+        }
         List<LocalDateTime> transactionDateTimes = resolveTransactionDateTimes(request);
         long startNanos = System.nanoTime();
         log.info("event: JOB_HANDLER_SCAN_START traceId: {} jobId: {} handler: {} runId: {} shardIndex: {} shardTotal: {} paramsSummary: {} scanRanges: {} limit: {}",
@@ -103,8 +128,7 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 context == null ? null : context.getParamsJson(),
                 transactionDateTimes,
                 limit);
-        Map<String, Integer> result = new LinkedHashMap<>();
-        int totalSuccessCount = 0;
+        int totalSuccessCount = mqQueuedCount;
         int failCount = 0;
         for (LocalDateTime transactionDateTime : transactionDateTimes) {
             Integer successCount;
@@ -140,6 +164,16 @@ public class MerchantNotificationRetryJob implements JobHandler {
                 failCount == 0 ? Map.of() : Map.of("DATA_INTERNAL_CALL_FAILED", failCount),
                 elapsedMillis(startNanos));
         return JobExecuteResult.success("merchant notification retry finished, successCount=" + totalSuccessCount, result);
+    }
+
+    /** 返回 MQ 对账需要的显式季度；空集合由 service-data 展开全部已发布节点。 */
+    private List<LocalDateTime> requestedReconcileTimes(MerchantNotificationRetryRequest request) {
+        if (request.getTransactionDateTimes() != null && !request.getTransactionDateTimes().isEmpty()) {
+            return request.getTransactionDateTimes();
+        }
+        return request.getTransactionDateTime() == null
+                ? List.of()
+                : List.of(request.getTransactionDateTime());
     }
 
     /** 按请求类型执行单笔精确补偿或季度有界扫描。 */
@@ -216,5 +250,20 @@ public class MerchantNotificationRetryJob implements JobHandler {
             throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(), "limit must be greater than zero");
         }
         return Math.min(limit, MAX_LIMIT);
+    }
+
+    /** 校验灰度模式，空值默认使用 MQ 主链路。 */
+    private String normalizeMode(String mode) {
+        if (!StringUtils.hasText(mode)) {
+            return MODE_MQ;
+        }
+        String normalized = mode.trim().toUpperCase();
+        if (!MODE_MQ.equals(normalized)
+                && !MODE_JOB.equals(normalized)
+                && !MODE_HYBRID.equals(normalized)) {
+            throw new ServiceException(ApiResultEnum.PARAM_INVALID.getCode(),
+                    "merchant notification retry mode must be MQ, JOB or HYBRID");
+        }
+        return normalized;
     }
 }

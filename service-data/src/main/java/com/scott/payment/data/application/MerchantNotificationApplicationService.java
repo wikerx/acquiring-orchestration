@@ -4,7 +4,9 @@ import com.scott.payment.component.core.enums.ApiResultEnum;
 import com.scott.payment.component.core.exception.ServiceException;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyCommandDTO;
 import com.scott.payment.data.api.internal.dto.MerchantNotificationNotifyDueCommandDTO;
+import com.scott.payment.data.api.internal.dto.MerchantNotificationReconcileCommandDTO;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
+import com.scott.payment.data.service.impl.MerchantNotificationRetryReconciliationService;
 import org.springframework.stereotype.Service;
 
 /**
@@ -28,13 +30,19 @@ public class MerchantNotificationApplicationService {
     /** 商户通知投递服务。 */
     private final MerchantNotificationDeliveryService deliveryService;
 
+    /** 到期任务低频 MQ 对账服务。 */
+    private final MerchantNotificationRetryReconciliationService reconciliationService;
+
     /**
      * 创建商户通知应用服务。
      *
      * @param deliveryService 商户通知投递服务
      */
-    public MerchantNotificationApplicationService(MerchantNotificationDeliveryService deliveryService) {
+    public MerchantNotificationApplicationService(
+            MerchantNotificationDeliveryService deliveryService,
+            MerchantNotificationRetryReconciliationService reconciliationService) {
         this.deliveryService = deliveryService;
+        this.reconciliationService = reconciliationService;
     }
 
     /**
@@ -65,6 +73,19 @@ public class MerchantNotificationApplicationService {
             throw new ServiceException(ApiResultEnum.PARAM_MISSING.getCode(), "transaction_id is required");
         }
         return deliveryService.notifyTransaction(commandDTO.getTransactionDateTime(), commandDTO.getTransactionId());
+    }
+
+    /**
+     * 将全部或指定季度的到期任务重新可靠入 MQ，不直接访问商户端点。
+     *
+     * @param commandDTO 对账命令
+     * @return 可靠入队事件数量
+     */
+    public int reconcileDue(MerchantNotificationReconcileCommandDTO commandDTO) {
+        int limit = normalizeLimit(commandDTO == null ? null : commandDTO.getLimit());
+        return reconciliationService.reconcile(
+                limit,
+                commandDTO == null ? null : commandDTO.getTransactionDateTimes());
     }
 
     /** 校验并限制单次补偿批量。 */

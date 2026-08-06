@@ -2,6 +2,7 @@ package com.scott.payment.job.client.data;
 
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyClientRequestDTO;
 import com.scott.payment.job.client.data.dto.DataMerchantNotificationNotifyDueClientRequestDTO;
+import com.scott.payment.job.client.data.dto.DataMerchantNotificationReconcileClientRequestDTO;
 
 /**
  * @author : scott
@@ -21,6 +22,14 @@ public interface DataInternalClient {
      * @return 成功通知数量
      */
     Integer notifyDueMerchantNotifications(DataMerchantNotificationNotifyDueClientRequestDTO requestDTO);
+
+    /**
+     * 触发全部或指定季度的到期通知 MQ 对账。
+     *
+     * @param requestDTO 对账请求
+     * @return 可靠入队事件数量
+     */
+    Integer reconcileDueMerchantNotifications(DataMerchantNotificationReconcileClientRequestDTO requestDTO);
 
     /**
      * 精确重试单笔商户通知，分片时间必须由调用方显式传入。

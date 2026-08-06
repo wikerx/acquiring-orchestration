@@ -6,6 +6,7 @@ import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.constant.MqTopic;
 import com.scott.payment.component.mq.enums.PaymentTransactionEventStatus;
 import com.scott.payment.component.mq.message.MerchantNotificationRetryMessage;
+import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
 import com.scott.payment.component.mq.message.PaymentTransactionEventMessage;
 import com.scott.payment.data.service.MerchantNotificationDeliveryService;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,9 @@ import org.apache.rocketmq.spring.core.RocketMQListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * @author : scott
@@ -33,7 +37,8 @@ import org.springframework.util.StringUtils;
         consumerGroup = DataMqConsumerGroups.MERCHANT_NOTIFICATION,
         selectorExpression = MqTag.TRANSACTION_CALLBACK_PROCESSED
                 + " || " + MqTag.TRANSACTION_STATUS_CHANGED
-                + " || " + MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED,
+                + " || " + MqTag.MERCHANT_NOTIFICATION_RETRY_REQUESTED
+                + " || " + MqTag.MERCHANT_NOTIFICATION_RETRY_DUE,
         messageModel = MessageModel.CLUSTERING
 )
 public class TransactionMerchantNotificationConsumer implements RocketMQListener<String> {
@@ -61,6 +66,10 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
     @Override
     public void onMessage(String payload) {
         long startNanos = System.nanoTime();
+        if (isAutomaticRetryPayload(payload)) {
+            consumeAutomaticRetry(payload, startNanos);
+            return;
+        }
         if (isManualRetryPayload(payload)) {
             consumeManualRetry(payload, startNanos);
             return;
@@ -93,6 +102,60 @@ public class TransactionMerchantNotificationConsumer implements RocketMQListener
                     message.getNotifyId(),
                     successCount,
                     elapsedMillis(startNanos));
+        } finally {
+            TraceContext.clear();
+        }
+    }
+
+    /** 判断消息是否为自动重试到期事件。 */
+    private boolean isAutomaticRetryPayload(String payload) {
+        if (!StringUtils.hasText(payload)) {
+            return false;
+        }
+        try {
+            MerchantNotificationRetryDueMessage message = JsonUtils.parseObject(
+                    payload, MerchantNotificationRetryDueMessage.class);
+            return message != null
+                    && MqTag.MERCHANT_NOTIFICATION_RETRY_DUE.equals(message.getEventType());
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    /** 消费自动重试事件；未来消息抛出异常交由 RocketMQ 重新投递。 */
+    private void consumeAutomaticRetry(String payload, long startNanos) {
+        MerchantNotificationRetryDueMessage message = JsonUtils.parseObject(
+                payload, MerchantNotificationRetryDueMessage.class);
+        if (message == null
+                || !StringUtils.hasText(message.getMessageId())
+                || !StringUtils.hasText(message.getNotifyId())
+                || !StringUtils.hasText(message.getTransactionId())
+                || message.getTransactionDateTime() == null
+                || message.getExpectedVersion() == null
+                || message.getExpectedVersion() < 0
+                || message.getAttemptNo() == null
+                || message.getAttemptNo() <= 0
+                || message.getDeliverAt() == null) {
+            log.warn("event: DATA_MERCHANT_NOTIFY_RETRY_DUE_SKIPPED traceId: {} reason=messageInvalid payloadLength: {}",
+                    TraceContext.getTraceId(), payload == null ? 0 : payload.length());
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Shanghai"));
+        if (message.getDeliverAt().isAfter(now)) {
+            throw new IllegalStateException("merchant notification retry message arrived before deliver time");
+        }
+        TraceContext.setTraceId(TraceContext.resolveOrCreate(message.getTraceId()));
+        try {
+            boolean notified = deliveryService.retryDue(
+                    message.getTransactionDateTime(),
+                    message.getTransactionId(),
+                    message.getNotifyId(),
+                    message.getExpectedVersion(),
+                    message.getAttemptNo());
+            log.info("event: DATA_MERCHANT_NOTIFY_RETRY_DUE_CONSUMED traceId: {} messageId: {} notifyId: {} transactionId: {} expectedVersion: {} attemptNo: {} notified: {} durationMs: {}",
+                    TraceContext.getTraceId(), message.getMessageId(), message.getNotifyId(),
+                    message.getTransactionId(), message.getExpectedVersion(), message.getAttemptNo(),
+                    notified, elapsedMillis(startNanos));
         } finally {
             TraceContext.clear();
         }

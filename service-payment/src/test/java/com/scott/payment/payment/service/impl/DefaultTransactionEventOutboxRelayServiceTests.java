@@ -2,13 +2,17 @@ package com.scott.payment.payment.service.impl;
 
 import com.scott.payment.component.core.json.JsonUtils;
 import com.scott.payment.component.mq.message.BaseMqMessage;
+import com.scott.payment.component.mq.message.MerchantNotificationRetryDueMessage;
+import com.scott.payment.component.mq.constant.MqTag;
 import com.scott.payment.component.mq.producer.MqProducer;
 import com.scott.payment.payment.entity.TransactionEventOutboxDO;
 import com.scott.payment.payment.mq.message.TransactionEventMessage;
 import com.scott.payment.payment.service.TransactionEventOutboxService;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +79,37 @@ class DefaultTransactionEventOutboxRelayServiceTests {
         assertThat(secondSuccessCount).isZero();
         assertThat(mqProducer.sendCount).isEqualTo(1);
         assertThat(eventDO.getEventStatus()).isEqualTo("SENT");
+    }
+
+    /** 自动商户通知事件必须按消息内 deliverAt 使用 RocketMQ 绝对定时投递。 */
+    @Test
+    void shouldPublishMerchantNotificationRetryAsScheduledMessage() {
+        LocalDateTime deliverAt = LocalDateTime.now().plusMinutes(5);
+        MerchantNotificationRetryDueMessage message = new MerchantNotificationRetryDueMessage();
+        message.setMessageId("MNR-DUE-1");
+        message.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE);
+        message.setNotifyId("NOTIFY-1");
+        message.setTransactionId("TX-1");
+        message.setTransactionDateTime(LocalDateTime.of(2026, 8, 1, 16, 0));
+        message.setExpectedVersion(2);
+        message.setAttemptNo(2);
+        message.setDeliverAt(deliverAt);
+        TransactionEventOutboxDO event = event();
+        event.setTag(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE);
+        event.setEventType(MqTag.MERCHANT_NOTIFICATION_RETRY_DUE);
+        event.setPayloadJson(JsonUtils.toJsonString(message));
+        InMemoryEventOutboxService eventOutboxService = new InMemoryEventOutboxService(event);
+        CapturingMqProducer mqProducer = new CapturingMqProducer(false);
+        DefaultTransactionEventOutboxRelayService relayService =
+                new DefaultTransactionEventOutboxRelayService(eventOutboxService, mqProducer);
+
+        int successCount = relayService.publishDueEvents(event.getTransactionDateTime(), 10);
+
+        assertThat(successCount).isEqualTo(1);
+        assertThat(mqProducer.scheduled).isTrue();
+        assertThat(mqProducer.message).isInstanceOf(MerchantNotificationRetryDueMessage.class);
+        assertThat(mqProducer.deliverAt).isEqualTo(
+                deliverAt.atZone(ZoneId.of("Asia/Shanghai")).toInstant());
     }
 
     private TransactionEventOutboxDO event() {
@@ -144,6 +179,12 @@ class DefaultTransactionEventOutboxRelayServiceTests {
          */
         private BaseMqMessage message;
 
+        /** 是否使用定时消息接口。 */
+        private boolean scheduled;
+
+        /** 捕获的绝对投递时间。 */
+        private Instant deliverAt;
+
         private CapturingMqProducer(boolean fail) {
             this.fail = fail;
         }
@@ -157,6 +198,19 @@ class DefaultTransactionEventOutboxRelayServiceTests {
                 throw new IllegalStateException("send failed");
             }
             this.message = message;
+            this.sent = true;
+            this.sendCount++;
+        }
+
+        /** 捕获定时消息及其绝对投递时间。 */
+        @Override
+        public void sendAt(String topic, String tag, BaseMqMessage message, Instant deliverAt) {
+            if (fail) {
+                throw new IllegalStateException("send failed");
+            }
+            this.message = message;
+            this.deliverAt = deliverAt;
+            this.scheduled = true;
             this.sent = true;
             this.sendCount++;
         }
